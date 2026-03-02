@@ -172,6 +172,7 @@ Scripts in `~/Projects/skills/hooks/`. Referenced by absolute path from settings
 | `precompact-log.sh` | PreCompact | exit 0 (async) | Global | Logs compaction events |
 | `session-init.sh` | SessionStart | exit 0 | Global | Persists session ID to `.claude/current-session-id` |
 | `sessionend-log.sh` | SessionEnd | exit 0 (async) | Global | Logs session end + flight receipt + recent commits |
+| `stop-debrief.sh` | Stop | blocks | Global | Session debrief after plan execution (conditionally fires when `.claude/plans/` has session-modified files) |
 | `stop-notify.sh` | Stop | exit 0 | Global | macOS notification on idle |
 | `spinning-detector.sh` | PostToolUse | exit 0 (warns) | Global | Warns at 4/8 consecutive same-tool calls (uses additionalContext) |
 | `userprompt-context-warn.sh` | UserPromptSubmit | exit 0 (warns) | Global | Detects continuation boilerplate |
