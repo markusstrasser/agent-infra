@@ -41,3 +41,4 @@ downloads/
 .claude/overview.conf
 .claude/overview-marker
 .claude/overview-trigger.log
+.project-upgrade/
