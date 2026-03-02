@@ -212,6 +212,7 @@ Scripts in `~/Projects/skills/hooks/`. Referenced by absolute path from settings
 | `precompact-log.sh` | PreCompact | exit 0 (async) | Global | Logs compaction events |
 | `session-init.sh` | SessionStart | exit 0 | Global | Persists session ID to `.claude/current-session-id` |
 | `sessionend-log.sh` | SessionEnd | exit 0 (async) | Global | Logs session end + flight receipt + recent commits |
+| `stop-verify-plan.sh` | Stop | blocks | Global | Runs plan's ` ```verify ` commands at stop; blocks if any fail. State file prevents re-fire. |
 | `stop-uncommitted-warn.sh` | Stop | blocks | Global | Detects uncommitted changes at stop, injects commit instructions. Replaces manual "IFF everything works: git commit" paste. |
 | `stop-debrief.sh` | Stop | blocks | Global | Session debrief after plan execution (conditionally fires when `.claude/plans/` has session-modified files) |
 | `stop-notify.sh` | Stop | exit 0 | Global | macOS notification on idle |
