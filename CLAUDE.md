@@ -168,7 +168,10 @@ Scripts in `~/Projects/skills/hooks/`. Referenced by absolute path from settings
 | *(inline)* bare-python-guard | PreToolUse:Bash | exit 2 | Global | Blocks bare `python`/`python3` without `uv run` |
 | `pretool-search-burst.sh` | PreToolUse:search tools | exit 0/2 | Global | Warns at 4, blocks at 8 consecutive searches |
 | `pretool-data-guard.sh` | PreToolUse:Write\|Edit | exit 2 | (available) | Blocks writes to protected paths |
-| `postwrite-source-check.sh` | PostToolUse:Write\|Edit | exit 2 | Intel | Blocks research writes without source tags |
+| `postwrite-source-check.sh` | PostToolUse:Write\|Edit | exit 0 (warn) / exit 2 (block) | Global (warn), Intel (block) | Provenance gate: warns/blocks research writes without source tags. Tags: SOURCE, DATA, INFERENCE, SPEC, CALC, QUOTE, etc. |
+| `posttool-review-check.sh` | PostToolUse:Bash | exit 0 (warns) | Global | Cross-model review circuit breaker: detects llmx failures, warns about single-model review |
+| `pretool-consensus-search.sh` | PreToolUse:search tools | exit 0 (warns) | Global | Warns on epistemically empty queries ("best X", "top Y", "most undervalued") |
+| `subagent-epistemic-gate.sh` | SubagentStop | exit 0 (warns) | Global | Checks subagent outputs for unsourced factual claims. Skips Explore/Plan |
 | `posttool-bash-failure-loop.sh` | PostToolUse:Bash | exit 0 (warns) | Global | Warns after 5 consecutive Bash failures |
 | `stop-research-gate.sh` | Stop | exit 2 | Intel | Blocks stop if research files lack source tags |
 | `precompact-log.sh` | PreCompact | exit 0 (async) | Global | Logs compaction events |
