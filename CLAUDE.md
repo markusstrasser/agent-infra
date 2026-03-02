@@ -12,9 +12,34 @@ Never start responses with positive adjectives. Skip flattery, respond directly.
 - `maintenance-checklist.md` — pending improvements, monitoring list, sweep schedule
 - `agent-failure-modes.md` — documented failure modes from real sessions
 - `improvement-log.md` — structured findings from session analysis (session-analyst appends here)
-- `frontier-agentic-models.md` — research report on agentic model behavior (4 papers read in full)
 - `search-retrieval-architecture.md` — CAG vs embedding retrieval, Groq/Gemini assessment, routing decision framework
 - `cockpit.md` — human-agent interface: status line, notifications, receipts, dashboard, ideas backlog
+
+## Research Index (`research/`)
+
+Consult these files before acting on the topic. Scan this table when starting a task.
+
+| File | Topic | Consult before |
+|------|-------|----------------|
+| `context-rot-evidence.md` | Context degradation, attention dilution, MRCR benchmarks | Context management, deciding what to put in CLAUDE.md/skills |
+| `agent-reliability-benchmarks.md` | Capability vs reliability, SWE-bench, FeatureBench, METR | Evaluating agent performance, retry/voting strategies |
+| `context-window-scaling-escapes.md` | Sparse attention, RLM, compaction alternatives | Designing subagent patterns, compaction strategy |
+| `multi-agent-coordination-evidence.md` | When multi-agent helps/hurts, 45% threshold, error amplification | Deciding single vs multi-agent, parallelization |
+| `cot-faithfulness-evidence.md` | CoT reasoning fidelity, 7-13% baseline unfaithfulness | Trusting reasoning traces, designing cross-model review |
+| `tool-use-mcp-reliability.md` | BFCL scores, MCP adoption, tool description quality | Writing MCP tools, skill descriptions |
+| `agent-memory-architectures.md` | Memory systems comparison, files+git defense | Designing memory, entity storage patterns |
+| `agentic-safety-guardrails.md` | Safety-by-construction, Mind the GAP, text≠action | Writing hooks, permission gates, safety architecture |
+| `agentic-research-synthesis.md` | Cross-cutting synthesis, unknowns, papers to track | Research planning, understanding overall landscape |
+| `opus-46-prompt-structure.md` | XML tags, emphasis markers, anti-laziness, Anthropic patterns | Writing prompts, skills, CLAUDE.md sections |
+| `agent-self-modification.md` | DGM, context collapse, reward hacking | Self-improvement loops, MEMORY.md update strategy |
+| `claude-code-internals.md` | Claude Code architecture, compaction, community patterns | Building hooks, understanding Claude Code behavior |
+| `claude-code-native-vs-meta-infra.md` | Native Claude Code features vs our custom infrastructure | Before building new hooks/skills that might duplicate native features |
+| `native-leverage-plan.md` | Implementation plan for adopting native features | Hook/skill implementation work |
+| `anthropic-soul-guidelines.md` | Anthropic's internal model guidelines (archived) | Understanding trust model, operator role |
+| `meta-knowledge-mcp.md` | Design memo for meta-knowledge MCP server | Meta-knowledge MCP development |
+| `openclaw-deep-dive.md` | OpenClaw analysis | OpenClaw-related work |
+| `openclaw-model-review.md` | Model review of OpenClaw | OpenClaw-related work |
+| `opus-46-action-plan.md` | Action plan for Opus 4.6 capabilities | Planning new capability adoption |
 
 <constitution>
 > **Human-protected.** Agent may propose changes but must not modify without explicit approval.
