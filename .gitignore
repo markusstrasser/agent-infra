@@ -36,3 +36,4 @@ __pycache__/
 \!.env.example
 .claude/checkpoint.md
 downloads/
+.context/*.xml
