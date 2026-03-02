@@ -13,20 +13,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-METRICS_FILE = Path.home() / ".claude" / "epistemic-metrics.jsonl"
-
-PROJECT_ROOTS = {
-    "intel": Path.home() / "Projects" / "intel",
-    "genomics": Path.home() / "Projects" / "genomics",
-    "selve": Path.home() / "Projects" / "selve",
-    "meta": Path.home() / "Projects" / "meta",
-}
-
-# Research paths to scan (relative to project root)
-RESEARCH_DIRS = ["docs", "analysis", "research", "entities", "briefs"]
-
-# File extensions to check
-PROSE_EXTENSIONS = {".md", ".txt", ".rst"}
+from config import METRICS_FILE, PROJECT_ROOTS, RESEARCH_DIRS, PROSE_EXTENSIONS
 
 # Provenance tag pattern — any of these within PROXIMITY lines counts as sourced
 TAG_PATTERN = re.compile(

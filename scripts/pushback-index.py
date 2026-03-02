@@ -15,9 +15,10 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from config import METRICS_FILE
+
 CLAUDE_DIR = Path.home() / ".claude"
 PROJECTS_DIR = CLAUDE_DIR / "projects"
-METRICS_FILE = CLAUDE_DIR / "epistemic-metrics.jsonl"
 
 # Pushback indicators — assistant is disagreeing, warning, or qualifying
 PUSHBACK_PATTERNS = [
