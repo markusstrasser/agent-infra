@@ -16,6 +16,7 @@ from pathlib import Path
 
 RECEIPTS = Path.home() / ".claude" / "session-receipts.jsonl"
 COMPACTIONS = Path.home() / ".claude" / "compact-log.jsonl"
+EPISTEMIC_METRICS = Path.home() / ".claude" / "epistemic-metrics.jsonl"
 
 
 def load_jsonl(path: Path) -> list[dict]:
@@ -128,6 +129,79 @@ def main():
     if len(receipts) > len(recent):
         all_cost = sum(float(r.get("cost_usd", 0)) for r in receipts)
         print(f"  All-time: {len(receipts)} sessions, ${all_cost:.2f} total")
+
+    # --- Epistemic metrics panel ---
+    print_epistemic_panel(cutoff)
+
+
+def print_epistemic_panel(cutoff: datetime):
+    """Print epistemic health metrics from epistemic-metrics.jsonl."""
+    metrics = load_jsonl(EPISTEMIC_METRICS)
+    if not metrics:
+        return
+
+    recent = [m for m in metrics if parse_ts(m.get("ts", "")) > cutoff]
+    if not recent:
+        return
+
+    print()
+    print(f"{'=' * 50}")
+    print(f"  Epistemic Health")
+    print(f"{'=' * 50}")
+    print()
+
+    # Latest pushback index
+    pushback = [m for m in recent if m.get("metric") == "pushback_index"]
+    if pushback:
+        latest = pushback[-1]
+        rate = latest.get("overall_rate", 0)
+        zero = latest.get("zero_pushback_sessions", 0)
+        sessions = latest.get("sessions", 0)
+        print(f"  Pushback index:     {rate:.1%} ({zero} zero-pushback of {sessions} sessions)")
+        by_proj = latest.get("by_project", {})
+        if by_proj:
+            parts = [f"{p}={v:.0%}" for p, v in sorted(by_proj.items())]
+            print(f"    by project: {', '.join(parts)}")
+
+    # Latest lint results
+    lint = [m for m in recent if m.get("metric") == "epistemic_lint"]
+    if lint:
+        latest = lint[-1]
+        unsourced = latest.get("unsourced_claims", 0)
+        files = latest.get("files_scanned", 0)
+        issue_rate = latest.get("issue_rate", 0)
+        print(f"  Epistemic lint:     {unsourced} unsourced claims ({issue_rate:.0%} of {files} files)")
+        by_type = latest.get("by_type", {})
+        if by_type:
+            top3 = sorted(by_type.items(), key=lambda x: -x[1])[:3]
+            parts = [f"{t}={c}" for t, c in top3]
+            print(f"    top types: {', '.join(parts)}")
+
+    # Latest SAFE-lite eval
+    safe = [m for m in recent if m.get("metric") == "safe_lite_eval"]
+    if safe:
+        latest = safe[-1]
+        precision = latest.get("factual_precision")
+        checked = latest.get("claims_checked", 0)
+        supported = latest.get("supported", 0)
+        contradicted = latest.get("contradicted", 0)
+        if precision is not None:
+            print(f"  SAFE-lite precision: {precision:.1%} ({supported}S/{contradicted}C of {checked} claims)")
+        else:
+            print(f"  SAFE-lite:          {checked} claims checked, no judged results")
+
+    # Trend: show all pushback entries for trend direction
+    if len(pushback) >= 2:
+        rates = [m.get("overall_rate", 0) for m in pushback]
+        if rates[-1] > rates[0]:
+            trend = "improving"
+        elif rates[-1] < rates[0]:
+            trend = "declining"
+        else:
+            trend = "flat"
+        print(f"  Pushback trend:     {trend} ({rates[0]:.1%} → {rates[-1]:.1%})")
+
+    print()
 
 
 if __name__ == "__main__":

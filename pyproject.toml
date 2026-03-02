@@ -4,6 +4,8 @@ version = "0.1.0"
 description = "Meta project knowledge base — hook designs, failure modes, architecture decisions"
 requires-python = ">=3.11"
 dependencies = [
+    "anthropic>=0.84.0",
+    "exa-py>=2.6.1",
     "fastmcp>=3.0",
 ]
 
