@@ -8,7 +8,6 @@ Usage: uv run python3 scripts/pushback-index.py [--days N] [--project PROJECT] [
 """
 
 import json
-import os
 import re
 import sys
 from collections import defaultdict
@@ -130,7 +129,6 @@ def analyze_session(path: Path) -> dict | None:
             if "/Projects/" in cwd:
                 project = cwd.split("/Projects/")[-1].split("/")[0]
         if not ts:
-            msg = e.get("message", {})
             if "timestamp" in e:
                 ts = e["timestamp"]
 

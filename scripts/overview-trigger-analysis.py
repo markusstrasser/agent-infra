@@ -9,7 +9,6 @@ Usage:
 """
 
 import json
-import os
 import sys
 from collections import defaultdict
 from datetime import datetime, timedelta

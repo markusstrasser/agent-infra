@@ -8,7 +8,6 @@ Usage: uv run python3 scripts/dashboard.py [--days N]
 """
 
 import json
-import os
 import sys
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -146,7 +145,7 @@ def print_epistemic_panel(cutoff: datetime):
 
     print()
     print(f"{'=' * 50}")
-    print(f"  Epistemic Health")
+    print("  Epistemic Health")
     print(f"{'=' * 50}")
     print()
 

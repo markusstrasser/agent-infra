@@ -127,7 +127,7 @@ def main():
 
     # Print report
     print(f"{'=' * 55}")
-    print(f"  Epistemic Lint")
+    print("  Epistemic Lint")
     print(f"{'=' * 55}")
     print()
     print(f"  Files scanned:      {file_count}")

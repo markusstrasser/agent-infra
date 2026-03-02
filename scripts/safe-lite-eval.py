@@ -15,12 +15,11 @@ Run manually weekly/biweekly.
 import json
 import os
 import re
-import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
 
-from config import METRICS_FILE, PROJECT_ROOTS, RESEARCH_DIRS, PROSE_EXTENSIONS
+from config import METRICS_FILE, PROJECT_ROOTS, RESEARCH_DIRS
 
 
 def find_recent_research_files(project: str, n: int) -> list[Path]:
@@ -312,7 +311,7 @@ def main():
 
     print()
     print(f"  {'=' * 45}")
-    print(f"  Results:")
+    print("  Results:")
     print(f"  {'=' * 45}")
     print(f"  Files evaluated:    {len(file_results)}")
     print(f"  Total claims:       {sum(r['claims'] for r in file_results)}")
@@ -323,7 +322,7 @@ def main():
     if overall_precision is not None:
         print(f"  Factual precision:  {overall_precision:.1%}")
     else:
-        print(f"  Factual precision:  N/A (no judged claims)")
+        print("  Factual precision:  N/A (no judged claims)")
     print()
 
     # Per-file breakdown

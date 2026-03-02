@@ -105,7 +105,6 @@ def check_skill_symlinks(project_dir: Path) -> list[Check]:
     for entry in skills_dir.iterdir():
         if entry.is_symlink():
             c = Check(f"skill:{entry.name}", project_dir.name)
-            target = entry.resolve()
             if not entry.exists():  # broken symlink
                 checks.append(c.fail(f"Broken symlink → {os.readlink(entry)}"))
             else:
