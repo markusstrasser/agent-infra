@@ -9,15 +9,20 @@ Never start responses with positive adjectives. Skip flattery, respond directly.
 
 ## Key Files
 - `GOALS.md` — what the system optimizes for (human-owned)
+- `justfile` — task runner: `just dashboard`, `just doctor`, `just pushback`, `just epistemic-lint`, `just safe-lite`
+- `meta_mcp.py` — meta-knowledge MCP server (section-based search over all .md files)
+- `scripts/orchestrator.py` — cron-driven task runner (dual-engine: `claude -p` + scripts)
+- `scripts/doctor.py` — cross-project health checker (hooks, settings, skills, MCP, git state)
+- `scripts/schema.sql` — SQLite DDL for orchestrator task queue
+- `pipelines/` — JSON pipeline templates (recurring workflows)
 - `maintenance-checklist.md` — pending improvements, monitoring list, sweep schedule
 - `agent-failure-modes.md` — documented failure modes from real sessions
 - `improvement-log.md` — structured findings from session analysis (session-analyst appends here)
 - `search-retrieval-architecture.md` — CAG vs embedding retrieval, Groq/Gemini assessment, routing decision framework
 - `cockpit.md` — human-agent interface: status line, notifications, receipts, dashboard, ideas backlog
+- `human-instructions.md` — operator playbook (session start, cost monitoring, manual interventions)
 - `.claude/overviews/` — auto-generated source + tooling overviews (Gemini via repomix). All projects have these — read for fast codebase orientation.
-- `scripts/orchestrator.py` — cron-driven task runner (dual-engine: `claude -p` + scripts)
-- `scripts/schema.sql` — SQLite DDL for orchestrator task queue
-- `pipelines/` — JSON pipeline templates (recurring workflows)
+- `AGENTS.md`, `GEMINI.md` — symlinks to CLAUDE.md (multi-editor compatibility)
 
 ## Research Index (`research/`)
 
@@ -144,7 +149,7 @@ orchestrator.py log --today                          # event log
 orchestrator.py summary                              # daily markdown
 ```
 
-**Pipelines** (`pipelines/*.json`): research-and-implement, entity-refresh, morning-prep, skills-drift, earnings-refresh, session-retro, research-sweep. Templates support `{variable}` substitution and `pause_before` approval gates.
+**Pipelines** (`pipelines/*.json`): research-and-implement, entity-refresh, morning-prep, skills-drift, earnings-refresh, session-retro, research-sweep, vendor-landscape. Templates support `{variable}` substitution and `pause_before` approval gates.
 
 **Key design choices:**
 - `--no-session-persistence` and `--worktree` both dropped — they suppress transcripts (breaks session-analyst)
@@ -190,49 +195,9 @@ orchestrator.py summary                              # daily markdown
 | (none) | `intel/.claude/skills/thesis-check/` | Full adversarial trade-thesis stress-test (432 lines) |
 | `model-review` | `intel/.claude/skills/multi-model-review/` | Intel-specific review routing |
 
-## Shared Hooks Inventory
+## Hooks Summary
 
-Scripts in `~/Projects/skills/hooks/`. Referenced by absolute path from settings.json.
-
-| Hook | Event | Blocks? | Deployed where | What it does |
-|------|-------|---------|----------------|--------------|
-| `pretool-bash-loop-guard.sh` | PreToolUse:Bash | exit 2 | Global | Blocks multiline for/while/if (zsh parse error #1) |
-| *(inline)* bare-python-guard | PreToolUse:Bash | exit 2 | Global | Blocks bare `python`/`python3` without `uv run` |
-| `pretool-search-burst.sh` | PreToolUse:search tools | exit 0/2 | Global | Warns at 4, blocks at 8 consecutive searches |
-| `pretool-data-guard.sh` | PreToolUse:Write\|Edit | exit 2 | (available) | Blocks writes to protected paths |
-| `postwrite-source-check.sh` | PostToolUse:Write\|Edit | exit 0 (warn) / exit 2 (block) | Global (warn), Intel (block) | Provenance gate: warns/blocks research writes without source tags. Tags: SOURCE, DATA, INFERENCE, SPEC, CALC, QUOTE, etc. |
-| `posttool-review-check.sh` | PostToolUse:Bash | exit 0 (warns) | Global | Cross-model review circuit breaker: detects llmx failures, warns about single-model review |
-| `pretool-consensus-search.sh` | PreToolUse:search tools | exit 0 (warns) | Global | Warns on epistemically empty queries ("best X", "top Y", "most undervalued") |
-| `pretool-subagent-gate.sh` | PreToolUse:Agent | exit 0 (warns) | Global | Advisory gate: brainstorm, single-tool, gp-as-explore, cascade detection |
-| `subagent-start-log.sh` | SubagentStart | exit 0 | Global | Logs every subagent spawn to `~/.claude/subagent-log.jsonl` |
-| `subagent-epistemic-gate.sh` | SubagentStop | exit 0 (warns) | Global | Checks subagent outputs for unsourced factual claims + completion logging + size warnings |
-| `subagent-source-check-stop.sh` | Stop (researcher agent) | exit 0 (advisory) | Global | Would-block researcher outputs missing source citations; promote to blocking after 14d measurement |
-| `posttool-bash-failure-loop.sh` | PostToolUse:Bash | exit 0 (warns) | Global | Warns after 5 consecutive Bash failures |
-| `stop-research-gate.sh` | Stop | exit 2 | Intel | Blocks stop if research files lack source tags |
-| `precompact-log.sh` | PreCompact | exit 0 (async) | Global | Logs compaction events |
-| `session-init.sh` | SessionStart | exit 0 | Global | Persists session ID to `.claude/current-session-id` |
-| `sessionend-log.sh` | SessionEnd | exit 0 (async) | Global | Logs session end + flight receipt + recent commits |
-| `stop-verify-plan.sh` | Stop | blocks | Global | Runs plan's ` ```verify ` commands at stop; blocks if any fail. State file prevents re-fire. |
-| `stop-uncommitted-warn.sh` | Stop | blocks | Global | Detects uncommitted changes at stop, injects commit instructions. Replaces manual "IFF everything works: git commit" paste. |
-| `stop-debrief.sh` | Stop | blocks | Global | Session debrief after plan execution (conditionally fires when `.claude/plans/` has session-modified files) |
-| `stop-notify.sh` | Stop | exit 0 | Global | macOS notification on idle |
-| `spinning-detector.sh` | PostToolUse | exit 0 (warns) | Global | Warns at 4/8 consecutive same-tool calls (uses additionalContext) |
-| `userprompt-context-warn.sh` | UserPromptSubmit | exit 0 (warns) | Global | Detects continuation boilerplate |
-| `pretool-commit-check.sh` + `commit-check-parse.py` | PreToolUse:Bash | exit 0/2 | Global | Checks git commits: [scope], Type: trailer, em-dash, body presence, governance trailers, no Co-Authored-By |
-
-### Skill-Embedded Hooks (new pattern, 2026-03-01)
-| Skill | Event | Type | What it does |
-|-------|-------|------|-------------|
-| `researcher` | Stop | command | `subagent-source-check-stop.sh` — citation check (was prompt hook, converted 2026-03-02) |
-
-### Intel-Only Hooks (in .claude/settings.json)
-| Hook | Event | What it does |
-|------|-------|-------------|
-| Large file guard | PreToolUse:Read | Advisory when file >256KB without offset/limit |
-| DuckDB dry-run | PostToolUse:Write\|Edit | Advisory when setup_duckdb.py or tools/datasets/ modified |
-| Backtest guard | PreToolUse:search tools | Blocks external queries during active backtests |
-| Data protection | PreToolUse:Write\|Edit | Blocks writes to datasets/, .parquet, intel.duckdb |
-| Secrets guard | PreToolUse:Write\|Edit | Blocks writes to .env, credentials, secrets files |
+22 global hooks (`~/Projects/skills/hooks/`), 5 intel-only, 1 skill-embedded. Full inventory in MEMORY.md under "Hooks Architecture."
 
 ## Improvement Vector: Compression, Not Accumulation
 
@@ -259,48 +224,9 @@ copy-paste retro snippet      →  /retro skill            →  nightly retro pi
 - `trap 'exit 0' ERR` swallows `exit 2` from Python — disable trap before critical Python calls.
 - Stop hooks must check `stop_hook_active` to prevent infinite loops.
 
-## Claude Code Hook Events (verified 2026-03-02)
+## Claude Code Hook Events
 
-18 events total. Source: https://code.claude.com/docs/en/hooks
-
-| Event | Fires when | Can block? | Hook types |
-|-------|-----------|------------|------------|
-| Setup | `--init`/`--init-only`/`--maintenance` | No | command |
-| SessionStart | Session begins/resumes (matchers: startup/resume/clear/compact) | No | command |
-| UserPromptSubmit | User submits prompt | Yes | command, prompt, agent |
-| PreToolUse | Before tool call | Yes (deny/allow/ask) | command, prompt, agent |
-| PermissionRequest | Permission dialog | Yes (allow/deny) | command, prompt, agent |
-| PostToolUse | After tool succeeds | No | command, prompt, agent |
-| PostToolUseFailure | After tool fails | No | command, prompt, agent |
-| Notification | Notification sent | No | command |
-| SubagentStart | Subagent spawned | No | command |
-| SubagentStop | Subagent finishes | Yes (block) | command, prompt, agent |
-| Stop | Claude finishes | Yes (block) | command, prompt, agent |
-| TeammateIdle | Teammate idle | Yes (exit 2) | command |
-| TaskCompleted | Task completed | Yes (exit 2) | command |
-| ConfigChange | Config changes | Yes (block) | command |
-| WorktreeCreate | Worktree created | Yes (non-zero fails) | command |
-| WorktreeRemove | Worktree removed | No | command |
-| PreCompact | Before compaction | No | command |
-| SessionEnd | Session terminates | No | command |
-
-### Decision control patterns
-- PreToolUse: JSON `hookSpecificOutput.permissionDecision` (allow/deny/ask). Also `updatedInput` to modify tool input.
-- PermissionRequest: JSON `hookSpecificOutput.decision.behavior` (allow/deny). `interrupt: true` halts Claude. `updatedPermissions` applies rules.
-- PostToolUse: `updatedMCPToolOutput` replaces MCP tool output. `additionalContext` injects warnings.
-- Stop, SubagentStop: `last_assistant_message` available in input. JSON `decision: "block"`.
-- ConfigChange, UserPromptSubmit: JSON `decision: "block"`
-- TeammateIdle, TaskCompleted: exit code 2 blocks
-- Setup, PreCompact, SessionEnd, Notification, WorktreeRemove: no decision control
-- HTTP hooks (`type: "http"`): POST JSON to URL. Fail open on non-2xx/timeout. Requires `allowedHttpHookUrls`.
-
-### Useful env vars (verified 2026-03-02)
-- `CLAUDE_CODE_EFFORT_LEVEL`: low/medium/high (reasoning effort)
-- `CLAUDE_CODE_SUBAGENT_MODEL`: override subagent model
-- `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`: auto-compact threshold (1-100%)
-- `CLAUDE_CODE_TASK_LIST_ID`: share task list across sessions
-- `CLAUDE_CODE_SHELL_PREFIX`: command prefix for audit logging
-- `CLAUDE_ENV_FILE`: SessionStart hooks write exports here to persist env vars
+18 events, 10 can block. Full table + decision control patterns + env vars in MEMORY.md under "Hooks Architecture." Source: https://code.claude.com/docs/en/hooks
 </reference_data>
 
 <cockpit>
