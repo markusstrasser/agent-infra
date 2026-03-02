@@ -98,6 +98,7 @@ How to verify this constitution is working (check via session-analyst after 2 we
 - [ ] **Cron/auto-update skill** — Cross-project daily job monitoring new papers/tools/databases. (Source: genomics goals elicitation 2026-02-28)
 - [ ] **Hook ROI telemetry** — Log every hook trigger/decision to JSONL for false-positive measurement. Prerequisite for progressive enforcement. (Source: constitution model-review 2026-02-28)
 - [ ] **Regret/corrections metric** — Instrument corrections per session as a first-class metric from session-analyst. (Source: constitution model-review 2026-02-28)
+- [ ] **Telegram approval bot** — Notify + approve/reject/modify orchestrator tasks from phone. ~50 lines Python + BotFather token. Slots into `requires_approval` gate. (Source: orchestrator plan session 2026-03-01)
 
 ## What This Repo Is NOT
 - Not a place to write more rules about rules.
@@ -144,7 +145,7 @@ Scripts in `~/Projects/skills/hooks/`. Referenced by absolute path from settings
 | `stop-notify.sh` | Stop | exit 0 | Global | macOS notification on idle |
 | `spinning-detector.sh` | PostToolUse | exit 0 (warns) | Global | Warns at 4/8 consecutive same-tool calls (uses additionalContext) |
 | `userprompt-context-warn.sh` | UserPromptSubmit | exit 0 (warns) | Global | Detects continuation boilerplate |
-| `pretool-commit-check.sh` | PreToolUse:Bash | exit 0/2 | Global | Checks git commits: [prefix], no Co-Authored-By, governance trailers |
+| `pretool-commit-check.sh` + `commit-check-parse.py` | PreToolUse:Bash | exit 0/2 | Global | Checks git commits: [scope], Type: trailer, em-dash, body presence, governance trailers, no Co-Authored-By |
 
 ### Skill-Embedded Hooks (new pattern, 2026-03-01)
 | Skill | Event | Type | What it does |
@@ -159,6 +160,25 @@ Scripts in `~/Projects/skills/hooks/`. Referenced by absolute path from settings
 | Backtest guard | PreToolUse:search tools | Blocks external queries during active backtests |
 | Data protection | PreToolUse:Write\|Edit | Blocks writes to datasets/, .parquet, intel.duckdb |
 | Secrets guard | PreToolUse:Write\|Edit | Blocks writes to .env, credentials, secrets files |
+
+## Improvement Vector: Compression, Not Accumulation
+
+Things start as instructions, graduate to tools, graduate to infrastructure. Each step reduces surface area but increases expressiveness — same information, denser representation, more combinatorial power.
+
+```
+instruction (CLAUDE.md rule)  →  tool (skill/script)  →  infrastructure (hook/MCP/schema)
+15 rules about the same thing  →  3 principles + 2 hooks  →  1 architectural constraint
+5 entity-refresh prompts      →  1 pipeline template     →  1 scheduled job
+copy-paste retro snippet      →  /retro skill            →  nightly retro pipeline
+```
+
+**Observed examples:**
+- 178/week zsh multiline errors → one bash-loop-guard hook
+- 6 "don't guess column names" instructions → one DuckDB dry-run hook
+- Copy-paste retro snippets → `/retro` skill
+- Manual explore→review→plan→execute → orchestrator pipeline template
+
+**The heuristic:** Instructions that stay instructions forever are cruft. They should either die (not useful) or compress upward (become a tool or architectural constraint). When pruning, three outcomes: **keep** (still a leaf — reality needs the detail), **compress** (repeated enough to become trunk), **kill** (no longer relevant).
 
 ## Hook Design Principles
 - Deterministic > LLM-judged. Guard concrete invariants, not vibes.
