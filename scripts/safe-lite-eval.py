@@ -149,8 +149,10 @@ def search_claim(claim: str) -> list[dict]:
             }
             for r in results.results
         ]
-    except Exception:
-        # Fallback: no search results
+    except ImportError:
+        return []
+    except Exception as e:
+        print(f"  WARNING: Search failed for claim: {e}", file=sys.stderr)
         return []
 
 
