@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     cost_usd REAL,
     tokens_in INTEGER,
     tokens_out INTEGER,
+    subagents TEXT,
     created_at TEXT DEFAULT (datetime('now','localtime')),
     started_at TEXT,
     finished_at TEXT,

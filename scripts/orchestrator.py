@@ -30,6 +30,7 @@ from typing import Any
 import anyio
 
 from claude_agent_sdk import (
+    AgentDefinition,
     AssistantMessage,
     ClaudeAgentOptions,
     ResultMessage,
@@ -54,7 +55,22 @@ def get_db():
     db = sqlite3.connect(str(DB_PATH))
     db.row_factory = sqlite3.Row
     db.execute("PRAGMA journal_mode=WAL")
+    _migrate_if_needed(db)
     return db
+
+
+_migrated = False
+
+
+def _migrate_if_needed(db):
+    global _migrated
+    if _migrated:
+        return
+    cols = {row[1] for row in db.execute("PRAGMA table_info(tasks)").fetchall()}
+    if "subagents" not in cols:
+        db.execute("ALTER TABLE tasks ADD COLUMN subagents TEXT")
+        db.commit()
+    _migrated = True
 
 
 def init_db():
@@ -147,12 +163,37 @@ def run_script_task(task, cwd):
     )
 
 
+def _build_agents(subagents_json: str | None) -> dict[str, AgentDefinition] | None:
+    """Build AgentDefinition dict from JSON-encoded subagent specs.
+
+    Variable substitution is already applied at submit time, so this just
+    converts the stored JSON into SDK AgentDefinition objects.
+    """
+    if not subagents_json:
+        return None
+    raw = json.loads(subagents_json)
+    if not raw:
+        return None
+    agents = {}
+    for name, spec in raw.items():
+        agents[name] = AgentDefinition(
+            description=spec.get("description", f"{name} subagent"),
+            prompt=spec.get("prompt", ""),
+            tools=spec.get("tools"),
+            model=spec.get("model"),
+        )
+    return agents
+
+
 async def _run_claude_task_async(task, cwd):
     """Run a claude task via Agent SDK query(). Returns TaskResult-like dict."""
     effort = task["effort"]
     allowed_tools = (
         task["allowed_tools"].split(",") if task["allowed_tools"] else None
     )
+
+    # Build subagent definitions if present
+    agents = _build_agents(task["subagents"])
 
     # Set subagent model for search-heavy tasks (effort=low implies lightweight)
     env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
@@ -173,6 +214,7 @@ async def _run_claude_task_async(task, cwd):
         fallback_model="sonnet",
         system_prompt={"type": "preset", "preset": "claude_code"},
         env=env,
+        agents=agents,
     )
 
     text_parts: list[str] = []
@@ -363,11 +405,25 @@ def cmd_submit(args):
         if step_project != "meta" and step_name == "execute":
             needs_approval = 1
 
+        # Serialize subagents with variable substitution baked into descriptions/prompts
+        subagents_raw = step_def.get("subagents")
+        subagents_json = None
+        if subagents_raw:
+            # Apply variable substitution to subagent prompts and descriptions
+            substituted = {}
+            for sa_name, sa_spec in subagents_raw.items():
+                substituted[sa_name] = {
+                    **sa_spec,
+                    "description": substitute_vars(sa_spec.get("description", ""), variables),
+                    "prompt": substitute_vars(sa_spec.get("prompt", ""), variables),
+                }
+            subagents_json = json.dumps(substituted)
+
         db.execute("""
             INSERT INTO tasks (pipeline, step, project, prompt, engine, priority,
                 max_turns, max_budget_usd, model, agent, allowed_tools, effort, cwd,
-                requires_approval, depends_on)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                requires_approval, depends_on, subagents)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             args.pipeline,
             step_name,
@@ -384,6 +440,7 @@ def cmd_submit(args):
             step_def.get("cwd"),
             needs_approval,
             prev_task_id,
+            subagents_json,
         ))
         prev_task_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
 
