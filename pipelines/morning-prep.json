@@ -1,0 +1,36 @@
+{
+  "name": "morning-prep",
+  "schedule": "0 5 * * *",
+  "steps": [
+    {
+      "step": "genomics-state",
+      "project": "genomics",
+      "engine": "script",
+      "prompt": "python3 scripts/genomics_status.py --local > .claude/STATE.md",
+      "cwd": "~/Projects/genomics"
+    },
+    {
+      "step": "intel-data",
+      "project": "intel",
+      "engine": "script",
+      "prompt": "python3 tools/daily_synthesis.py && python3 tools/paper_ledger.py --summary > /tmp/intel-morning-data.md",
+      "cwd": "~/Projects/intel"
+    },
+    {
+      "step": "intel-brief",
+      "project": "intel",
+      "engine": "claude",
+      "prompt": "Read /tmp/intel-morning-data.md. Synthesize into TODAY.md: positions summary, earnings calendar, paper ledger highlights, pending thesis checks. Keep under 200 lines. Commit with [morning-prep] prefix.",
+      "max_turns": 10,
+      "max_budget_usd": 1.0,
+      "model": "sonnet"
+    },
+    {
+      "step": "meta-health",
+      "project": "meta",
+      "engine": "script",
+      "prompt": "python3 scripts/dashboard.py --json > .claude/STATE.md",
+      "cwd": "~/Projects/meta"
+    }
+  ]
+}

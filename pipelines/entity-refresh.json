@@ -1,0 +1,16 @@
+{
+  "name": "entity-refresh",
+  "project": "intel",
+  "schedule": "0 6 * * *",
+  "steps": [
+    {
+      "step": "refresh",
+      "prompt": "Read analysis/entities/ and identify entities not updated in >7 days. For each, use WebSearch and DuckDB to find latest data. Update entity files with source tags. Commit with [entity-refresh] prefix.",
+      "max_turns": 15,
+      "max_budget_usd": 3.0,
+      "model": "sonnet",
+      "agent": "entity-refresher",
+      "engine": "claude"
+    }
+  ]
+}

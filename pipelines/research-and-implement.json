@@ -1,0 +1,39 @@
+{
+  "name": "research-and-implement",
+  "pause_before": ["execute"],
+  "steps": [
+    {
+      "step": "explore",
+      "prompt": "Research {topic}. Use WebSearch, Exa, and paper-search MCP tools. Save findings to .claude/plans/{pipeline}-explore.md with source citations for every factual claim.",
+      "max_turns": 15,
+      "max_budget_usd": 3.0,
+      "allowed_tools": "Read,Glob,Grep,WebSearch,WebFetch,mcp__exa__web_search_exa,mcp__research__search_papers"
+    },
+    {
+      "step": "review",
+      "prompt": "Read .claude/plans/{pipeline}-explore.md. For each recommendation, verify it against the actual codebase (grep/read). Run cross-model review: pipe context to llmx -m gemini-3.1-pro-preview and llmx -m gpt-5.2 for adversarial critique. Write verified findings to .claude/plans/{pipeline}-review.md.",
+      "max_turns": 15,
+      "max_budget_usd": 8.0
+    },
+    {
+      "step": "verify",
+      "prompt": "Read .claude/plans/{pipeline}-review.md. For every claim about existing code (file paths, function names, features), verify against the actual codebase using Grep and Read. Write correction table to .claude/plans/{pipeline}-verified.md: | Claim | Actual | Status (confirmed/corrected/missing) |",
+      "max_turns": 15,
+      "max_budget_usd": 1.0,
+      "allowed_tools": "Read,Glob,Grep,Write"
+    },
+    {
+      "step": "plan",
+      "prompt": "Read .claude/plans/{pipeline}-verified.md. Write an implementation plan to .claude/plans/{pipeline}-plan.md incorporating all corrections. Include: file list, execution order, verification steps.",
+      "max_turns": 15,
+      "max_budget_usd": 3.0,
+      "allowed_tools": "Read,Glob,Grep,Write"
+    },
+    {
+      "step": "execute",
+      "prompt": "Execute the plan at .claude/plans/{pipeline}-plan.md. Check git log for any changes since the plan was written. Implement, test, commit with [{pipeline}] prefix.",
+      "max_turns": 15,
+      "max_budget_usd": 5.0
+    }
+  ]
+}

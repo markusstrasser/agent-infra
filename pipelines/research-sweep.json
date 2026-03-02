@@ -1,0 +1,21 @@
+{
+  "name": "research-sweep",
+  "schedule": "0 8 * * 1",
+  "project": "meta",
+  "steps": [
+    {
+      "step": "search",
+      "prompt": "Search arxiv for last 7 days: 'LLM agents', 'coding agents', 'tool use', 'agentic AI'. Search Exa for Anthropic blog posts, Simon Willison, Trail of Bits, Kapoor/Narayanan. Save papers to corpus. Write findings to .claude/plans/research-sweep.md with source citations.",
+      "max_turns": 15,
+      "max_budget_usd": 5.0,
+      "allowed_tools": "Read,Write,Glob,Grep,WebSearch,WebFetch,mcp__exa__web_search_exa,mcp__research__search_papers,mcp__research__save_paper"
+    },
+    {
+      "step": "triage",
+      "prompt": "Read .claude/plans/research-sweep.md. For each finding: does it change our hooks, skills, routing, or architecture? If yes, write a proposal to .claude/plans/research-sweep-proposals.md. Commit to meta with [research-sweep] prefix.",
+      "max_turns": 15,
+      "max_budget_usd": 2.0,
+      "model": "sonnet"
+    }
+  ]
+}

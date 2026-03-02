@@ -1,0 +1,14 @@
+{
+  "name": "earnings-refresh",
+  "project": "intel",
+  "schedule": "0 6 * * 1",
+  "steps": [
+    {
+      "step": "download",
+      "engine": "script",
+      "prompt": "python3 tools/earnings_calendar.py --download --output data/earnings_calendar.json",
+      "project": "intel",
+      "cwd": "~/Projects/intel"
+    }
+  ]
+}
