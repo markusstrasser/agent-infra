@@ -306,3 +306,35 @@ Features we're NOT using: LSP, plugins, `remote-control`, TeammateIdle/TaskCompl
 - claudecodemarketplace.com — Plugin marketplace directory
 - promptfoo.dev/docs/providers/claude-agent-sdk — Promptfoo integration docs
 - nader.substack.com — Agent SDK guide (Jan 8, 2026)
+
+---
+
+## Delta Update: 2026-03-02 Platform Sweep
+
+Full findings in `research/anthropic-platform-sweep-2026-03-02.md`.
+
+### New API Features (since original memo)
+- **Compaction API** (beta `compact-2026-01-12`): Server-side context summarization. `context_management.edits`, `pause_after_compaction`, custom `instructions`. Billing via `usage.iterations[]` (top-level usage excludes compaction).
+- **Automatic caching** (GA): Top-level `cache_control: {"type": "ephemeral"}`. 1-hour TTL option at 2x base.
+- **Fast mode** (beta `fast-mode-2026-02-01`): `speed: "fast"`, 2.5x OTPS, $30/$150 MTok. Cache prefixes not shared between speeds.
+- **Data residency** (GA): `inference_geo: "us"|"global"`. 1.1x pricing for US-only.
+- **Effort** moved to `output_config.effort` (GA). Sonnet 4.6 recommended default: `medium`.
+
+### Claude Code v2.1.30→v2.1.63 Highlights
+- HTTP hooks (`type: "http"`), worktree isolation (`--worktree`, `isolation: worktree`), Agent Teams preview
+- 15+ new env vars: `CLAUDE_CODE_EFFORT_LEVEL`, `CLAUDE_CODE_SUBAGENT_MODEL`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, etc.
+- `last_assistant_message` in Stop/SubagentStop, `updatedInput` in PreToolUse, `updatedMCPToolOutput` in PostToolUse
+- `CLAUDE_ENV_FILE` for SessionStart hooks to persist env vars
+- Setup hook event (18th event). SessionStart matchers: startup/resume/clear/compact
+
+### Agent SDK v0.1.44
+- `effort` param, `ThinkingConfig`, Python hooks via `hooks` param
+- **Critical gotcha**: `setting_sources=None` (default) loads NO settings. Must pass `["user","project"]` for hooks/CLAUDE.md.
+- Working spike: `meta/scripts/orchestrator_sdk_spike.py`
+
+### Financial Services Plugins (NEW)
+- 5 core + 2 partner plugins, 41 skills, 11 MCP connectors
+- **equity-research**: earnings analysis, initiating coverage, thesis tracker, idea generation (5 screening frameworks)
+- **financial-analysis**: comps (628-line), DCF, competitive analysis, model auditor. MCP: S&P, FactSet, Daloopa, Morningstar, Moody's, etc.
+- **partner/spglobal**: tear-sheet (4 audiences), earnings preview via S&P CIQ MCP
+- All Apache 2.0, pure markdown, zero build steps

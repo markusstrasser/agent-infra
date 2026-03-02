@@ -259,13 +259,14 @@ copy-paste retro snippet      →  /retro skill            →  nightly retro pi
 - `trap 'exit 0' ERR` swallows `exit 2` from Python — disable trap before critical Python calls.
 - Stop hooks must check `stop_hook_active` to prevent infinite loops.
 
-## Claude Code Hook Events (verified 2026-02-28)
+## Claude Code Hook Events (verified 2026-03-02)
 
-17 events total. Source: https://code.claude.com/docs/en/hooks
+18 events total. Source: https://code.claude.com/docs/en/hooks
 
 | Event | Fires when | Can block? | Hook types |
 |-------|-----------|------------|------------|
-| SessionStart | Session begins/resumes | No | command |
+| Setup | `--init`/`--init-only`/`--maintenance` | No | command |
+| SessionStart | Session begins/resumes (matchers: startup/resume/clear/compact) | No | command |
 | UserPromptSubmit | User submits prompt | Yes | command, prompt, agent |
 | PreToolUse | Before tool call | Yes (deny/allow/ask) | command, prompt, agent |
 | PermissionRequest | Permission dialog | Yes (allow/deny) | command, prompt, agent |
@@ -284,11 +285,22 @@ copy-paste retro snippet      →  /retro skill            →  nightly retro pi
 | SessionEnd | Session terminates | No | command |
 
 ### Decision control patterns
-- PreToolUse: JSON `hookSpecificOutput.permissionDecision` (allow/deny/ask)
-- PermissionRequest: JSON `hookSpecificOutput.decision.behavior` (allow/deny)
-- Stop, PostToolUse, SubagentStop, ConfigChange, UserPromptSubmit: JSON `decision: "block"`
+- PreToolUse: JSON `hookSpecificOutput.permissionDecision` (allow/deny/ask). Also `updatedInput` to modify tool input.
+- PermissionRequest: JSON `hookSpecificOutput.decision.behavior` (allow/deny). `interrupt: true` halts Claude. `updatedPermissions` applies rules.
+- PostToolUse: `updatedMCPToolOutput` replaces MCP tool output. `additionalContext` injects warnings.
+- Stop, SubagentStop: `last_assistant_message` available in input. JSON `decision: "block"`.
+- ConfigChange, UserPromptSubmit: JSON `decision: "block"`
 - TeammateIdle, TaskCompleted: exit code 2 blocks
-- PreCompact, SessionEnd, Notification, WorktreeRemove: no decision control
+- Setup, PreCompact, SessionEnd, Notification, WorktreeRemove: no decision control
+- HTTP hooks (`type: "http"`): POST JSON to URL. Fail open on non-2xx/timeout. Requires `allowedHttpHookUrls`.
+
+### Useful env vars (verified 2026-03-02)
+- `CLAUDE_CODE_EFFORT_LEVEL`: low/medium/high (reasoning effort)
+- `CLAUDE_CODE_SUBAGENT_MODEL`: override subagent model
+- `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`: auto-compact threshold (1-100%)
+- `CLAUDE_CODE_TASK_LIST_ID`: share task list across sessions
+- `CLAUDE_CODE_SHELL_PREFIX`: command prefix for audit logging
+- `CLAUDE_ENV_FILE`: SessionStart hooks write exports here to persist env vars
 </reference_data>
 
 <cockpit>
