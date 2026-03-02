@@ -1,6 +1,6 @@
 {
   "name": "vendor-landscape",
-  "schedule": "0 9 1 * *",
+  "schedule": "0 9 * * 1",
   "project": "meta",
   "steps": [
     {
