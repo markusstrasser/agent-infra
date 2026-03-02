@@ -45,6 +45,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `openclaw-deep-dive.md` | OpenClaw analysis | OpenClaw-related work |
 | `openclaw-model-review.md` | Model review of OpenClaw | OpenClaw-related work |
 | `opus-46-action-plan.md` | Action plan for Opus 4.6 capabilities | Planning new capability adoption |
+| `epistemic-quality-evals.md` | Benchmarks for hallucination, calibration, source attribution, sycophancy in agents | Designing epistemic eval pipelines, calibration checks, researcher skill improvements |
 
 <constitution>
 > **Human-protected.** Agent may propose changes but must not modify without explicit approval.
