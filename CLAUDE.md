@@ -14,6 +14,7 @@ Never start responses with positive adjectives. Skip flattery, respond directly.
 - `improvement-log.md` — structured findings from session analysis (session-analyst appends here)
 - `search-retrieval-architecture.md` — CAG vs embedding retrieval, Groq/Gemini assessment, routing decision framework
 - `cockpit.md` — human-agent interface: status line, notifications, receipts, dashboard, ideas backlog
+- `.claude/overviews/` — auto-generated source + tooling overviews (Gemini via repomix). All projects have these — read for fast codebase orientation.
 
 ## Research Index (`research/`)
 
