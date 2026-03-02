@@ -23,7 +23,8 @@
       "prompt": "Read /tmp/intel-morning-data.md. Synthesize into TODAY.md: positions summary, earnings calendar, paper ledger highlights, pending thesis checks. Keep under 200 lines. Commit with [morning-prep] prefix.",
       "max_turns": 10,
       "max_budget_usd": 1.0,
-      "model": "sonnet"
+      "model": "sonnet",
+      "effort": "low"
     },
     {
       "step": "meta-health",

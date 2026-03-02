@@ -9,6 +9,7 @@
       "max_turns": 15,
       "max_budget_usd": 3.0,
       "model": "sonnet",
+      "effort": "medium",
       "cwd": "~/Projects/meta"
     }
   ]
