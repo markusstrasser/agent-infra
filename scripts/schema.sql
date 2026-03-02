@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     model TEXT,
     agent TEXT,
     allowed_tools TEXT,
+    effort TEXT,
     cwd TEXT,
     requires_approval INTEGER DEFAULT 0,
     approved_at TEXT,

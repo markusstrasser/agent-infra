@@ -5,6 +5,7 @@ description = "Meta project knowledge base — hook designs, failure modes, arch
 requires-python = ">=3.11"
 dependencies = [
     "anthropic>=0.84.0",
+    "claude-agent-sdk>=0.1.44",
     "exa-py>=2.6.1",
     "fastmcp>=3.0",
 ]

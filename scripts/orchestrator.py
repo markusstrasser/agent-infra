@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Orchestrator: cron-driven task runner for claude -p and deterministic scripts.
+"""Orchestrator: cron-driven task runner for Agent SDK and deterministic scripts.
 
 Dual-engine architecture:
-  engine='claude'  -> claude -p with --max-turns, --max-budget-usd, --output-format json
+  engine='claude'  -> Agent SDK query() with effort, max_budget_usd, hooks
   engine='script'  -> subprocess.run(command) -- no LLM, no tokens
 
 Usage:
@@ -25,6 +25,17 @@ import subprocess
 import sys
 from datetime import datetime, date
 from pathlib import Path
+from typing import Any
+
+import anyio
+
+from claude_agent_sdk import (
+    AssistantMessage,
+    ClaudeAgentOptions,
+    ResultMessage,
+    TextBlock,
+    query,
+)
 
 DB_PATH = Path("~/.claude/orchestrator.db").expanduser()
 LOG_PATH = Path("~/.claude/orchestrator-log.jsonl").expanduser()
@@ -136,25 +147,57 @@ def run_script_task(task, cwd):
     )
 
 
-def run_claude_task(task, cwd):
-    cmd = [
-        "claude", "-p", task["prompt"],
-        "--output-format", "json",
-        "--max-turns", str(task["max_turns"] or 15),
-        "--max-budget-usd", str(task["max_budget_usd"] or 5.0),
-        "--fallback-model", "sonnet",
-    ]
-    if task["model"]:
-        cmd.extend(["--model", task["model"]])
-    if task["allowed_tools"]:
-        cmd.extend(["--allowedTools", task["allowed_tools"]])
-
-    clean_env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
-
-    return subprocess.run(
-        cmd, capture_output=True, text=True,
-        cwd=cwd, timeout=2700, env=clean_env,
+async def _run_claude_task_async(task, cwd):
+    """Run a claude task via Agent SDK query(). Returns TaskResult-like dict."""
+    effort = task["effort"]
+    allowed_tools = (
+        task["allowed_tools"].split(",") if task["allowed_tools"] else None
     )
+
+    # Set subagent model for search-heavy tasks (effort=low implies lightweight)
+    env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+    if effort == "low":
+        env["CLAUDE_CODE_SUBAGENT_MODEL"] = "haiku"
+    if effort:
+        env["CLAUDE_CODE_EFFORT_LEVEL"] = effort
+
+    options = ClaudeAgentOptions(
+        model=task["model"],
+        max_turns=task["max_turns"] or 15,
+        max_budget_usd=task["max_budget_usd"] or 5.0,
+        permission_mode="acceptEdits",
+        cwd=cwd,
+        effort=effort,
+        allowed_tools=allowed_tools or [],
+        setting_sources=["user", "project"],
+        fallback_model="sonnet",
+        system_prompt={"type": "preset", "preset": "claude_code"},
+        env=env,
+    )
+
+    text_parts: list[str] = []
+    result_msg: ResultMessage | None = None
+    last_model: str | None = None
+
+    async for message in query(prompt=task["prompt"], options=options):
+        if isinstance(message, AssistantMessage):
+            last_model = message.model
+            for block in message.content:
+                if isinstance(block, TextBlock):
+                    text_parts.append(block.text)
+        elif isinstance(message, ResultMessage):
+            result_msg = message
+
+    return {
+        "result_msg": result_msg,
+        "text_parts": text_parts,
+        "last_model": last_model,
+    }
+
+
+def run_claude_task(task, cwd):
+    """Sync wrapper around async SDK query()."""
+    return anyio.run(_run_claude_task_async, task, cwd)
 
 
 def execute_one(db):
@@ -178,27 +221,23 @@ def execute_one(db):
     })
 
     try:
-        if engine == "script":
-            result = run_script_task(task, cwd)
-        else:
-            result = run_claude_task(task, cwd)
-
-        if result.returncode != 0:
-            error_msg = f"exit_{result.returncode}: {result.stderr[:500]}"
-            db.execute("""
-                UPDATE tasks SET status='failed', finished_at=datetime('now','localtime'),
-                    error=? WHERE id=?
-            """, (error_msg, task_id))
-            cascade_failure(db, task_id)
-            log_event({"action": "failed", "task_id": task_id,
-                       "exit_code": result.returncode, "stderr": result.stderr[:200]})
-            db.commit()
-            return True
-
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         output_file = OUTPUT_DIR / f"{task_id}.json"
 
         if engine == "script":
+            result = run_script_task(task, cwd)
+            if result.returncode != 0:
+                error_msg = f"exit_{result.returncode}: {result.stderr[:500]}"
+                db.execute("""
+                    UPDATE tasks SET status='failed', finished_at=datetime('now','localtime'),
+                        error=? WHERE id=?
+                """, (error_msg, task_id))
+                cascade_failure(db, task_id)
+                log_event({"action": "failed", "task_id": task_id,
+                           "exit_code": result.returncode, "stderr": result.stderr[:200]})
+                db.commit()
+                return True
+
             summary = result.stdout[:2000] if result.stdout else "(empty)"
             output_file.write_text(result.stdout or "")
             db.execute("""
@@ -206,54 +245,67 @@ def execute_one(db):
                     output_file=?, result_summary=?, cost_usd=0 WHERE id=?
             """, (str(output_file), summary, task_id))
             log_event({"action": "done", "task_id": task_id, "engine": "script", "cost_usd": 0})
+
         else:
-            try:
-                output = json.loads(result.stdout) if result.stdout.strip() else None
-                if output is None:
-                    raise ValueError("Empty stdout")
-            except (json.JSONDecodeError, ValueError) as e:
-                output_file.write_text(result.stdout[:50000] if result.stdout else "EMPTY")
+            # Agent SDK path
+            sdk_result = run_claude_task(task, cwd)
+            result_msg = sdk_result["result_msg"]
+            text_parts = sdk_result["text_parts"]
+
+            if result_msg is None:
                 db.execute("""
                     UPDATE tasks SET status='failed', finished_at=datetime('now','localtime'),
-                        output_file=?, error=? WHERE id=?
-                """, (str(output_file), f"json_parse: {e}", task_id))
+                        error='no_result_message' WHERE id=?
+                """, (task_id,))
                 cascade_failure(db, task_id)
-                log_event({"action": "parse_error", "task_id": task_id, "error": str(e)})
+                log_event({"action": "failed", "task_id": task_id, "error": "no ResultMessage from SDK"})
                 db.commit()
                 return True
 
-            cost = output.get("total_cost_usd", 0)
-            model_usage = output.get("modelUsage", {})
+            usage = result_msg.usage or {}
             tokens_in = sum(
                 v.get("inputTokens", 0) + v.get("cacheReadInputTokens", 0)
-                for v in model_usage.values()
+                for v in usage.values()
+                if isinstance(v, dict)
             )
-            tokens_out = sum(v.get("outputTokens", 0) for v in model_usage.values())
-            summary = output.get("result", "")[:2000]
-            permission_denials = output.get("permission_denials", [])
+            tokens_out = sum(
+                v.get("outputTokens", 0)
+                for v in usage.values()
+                if isinstance(v, dict)
+            )
+            cost = result_msg.total_cost_usd or 0
+            summary = (result_msg.result or "\n".join(text_parts))[:2000]
+            status = "done" if not result_msg.is_error else "failed"
 
-            if permission_denials:
-                status = "done_with_denials"
-                summary = f"PERMISSION_DENIALS: {len(permission_denials)} denied. " + summary
+            output_data = {
+                "result": result_msg.result,
+                "total_cost_usd": cost,
+                "session_id": result_msg.session_id,
+                "duration_ms": result_msg.duration_ms,
+                "duration_api_ms": result_msg.duration_api_ms,
+                "num_turns": result_msg.num_turns,
+                "is_error": result_msg.is_error,
+                "model": sdk_result["last_model"],
+                "usage": usage,
+            }
+            output_file.write_text(json.dumps(output_data, indent=2, default=str))
+
+            if result_msg.is_error:
+                db.execute("""
+                    UPDATE tasks SET status='failed', finished_at=datetime('now','localtime'),
+                        output_file=?, error=?, cost_usd=?,
+                        tokens_in=?, tokens_out=? WHERE id=?
+                """, (str(output_file), summary[:500], cost, tokens_in, tokens_out, task_id))
+                cascade_failure(db, task_id)
+                log_event({"action": "failed", "task_id": task_id, "cost_usd": cost,
+                           "error": summary[:200]})
             else:
-                status = "done"
-
-            output_file.write_text(json.dumps(output, indent=2))
-            db.execute("""
-                UPDATE tasks SET status=?, finished_at=datetime('now','localtime'),
-                    output_file=?, result_summary=?, cost_usd=?,
-                    tokens_in=?, tokens_out=? WHERE id=?
-            """, (status, str(output_file), summary, cost, tokens_in, tokens_out, task_id))
-            log_event({"action": status, "task_id": task_id, "cost_usd": cost,
-                       "permission_denials": len(permission_denials)})
-
-    except subprocess.TimeoutExpired:
-        db.execute(
-            "UPDATE tasks SET status='failed', finished_at=datetime('now','localtime'), error='timeout' WHERE id=?",
-            (task_id,),
-        )
-        cascade_failure(db, task_id)
-        log_event({"action": "timeout", "task_id": task_id})
+                db.execute("""
+                    UPDATE tasks SET status=?, finished_at=datetime('now','localtime'),
+                        output_file=?, result_summary=?, cost_usd=?,
+                        tokens_in=?, tokens_out=? WHERE id=?
+                """, (status, str(output_file), summary, cost, tokens_in, tokens_out, task_id))
+                log_event({"action": status, "task_id": task_id, "cost_usd": cost})
 
     except Exception as e:
         db.execute(
@@ -313,9 +365,9 @@ def cmd_submit(args):
 
         db.execute("""
             INSERT INTO tasks (pipeline, step, project, prompt, engine, priority,
-                max_turns, max_budget_usd, model, agent, allowed_tools, cwd,
+                max_turns, max_budget_usd, model, agent, allowed_tools, effort, cwd,
                 requires_approval, depends_on)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             args.pipeline,
             step_name,
@@ -328,6 +380,7 @@ def cmd_submit(args):
             step_def.get("model"),
             step_def.get("agent"),
             step_def.get("allowed_tools"),
+            step_def.get("effort"),
             step_def.get("cwd"),
             needs_approval,
             prev_task_id,
@@ -359,8 +412,8 @@ def cmd_submit(args):
 def cmd_run(args):
     db = get_db()
     db.execute("""
-        INSERT INTO tasks (project, prompt, engine, max_turns, max_budget_usd, model, cwd)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO tasks (project, prompt, engine, max_turns, max_budget_usd, model, effort, cwd)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         args.project,
         args.prompt,
@@ -368,6 +421,7 @@ def cmd_run(args):
         args.max_turns,
         args.max_budget,
         args.model,
+        args.effort,
         args.cwd,
     ))
     task_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -580,6 +634,7 @@ def main():
     p_run.add_argument("--max-turns", type=int, default=15)
     p_run.add_argument("--max-budget", type=float, default=5.0)
     p_run.add_argument("--model", default=None)
+    p_run.add_argument("--effort", default=None, choices=["low", "medium", "high", "max"])
     p_run.add_argument("--cwd", default=None)
 
     sub.add_parser("status", help="Show task queue")
