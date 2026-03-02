@@ -15,6 +15,9 @@ Never start responses with positive adjectives. Skip flattery, respond directly.
 - `search-retrieval-architecture.md` — CAG vs embedding retrieval, Groq/Gemini assessment, routing decision framework
 - `cockpit.md` — human-agent interface: status line, notifications, receipts, dashboard, ideas backlog
 - `.claude/overviews/` — auto-generated source + tooling overviews (Gemini via repomix). All projects have these — read for fast codebase orientation.
+- `scripts/orchestrator.py` — cron-driven task runner (dual-engine: `claude -p` + scripts)
+- `scripts/schema.sql` — SQLite DDL for orchestrator task queue
+- `pipelines/` — JSON pipeline templates (recurring workflows)
 
 ## Research Index (`research/`)
 
@@ -124,6 +127,34 @@ How to verify this constitution is working (check via session-analyst after 2 we
 3. **Research produces architecture, not documents.** Research sessions should result in hooks, skills, or code — not just memos. Test: ≥50% of research findings in improvement-log have "implemented" status within 30 days.
 4. **Model review surfaces disagreements.** When cross-model review disagrees with a stated preference, the synthesis explicitly flags it. Test: zero instances of silently overriding user preference in review artifacts.
 </constitution>
+
+## Orchestrator (`scripts/orchestrator.py`)
+
+Cron-driven task runner. Dual-engine: `claude -p` for LLM tasks, raw `subprocess` for deterministic scripts. SQLite task queue at `~/.claude/orchestrator.db`.
+
+```bash
+orchestrator.py init-db                              # create DB
+orchestrator.py submit <pipeline> [--project P] [--vars k=v]  # submit pipeline
+orchestrator.py run -p <project> --prompt "..."      # one-off task
+orchestrator.py status                               # show queue
+orchestrator.py approve <id|pipeline>                # approve paused task
+orchestrator.py tick                                 # run one task (launchd calls this)
+orchestrator.py log --today                          # event log
+orchestrator.py summary                              # daily markdown
+```
+
+**Pipelines** (`pipelines/*.json`): research-and-implement, entity-refresh, morning-prep, skills-drift, earnings-refresh, session-retro, research-sweep. Templates support `{variable}` substitution and `pause_before` approval gates.
+
+**Key design choices:**
+- `--no-session-persistence` and `--worktree` both dropped — they suppress transcripts (breaks session-analyst)
+- Cross-project execute steps auto-require approval (constitutional hard limit)
+- `done_with_denials` is a distinct terminal status (permission denials are not silent)
+- `DAILY_COST_CAP = $25` enforced before each tick
+- `fcntl.flock` prevents concurrent runs
+
+**Scheduling:** `scripts/com.meta.orchestrator.plist` (launchd, 15-min interval). Not loaded yet — copy to `~/Library/LaunchAgents/` and `launchctl load` when ready.
+
+**Design spec:** `research/orchestrator-design.md`. **Plan:** `.claude/plans/3a65775d-orchestrator.md`.
 
 ## Backlog
 
