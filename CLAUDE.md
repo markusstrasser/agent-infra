@@ -36,6 +36,11 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `claude-code-native-vs-meta-infra.md` | Native Claude Code features vs our custom infrastructure | Before building new hooks/skills that might duplicate native features |
 | `native-leverage-plan.md` | Implementation plan for adopting native features | Hook/skill implementation work |
 | `anthropic-soul-guidelines.md` | Anthropic's internal model guidelines (archived) | Understanding trust model, operator role |
+| `constitutional-delta.md` | Why project constitutions differ from Claude's base; error correction as telos | Constitutional design, principle derivation |
+| `philosophy-of-epistemic-agents.md` | Popper, Frankfurt, Hart, Bratman — philosophical foundations | Anti-sycophancy design, rules vs standards |
+| `orchestrator-design.md` | 24/7 autonomous agent orchestrator: task queue, 7 loops, self-improvement | Orchestrator implementation (blocked pending validation) |
+| `intel-feedback-loop-plan.md` | 5-phase plan to activate prediction feedback loop in intel | Intel feedback/calibration work |
+| `skills-audit-2026-02-28.md` | Multi-model audit of 16 skills; verified findings + action items | Skills maintenance, quality review |
 | `meta-knowledge-mcp.md` | Design memo for meta-knowledge MCP server | Meta-knowledge MCP development |
 | `openclaw-deep-dive.md` | OpenClaw analysis | OpenClaw-related work |
 | `openclaw-model-review.md` | Model review of OpenClaw | OpenClaw-related work |
