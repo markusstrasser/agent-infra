@@ -2,11 +2,10 @@
   "hooks": {
     "Stop": [
       {
-        "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "INPUT=$(cat); if echo \"$INPUT\" | grep -qE '\\.md'; then echo 'CHECKLIST: (1) Did you implement changes in the target repo, or only write about them here? (2) Did you update maintenance-checklist.md with what was done? (3) Is every proposed change testable (observable before/after)?'; fi"
+            "command": "echo 'CHECKLIST: (1) Did you implement changes in the target repo, or only write about them here? (2) Did you update maintenance-checklist.md with what was done? (3) Is every proposed change testable (observable before/after)?'"
           }
         ]
       }
