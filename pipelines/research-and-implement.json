@@ -3,8 +3,15 @@
   "pause_before": ["execute"],
   "steps": [
     {
+      "step": "prior-art",
+      "prompt": "Before researching {topic}, check if a solution already exists. Scan: (1) vendor GitHub orgs (github.com/anthropics, etc.) for relevant repos/tools, (2) vendor changelogs and API docs for recent features, (3) PyPI/npm for established libraries, (4) existing OSS projects. Write findings to .claude/plans/{pipeline}-prior-art.md: what exists, what it does, whether it fits, why build vs adopt.",
+      "max_turns": 10,
+      "max_budget_usd": 2.0,
+      "allowed_tools": "Read,Glob,Grep,WebSearch,WebFetch,mcp__exa__web_search_exa"
+    },
+    {
       "step": "explore",
-      "prompt": "Research {topic}. Use WebSearch, Exa, and paper-search MCP tools. Save findings to .claude/plans/{pipeline}-explore.md with source citations for every factual claim.",
+      "prompt": "Read .claude/plans/{pipeline}-prior-art.md first. Then research {topic}, building on what already exists. Use WebSearch, Exa, and paper-search MCP tools. Save findings to .claude/plans/{pipeline}-explore.md with source citations for every factual claim.",
       "max_turns": 15,
       "max_budget_usd": 3.0,
       "allowed_tools": "Read,Glob,Grep,WebSearch,WebFetch,mcp__exa__web_search_exa,mcp__research__search_papers"
