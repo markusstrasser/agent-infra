@@ -202,7 +202,10 @@ Scripts in `~/Projects/skills/hooks/`. Referenced by absolute path from settings
 | `postwrite-source-check.sh` | PostToolUse:Write\|Edit | exit 0 (warn) / exit 2 (block) | Global (warn), Intel (block) | Provenance gate: warns/blocks research writes without source tags. Tags: SOURCE, DATA, INFERENCE, SPEC, CALC, QUOTE, etc. |
 | `posttool-review-check.sh` | PostToolUse:Bash | exit 0 (warns) | Global | Cross-model review circuit breaker: detects llmx failures, warns about single-model review |
 | `pretool-consensus-search.sh` | PreToolUse:search tools | exit 0 (warns) | Global | Warns on epistemically empty queries ("best X", "top Y", "most undervalued") |
-| `subagent-epistemic-gate.sh` | SubagentStop | exit 0 (warns) | Global | Checks subagent outputs for unsourced factual claims. Skips Explore/Plan |
+| `pretool-subagent-gate.sh` | PreToolUse:Agent | exit 0 (warns) | Global | Advisory gate: brainstorm, single-tool, gp-as-explore, cascade detection |
+| `subagent-start-log.sh` | SubagentStart | exit 0 | Global | Logs every subagent spawn to `~/.claude/subagent-log.jsonl` |
+| `subagent-epistemic-gate.sh` | SubagentStop | exit 0 (warns) | Global | Checks subagent outputs for unsourced factual claims + completion logging + size warnings |
+| `subagent-source-check-stop.sh` | Stop (researcher agent) | exit 0 (advisory) | Global | Would-block researcher outputs missing source citations; promote to blocking after 14d measurement |
 | `posttool-bash-failure-loop.sh` | PostToolUse:Bash | exit 0 (warns) | Global | Warns after 5 consecutive Bash failures |
 | `stop-research-gate.sh` | Stop | exit 2 | Intel | Blocks stop if research files lack source tags |
 | `precompact-log.sh` | PreCompact | exit 0 (async) | Global | Logs compaction events |
@@ -218,7 +221,7 @@ Scripts in `~/Projects/skills/hooks/`. Referenced by absolute path from settings
 ### Skill-Embedded Hooks (new pattern, 2026-03-01)
 | Skill | Event | Type | What it does |
 |-------|-------|------|-------------|
-| `researcher` | PostToolUse:Write\|Edit | prompt | Checks source citations on factual claims |
+| `researcher` | Stop | command | `subagent-source-check-stop.sh` — citation check (was prompt hook, converted 2026-03-02) |
 
 ### Intel-Only Hooks (in .claude/settings.json)
 | Hook | Event | What it does |
