@@ -274,3 +274,26 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
   4. **DuckDB flock** (HIGH impact, MEDIUM effort -- architectural)
   5. **Gemini 503 failover** (MEDIUM impact, MEDIUM effort)
 - **Status:** [x] reviewed
+
+### [2026-03-02] Supervision Audit (evening, Gemini 3.1 Pro synthesis)
+- **Period:** 3 days, 218 sessions, 913 user messages
+- **Wasted:** 4.6% (target: <15%). Continued decline from 5.3% earlier today.
+- **Top patterns:**
+  1. **commit-boilerplate (17):** Still #1 waste source. User pastes "IFF everything works: git commit..." Raycast snippet after tasks. CLAUDE.md rules exist but agent doesn't reliably auto-commit.
+  2. **rubber-stamp (11):** "ok do it", "go ahead" — mostly after plan-mode exits where agent pauses before executing.
+  3. **context-resume (7):** "Continue from where you left off" — checkpoint.md exists but agent doesn't auto-resume.
+  4. **idempotency-check (2):** "Make sure we don't already have these" before downloads. Below recurrence threshold.
+  5. **capability-nudge (1):** "download it yourself" — agent reported missing file instead of fetching it.
+- **Gemini 3.1 Pro synthesis (cross-checked):**
+  - Proposed: Stop hook for uncommitted changes — **COSIGNED, IMPLEMENTED.**
+  - Proposed: "Execution Mandate" rule for post-plan execution — **COSIGNED with scope reduction.** Added as "Execution After Plans" rule, narrower than Gemini's "never pause" version.
+  - Proposed: "Self-Healing Environment" rule for auto-downloading — **COSIGNED, IMPLEMENTED.** Expands existing "use uv" rule to cover data downloads.
+  - Proposed: claude-auto-resume wrapper script — **REJECTED.** Brittle shell wrapper around the CLI. Strengthened CLAUDE.md context continuation rule instead.
+- **Fixes deployed:**
+  1. [ARCHITECTURAL] `stop-uncommitted-warn.sh` — Stop hook (blocks) that detects uncommitted changes and injects commit instructions. Deployed globally. Replaces the user's manual clipboard paste.
+  2. [RULE] Global CLAUDE.md `<git_rules>` — "Auto-Commit" section: after completing a task, commit without being asked.
+  3. [RULE] Global CLAUDE.md `<execution>` — "Execution After Plans": execute immediately after plan approval, no intermediate pauses. "Self-Sufficient Environment": download missing files/data yourself.
+  4. [RULE] Global CLAUDE.md `<context_management>` — strengthened auto-resume: "Resume work automatically — don't wait for 'continue from where you left off.'"
+- **llmx gotcha:** Gemini 3.1 Pro Preview with `-f` flag hangs reading stdin; piping via `cat file | llmx` works. Also: `--reasoning-effort low` still slow on 300K+ contexts. `gemini-3.1-pro-preview` forces temperature=1.0 (ignores -t flag).
+- **Assessment:** 4.6% is solid. The 3 deployed rules + 1 hook target 35/42 (83%) of remaining waste. Expected post-deployment waste: ~2% (rubber-stamps only, which are intentional oversight). Next audit should validate.
+- **Status:** [x] implemented
