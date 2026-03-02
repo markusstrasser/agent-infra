@@ -18,9 +18,9 @@ from pathlib import Path
 # Projects to scan (add more as they opt in)
 PROJECTS = [
     Path.home() / "Projects" / "intel",
-    Path.home() / "Projects" / "evo",
     Path.home() / "Projects" / "selve",
     Path.home() / "Projects" / "genomics",
+    Path.home() / "Projects" / "meta",
 ]
 
 def load_logs(days: int = 14) -> list[dict]:

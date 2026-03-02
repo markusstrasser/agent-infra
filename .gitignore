@@ -37,3 +37,7 @@ __pycache__/
 .claude/checkpoint.md
 downloads/
 .context/*.xml
+.claude/overviews/
+.claude/overview.conf
+.claude/overview-marker
+.claude/overview-trigger.log
