@@ -33,7 +33,7 @@ Before synthesis, the concrete data points I'm drawing from:
 
 ### 1.1 Wikipedia — Verifiability as Architecture
 
-Wikipedia is the most successful large-scale knowledge accrual system ever built. Its structural mechanisms:
+Wikipedia is the largest and longest-running collaborative knowledge accrual system (6.9M+ English articles, 44M+ registered editors). Its structural mechanisms:
 
 | Mechanism | What It Does | Error Class Prevented | Adoptable? |
 |-----------|-------------|----------------------|------------|
@@ -391,10 +391,16 @@ Double-entry bookkeeping is formally equivalent to an error-correcting code (in 
 
 **Epistemic equivalent:** If a claim is represented in multiple ways (as a text claim, as a data point, as part of a causal model, as an implication of a broader theory), inconsistency between representations signals an error. The more independently-derived representations you have, the more errors you catch.
 
+> **Caveat (cross-model review P6/G1):** The analogy from accounting to epistemic systems is weaker than stated above. In accounting, the parity check matrix is *deterministic* and *cheap* — detecting whether debits equal credits requires no judgment. In an agent system, "cross-checking semantic representations" requires LLM inference, is *probabilistic*, and introduces its own hallucination risks. An LLM checking consistency between a text claim and a causal model may hallucinate the consistency check itself. The useful takeaway is the *structural principle* (redundant representation enables error detection), not the *mechanism* (parity checks). For practical implementation, define:
+> - **Encoding channels**: the specific independent representations being compared (e.g., "text claim in entity file" vs "number in DuckDB table" vs "implication of DCF model")
+> - **Syndrome**: the specific, mechanically detectable inconsistency that signals an error (e.g., "entity file says revenue $5B, DuckDB says $4.8B" — a numeric mismatch, not a semantic judgment)
+>
+> The principle works best where the syndrome is *deterministic* (numeric mismatch, date contradiction, schema violation) and worst where it requires *semantic judgment* (does this text claim contradict that model assumption?). [P6/G1]
+
 **Practical implementation for knowledge systems:**
 - **Cross-referencing requirement**: Important claims should appear in at least two independent forms (e.g., a text claim in an entity file AND a data point in a table AND an implication of a model)
-- **Reconciliation process**: Periodically compare independent representations and flag disagreements
-- **The "trial balance" equivalent**: A consistency check that can be run automatically (e.g., "do the numbers in entity files match the numbers in the database?")
+- **Reconciliation process**: Periodically compare independent representations and flag disagreements. Start with *deterministic* checks (number mismatches, date inconsistencies) before attempting semantic checks.
+- **The "trial balance" equivalent**: A consistency check that can be run automatically (e.g., "do the numbers in entity files match the numbers in the database?"). This is the high-value, low-risk version of double-entry — numeric reconciliation, not semantic cross-checking.
 
 ### 5.2 Type Systems as Structural Constraints
 
@@ -428,11 +434,14 @@ In physics, conservation laws (energy, momentum, charge) constrain what outcomes
 - Revenue - Expenses = Net Income (which must reconcile with balance sheet)
 
 **Knowledge equivalents [INFERENCE]:**
-- **Evidence conservation**: If a piece of evidence supports hypothesis A, it must be neutral or negative for competing hypothesis B (given A and B are exhaustive alternatives). Evidence that "supports everything" is not evidence.
-- **Source conservation**: The total number of independent claims cannot exceed the total number of independent sources. If you have 50 claims from 3 sources, most claims are dependent — and your evidence base is weaker than it looks.
-- **Time conservation**: A claim about date T₁ cannot be supported by evidence from date T₂ > T₁ (no retroactive evidence, barring prediction markets).
 
-These are checkable constraints. An automated system can flag: "You have 47 claims but only 3 independent sources — your evidence base is narrower than it appears." [INFERENCE]
+> **Correction (cross-model review P2-P5, G15):** The original version of these "conservation laws" was overstated. GPT-5.2 provided formal counterexamples for all three; Gemini independently agreed they were unenforceable as stated. Tightened below. These are now *heuristics with defined scope*, not universal laws.
+
+- **Evidence conservation** *(restricted scope)*: Only applies when hypotheses are binary, mutually exclusive, and collectively exhaustive (MECE). Under those conditions, evidence that increases the likelihood ratio for A must decrease it for B. But for non-MECE hypothesis spaces (the common case), one piece of evidence can legitimately support multiple hypotheses. The useful heuristic: flag evidence that "supports everything equally" — that's a sign it's not discriminating between hypotheses. [P2/G15]
+- **Source conservation** *(reframed)*: One source (e.g., a dataset with many variables) can legitimately support many statistically independent claims — independence is about error structure, not source count. The useful heuristic: count *independent evidence-generating processes*, not sources. If 50 claims rest on 3 datasets processed the same way, the effective evidence base is narrow even if each claim is formally independent. [P3]
+- **Time conservation** *(restricted scope)*: Only applies to *predictive* claims — you can't use future data to validate a prediction retroactively. But archaeology, declassified archives, retrospective studies, and forensic analysis all validly support claims about earlier events using evidence gathered later. The useful heuristic: flag *look-ahead leakage* in prediction contexts, not temporal ordering generally. [P4]
+
+These heuristics can flag suspicious patterns but cannot be enforced deterministically as constraints. An automated system can advisory-flag: "50 claims from 3 evidence-generating processes — check for hidden dependencies." [INFERENCE, corrected per cross-model review]
 
 ### 5.5 The Reconciliation Pattern
 
@@ -449,20 +458,50 @@ This is a form of the "generate and verify" pattern, but with the additional con
 
 ## 6. Implications for Our Projects
 
-### What to build (practical, high ROI)
+> **Cross-model review correction (P20/G3/G23):** The original version of this section listed recommendations as instructions ("add tags," "add prompting," "add checklist"). Both GPT-5.2 and Gemini 3.1 Pro independently identified this as the biggest gap — the memo violated its own constitution ("instructions alone = 0% reliable"). Revised below to specify *architectural enforcement* (hooks, scripts, schemas) for each item. Items re-ordered by the synthesis priority list. Effort labels also corrected per P8.
 
-| # | What | Where | Effort | Impact |
-|---|------|-------|--------|--------|
-| 1 | **Presupposition check in researcher skill** | `~/Projects/skills/researcher/` | LOW — one new phase before Phase 2 | Catches wrong-question errors |
-| 2 | **Smithson ignorance tags** | All entity/analysis files | LOW — extend provenance tags | Distinguishes absence vs inaccuracy vs undecidability |
-| 3 | **GRADE-style confidence framework** | Replace ad hoc HIGH/MEDIUM/LOW | MEDIUM — define downgrade/upgrade criteria per domain | More rigorous confidence assessment |
-| 4 | **Pertinent negative prompting** | Researcher skill, thesis-check | LOW — add "what's missing?" to hypothesis evaluation | Catches invisible disconfirmation |
-| 5 | **Holdings vs dicta distinction** | Entity management, MEMORY.md | LOW — tag claims as "direct analysis" vs "discussed" | Prevents over-generalization from tangential sources |
-| 6 | **Null result preservation** | `open_questions.md` format | LOW — add "Resolved: No effect" category | Prevents publication bias in agent knowledge |
-| 7 | **Linchpin assumption identification** | Pre-analysis in researcher, thesis-check | LOW — KAC checklist | Catches catastrophic assumption failures |
-| 8 | **Source independence check** | Researcher skill Phase 5 | MEDIUM — citation graph ancestry check | Prevents citogenesis and dependent-source inflation |
-| 9 | **Evidence conservation check** | Researcher skill, thesis-check | MEDIUM — automated constraint | Catches "evidence that supports everything" |
-| 10 | **Framework health metric** | Meta improvement-log | HIGH — needs many claims tracked over time | Detects degenerating analytical frameworks |
+### Tier 1 — Implement now (< 1 day each, high consensus)
+
+| # | What | Enforcement | Effort | Impact |
+|---|------|-------------|--------|--------|
+| 1 | **Null result enum + linting hook** | `open_questions.md` schema requires strict `["CONFIRMED", "REFUTED", "NO_EVIDENCE_FOUND"]` enum. Pre-commit hook validates resolved questions have one of these states. | LOW | Prevents publication bias in agent knowledge. *Highest consensus across both models.* [G12/P14] |
+| 2 | **Pertinent negatives artifact** | `pertinent_negatives.json` required for thesis-level analyses. Pre-commit hook verifies non-empty and maps entries to thesis claims. | LOW | Catches invisible disconfirmation — forces "what's the dog that didn't bark?" *before* investigating. [G10] |
+| 3 | **Fix conservation law claims** | *(Done — see Section 5.4 corrections above.)* | — | Removes formally false claims from the memo. [P2-P5/G15] |
+
+### Tier 2 — Build next (1-3 days each, high value)
+
+| # | What | Enforcement | Effort | Impact |
+|---|------|-------------|--------|--------|
+| 4 | **Two-channel evidence ingestion** | Separate extracted quotes/data (with exact source pointers) from interpretations. Each interpretation must reference an extract via ID. Schema-enforced, not tagging convention. | MEDIUM | Practical double-entry analog — deterministic, not semantic. [P30] |
+| 5 | **Presupposition check as pre-flight script** | Python script (not skill "phase") that extracts presuppositions from research questions and verifies against known facts *before* the task begins. Standalone executable, not instructions to an LLM. | MEDIUM | Catches wrong-question errors before wasting a 15-turn session. [G7] |
+| 6 | **Source independence checker** | Python script that parses `[SOURCE:]` URLs, fetches them, extracts outlinks, warns if sources cite each other or share domain ancestry. Advisory hook on researcher output. | MEDIUM | Prevents citogenesis and dependent-source inflation. [G14/P16] |
+
+### Tier 3 — Design first, then build
+
+| # | What | Enforcement | Effort | Impact |
+|---|------|-------------|--------|--------|
+| 7 | **Claim schema + linter** | Define structured claim object: `{claim, scope, source_pointer, verification_path, confidence, last_verified}`. Linter as advisory hook on entity/analysis files. Prerequisite for dependency tracking, staleness propagation, and many downstream checks. | MEDIUM-HIGH | Architectural prerequisite — most downstream checks depend on structured claim extraction. [P27] |
+| 8 | **Prediction registry + Brier scoring** | Upgrade `open_questions.md` with probability, resolution date, resolution criteria fields. Auto-score with Brier/log score. | MEDIUM | Requires sufficient prediction volume to be useful. Partially exists already. [P29] |
+| 9 | **Hook observability dashboard** | Before promoting any epistemic check from advisory to blocking: trigger counts, override rate, FP estimate. Extends existing `dashboard.py`. Constitutional requirement (measure before enforcing). | LOW-MEDIUM | Prevents Goodhart corruption of hook system itself. [P31] |
+
+### Items reclassified from original list
+
+| Original # | Item | New Status | Reason |
+|------------|------|------------|--------|
+| 2 | Smithson ignorance tags (free-form) | **Killed** | Will degrade to performative hallucinated tagging (G8). Binary schema constraint (`requires_external_collection: boolean`) is more architectural. Subsumed by claim schema (#7). |
+| 3 | GRADE-style confidence (subjective HIGH/MED/LOW) | **Reclassified** | Gemini proposes boolean verification hooks instead (`["source_independent", "data_reconciled", "cross_model_agreed"]`). Hybrid: boolean hooks for enforcement + calibration scoring for measurement. Design alongside claim schema. [G9] |
+| 5 | Holdings vs dicta tags | **Upgraded** | Don't use markdown tags. Separate architecture: `verified_claims.json` (strict schema: claim, source_URL, retrieval_date) vs `discussion_context.md`. [G11] |
+| 7 | Linchpin assumption identification (KAC) | **Scoped tightly** | RAND (RR1408) found IC has "made little effort to assess whether SATs are improving quality" — then this memo recommended KAC as "LOW/HIGH." Contradiction noted by Gemini (G2). Retain as lightweight pre-analysis checklist (5 items max), not a full ACH matrix. Must not become SAT theater. [G2/G13] |
+| 9 | Evidence conservation check | **Killed** | Formally false as universal constraint (P2/G15). If claim schema provides formal structure later, may revisit as heuristic flag. |
+| 10 | Framework health metric | **Killed** | Both models agree: near-zero near-term value, 60-200hr effort. Vaporware with current tooling. [P10/G16] |
+
+### Systems the memo missed (added per cross-model review)
+
+| System | What it adds | Source |
+|--------|-------------|--------|
+| **Git/CI-CD as epistemic system** | PRs (propose-and-wait), forks (circuit splits/parallel testing), regression tests (automated error-catching). The closest structural analog to agent knowledge accrual — we use git but don't analyze it AS a knowledge architecture. | G4 |
+| **Prediction markets** | Kalshi/Polymarket/Manifold enforce checkability by requiring MECE, time-bound resolution criteria. Exact pattern needed for translating thesis claims into checkable predicates. Already in `factual-verification-systems.md` (TruthTensor) but not connected to this memo. | G5 |
+| **Context window as epistemic boundary** | Accrual isn't just storing truth — it's *compressing* truth to fit the next session's context window (15 turns, fresh context). Knowledge that doesn't survive compression isn't accrued. This reframes the problem from "what to store" to "what survives the bottleneck." | G6 |
 
 ### What NOT to build (academic, no engineering analog)
 
@@ -473,7 +512,9 @@ This is a form of the "generate and verify" pattern, but with the additional con
 | Full Dung argumentation frameworks | Overhead exceeds value for single-agent system |
 | Probabilistic databases | Storage-level uncertainty is the wrong layer; presentation-level uncertainty (tags + confidence) is sufficient |
 | The ruliad | Beautiful philosophy, zero engineering analog |
-| Complete Smithson taxonomy implementation | Partial adoption (4-5 categories) is sufficient; full taxonomy is over-engineering |
+| Complete Smithson taxonomy implementation | Free-form tags → performative hallucinated tagging [G8]. Binary schema constraint instead |
+| Full evidence conservation enforcement | Formally false as universal constraint [P2/G15]. Heuristic flag at best |
+| Framework health metric | Both models agree: vaporware with current tooling [P10/G16] |
 
 ### What to watch (promising but premature)
 
@@ -483,6 +524,7 @@ This is a form of the "generate and verify" pattern, but with the additional con
 | Reconciliation pattern (dual derivation of conclusions) | Requires two independent analysis processes — expensive until we have multi-agent orchestration running |
 | ClinGen-style evidence taxonomy for investment research | Need enough entity data to justify the framework overhead |
 | Registered Reports-style pre-registration for research tasks | Already partially implemented via Bratman planning; full implementation needs orchestrator |
+| Claim dependency graph | High value but high effort. Needs sufficient claims volume. Revisit after claim schema (#7) exists [P28] |
 
 ---
 
@@ -587,3 +629,36 @@ Goodhart's law: when a measure becomes a target, it ceases to be a good measure.
 - Scheel et al. (2021) — Registered Reports positive rate comparison
 - O'Grady (Science, 2023) — Pre-registration boosts replication to ~90%
 - Baigutanova et al. (2023) — Wikipedia reference quality trends
+
+---
+
+## Addendum: Cross-Model Review Corrections (2026-03-02)
+
+**Reviewed by:** GPT-5.2 (quantitative/formal) + Gemini 3.1 Pro (architectural/pattern)
+**Full artifacts:** `.model-review/2026-03-02-knowledge-accrual-architecture/`
+**Extraction:** 52 items extracted (GPT: 36, Gemini: 28, 5 merged), 37 included, 2 deferred, 8 noted
+
+### Where This Memo Was Wrong
+
+| Original Claim | Reality | Who Caught It |
+|----------------|---------|--------------|
+| Evidence conservation: "supports A ⇒ neutral/negative for B" | Only true for binary MECE hypotheses with defined likelihood ratios | GPT (P2) |
+| Source conservation: "claims ≤ sources" | One source can support many independent claims (independence is about error structure) | GPT (P3) |
+| Time conservation: "no evidence from T₂>T₁" | Archaeology, declassified archives, retrospective studies are valid | GPT (P4) |
+| Via negativa: "remains true forever" | False negatives exist; "doesn't work" is context/population-dependent | GPT (P5) |
+| Section 6 effort labels (Smithson "LOW", GRADE "MEDIUM") | Both understated given scope ("all entity/analysis files") | GPT (P8), Gemini (G3) |
+| Section 6 items presented as adoptable recommendations | Most were instructions, not architecture. Violated our own constitution | Gemini (G23), GPT (P20) |
+| Double-entry ⇔ error-correcting code (direct analog) | Analogy overgeneralized. Accounting parity checks are deterministic/cheap; semantic cross-checking is probabilistic and introduces hallucination risks | GPT (P6), Gemini (G1) |
+
+### Corrections Applied
+
+All Section 5.4 conservation laws tightened to heuristics with defined scope. Section 5.1 double-entry analogy now includes operational caveats (encoding channels, syndromes, deterministic vs semantic). Section 6 completely restructured: architecture-first ordering with hook/script/schema specifications for each item, reclassified items noted with finding IDs, three missed systems added (G4/G5/G6).
+
+### Cross-Model Agreement (highest trust)
+
+Both models independently identified: (1) double-entry analogy overgeneralized, (2) Section 6 too instructional — the biggest gap, (3) evidence conservation unenforceable as stated, (4) framework health metric is vaporware, (5) null result preservation is highest-consensus adoptable.
+
+### Reviewer Errors
+
+- **Gemini:** Claimed "RAND found SATs are performative." RAND actually said IC has "not measured" whether SATs work. Absence of measurement ≠ evidence of inefficacy. Escalated to a stronger claim than the source supports.
+- **GPT:** Effort estimates may be 2x optimistic (GPT flagged this itself). Impact percentages are directional, not precise.
