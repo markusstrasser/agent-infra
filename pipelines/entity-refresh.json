@@ -5,7 +5,8 @@
   "steps": [
     {
       "step": "refresh",
-      "prompt": "Read analysis/entities/ and identify entities not updated in >7 days. For each, use WebSearch and DuckDB to find latest data. Update entity files with source tags. Commit with [entity-refresh] prefix.",
+      "prompt": "Read analysis/entities/ and identify entities not updated in >7 days. For each, use WebSearch, brave_news_search, perplexity_ask, and DuckDB to find latest data. Update entity files with source tags. Commit with [entity-refresh] prefix.",
+      "allowed_tools": "Read,Write,Edit,Glob,Grep,WebSearch,WebFetch,mcp__brave-search__brave_news_search,mcp__perplexity__perplexity_ask,mcp__exa__web_search_exa",
       "max_turns": 15,
       "max_budget_usd": 3.0,
       "model": "sonnet",

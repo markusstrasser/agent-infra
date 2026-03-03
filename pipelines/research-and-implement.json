@@ -8,7 +8,7 @@
       "max_turns": 10,
       "max_budget_usd": 2.0,
       "effort": "medium",
-      "allowed_tools": "Read,Glob,Grep,WebSearch,WebFetch,mcp__exa__web_search_exa"
+      "allowed_tools": "Read,Glob,Grep,WebSearch,WebFetch,mcp__exa__web_search_exa,mcp__brave-search__brave_web_search,mcp__brave-search__brave_news_search,mcp__perplexity__perplexity_search,mcp__perplexity__perplexity_ask"
     },
     {
       "step": "explore",
@@ -16,7 +16,7 @@
       "max_turns": 15,
       "max_budget_usd": 3.0,
       "effort": "high",
-      "allowed_tools": "Read,Glob,Grep,WebSearch,WebFetch,mcp__exa__web_search_exa,mcp__research__search_papers"
+      "allowed_tools": "Read,Glob,Grep,WebSearch,WebFetch,mcp__exa__web_search_exa,mcp__research__search_papers,mcp__brave-search__brave_web_search,mcp__brave-search__brave_news_search,mcp__perplexity__perplexity_search,mcp__perplexity__perplexity_ask,mcp__perplexity__perplexity_research,mcp__perplexity__perplexity_reason"
     },
     {
       "step": "review",
