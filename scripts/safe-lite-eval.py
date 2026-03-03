@@ -7,10 +7,15 @@ atomic claims, verifies each via web search, and judges support.
 
 Default backend: Exa /answer (single-call structured verification).
 Legacy backend: Exa search + Claude Haiku judge (2-step, higher cost).
+Brave backend: Brave Answers API via OpenAI-compatible endpoint.
+Perplexity backend: Perplexity Sonar Pro via OpenAI-compatible endpoint.
+Triangulation: 2-way Exa + Brave, Perplexity tiebreaker on disagreement.
 
 Usage: uv run python3 scripts/safe-lite-eval.py [--project meta] [--n 5]
                                                  [--verbose] [--dry-run]
                                                  [--no-cache] [--legacy]
+                                                 [--backend exa|brave|perplexity]
+                                                 [--triangulate]
 """
 
 import json
@@ -107,6 +112,7 @@ def _get_exa_client():
         for mcp_path in [
             Path.home() / "Projects" / "meta" / ".mcp.json",
             Path.home() / ".mcp.json",
+            Path.home() / ".claude.json",
         ]:
             if mcp_path.exists():
                 try:
@@ -278,6 +284,214 @@ def legacy_verify(claim: str, exa) -> dict:
     }
 
 
+# --- Brave Answers backend ---
+
+def _get_brave_client():
+    """Get OpenAI client configured for Brave Answers API. Returns None if no key."""
+    api_key = os.environ.get("BRAVE_API_KEY", "")
+    if not api_key:
+        return None
+    from openai import OpenAI
+    return OpenAI(
+        base_url="https://api.search.brave.com/res/v1/ai",
+        api_key=api_key,
+    )
+
+
+def brave_verify(claim: str, brave_client) -> dict:
+    """Verify a claim via Brave Answers API (OpenAI-compatible)."""
+    start = time.monotonic()
+    try:
+        response = brave_client.chat.completions.create(
+            model="brave-search",
+            messages=[{
+                "role": "user",
+                "content": (
+                    f"Is this claim true or false? Evaluate the evidence and respond "
+                    f"with a JSON object: {{\"verdict\": \"supported\"|\"contradicted\"|"
+                    f"\"insufficient\", \"evidence_summary\": \"...\", \"confidence\": 0.0-1.0}}. "
+                    f"Claim: {claim}"
+                ),
+            }],
+        )
+        text = response.choices[0].message.content.strip()
+        # Try to parse JSON from response
+        match = re.search(r'\{.*\}', text, re.DOTALL)
+        if match:
+            data = json.loads(match.group())
+            verdict = data.get("verdict", "insufficient")
+        else:
+            verdict = "insufficient"
+    except Exception as e:
+        return {
+            "judgment": "unclear",
+            "evidence_count": 0,
+            "cost_dollars": None,
+            "latency_ms": round((time.monotonic() - start) * 1000),
+            "schema_valid": False,
+            "error": str(e),
+        }
+
+    latency_ms = round((time.monotonic() - start) * 1000)
+
+    if verdict == "supported":
+        judgment = "supported"
+    elif verdict == "contradicted":
+        judgment = "contradicted"
+    else:
+        judgment = "unclear"
+
+    return {
+        "judgment": judgment,
+        "evidence_count": 0,  # Brave Answers doesn't return citation count
+        "cost_dollars": None,
+        "latency_ms": latency_ms,
+        "schema_valid": bool(match) if 'match' in dir() else False,
+    }
+
+
+# --- Perplexity backend ---
+
+def _get_perplexity_client():
+    """Get OpenAI client configured for Perplexity API. Returns None if no key."""
+    api_key = os.environ.get("PERPLEXITY_API_KEY", "")
+    if not api_key:
+        return None
+    from openai import OpenAI
+    return OpenAI(
+        base_url="https://api.perplexity.ai",
+        api_key=api_key,
+    )
+
+
+def perplexity_verify(claim: str, pplx_client) -> dict:
+    """Verify a claim via Perplexity Sonar Pro (OpenAI-compatible)."""
+    start = time.monotonic()
+    try:
+        response = pplx_client.chat.completions.create(
+            model="sonar-pro",
+            messages=[{
+                "role": "user",
+                "content": (
+                    f"Is this claim true or false? Evaluate the evidence and respond "
+                    f"with a JSON object: {{\"verdict\": \"supported\"|\"contradicted\"|"
+                    f"\"insufficient\", \"evidence_summary\": \"...\", \"confidence\": 0.0-1.0}}. "
+                    f"Claim: {claim}"
+                ),
+            }],
+        )
+        text = response.choices[0].message.content.strip()
+        match = re.search(r'\{.*\}', text, re.DOTALL)
+        if match:
+            data = json.loads(match.group())
+            verdict = data.get("verdict", "insufficient")
+        else:
+            verdict = "insufficient"
+    except Exception as e:
+        return {
+            "judgment": "unclear",
+            "evidence_count": 0,
+            "cost_dollars": None,
+            "latency_ms": round((time.monotonic() - start) * 1000),
+            "schema_valid": False,
+            "error": str(e),
+        }
+
+    latency_ms = round((time.monotonic() - start) * 1000)
+
+    if verdict == "supported":
+        judgment = "supported"
+    elif verdict == "contradicted":
+        judgment = "contradicted"
+    else:
+        judgment = "unclear"
+
+    return {
+        "judgment": judgment,
+        "evidence_count": 0,
+        "cost_dollars": None,
+        "latency_ms": latency_ms,
+        "schema_valid": bool(match),
+    }
+
+
+# --- Triangulation ---
+
+def triangulate_verify(
+    claim: str,
+    exa,
+    brave_client,
+    pplx_client,
+    *,
+    verbose: bool = False,
+    no_cache: bool = False,
+) -> dict:
+    """2-way Exa + Brave verification with Perplexity tiebreaker on disagreement."""
+    exa_result = exa_answer_verify(claim, exa, no_cache=no_cache)
+    brave_result = brave_verify(claim, brave_client)
+
+    exa_j = exa_result["judgment"]
+    brave_j = brave_result["judgment"]
+
+    sources = {"exa": exa_j, "brave": brave_j}
+    total_latency = exa_result.get("latency_ms", 0) + brave_result.get("latency_ms", 0)
+    total_cost = (exa_result.get("cost_dollars") or 0) + (brave_result.get("cost_dollars") or 0)
+    pplx_used = False
+
+    # Agreement: both say the same thing (excluding unclear)
+    if exa_j == brave_j and exa_j in ("supported", "contradicted"):
+        judgment = exa_j
+        confidence = "high"
+    elif exa_j in ("supported", "contradicted") and brave_j == "unclear":
+        judgment = exa_j
+        confidence = "medium"
+    elif brave_j in ("supported", "contradicted") and exa_j == "unclear":
+        judgment = brave_j
+        confidence = "medium"
+    elif exa_j == "unclear" and brave_j == "unclear":
+        judgment = "unclear"
+        confidence = "low"
+    else:
+        # Disagreement — call Perplexity tiebreaker
+        if pplx_client:
+            pplx_result = perplexity_verify(claim, pplx_client)
+            pplx_j = pplx_result["judgment"]
+            sources["perplexity"] = pplx_j
+            total_latency += pplx_result.get("latency_ms", 0)
+            pplx_used = True
+
+            if verbose:
+                print(f"        Tiebreaker: exa={exa_j}, brave={brave_j}, pplx={pplx_j}")
+
+            # Majority vote
+            votes = [exa_j, brave_j, pplx_j]
+            for v in ("supported", "contradicted"):
+                if votes.count(v) >= 2:
+                    judgment = v
+                    confidence = "medium"
+                    break
+            else:
+                judgment = "unclear"
+                confidence = "low"
+        else:
+            # No Perplexity available — flag disagreement
+            judgment = "unclear"
+            confidence = "disputed"
+            if verbose:
+                print(f"        Disagreement: exa={exa_j}, brave={brave_j} (no tiebreaker)")
+
+    return {
+        "judgment": judgment,
+        "evidence_count": exa_result.get("evidence_count", 0),
+        "cost_dollars": total_cost if total_cost > 0 else None,
+        "latency_ms": total_latency,
+        "schema_valid": exa_result.get("schema_valid"),
+        "sources": sources,
+        "confidence": confidence,
+        "tiebreaker_used": pplx_used,
+    }
+
+
 # --- Eval logic ---
 
 def eval_file(
@@ -289,6 +503,10 @@ def eval_file(
     legacy: bool = False,
     no_cache: bool = False,
     project: str = "",
+    backend: str = "exa",
+    triangulate: bool = False,
+    brave_client=None,
+    pplx_client=None,
 ) -> dict | None:
     """Evaluate a single file for factual precision."""
     try:
@@ -323,8 +541,17 @@ def eval_file(
         if verbose:
             print(f"    Checking: {claim[:70]}...")
 
-        if legacy:
+        if triangulate:
+            result = triangulate_verify(
+                claim, exa, brave_client, pplx_client,
+                verbose=verbose, no_cache=no_cache,
+            )
+        elif legacy:
             result = legacy_verify(claim, exa)
+        elif backend == "brave" and brave_client:
+            result = brave_verify(claim, brave_client)
+        elif backend == "perplexity" and pplx_client:
+            result = perplexity_verify(claim, pplx_client)
         else:
             result = exa_answer_verify(claim, exa, no_cache=no_cache)
 
@@ -349,12 +576,26 @@ def eval_file(
 
         claim_details.append(detail)
 
+        # Add triangulation-specific fields
+        if result.get("sources"):
+            detail["sources"] = result["sources"]
+        if result.get("confidence"):
+            detail["confidence"] = result["confidence"]
+        if result.get("tiebreaker_used"):
+            detail["tiebreaker_used"] = result["tiebreaker_used"]
+
         # Per-claim JSONL log
+        if triangulate:
+            backend_tag = "triangulate"
+        elif legacy:
+            backend_tag = "legacy"
+        else:
+            backend_tag = backend
         claim_log_entry = {
             "ts": datetime.now().isoformat(),
             "project": project,
             "file": path.name,
-            "backend": "legacy" if legacy else "exa_answer",
+            "backend": backend_tag,
             **detail,
         }
         try:
@@ -395,6 +636,8 @@ def main():
     dry_run = False
     legacy = False
     no_cache = False
+    backend = "exa"
+    triangulate = False
 
     args = sys.argv[1:]
     if "--project" in args:
@@ -413,24 +656,67 @@ def main():
         legacy = True
     if "--no-cache" in args:
         no_cache = True
+    if "--backend" in args:
+        idx = args.index("--backend")
+        if idx + 1 < len(args):
+            backend = args[idx + 1]
+    if "--triangulate" in args:
+        triangulate = True
 
     if project not in PROJECT_ROOTS:
         print(f"Unknown project: {project}")
         print(f"Valid: {', '.join(PROJECT_ROOTS.keys())}")
         return
 
-    backend_label = "legacy (search+judge)" if legacy else "exa /answer"
-    print(f"{'=' * 55}")
+    if backend not in ("exa", "brave", "perplexity"):
+        print(f"Unknown backend: {backend}")
+        print("Valid: exa, brave, perplexity")
+        return
+
+    # Determine label
+    if triangulate:
+        backend_label = "triangulate (exa+brave, perplexity tiebreaker)"
+    elif legacy:
+        backend_label = "legacy (search+judge)"
+    elif backend == "brave":
+        backend_label = "brave answers"
+    elif backend == "perplexity":
+        backend_label = "perplexity sonar-pro"
+    else:
+        backend_label = "exa /answer"
+
+    print(f"{'=' * 60}")
     print(f"  SAFE-lite Eval — {project} [{backend_label}]")
-    print(f"{'=' * 55}")
+    print(f"{'=' * 60}")
     if no_cache:
         print("  [no-cache mode — fresh API calls]")
     print()
 
-    exa = _get_exa_client()
-    if exa is None:
-        print("  ERROR: No Exa API key found. Set EXA_API_KEY or configure .mcp.json.")
-        return
+    # Initialize clients based on mode
+    exa = None
+    brave_client = None
+    pplx_client = None
+
+    if backend == "exa" or legacy or triangulate:
+        exa = _get_exa_client()
+        if exa is None:
+            print("  ERROR: No Exa API key found. Set EXA_API_KEY or configure .mcp.json.")
+            return
+
+    if backend == "brave" or triangulate:
+        brave_client = _get_brave_client()
+        if brave_client is None:
+            print("  ERROR: No Brave API key found. Set BRAVE_API_KEY.")
+            return
+
+    if backend == "perplexity" or triangulate:
+        pplx_client = _get_perplexity_client()
+        if backend == "perplexity" and pplx_client is None:
+            print("  ERROR: No Perplexity API key found. Set PERPLEXITY_API_KEY.")
+            return
+        if triangulate and pplx_client is None:
+            print("  WARNING: No PERPLEXITY_API_KEY — tiebreaker disabled, will flag disagreements.")
+            print()
 
     files = find_recent_research_files(project, n)
     if not files:
@@ -456,6 +742,10 @@ def main():
             legacy=legacy,
             no_cache=no_cache,
             project=project,
+            backend=backend,
+            triangulate=triangulate,
+            brave_client=brave_client,
+            pplx_client=pplx_client,
         )
         if result and result["claims"] > 0:
             file_results.append(result)
@@ -515,12 +805,32 @@ def main():
             print(f"  Schema compliance:  {pct:.0%} ({schema_ok}/{schema_ok + schema_fail})")
             print()
 
+    # Triangulation stats
+    if triangulate:
+        all_details = [d for r in file_results for d in r["details"]]
+        tiebreaker_count = sum(1 for d in all_details if d.get("tiebreaker_used"))
+        agreement_count = sum(
+            1 for d in all_details
+            if d.get("sources") and not d.get("tiebreaker_used")
+            and d.get("confidence") in ("high", "medium")
+        )
+        print(f"  Triangulation:")
+        print(f"    Exa+Brave agreed:     {agreement_count}")
+        print(f"    Tiebreaker invoked:   {tiebreaker_count}")
+        print()
+
     # Log metrics
+    if triangulate:
+        backend_tag = "triangulate"
+    elif legacy:
+        backend_tag = "legacy"
+    else:
+        backend_tag = backend
     metric = {
         "ts": datetime.now().isoformat(),
         "metric": "safe_lite_eval",
         "project": project,
-        "backend": "legacy" if legacy else "exa_answer",
+        "backend": backend_tag,
         "no_cache": no_cache,
         "files_evaluated": len(file_results),
         "total_claims": sum(r["claims"] for r in file_results),

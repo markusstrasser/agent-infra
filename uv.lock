@@ -813,6 +813,7 @@ dependencies = [
     { name = "claude-agent-sdk" },
     { name = "exa-py" },
     { name = "fastmcp" },
+    { name = "openai" },
 ]
 
 [package.metadata]
@@ -821,6 +822,7 @@ requires-dist = [
     { name = "claude-agent-sdk", specifier = ">=0.1.44" },
     { name = "exa-py", specifier = ">=2.6.1" },
     { name = "fastmcp", specifier = ">=3.0" },
+    { name = "openai", specifier = ">=2.24.0" },
 ]
 
 [[package]]
