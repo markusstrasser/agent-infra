@@ -2,7 +2,7 @@
 
 Reference for the concepts, techniques, and vocabulary behind the epistemic quality system. Durable companion to the scripts in `scripts/` and research in this directory.
 
-**Scripts:** `claims-reader.py`, `pushback-index.py`, `epistemic-lint.py`, `safe-lite-eval.py`, `trace-faithfulness.py`, `compaction-analysis.py`, `dashboard.py`
+**Scripts:** `claims-reader.py`, `pushback-index.py`, `epistemic-lint.py`, `safe-lite-eval.py`, `trace-faithfulness.py`, `dashboard.py`
 **Research:** `epistemic-v2-synthesis.md` (detailed findings + ROI), `epistemic-quality-evals.md` (benchmarks)
 
 ---
@@ -45,9 +45,7 @@ Measures whether epistemic hedging, qualifiers, and provenance tags decrease acr
 
 **What's measured:** Hedging words ("likely", "approximately", "uncertain"), qualifiers ("however", "caveat", "limitation"), provenance tags (`[SOURCE:]`, `[INFERENCE]`, etc.) — all normalized by assistant word count to get density.
 
-**Limitation:** No PostCompact hook exists in Claude Code, so this measures pre-compaction density trends — drift, not causal loss per compaction event. Topic changes alone can shift density.
-
-**Baseline:** 48 events, avg density 0.0225, 0 drift events. Script: `compaction-analysis.py`.
+**Limitation:** No PostCompact hook exists in Claude Code, so this can only measure pre-compaction density trends — drift, not causal loss per compaction event. Topic changes alone can shift density. Script was deleted (compaction-analysis.py) — concept remains valid if PostCompact hook is added.
 
 ---
 
@@ -234,8 +232,6 @@ Evidence that informed design decisions. Full details in `epistemic-v2-synthesis
 | Claims verified rate | 76.5% | `claims-reader.py` | 374 claims from 33 files |
 | Claims sourced rate | 78.3% | `claims-reader.py` | |
 | Epistemic lint | 535 unsourced claims | `epistemic-lint.py` | 98% of files flagged |
-| SAFE-lite precision | 71-100% | `safe-lite-eval.py` | Now with Brave + Perplexity triangulation |
+| SAFE-lite precision | 71-100% | `safe-lite-eval.py` | Exa /answer backend |
 | Trace faithfulness | 91.8% | `trace-faithfulness.py` | Info claims matched to tool calls |
-| Citation hallucination | ~48% | `trace-faithfulness.py` | Many are path normalization artifacts |
-| Compaction nuance density | 0.0225 | `compaction-analysis.py` | 48 events, 0 drift events |
-| Metric correlations | sourced × verified ρ=+0.98 | `dashboard.py` | Only pair with n≥8 |
+| Citation fabrication | needs re-baseline | `trace-faithfulness.py` | 3-way verdict: verified/unknown/fabricated |
