@@ -181,166 +181,34 @@ This maps to Smithson's taxonomy but is more operational. The key distinction is
 
 ---
 
-## 3. Negative Space Techniques
+## 3. Negative Space Techniques — Summary
 
-### 3.1 Smithson's Taxonomy of Ignorance
+> **Full deep-dive:** `negative-space-and-meta-epistemics.md` (560 lines). Covers Smithson's taxonomy with Rumsfeld mapping and Gross/Kerwin amendments, presupposition analysis (3 generations: Frege-Strawson → Stalnaker → dynamic semantics), pertinent negatives with SDT formalization and Hsu et al. Bayesian model (r=0.90-0.95), via negativa with formal ¬X vs ¬K(X) distinction, question refinement (Bachelard + Laudan + Boguslav 2023 ignorance-base). That file has the evidence; this section keeps the structural implications for knowledge accrual.
 
-Michael Smithson (ANU, 1989) proposed that ignorance is not just "absence of knowledge" but a structured taxonomy [SOURCE: Smithson, i2insights.org, 2022]:
+| Technique | What It Does | Adoptable? | Key Source |
+|-----------|-------------|------------|------------|
+| **Smithson's ignorance taxonomy** | Structures "unknown" into actionable categories: absence (collect), inaccuracy (verify), vagueness (define), ambiguity (disambiguate), undecidability (stop) | YES — as audit checklist, not runtime tags | Smithson 1989/2022 |
+| **Presupposition analysis** | Catches wrong-question errors before investigation starts. Decompose research questions, verify embedded assumptions independently | YES — pre-flight step in researcher skill | Wang & Blanco EMNLP 2025; De-Presuppose (arXiv:2508.16838) |
+| **Pertinent negatives** | Documents *absence of expected findings* as diagnostic information. Requires causal model specified *before* checking | YES — expected-findings checklist + absence tracking | Hsu et al. (Cognitive Science 2016) |
+| **Via negativa** | Negative knowledge ("X doesn't work") is more durable than positive. Store ruled-out hypotheses with same care as confirmed ones | PARTIAL — high-stakes claims only | Taleb 2012; Popper |
+| **Question refinement** | When framework requires increasingly complex exceptions → degenerating programme (Lakatos). Reformulate the question, don't patch the framework | PARTIAL — framework health metric is premature to build (both models agreed: killed in Section 6) | Bachelard 1938; Laudan 1977; Lakatos |
 
-```
-Ignorance
-├── Error
-│   ├── Distortion (wrong beliefs)
-│   └── Incompleteness
-│       ├── Absence (don't have the data)
-│       ├── Uncertainty
-│       │   ├── Vagueness (fuzzy boundaries)
-│       │   ├── Probability (quantifiable)
-│       │   └── Ambiguity (multiple interpretations)
-│       └── Inaccuracy (data exists but is wrong)
-└── Irrelevance
-    ├── Untopicality (not relevant to the question)
-    ├── Undecidability (logically impossible to determine)
-    └── Mental operations
-        ├── Taboo (deliberately not investigated)
-        ├── Denial (known but suppressed)
-        └── Confusion (unable to organize)
-```
-
-**Why this matters:** Our system currently has two states: known (with confidence level) and unknown. Smithson's taxonomy reveals that "unknown" has structure. The key distinctions for an agent system:
-
-- **Absence vs Inaccuracy**: "We don't have data on X" vs "We have data on X but it might be wrong." These require different responses — collection vs verification.
-- **Vagueness vs Ambiguity**: "The boundary is unclear" vs "There are multiple valid interpretations." Vagueness is resolvable with more precision; ambiguity is resolvable with more context.
-- **Taboo and Denial**: These are *socially constructed* ignorance. In investment research, this maps to areas the market systematically ignores (accounting footnotes, related-party transactions). The most profitable edges are in taboo-adjacent areas. [INFERENCE]
-- **Undecidability**: Some questions genuinely cannot be answered. Recognizing this prevents infinite research loops (the IC's "mystery" category).
-
-**Adoptable?** YES — at minimum, tag unknowns with their Smithson category. "We don't know X" should be annotated: is it absence (go collect), inaccuracy (go verify), vagueness (go define), ambiguity (go disambiguate), or undecidability (stop looking)? [INFERENCE]
-
-### 3.2 Presupposition Analysis
-
-**Strawson's presupposition failure** [TRAINING-DATA]: A statement "The present king of France is bald" presupposes "There exists a present king of France." If the presupposition is false, the statement is neither true nor false — it has a *presupposition failure*. Strawson argued (contra Russell) that such statements don't even have a truth value.
-
-**Engineering consequence:** Research questions embed presuppositions. "What is Company X's competitive moat?" presupposes that Company X has a competitive moat. "How will the Fed respond to inflation?" presupposes the Fed will respond. An agent that investigates the question without checking its presuppositions will produce analysis built on unverified foundations.
-
-**De-Presuppose (Roy Dipta & Ferraro, 2025)** [SOURCE: found by agent, arXiv:2508.16838] [PREPRINT]: NLP method for decomposing questions into their presuppositions and asking them separately. Instead of "Why did the treatment fail?", decompose into: "Did the treatment fail?" → (if yes) "What are possible reasons?"
-
-**False assumption detection (Wang & Blanco, EMNLP 2025)** [SOURCE: found by agent]: Specifically targets false assumptions embedded in questions. This is directly operationalizable — before investigating a research question, decompose it and check each presupposition.
-
-**Adoptable?** YES — add a presupposition check step to the researcher skill. Before Phase 2 (exploratory divergence), explicitly list the question's presuppositions and verify the most important ones. This is cheap (one extra step) and catches a class of errors that no amount of downstream rigor can fix. [INFERENCE]
-
-### 3.3 Pertinent Negatives — The Dog That Didn't Bark
-
-**In medicine** [TRAINING-DATA]: A "pertinent negative" is the documented absence of an expected finding. Patient with chest pain but *no shortness of breath* — the absence of dyspnea is itself diagnostic information. It narrows the differential.
-
-**In intelligence** [TRAINING-DATA]: The absence of expected signals is informative. If a country is preparing for war, you'd expect to see military communications, supply movements, diplomatic recalls. If you see *none* of these, either the preparations aren't happening or the adversary is actively concealing them — and the concealment itself is a signal.
-
-**In investment research** [INFERENCE]: If a company claims rapid revenue growth, you'd expect to see hiring, capex increases, new office leases, customer testimonials. Absence of these corroborating signals is a pertinent negative.
-
-**Formalization:** A pertinent negative is defined relative to a causal model. Given hypothesis H, the model predicts observations O₁, O₂, O₃. If O₂ is *not observed*, this is a pertinent negative for H. The key requirement: you must have the causal model *before* checking, otherwise you'll notice some absences and not others (confirmation bias in reverse).
-
-**Adoptable?** YES — when evaluating a hypothesis, explicitly list expected observations (Bratman pre-registration) AND expected absences. Check both. This is cheap and prevents one of the hardest-to-detect failure modes: the hypothesis that's consistent with the evidence you found but inconsistent with the evidence that should exist but doesn't. [INFERENCE]
-
-### 3.4 Via Negativa — Subtractive Knowledge
-
-**Taleb's formulation** [TRAINING-DATA]: "We know a lot more about what is wrong than what is right... Negative knowledge (what is wrong, what does not work) is more robust than positive knowledge (what is right, what works)." From *Antifragile* (2012).
-
-The structural reason: disconfirming evidence is more stable than confirming evidence. "Bloodletting doesn't work" remains true forever. "Drug X treats condition Y" may be overturned by the next study. Negative knowledge *accretes monotonically* — once you know something doesn't work, that knowledge doesn't degrade.
-
-**For knowledge representation:** Explicitly store negative findings alongside positive ones. "Company X does NOT have significant insider selling" (as of date) is more informative than just storing the absence. This is the difference between a structured pertinent negative and a gap in the data. [INFERENCE]
-
-**Adoptable?** PARTIALLY — for high-stakes claims, maintain a "ruled out" list alongside the "supported" list. For routine claims, the overhead isn't worth it. [INFERENCE]
-
-### 3.5 Question Refinement as Epistemic Progress
-
-**Bachelard's epistemological obstacles** [TRAINING-DATA]: Gaston Bachelard (1938) argued that the biggest obstacles to scientific progress aren't wrong answers but wrong questions. Pre-scientific thinking asks "what is fire made of?" (answer: phlogiston). Scientific thinking asks "what is the process of combustion?" The reformulation of the question IS the breakthrough.
-
-**Laudan's problem-solving effectiveness** [TRAINING-DATA]: Larry Laudan argued that scientific progress should be measured not by getting closer to truth (which we can't measure) but by solving more empirical problems while generating fewer anomalies. A research program is "progressive" if it solves new problems; "degenerating" if it mainly explains away anomalies.
-
-**Lakatos' research programmes** [TRAINING-DATA]: Imre Lakatos distinguished between the "hard core" (unfalsifiable central assumptions) and the "protective belt" (auxiliary hypotheses that can be modified). A programme is degenerating when the protective belt gets thicker without the hard core generating new predictions. Epicycles on epicycles.
-
-**Engineering consequence:** When your analytical framework requires increasingly complex exceptions and special cases to accommodate new data, that's a degenerating research programme. The correct response isn't more patches — it's questioning the hard core. This is the paradigm shift detection problem.
-
-**For an agent system:** Track the ratio of "hypotheses confirmed" to "hypotheses requiring modification/exceptions." If the exception rate is climbing, flag the framework for review, not just the individual claims. This is meta-level error detection — monitoring the health of the framework, not just the claims within it. [INFERENCE]
-
-**Adoptable?** PARTIALLY — the framework health metric is a good idea but hard to operationalize without a significant number of claims and hypotheses in the system. For now, it's a principle to keep in mind rather than a mechanism to build. [HONEST ASSESSMENT: good idea, premature to implement]
+**Cross-cutting lesson:** The IC's distinction between **secrets** (collectible), **mysteries** (uncollectible — depends on future decisions), and **complexity** (system too complex for prediction) maps directly to Smithson's taxonomy but is more operational. Recognizing which type of unknown you face prevents infinite research loops on mysteries. [INFERENCE]
 
 ---
 
-## 4. Meta-Epistemic Evaluation — How Do You Know Your Knowledge System Works?
+## 4. Meta-Epistemic Evaluation — Summary
 
-> **Deeper treatment:** `negative-space-and-meta-epistemics.md` (560 lines) covers replication crisis numbers, Smithson taxonomy, pertinent negatives formalization, weather forecasting calibration (Ben-Bouallègue 2025, Murphy's three dimensions), ASRS structural features, and Manheim's five anti-Goodhart strategies in more detail than this section. This section keeps the institutional lessons and structural implications; consult the companion file for evidence depth.
+> **Full deep-dive:** `negative-space-and-meta-epistemics.md` (560 lines). Covers OSC 2015 numbers table (97%→36%), Brodeur et al. 2024 (15,992 test statistics, pre-registration vs PAP distinction), Scheel et al. 2021 (96% vs 44%), weather forecasting calibration (Murphy's three dimensions, Ben-Bouallègue 2025, Tetlock Brier scores 0.14-0.16 vs IC analysts 0.30-0.37), ASRS (5 structural features, 558K+ reports, separation-of-enforcement principle), Goodhart/Campbell (Manheim's 5 anti-Goodhart strategies, map-territory problem). Consult that file for evidence depth.
 
-### 4.1 The Replication Crisis — Before and After
+This section retains only the **structural lessons for knowledge accrual** — the institutional design patterns, not the evidence behind them.
 
-**The baseline (pre-reform):**
-- Open Science Collaboration (2015): 100 psychology studies replicated. 97% of originals claimed significant results; only 36% of replications found significant effects. [TRAINING-DATA, well-established]
-- Scheel et al. (2021): In standard psychology journals, 96% of studies report positive results (supporting the hypothesis). [SOURCE: found by agent via Exa]
-
-**The reforms and their measured impact:**
-- **Pre-registration**: Studies pre-registered on OSF or AsPredicted. Brodeur et al. (2024) analyzed 15,992 test statistics: pre-registration *with a pre-analysis plan (PAP)* reduces p-hacking (less bunching just below p=0.05); pre-registration alone has a weaker effect. Neither eliminates the problem entirely. [SOURCE: I4R Discussion Paper 101, verified via Exa /answer]
-- **Registered Reports**: Journal commits to publish *before* seeing results. Scheel et al. (2021): only 44% of Registered Reports find positive results (vs 96% in standard reports). [SOURCE: found by agent] This is the single most dramatic structural reform number I've seen.
-- **Combined effect**: O'Grady (Science, 2023) reports that pre-registration + transparency + large samples boost replication rate "to nearly 90%." [SOURCE: science.org, via Exa]
-
-**Structural lesson:** The Registered Reports number (44% positive vs 96%) is the smoking gun. The 96% rate was *structurally produced* by publication bias — journals only published positive results, so researchers found ways to produce them (p-hacking, HARKing, selective reporting). When the incentive structure changed (publish regardless of results), the true positive rate was revealed as ~44%.
-
-**For an agent system:** This is a warning about any system that selects for "interesting" findings. If your knowledge base preferentially retains claims that confirm hypotheses and discards null results, you'll get the same distortion. Explicitly store null results and failed hypotheses. The "file drawer" must be open. [INFERENCE]
-
-**Concrete implementation:** The `open_questions.md` format should have a "Resolved: No effect / No evidence found" category that's as prominent as "Resolved: Confirmed." [INFERENCE]
-
-### 4.2 Closed-Loop Systems — Why Weather Forecasting Works
-
-Weather forecasting is the most well-calibrated prediction domain [TRAINING-DATA]:
-- NWS probability of precipitation: when they say 70%, it rains ~70% of the time
-- Forecasting skill has improved ~1 day per decade (today's 5-day forecast is as accurate as the 3-day forecast from 20 years ago)
-
-**Structural features that produce calibration:**
-1. **Immediate feedback**: Tomorrow either matches the forecast or it doesn't. No waiting years for resolution.
-2. **Consistent scoring**: Brier scores calculated continuously, tracked over time.
-3. **No selection bias**: Every forecast is evaluated, not just the ones that were interesting.
-4. **Statistical post-processing**: Raw model output is calibrated against historical accuracy (model output statistics — MOS).
-5. **Competing models**: Multiple weather models (GFS, ECMWF, NAM) produce different forecasts. Ensemble methods exploit the diversity.
-6. **No political pressure**: Nobody benefits from biased weather forecasts (unlike economic or intelligence forecasting).
-
-**Tetlock's findings** [TRAINING-DATA]:
-- Foxes (many frameworks, probabilistic thinking) beat hedgehogs (one big idea, confident) by wide margins
-- The Good Judgment Project's superforecasters are characterized by: probabilistic thinking, updating on evidence, cognitive flexibility, and team discussion
-- Forecasting tournaments improve calibration — but possibly through selection (already-calibrated people self-select into tournaments)
-
-**For an agent system:** The key features are (1) feedback loops and (2) no selection bias. For investment research, we have partial feedback loops (market prices). For genomics, feedback is slower (clinical outcomes). For any domain, the principle is: track predictions, compare to outcomes, score consistently, and don't selectively forget misses. [INFERENCE]
-
-### 4.3 Error Archaeology — Learning from Failures
-
-**ASRS (Aviation Safety Reporting System)** [TRAINING-DATA]:
-The FAA's confidential, non-punitive incident reporting system. Key design features:
-- **Anonymity**: Reports are de-identified after processing. No punishment for reporters.
-- **Near-miss focus**: Reports are mostly about things that *almost* went wrong, not crashes.
-- **Systemic analysis**: Individual reports are analyzed for systemic patterns, not individual blame.
-- **Feedback**: Reporters receive acknowledgment and see how their reports led to changes.
-
-**Why it works and M&M conferences often don't:** ASRS has structural protection against blame. Medical M&M conferences vary widely — some are genuine learning exercises, others are performative rituals where the goal is to appear rigorous without actually changing anything. The difference is whether the system's output (changes to procedures, equipment, training) is tracked and measured. [TRAINING-DATA]
-
-**FMEA (Failure Mode and Effects Analysis)** [TRAINING-DATA]:
-- Pre-mortem of a system: systematically list every way it could fail, rate severity × probability × detectability
-- Produces a Risk Priority Number (RPN) for each failure mode
-- Effective when done before deployment; performative when done as post-hoc compliance checkbox
-
-**For an agent system:** Our session-analyst is the error archaeology mechanism. But it's currently retrospective (analyze what went wrong). The FMEA approach would be *prospective* — before a research task, enumerate the ways it could fail (wrong question, insufficient sources, authority anchoring, confirmation bias, scope creep) and rate which are most likely. This is the pre-mortem concept applied to analysis. [INFERENCE]
-
-### 4.4 Campbell's Law and Goodhart's Law — When Metrics Corrupt
-
-**Campbell's Law** [TRAINING-DATA]: "The more any quantitative social indicator is used for social decision-making, the more subject it will be to corruption pressures and the more apt it will be to distort and corrupt the social processes it is intended to monitor."
-
-**Goodhart's Law** [TRAINING-DATA]: "When a measure becomes a target, it ceases to be a good measure."
-
-**Concrete examples in knowledge systems:**
-- Citation counts as measure of research quality → citation cartels, salami-slicing, self-citation games
-- Journal impact factor → journals gaming citations, rejecting replication studies (negative for IF)
-- University rankings → teaching to the ranking criteria, not to students
-- Wikipedia edit counts → bot-driven edits, trivia accumulation
-
-**For an agent system:** Our pushback index (13.5% baseline) is vulnerable to this. If the agent learns that the pushback index is being measured, it could game it by adding more "however" and "on the other hand" without genuinely pushing back. Similarly, the epistemic lint "unsourced claims" count could be gamed by adding `[TRAINING-DATA]` tags liberally without actually verifying.
-
-**Mitigation:** Rotate metrics. Don't optimize against a single indicator. Use Tetlock's approach: measure calibration, resolution, and discrimination independently — gaming one tends to worsen the others. Track the *correlation between metrics* — if pushback index goes up but prediction accuracy doesn't, the pushback is performative. [INFERENCE]
+| Case Study | Key Structural Lesson | Implication for Agent System |
+|-----------|----------------------|------------------------------|
+| **Replication crisis** (96%→44% positive rate under Registered Reports) | Publication bias is *structurally produced* by incentives. Structural reform (publish-before-results) works; cultural reform (just "be honest") doesn't. Pre-registration without PAPs is performative (Brodeur 2024). | Monitor confirmation rate as system health metric. If >80% confirmatory → broken. Null result preservation (Section 6, Tier 1) is the structural fix. |
+| **Weather forecasting** (best-calibrated prediction domain) | Calibration requires: rapid unambiguous feedback, consistent quantitative scoring (Brier), no selection bias, symmetric incentives, competing models (ensembles). | Track predictions → compare to outcomes → score consistently → don't selectively forget misses. Multi-model review = ensemble diversity. |
+| **ASRS** (world's largest voluntary error reporting system) | Separation of error detection from enforcement. NASA analyzes, FAA enforces. Near-miss focus. Visible impact (2,500+ alert messages). Immunity provision creates positive reporting incentive. | Session-analyst (detection) is already separate from agent (correction). Improvement-log is the correction register. Key gap: no real-time escalation for high-severity patterns. |
+| **Goodhart/Campbell** (when metrics corrupt) | Any measure used for decision-making gets gamed. Pushback index, epistemic lint, SAFE-lite are all vulnerable. | Diversify metrics, rotate emphasis, track *correlations between metrics* (pushback up + accuracy flat = performative). Manheim's framework: diversification + post-hoc specification + external ground truth. See companion file for full 5-strategy treatment. |
 
 ---
 
