@@ -164,8 +164,14 @@ def normalize_path(p: str) -> str:
     return p.rsplit("/", 1)[-1] if "/" in p else p
 
 
-def check_citation_has_tool(citation: dict, tool_uses: list[dict]) -> bool:
-    """Check if a citation has a corresponding tool_use in the session."""
+def check_citation_has_tool(citation: dict, tool_uses: list[dict]) -> str:
+    """Check if a citation has a corresponding tool_use in the session.
+
+    Returns:
+        "verified" — deterministic match found (file basename or exact URL)
+        "unknown"  — URL citation without deterministic match (can't prove or disprove)
+        "fabricated" — file citation with no matching Read/Grep/Glob tool call
+    """
     source = citation["source"].strip("`'\"")
     cite_type = citation["type"]
     cite_idx = citation["entry_index"]
@@ -181,24 +187,30 @@ def check_citation_has_tool(citation: dict, tool_uses: list[dict]) -> bool:
             fp_basename = normalize_path(fp)
             # Match on basename (most common case: agent says `foo.py`, tool read /abs/path/foo.py)
             if source_basename and fp_basename and source_basename == fp_basename:
-                return True
+                return "verified"
             # Match on path suffix (agent says `research/foo.md`, tool read /abs/path/research/foo.md)
             if source and fp and fp.endswith(source):
-                return True
+                return "verified"
             # Also check Grep/Glob path
             path = tool.get("path", "")
             if source_basename and path and source_basename in path:
-                return True
+                return "verified"
 
         elif cite_type == "url_citation":
+            # Only verify if exact URL match exists (WebFetch/crawling)
             url = tool.get("url", "")
             if source and url and (source in url or url in source):
-                return True
-            # Any search/fetch tool could have surfaced a URL
-            if tool["name"] in INFO_TOOLS:
-                return True
+                return "verified"
+            # Do NOT treat "any search tool" as verifying any URL —
+            # that makes the detector useless (any session with search = all URLs "verified")
 
-    return False
+    # URL citations without exact match are genuinely unknowable —
+    # the agent may have seen the URL in search results we can't parse
+    if cite_type == "url_citation":
+        return "unknown"
+
+    # File citations without a matching tool call = fabricated provenance
+    return "fabricated"
 
 
 def analyze_session(path: Path) -> dict | None:
@@ -251,14 +263,18 @@ def analyze_session(path: Path) -> dict | None:
         else:
             unmatched_claims += 1
 
-    # Check source citations for hallucinated sources
-    hallucinated_sources = []
+    # Check source citations — categorize as verified/unknown/fabricated
+    fabricated_sources = []
     verified_sources = []
+    unknown_sources = []
     for citation in source_citations:
-        if check_citation_has_tool(citation, tool_uses):
+        verdict = check_citation_has_tool(citation, tool_uses)
+        if verdict == "verified":
             verified_sources.append(citation)
+        elif verdict == "fabricated":
+            fabricated_sources.append(citation)
         else:
-            hallucinated_sources.append(citation)
+            unknown_sources.append(citation)
 
     total_claims = matched_claims + unmatched_claims
     faithfulness = matched_claims / total_claims if total_claims > 0 else 1.0
@@ -273,8 +289,9 @@ def analyze_session(path: Path) -> dict | None:
         "faithfulness_score": faithfulness,
         "source_citations": len(source_citations),
         "verified_sources": len(verified_sources),
-        "hallucinated_sources": len(hallucinated_sources),
-        "hallucinated_details": hallucinated_sources[:5],
+        "fabricated_sources": len(fabricated_sources),
+        "unknown_sources": len(unknown_sources),
+        "fabricated_details": fabricated_sources[:5],
     }
 
 
@@ -324,11 +341,14 @@ def main():
     total_claims = sum(r["info_claims"] for r in results)
     total_matched = sum(r["matched_claims"] for r in results)
     total_sources = sum(r["source_citations"] for r in results)
-    total_hallucinated = sum(r["hallucinated_sources"] for r in results)
+    total_fabricated = sum(r["fabricated_sources"] for r in results)
     total_verified = sum(r["verified_sources"] for r in results)
+    total_unknown = sum(r["unknown_sources"] for r in results)
 
     overall_faithfulness = total_matched / total_claims if total_claims > 0 else 1.0
-    hallucination_rate = total_hallucinated / total_sources if total_sources > 0 else 0.0
+    # Fabrication rate only counts file citations (deterministically checkable)
+    file_citations = total_verified + total_fabricated
+    fabrication_rate = total_fabricated / file_citations if file_citations > 0 else 0.0
 
     # Print report
     print(f"{'=' * 55}")
@@ -341,8 +361,9 @@ def main():
     print(f"  Faithfulness score:    {overall_faithfulness:.1%}")
     print()
     print(f"  Source citations:      {total_sources}")
-    print(f"  Verified:              {total_verified}")
-    print(f"  Hallucinated:          {total_hallucinated} ({hallucination_rate:.1%})")
+    print(f"    Verified (file):     {total_verified}")
+    print(f"    Fabricated (file):   {total_fabricated} ({fabrication_rate:.1%} of file citations)")
+    print(f"    Unknown (URL):       {total_unknown} (can't deterministically verify)")
     print()
 
     # By project
@@ -355,20 +376,20 @@ def main():
         for proj, proj_results in sorted(by_project.items()):
             p_claims = sum(r["info_claims"] for r in proj_results)
             p_matched = sum(r["matched_claims"] for r in proj_results)
-            p_halluc = sum(r["hallucinated_sources"] for r in proj_results)
+            p_fab = sum(r["fabricated_sources"] for r in proj_results)
             p_faith = p_matched / p_claims if p_claims > 0 else 1.0
-            print(f"    {proj:<18} {len(proj_results):>3} sessions  faith={p_faith:.0%}  halluc={p_halluc}")
+            print(f"    {proj:<18} {len(proj_results):>3} sessions  faith={p_faith:.0%}  fabricated={p_fab}")
         print()
 
-    # Sessions with hallucinated sources
-    halluc_sessions = [r for r in results if r["hallucinated_sources"] > 0]
-    if halluc_sessions:
-        print(f"  ⚠ Sessions with hallucinated sources ({len(halluc_sessions)}):")
-        for r in sorted(halluc_sessions, key=lambda x: -x["hallucinated_sources"])[:10]:
+    # Sessions with fabricated sources (high-confidence only)
+    fab_sessions = [r for r in results if r["fabricated_sources"] > 0]
+    if fab_sessions:
+        print(f"  Sessions with fabricated file citations ({len(fab_sessions)}):")
+        for r in sorted(fab_sessions, key=lambda x: -x["fabricated_sources"])[:10]:
             sid = (r["session_id"] or "?")[:8]
-            print(f"    {sid}  {r['project']:<15} {r['hallucinated_sources']} hallucinated of {r['source_citations']} citations")
+            print(f"    {sid}  {r['project']:<15} {r['fabricated_sources']} fabricated of {r['source_citations']} citations")
             if verbose:
-                for h in r["hallucinated_details"][:3]:
+                for h in r["fabricated_details"][:3]:
                     print(f"      {h['type']}: {h['full_match'][:70]}")
         print()
 
@@ -382,8 +403,9 @@ def main():
         faithfulness_score=round(overall_faithfulness, 4),
         source_citations=total_sources,
         verified_sources=total_verified,
-        hallucinated_sources=total_hallucinated,
-        hallucination_rate=round(hallucination_rate, 4),
+        fabricated_sources=total_fabricated,
+        unknown_sources=total_unknown,
+        fabrication_rate=round(fabrication_rate, 4),
     )
     print(f"  Logged to ~/.claude/epistemic-metrics.jsonl")
 
