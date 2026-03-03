@@ -196,7 +196,10 @@ async def _run_claude_task_async(task, cwd):
     agents = _build_agents(task["subagents"])
 
     # Set subagent model for search-heavy tasks (effort=low implies lightweight)
+    # SDK merges {**os.environ, **options.env}, so stripping CLAUDECODE from
+    # our dict is not enough — os.environ still leaks it. Override explicitly.
     env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+    env["CLAUDECODE"] = ""  # blank overrides inherited os.environ value
     if effort == "low":
         env["CLAUDE_CODE_SUBAGENT_MODEL"] = "haiku"
     if effort:
