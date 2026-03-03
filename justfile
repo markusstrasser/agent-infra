@@ -32,6 +32,10 @@ epistemic-lint *args:
 safe-lite *args:
     uv run python3 scripts/safe-lite-eval.py {{args}}
 
+# User #tag annotations from session transcripts
+tags *args:
+    uv run python3 scripts/extract_user_tags.py {{args}}
+
 # ── Cross-Project ────────────────────────────────────────────────
 
 # Scan all project backlogs (--counts for summary)
