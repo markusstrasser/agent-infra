@@ -57,6 +57,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `epistemic-quality-evals.md` | Benchmarks for hallucination, calibration, source attribution, sycophancy in agents | Designing epistemic eval pipelines, calibration checks, researcher skill improvements |
 | `calibration-measurement-practical.md` | Practical calibration: min samples, hedging vs accuracy, scoring rules, SPC, Cromwell's rule | Building calibration measurement system, canary queries, confidence scoring |
 | `anthropic-tooling-landscape.md` | Full Anthropic tooling inventory: Agent SDK, 72 repos, API features, plugins, Skills open standard | Orchestrator SDK migration, evaluating new tools, plugin system |
+| `anti-sycophancy-process-supervision.md` | Multi-turn sycophancy detection (fold patterns), structural anti-sycophancy mechanisms, PRMs for research agents, tool-trace faithfulness | Pushback-index improvements, process supervision, fold detection, epistemic eval |
 
 <constitution>
 > **Human-protected.** Agent may propose changes but must not modify without explicit approval.
