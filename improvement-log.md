@@ -304,7 +304,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Completion Drive — subagent spawned for analysis couldn't stop itself from implementing fixes it discovered
 - **Proposed fix:** [architectural] Explore/analysis subagents should not be able to commit. Options: (a) PreToolUse:Bash hook checking `$CLAUDE_AGENT_TYPE` to block `git commit`/`git add`, (b) subagent prompt instruction (weak but cheap), (c) read-only worktree for analysis subagents.
 - **Severity:** high (4 commits undone, collision with parallel agent, required hard reset)
-- **Status:** [ ] proposed
+- **Status:** [x] implemented — `isolation: "worktree"` rule added to global CLAUDE.md subagent_usage section. No CLAUDE_AGENT_TYPE env var exists in Claude Code, so hook-based detection is impossible. Worktree isolation is the architectural fix — subagent commits land on throwaway branch, not main. (2026-03-02)
 
 ### [2026-03-02] BUILD-THEN-UNDO: Commit → revert → hard reset from subagent collision
 - **Session:** meta 80c5d8c4
@@ -312,7 +312,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Agent Collision — two agents working on same files without coordination
 - **Proposed fix:** [architectural] Before spawning a subagent that touches code, check `git log --oneline -5` for recent commits from other agents. If parallel work is in progress, restrict subagent to read-only operations.
 - **Severity:** medium (self-corrected within session, but user had to intervene)
-- **Status:** [ ] proposed — linked to subagent commit guard above
+- **Status:** [x] implemented — covered by worktree isolation rule (linked to subagent commit guard above). (2026-03-02)
 
 ### [2026-03-02] SYCOPHANCY: Implemented premature multi-backend triangulation per plan
 - **Session:** meta 9eb72fed
@@ -320,7 +320,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Sycophancy — executing a plan item without questioning its immediate ROI
 - **Proposed fix:** [rule] "Plans provide the 'what', but the agent retains judgment on 'when'. If a plan item is explicitly marked low-ROI or deferred, flag it before implementing. The plan author and the plan executor may be in different context states."
 - **Severity:** medium (~220 lines written and deleted across sessions, ~9 tool calls wasted)
-- **Status:** [ ] proposed
+- **Status:** [x] implemented — rule added to global CLAUDE.md Execution After Plans: "Multi-phase plans" paragraph covers both low-ROI flagging and phase-by-phase validation. (2026-03-02)
 
 ### [2026-03-02] MISSING PUSHBACK: Accepted "execute the rest of the plan" without scoping
 - **Session:** meta 226b3e9a
@@ -328,7 +328,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Missing pushback — compliance with vague scope on a large plan
 - **Proposed fix:** [rule] Already partially covered by global CLAUDE.md `<technical_pushback>` ("Can we validate at 1/10 the code?"). Needs reinforcement: "For multi-phase plans, propose the first 1-2 phases and validate before continuing. Don't execute all phases in a single pass."
 - **Severity:** high (29.8M input tokens, bugs requiring full cleanup session, parallel-agent collision)
-- **Status:** [ ] proposed
+- **Status:** [x] implemented — rule added to global CLAUDE.md Execution After Plans: "Multi-phase plans" paragraph. (2026-03-02)
 
 ### [2026-03-02] NEW FAILURE MODE: Context compaction hallucination
 - **Session:** meta ed9437c6
@@ -336,7 +336,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** NEW: Context Compaction Hallucination — compaction summary asserts completed work that doesn't exist in the repo
 - **Proposed fix:** [architectural] Post-compaction verification: agent should `git log --oneline -10` immediately after resuming from compacted context to verify claimed commits exist. Could be a SessionStart hook or a CLAUDE.md rule. The compaction process itself can't be hooked (PreCompact is side-effect only), but the resume behavior can be.
 - **Severity:** high (~735 lines re-done, user trust erosion when claimed work is missing)
-- **Status:** [ ] proposed
+- **Status:** [x] implemented — rule added to global CLAUDE.md Context Continuations: "Post-compaction verification" paragraph requiring `git log --oneline -10` after resuming. (2026-03-02)
 
 ### [2026-03-02] TOKEN WASTE: 9 consecutive Edit calls to same file instead of batching
 - **Session:** meta 9eb72fed
@@ -344,7 +344,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Token waste — granular edits where batched edits would suffice
 - **Proposed fix:** [rule] "When making 4+ sequential edits to the same file with no intervening reads or user interaction, batch them into 1-2 larger edits or a single Write."
 - **Severity:** low (14 total tool calls that could have been ~5, but each call is cheap)
-- **Status:** [ ] proposed
+- **Status:** [ ] rejected — low severity, not worth a rule. Edit batching is a judgment call, not a checkable predicate.
 
 ### [2026-03-02] Session e86dcb9c — Empty session
 - **Session:** meta e86dcb9c (0 messages)
