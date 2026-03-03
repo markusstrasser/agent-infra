@@ -66,6 +66,8 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `negative-space-and-meta-epistemics.md` | **Companion.** Deep-dive: Smithson taxonomy, presupposition analysis, pertinent negatives, replication crisis numbers, weather calibration, ASRS, Goodhart/Manheim | Negative space techniques, meta-monitoring, calibration |
 | `agentic-search-api-comparison.md` | Brave/Exa/Tavily/Firecrawl/Perplexity/Parallel — benchmarks (AIMultiple), feature matrix, pricing, index independence, latency | Search API selection, MCP configuration, triangulation strategy |
 | `brave-search-api-deep-dive.md` | Full Brave API surface (10 endpoints), LLM Context params/schema, Answers (OpenAI compat), MCP servers (official vs Anthropic), pricing restructure, unique capabilities | Brave integration, LLM Context setup, MCP server selection |
+| `epistemic-measurement-concepts.md` | Concepts reference: canary queries, fold detection, trace faithfulness, SPC, Goodhart mitigation, Brier scoring, pertinent negatives, what NOT to build | Epistemic system design, understanding measurement scripts, onboarding |
+| `epistemic-v2-synthesis.md` | 25+ papers synthesized: 22 findings, ROI assessment, measurement redesign, frameworks (SDT, OODA, scoring rules) | Epistemic system improvements, verification architecture |
 
 <constitution>
 > **Human-protected.** Agent may propose changes but must not modify without explicit approval.
