@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Pertinent Negatives",
+  "description": "Pre-specified expectations for thesis-level analyses. Forces 'what's the dog that didn't bark?' before investigating. Based on IC Indicators & Warnings (I&W) framework.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["expected", "found", "implication"],
+    "properties": {
+      "expected": {
+        "type": "string",
+        "description": "What you'd expect to see if the hypothesis were true"
+      },
+      "found": {
+        "type": "boolean",
+        "description": "Was this expectation actually observed?"
+      },
+      "implication": {
+        "type": "string",
+        "description": "What does the presence/absence mean for the thesis?"
+      },
+      "claim_ref": {
+        "type": "string",
+        "description": "Optional reference to a specific claim in the claims table (e.g., '#3')"
+      }
+    }
+  },
+  "examples": [
+    [
+      {
+        "expected": "Revenue growth >15% YoY if demand thesis is correct",
+        "found": false,
+        "implication": "Demand thesis weakened — growth was only 8%, below sector average",
+        "claim_ref": "#2"
+      },
+      {
+        "expected": "Insider buying if management believes in turnaround",
+        "found": false,
+        "implication": "No insider purchases in 12 months despite stated optimism — actions don't match words"
+      },
+      {
+        "expected": "Patent filing activity if R&D pipeline is real",
+        "found": true,
+        "implication": "3 new patent applications in Q4 — consistent with R&D narrative"
+      }
+    ]
+  ]
+}
