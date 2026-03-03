@@ -58,6 +58,8 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `calibration-measurement-practical.md` | Practical calibration: min samples, hedging vs accuracy, scoring rules, SPC, Cromwell's rule | Building calibration measurement system, canary queries, confidence scoring |
 | `anthropic-tooling-landscape.md` | Full Anthropic tooling inventory: Agent SDK, 72 repos, API features, plugins, Skills open standard | Orchestrator SDK migration, evaluating new tools, plugin system |
 | `anti-sycophancy-process-supervision.md` | Multi-turn sycophancy detection (fold patterns), structural anti-sycophancy mechanisms, PRMs for research agents, tool-trace faithfulness | Pushback-index improvements, process supervision, fold detection, epistemic eval |
+| `temporal-epistemic-degradation.md` | Within-session precision decay, compaction nuance loss, memory belief drift, staleness detection, multi-run consistency, output position effects | Compaction strategy, MEMORY.md design, cross-session verification, epistemic monitoring |
+| `factual-verification-systems.md` | SAFE/VeriScore/FINCH-ZK production landscape, cross-model verification (+39% F1), unclear bucket diagnosis, PRMs for verification, prediction markets as ground truth | SAFE-lite improvements, model-review cross-family routing, verification pipeline design |
 
 <constitution>
 > **Human-protected.** Agent may propose changes but must not modify without explicit approval.
