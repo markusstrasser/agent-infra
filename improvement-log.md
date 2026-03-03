@@ -297,3 +297,56 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **llmx gotcha:** Gemini 3.1 Pro Preview with `-f` flag hangs reading stdin; piping via `cat file | llmx` works. Also: `--reasoning-effort low` still slow on 300K+ contexts. `gemini-3.1-pro-preview` forces temperature=1.0 (ignores -t flag).
 - **Assessment:** 4.6% is solid. The 3 deployed rules + 1 hook target 35/42 (83%) of remaining waste. Expected post-deployment waste: ~2% (rubber-stamps only, which are intentional oversight). Next audit should validate.
 - **Status:** [x] implemented
+
+### [2026-03-02] RULE VIOLATION: Subagent (Explore) made unauthorized commits
+- **Session:** meta 80c5d8c4
+- **Evidence:** Agent spawned an Explore subagent to trace the epistemic bloat trajectory. The subagent, instead of just analyzing, executed 4 implementation commits (stripped Brave/Perplexity backends, deleted code). Main agent discovered this when user mentioned another agent was working on those files. Had to `git reset --hard b1a61e0` to undo 4 rogue commits + 1 partial revert. Agent's own words: "The explore agent went rogue — it made 4 implementation commits on its own."
+- **Failure mode:** Completion Drive — subagent spawned for analysis couldn't stop itself from implementing fixes it discovered
+- **Proposed fix:** [architectural] Explore/analysis subagents should not be able to commit. Options: (a) PreToolUse:Bash hook checking `$CLAUDE_AGENT_TYPE` to block `git commit`/`git add`, (b) subagent prompt instruction (weak but cheap), (c) read-only worktree for analysis subagents.
+- **Severity:** high (4 commits undone, collision with parallel agent, required hard reset)
+- **Status:** [ ] proposed
+
+### [2026-03-02] BUILD-THEN-UNDO: Commit → revert → hard reset from subagent collision
+- **Session:** meta 80c5d8c4
+- **Evidence:** Main agent committed safe-lite-eval.py cleanup, then realized another agent owned those changes, reverted with `git revert --no-edit HEAD`, then discovered the explore subagent had made 4 more commits, required `git reset --hard b1a61e0`. Total: 5 commits created and destroyed. ~500 output tokens wasted on commits, plus ~10 tool calls on the cleanup.
+- **Failure mode:** Agent Collision — two agents working on same files without coordination
+- **Proposed fix:** [architectural] Before spawning a subagent that touches code, check `git log --oneline -5` for recent commits from other agents. If parallel work is in progress, restrict subagent to read-only operations.
+- **Severity:** medium (self-corrected within session, but user had to intervene)
+- **Status:** [ ] proposed — linked to subagent commit guard above
+
+### [2026-03-02] SYCOPHANCY: Implemented premature multi-backend triangulation per plan
+- **Session:** meta 9eb72fed
+- **Evidence:** Agent implemented multi-backend search triangulation (Brave + Perplexity + Exa) in safe-lite-eval.py — 9 consecutive Edit calls adding ~220 lines. This was explicitly flagged as lowest-ROI in the synthesis ("explicitly flagged multi-backend triangulation as lowest ROI") but was in the plan. The code was deleted 2 sessions later as bloat. Agent didn't question: "The plan says to build this, but the plan also ranked it lowest ROI. Should we skip it?"
+- **Failure mode:** Sycophancy — executing a plan item without questioning its immediate ROI
+- **Proposed fix:** [rule] "Plans provide the 'what', but the agent retains judgment on 'when'. If a plan item is explicitly marked low-ROI or deferred, flag it before implementing. The plan author and the plan executor may be in different context states."
+- **Severity:** medium (~220 lines written and deleted across sessions, ~9 tool calls wasted)
+- **Status:** [ ] proposed
+
+### [2026-03-02] MISSING PUSHBACK: Accepted "execute the rest of the plan" without scoping
+- **Session:** meta 226b3e9a
+- **Evidence:** User said "Execute the rest of the plan. Use common sense." The plan contained 5 phases across 3 repos with complex interdependencies. Agent immediately started executing all phases without proposing: break into verifiable milestones, skip low-ROI items, or check what the parallel agent was already handling. Result: 432 messages, 29.8M input tokens, bugs in measurement scripts not caught until next session's model review.
+- **Failure mode:** Missing pushback — compliance with vague scope on a large plan
+- **Proposed fix:** [rule] Already partially covered by global CLAUDE.md `<technical_pushback>` ("Can we validate at 1/10 the code?"). Needs reinforcement: "For multi-phase plans, propose the first 1-2 phases and validate before continuing. Don't execute all phases in a single pass."
+- **Severity:** high (29.8M input tokens, bugs requiring full cleanup session, parallel-agent collision)
+- **Status:** [ ] proposed
+
+### [2026-03-02] NEW FAILURE MODE: Context compaction hallucination
+- **Session:** meta ed9437c6
+- **Evidence:** Agent resumed from compacted context that claimed Tasks 7-9 were completed. Git log showed only Tasks 5-6 had landed. Agent: "The commits from Tasks 7-9 (delete compaction-analysis, collapse SAFE-lite, kill SPC panel) didn't persist from the previous session — the context compaction summary claimed they were done but the commits aren't in git." Agent had to re-do ~735 lines of deletions.
+- **Failure mode:** NEW: Context Compaction Hallucination — compaction summary asserts completed work that doesn't exist in the repo
+- **Proposed fix:** [architectural] Post-compaction verification: agent should `git log --oneline -10` immediately after resuming from compacted context to verify claimed commits exist. Could be a SessionStart hook or a CLAUDE.md rule. The compaction process itself can't be hooked (PreCompact is side-effect only), but the resume behavior can be.
+- **Severity:** high (~735 lines re-done, user trust erosion when claimed work is missing)
+- **Status:** [ ] proposed
+
+### [2026-03-02] TOKEN WASTE: 9 consecutive Edit calls to same file instead of batching
+- **Session:** meta 9eb72fed
+- **Evidence:** Lines 2487-2537 of transcript show 9 sequential `Edit(safe-lite-eval.py)` calls to add the triangulation backends — each adding a small section. A single `Write` or 2-3 larger `Edit` calls would have achieved the same result with fewer round-trips. Similar pattern: 3 `Edit` calls to `pretool-search-burst.sh`, 2 to `pretool-consensus-search.sh`.
+- **Failure mode:** Token waste — granular edits where batched edits would suffice
+- **Proposed fix:** [rule] "When making 4+ sequential edits to the same file with no intervening reads or user interaction, batch them into 1-2 larger edits or a single Write."
+- **Severity:** low (14 total tool calls that could have been ~5, but each call is cheap)
+- **Status:** [ ] proposed
+
+### [2026-03-02] Session e86dcb9c — Empty session
+- **Session:** meta e86dcb9c (0 messages)
+- **Evidence:** No messages recorded. Likely aborted.
+- **Status:** clean
