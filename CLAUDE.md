@@ -63,6 +63,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `knowledge-accrual-architecture.md` | **Core memo.** 5 institutional case studies (Wikipedia, Cochrane, ClinGen, common law, IC tradecraft), structural error-catching (double-entry parity, triangulation, conservation heuristics), 5 synthesized principles, cross-model reviewed. Companion files below for depth. | Knowledge system design, evidence taxonomy, claim schemas, null result preservation |
 | `knowledge-representation-paradigms.md` | **Companion.** Deep-dive: Wolfram, CYC post-mortem, OWL/RDF, Wikidata, Toulmin/Dung/IBIS, probabilistic DBs, type theory | Representation decisions, formalization tradeoffs |
 | `negative-space-and-meta-epistemics.md` | **Companion.** Deep-dive: Smithson taxonomy, presupposition analysis, pertinent negatives, replication crisis numbers, weather calibration, ASRS, Goodhart/Manheim | Negative space techniques, meta-monitoring, calibration |
+| `agentic-search-api-comparison.md` | Brave/Exa/Tavily/Firecrawl/Perplexity/Parallel — benchmarks (AIMultiple), feature matrix, pricing, index independence, latency | Search API selection, MCP configuration, triangulation strategy |
 
 <constitution>
 > **Human-protected.** Agent may propose changes but must not modify without explicit approval.
