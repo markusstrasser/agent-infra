@@ -247,11 +247,47 @@ What's redundant:
 
 ---
 
-## 10. Recommendations for Our Setup
+## 10. Empirical Benchmark: Academic vs Websearch vs Combined (2026-03-03)
+
+**Our own test.** Ran 3 Sonnet agents on the same genomics VUS question (EBF3 p.Pro263Leu clinical significance) with different tool restrictions. 15 turns each, $6.93 total. Comparison scored by a 4th Sonnet agent with PMID verification.
+
+**Source:** `meta/benchmarks/comparison-report.md` (full report), `meta/benchmarks/output-*.md` (raw outputs), `meta/pipelines/research-api-benchmark.json` (orchestrator pipeline).
+
+### Results
+
+| Strategy | Tools | Score | Cost | Hallucinations |
+|----------|-------|-------|------|----------------|
+| Combined | S2 + PubMed + arXiv + Exa + Brave + Perplexity | 83/100 | $2.18 | 1 (wrong journal/page) |
+| Academic | S2 + PubMed + arXiv + bioRxiv + Google Scholar | 80/100 | $1.29 | 0 |
+| Websearch | Exa + Brave + Perplexity | 75/100 | $1.65 | 3 (PDB ID, 2 year errors) |
+
+### What each strategy uniquely found
+
+- **Websearch:** UniProt domain boundary (Pro263 = exact IPT/TIG N-terminus), domain clustering disconfirmation (all pathogenic EBF3 missense in DBD, none in IPT/TIG), mosaic carrier mother case
+- **Academic:** Batie 2023 urological HADDS, EBF1 TIG dimerization interface 490 Å², zero citation errors
+- **Combined:** Deisseroth 2022 fly rescue assay (functional spectrum data), PP3 inflation caveat, ZNF hotspot specificity, Zhu 2023 Chinese cohort
+
+### Hallucination analysis
+
+- Academic: zero factual errors. Imprecise domain boundaries (inferred from EBF1 homology instead of querying EBF3 UniProt) — methodological gap, not hallucination.
+- Websearch: hallucinated PDB 3MUJ (doesn't correspond to cited paper), two year errors (online-2016 vs print-2017), self-contradiction on IPT/TIG pathogenic variants.
+- Combined: "Harms et al. 2017 (Am J Hum Genet 100:117)" — real author, wrong journal/page. Harms is in Human Mutation (PMID 28736989). AJHG 100:117 is Chao et al.
+
+### Key finding
+
+Websearch's domain clustering finding — no documented pathogenic EBF3 missense in IPT/TIG domain — was the single strongest disconfirmatory evidence and was **missed by academic entirely**. Academic concluded "TIG is structurally significant" without checking domain-level pathogenic variant precedent. This is a protocol gap: domain importance ≠ domain clustering.
+
+### Limitations
+
+N=1 query, single model (Sonnet), single domain (genomics variant interpretation). Sonnet self-scored Sonnet with no ground truth oracle. Equal turns ≠ equal budget (academic needs 3 turns per paper vs 1 per websearch query). Combined had access to academic's saved corpus papers (shared research MCP).
+
+---
+
+## 11. Recommendations for Our Setup
 
 We currently use Exa as primary search. Based on this analysis:
 
-1. **Add Brave as secondary/triangulation source.** Independent index, fastest latency, cheapest at scale. $5/1K with $5 free monthly credit. Different index than Exa = genuine triangulation. WebSearch (our built-in tool) likely uses Google or a similar provider, so Brave gives us a third independent perspective.
+1. **Add Brave as secondary/triangulation source.** Independent index, fastest latency, cheapest at scale. $5/1K with $5 free monthly credit. Different index than Exa = genuine triangulation. WebSearch (our built-in tool) likely uses Google or a similar provider, so Brave gives us a third independent perspective. **Empirical (§10):** Brave contributed to websearch strategy's unique findings (domain clustering).
 
 2. **Keep Exa as primary for research.** Semantic search quality is genuinely differentiated. Company/people search verticals are unique. Research endpoint handles deep queries.
 
@@ -259,9 +295,13 @@ We currently use Exa as primary search. Based on this analysis:
 
 4. **Consider Firecrawl only for structured extraction.** If we need to extract data from web pages into specific JSON schemas, Firecrawl is the tool. We don't need it for search.
 
-5. **Perplexity Sonar: skip for now.** `verify_claim` (Exa /answer) already gives us grounded answers. Sonar's latency (11s+) makes it unsuitable for agent tool calls.
+5. **Perplexity as synthesis engine, not search.** `perplexity_ask` and `perplexity_reason` useful for one-call grounded answers (contributed to websearch strategy). `perplexity_research` for deep topic surveys. Not a search replacement — a synthesis layer on top of search.
 
 6. **Watch Parallel.** Independent index, competitive quality, but newer. If they prove stable, they're a better Tavily alternative with clearer index independence.
+
+7. **Websearch for database lookups, academic for literature (empirical, §10).** S2/PubMed are the wrong tool for querying UniProt, gnomAD, MaveDB, ClinVar — they return papers *about* databases, not the data. Exa/Brave/Perplexity reach the actual web databases. Conversely, websearch hallucinated PDB IDs and citation details at 3x the rate of academic tools. **Instruction-based routing in the researcher skill is sufficient** — don't build a multi-tier pipeline orchestrator for this.
+
+8. **S2 API key (added 2026-03-03).** Semantic Scholar with API key gives dedicated 1 RPS (vs shared pool). 220M+ papers, structured metadata, citation graph. No date filtering — use Exa `web_search_advanced_exa` with `category: "research paper"` for recency. Key set via `S2_API_KEY` in `~/.env`, propagated through `.mcp.json` env blocks.
 
 ---
 
