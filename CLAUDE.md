@@ -60,6 +60,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `anti-sycophancy-process-supervision.md` | Multi-turn sycophancy detection (fold patterns), structural anti-sycophancy mechanisms, PRMs for research agents, tool-trace faithfulness | Pushback-index improvements, process supervision, fold detection, epistemic eval |
 | `temporal-epistemic-degradation.md` | Within-session precision decay, compaction nuance loss, memory belief drift, staleness detection, multi-run consistency, output position effects | Compaction strategy, MEMORY.md design, cross-session verification, epistemic monitoring |
 | `factual-verification-systems.md` | SAFE/VeriScore/FINCH-ZK production landscape, cross-model verification (+39% F1), unclear bucket diagnosis, PRMs for verification, prediction markets as ground truth | SAFE-lite improvements, model-review cross-family routing, verification pipeline design |
+| `knowledge-accrual-architecture.md` | Wikipedia/Cochrane/ClinGen/common law/IC knowledge accrual patterns, representation comparison (5 paradigms), negative space techniques (Smithson, presuppositions, pertinent negatives), meta-epistemics (replication crisis 96%→44%, ASRS, Goodhart), structural error-catching (double-entry parity, triangulation, conservation laws) | Knowledge system design, evidence taxonomy, research question quality, confirmation rate monitoring |
 
 <constitution>
 > **Human-protected.** Agent may propose changes but must not modify without explicit approval.
