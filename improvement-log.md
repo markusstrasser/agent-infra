@@ -350,3 +350,35 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Session:** meta e86dcb9c (0 messages)
 - **Evidence:** No messages recorded. Likely aborted.
 - **Status:** clean
+
+### [2026-03-02] WRONG SUBAGENT TYPE: 5 verification agents launched as general-purpose instead of researcher
+- **Session:** selve fa8f6961
+- **Evidence:** Prior session launched 5 parallel agents ("Verify CYP1A2 melatonin metabolism", "Verify NNT het HPA", etc.) via `Agent` tool with `subagent_type: general-purpose`. MTHFR agent ran 40 turns / 101K tokens without producing a verdict — no maxTurns:20, no epistemics skill, no source-check stop hook. CYP1A2 agent ran 35 turns / 120K tokens but DID produce a verdict (lucky, not systematic).
+- **Failure mode:** NEW: Wrong subagent routing — research tasks bypassing epistemic guardrails by using general-purpose type
+- **Proposed fix:** [hook] `pretool-subagent-gate.sh` check 4: warn when description matches research keywords (verify, evidence, PMID, literature, systematic review) and subagent_type is `general-purpose`. [config] `researcher.md` synthesis deadline: must begin verdict at turn 15/20.
+- **Severity:** high (101K tokens burned with zero output; no source-check hooks fired)
+- **Status:** [x] implemented — both fixes deployed this session
+
+### [2026-03-02] RECURRING: Source grading reactive, not proactive — third occurrence across projects
+- **Session:** selve fa8f6961
+- **Evidence:** Memo written to `docs/research/genotype_phenotype_verification_2026_03.md` citing Spaccarotella 2023, Pipek 2021 (SpO2 bias), Eskola 2012 (TNF-α), Fujisawa 2015 (NNT) — all from Perplexity search summaries, not full-text reads. Tagged `[SOURCE: Perplexity search]` without "abstract only" qualifier. `postwrite-source-check.sh` passed because it checked for presence of ANY tag, not density (1 tag in 236-line file = pass).
+- **Failure mode:** RECURRING: matches [2026-03-02] intel 331211bf entry. Same pattern: hooks catch post-hoc, agent doesn't tag proactively during fast synthesis. Third occurrence across 2 projects.
+- **Proposed fix:** [hook] `postwrite-source-check.sh` now checks tag DENSITY (1 tag per 5 claim-bearing lines), not just presence. [memo] Retroactively tagged with honest provenance (`[TRAINING-DATA]`, `[UNVERIFIED]`, "abstract only").
+- **Severity:** high (medical/genomics claims with ungraded provenance)
+- **Status:** [x] implemented — density check deployed, memo retroactively fixed
+
+### [2026-03-02] TOOL TRUST: verify_claim returned false positive (confidence=1.0) for claim refuted by primary literature
+- **Session:** selve fa8f6961
+- **Evidence:** CYP1A2 agent called `verify_claim("CYP1A2 fast melatonin clearance")` — Exa /answer returned "supported" with confidence=1.0, citing consumer PGx sites (23andMe blogs, genetic.io). Hilli 2008 (PMID 18490497, n=29, full text read) directly refutes with P=.97. The tool has no source quality filter — D-grade consumer sites weighted equally to A-grade peer-reviewed PK studies.
+- **Failure mode:** NEW: Automated verification tool amplifying low-quality sources. verify_claim is useful for screening but dangerous as final verdict.
+- **Proposed fix:** [rule] `.claude/rules/research-depth.md` — caveat added: treat verify_claim as screening tool for HIGH-stakes claims, cross-check against primary literature. [architectural, deferred] Research MCP should return source domains with verdicts so callers can grade them.
+- **Severity:** medium (agent correctly overrode the tool, but an unsupervised agent would have propagated the false positive)
+- **Status:** [x] rule deployed; [ ] MCP code change proposed but deferred
+
+### [2026-03-02] TOKEN WASTE: 4 sequential Bash calls parsing MTHFR agent JSONL, all empty
+- **Session:** selve fa8f6961 (continuation)
+- **Evidence:** After MTHFR agent completed, 4 sequential `Bash` calls with Python one-liners tried to extract its final synthesis from JSONL output: `type=="assistant"`, `type=="result"`, longest text block, last 5 lines. All returned empty because the agent never produced a synthesis (hit turn limit mid-research). The correct check was: last line's `type` field — if not `result`, agent didn't finish. Determinable in 1 call.
+- **Failure mode:** Token waste — iterative parsing of absent data
+- **Proposed fix:** [rule] "When checking subagent output, first check last line for `type==result`. If absent, agent didn't finish. Don't iterate."
+- **Severity:** low (4 wasted Bash calls, ~800 tokens)
+- **Status:** [ ] proposed — not worth a hook, add to MEMORY.md as gotcha
