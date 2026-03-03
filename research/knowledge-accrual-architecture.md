@@ -165,48 +165,19 @@ This maps to Smithson's taxonomy but is more operational. The key distinction is
 
 ---
 
-## 2. Knowledge Representation Comparison
+## 2. Knowledge Representation — Summary
 
-### The Five Paradigms
+> **Full deep-dive:** `knowledge-representation-paradigms.md` (435 lines). Covers Wolfram computable knowledge, CYC 40-year post-mortem, OWL/RDF, Wikidata provenance model, Toulmin/Dung/IBIS/Wigmore argument frameworks, probabilistic databases (MayBMS/Trio), and type-theoretic knowledge. That file has more depth per paradigm than this summary — consult it for implementation details.
 
-| Paradigm | Representation | What It Prevents | Where It Fails | Adoptable? |
-|----------|---------------|-----------------|----------------|------------|
-| **Text claims** | Natural language sentences with provenance tags | (baseline — prevents nothing structurally) | No consistency checking, no type safety, no contradiction detection | Already using |
-| **Computable expressions** (Wolfram) | `Entity["Country", "France"]["Population"]` → number | Type errors, dimensional errors, obviously wrong values | Only works for facts expressible as computations; fails for qualitative claims, contested facts, opinions | LOW for our domain |
-| **Probabilistic statements** (Stan/PyMC) | `X ~ Normal(42, 5)` — uncertainty is first-class | False precision, certainty where none exists | Requires specifiable distributions; most qualitative claims can't be parameterized; computational overhead | MEDIUM — for specific quantitative claims |
-| **Argument graphs** (Toulmin/Dung) | Claim ← Grounds ← Warrant ← Backing + Rebuttal + Qualifier | Unstated assumptions, hidden warrants, missing rebuttals | Overhead for simple claims; no automated consistency checking; requires manual construction | MEDIUM — for contested claims |
-| **Type-theoretic proofs** (Lean/Coq) | Proofs as programs; invalid proofs are type errors | Any error in logical reasoning (but only within the formal system) | Only works for mathematical/logical claims; formalizing empirical claims is an unsolved problem | VERY LOW for our domain |
+| Paradigm | Error Class Prevented | Adoptable for Us? | Key Lesson |
+|----------|----------------------|-------------------|------------|
+| **Text claims + provenance** | (baseline) | Already using | Necessary but not sufficient |
+| **Computable expressions** (Wolfram) | Type/dimensional errors | LOW — our domains resist formalization | The boundary is sharp: works for consensus quantitative facts, fails for contested/qualitative claims |
+| **Probabilistic statements** | False precision | MEDIUM — for specific quantitative claims | First-class uncertainty is the right idea but at presentation layer, not storage layer (MayBMS/Trio lesson) |
+| **Argument graphs** (Toulmin) | Unstated assumptions, missing rebuttals | MEDIUM — for contested claims only | Hart rules-vs-standards: lightweight for routine, heavyweight for important. Software implementations (Argunet, Compendium) never achieved adoption — formalization tax too high |
+| **Type-theoretic proofs** | Logical reasoning errors | VERY LOW — no path to empirical claims | Formalization prevents structural errors, not semantic ones. CYC's 25M rules couldn't prevent factual mistakes |
 
-### Deep Assessment
-
-**Wolfram's Computable Knowledge** [TRAINING-DATA]:
-Wolfram Alpha has ~15 trillion computable relations covering math, physics, chemistry, geography, finance, etc. The representation *itself* prevents certain errors: you can't accidentally assign France's population as a string, or claim the speed of light is 42 kg. Dimensional analysis, unit conversion, and consistency checking are automatic.
-
-**Where it fails:** The boundary is sharp. Computable knowledge works for *quantitative facts about well-defined entities with consensus values*. It fails for: contested claims ("is X effective?"), qualitative assessments ("is this company well-managed?"), and anything where the value depends on framing or methodology. For our domains (investment research, genomics interpretation), the most important claims are precisely the ones that resist formalization.
-
-**The ruliad** [TRAINING-DATA]: Wolfram's "New Kind of Science" and the ruliad concept — the entangled limit of all possible computations — is fascinating metaphysics with no engineering analog. Honestly, there's nothing practical here for knowledge systems. It's a framework for thinking about the structure of all possible physical laws, not a tool for representing empirical claims. [HONEST ASSESSMENT: academic, not practical]
-
-**CYC Post-Mortem** [TRAINING-DATA + search verification]:
-Doug Lenat spent 40 years (1984–2023) manually encoding common sense into ~25 million rules in CYC's knowledge base. He died in August 2023. Retrospective assessment:
-
-- **What worked:** CYC can answer questions that require unstated common-sense reasoning ("if I'm carrying a cup of coffee and I trip, what happens to the coffee?"). It has genuine common-sense inference capabilities that LLMs still struggle with.
-- **What failed:** It never achieved the "crossover point" Lenat predicted where the system would become self-improving. Manual knowledge entry doesn't scale. The formalization overhead is enormous. And crucially, LLMs achieved "good enough" common sense through statistical patterns without any explicit formalization.
-- **Key lesson:** Formalization is expensive and doesn't prevent *semantic* errors — it only prevents *structural* ones. You can have a perfectly well-formed CYC assertion that's factually wrong. The type system catches "France is a color" but not "France has 100 million people."
-
-**Argument Frameworks** [TRAINING-DATA]:
-Toulmin's model (claim, grounds, warrant, backing, qualifier, rebuttal) is the most practically useful. It forces you to make explicit:
-- **Warrant**: the general principle connecting evidence to claim (often unstated)
-- **Qualifier**: the degree of certainty ("probably", "presumably", "in most cases")
-- **Rebuttal**: conditions under which the claim doesn't hold
-
-Several software implementations exist: Argunet, Rationale, MindMup. None have achieved wide adoption. The overhead of formal argumentation is too high for routine claims. [TRAINING-DATA]
-
-**Best-fit recommendation:** Toulmin-style argumentation for *contested or high-stakes claims only*. For routine factual claims, text-with-provenance is sufficient. The marginal value of argument structure only exceeds the overhead when there's genuine disagreement or high decision stakes. This is the Hart rules-vs-standards pattern again: lightweight representation for the common case, heavyweight for the important case. [INFERENCE]
-
-**Probabilistic Databases** [TRAINING-DATA + verified]:
-MayBMS (Oxford, 2007–2012) and Trio (Stanford) represented uncertainty directly in database tuples. A table could contain `(France, population, 67M, 0.95)` meaning "95% confident." The research was technically sound but the projects are effectively defunct. Core ideas (approximate query processing, uncertainty-aware aggregation) were absorbed into mainstream databases and stream processing.
-
-**Lesson:** First-class uncertainty is the right idea but wrong venue. Probabilistic databases added uncertainty to *storage*. What we need is uncertainty in *claims* — which is a presentation/representation concern, not a storage concern. Our provenance tags + confidence ratings achieve the practical goal without the infrastructure overhead. [INFERENCE]
+**The cross-cutting lesson from all five paradigms:** Formalization is expensive and only catches *structural* errors (type mismatches, dimensional errors, logical inconsistencies). It does not catch *semantic* errors (claims that are well-formed but factually wrong). For our domains, semantic errors dominate. The practical takeaway: invest in provenance, verification paths, and cross-checking — not in richer formal representation. [INFERENCE]
 
 ---
 
@@ -296,6 +267,8 @@ The structural reason: disconfirming evidence is more stable than confirming evi
 ---
 
 ## 4. Meta-Epistemic Evaluation — How Do You Know Your Knowledge System Works?
+
+> **Deeper treatment:** `negative-space-and-meta-epistemics.md` (560 lines) covers replication crisis numbers, Smithson taxonomy, pertinent negatives formalization, weather forecasting calibration (Ben-Bouallègue 2025, Murphy's three dimensions), ASRS structural features, and Manheim's five anti-Goodhart strategies in more detail than this section. This section keeps the institutional lessons and structural implications; consult the companion file for evidence depth.
 
 ### 4.1 The Replication Crisis — Before and After
 
