@@ -215,7 +215,7 @@ async def _run_claude_task_async(task, cwd):
         effort=effort,
         allowed_tools=allowed_tools or [],
         setting_sources=["user", "project"],
-        fallback_model="sonnet",
+        fallback_model="haiku" if task["model"] == "sonnet" else "sonnet",
         system_prompt={"type": "preset", "preset": "claude_code"},
         env=env,
         agents=agents,
