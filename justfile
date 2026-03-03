@@ -31,3 +31,9 @@ epistemic-lint *args:
 # SAFE-lite factual precision check
 safe-lite *args:
     uv run python3 scripts/safe-lite-eval.py {{args}}
+
+# ── Cross-Project ────────────────────────────────────────────────
+
+# Scan all project backlogs (--counts for summary)
+todos *args:
+    bash scripts/todos.sh {{args}}
