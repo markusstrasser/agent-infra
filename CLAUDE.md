@@ -55,6 +55,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `openclaw-model-review.md` | Model review of OpenClaw | OpenClaw-related work |
 | `opus-46-action-plan.md` | Action plan for Opus 4.6 capabilities | Planning new capability adoption |
 | `epistemic-quality-evals.md` | Benchmarks for hallucination, calibration, source attribution, sycophancy in agents | Designing epistemic eval pipelines, calibration checks, researcher skill improvements |
+| `calibration-measurement-practical.md` | Practical calibration: min samples, hedging vs accuracy, scoring rules, SPC, Cromwell's rule | Building calibration measurement system, canary queries, confidence scoring |
 | `anthropic-tooling-landscape.md` | Full Anthropic tooling inventory: Agent SDK, 72 repos, API features, plugins, Skills open standard | Orchestrator SDK migration, evaluating new tools, plugin system |
 
 <constitution>

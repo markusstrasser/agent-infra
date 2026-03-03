@@ -149,9 +149,9 @@ Agents in production loops accumulate variance: small inconsistencies in earlier
 
 **Ground truth for agentic research tasks**: SAFE works when Google Search can verify claims. For investment research, competitive intelligence, or domain-specific analysis, ground truth for verification is sparse or contested. FActScore-style pipelines become unreliable when the topic is not well-indexed.
 
-**Whether calibration by sampling works in production**: The sampling-based calibration approach requires N independent runs of the same task. For tasks with external effects (web browsing, API calls), this may be impractical.
+**Whether calibration by sampling works in production**: The sampling-based calibration approach requires N independent runs of the same task. For tasks with external effects (web browsing, API calls), this may be impractical. **UPDATE (2026-03-02):** Deep dive completed. Sample Consistency plateaus at 15 samples (Manakul/SelfCheckGPT). N=10 on 20 canary queries (~200 observations) has ~80% power to detect 10pp miscalibration. Monthly cadence feasible at ~$100/month. Full analysis: [calibration-measurement-practical.md](calibration-measurement-practical.md).
 
-**Adversarial robustness of cross-model review**: The Debate-or-Vote finding (debate is a martingale) was on reasoning tasks. It's unclear whether it generalizes to factual disagreements between models that have different training data and knowledge cutoffs.
+**Adversarial robustness of cross-model review**: The Debate-or-Vote finding (debate is a martingale) was on reasoning tasks. It's unclear whether it generalizes to factual disagreements between models that have different training data and knowledge cutoffs. **UPDATE (2026-03-02):** ChainPoll achieves 0.781 AUROC for hallucination detection via multi-call voting. Cross-model agreement is a decent but imperfect proxy. P(correct | models agree) has NOT been measured cross-model specifically. See [calibration-measurement-practical.md](calibration-measurement-practical.md).
 
 ---
 
