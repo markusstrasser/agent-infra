@@ -10,6 +10,7 @@ Never start responses with positive adjectives. Skip flattery, respond directly.
 ## Key Files
 - `GOALS.md` — what the system optimizes for (human-owned)
 - `justfile` — task runner: `just dashboard`, `just doctor`, `just pushback`, `just epistemic-lint`, `just safe-lite`
+- `schemas/` — epistemic schemas: `open_questions.md` (null result tracking), `pertinent_negatives.json` (thesis negatives)
 - `meta_mcp.py` — meta-knowledge MCP server (section-based search over all .md files)
 - `scripts/orchestrator.py` — cron-driven task runner (dual-engine: `claude -p` + scripts)
 - `scripts/doctor.py` — cross-project health checker (hooks, settings, skills, MCP, git state)
