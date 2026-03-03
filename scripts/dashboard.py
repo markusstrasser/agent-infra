@@ -68,7 +68,14 @@ def main():
         return
 
     # --- Aggregate ---
-    total_cost = sum(float(r.get("cost_usd", 0)) for r in recent)
+    # Sum cost including compaction iterations (top-level usage excludes compaction)
+    total_cost = 0.0
+    for r in recent:
+        base_cost = float(r.get("cost_usd", 0))
+        # Check for compaction iteration costs (usage.iterations[] array)
+        iterations = r.get("usage", {}).get("iterations", []) if isinstance(r.get("usage"), dict) else []
+        iter_cost = sum(float(it.get("cost_usd", 0)) for it in iterations if isinstance(it, dict))
+        total_cost += base_cost + iter_cost
     total_mins = sum(float(r.get("duration_min", 0)) for r in recent)
     total_lines_add = sum(int(r.get("lines_added", 0)) for r in recent)
     total_lines_rm = sum(int(r.get("lines_removed", 0)) for r in recent)
@@ -126,7 +133,11 @@ def main():
 
     # All-time summary if we have more data
     if len(receipts) > len(recent):
-        all_cost = sum(float(r.get("cost_usd", 0)) for r in receipts)
+        all_cost = 0.0
+        for r in receipts:
+            base = float(r.get("cost_usd", 0))
+            iters = r.get("usage", {}).get("iterations", []) if isinstance(r.get("usage"), dict) else []
+            all_cost += base + sum(float(it.get("cost_usd", 0)) for it in iters if isinstance(it, dict))
         print(f"  All-time: {len(receipts)} sessions, ${all_cost:.2f} total")
 
     # --- Epistemic metrics panel ---
