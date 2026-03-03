@@ -196,10 +196,11 @@ async def _run_claude_task_async(task, cwd):
     agents = _build_agents(task["subagents"])
 
     # Set subagent model for search-heavy tasks (effort=low implies lightweight)
-    # SDK merges {**os.environ, **options.env}, so stripping CLAUDECODE from
-    # our dict is not enough — os.environ still leaks it. Override explicitly.
-    env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
-    env["CLAUDECODE"] = ""  # blank overrides inherited os.environ value
+    # SDK's version check (claude -v) and main subprocess both inherit os.environ.
+    # Must unset CLAUDECODE from os.environ itself, not just the env dict overlay.
+    saved_claudecode = os.environ.pop("CLAUDECODE", None)
+    os.environ["CLAUDE_AGENT_SDK_SKIP_VERSION_CHECK"] = "1"  # belt-and-suspenders
+    env = dict(os.environ)
     if effort == "low":
         env["CLAUDE_CODE_SUBAGENT_MODEL"] = "haiku"
     if effort:
@@ -224,14 +225,19 @@ async def _run_claude_task_async(task, cwd):
     result_msg: ResultMessage | None = None
     last_model: str | None = None
 
-    async for message in query(prompt=task["prompt"], options=options):
-        if isinstance(message, AssistantMessage):
-            last_model = message.model
-            for block in message.content:
-                if isinstance(block, TextBlock):
-                    text_parts.append(block.text)
-        elif isinstance(message, ResultMessage):
-            result_msg = message
+    try:
+        async for message in query(prompt=task["prompt"], options=options):
+            if isinstance(message, AssistantMessage):
+                last_model = message.model
+                for block in message.content:
+                    if isinstance(block, TextBlock):
+                        text_parts.append(block.text)
+            elif isinstance(message, ResultMessage):
+                result_msg = message
+    finally:
+        # Restore CLAUDECODE so rest of process isn't affected
+        if saved_claudecode is not None:
+            os.environ["CLAUDECODE"] = saved_claudecode
 
     return {
         "result_msg": result_msg,
