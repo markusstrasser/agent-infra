@@ -5,21 +5,26 @@ Implements a simplified version of the SAFE (Search-Augmented Factual Evaluation
 methodology from Google DeepMind (NeurIPS 2024). Decomposes research outputs into
 atomic claims, verifies each via web search, and judges support.
 
-Usage: uv run python3 scripts/safe-lite-eval.py [--project intel|meta|selve|genomics]
-                                                 [--n 5] [--verbose] [--dry-run]
+Default backend: Exa /answer (single-call structured verification).
+Legacy backend: Exa search + Claude Haiku judge (2-step, higher cost).
 
-Cost estimate: ~$2-5 per run at 5 outputs x ~15 claims x 3 Exa calls.
-Run manually weekly/biweekly.
+Usage: uv run python3 scripts/safe-lite-eval.py [--project meta] [--n 5]
+                                                 [--verbose] [--dry-run]
+                                                 [--no-cache] [--legacy]
 """
 
 import json
 import os
 import re
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
 from config import METRICS_FILE, PROJECT_ROOTS, RESEARCH_DIRS
+
+# Per-claim JSONL log for detailed analysis
+CLAIM_LOG = Path.home() / ".claude" / "safe-lite-claims.jsonl"
 
 
 def find_recent_research_files(project: str, n: int) -> list[Path]:
@@ -93,24 +98,18 @@ JSON array:"""
     return []
 
 
-def search_claim(claim: str) -> list[dict]:
-    """Search for evidence about a claim using Exa via MCP."""
-    # Use subprocess to call Exa via the MCP server's HTTP endpoint
-    # Fallback: use WebSearch via a simple HTTP call
-    # Simplest approach: use the Exa Python SDK directly if available,
-    # otherwise fall back to a web search command
+# --- Exa /answer backend (default) ---
 
-    try:
-        from exa_py import Exa
-
-        api_key = os.environ.get("EXA_API_KEY", "")
-        if not api_key:
-            # Try to read from .mcp.json
-            for mcp_path in [
-                Path.home() / "Projects" / "meta" / ".mcp.json",
-                Path.home() / ".mcp.json",
-            ]:
-                if mcp_path.exists():
+def _get_exa_client():
+    """Get Exa client. Returns None if no API key available."""
+    api_key = os.environ.get("EXA_API_KEY", "")
+    if not api_key:
+        for mcp_path in [
+            Path.home() / "Projects" / "meta" / ".mcp.json",
+            Path.home() / ".mcp.json",
+        ]:
+            if mcp_path.exists():
+                try:
                     with open(mcp_path) as f:
                         config = json.load(f)
                     for server in config.get("mcpServers", {}).values():
@@ -118,13 +117,93 @@ def search_claim(claim: str) -> list[dict]:
                         if "exaApiKey=" in url:
                             api_key = url.split("exaApiKey=")[1].split("&")[0]
                             break
-                if api_key:
-                    break
+                except (json.JSONDecodeError, OSError):
+                    continue
+            if api_key:
+                break
 
-        if not api_key:
-            return []
+    if not api_key:
+        return None
 
-        exa = Exa(api_key=api_key)
+    from exa_py import Exa
+    return Exa(api_key=api_key)
+
+
+VERIFICATION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "verdict": {
+            "type": "string",
+            "enum": ["supported", "contradicted", "insufficient"],
+        },
+        "evidence_summary": {
+            "type": "string",
+        },
+        "confidence": {
+            "type": "number",
+        },
+    },
+    "required": ["verdict", "evidence_summary", "confidence"],
+}
+
+
+def exa_answer_verify(claim: str, exa, *, no_cache: bool = False) -> dict:
+    """Verify a claim via Exa /answer with structured output. Single API call."""
+    start = time.monotonic()
+    try:
+        response = exa.answer(
+            f"Is this claim true or false? Evaluate the evidence: {claim}",
+            text=True,
+            output_schema=VERIFICATION_SCHEMA,
+        )
+    except Exception as e:
+        return {
+            "judgment": "insufficient",
+            "evidence_count": 0,
+            "cost_dollars": None,
+            "latency_ms": round((time.monotonic() - start) * 1000),
+            "schema_valid": False,
+            "error": str(e),
+        }
+    latency_ms = round((time.monotonic() - start) * 1000)
+
+    answer = response.answer
+    if isinstance(answer, dict):
+        verdict = answer.get("verdict", "insufficient")
+        schema_valid = True
+    elif isinstance(answer, str):
+        verdict = "insufficient"
+        schema_valid = False
+    else:
+        verdict = "insufficient"
+        schema_valid = False
+
+    # Normalize verdict to match legacy labels
+    if verdict == "supported":
+        judgment = "supported"
+    elif verdict == "contradicted":
+        judgment = "contradicted"
+    else:
+        judgment = "unclear"  # "insufficient" → "unclear" for backward compat
+
+    cost_dollars = None
+    if response.cost_dollars:
+        cost_dollars = response.cost_dollars.total
+
+    return {
+        "judgment": judgment,
+        "evidence_count": len(response.citations or []),
+        "cost_dollars": cost_dollars,
+        "latency_ms": latency_ms,
+        "schema_valid": schema_valid,
+    }
+
+
+# --- Legacy backend (search + judge) ---
+
+def search_claim(claim: str, exa) -> list[dict]:
+    """Search for evidence about a claim using Exa search_and_contents."""
+    try:
         results = exa.search_and_contents(
             claim,
             num_results=3,
@@ -138,8 +217,6 @@ def search_claim(claim: str) -> list[dict]:
             }
             for r in results.results
         ]
-    except ImportError:
-        return []
     except Exception as e:
         print(f"  WARNING: Search failed for claim: {e}", file=sys.stderr)
         return []
@@ -186,7 +263,33 @@ If evidence is irrelevant or doesn't address the claim, say "unclear"."""
     return "unclear"
 
 
-def eval_file(path: Path, verbose: bool = False, dry_run: bool = False) -> dict | None:
+def legacy_verify(claim: str, exa) -> dict:
+    """Legacy 2-step verification: Exa search + Claude Haiku judge."""
+    start = time.monotonic()
+    evidence = search_claim(claim, exa)
+    judgment = judge_claim(claim, evidence)
+    latency_ms = round((time.monotonic() - start) * 1000)
+    return {
+        "judgment": judgment,
+        "evidence_count": len(evidence),
+        "cost_dollars": None,  # Can't track across Exa search + Anthropic
+        "latency_ms": latency_ms,
+        "schema_valid": None,
+    }
+
+
+# --- Eval logic ---
+
+def eval_file(
+    path: Path,
+    exa,
+    *,
+    verbose: bool = False,
+    dry_run: bool = False,
+    legacy: bool = False,
+    no_cache: bool = False,
+    project: str = "",
+) -> dict | None:
     """Evaluate a single file for factual precision."""
     try:
         text = path.read_text()
@@ -213,23 +316,60 @@ def eval_file(path: Path, verbose: bool = False, dry_run: bool = False) -> dict 
 
     results = {"supported": 0, "contradicted": 0, "unclear": 0}
     claim_details = []
+    total_cost = 0.0
+    total_latency = 0
 
     for claim in claims[:20]:  # Cap at 20 claims per file
         if verbose:
             print(f"    Checking: {claim[:70]}...")
 
-        evidence = search_claim(claim)
-        judgment = judge_claim(claim, evidence)
+        if legacy:
+            result = legacy_verify(claim, exa)
+        else:
+            result = exa_answer_verify(claim, exa, no_cache=no_cache)
+
+        judgment = result["judgment"]
         results[judgment] += 1
 
-        claim_details.append({
+        if result.get("cost_dollars"):
+            total_cost += result["cost_dollars"]
+        total_latency += result.get("latency_ms", 0)
+
+        detail = {
             "claim": claim,
             "judgment": judgment,
-            "evidence_count": len(evidence),
-        })
+            "evidence_count": result["evidence_count"],
+        }
+        if result.get("cost_dollars"):
+            detail["cost_dollars"] = result["cost_dollars"]
+        if result.get("latency_ms"):
+            detail["latency_ms"] = result["latency_ms"]
+        if result.get("schema_valid") is not None:
+            detail["schema_valid"] = result["schema_valid"]
+
+        claim_details.append(detail)
+
+        # Per-claim JSONL log
+        claim_log_entry = {
+            "ts": datetime.now().isoformat(),
+            "project": project,
+            "file": path.name,
+            "backend": "legacy" if legacy else "exa_answer",
+            **detail,
+        }
+        try:
+            with open(CLAIM_LOG, "a") as f:
+                f.write(json.dumps(claim_log_entry) + "\n")
+        except OSError:
+            pass
 
         if verbose:
-            print(f"      → {judgment} ({len(evidence)} sources)")
+            cost_str = f" ${result['cost_dollars']:.4f}" if result.get("cost_dollars") else ""
+            latency_str = f" {result['latency_ms']}ms" if result.get("latency_ms") else ""
+            schema_str = ""
+            if result.get("schema_valid") is not None:
+                schema_str = " schema:ok" if result["schema_valid"] else " schema:FAIL"
+            print(f"      → {judgment} ({result['evidence_count']} sources{cost_str}{latency_str}{schema_str})")
 
     total_judged = results["supported"] + results["contradicted"]
     precision = results["supported"] / total_judged if total_judged > 0 else None
@@ -242,6 +382,8 @@ def eval_file(path: Path, verbose: bool = False, dry_run: bool = False) -> dict 
         "contradicted": results["contradicted"],
         "unclear": results["unclear"],
         "precision": precision,
+        "total_cost": total_cost,
+        "total_latency_ms": total_latency,
         "details": claim_details,
     }
 
@@ -251,6 +393,8 @@ def main():
     n = 5
     verbose = False
     dry_run = False
+    legacy = False
+    no_cache = False
 
     args = sys.argv[1:]
     if "--project" in args:
@@ -265,16 +409,28 @@ def main():
         verbose = True
     if "--dry-run" in args:
         dry_run = True
+    if "--legacy" in args:
+        legacy = True
+    if "--no-cache" in args:
+        no_cache = True
 
     if project not in PROJECT_ROOTS:
         print(f"Unknown project: {project}")
         print(f"Valid: {', '.join(PROJECT_ROOTS.keys())}")
         return
 
+    backend_label = "legacy (search+judge)" if legacy else "exa /answer"
     print(f"{'=' * 55}")
-    print(f"  SAFE-lite Eval — {project}")
+    print(f"  SAFE-lite Eval — {project} [{backend_label}]")
     print(f"{'=' * 55}")
+    if no_cache:
+        print("  [no-cache mode — fresh API calls]")
     print()
+
+    exa = _get_exa_client()
+    if exa is None:
+        print("  ERROR: No Exa API key found. Set EXA_API_KEY or configure .mcp.json.")
+        return
 
     files = find_recent_research_files(project, n)
     if not files:
@@ -289,12 +445,18 @@ def main():
     if dry_run:
         print("  [dry-run mode — no API calls]")
         for f in files:
-            eval_file(f, verbose=verbose, dry_run=True)
+            eval_file(f, exa, verbose=verbose, dry_run=True)
         return
 
     file_results = []
     for path in files:
-        result = eval_file(path, verbose=verbose)
+        result = eval_file(
+            path, exa,
+            verbose=verbose,
+            legacy=legacy,
+            no_cache=no_cache,
+            project=project,
+        )
         if result and result["claims"] > 0:
             file_results.append(result)
 
@@ -308,14 +470,18 @@ def main():
     total_unclear = sum(r["unclear"] for r in file_results)
     total_judged = total_supported + total_contradicted
     overall_precision = total_supported / total_judged if total_judged > 0 else None
+    total_cost = sum(r.get("total_cost", 0) for r in file_results)
+    total_latency = sum(r.get("total_latency_ms", 0) for r in file_results)
+    total_claims_checked = sum(r["checked"] for r in file_results)
 
     print()
     print(f"  {'=' * 45}")
     print("  Results:")
     print(f"  {'=' * 45}")
+    print(f"  Backend:            {backend_label}")
     print(f"  Files evaluated:    {len(file_results)}")
     print(f"  Total claims:       {sum(r['claims'] for r in file_results)}")
-    print(f"  Claims checked:     {sum(r['checked'] for r in file_results)}")
+    print(f"  Claims checked:     {total_claims_checked}")
     print(f"  Supported:          {total_supported}")
     print(f"  Contradicted:       {total_contradicted}")
     print(f"  Unclear:            {total_unclear}")
@@ -323,6 +489,12 @@ def main():
         print(f"  Factual precision:  {overall_precision:.1%}")
     else:
         print("  Factual precision:  N/A (no judged claims)")
+    if total_cost > 0:
+        print(f"  Total cost:         ${total_cost:.4f}")
+        if total_claims_checked:
+            print(f"  Cost/claim:         ${total_cost / total_claims_checked:.4f}")
+    if total_latency > 0 and total_claims_checked:
+        print(f"  Avg latency/claim:  {total_latency // total_claims_checked}ms")
     print()
 
     # Per-file breakdown
@@ -333,22 +505,38 @@ def main():
         print(f"    {fname:<40} {r['checked']:>2} claims  {p} precision")
     print()
 
+    # Schema compliance (exa /answer only)
+    if not legacy:
+        all_details = [d for r in file_results for d in r["details"]]
+        schema_ok = sum(1 for d in all_details if d.get("schema_valid") is True)
+        schema_fail = sum(1 for d in all_details if d.get("schema_valid") is False)
+        if schema_ok + schema_fail > 0:
+            pct = schema_ok / (schema_ok + schema_fail)
+            print(f"  Schema compliance:  {pct:.0%} ({schema_ok}/{schema_ok + schema_fail})")
+            print()
+
     # Log metrics
     metric = {
         "ts": datetime.now().isoformat(),
         "metric": "safe_lite_eval",
         "project": project,
+        "backend": "legacy" if legacy else "exa_answer",
+        "no_cache": no_cache,
         "files_evaluated": len(file_results),
         "total_claims": sum(r["claims"] for r in file_results),
-        "claims_checked": sum(r["checked"] for r in file_results),
+        "claims_checked": total_claims_checked,
         "supported": total_supported,
         "contradicted": total_contradicted,
         "unclear": total_unclear,
         "factual_precision": round(overall_precision, 4) if overall_precision is not None else None,
+        "total_cost": round(total_cost, 6) if total_cost > 0 else None,
+        "avg_latency_ms": total_latency // total_claims_checked if total_claims_checked else None,
     }
     with open(METRICS_FILE, "a") as f:
         f.write(json.dumps(metric) + "\n")
     print(f"  Logged to {METRICS_FILE}")
+    if CLAIM_LOG.exists():
+        print(f"  Per-claim log: {CLAIM_LOG}")
 
 
 if __name__ == "__main__":
