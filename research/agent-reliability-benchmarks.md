@@ -53,6 +53,18 @@ Key observations:
 
 **NEW — APEX-Agents (Mercor):** Long-horizon cross-application tasks from investment banking, consulting, law. Gemini 3.1 Pro leads at 33.5%, nearly doubling prior best. [SOURCE: emergentmind.com/papers/2601.14242] [BENCHMARK]
 
+### Primary-Source Case Studies
+
+**Knuth "Claude's Cycles" (Feb 28, 2026)** [SOURCE: www-cs-faculty.stanford.edu/~knuth/papers/claude-cycles.pdf] — Opus 4.6 solved an open combinatorics problem (decomposing arcs of m³-vertex digraph into three directed Hamiltonian cycles for odd m). 31 self-directed explorations over ~1 hour. Strategy: reformulation → brute-force DFS → structural analysis (fiber decomposition) → simulated annealing → recognized SA can't generalize → pure construction. Knuth verified the proof, then extended the analysis (760 valid "Claude-like" decompositions exist).
+
+Operational observations:
+- Required human coaching throughout (Filip Stappers). Repeated reminders to document progress despite explicit instructions.
+- Lost results on restarts — no persistent state across sessions.
+- Degraded on harder subproblem (even m): "not even able to write and run explore programs correctly anymore."
+- Solution correct for odd m, even case remains open.
+
+**Relevance:** Strongest public primary-source evidence of Opus 4.6 creative problem-solving, from the most credible possible evaluator. But the problem had an automated verifier (cycle correctness is checkable programmatically) — consistent with the finding that agents excel on verifiable domains. Does not extrapolate to domains without ground truth.
+
 ### What's CLAIMED → PARTIALLY RESOLVED
 
 - ~~Opus 4.6 and Gemini 3.1 Pro are too new for independent evaluation.~~ → Vendor benchmarks now available but still NO independent reliability evaluation (Princeton-style). SWE-bench Pro and Terminal-Bench 2.0 provide some independent data.
