@@ -304,7 +304,7 @@ The structural reason: disconfirming evidence is more stable than confirming evi
 - Scheel et al. (2021): In standard psychology journals, 96% of studies report positive results (supporting the hypothesis). [SOURCE: found by agent via Exa]
 
 **The reforms and their measured impact:**
-- **Pre-registration**: Studies pre-registered on OSF or AsPredicted. Brodeur et al. (2024) analyzed 15,992 test statistics: pre-registered studies show reduced p-hacking (less bunching just below p=0.05) but the effect is "not eliminated." [SOURCE: I4R Discussion Paper 101]
+- **Pre-registration**: Studies pre-registered on OSF or AsPredicted. Brodeur et al. (2024) analyzed 15,992 test statistics: pre-registration *with a pre-analysis plan (PAP)* reduces p-hacking (less bunching just below p=0.05); pre-registration alone has a weaker effect. Neither eliminates the problem entirely. [SOURCE: I4R Discussion Paper 101, verified via Exa /answer]
 - **Registered Reports**: Journal commits to publish *before* seeing results. Scheel et al. (2021): only 44% of Registered Reports find positive results (vs 96% in standard reports). [SOURCE: found by agent] This is the single most dramatic structural reform number I've seen.
 - **Combined effect**: O'Grady (Science, 2023) reports that pre-registration + transparency + large samples boost replication rate "to nearly 90%." [SOURCE: science.org, via Exa]
 
