@@ -317,10 +317,63 @@ GOLDEN_FIXTURES = [
 ]
 
 
+PAIRING_FIXTURES = [
+    {
+        "name": "PAIRING — tool_use-only assistant doesn't consume user prompt",
+        "entries": [
+            {"type": "user", "message": {"role": "user", "content": "What does config.py do?"}},
+            # Tool-use-only assistant (no substantive text)
+            {"type": "assistant", "message": {"role": "assistant", "content": [
+                {"type": "tool_use", "name": "Read", "input": {"file_path": "/config.py"}},
+            ]}},
+            {"type": "tool_result", "message": {"role": "user", "content": "file contents..."}},
+            # Substantive text response — THIS should be paired with original user prompt
+            {"type": "assistant", "message": {"role": "assistant", "content": [
+                {"type": "text", "text": "However, this approach has a problem. The config file uses hardcoded paths which won't work across environments."},
+            ]}},
+        ],
+        "expected_total": 1,
+        "expected_pushback": 1,
+    },
+    {
+        "name": "PAIRING — direct response without tool use",
+        "entries": [
+            {"type": "user", "message": {"role": "user", "content": "Should we use Redis?"}},
+            {"type": "assistant", "message": {"role": "assistant", "content": [
+                {"type": "text", "text": "I don't think Redis is the right choice here. The data volume is small enough for in-memory caching."},
+            ]}},
+        ],
+        "expected_total": 1,
+        "expected_pushback": 1,
+    },
+    {
+        "name": "PAIRING — multiple tool calls before response",
+        "entries": [
+            {"type": "user", "message": {"role": "user", "content": "Check the API module"}},
+            {"type": "assistant", "message": {"role": "assistant", "content": [
+                {"type": "tool_use", "name": "Read", "input": {"file_path": "/api.py"}},
+            ]}},
+            {"type": "tool_result", "message": {"role": "user", "content": "api contents..."}},
+            {"type": "assistant", "message": {"role": "assistant", "content": [
+                {"type": "tool_use", "name": "Grep", "input": {"pattern": "def"}},
+            ]}},
+            {"type": "tool_result", "message": {"role": "user", "content": "grep results..."}},
+            {"type": "assistant", "message": {"role": "assistant", "content": [
+                {"type": "text", "text": "The API module looks good. The error handling is solid."},
+            ]}},
+        ],
+        "expected_total": 1,
+        "expected_pushback": 0,
+    },
+]
+
+
 def _run_golden_tests():
-    """Run golden fixture tests for fold detection. Exit 1 on failure."""
+    """Run golden fixture tests for fold detection + pairing. Exit 1 on failure."""
     passed = 0
     failed = 0
+
+    # Fold detection tests
     for fixture in GOLDEN_FIXTURES:
         result = detect_folds(fixture["entries"])
         ok = True
@@ -340,6 +393,40 @@ def _run_golden_tests():
         if ok:
             print(f"  PASS {fixture['name']}")
             passed += 1
+
+    # Pairing tests — exercise the user→assistant pairing logic directly
+    for fixture in PAIRING_FIXTURES:
+        entries = fixture["entries"]
+        total = 0
+        pushbacks = 0
+        last_was_user = False
+        for entry in entries:
+            if is_user_prompt(entry):
+                last_was_user = True
+                continue
+            if last_was_user and is_assistant_response(entry):
+                total += 1
+                text = extract_text(entry.get("message", {}))
+                if has_pushback(text):
+                    pushbacks += 1
+                last_was_user = False
+                continue
+            if entry.get("type") == "user":
+                last_was_user = False
+
+        ok = True
+        if total != fixture["expected_total"]:
+            print(f"  FAIL {fixture['name']}: total={total}, expected {fixture['expected_total']}")
+            ok = False
+            failed += 1
+        if pushbacks != fixture["expected_pushback"]:
+            print(f"  FAIL {fixture['name']}: pushback={pushbacks}, expected {fixture['expected_pushback']}")
+            ok = False
+            failed += 1
+        if ok:
+            print(f"  PASS {fixture['name']}")
+            passed += 1
+
     print(f"\n  {passed} passed, {failed} failed")
     if failed:
         sys.exit(1)
@@ -379,6 +466,9 @@ def analyze_session(path: Path) -> dict | None:
                 ts = e["timestamp"]
 
     # Find user→assistant pairs
+    # Bug fix: tool_use-only assistant entries must NOT reset the flag.
+    # Pattern: user prompt → assistant(tool_use only) → tool_result → assistant(text)
+    # The text response is the one we want to pair with the user prompt.
     total_responses = 0
     pushback_responses = 0
     last_was_user_prompt = False
@@ -396,10 +486,12 @@ def analyze_session(path: Path) -> dict | None:
             last_was_user_prompt = False
             continue
 
-        # Non-user, non-assistant entries don't reset the flag
-        if entry.get("type") not in ("user", "assistant"):
-            continue
-        last_was_user_prompt = False
+        # Only reset flag on non-substantive assistant entries that are
+        # clearly a new user turn (another user message). Tool results,
+        # system messages, and tool_use-only assistant messages should
+        # NOT reset — the substantive response may come later.
+        if entry.get("type") == "user":
+            last_was_user_prompt = False
 
     if total_responses == 0:
         return None
