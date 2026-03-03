@@ -382,3 +382,27 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [rule] "When checking subagent output, first check last line for `type==result`. If absent, agent didn't finish. Don't iterate."
 - **Severity:** low (4 wasted Bash calls, ~800 tokens)
 - **Status:** [ ] proposed — not worth a hook, add to MEMORY.md as gotcha
+
+### [2026-03-02] RULE VIOLATION: DuckDB column name guessing despite schema.md mandate
+- **Session:** intel 4f92d9b7 (continuation)
+- **Evidence:** 6 failed DuckDB MCP queries across 4 tables: `symbol` instead of `ticker` (company_profiles), `filed_date` instead of `date` (sec_8k_events), `transaction_date` instead of `trade_date` (house_ptr_trades), `nda_num` doesn't exist (faers_drug_ticker_map). Schema.md loaded into context says "NEVER guess columns." Each failure required follow-up `LIMIT 1` discovery query plus cascade failures on siblings. ~12 wasted tool calls total.
+- **Failure mode:** Rule violation — ignoring documented schema reference
+- **Proposed fix:** [rule] CLAUDE.md gotcha: "For tables NOT in schema.md, run SELECT * FROM table LIMIT 1 BEFORE any filtered query."
+- **Severity:** medium (12 wasted tool calls, 3 cascade failures)
+- **Status:** [x] deployed — CLAUDE.md gotchas 2026-03-02
+
+### [2026-03-02] TOKEN WASTE: DuckDB MCP parallel query cascade failures
+- **Session:** intel 4f92d9b7 (continuation)
+- **Evidence:** 3 instances where a bad DuckDB MCP query killed 1-2 sibling queries via "Sibling tool call errored." Total: ~6 queries lost to cascade. company_profiles `symbol` typo killed 2 siblings; sec_8k_events `filed_date` killed house/senate queries; faers `nda_num` killed finra query. Same pattern observed in prior session but not acted on.
+- **Failure mode:** Token waste — parallel tool calls on unverified schemas
+- **Proposed fix:** [rule] CLAUDE.md gotcha: "DuckDB MCP: max 2 parallel queries. If querying unverified table, run alone first."
+- **Severity:** medium (6 wasted queries, required sequential re-runs)
+- **Status:** [x] deployed — CLAUDE.md gotchas 2026-03-02
+
+### [2026-03-02] INFRASTRUCTURE: FMP rate limit wastes entity-refresher agent tokens
+- **Session:** intel 4f92d9b7 (prior session, carried over)
+- **Evidence:** 3 entity-refresher background agents launched (~253K tokens, ~95 tool uses total), all hit FMP 402 after ~4 quotes. Zero substantive entity updates committed. ~$3-5 in API costs for zero output.
+- **Failure mode:** Infrastructure gap — no rate-limit awareness in agent dispatch
+- **Proposed fix:** [rule] CLAUDE.md gotcha: "FMP rate limit: 4 quotes then 402. Use company_profiles view as primary. Reserve FMP get_quote for real-time only, one at a time."
+- **Severity:** medium (token waste on background agents, no output)
+- **Status:** [x] deployed — CLAUDE.md gotchas 2026-03-02
