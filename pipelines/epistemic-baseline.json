@@ -16,12 +16,6 @@
       "cwd": "~/Projects/meta"
     },
     {
-      "step": "compaction-analysis",
-      "type": "script",
-      "command": "uv run python3 scripts/compaction-analysis.py --days 7",
-      "cwd": "~/Projects/meta"
-    },
-    {
       "step": "dashboard",
       "type": "script",
       "command": "uv run python3 scripts/dashboard.py --days 7",
