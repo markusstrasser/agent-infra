@@ -36,6 +36,12 @@ safe-lite *args:
 tags *args:
     uv run python3 scripts/extract_user_tags.py {{args}}
 
+# ── Sessions ─────────────────────────────────────────────────────
+
+# Session search & dispatch (index, list, search, show, dispatch)
+sessions *args:
+    uv run python3 scripts/sessions.py {{args}}
+
 # ── Cross-Project ────────────────────────────────────────────────
 
 # Scan all project backlogs (--counts for summary)
