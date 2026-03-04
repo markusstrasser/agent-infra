@@ -18,21 +18,13 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Severity:** high — third recurrence of same epistemic error, required user correction
 - **Status:** [x] implemented — MEMORY.md rule (2026-03-03). Advisory hook deployed (2026-03-04): `postwrite-frontier-timeliness.sh` on PostToolUse:Write|Edit.
 
-### [2026-03-04] TOKEN WASTE: 5 attempts to read same Exa result file with different tools
-- **Session:** meta 0e8dccbc
-- **Evidence:** After Exa web_search_advanced returned results to a cached tool-result file, agent tried to read it via: (1) Grep, (2) Read, (3) Read again, (4) `Bash: cat`, (5) `Bash: head -c 3000`, (6) `Bash: cat` again — 6 tool calls for one file. The tool-result path was a long Claude-internal path (`~/.claude/projects/.../tool-results/mcp-exa-...`). Likely cause: Read tool returned truncated content and agent didn't recognize it could use offset/limit parameters.
-- **Failure mode:** Token waste — tool-result file reading confusion
-- **Proposed fix:** [rule] "When MCP tool results are saved to tool-result files, use `Bash: cat` once to read the full content. Don't alternate between Read/Grep/Bash for the same file."
-- **Severity:** medium — ~6 wasted tool calls, pattern observed in prior sessions too
-- **Status:** [ ] proposed
-
 ### [2026-03-04] TOKEN WASTE: Model-review retry loop — 4 failed Gemini dispatches before fallback
 - **Session:** meta 18384e69
 - **Evidence:** Model-review dispatched to Gemini Pro and GPT-5.2 in parallel. Both returned empty output files. Agent retried Gemini Pro in foreground — timed out. Retried GPT — succeeded. Retried Gemini Pro — 503 rate limit. Finally fell back to Gemini Flash. Total: ~4 wasted Gemini dispatch attempts before the successful Flash fallback. GPT-5.2 output was obtained on second try.
 - **Failure mode:** NEW: llmx dispatch retry without diagnosis — agent retries the same model/command without investigating the failure cause (empty output could be: pipe issue, rate limit, context too large, API error). Catalogued as Failure Mode 24 in `agent-failure-modes.md`.
 - **Proposed fix:** [skill] Update model-review skill: after first llmx failure, check stderr/exit code before retrying same model. If 503 or rate limit, fall back immediately to Flash. Add diagnostic step: `wc -c` on output file + check stderr.
 - **Severity:** medium — ~8 wasted tool calls, pattern recurs whenever Gemini Pro is rate-limited
-- **Status:** [x] failure mode documented (2026-03-04). Skill fix still proposed.
+- **Status:** [x] failure mode documented (2026-03-04). [x] llmx v0.5.0 adds `--fallback` flag + structured exit codes (2026-03-04). Model-review skill update pending.
 
 ### [2026-03-04] TOKEN WASTE: Duplicate file reads in same session
 - **Session:** meta f27cc590
@@ -42,13 +34,6 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Severity:** low — ~3 redundant reads, small files
 - **Status:** [ ] noted, no action needed
 
-### [2026-03-04] TOKEN WASTE: Unfocused initial research queries return irrelevant results
-- **Session:** meta 0e8dccbc
-- **Evidence:** First research phase on structured-vs-prose used 3 parallel searches: S2 for "structured schema vs natural language for LLM context retrieval accuracy", S2 for "JSON YAML structured data vs free text prompting", Exa for "research structured schemas vs natural language LLM context does structure help accuracy". All 3 returned papers about *output* structure (text-to-SQL, JSON extraction) — not input format. Agent acknowledged "Those results are mostly about *output* structure" and had to re-search with 3 more targeted queries. 6 total search calls, first 3 wasted.
-- **Failure mode:** Token waste — broadcast search before defining the precise question. Maps to Failure Mode 20 (Context Window Flooding via Parallel Search).
-- **Proposed fix:** [rule] Researcher skill already encodes "affinity tree, not broadcast" but it wasn't invoked for this ad-hoc research. When doing inline research (not via /researcher), still apply the same principle: one focused query first, evaluate, then expand.
-- **Severity:** medium — 3 wasted MCP search calls, ~15K tokens of irrelevant results
-- **Status:** [ ] proposed
 
 **LOW severity (noted, no action):**
 - Session 3feb5b79: User pasted implementation plan, agent responded "Nothing pending" (71 output tokens). Appears to be a session start that was abandoned for f27cc590. No anti-patterns — just an empty session.
@@ -56,7 +41,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - Session f27cc590: Clean execution of 5-phase orchestrator implementation plan. Task tracking used properly. Semantic commit splitting (orchestrator core + pipeline refinements). No sycophancy or over-engineering observed.
 
 **Cross-cutting patterns (2026-03-04):**
-1. **llmx reliability as infrastructure dependency.** Model-review (18384e69) and session-analyst (this session) both hit llmx failures — Gemini Pro rate limits, empty output files, hung processes. llmx is load-bearing for cross-model review but has no retry/fallback logic built in. The model-review skill handles this manually but wastes tokens doing so. A wrapper script with automatic fallback (Pro → Flash) and stderr diagnosis would reduce this to zero wasted retries.
+1. **llmx reliability as infrastructure dependency.** Model-review (18384e69) and session-analyst (this session) both hit llmx failures — Gemini Pro rate limits, empty output files, hung processes. **FIXED (2026-03-04):** llmx v0.5.0 adds `--fallback MODEL` flag (auto-retry on rate limit/timeout), distinct exit codes (3=rate_limit, 4=timeout), and structured stderr diagnostics (`[llmx:ERROR] type=X`). Model-review skill should now use `--fallback gemini-3-flash-preview`.
 2. **Pre-frontier timeliness bias is the most persistent epistemic failure** — third occurrence. Now in MEMORY.md as a rule. But given Failure Mode 12 (instructions alone = 0% reliable), this will likely recur without a hook. The research-output advisory could be extended to check for model names matching a known pre-frontier list.
 3. **Inline research (outside /researcher) skips the researcher skill's guardrails.** The broadcast-search → wasted-results pattern in 0e8dccbc happened because the user triggered ad-hoc research, and the agent didn't apply the researcher skill's sequential search discipline. This is a coverage gap — the researcher skill's safeguards only apply when explicitly invoked.
 
