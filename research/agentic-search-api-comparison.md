@@ -129,7 +129,7 @@ No methodology published for these. Accuracy definition unclear.
 | Feature | Brave | Exa | Tavily | Firecrawl | Perplexity Sonar | Parallel |
 |---------|-------|-----|--------|-----------|-----------------|----------|
 | **Semantic/neural search** | No (keyword + ranking) | Yes (embeddings-based, trained on link prediction) | Yes (AI-optimized ranking) | Unclear (likely keyword + reranking) | Yes (RAG pipeline) | Yes (AI-native, proprietary) |
-| **Structured extraction** | No (returns JSON but no schema-matching) | No (returns JSON results) | No (returns ranked snippets) | **Yes** (natural language -> JSON schema via /extract) | No | **Yes** (Task API with structured output) |
+| **Structured extraction** | No (returns JSON but no schema-matching) | **Yes** (deep search `outputSchema` with per-field grounding + confidence) | No (returns ranked snippets) | **Yes** (natural language -> JSON schema via /extract) | No | **Yes** (Task API with structured output) |
 | **Deep/autonomous research** | No | **Yes** (Research endpoint, agentic multi-step) | **Yes** (Research API, mini + pro models) | **Yes** (/agent endpoint, multi-step) | **Yes** (Sonar Deep Research) | **Yes** (Task API, asynchronous, up to 2hr) |
 | **Grounded answers** | **Yes** (Answers endpoint with citations) | **Yes** (Answer endpoint) | No (returns search results, not synthesized answers) | No | **Yes** (core product — synthesized + cited) | **Yes** (Chat API with citations) |
 | **News search** | **Yes** (dedicated endpoint) | **Yes** (category filter) | **Yes** (topic="news") | **Yes** (news category) | **Yes** (real-time web) | Unclear |
@@ -149,7 +149,7 @@ Normalized to cost per 1,000 basic web searches (standard/default settings, 10 r
 | API | Cost per 1K searches | Free tier | Notes |
 |-----|---------------------|-----------|-------|
 | **Brave** | **$5.00** | $5/month credit (= 1,000 free searches/month) | Flat rate. Includes Web, LLM Context, Images, News, Video. Answers plan: $4/1K searches + $5/M tokens. |
-| **Exa** | **$7.00** | 1,000 requests/month free | $7/1K for 1-10 results. +$1 per additional result beyond 10. Contents: extra $1/1K pages. Answer: $5/1K. Research: $5/operation. |
+| **Exa** | **$7.00** (neural) / **$15.00** (deep) | 1,000 requests/month free | Neural: $7/1K for 1-10 results. Deep: $15/1K (1-25 results), $75/1K (26-100). +$1 per additional result beyond 10. Contents: extra $1/1K pages. Answer: $5/1K. Research: usage-based (~$0.13/task typical: $5/1K searches + $5-10/1K pages + $5/1M reasoning tokens). |
 | **Tavily** | **$8.00** (PAYG) / **$5.00-$7.50** (plans) | 1,000 credits/month free | 1 credit = 1 basic search. $0.008/credit PAYG. Plans: $30/4K credits ($7.50/1K) down to $500/100K credits ($5.00/1K). Advanced search = 2 credits. Research: 15-250 credits/request. |
 | **Firecrawl** | **~$3.20** (Standard) / **$9.00** (Hobby) | 500 credits one-time | 2 credits per search (10 results). Hobby: 3K credits at $16/mo = ~$10.67/1K searches. Standard: 100K credits at $83/mo = ~$1.66/1K searches. Extra credits: $1.34/1K (Standard). |
 | **Perplexity Sonar** | **$5.00** (search only) / **$1.00+/M tokens** (synthesis) | None for API | Raw search: $5/1K requests. Sonar (synthesized): $1/$1 per M tokens (input/output). Sonar Pro: $3/$15 per M tokens. Deep Research: $2/$8/M tokens + $5/1K searches. |
@@ -168,7 +168,7 @@ Best available data, compiled from AIMultiple benchmark + vendor claims:
 | API | P50 / Typical Latency | Source |
 |-----|----------------------|--------|
 | **Brave** | ~669 ms (search), <600 ms p90 (LLM Context, vendor claim) | AIMultiple benchmark; Brave blog |
-| **Exa** | ~1,200 ms (search), 100-1,200 ms range (vendor), sub-200 ms ("Exa Instant" — new) | AIMultiple; Exa pricing page; Exa blog |
+| **Exa** | ~1,200 ms (neural), 2-5s (deep), sub-200 ms (instant), 45-90s p50 (Research API) | AIMultiple; Exa pricing page; Exa docs |
 | **Tavily** | ~998 ms (basic), 0.4-1.2s (vendor claim), sub-second for "fast" depth | AIMultiple; Tavily blog |
 | **Firecrawl** | ~1,335 ms | AIMultiple |
 | **Perplexity Sonar** | 11,000+ ms (includes synthesis), 1.52s TTFT (Artificial Analysis, token generation) | AIMultiple; artificialanalysis.ai |
@@ -283,7 +283,95 @@ N=1 query, single model (Sonnet), single domain (genomics variant interpretation
 
 ---
 
-## 11. Recommendations for Our Setup
+## 11. Exa Deep Search & Research API (updated 2026-03-04)
+
+Exa now offers two tiers of agentic search beyond basic neural/auto:
+
+### Search endpoint: `type: "deep"` and `type: "deep-reasoning"`
+
+Available on the same `/search` endpoint. Synchronous, returns inline.
+
+**How it works:** Query expansion → parallel sub-searches → smart ranking → per-result summaries. The agent decomposes your query into multiple search variations automatically. You can also supply your own via `additionalQueries`.
+
+**Key parameters:**
+- `type: "deep"` — light deep search (auto query expansion + summaries)
+- `type: "deep-reasoning"` — base deep search (adds reasoning step)
+- `additionalQueries: [...]` — supply your own query variations (better than auto-expansion if you have domain knowledge)
+- `outputSchema: {...}` — JSON Schema for structured output. Response includes `output.content` (structured JSON) + `output.grounding` (per-field citations + confidence)
+
+**Structured output with grounding** is the killer feature. Example response shape:
+```json
+{
+  "output": {
+    "content": {"ceo": "Sam Altman", "title": "CEO"},
+    "grounding": [
+      {"field": "ceo", "citations": [{"url": "...", "title": "..."}], "confidence": "high"},
+      {"field": "title", "citations": [...], "confidence": "high"}
+    ]
+  },
+  "results": [...]
+}
+```
+
+Each field gets independent confidence (low/medium/high) and source citations. This is what Firecrawl's `/extract` does but over search results instead of a single URL.
+
+**Cost:** $0.015/request (1-25 results) vs $0.005 for neural. 3x premium but includes summaries + ranking that would otherwise require separate LLM calls.
+
+**Latency:** ~2-5s typical (slower than neural ~1.2s, faster than Research API 45-180s).
+
+**When to use deep search:**
+- Entity enrichment with structured extraction (company details, people profiles, financial data)
+- High-recall queries where auto query expansion beats single-query neural
+- When you need per-result summaries without paying for separate summary calls
+- When you can define a JSON schema for what you want — structured output + grounding is more reliable than post-hoc LLM extraction
+
+**When NOT to use:**
+- Simple factual lookups (use `type: "auto"` or `type: "instant"`)
+- High-throughput batch queries where 3x cost matters
+- When you need >100 results (same limit as neural)
+
+### Research API: `/research/v1` (async)
+
+Separate endpoint. Asynchronous — submit, get `researchId`, poll until complete.
+
+**How it works:** Planning (LLM decomposes task) → Searching (multiple agent-driven search rounds) → Reasoning & synthesis (structured output or markdown report).
+
+**Models:**
+| Model | p50 | p90 | Page read cost |
+|-------|-----|-----|----------------|
+| `exa-research` (default) | 45s | 90s | $5/1K pages |
+| `exa-research-pro` | 90s | 180s | $10/1K pages |
+
+**Usage-based pricing:** $5/1K searches + $5-10/1K pages read + $5/1M reasoning tokens. Typical task ~$0.13.
+
+**Key constraints:** ≤8 root fields in schema, ≤5 levels deep. Instructions <4096 chars.
+
+**When to use Research API vs deep search:**
+- Research API: multi-step investigation requiring iterative search refinement, questions where the agent needs to read full pages (not just snippets), complex synthesis across many sources
+- Deep search: single-round structured extraction, entity enrichment, when you need results in <5s not 45-180s
+
+### What this means for our tools
+
+Our Exa MCP already exposes all of this:
+- `web_search_advanced_exa` supports `type: "deep"` via the `type` parameter
+- `deep_researcher_start` / `deep_researcher_check` = the Research API
+
+**Routing guidance for orchestrator pipelines:**
+
+| Task | Tool | Type |
+|------|------|------|
+| Quick fact lookup | `web_search_exa` | auto |
+| Entity enrichment (company, person) | `web_search_advanced_exa` | deep + outputSchema |
+| Literature discovery | papers-mcp (S2/PubMed) | — |
+| Websearch for database pages (UniProt, gnomAD) | `web_search_advanced_exa` | deep |
+| Deep autonomous research | `deep_researcher_start` | exa-research |
+| Triangulation / independent source | Brave / Perplexity | — |
+
+**For `additionalQueries`:** When an orchestrator task or researcher skill has domain context, generate 2-3 query variations and pass them via `additionalQueries` rather than relying on Exa's auto-expansion. Our domain knowledge (genomics, finance) will produce better variations than Exa's general-purpose LLM.
+
+---
+
+## 12. Recommendations for Our Setup
 
 We currently use Exa as primary search. Based on this analysis:
 
@@ -301,7 +389,9 @@ We currently use Exa as primary search. Based on this analysis:
 
 7. **Websearch for database lookups, academic for literature (empirical, §10).** S2/PubMed are the wrong tool for querying UniProt, gnomAD, MaveDB, ClinVar — they return papers *about* databases, not the data. Exa/Brave/Perplexity reach the actual web databases. Conversely, websearch hallucinated PDB IDs and citation details at 3x the rate of academic tools. **Instruction-based routing in the researcher skill is sufficient** — don't build a multi-tier pipeline orchestrator for this.
 
-8. **S2 API key (added 2026-03-03).** Semantic Scholar with API key gives dedicated 1 RPS (vs shared pool). 220M+ papers, structured metadata, citation graph. No date filtering — use Exa `web_search_advanced_exa` with `category: "research paper"` for recency. Key set via `S2_API_KEY` in `~/.env`, propagated through `.mcp.json` env blocks.
+8. **Use `type: "deep"` for entity enrichment and high-recall queries (added 2026-03-04).** Our MCP already supports it. Pass `outputSchema` for structured extraction with per-field grounding. Supply `additionalQueries` from domain context rather than relying on auto-expansion. Cost: $0.015/req vs $0.005 neural (3x). See §11 for full routing guidance.
+
+9. **S2 API key (added 2026-03-03).** Semantic Scholar with API key gives dedicated 1 RPS (vs shared pool). 220M+ papers, structured metadata, citation graph. No date filtering — use Exa `web_search_advanced_exa` with `category: "research paper"` for recency. Key set via `S2_API_KEY` in `~/.env`, propagated through `.mcp.json` env blocks.
 
 ---
 
