@@ -125,8 +125,8 @@ Launched ~February 2026. This is architecturally distinct from Sonar — it's a 
 | `google/gemini-3.1-pro-preview` | $2.00 (<=200K) / $4.00 (>200K) | $12.00 / $18.00 | 90% discount |
 | `google/gemini-3-pro-preview` | $2.00 / $4.00 | $12.00 / $18.00 | 90% discount |
 | `google/gemini-3-flash-preview` | $0.50 | $3.00 | 90% discount |
-| `google/gemini-2.5-pro` | $1.25 / $2.50 | $10.00 / $15.00 | 90% discount |
-| `google/gemini-2.5-flash` | $0.30 | $2.50 | 90% discount |
+| `google/gemini-3.1-pro-preview` | $1.25 / $2.50 | $10.00 / $15.00 | 90% discount |
+| `google/gemini-3-flash-preview` | $0.30 | $2.50 | 90% discount |
 | `xai/grok-4-1-fast-non-reasoning` | $0.20 | $0.50 | $0.05 |
 
 **NOTE:** `perplexity/sonar` in the Agent API is priced differently than the Sonar API's `sonar` model ($0.25/$2.50 vs $1/$1 per 1M tokens). The Agent API version appears cheaper on input but more expensive on output. The Sonar API also charges per-request search fees that the Agent API does not — Agent API charges per-tool-call instead.

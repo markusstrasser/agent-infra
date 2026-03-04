@@ -10,11 +10,11 @@
 
 ### 2. INCONSISTENT MODEL NAMES
 
-*   **Gemini 2.5 vs 3.1:** *Architect* and *Code-Research* cite `gemini-2.5-pro` as the primary model, while *LLMX-Guide*, *Model-Guide*, and *Model-Review* cite `gemini-3.1-pro-preview`.
+*   **Gemini 2.5 vs 3.1:** *Architect* and *Code-Research* cite `gemini-3.1-pro-preview` as the primary model, while *LLMX-Guide*, *Model-Guide*, and *Model-Review* cite `gemini-3.1-pro-preview`.
 *   **GPT-5 Pro vs 5.2:** *Architect* and *Code-Research* use `gpt-5-pro`, whereas *LLMX-Guide*, *Model-Guide*, and *Model-Review* use `gpt-5.2`.
 *   **Claude Versioning:** *Architect* cites `claude-sonnet-4-5`, while *Model-Guide* and *Model-Review* cite `Claude Sonnet 4.6`.
 *   **Kimi Naming:** *Architect* uses `kimi2` and `kimi-k2-thinking`, *LLMX-Guide* uses `kimi-k2.5`, and *Model-Guide* uses `Kimi K2.5`.
-*   **Judge vs Model IDs:** *Architect* (Tournament Settings) lists `gemini25-pro` and `claude-4.5`, while its own "Working models" list uses `gemini-2.5-pro` and `claude-sonnet-4-5`.
+*   **Judge vs Model IDs:** *Architect* (Tournament Settings) lists `gemini25-pro` and `claude-4.5`, while its own "Working models" list uses `gemini-3.1-pro-preview` and `claude-sonnet-4-5`.
 
 ### 3. STALE REFERENCES
 

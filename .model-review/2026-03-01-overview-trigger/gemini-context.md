@@ -229,7 +229,7 @@ sessionend-log.sh: logs session end + flight receipt + recent commits. Async, no
 Pipeline: repomix (extract code) → prompt template → llmx/Gemini → markdown output
 - 3 overview types: source architecture, project structure, dev tooling
 - Parallel generation in --auto mode
-- Default model: gemini-2.5-pro (expensive, slow)
+- Default model: gemini-3.1-pro-preview (expensive, slow)
 - Alternative: gemini-2.0-flash-exp (cheap, fast)
 - Outputs gitignored in dev/overviews/
 - Currently triggered by git pre-push hook (non-blocking, exits 0 on failure)

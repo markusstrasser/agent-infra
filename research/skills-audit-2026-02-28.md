@@ -10,7 +10,7 @@
 
 | # | Finding | Source | Verified How | Priority |
 |---|---------|--------|-------------|----------|
-| 1 | **architect and code-research use stale model names** (`gemini-2.5-pro`, `gpt-5-pro`, `claude-sonnet-4-5`) | Flash + Gemini Pro | Grep confirmed: architect/SKILL.md:183, code-research/SKILL.md:34,80,98,182 | HIGH — causes 404s |
+| 1 | **architect and code-research use stale model names** (`gemini-3.1-pro-preview`, `gpt-5-pro`, `claude-sonnet-4-5`) | Flash + Gemini Pro | Grep confirmed: architect/SKILL.md:183, code-research/SKILL.md:34,80,98,182 | HIGH — causes 404s |
 | 2 | **Gemini temperature contradiction:** model-review says `-t 0.3`, model-guide says "Keep at 1.0 — lowering causes looping" | GPT-5.2 | model-guide/SKILL.md:92 vs model-review `-t 0.3` | HIGH — conflicting instructions |
 | 3 | **model-guide benchmark numbers are unsourced** (SimpleQA 72%, ARC-AGI-2 77.1%, etc.) — violates Principle #3 "Every Claim Sourced" | GPT-5.2 | Inspected model-guide/SKILL.md — no citations on any benchmark | MEDIUM — epistemically inconsistent |
 | 4 | **Two competing provenance ontologies** (Admiralty vs researcher tags) with no deterministic mapping | GPT-5.2 | researcher uses `[SOURCE:]`/`[INFERENCE]`; constitution mandates Admiralty `[A1]`-`[F6]` | MEDIUM — confusion in mixed workflows |
@@ -48,8 +48,8 @@
 1. ~~Fix model-review model names~~ DONE (Step 4)
 2. ~~Fix llmx-guide model names~~ DONE (Step 6)
 3. ~~Merge researcher/deep-research~~ DONE (Step 5)
-4. **Fix architect model names** — update from `gemini-2.5-pro` → `gemini-3.1-pro-preview`, `gpt-5-pro` → `gpt-5.2`, `claude-sonnet-4-5` → `claude-sonnet-4-6`
-5. **Fix code-research model names** — update from `gemini-2.5-pro` → `gemini-3-flash-preview` (cheap) or `gemini-3.1-pro-preview` (quality)
+4. **Fix architect model names** — update from `gemini-3.1-pro-preview` → `gemini-3.1-pro-preview`, `gpt-5-pro` → `gpt-5.2`, `claude-sonnet-4-5` → `claude-sonnet-4-6`
+5. **Fix code-research model names** — update from `gemini-3.1-pro-preview` → `gemini-3-flash-preview` (cheap) or `gemini-3.1-pro-preview` (quality)
 
 ### Near-term (next session)
 6. **Resolve temperature contradiction** — model-review `-t 0.3` vs model-guide "keep 1.0". The truth: thinking-mode Gemini locks temp server-side, so `-t 0.3` is a hint that may be ignored. Non-thinking mode respects it. Clarify in both skills.

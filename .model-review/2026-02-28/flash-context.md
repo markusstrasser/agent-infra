@@ -186,7 +186,7 @@ skills/architect/run.sh decide <run-id> defer "" "needs more research"
 
 **Working models (2025-11-07):**
 
-- `gemini-2.5-pro`, `gpt-5-pro`, `grok-4-latest`, `kimi-k2-thinking`, `claude-sonnet-4-5`
+- `gemini-3.1-pro-preview`, `gpt-5-pro`, `grok-4-latest`, `kimi-k2-thinking`, `claude-sonnet-4-5`
 
 **Gotchas:**
 
@@ -199,7 +199,7 @@ skills/architect/run.sh decide <run-id> defer "" "needs more research"
 
 **Gotcha:** Judge names ≠ llmx model names
 
-- llmx: `gemini-2.5-pro` (hyphens, dots)
+- llmx: `gemini-3.1-pro-preview` (hyphens, dots)
 - tournament judges: `gemini25-pro` (no dots, compact)
 
 **Available judges:** `gpt5-pro`, `gemini25-pro`, `grok-4`, `claude-4.5`, `kimi-k2-thinking`
@@ -1071,7 +1071,7 @@ XAI_API_KEY=your-key
 ```bash
 # Query a small repo
 repomix ~/Projects/best/malli --copy --output /dev/null | \\
-  llmx --provider google --model gemini-2.5-pro "How does schema composition work?"
+  llmx --provider google --model gemini-3.1-pro-preview "How does schema composition work?"
 
 # Query large repo (focused)
 repomix ~/Projects/best/clojurescript/src/main/clojure/cljs \\
@@ -1117,7 +1117,7 @@ See `data/repos.edn` for complete list (LOC, languages, descriptions).
 
 | Provider | Model          | Use For                                   | Cost   | Speed  |
 | -------- | -------------- | ----------------------------------------- | ------ | ------ |
-| google   | gemini-2.5-pro | High-token queries, large repos, sessions | Medium | Medium |
+| google   | gemini-3.1-pro-preview | High-token queries, large repos, sessions | Medium | Medium |
 | openai   | gpt-5-codex    | Code review, architecture, taste          | High   | Slow   |
 | xai      | grok-4-latest  | Quick queries, fallback                   | Medium | Medium |
 
@@ -1135,7 +1135,7 @@ repomix ~/Projects/best/malli --copy --output /dev/null \\
   --include "src/**,README.md"
 
 # 2. Query with gemini
-pbpaste | llmx --provider google --model gemini-2.5-pro \\
+pbpaste | llmx --provider google --model gemini-3.1-pro-preview \\
   "YOUR_QUESTION"
 ```
 
@@ -1219,7 +1219,7 @@ Check size with: `du -sh ~/Projects/best/{project}`
 
 ```bash
 # Override default model
-export RESEARCH_DEFAULT_MODEL="gemini-2.5-pro"
+export RESEARCH_DEFAULT_MODEL="gemini-3.1-pro-preview"
 
 # Set timeouts (seconds)
 export REPOMIX_TIMEOUT=30
@@ -1250,7 +1250,7 @@ export LLM_TIMEOUT=120
 
 **"Command timed out"**
 
-- Use faster model: `--model gemini-2.5-flash`
+- Use faster model: `--model gemini-3-flash-preview`
 - Break query into smaller parts
 
 **"Empty response"**
@@ -2883,7 +2883,7 @@ Gemini naming is inconsistent. These are confirmed working:
 | `gemini-3.1-flash-image-preview` | Works | Flash 3.1 with image (no text-only 3.1 Flash yet) |
 | `gemini-3.1-pro-preview` | Works | Architectural review, cross-referencing, large context |
 | `gemini-3-pro-preview` | Works | Older Pro 3.0 |
-| `gemini-2.5-flash` | Works (warns "Lite") | Only for file/semantic search, not chat |
+| `gemini-3-flash-preview` | Works (warns "Lite") | Only for file/semantic search, not chat |
 | `gpt-5.2` | Works | Quantitative/formal analysis |
 
 **404 — DO NOT USE:**
@@ -2906,7 +2906,7 @@ llmx --provider google <<< "2+2?"
 
 | Context               | Name             |
 | --------------------- | ---------------- |
-| llmx CLI              | `gemini-2.5-pro` |
+| llmx CLI              | `gemini-3.1-pro-preview` |
 | tournament MCP judges | `gemini25-pro`   |
 
 ## Deep Research (v0.4.0+)

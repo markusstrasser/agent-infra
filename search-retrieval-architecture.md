@@ -14,7 +14,7 @@ Research conducted 2026-02-28. Evaluated CAG (Cache-Augmented Generation) vs emb
 
 ### CAG Implementation (`papers-mcp/src/research_mcp/cag.py`)
 - Stuffs full paper texts into Gemini's 1M context window
-- Auto-tiers: `gemini-2.5-flash-lite` for broad sweeps (>30 papers), `gemini-2.5-flash` for focused analysis
+- Auto-tiers: `gemini-3-flash-preview` for broad sweeps (>30 papers), `gemini-3-flash-preview` for focused analysis
 - ~930K usable tokens after reserving for prompt + output
 - Called via `mcp__research__ask_papers` in researcher skill
 
