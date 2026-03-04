@@ -36,6 +36,10 @@ safe-lite *args:
 tags *args:
     uv run python3 scripts/extract_user_tags.py {{args}}
 
+# Hook trigger telemetry (default: last 7 days)
+hook-telemetry *args:
+    uv run python3 scripts/hook-telemetry-report.py {{args}}
+
 # ── Sessions ─────────────────────────────────────────────────────
 
 # Session search & dispatch (index, list, search, show, dispatch)
