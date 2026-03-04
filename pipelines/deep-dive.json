@@ -1,0 +1,29 @@
+{
+  "name": "deep-dive",
+  "project": "intel",
+  "variables": {
+    "ticker": {"required": true},
+    "trigger": {"default": "scheduled review"}
+  },
+  "steps": [
+    {
+      "step": "evidence",
+      "prompt": "Read analysis/entities/{ticker}.md and .claude/rules/conviction-schema.md. Check Form 4, 8-K, price, short interest, and monitoring triggers for {ticker}. Trigger: {trigger}. If no conviction change warranted: update last_reviewed in frontmatter, commit with [entity-refresh] prefix, STOP. If conviction change warranted: write evidence summary to .claude/plans/deep-dive-{ticker}-evidence.md with specific data points, sources, and proposed conviction change.",
+      "allowed_tools": "Read,Write,Edit,Glob,Grep,Bash,WebSearch,mcp__brave-search__brave_news_search,mcp__perplexity__perplexity_ask,mcp__exa__web_search_exa",
+      "max_turns": 12,
+      "max_budget_usd": 3.0,
+      "model": "sonnet",
+      "engine": "claude"
+    },
+    {
+      "step": "adversarial",
+      "pause_before": true,
+      "prompt": "Read .claude/plans/deep-dive-{ticker}-evidence.md (evidence from stage 1). Run thesis-check skill queries against {ticker}. If competing hypotheses exist, run ACH. Update analysis/entities/{ticker}.md: add conviction_journal entry to YAML frontmatter per .claude/rules/conviction-schema.md, update scenario table if present, update conviction: field to match new posterior. Run: uv run python3 tools/conviction_extractor.py --ticker {ticker} --validate. Commit with [conviction] prefix.",
+      "allowed_tools": "Read,Write,Edit,Glob,Grep,Bash,WebSearch,WebFetch,mcp__brave-search__brave_news_search,mcp__perplexity__perplexity_ask,mcp__perplexity__perplexity_reason,mcp__exa__web_search_exa",
+      "max_turns": 20,
+      "max_budget_usd": 10.0,
+      "model": "opus",
+      "engine": "claude"
+    }
+  ]
+}

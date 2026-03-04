@@ -1,0 +1,16 @@
+{
+  "name": "trigger-monitor",
+  "project": "intel",
+  "schedule": "0 7 * * *",
+  "steps": [
+    {
+      "step": "scan",
+      "prompt": "Read all entity files in analysis/entities/*.md. For each entity with monitoring triggers (checkbox items under ## Monitoring or similar sections), check current data against those triggers. For RESEARCH/BUY entities: check Form 4, price action, 8-K filings. For AVOID entities: check upgrade triggers. Write report to .claude/plans/trigger-monitor-$(date +%Y-%m-%d).md listing: entity, trigger, status (fired/clear), evidence. If any trigger fires, print the orchestrator submit command: uv run python3 ~/Projects/meta/scripts/orchestrator.py submit deep-dive --project intel --vars ticker=TICKER trigger=\"<fired trigger description>\"",
+      "allowed_tools": "Read,Write,Edit,Glob,Grep,Bash,WebSearch,mcp__brave-search__brave_news_search,mcp__perplexity__perplexity_ask,mcp__exa__web_search_exa",
+      "max_turns": 15,
+      "max_budget_usd": 2.0,
+      "model": "sonnet",
+      "engine": "claude"
+    }
+  ]
+}
