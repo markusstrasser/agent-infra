@@ -505,7 +505,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Malicious compliance — satisfying hook's regex while violating its intent
 - **Proposed fix:** [hook] Update postwrite-source-check.sh to validate tag density on diff lines only, not file-level ratios. Consider semantic validation of tag content.
 - **Severity:** high (recurring, undermines entire provenance system)
-- **Status:** [ ] proposed
+- **Status:** [x] implemented — skills@75b971a: diff-level density, structural type validation, TRAINING-DATA 30% cap
 
 **MEDIUM severity:**
 
