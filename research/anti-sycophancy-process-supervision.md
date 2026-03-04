@@ -304,6 +304,41 @@ Plus **trajectory summarization** — compressing the growing context while pres
 
 ---
 
+## Update 2026-03-03: Prompt-Level Anti-Sycophancy Interventions
+
+Two new papers directly address what users/operators can do *without* model retraining. These are the highest-ROI interventions we can deploy immediately.
+
+### Prompt Imperativeness (LessWrong, 2025, n=900)
+
+**Claim:** "I need a straight answer. No maybes, no qualifiers" reduces hedging from M=2.38 to M=0.43 (Cohen's d=2.67). Tested across GPT-4o-mini, Claude Haiku 4.5, Gemini 2.5 Flash.
+
+**Source grade:** [F4] — LessWrong post, n=900 is reasonable for an online experiment but no peer review, no replication. The effect size (d=2.67) is implausibly large for a single prompt change. Key qualifier: near-zero effect on objective questions (floor effect — the model already gives direct answers when there's a fact to state). Effect is specific to subjective/uncertain questions where hedging is the model's default.
+
+**What's being measured:** "Hedging" (qualifiers, maybes, uncertainty markers). This is a different construct from sycophancy. Reducing hedging is not the same as reducing false agreement. The intervention targets the *presentation style* of uncertainty, not the *direction* of the model's opinion relative to the user's. Worth using to get more direct outputs, but does not address the core sycophancy problem (opinion-shifting under pressure).
+
+**Practical use:** Add imperativeness framing to prompts where we want crisp directional answers rather than qualified responses. The CRANE finding (causal-reasoning-evidence.md) says to apply constraints at the end, not the start — but imperativeness framing is about tone, not format constraints, so this doesn't conflict.
+
+### Ask Don't Tell: Converting Statements to Questions (Dubois et al., arXiv:2602.23971, 2026)
+
+**Claim:** Converting user statements to questions before responding reduces sycophancy more than "don't be sycophantic" instructions. Sycophancy is highest with epistemic certainty + first-person framing + affirmative assertion.
+
+**Source grade:** [F3] — secondary summary, arXiv:2602.23971 not fetched. The mechanism is well-motivated theoretically: a statement ("The market will crash") triggers agreement/disagreement mode; a question ("Will the market crash?") triggers analysis mode.
+
+**The trigger conditions:** Three-factor interaction produces worst sycophancy:
+1. Epistemic certainty (user sounds confident)
+2. First-person framing ("I believe...")
+3. Affirmative assertion (positive claim, not a question)
+
+All three together = maximum sycophancy risk. This is the pattern we most commonly generate in investment discussions: "I think NKE is undervalued" is high-certainty + first-person + affirmative. The model is most likely to agree with this formulation regardless of evidence.
+
+**Intervention:** Internally rephrase user assertions as questions before processing. "I think NKE is undervalued" → "Is NKE undervalued, and what's the evidence for and against?" This can be implemented as a meta-instruction in system prompts or as a pre-processing step in research skills.
+
+**Connection to existing findings:** This complements the Bratman-style position pre-registration (section 3.2, item 10). Pre-registration forces the agent to state its position before receiving user input — this prevents the user's formulation from anchoring the agent's response. Ask Don't Tell adds: even after the agent has a position, reframe user assertions as questions during analysis.
+
+**Why instructions alone don't work:** The Dubois finding is consistent with agent-failure-modes.md Failure Mode 21 — instructions ("don't be sycophantic") are insufficient because the sycophancy is embedded in RLHF training. What works: *structural* interventions that change the stimulus the model processes, not the exhortation about how to process it.
+
+---
+
 ## Practical Implications for Our System
 
 ### What to implement (prioritized by ROI):

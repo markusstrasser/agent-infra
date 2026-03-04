@@ -35,7 +35,7 @@ THEN make assumptions explicit
 | 1 | Non-deterministic evaluation | Multiple valid interpretations | "Name names" / falsifiability | No — same principle |
 | 2 | Hidden dependencies | Unstated assumptions in specs | "Predict data footprint BEFORE querying" | No — same principle |
 | 3 | Frame ambiguity | "perspective", "how" without method | Source grading (grade claims not datasets) | Partially — selve's "method attribution" adds value |
-| 4 | Generic solutions | Common approaches when specific required | "Synthesis mode default" anti-pattern | Yes — this is the core agent failure |
+| 4 | Generic solutions / factor-listing | Common approaches when specific required | "Synthesis mode default" anti-pattern; RLHF rewards comprehensive lists; Level-1 causal retrieval | Yes — this is the core agent failure |
 
 ### Regret Metric
 ```
@@ -276,5 +276,33 @@ THEN it retries the same approach indefinitely instead of stopping
 
 ---
 
-*Evaluated 2026-02-27, updated 2026-02-28, updated 2026-03-01. Research sweep findings (40+ primary sources), community pattern analysis, snippet/workflow audit, sycophancy audit, session-analyst findings, and 2026-03-01 research update (6 new papers on agent scaling, CoT faithfulness, and sycophancy).*
-*Sources: `~/Projects/selve/docs/universal_contracts.md`, `~/Projects/selve/docs/AGENT_PROTOCOLS.md`, research sweep (40+ primary sources), direct session observations, 2026-03-01 update: arXiv:2602.03794, arXiv:2602.11201, arXiv:2601.06423, arXiv:2602.14270, SycEval (DOI:10.1609/aies.v8i1.36598), ELEPHANT (ICLR 2026 submission).*
+### Failure Mode 23: Factor-Listing as Causal Collapse
+```
+IF agent is asked to explain or diagnose a phenomenon
+THEN it produces a ranked list of generic factors
+    instead of identifying the specific operative mechanism
+```
+**Source:** Synthesis of: Failure Mode 4 (generic solutions, original selve analysis), Chi et al. (arXiv:2506.21215, 2025) on Level-1 vs Level-2 causal reasoning, Chang (arXiv:2602.11675, 2026) on causal rung collapse, and Failure Mode 21 (sycophancy/RLHF). All tagged [F3] — primary papers not fetched. See `research/causal-reasoning-evidence.md`.
+
+**Root cause (three-factor stack):**
+1. **RLHF rewards helpfulness** → comprehensive lists *feel* thorough to raters → model is trained to produce lists when asked to explain.
+2. **Level-1 causal retrieval** (Chi et al.) → model retrieves known causal associations from training data rather than reasoning about the specific case. Lists of generic factors = catalog of training-data associations.
+3. **Causal rung collapse** (Chang) → autoregressive training cannot distinguish P(Y|X) from P(Y|do(X)). Interventional questions get answered with associational answers. "What caused this billing spike?" is rung-2; the model answers with rung-1 (what correlates with billing spikes in general).
+
+**What it looks like:**
+- "What might explain this pattern?" → "Common causes include: 1) coding errors, 2) billing practice changes, 3) fraud, 4) patient mix shifts, 5) seasonal variation..."
+- Correct answer: "The 7-month sustained spike starting exactly when physician X joined the practice, combined with X's prior LEIE record, points specifically to upcoding."
+
+The list is not wrong — all those factors are real. But it's not analysis. Analysis identifies the specific operative mechanism with evidence. Lists distribute probability mass evenly across generic explanations.
+
+**Why it's hard to fix with instructions:** Instructions alone = 0% reliable (EoG, Failure Mode 12). The factor-listing tendency is baked into RLHF reward structure and the model's training distribution. Structural fixes:
+- Force specificity in prompts: "name the single most likely cause with supporting evidence" (end-constrained per CRANE finding — don't say "one cause" at the start of the prompt, say it at the end)
+- Use the Theorem-of-Thought architecture (arXiv:2506.07106): parallel abductive + deductive + inductive agents converge on specific mechanism rather than listing possibilities
+- The competing-hypotheses workflow (`/competing-hypotheses`) is the correct fix — it forces mechanistic hypotheses with evidence, not factor enumeration
+
+**Note on frontier thinking models:** Thinking models (Opus 4.6, o3) with RL training on verifiable outcomes may partially escape this failure mode for problems with clear right answers. For open-ended causal questions with no verifiable ground truth (most of our work), the effect is unverified.
+
+---
+
+*Evaluated 2026-02-27, updated 2026-02-28, updated 2026-03-01, updated 2026-03-03. Research sweep findings (40+ primary sources), community pattern analysis, snippet/workflow audit, sycophancy audit, session-analyst findings, 2026-03-01 research update (6 new papers on agent scaling, CoT faithfulness, and sycophancy), 2026-03-03 update (causal reasoning evidence: arXiv:2602.11675, arXiv:2506.21215, arXiv:2506.07106, arXiv:2502.09061; prompt interventions: LessWrong n=900 hedging study, arXiv:2602.23971).*
+*Sources: `~/Projects/selve/docs/universal_contracts.md`, `~/Projects/selve/docs/AGENT_PROTOCOLS.md`, research sweep (40+ primary sources), direct session observations, 2026-03-01 update: arXiv:2602.03794, arXiv:2602.11201, arXiv:2601.06423, arXiv:2602.14270, SycEval (DOI:10.1609/aies.v8i1.36598), ELEPHANT (ICLR 2026 submission). 2026-03-03 update: see `research/causal-reasoning-evidence.md`, `research/anti-sycophancy-process-supervision.md`.*
