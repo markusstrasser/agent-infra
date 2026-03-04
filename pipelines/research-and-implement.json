@@ -4,7 +4,7 @@
   "steps": [
     {
       "step": "prior-art",
-      "prompt": "Before researching {topic}, check if a solution already exists. Scan: (1) vendor GitHub orgs (github.com/anthropics, etc.) for relevant repos/tools, (2) vendor changelogs and API docs for recent features, (3) PyPI/npm for established libraries, (4) existing OSS projects. Write findings to .claude/plans/{pipeline}-prior-art.md: what exists, what it does, whether it fits, why build vs adopt.",
+      "prompt": "Before researching {topic}, check if a solution already exists. Scan: (1) vendor GitHub orgs (github.com/anthropics, etc.) for relevant repos/tools, (2) vendor changelogs and API docs for recent features, (3) PyPI/npm for established libraries, (4) existing OSS projects. Write findings to .claude/plans/{pipeline}-prior-art.md: what exists, what it does, whether it fits, why build vs adopt.\n\nEnd with a ## Handoff section containing: (a) key findings as a numbered list, (b) open questions, (c) decisions made and why, (d) what the next step should focus on.",
       "max_turns": 10,
       "max_budget_usd": 2.0,
       "effort": "medium",
@@ -12,7 +12,7 @@
     },
     {
       "step": "explore",
-      "prompt": "Read .claude/plans/{pipeline}-prior-art.md first. Then research {topic}, building on what already exists. Use WebSearch, Exa, and paper-search MCP tools. Save findings to .claude/plans/{pipeline}-explore.md with source citations for every factual claim.",
+      "prompt": "Read .claude/plans/{pipeline}-prior-art.md first — focus on its ## Handoff section for key findings and open questions. Then research {topic}, building on what already exists. Use WebSearch, Exa, and paper-search MCP tools. Save findings to .claude/plans/{pipeline}-explore.md with source citations for every factual claim.\n\nEnd with a ## Handoff section containing: (a) key findings as a numbered list, (b) open questions, (c) decisions made and why, (d) what the next step should focus on.",
       "max_turns": 15,
       "max_budget_usd": 3.0,
       "effort": "high",
@@ -20,13 +20,13 @@
     },
     {
       "step": "review",
-      "prompt": "Read .claude/plans/{pipeline}-explore.md. For each recommendation, verify it against the actual codebase (grep/read). Run cross-model review: pipe context to llmx -m gemini-3.1-pro-preview and llmx -m gpt-5.2 for adversarial critique. Write verified findings to .claude/plans/{pipeline}-review.md.",
+      "prompt": "Read .claude/plans/{pipeline}-explore.md — focus on its ## Handoff section. For each recommendation, verify it against the actual codebase (grep/read). Run cross-model review: pipe context to llmx -m gemini-3.1-pro-preview and llmx -m gpt-5.2 for adversarial critique. Write verified findings to .claude/plans/{pipeline}-review.md.\n\nEnd with a ## Handoff section containing: (a) key findings as a numbered list, (b) open questions, (c) decisions made and why, (d) what the next step should focus on.",
       "max_turns": 15,
       "max_budget_usd": 8.0
     },
     {
       "step": "verify",
-      "prompt": "Read .claude/plans/{pipeline}-review.md. For every claim about existing code (file paths, function names, features), verify against the actual codebase using Grep and Read. Write correction table to .claude/plans/{pipeline}-verified.md: | Claim | Actual | Status (confirmed/corrected/missing) |",
+      "prompt": "Read .claude/plans/{pipeline}-review.md — focus on its ## Handoff section. For every claim about existing code (file paths, function names, features), verify against the actual codebase using Grep and Read. Write correction table to .claude/plans/{pipeline}-verified.md: | Claim | Actual | Status (confirmed/corrected/missing) |\n\nEnd with a ## Handoff section containing: (a) confirmed facts, (b) corrections made, (c) what the plan step should include.",
       "max_turns": 15,
       "max_budget_usd": 1.0,
       "effort": "low",
@@ -34,14 +34,14 @@
     },
     {
       "step": "plan",
-      "prompt": "Read .claude/plans/{pipeline}-verified.md. Write an implementation plan to .claude/plans/{pipeline}-plan.md incorporating all corrections. Include: file list, execution order, verification steps.",
+      "prompt": "Read .claude/plans/{pipeline}-verified.md — focus on its ## Handoff section. Write an implementation plan to .claude/plans/{pipeline}-plan.md incorporating all corrections. Include: file list, execution order, verification steps.\n\nEnd with a ## Handoff section containing: (a) implementation steps as a numbered list, (b) verification criteria, (c) risks or edge cases.",
       "max_turns": 15,
       "max_budget_usd": 3.0,
       "allowed_tools": "Read,Glob,Grep,Write"
     },
     {
       "step": "execute",
-      "prompt": "Execute the plan at .claude/plans/{pipeline}-plan.md. Check git log for any changes since the plan was written. Implement, test, commit with [{pipeline}] prefix.",
+      "prompt": "Execute the plan at .claude/plans/{pipeline}-plan.md — read its ## Handoff for the step list. Check git log for any changes since the plan was written. Implement, test, commit with [{pipeline}] prefix.",
       "max_turns": 15,
       "max_budget_usd": 5.0
     }

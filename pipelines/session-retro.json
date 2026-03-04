@@ -5,12 +5,39 @@
   "steps": [
     {
       "step": "analyze",
-      "prompt": "Analyze today's sessions across all projects for behavioral anti-patterns: sycophancy, over-engineering, build-then-undo, token waste, search flooding. Use extract_transcript.py to preprocess, then dispatch to Gemini for analysis. Append structured findings to improvement-log.md. RECURRENCE GATE: Only draft CLAUDE.md or hook changes if a finding recurs in 2+ sessions -- check existing improvement-log entries before proposing.",
+      "prompt": "Analyze today's sessions across all projects for behavioral anti-patterns: sycophancy, over-engineering, build-then-undo, token waste, search flooding. Use extract_transcript.py to preprocess, then dispatch to Gemini for analysis. Append structured findings to improvement-log.md. RECURRENCE GATE: Only draft CLAUDE.md or hook changes if a finding recurs in 2+ sessions -- check existing improvement-log entries before proposing. If orchestrator .metrics.jsonl files exist for today's tasks, include tool failure patterns in your analysis.",
       "max_turns": 15,
       "max_budget_usd": 3.0,
       "model": "sonnet",
       "effort": "medium",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/meta",
+      "output_format": {
+        "type": "json_schema",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "findings": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "category": {"type": "string"},
+                  "summary": {"type": "string"},
+                  "severity": {"type": "string", "enum": ["low", "medium", "high"]},
+                  "evidence": {"type": "string"},
+                  "recurrence": {"type": "boolean"}
+                },
+                "required": ["category", "summary", "severity"],
+                "additionalProperties": false
+              }
+            },
+            "sessions_analyzed": {"type": "integer"},
+            "actionable_count": {"type": "integer"}
+          },
+          "required": ["findings", "sessions_analyzed", "actionable_count"],
+          "additionalProperties": false
+        }
+      }
     }
   ]
 }
