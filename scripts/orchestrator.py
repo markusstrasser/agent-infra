@@ -582,6 +582,116 @@ def cmd_approve(args):
         print(f"No pending approval tasks found for {what}")
 
 
+def cmd_show(args):
+    db = get_db()
+    task = db.execute("SELECT * FROM tasks WHERE id = ?", (args.task_id,)).fetchone()
+    if not task:
+        print(f"Task #{args.task_id} not found.")
+        db.close()
+        return
+
+    # Header
+    print(f"{'=' * 60}")
+    print(f"  Task #{task['id']}  {task['status'].upper()}")
+    print(f"{'=' * 60}")
+    print()
+
+    # Metadata
+    print(f"  Pipeline:    {task['pipeline'] or '-'}/{task['step'] or '-'}")
+    print(f"  Project:     {task['project']}")
+    print(f"  Engine:      {task['engine'] or 'claude'}")
+    print(f"  Model:       {task['model'] or 'default'}")
+    print(f"  Effort:      {task['effort'] or 'default'}")
+    print(f"  Max turns:   {task['max_turns']}")
+    print(f"  Max budget:  ${task['max_budget_usd'] or 0:.2f}")
+    print()
+
+    # Timing
+    print(f"  Created:     {task['created_at'] or '-'}")
+    print(f"  Started:     {task['started_at'] or '-'}")
+    print(f"  Finished:    {task['finished_at'] or '-'}")
+    if task["started_at"] and task["finished_at"]:
+        try:
+            start = datetime.strptime(task["started_at"], "%Y-%m-%d %H:%M:%S")
+            end = datetime.strptime(task["finished_at"], "%Y-%m-%d %H:%M:%S")
+            dur = end - start
+            print(f"  Duration:    {dur}")
+        except ValueError:
+            pass
+    print()
+
+    # Cost & tokens
+    if task["cost_usd"] is not None:
+        print(f"  Cost:        ${task['cost_usd']:.2f}")
+    if task["tokens_in"] or task["tokens_out"]:
+        print(f"  Tokens:      {task['tokens_in'] or 0:,} in / {task['tokens_out'] or 0:,} out")
+    print()
+
+    # Approval
+    if task["requires_approval"]:
+        print(f"  Approval:    {'APPROVED at ' + task['approved_at'] if task['approved_at'] else 'WAITING'}")
+        print()
+
+    # Error
+    if task["error"]:
+        print(f"  Error:       {task['error']}")
+        print()
+
+    # Prompt (truncated)
+    prompt = task["prompt"] or ""
+    if args.full:
+        print("  Prompt:")
+        for line in prompt.split("\n"):
+            print(f"    {line}")
+    else:
+        preview = prompt[:300].replace("\n", " ")
+        if len(prompt) > 300:
+            preview += "..."
+        print(f"  Prompt:      {preview}")
+    print()
+
+    # Output
+    output_file = task["output_file"]
+    if output_file and Path(output_file).exists():
+        output_data = json.loads(Path(output_file).read_text())
+        session_id = output_data.get("session_id")
+        num_turns = output_data.get("num_turns")
+        duration_ms = output_data.get("duration_ms")
+
+        if session_id:
+            print(f"  Session ID:  {session_id}")
+            # Find transcript
+            project_slug = f"-Users-alien-Projects-{task['project']}"
+            transcript = Path.home() / ".claude" / "projects" / project_slug / f"{session_id}.jsonl"
+            if transcript.exists():
+                print(f"  Transcript:  {transcript}")
+            else:
+                print(f"  Transcript:  (not found at {transcript})")
+        if num_turns:
+            print(f"  Turns:       {num_turns}")
+        if duration_ms:
+            print(f"  SDK time:    {duration_ms / 1000:.1f}s")
+        print()
+
+        result = output_data.get("result", "")
+        if result:
+            if args.full:
+                print("  Result:")
+                for line in result.split("\n"):
+                    print(f"    {line}")
+            else:
+                preview = result[:500].replace("\n", " ")
+                if len(result) > 500:
+                    preview += "..."
+                print(f"  Result:      {preview}")
+    elif task["result_summary"]:
+        print(f"  Summary:     {task['result_summary'][:500]}")
+
+    print()
+    print(f"  Output file: {output_file or '-'}")
+    db.close()
+
+
 def cmd_log(args):
     if not LOG_PATH.exists():
         print("No log file yet.")
@@ -592,13 +702,31 @@ def cmd_log(args):
         today = date.today().isoformat()
         lines = [l for l in lines if today in l]
 
-    for line in lines[-50:]:
+    # Filter by pipeline or project
+    if args.pipeline or args.project:
+        filtered = []
+        for line in lines:
+            try:
+                evt = json.loads(line)
+                if args.pipeline and evt.get("pipeline") != args.pipeline:
+                    continue
+                if args.project and evt.get("project") != args.project:
+                    continue
+                filtered.append(line)
+            except json.JSONDecodeError:
+                pass
+        lines = filtered
+
+    limit = args.last or 50
+    for line in lines[-limit:]:
         try:
             evt = json.loads(line)
             ts = evt.get("ts", "")[:19]
             action = evt.get("action", "?")
             tid = evt.get("task_id", "")
             extra = ""
+            if "pipeline" in evt:
+                extra += f" {evt['pipeline']}/{evt.get('step', '?')}"
             if "cost_usd" in evt:
                 extra += f" ${evt['cost_usd']:.2f}"
             if "error" in evt:
@@ -668,13 +796,82 @@ def cmd_summary(args):
     db.close()
 
 
+def notify(title, message):
+    """Send macOS notification. Fails silently."""
+    try:
+        subprocess.run(
+            ["osascript", "-e",
+             f'display notification "{message}" with title "{title}"'],
+            timeout=5, capture_output=True,
+        )
+    except Exception:
+        pass
+
+
+def cmd_pipelines(args):
+    db = get_db()
+    rows = db.execute("""
+        SELECT pipeline,
+               COUNT(*) as total,
+               SUM(CASE WHEN status IN ('done','done_with_denials') THEN 1 ELSE 0 END) as done,
+               SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
+               SUM(CASE WHEN status IN ('pending','running','blocked') THEN 1 ELSE 0 END) as active,
+               COALESCE(SUM(cost_usd), 0) as cost,
+               COALESCE(SUM(tokens_in), 0) as tokens_in,
+               COALESCE(SUM(tokens_out), 0) as tokens_out,
+               MIN(created_at) as first_created,
+               MAX(finished_at) as last_finished
+        FROM tasks
+        WHERE pipeline IS NOT NULL
+        GROUP BY pipeline
+        ORDER BY first_created DESC
+    """).fetchall()
+
+    if not rows:
+        print("No pipelines.")
+        db.close()
+        return
+
+    print(f"{'PIPELINE':<30} {'DONE':>5} {'FAIL':>5} {'PEND':>5} {'COST':>8} {'TOKENS':>12} {'LAST ACTIVITY'}")
+    print("-" * 95)
+    for r in rows:
+        tokens = f"{(r['tokens_in'] + r['tokens_out']):,}"
+        last = (r["last_finished"] or r["first_created"] or "")[:16]
+        print(f"{r['pipeline']:<30} {r['done']:>5} {r['failed']:>5} {r['active']:>5} "
+              f"${r['cost']:>7.2f} {tokens:>12} {last}")
+
+    # Total
+    total_cost = sum(r["cost"] for r in rows)
+    total_tokens = sum(r["tokens_in"] + r["tokens_out"] for r in rows)
+    print("-" * 95)
+    print(f"{'TOTAL':<30} {'':>5} {'':>5} {'':>5} ${total_cost:>7.2f} {total_tokens:>12,}")
+
+    db.close()
+
+
 def cmd_tick(args):
     lock_fd = acquire_lock()
     if not lock_fd:
         return
 
     db = get_db()
-    execute_one(db)
+    ran = execute_one(db)
+
+    # Send macOS notification for completed/failed tasks
+    if ran:
+        last = db.execute("""
+            SELECT id, pipeline, step, status, cost_usd, error
+            FROM tasks WHERE status IN ('done', 'done_with_denials', 'failed')
+            ORDER BY finished_at DESC LIMIT 1
+        """).fetchone()
+        if last:
+            if last["status"] == "failed":
+                notify("Orchestrator FAILED",
+                       f"#{last['id']} {last['pipeline']}/{last['step']}: {(last['error'] or '?')[:60]}")
+            else:
+                notify("Orchestrator Done",
+                       f"#{last['id']} {last['pipeline']}/{last['step']} (${last['cost_usd'] or 0:.2f})")
+
     db.close()
 
 
@@ -705,11 +902,20 @@ def main():
 
     sub.add_parser("status", help="Show task queue")
 
+    p_show = sub.add_parser("show", help="Show full task details")
+    p_show.add_argument("task_id", type=int, help="Task ID")
+    p_show.add_argument("--full", action="store_true", help="Show full prompt and result")
+
     p_approve = sub.add_parser("approve", help="Approve a pending task/pipeline")
     p_approve.add_argument("target", help="Task ID or pipeline name")
 
     p_log = sub.add_parser("log", help="Show event log")
     p_log.add_argument("--today", action="store_true")
+    p_log.add_argument("--pipeline", help="Filter by pipeline name")
+    p_log.add_argument("--project", help="Filter by project name")
+    p_log.add_argument("--last", type=int, help="Show last N entries (default 50)")
+
+    sub.add_parser("pipelines", help="Show cost/status rollup by pipeline")
 
     sub.add_parser("summary", help="Generate daily summary")
 
@@ -725,10 +931,14 @@ def main():
         cmd_run(args)
     elif args.command == "status":
         cmd_status(args)
+    elif args.command == "show":
+        cmd_show(args)
     elif args.command == "approve":
         cmd_approve(args)
     elif args.command == "log":
         cmd_log(args)
+    elif args.command == "pipelines":
+        cmd_pipelines(args)
     elif args.command == "summary":
         cmd_summary(args)
     elif args.command == "tick":
