@@ -406,3 +406,27 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [rule] CLAUDE.md gotcha: "FMP rate limit: 4 quotes then 402. Use company_profiles view as primary. Reserve FMP get_quote for real-time only, one at a time."
 - **Severity:** medium (token waste on background agents, no output)
 - **Status:** [x] deployed — CLAUDE.md gotchas 2026-03-02
+
+### [2026-03-03] Supervision Audit
+- **Period:** 7 days, 439 sessions, 2211 user messages (today: 58 sessions, 251 messages)
+- **Wasted:** 4.3% 7-day, 1.2% today. Target: <15%.
+- **Trend:** 21.0% (Feb 28) -> 5.9% (Mar 1) -> 5.3% (Mar 2) -> 4.3% (Mar 3 7-day). Steady decline, now solidly below target.
+- **Today specifically:** 1.2% — only 3 wasted messages out of 251 (1 context-resume, 1 repeat-instruction, 1 rubber-stamp). Near-zero waste day.
+- **Top patterns (7-day):**
+  1. **commit-boilerplate (39):** Still the #1 waste source. Identical Raycast clipboard paste: "IFF everything works: git commit your changes granularly..." across 10+ sessions. CLAUDE.md auto-commit rules and stop-uncommitted-warn.sh hook already cover this. Pure user habit — rules exist, hook exists, user still pastes. Declining vs prior audits (43 on Mar 2 7-day). No new fix warranted.
+  2. **rubber-stamp (28):** "ok", "do it", "go ahead" across meta (11), intel (15), selve (2). These are intentional approval checkpoints — the user wants to confirm before execution. The Mar 2 "Execution After Plans" rule reduced but didn't eliminate these. Some are genuinely necessary (plan approval), some are the agent unnecessarily pausing ("shall I proceed?"). Mixed signal — not clearly automatable.
+  3. **context-resume (13):** "Continue from where you left off" spread across 10+ sessions. checkpoint.md mechanism exists, CLAUDE.md rule exists, UserPromptSubmit hook exists. Residual is from sessions where no compaction occurred (so no checkpoint.md was generated), or where the user reflexively types this on session start. Declining from 9 on Mar 2.
+  4. **idempotency-check (4):** "Make sure we don't already have these datasets." User reminding agent to check for duplicates before downloading. Below 3-session recurrence threshold but persistent across audits.
+  5. **commit-no-coauthor (3):** Part of the same clipboard paste as commit-boilerplate. Already covered.
+- **Corrections (unique, all singletons except context-resume):**
+  - env-uv-not-conda (1), capability-nudge (1), completeness-verify (1), repeat-instruction (2), halt (1), depth-nudge (2). All below recurrence threshold. No new fixes warranted.
+- **Gemini 3.1 Pro synthesis (cross-checked):**
+  - Proposed: Fix premature hooks causing approval prompts — **PARTIALLY VALID.** Gemini hallucinated specific hook names but the pattern is real: some rubber-stamps are the agent asking permission when it shouldn't. Already addressed by "Execution After Plans" rule (Mar 2).
+  - Proposed: Session resumption rule — **ALREADY EXISTS.** Global CLAUDE.md already says "Resume work automatically." Gemini didn't check existing rules.
+  - Proposed: Single-line git commits — **REJECTED.** The heredoc format is specified in global CLAUDE.md for good reason (formatting with Co-Authored-By). The problem is the user's clipboard paste, not the commit format.
+- **Classifier accuracy notes:**
+  - 430 "system" messages correctly filtered (hook-feedback, skill-expansion, context-continuation, slash-command)
+  - depth-nudge (2): both in short messages, correctly classified as CORRECTION
+  - No new false positive patterns detected
+- **Assessment:** At 4.3% 7-day and 1.2% today, wasted supervision is at an all-time low. The remaining 4.3% breaks down as: commit-boilerplate (1.8%) + rubber-stamps (1.3%) + context-resume (0.6%) + misc corrections (0.6%). The first two categories are not automatable — commit-boilerplate is a user habit that will fade as trust builds, rubber-stamps are intentional oversight. context-resume is addressed by existing infrastructure that works when compaction occurs. No new automation fixes are warranted. The system is operating within target.
+- **Status:** [x] reviewed
