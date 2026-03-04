@@ -304,5 +304,29 @@ The list is not wrong — all those factors are real. But it's not analysis. Ana
 
 ---
 
-*Evaluated 2026-02-27, updated 2026-02-28, updated 2026-03-01, updated 2026-03-03. Research sweep findings (40+ primary sources), community pattern analysis, snippet/workflow audit, sycophancy audit, session-analyst findings, 2026-03-01 research update (6 new papers on agent scaling, CoT faithfulness, and sycophancy), 2026-03-03 update (causal reasoning evidence: arXiv:2602.11675, arXiv:2506.21215, arXiv:2506.07106, arXiv:2502.09061; prompt interventions: LessWrong n=900 hedging study, arXiv:2602.23971).*
+---
+
+### Failure Mode 24: Tool Retry Without Diagnosis
+```
+IF external tool/API call fails
+THEN agent retries same command without checking stderr, exit code, or error type
+```
+**Source:** Session-analyst finding (2026-03-04, session 18384e69). Agent dispatched llmx to Gemini Pro — empty output file. Retried 3 more times without checking: was it a rate limit (503)? Context too large? Pipe failure? API outage? Each retry wasted a tool call. Eventually fell back to Flash after 4 failures.
+
+**Why it persists:** Agent's default is to be persistent. Retrying after a transient error is good behavior. But the agent doesn't distinguish transient vs systematic failures because it doesn't inspect the error signal before retrying. The "try again" heuristic is hardcoded by RLHF training reward for task completion.
+
+**Manifestations:**
+- llmx dispatch: retry same model after rate limit instead of falling back to cheaper model
+- API calls: retry same endpoint after auth failure instead of checking credentials
+- File operations: retry same path after permission error instead of checking permissions
+- MCP tools: retry same query after timeout instead of reducing scope
+
+**Mitigation:**
+- Instructional: "After first failure, diagnose (stderr + exit code) before retrying. If 503/rate-limit, fall back immediately." Added to model-review skill proposal.
+- Architectural: llmx wrapper with automatic fallback (Pro → Flash) and stderr diagnosis would eliminate this for the most common case.
+- General principle: Maps to Failure Mode 18 (Targeted vs Blind Retry, AgentDebug arXiv:2509.25370) — error-specific correction outperforms blind resampling by +24%.
+
+---
+
+*Evaluated 2026-02-27, updated 2026-02-28, updated 2026-03-01, updated 2026-03-03, updated 2026-03-04. Research sweep findings (40+ primary sources), community pattern analysis, snippet/workflow audit, sycophancy audit, session-analyst findings, 2026-03-01 research update (6 new papers on agent scaling, CoT faithfulness, and sycophancy), 2026-03-03 update (causal reasoning evidence: arXiv:2602.11675, arXiv:2506.21215, arXiv:2506.07106, arXiv:2502.09061; prompt interventions: LessWrong n=900 hedging study, arXiv:2602.23971).*
 *Sources: `~/Projects/selve/docs/universal_contracts.md`, `~/Projects/selve/docs/AGENT_PROTOCOLS.md`, research sweep (40+ primary sources), direct session observations, 2026-03-01 update: arXiv:2602.03794, arXiv:2602.11201, arXiv:2601.06423, arXiv:2602.14270, SycEval (DOI:10.1609/aies.v8i1.36598), ELEPHANT (ICLR 2026 submission). 2026-03-03 update: see `research/causal-reasoning-evidence.md`, `research/anti-sycophancy-process-supervision.md`.*

@@ -16,7 +16,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Frontier model timeliness bias (MEMORY.md rule exists since 2026-03-03 — this session prompted its creation)
 - **Proposed fix:** [rule] Rule now exists in MEMORY.md. But instructions alone = 0% reliable (EoG). Consider: advisory hook that checks research memos for model names and flags pre-frontier citations without explicit staleness disclaimers.
 - **Severity:** high — third recurrence of same epistemic error, required user correction
-- **Status:** [x] implemented — MEMORY.md rule (2026-03-03). Hook proposed but not built.
+- **Status:** [x] implemented — MEMORY.md rule (2026-03-03). Advisory hook deployed (2026-03-04): `postwrite-frontier-timeliness.sh` on PostToolUse:Write|Edit.
 
 ### [2026-03-04] TOKEN WASTE: 5 attempts to read same Exa result file with different tools
 - **Session:** meta 0e8dccbc
@@ -29,10 +29,10 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ### [2026-03-04] TOKEN WASTE: Model-review retry loop — 4 failed Gemini dispatches before fallback
 - **Session:** meta 18384e69
 - **Evidence:** Model-review dispatched to Gemini Pro and GPT-5.2 in parallel. Both returned empty output files. Agent retried Gemini Pro in foreground — timed out. Retried GPT — succeeded. Retried Gemini Pro — 503 rate limit. Finally fell back to Gemini Flash. Total: ~4 wasted Gemini dispatch attempts before the successful Flash fallback. GPT-5.2 output was obtained on second try.
-- **Failure mode:** NEW: llmx dispatch retry without diagnosis — agent retries the same model/command without investigating the failure cause (empty output could be: pipe issue, rate limit, context too large, API error)
+- **Failure mode:** NEW: llmx dispatch retry without diagnosis — agent retries the same model/command without investigating the failure cause (empty output could be: pipe issue, rate limit, context too large, API error). Catalogued as Failure Mode 24 in `agent-failure-modes.md`.
 - **Proposed fix:** [skill] Update model-review skill: after first llmx failure, check stderr/exit code before retrying same model. If 503 or rate limit, fall back immediately to Flash. Add diagnostic step: `wc -c` on output file + check stderr.
 - **Severity:** medium — ~8 wasted tool calls, pattern recurs whenever Gemini Pro is rate-limited
-- **Status:** [ ] proposed
+- **Status:** [x] failure mode documented (2026-03-04). Skill fix still proposed.
 
 ### [2026-03-04] TOKEN WASTE: Duplicate file reads in same session
 - **Session:** meta f27cc590
