@@ -55,22 +55,22 @@ The other two read the same instructions via symlink. They don't have hooks, ski
 - [ ] **Use Exa for recency searches, not S2** (S2 has no date filtering)
 
 ### 4a. Papers Pending Save (2026-02-27 sweep)
-- [ ] arXiv:2602.16666 — Princeton reliability (Kapoor/Narayanan/Rabanser). 14 models, 12 dimensions.
-- [ ] arXiv:2601.17915 — EoG graph-guided investigation (IBM). 7x Majority@k gain. Table 3 = instructions alone fail.
-- [ ] arXiv:2602.11224 — Agent-Diff state-diff evaluation. Documentation Hub vs Non-Hub experiment.
-- [ ] arXiv:2601.06112 — ReliabilityBench. pass^k metric, chaos engineering for agents.
-- [ ] arXiv:2512.08296 — Google scaling agent systems. 180 configs, +81%/-70% task-dependent. 45% threshold.
-- [ ] arXiv:2510.05381 — Du et al. "Context Length Alone Hurts" (EMNLP 2025). Recitation strategy.
-- [ ] arXiv:2602.10975 — FeatureBench (ICLR 2026). 11% feature dev vs 74% SWE-bench.
-- [ ] arXiv:2511.14136 — CLEAR framework. 60%→25% over 8 runs.
-- [ ] arXiv:2508.17536 — "Debate or Vote" (ACL 2025). Debate = martingale. Voting works.
-- [ ] arXiv:2602.16943 — Mind the GAP. Text-action safety gap. 79.3% conditional GAP rate.
-- [ ] arXiv:2602.04197 — Toxic Proactivity. 98.7% misalignment without oversight.
-- [ ] arXiv:2602.19843 — MAS-FIRE. Silent semantic failures. 15-fault taxonomy.
-- [ ] arXiv:2503.13657 — MAST taxonomy. 14 failure modes, 1600+ traces, 7 frameworks.
-- [ ] arXiv:2601.22290 — Six Sigma Agent. Mathematical proof for majority voting.
-- [ ] arXiv:2512.18470 — SWE-EVO. Long-horizon software evolution. 21% vs 65% SWE-bench.
-- [ ] arXiv:2601.03868 — What Matters for Safety Alignment. Post-training degrades safety.
+- [x] arXiv:2602.16666 — Princeton reliability (Kapoor/Narayanan/Rabanser). Saved 2026-03-03.
+- [x] arXiv:2601.17915 — EoG graph-guided investigation (IBM). Saved 2026-03-03.
+- [x] arXiv:2602.11224 — Agent-Diff state-diff evaluation. Saved 2026-03-03.
+- [x] arXiv:2601.06112 — ReliabilityBench. Saved 2026-03-03.
+- [x] arXiv:2512.08296 — Google scaling agent systems. Saved 2026-03-03.
+- [x] arXiv:2510.05381 — Du et al. "Context Length Alone Hurts". Saved 2026-03-03.
+- [x] arXiv:2602.10975 — FeatureBench (ICLR 2026). Saved 2026-03-03.
+- [x] arXiv:2511.14136 — CLEAR framework. Saved 2026-03-03.
+- [x] arXiv:2508.17536 — "Debate or Vote" (ACL 2025). Saved 2026-03-03.
+- [ ] arXiv:2602.16943 — Mind the GAP. Not in S2 index yet — retry later.
+- [x] arXiv:2602.04197 — Toxic Proactivity. Saved 2026-03-03.
+- [x] arXiv:2602.19843 — MAS-FIRE. Saved 2026-03-03.
+- [x] arXiv:2503.13657 — MAST taxonomy. Saved 2026-03-03.
+- [x] arXiv:2601.22290 — Six Sigma Agent. Saved 2026-03-03.
+- [x] arXiv:2512.18470 — SWE-EVO. Saved 2026-03-03.
+- [x] arXiv:2601.03868 — What Matters for Safety Alignment. Saved 2026-03-03.
 - [ ] arXiv:2506.04018 — AgentMisalignment. Capability-misalignment scaling.
 - [ ] arXiv:2601.20103 — TRACE. Reward hacking detection. 37% undetectable.
 - [ ] arXiv:2509.25370 — AgentDebug. Targeted correction +24% vs blind retry.
