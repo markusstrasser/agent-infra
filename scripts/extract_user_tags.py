@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
-"""Extract #tags from user messages in Claude Code session transcripts.
+"""Extract #f feedback from user messages in Claude Code session transcripts.
 
-Tags are inline annotations the human adds during sessions to communicate
-valence and issues: #wrong, #good, #waste, #pushback, #stale, #design.
+The user drops `#f` inline during sessions as a ground-truth signal.
+The text after it carries the meaning — no predefined taxonomy.
 
 Usage:
     uv run python3 scripts/extract_user_tags.py [--days N] [--project P] [--json]
 
-Scans ~/.claude/projects/*/UUID.jsonl for user messages containing #tags.
-Outputs a summary grouped by tag, or raw JSON for piping into other tools.
+Scans ~/.claude/projects/*/UUID.jsonl for user messages containing #f.
 """
 
 import json
@@ -20,14 +19,13 @@ from pathlib import Path
 
 PROJECTS_DIR = Path.home() / ".claude" / "projects"
 
-KNOWN_TAGS = {"#wrong", "#good", "#waste", "#pushback", "#stale", "#design"}
-TAG_RE = re.compile(r"(#(?:wrong|good|waste|pushback|stale|design))\b", re.IGNORECASE)
+# Match #f at word boundary (not #foo, #function, etc.)
+TAG_RE = re.compile(r"(?:^|\s)#f(?:\s|$)", re.MULTILINE)
 
 
 def extract_project_name(dir_name: str) -> str:
     """Convert dir name like '-Users-alien-Projects-intel' to 'intel'."""
     parts = dir_name.split("-")
-    # Find 'Projects' and take what follows
     for i, p in enumerate(parts):
         if p == "Projects" and i + 1 < len(parts):
             return "-".join(parts[i + 1 :])
@@ -35,7 +33,7 @@ def extract_project_name(dir_name: str) -> str:
 
 
 def scan_session(session_path: Path) -> list[dict]:
-    """Extract tagged messages from a session JSONL file."""
+    """Extract #f messages from a session JSONL file."""
     results = []
     try:
         with open(session_path) as f:
@@ -48,11 +46,9 @@ def scan_session(session_path: Path) -> list[dict]:
                 except json.JSONDecodeError:
                     continue
 
-                # Only user messages
                 if msg.get("type") != "human" and msg.get("role") != "human":
                     continue
 
-                # Extract text content
                 text = ""
                 content = msg.get("content", msg.get("message", ""))
                 if isinstance(content, str):
@@ -62,14 +58,14 @@ def scan_session(session_path: Path) -> list[dict]:
                         b.get("text", "") for b in content if isinstance(b, dict)
                     )
 
-                tags = TAG_RE.findall(text.lower())
-                if tags:
+                if TAG_RE.search(text):
+                    # Strip the #f itself, keep the rest as the feedback
+                    feedback = TAG_RE.sub(" ", text).strip()
                     results.append(
                         {
                             "session": session_path.stem,
                             "line": line_num,
-                            "tags": [t.lower() for t in tags],
-                            "text": text.strip()[:500],
+                            "feedback": feedback[:500],
                         }
                     )
     except (OSError, UnicodeDecodeError):
@@ -95,8 +91,7 @@ def main():
     cutoff = datetime.now() - timedelta(days=days)
     cutoff_ts = cutoff.timestamp()
 
-    all_tags = []
-    by_tag = defaultdict(list)
+    all_feedback = []
 
     if not PROJECTS_DIR.exists():
         print("No projects directory found", file=sys.stderr)
@@ -116,42 +111,31 @@ def main():
             results = scan_session(session_file)
             for r in results:
                 r["project"] = proj_name
-                all_tags.append(r)
-                for tag in r["tags"]:
-                    by_tag[tag].append(r)
+                all_feedback.append(r)
 
     if json_output:
-        json.dump(all_tags, sys.stdout, indent=2)
+        json.dump(all_feedback, sys.stdout, indent=2)
         return
 
-    # Summary output
-    total = len(all_tags)
-    print(f"User tags: {total} tagged messages in last {days} days\n")
+    total = len(all_feedback)
+    print(f"User feedback (#f): {total} entries in last {days} days\n")
 
     if not total:
-        print("No #tags found. Tags: #wrong #good #waste #pushback #stale #design")
+        print("No #f feedback found yet.")
         return
 
-    for tag in sorted(by_tag.keys()):
-        entries = by_tag[tag]
-        print(f"  {tag} ({len(entries)})")
-        for e in entries[:5]:
-            # Truncate text for display
-            preview = e["text"][:120].replace("\n", " ")
-            print(f"    [{e['project']}] {preview}")
-        if len(entries) > 5:
-            print(f"    ... +{len(entries) - 5} more")
-        print()
+    # Group by project
+    by_project = defaultdict(list)
+    for e in all_feedback:
+        by_project[e["project"]].append(e)
 
-    # Cross-tag summary
-    print("Per-project breakdown:")
-    proj_counts = defaultdict(lambda: defaultdict(int))
-    for e in all_tags:
-        for tag in e["tags"]:
-            proj_counts[e["project"]][tag] += 1
-    for proj in sorted(proj_counts):
-        tags_str = ", ".join(f"{t}={c}" for t, c in sorted(proj_counts[proj].items()))
-        print(f"  {proj}: {tags_str}")
+    for proj in sorted(by_project):
+        entries = by_project[proj]
+        print(f"  {proj} ({len(entries)})")
+        for e in entries:
+            preview = e["feedback"][:120].replace("\n", " ")
+            print(f"    {e['session'][:8]}:{e['line']} | {preview}")
+        print()
 
 
 if __name__ == "__main__":
