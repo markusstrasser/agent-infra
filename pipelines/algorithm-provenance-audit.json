@@ -1,0 +1,35 @@
+{
+  "name": "algorithm-provenance-audit",
+  "description": "Audit genomics pipeline scripts for algorithm provenance: source code, papers, theoretical basis, implementation fidelity. Safety-critical — prior errors from unvalidated algorithms.",
+  "project": "genomics",
+  "pause_before": [],
+  "variables": {
+    "batch_num": "REQUIRED — batch number (1-10)",
+    "script_list": "REQUIRED — space-separated script filenames for this batch"
+  },
+  "steps": [
+    {
+      "step": "read-and-extract",
+      "prompt": "You are auditing genomics pipeline scripts for algorithm provenance. This is batch {batch_num}.\n\nFor each script in this batch, read the full source code and extract every algorithm, tool, statistical method, scoring formula, threshold, and bioinformatics tool invoked.\n\nScripts to audit: {script_list}\n\nFor each script, create a structured inventory:\n- Script name and one-line purpose\n- External tools called (name, version if pinned, how invoked)\n- Custom algorithms (PRS formulas, QC thresholds, filtering logic, classification rules)\n- Hardcoded constants/thresholds (value, line number, whether justified in comments)\n- Upstream dependencies (what data does it consume, from which other scripts)\n- Downstream consumers (who reads this script's output)\n\nCheck pipeline_stages.py for dependency info. Check wgs_config.py for shared constants.\n\nWrite the inventory to .claude/plans/provenance-batch-{batch_num}-inventory.md",
+      "max_turns": 20,
+      "max_budget_usd": 3.0,
+      "effort": "high",
+      "allowed_tools": "Read,Glob,Grep,Write"
+    },
+    {
+      "step": "verify-provenance",
+      "prompt": "Read .claude/plans/provenance-batch-{batch_num}-inventory.md.\n\nFor EACH algorithm/tool/method in the inventory, verify provenance:\n\n1. EXTERNAL TOOLS — Find the canonical paper (DOI), GitHub repo, package version. Verify our invocation matches documented usage (correct flags, correct input format, correct interpretation of output). Use web search and paper search.\n\n2. CUSTOM/IN-HOUSE CODE — For every threshold, formula, or classification rule that isn't from a published tool: find the evidence that justifies it. Check git blame for when it was introduced and whether the commit message cites a source. Search for calibration data or GIAB benchmarks that validated the choice.\n\n3. KNOWN ERROR PATTERNS — Check against these documented failures:\n   - GLIMPSE2 imputation artifacts inflating PRS (especially psychiatric scores)\n   - Gemini triage 20% accuracy — LLM classifications trusted without verification\n   - ROH from imputed data = artifacts\n   - OptiType vs arcasHLA HLA typing discrepancies\n   - Position-matched comparison failures in PRS validation\n   - Coordinate system errors (0-based vs 1-based, BED vs VCF conventions)\n\n4. Apply /source-grading (NATO Admiralty) to every evidence source.\n5. Apply /causal-check to any causal claim embedded in code logic.\n\nWrite findings to .claude/plans/provenance-batch-{batch_num}-verification.md using this format per script:\n\n### `script_name.py`\n**Purpose:** ...\n| Algorithm/Tool | Version | Paper (DOI) | Source Grade | Provenance | Issues |\n**Custom Logic:** [checklist of thresholds justified, coordinates verified, scores verified, population validated, no deprecated components]\n**Verdict:** VERIFIED / PARTIALLY VERIFIED / UNVERIFIED / RED FLAG\n**Action items:** ...",
+      "max_turns": 25,
+      "max_budget_usd": 8.0,
+      "effort": "high",
+      "allowed_tools": "Read,Glob,Grep,Write,Bash,WebSearch,WebFetch,mcp__exa__web_search_exa,mcp__research__search_papers,mcp__research__verify_claim,mcp__brave-search__brave_web_search,mcp__perplexity__perplexity_ask,mcp__perplexity__perplexity_reason,mcp__paper-search__search_arxiv,mcp__paper-search__search_pubmed,mcp__paper-search__search_biorxiv,mcp__paper-search__search_google_scholar,mcp__context7__resolve-library-id,mcp__context7__query-docs"
+    },
+    {
+      "step": "cross-check-and-commit",
+      "prompt": "Read .claude/plans/provenance-batch-{batch_num}-verification.md.\n\nFor every RED FLAG or UNVERIFIED finding, attempt to resolve:\n- Search harder for the paper/source (try alternate tool names, author names, conference proceedings)\n- Check if the algorithm was validated in a downstream QC step we missed\n- Check if there's a calibration script (calibrate_*.py, *_qc_*.py) that covers it\n\nFor each script with issues, run /competing-hypotheses:\n- H1: The algorithm is correctly implemented and validated elsewhere\n- H2: The algorithm works but lacks formal validation\n- H3: The algorithm has implementation errors that could affect results\n- H4: The algorithm is applied outside its validated domain\n\nThen append this batch's findings to docs/algorithm-provenance-audit.md (create if first batch). Include:\n- Per-script verdict table\n- Cross-script dependency risks (if Script A feeds Script B and A has issues)\n- Priority action items ranked by downstream blast radius\n\nCommit with: [audit] Provenance audit batch {batch_num} — N verified, M flagged",
+      "max_turns": 20,
+      "max_budget_usd": 5.0,
+      "effort": "high"
+    }
+  ]
+}
