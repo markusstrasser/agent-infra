@@ -155,9 +155,11 @@ orchestrator.py init-db                              # create DB
 orchestrator.py submit <pipeline> [--project P] [--vars k=v]  # submit pipeline
 orchestrator.py run -p <project> --prompt "..."      # one-off task
 orchestrator.py status                               # show queue
+orchestrator.py show <id> [--full]                   # full task details + transcript path
 orchestrator.py approve <id|pipeline>                # approve paused task
 orchestrator.py tick                                 # run one task (launchd calls this)
-orchestrator.py log --today                          # event log
+orchestrator.py log --today [--pipeline P] [--project P] [--last N]  # event log
+orchestrator.py pipelines                            # cost/status rollup by pipeline
 orchestrator.py summary                              # daily markdown
 ```
 
