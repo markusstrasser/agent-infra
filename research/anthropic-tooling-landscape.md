@@ -320,17 +320,19 @@ Full findings in `research/anthropic-platform-sweep-2026-03-02.md`.
 - **Data residency** (GA): `inference_geo: "us"|"global"`. 1.1x pricing for US-only.
 - **Effort** moved to `output_config.effort` (GA). Sonnet 4.6 recommended default: `medium`.
 
-### Claude Code v2.1.30→v2.1.63 Highlights
+### Claude Code v2.1.30→v2.1.66 Highlights
 - HTTP hooks (`type: "http"`), worktree isolation (`--worktree`, `isolation: worktree`), Agent Teams preview
 - 15+ new env vars: `CLAUDE_CODE_EFFORT_LEVEL`, `CLAUDE_CODE_SUBAGENT_MODEL`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, etc.
 - `last_assistant_message` in Stop/SubagentStop, `updatedInput` in PreToolUse, `updatedMCPToolOutput` in PostToolUse
 - `CLAUDE_ENV_FILE` for SessionStart hooks to persist env vars
 - Setup hook event (18th event). SessionStart matchers: startup/resume/clear/compact
+- v2.1.66 (Mar 4) — latest as of this update
 
-### Agent SDK v0.1.44
+### Agent SDK v0.1.45 (latest as of Mar 3)
 - `effort` param, `ThinkingConfig`, Python hooks via `hooks` param
 - **Critical gotcha**: `setting_sources=None` (default) loads NO settings. Must pass `["user","project"]` for hooks/CLAUDE.md.
 - Working spike: `meta/scripts/orchestrator_sdk_spike.py`
+- v0.1.19 (Jan 8) through v0.1.45 (Mar 3) = 27 releases in ~2 months. High churn, v0.1.x maturity concerns remain.
 
 ### Financial Services Plugins (NEW)
 - 5 core + 2 partner plugins, 41 skills, 11 MCP connectors
@@ -338,3 +340,89 @@ Full findings in `research/anthropic-platform-sweep-2026-03-02.md`.
 - **financial-analysis**: comps (628-line), DCF, competitive analysis, model auditor. MCP: S&P, FactSet, Daloopa, Morningstar, Moody's, etc.
 - **partner/spglobal**: tear-sheet (4 audiences), earnings preview via S&P CIQ MCP
 - All Apache 2.0, pure markdown, zero build steps
+
+---
+
+## Delta Update: 2026-03-03 Deep Research Sweep
+
+### Complete API Release Timeline (Jan-Feb 2026)
+
+Full changelog retrieved from `platform.claude.com/docs/en/release-notes/api`:
+
+| Date | Feature | Status |
+|------|---------|--------|
+| Jan 5 | Opus 3 retired | Done |
+| Jan 12 | Console redirect to platform.claude.com | Done |
+| Jan 29 | Structured outputs GA | GA — `output_config.format` (moved from `output_format`) |
+| Feb 5 | Opus 4.6 launch | GA — adaptive thinking, `budget_tokens` deprecated |
+| Feb 5 | Effort parameter GA | GA — no beta header |
+| Feb 5 | Compaction API | Beta `compact-2026-01-12` |
+| Feb 5 | Data residency | GA — `inference_geo` param |
+| Feb 5 | 1M context for Opus 4.6 | Beta |
+| Feb 5 | Fine-grained tool streaming | GA |
+| Feb 7 | Fast mode Opus 4.6 | Research preview |
+| Feb 17 | Sonnet 4.6 launch | GA — $3/$15 MTok |
+| Feb 17 | **Free code exec with web search/fetch** | GA — pricing change |
+| Feb 17 | Web search + programmatic tool calling | **GA** (were beta) |
+| Feb 17 | Code exec, web fetch, tool search, tool use examples, memory | **All GA** |
+| Feb 19 | Automatic caching | GA — single `cache_control` field |
+| Feb 19 | Sonnet 3.7 + Haiku 3.5 retired | Done |
+
+**Key: entire tool-use stack is now GA.** No beta headers needed for any tool.
+
+### Sonnet 4.6 Details
+
+- 70% preferred over Sonnet 4.5 in Claude Code usage
+- 59% preferred over Opus 4.5 for coding
+- OfficeQA: matches Opus 4.6
+- Major prompt injection resistance improvement vs Sonnet 4.5
+- Same pricing as Sonnet 4.5 ($3/$15 MTok)
+
+### New GitHub Repos (Jan-Mar 2026)
+
+| Created | Repo | Stars | Notes |
+|---------|------|-------|-------|
+| Jan 19 | `original_performance_takehome` | 3,560 | Performance eng hiring test (open-sourced) |
+| Jan 21 | `claude-constitution` | 43 | Claude's values document |
+| Jan 23 | `anthropic-cli` | 198 | **Investigate** — separate CLI, unclear purpose vs Claude Code |
+| Jan 23 | `homebrew-tap` | 3 | Homebrew formulae for Anthropic tools |
+| Jan 23 | `knowledge-work-plugins` | 8,520 | Cowork plugins for knowledge workers |
+| Jan 26 | `nix-eval-jobs` | 2 | Fork — internal Nix build infra |
+| Feb 4 | `claudes-c-compiler` | 2,465 | Demo — C compiler written by Claude agents |
+| Feb 6 | `argo-cd` | 2 | Fork — internal Kubernetes CD |
+| Feb 15 | `maestro` | 5 | Fork — Netflix workflow orchestrator (internal infra) |
+| Feb 20 | `moka` | 4 | Fork — Rust caching library (internal infra) |
+| Feb 23 | `financial-services-plugins` | 5,318 | Finance domain plugins |
+
+Internal infra forks reveal Anthropic uses: Nix builds, Argo CD, Netflix Maestro, Rust caching.
+
+### Blog Posts & Research (Jan-Mar 2026)
+
+**Agent Infrastructure Relevant:**
+
+1. **Cowork** (Jan 12): Desktop agent for non-developers. Same engine as Claude Code, file-system access. Plugins connect to Google Workspace, DocuSign, FactSet. Enterprise plugin system.
+2. **Agent Teams / C Compiler** (Feb): 16 parallel Claude instances, Docker containers, file-based task locking, git conflict resolution. 2K sessions, 2B tokens, $20K. Key lesson: test quality > orchestration complexity.
+3. **Measuring Agent Autonomy** (Feb 18): Empirical data from millions of sessions. Autonomy duration doubled Oct->Jan. Expert users auto-approve 40%+, interrupt 9% (strategic). 0.8% irreversible actions.
+4. **Claude Code Security** (Research Preview): AI-powered security review in Claude Code.
+5. **Zero-Day Discovery**: Opus 4.6 found 500+ high-severity vulns via reasoning (not fuzzing). Git history analysis, parallel code path detection.
+6. **Distillation Attacks**: DeepSeek (150K), Moonshot (3.4M), MiniMax (13M) API exchanges detected. Behavioral fingerprinting. Countermeasures could theoretically affect high-volume legitimate usage.
+
+**Other:**
+- Anthropic Labs: New product incubation team
+- RSP v3.0 + Safety Roadmap update
+- Claude in GitHub Copilot (public preview Feb 4)
+- Ad-Free Claude commitment
+- AI Fluency Index (education research)
+- AI-Resistant Technical Evaluations (hiring engineering post)
+
+### Sources (this delta)
+- platform.claude.com/docs/en/release-notes/api — Full API changelog
+- gh api graphql (anthropics org) — Repo inventory
+- gh api releases — Claude Code, Agent SDK, API SDK release histories
+- anthropic.com/news/claude-sonnet-4-6
+- anthropic.com/engineering/building-c-compiler
+- anthropic.com/research/measuring-agent-autonomy
+- red.anthropic.com/2026/zero-days/
+- anthropic.com/news/detecting-and-preventing-distillation-attacks
+- claude.com/blog/cowork-research-preview (via Perplexity)
+- techcrunch.com, axios.com (Cowork reporting)
