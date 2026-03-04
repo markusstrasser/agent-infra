@@ -1,7 +1,7 @@
 # Claude Code Architecture: Research Notes
 
-**Date:** 2026-02-27
-**Sources:** Anthropic engineering blog, claude-code-docs bundle, Trail of Bits config, incident.io blog, decodeclaude.com, community posts, 50+ GitHub repos (99%+ slop filtered out)
+**Date:** 2026-02-27, **updated 2026-03-03** (Jan-Mar 2026 changelog sweep)
+**Sources:** Anthropic engineering blog, claude-code-docs bundle, Trail of Bits config, incident.io blog, decodeclaude.com, community posts, 50+ GitHub repos (99%+ slop filtered out), official changelog (code.claude.com/docs/en/changelog), GitHub releases (anthropics/claude-code), Agent SDK Python changelog (anthropics/claude-agent-sdk-python)
 
 ---
 
@@ -146,18 +146,51 @@ This is the recitation strategy from Du et al. (EMNLP 2025, arXiv:2510.05381) ap
 
 ---
 
-## Hook System
+## Hook System (updated 2026-03-03)
 
-### Three execution types:
+### Four execution types:
 1. **Command** (`type: "command"`): Shell script. Fast, deterministic. Exit 0 = proceed, exit 2 = block + feed error back.
-2. **Prompt** (`type: "prompt"`): Single Haiku LLM call. Good for fuzzy classification (is this command destructive?).
-3. **Agent** (`type: "agent"`): Subagent with tool access, 60s timeout. Full reasoning but expensive.
+2. **HTTP** (`type: "http"`): POST JSON to URL, receive JSON response. Added v2.1.63 (Feb 28). Cannot block via HTTP status alone — must return JSON body with decision fields.
+3. **Prompt** (`type: "prompt"`): Single Haiku LLM call. Good for fuzzy classification (is this command destructive?).
+4. **Agent** (`type: "agent"`): Subagent with Read/Grep/Glob access, 50 turns max. Full reasoning but expensive.
 
-### Hook events:
-- `PreToolUse` / `PostToolUse`: Before/after any tool call. Matcher regex on tool_name.
-- `Notification`: On events like context window warnings.
-- `Stop`: When Claude thinks it's done. Exit 2 = "no you're not, keep going."
-- `SubagentStop`: When subagent completes.
+### Hook events (18 total, 10 can block):
+
+**Tool lifecycle:**
+- `PreToolUse`: Before any tool call. Matcher regex on tool_name. Can block, allow, ask, modify input, inject `additionalContext`.
+- `PostToolUse`: After tool call succeeds. Can't block (already ran). Can modify MCP output via `updatedMCPToolOutput`.
+- `PostToolUseFailure`: After tool call fails. Can't block. Added ~Jan 30.
+- `PermissionRequest`: When permission is needed. Can auto-allow/deny. Added ~Feb 4. Matches tool name.
+
+**Session lifecycle:**
+- `SessionStart`: On startup/resume/clear/compact. Provides `source`, `model`, `agent_type`. Can inject `additionalContext`. Access to `CLAUDE_ENV_FILE` for persistent env vars.
+- `SessionEnd`: On clear/logout/exit. No blocking. Matches exit reason.
+- `PreCompact`: Before auto/manual compaction. No blocking. Matches `manual`|`auto`.
+- `ConfigChange`: When config files change. CAN block config changes (except policy). Added Feb 19 (v2.1.49). Matches config source.
+
+**Agent lifecycle:**
+- `Stop`: When Claude thinks it's done. Exit 2 = keep going. `last_assistant_message` in input (v2.1.47).
+- `SubagentStart`: When subagent spawns. No blocking. Matches agent type.
+- `SubagentStop`: When subagent completes. Can block. `last_assistant_message`, `agent_id`, `agent_transcript_path`, `agent_type` in input.
+
+**User:**
+- `UserPromptSubmit`: Before Claude processes user prompt. Can block/erase prompt, inject context.
+- `Notification`: On permission prompts, idle prompts, auth events, elicitation dialogs. No blocking.
+
+**Agent Teams:**
+- `TeammateIdle`: When teammate about to go idle. Exit 2 = keep working. Added Feb 6 (v2.1.33).
+- `TaskCompleted`: When task marked complete. Exit 2 = prevent completion. Added Feb 6 (v2.1.33).
+
+**Worktrees:**
+- `WorktreeCreate`: On worktree creation. Hook prints path. Non-zero fails. Added Feb 20 (v2.1.50).
+- `WorktreeRemove`: On worktree removal. No blocking. Added Feb 20 (v2.1.50).
+
+### New input fields (Jan-Mar 2026):
+- `tool_use_id` on PreToolUse and PostToolUse
+- `agent_id`, `agent_transcript_path`, `agent_type` on SubagentStop
+- `last_assistant_message` on Stop and SubagentStop (v2.1.47)
+- `additionalContext` on PreToolUse OUTPUT (v2.1.9) — injects context into Claude
+- `updatedMCPToolOutput` on PostToolUse OUTPUT — modify MCP tool output before Claude sees it
 
 ### Hooks at commit-time, not write-time (Shrivu Shankar)
 Blocking agents mid-plan with PreToolUse hooks "confuses or even frustrates" them. Instead, hook `git commit` with validation that checks `/tmp/agent-pre-commit-pass` files. This enforces state validation at completion milestones rather than disrupting reasoning mid-flow. Matches ReliabilityBench finding: simpler beats complex under stress. [SOURCE: blog.sshh.io]
@@ -288,6 +321,81 @@ Team/community distribution. One `claude plugin install` replaces manual setup o
 **Current architecture (symlinks + per-project config) is better suited to a single-developer, heterogeneous project setup.**
 
 [SOURCE: code.claude.com/docs/en/plugins, anthropic.com/news/claude-code-plugins (Oct 2025), morphllm.com/claude-code-plugins (Feb 2026)]
+
+## Jan-Mar 2026 Changelog Summary (v2.1.2 — v2.1.66)
+
+Added 2026-03-03. 40+ releases in 8 weeks. Major themes below.
+
+### Milestone Releases
+
+| Version | Date | What |
+|---------|------|------|
+| v2.1.3 | Jan 9 | Slash commands + skills merged. Hook timeout 60s -> 10min. |
+| v2.1.7 | Jan 14 | MCP tool search auto mode default (>10% context -> MCPSearch). |
+| v2.1.9 | Jan 16 | `PreToolUse` `additionalContext` output. `${CLAUDE_SESSION_ID}` in skills. `plansDirectory` setting. |
+| v2.1.15 | Jan 21 | npm installation deprecated -> native installer. |
+| v2.1.16 | Jan 22 | New task management with dependency tracking. |
+| v2.1.27 | Jan 30 | `--from-pr` flag. Auto PR-session linking. Permission content-level `ask` > tool-level `allow`. |
+| v2.1.30 | Feb 3 | PDF `pages` param on Read tool. MCP OAuth pre-configured credentials. `/debug` command. |
+| v2.1.32 | Feb 5 | **Opus 4.6**. **Agent Teams (experimental)**. **Auto-memory**. "Summarize from here" partial compaction. |
+| v2.1.33 | Feb 6 | `TeammateIdle`/`TaskCompleted` hook events. Agent `memory` frontmatter. `Task(agent_type)` restriction. |
+| v2.1.49 | Feb 19 | `--worktree` CLI flag. `isolation: worktree`. `ConfigChange` hook. `background: true` agents. Ctrl+F kill agents. |
+| v2.1.50 | Feb 20 | `WorktreeCreate`/`WorktreeRemove` hooks. `claude agents` CLI. Opus 4.6 fast 1M context. |
+| v2.1.51 | Feb 24 | `claude remote-control`. SDK env vars (account/email/org UUID). Managed settings via macOS plist/Windows Registry. |
+| v2.1.59 | Feb 26 | Auto-memory GA with `/memory` command. |
+| v2.1.63 | Feb 28 | `/simplify` + `/batch` bundled skills. **HTTP hooks**. 12+ memory leak fixes. |
+
+### SDK (claude-agent-sdk-python) Key Changes
+
+- **0.1.0**: Renamed from Claude Code SDK. Breaking: `ClaudeAgentOptions`, merged `system_prompt`, no default system prompt, `setting_sources` isolation.
+- **0.1.7**: Structured outputs, fallback model handling.
+- **0.1.12**: `tools` option (specify available tools), `betas` option (1M context).
+- **0.1.15**: File checkpointing + `rewind_files()`.
+- **0.1.29**: `Notification`, `SubagentStart`, `PermissionRequest` hooks. `tool_use_id`, `additionalContext`, `updatedMCPToolOutput`.
+- **0.1.31**: MCP tool annotations (`readOnlyHint`, `destructiveHint`, etc.).
+- **0.1.36**: `ThinkingConfig` types (adaptive/enabled/disabled), `effort` option (low/medium/high/max).
+- **0.1.40**: Forward-compatible unknown message type handling.
+
+### MCP Improvements
+
+1. **Tool search auto mode** (v2.1.7): default on, defers tool descriptions when >10% context.
+2. **`auto:N` threshold** (v2.1.9): configurable % for auto-enable.
+3. **OAuth**: step-up auth, discovery caching, pre-configured client credentials, race condition fixes.
+4. **claude.ai MCP connectors** (v2.1.46): use claude.ai-configured servers in Claude Code.
+5. **MCP tool annotations** (SDK 0.1.31): metadata hints for tool behavior.
+6. **`updatedMCPToolOutput`** on PostToolUse: hooks can modify MCP output.
+7. **LSP `startupTimeout`** (v2.1.50): configurable timeout.
+
+### Agent/Subagent Features
+
+- `isolation: "worktree"` in agent definitions and `--worktree` CLI flag.
+- `memory` frontmatter: `user`|`project`|`local` scope persistent memory.
+- `background: true`: always run as background task.
+- `Task(agent_type)` restriction in agent `tools` frontmatter.
+- `claude agents` CLI command to list configured agents.
+- Agent Teams (experimental, `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`).
+- `TeammateIdle`/`TaskCompleted` hooks for quality gates.
+- Ctrl+F to kill background agents (two-press confirmation).
+
+### Experimental/Alpha/Beta
+
+| Feature | Status | Enable |
+|---------|--------|--------|
+| Agent Teams | Experimental | `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` |
+| Native binary installer | Alpha | `claude install` |
+| GitHub Actions | Beta | `anthropics/claude-code-action@beta` |
+| Remote Control | Expanding | `claude remote-control` |
+| 1M context | GA (was beta) | Default on Opus 4.6 fast. Disable: `CLAUDE_CODE_DISABLE_1M_CONTEXT` |
+
+### Direction Signals
+
+1. **Multi-agent is the frontier.** Agent Teams, teammate hooks, worktree isolation, agent memory, background tasks — all shipped in 3 weeks.
+2. **Hooks becoming a full control plane.** 9 -> 18 events, 4 hook types, HTTP hooks, ConfigChange, PermissionRequest.
+3. **SDK decoupling from Claude Code.** Rename to Agent SDK, setting isolation, tools option, structured outputs, file rewind.
+4. **Native memory.** Auto-memory GA, persistent agent memory, worktree config sharing.
+5. **Plugin ecosystem.** npm registries, git SHA pinning, OS-level managed settings (plist/Registry).
+6. **Performance/stability.** 20+ memory leak fixes. Long session scaling is clearly a production concern.
+7. **Context management.** PDF pages, tool results to disk, partial compaction, MCP tool search auto-mode, skill budget scaling.
 
 ## Design Principles Summary
 
