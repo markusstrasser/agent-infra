@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     created_at TEXT DEFAULT (datetime('now','localtime')),
     started_at TEXT,
     finished_at TEXT,
-    error TEXT
+    error TEXT,
+    step_options TEXT
 );
 
 CREATE TABLE IF NOT EXISTS pipelines (

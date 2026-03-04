@@ -29,10 +29,13 @@ from typing import Any
 
 import anyio
 
+import time as _time
+
 from claude_agent_sdk import (
     AgentDefinition,
     AssistantMessage,
     ClaudeAgentOptions,
+    HookMatcher,
     ResultMessage,
     TextBlock,
     query,
@@ -69,7 +72,9 @@ def _migrate_if_needed(db):
     cols = {row[1] for row in db.execute("PRAGMA table_info(tasks)").fetchall()}
     if "subagents" not in cols:
         db.execute("ALTER TABLE tasks ADD COLUMN subagents TEXT")
-        db.commit()
+    if "step_options" not in cols:
+        db.execute("ALTER TABLE tasks ADD COLUMN step_options TEXT")
+    db.commit()
     _migrated = True
 
 
@@ -185,12 +190,63 @@ def _build_agents(subagents_json: str | None) -> dict[str, AgentDefinition] | No
     return agents
 
 
+def _build_telemetry_hooks(metrics_path: Path) -> dict:
+    """Build PostToolUse/PostToolUseFailure hooks that write metrics to JSONL."""
+    _tool_start_times: dict[str, float] = {}
+
+    async def on_tool_use(input_data, tool_use_id, context):
+        ts = _time.time()
+        start = _tool_start_times.pop(tool_use_id, ts)
+        event = {
+            "ts": datetime.now().isoformat(),
+            "tool_name": input_data.get("tool_name", "?"),
+            "tool_use_id": tool_use_id,
+            "duration_ms": int((ts - start) * 1000),
+            "success": True,
+        }
+        # Extract file_path from file tools
+        tool_input = input_data.get("tool_input", {})
+        if "file_path" in tool_input:
+            event["file_path"] = tool_input["file_path"]
+        with open(metrics_path, "a") as f:
+            f.write(json.dumps(event) + "\n")
+        return {}
+
+    async def on_tool_start(input_data, tool_use_id, context):
+        """PreToolUse: record start time for duration calculation."""
+        _tool_start_times[tool_use_id] = _time.time()
+        return {}
+
+    async def on_tool_failure(input_data, tool_use_id, context):
+        event = {
+            "ts": datetime.now().isoformat(),
+            "tool_name": input_data.get("tool_name", "?"),
+            "tool_use_id": tool_use_id,
+            "duration_ms": 0,
+            "success": False,
+            "error": input_data.get("error", "")[:200],
+        }
+        with open(metrics_path, "a") as f:
+            f.write(json.dumps(event) + "\n")
+        return {}
+
+    return {
+        "PreToolUse": [HookMatcher(hooks=[on_tool_start])],
+        "PostToolUse": [HookMatcher(hooks=[on_tool_use])],
+        "PostToolUseFailure": [HookMatcher(hooks=[on_tool_failure])],
+    }
+
+
 async def _run_claude_task_async(task, cwd, progress_file=None):
     """Run a claude task via Agent SDK query(). Returns TaskResult-like dict."""
     effort = task["effort"]
     allowed_tools = (
         task["allowed_tools"].split(",") if task["allowed_tools"] else None
     )
+
+    # Parse step_options
+    raw_opts = task["step_options"]
+    step_options = json.loads(raw_opts) if raw_opts else {}
 
     # Build subagent definitions if present
     agents = _build_agents(task["subagents"])
@@ -206,6 +262,23 @@ async def _run_claude_task_async(task, cwd, progress_file=None):
     if effort:
         env["CLAUDE_CODE_EFFORT_LEVEL"] = effort
 
+    # Build optional SDK kwargs from step_options
+    sdk_kwargs: dict[str, Any] = {}
+    if step_options.get("output_format"):
+        sdk_kwargs["output_format"] = step_options["output_format"]
+
+    # Telemetry hooks — always inject for tool usage metrics
+    metrics_path = OUTPUT_DIR / f"{task['id']}.metrics.jsonl"
+    sdk_kwargs["hooks"] = _build_telemetry_hooks(metrics_path)
+
+    # Meta-infra MCP — inject for meta-project tasks by default, override via step_options
+    inject_meta = step_options.get("inject_meta_infra")
+    if inject_meta is None:
+        inject_meta = (task["project"] == "meta")
+    if inject_meta:
+        from scripts.meta_infra_mcp import meta_infra_server
+        sdk_kwargs["mcp_servers"] = {"meta-infra": meta_infra_server}
+
     options = ClaudeAgentOptions(
         model=task["model"],
         max_turns=task["max_turns"] or 15,
@@ -219,6 +292,7 @@ async def _run_claude_task_async(task, cwd, progress_file=None):
         system_prompt={"type": "preset", "preset": "claude_code"},
         env=env,
         agents=agents,
+        **sdk_kwargs,
     )
 
     text_parts: list[str] = []
@@ -347,6 +421,17 @@ def execute_one(db):
                 "model": sdk_result["last_model"],
                 "usage": usage,
             }
+            # Include metrics file path if it has data
+            if metrics_path.exists():
+                output_data["metrics_file"] = str(metrics_path)
+
+            # Capture structured output if output_format was requested
+            if result_msg.structured_output is not None:
+                output_data["structured_output"] = result_msg.structured_output
+            elif step_options.get("output_format") and not result_msg.is_error:
+                # Model returned text instead of structured — log warning, don't fail
+                log_event({"action": "warning", "task_id": task_id,
+                           "warning": "output_format requested but structured_output is None"})
             output_file.write_text(json.dumps(output_data, indent=2, default=str))
 
             if result_msg.is_error:
@@ -422,6 +507,11 @@ def cmd_submit(args):
         if step_project != "meta" and step_name == "execute":
             needs_approval = 1
 
+        # Build step_options from step-level config keys
+        step_options_keys = ("output_format", "inject_meta_infra")
+        step_options = {k: step_def[k] for k in step_options_keys if k in step_def}
+        step_options_json = json.dumps(step_options) if step_options else None
+
         # Serialize subagents with variable substitution baked into descriptions/prompts
         subagents_raw = step_def.get("subagents")
         subagents_json = None
@@ -439,8 +529,8 @@ def cmd_submit(args):
         db.execute("""
             INSERT INTO tasks (pipeline, step, project, prompt, engine, priority,
                 max_turns, max_budget_usd, model, agent, allowed_tools, effort, cwd,
-                requires_approval, depends_on, subagents)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                requires_approval, depends_on, subagents, step_options)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             args.pipeline,
             step_name,
@@ -458,6 +548,7 @@ def cmd_submit(args):
             needs_approval,
             prev_task_id,
             subagents_json,
+            step_options_json,
         ))
         prev_task_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
 
