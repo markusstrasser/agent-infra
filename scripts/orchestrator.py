@@ -185,7 +185,7 @@ def _build_agents(subagents_json: str | None) -> dict[str, AgentDefinition] | No
     return agents
 
 
-async def _run_claude_task_async(task, cwd):
+async def _run_claude_task_async(task, cwd, progress_file=None):
     """Run a claude task via Agent SDK query(). Returns TaskResult-like dict."""
     effort = task["effort"]
     allowed_tools = (
@@ -232,6 +232,9 @@ async def _run_claude_task_async(task, cwd):
                 for block in message.content:
                     if isinstance(block, TextBlock):
                         text_parts.append(block.text)
+                        if progress_file:
+                            with open(progress_file, "a") as pf:
+                                pf.write(block.text + "\n")
             elif isinstance(message, ResultMessage):
                 result_msg = message
     finally:
@@ -246,9 +249,9 @@ async def _run_claude_task_async(task, cwd):
     }
 
 
-def run_claude_task(task, cwd):
+def run_claude_task(task, cwd, progress_file=None):
     """Sync wrapper around async SDK query()."""
-    return anyio.run(_run_claude_task_async, task, cwd)
+    return anyio.run(_run_claude_task_async, task, cwd, progress_file)
 
 
 def execute_one(db):
@@ -270,6 +273,10 @@ def execute_one(db):
         "pipeline": task["pipeline"], "step": task["step"],
         "project": task["project"], "engine": engine,
     })
+
+    if engine != "script":
+        live_path = OUTPUT_DIR / f"{task_id}.live"
+        print(f"Task #{task_id} running — tail -f {live_path}")
 
     try:
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -299,7 +306,8 @@ def execute_one(db):
 
         else:
             # Agent SDK path
-            sdk_result = run_claude_task(task, cwd)
+            progress_file = OUTPUT_DIR / f"{task_id}.live"
+            sdk_result = run_claude_task(task, cwd, progress_file=progress_file)
             result_msg = sdk_result["result_msg"]
             text_parts = sdk_result["text_parts"]
 
