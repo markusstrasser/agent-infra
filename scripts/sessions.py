@@ -551,6 +551,22 @@ def _short_model(model: str | None) -> str:
 # Search
 # ---------------------------------------------------------------------------
 
+# FTS5 special chars that act as operators
+_FTS5_SPECIAL = re.compile(r'["\-\+\*\(\)\{\}\[\]\^~:]')
+
+
+def _fts5_sanitize(query: str) -> str:
+    """Sanitize user query for FTS5. Quote each token to avoid operator interpretation."""
+    # Split into words, quote each one so hyphens/special chars are literal
+    tokens = query.split()
+    if not tokens:
+        return query
+    # If any token has special chars, wrap each in double quotes
+    if any(_FTS5_SPECIAL.search(t) for t in tokens):
+        return " ".join(f'"{t}"' for t in tokens)
+    return query
+
+
 def cmd_search(args):
     """FTS5 keyword search or semantic search via emb."""
     if args.semantic:
@@ -558,26 +574,8 @@ def cmd_search(args):
         return
 
     db = get_db()
-    query_text = args.query
+    query_text = _fts5_sanitize(args.query)
 
-    # Build filter WHERE clause
-    filter_clause, filter_params = _build_filter_query(args)
-
-    # FTS5 search
-    sql = f"""
-        SELECT s.uuid, s.slug, s.project, s.start_ts, s.model,
-               s.cost_usd, s.duration_min, s.first_message, s.has_receipt,
-               rank
-        FROM sessions_fts fts
-        JOIN sessions s ON s.rowid = fts.rowid
-        {filter_clause.replace('WHERE', 'WHERE' if 'WHERE' not in filter_clause else 'AND'
-            ) if filter_clause else ''}
-        WHERE sessions_fts MATCH ?
-        ORDER BY rank
-        LIMIT ?
-    """
-
-    # Simpler approach: use a CTE
     sql = f"""
         WITH matched AS (
             SELECT rowid, rank
