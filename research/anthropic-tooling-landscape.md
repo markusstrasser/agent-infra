@@ -426,3 +426,49 @@ Internal infra forks reveal Anthropic uses: Nix builds, Argo CD, Netflix Maestro
 - anthropic.com/news/detecting-and-preventing-distillation-attacks
 - claude.com/blog/cowork-research-preview (via Perplexity)
 - techcrunch.com, axios.com (Cowork reporting)
+
+---
+
+## Delta Update: 2026-03-04 Cross-Model Review
+
+Cross-model review (GPT-5.2 + Gemini 3.1 Flash) of this landscape analysis.
+Both models reviewed independently, then synthesis merged surviving insights.
+
+### Revised Priority List (from synthesis)
+
+| Priority | Item | Status | Rationale |
+|----------|------|--------|-----------|
+| P0 | PostToolUseFailure hook → JSONL logger | **DONE** | Both models: prerequisite for all reliability improvements |
+| P0 | Hook telemetry — comprehensive wiring | **DONE** | Prerequisite: can't measure hook ROI without data |
+| P1 | Sonnet 4.6 as subagent default | **DONE** | 80% cost reduction, one-line change |
+| P1 | Drop deprecated beta headers | **DONE** | Zero found in our code (all in reference repos) |
+| P2 | PermissionRequest auto-allow (read-only) | **DONE** (disabled) | Built, awaiting telemetry data before enabling |
+| P2 | Cost-aware effort tiers in orchestrator | **DONE** | DEFAULT_EFFORT table + budget degradation |
+| P3 | Research MCP output rewrite (PostToolUse) | **DONE** | `updatedMCPToolOutput` for read_paper cleanup |
+| MEDIUM | Telegram approval bot | Backlog | Demoted — latency ≠ supervision reduction |
+| LOW | Research result caching | Backlog | Needs usage data first |
+
+### New Items Identified
+
+1. **Cost-aware scheduler** — orchestrator should degrade effort and skip non-critical tasks when approaching daily budget cap. **DONE** in orchestrator.py.
+2. **Hook telemetry as prerequisite** — both models flagged that deploying new hooks without measurement violates constitution principle #3. All hooks now wired to `hook-trigger-log.sh`.
+3. **Research cache** — Exa/S2/Brave results could be cached to avoid redundant API calls. Deferred: need usage frequency data.
+4. **Search flooding hook** — already existed as `pretool-search-burst.sh` (warn at 4, block at 8). No new work needed.
+5. **Hook retirement policy** — hooks with <1 trigger/week after 30 days should be candidates for removal. Tracked via `just hook-telemetry`.
+
+### Testable Predictions (from GPT-5.2 review)
+
+| ID | Prediction | Timeline | How to verify |
+|----|-----------|----------|---------------|
+| P1 | PostToolUseFailure JSONL accumulates >50 entries/week | 2 weeks | `wc -l ~/.claude/tool-failures.jsonl` |
+| P2 | Hook telemetry reveals >1 hook with >20% false positive rate | 30 days | `just hook-telemetry` |
+| P3 | Sonnet 4.6 subagent default reduces weekly cost by >30% | 2 weeks | Compare dashboard before/after |
+| P4 | PermissionRequest auto-allow reduces avg permission prompts by >50% | After enabling | Compare session friction metrics |
+| P5 | Budget degradation fires <5% of tasks | 30 days | `grep budget_degrade orchestrator-log.jsonl` |
+| P6 | MCP protocol Tasks spec (SEP-1686) reaches draft status | 6 months | Check github.com/anthropics/model-context-protocol |
+
+### Overclaimed/Underclaimed Corrections
+
+- **Overclaimed in original**: "All beta features GA since Feb 17 2026" — Skills API is still beta (uses `skills-2025-10-02` header in SDK). Most other features are indeed GA.
+- **Underclaimed**: Agent SDK's `updatedMCPToolOutput` in PostToolUse hooks — this is more powerful than documented. Can rewrite any MCP tool output before Claude sees it.
+- **Corrected**: PermissionRequest hook can auto-allow or auto-deny but NOT modify tool input. It's a gate, not a transform.

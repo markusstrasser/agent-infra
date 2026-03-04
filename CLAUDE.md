@@ -70,6 +70,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `epistemic-measurement-concepts.md` | Concepts reference: canary queries, fold detection, trace faithfulness, SPC, Goodhart mitigation, Brier scoring, pertinent negatives, what NOT to build | Epistemic system design, understanding measurement scripts, onboarding |
 | `epistemic-v2-synthesis.md` | 25+ papers synthesized: 22 findings, ROI assessment, measurement redesign, frameworks (SDT, OODA, scoring rules) | Epistemic system improvements, verification architecture |
 | `structured-vs-prose-for-agents.md` | **Empirical gap.** Zero frontier-model evidence on structured vs prose input formatting. Anthropic docs: prose for notes, structured for state data. "Let Me Speak Freely" methodologically contested. Pre-frontier trend: larger models more format-agnostic. | Schema design for agent-read docs, YAML frontmatter decisions, entity doc format, conviction journal format |
+| `mcp-protocol-evolution.md` | MCP spec WG tracking: Tasks (SEP-1686, Amazon-authored), Skills Over MCP, Multi Round-Trip, Task Continuity, HTTP transport. Implications for orchestrator engine swap. | Orchestrator engine migration, MCP tool design, multi-session architecture |
 
 <constitution>
 > **Human-protected.** Agent may propose changes but must not modify without explicit approval.

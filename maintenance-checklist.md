@@ -180,6 +180,12 @@ Project-level subagents. Upgraded 2026-03-01 with frontmatter (memory, model, to
 | `investment-reviewer.md` | project | sonnet | Adversarial thesis review with DuckDB access |
 | `sql-reviewer.md` | — | haiku | DuckDB SQL and Python review |
 
+## PostToolUse Output Rewrite Hooks (`updatedMCPToolOutput`)
+- [x] PostToolUse `updatedMCPToolOutput` for research MCP `read_paper` — restructure raw PDF text to sections
+- [ ] PostToolUse `updatedMCPToolOutput` for Exa `web_search` — trim verbose metadata, keep title+URL+snippet
+- [ ] PostToolUse `updatedMCPToolOutput` for paper-search — normalize cross-source output format
+- [ ] Audit: raw output retention + hash logging for all rewrite hooks (epistemic integrity)
+
 ## Key Architecture Docs
 - `search-retrieval-architecture.md` — CAG vs embedding retrieval decision framework, Groq/Gemini/Kimi assessment (2026-02-28)
 - `research/claude-code-native-vs-meta-infra.md` — What Claude Code native features can/cannot replace (2026-03-01)
