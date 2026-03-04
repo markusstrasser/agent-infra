@@ -3,10 +3,6 @@
 ## Purpose
 This repo plans and tracks improvements to agent infrastructure across projects (intel, selve, genomics, skills, papers-mcp). It's the "thinking about thinking" repo.
 
-<communication>
-Never start responses with positive adjectives. Skip flattery, respond directly. Find what's wrong first.
-</communication>
-
 ## Key Files
 - `GOALS.md` — what the system optimizes for (human-owned)
 - `justfile` — task runner: `just dashboard`, `just doctor`, `just pushback`, `just epistemic-lint`, `just safe-lite`
