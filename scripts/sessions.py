@@ -50,7 +50,7 @@ FILE_TOOLS = {"Read", "Edit", "Write", "Glob", "Grep", "NotebookEdit"}
 # Database
 # ---------------------------------------------------------------------------
 
-SCHEMA = """
+SCHEMA_SESSIONS = """
 CREATE TABLE IF NOT EXISTS sessions (
     uuid TEXT PRIMARY KEY,
     slug TEXT,
@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     cost_usd REAL,
     context_pct INTEGER,
     first_message TEXT,
+    content_text TEXT,
     files_touched TEXT,
     files_touched_fts TEXT,
     tools_used TEXT,
@@ -77,10 +78,14 @@ CREATE TABLE IF NOT EXISTS sessions (
     indexed_at TEXT,
     file_mtime REAL
 );
+"""
 
+# FTS5 + triggers created separately (must be rebuilt on schema migration)
+SCHEMA_FTS = """
 CREATE VIRTUAL TABLE IF NOT EXISTS sessions_fts USING fts5(
     uuid UNINDEXED,
     first_message,
+    content_text,
     files_touched_fts,
     commits_fts,
     content='sessions',
@@ -88,24 +93,26 @@ CREATE VIRTUAL TABLE IF NOT EXISTS sessions_fts USING fts5(
     tokenize='porter ascii'
 );
 
--- Sync triggers
 CREATE TRIGGER IF NOT EXISTS sessions_ai AFTER INSERT ON sessions BEGIN
-    INSERT INTO sessions_fts(rowid, uuid, first_message, files_touched_fts, commits_fts)
-    VALUES (new.rowid, new.uuid, new.first_message, new.files_touched_fts, new.commits_fts);
+    INSERT INTO sessions_fts(rowid, uuid, first_message, content_text, files_touched_fts, commits_fts)
+    VALUES (new.rowid, new.uuid, new.first_message, new.content_text, new.files_touched_fts, new.commits_fts);
 END;
 
 CREATE TRIGGER IF NOT EXISTS sessions_ad AFTER DELETE ON sessions BEGIN
-    INSERT INTO sessions_fts(sessions_fts, rowid, uuid, first_message, files_touched_fts, commits_fts)
-    VALUES ('delete', old.rowid, old.uuid, old.first_message, old.files_touched_fts, old.commits_fts);
+    INSERT INTO sessions_fts(sessions_fts, rowid, uuid, first_message, content_text, files_touched_fts, commits_fts)
+    VALUES ('delete', old.rowid, old.uuid, old.first_message, old.content_text, old.files_touched_fts, old.commits_fts);
 END;
 
 CREATE TRIGGER IF NOT EXISTS sessions_au AFTER UPDATE ON sessions BEGIN
-    INSERT INTO sessions_fts(sessions_fts, rowid, uuid, first_message, files_touched_fts, commits_fts)
-    VALUES ('delete', old.rowid, old.uuid, old.first_message, old.files_touched_fts, old.commits_fts);
-    INSERT INTO sessions_fts(rowid, uuid, first_message, files_touched_fts, commits_fts)
-    VALUES (new.rowid, new.uuid, new.first_message, new.files_touched_fts, new.commits_fts);
+    INSERT INTO sessions_fts(sessions_fts, rowid, uuid, first_message, content_text, files_touched_fts, commits_fts)
+    VALUES ('delete', old.rowid, old.uuid, old.first_message, old.content_text, old.files_touched_fts, old.commits_fts);
+    INSERT INTO sessions_fts(rowid, uuid, first_message, content_text, files_touched_fts, commits_fts)
+    VALUES (new.rowid, new.uuid, new.first_message, new.content_text, new.files_touched_fts, new.commits_fts);
 END;
 """
+
+# Max chars for content_text (all user+assistant text per session)
+CONTENT_TEXT_MAX = 8000
 
 
 def get_db() -> sqlite3.Connection:
@@ -113,8 +120,23 @@ def get_db() -> sqlite3.Connection:
     db = sqlite3.connect(str(DB_PATH))
     db.row_factory = sqlite3.Row
     db.execute("PRAGMA journal_mode=WAL")
-    db.executescript(SCHEMA)
+    db.executescript(SCHEMA_SESSIONS)
+    _migrate_schema(db)
+    db.executescript(SCHEMA_FTS)
     return db
+
+
+def _migrate_schema(db: sqlite3.Connection):
+    """Add columns and rebuild FTS if schema changed."""
+    cols = {row[1] for row in db.execute("PRAGMA table_info(sessions)").fetchall()}
+    if "content_text" not in cols:
+        db.execute("ALTER TABLE sessions ADD COLUMN content_text TEXT")
+        # Drop old FTS and triggers (will be recreated by SCHEMA_FTS)
+        for name in ("sessions_ai", "sessions_ad", "sessions_au"):
+            db.execute(f"DROP TRIGGER IF EXISTS {name}")
+        db.execute("DROP TABLE IF EXISTS sessions_fts")
+        db.commit()
+        print("Migrated: added content_text, rebuilt FTS index", file=sys.stderr)
 
 
 # ---------------------------------------------------------------------------
@@ -167,6 +189,8 @@ def parse_jsonl(path: Path) -> dict:
         "start_ts": None,
         "end_ts": None,
         "first_message": None,
+        "content_parts": [],  # structured text segments for FTS
+        "content_len": 0,     # running char count
         "files": set(),
         "tools": set(),
         "subagents": set(),
@@ -208,14 +232,28 @@ def parse_jsonl(path: Path) -> dict:
     except Exception as e:
         print(f"  WARN: parse error {path.name}: {e}", file=sys.stderr)
 
+    # Build structured content_text from parts
+    result["content_text"] = "\n".join(result["content_parts"])[:CONTENT_TEXT_MAX]
+    del result["content_parts"]
+    del result["content_len"]
+
     return result
 
 
-def _extract_user_fields(obj: dict, result: dict):
-    """Extract first_message from user records."""
-    if result["first_message"] is not None:
-        return  # already found
+def _append_content(result: dict, prefix: str, text: str, max_per_msg: int = 400):
+    """Append a semantically-tagged line to content_parts if under budget."""
+    if result["content_len"] >= CONTENT_TEXT_MAX:
+        return
+    text = text.strip()
+    if not text:
+        return
+    line = f"[{prefix}] {text[:max_per_msg]}"
+    result["content_parts"].append(line)
+    result["content_len"] += len(line) + 1
 
+
+def _extract_user_fields(obj: dict, result: dict):
+    """Extract first_message and content from user records."""
     # Skip tool_result responses (these are tool outputs, not user messages)
     if obj.get("toolUseResult"):
         return
@@ -235,11 +273,14 @@ def _extract_user_fields(obj: dict, result: dict):
     if not text or SYSTEM_REMINDER_RE.search(text[:100]):
         return
 
-    result["first_message"] = text[:500]
+    if result["first_message"] is None:
+        result["first_message"] = text[:500]
+
+    _append_content(result, "user", text)
 
 
 def _extract_assistant_fields(obj: dict, result: dict):
-    """Extract model, tools, files from assistant records."""
+    """Extract model, tools, files, and text content from assistant records."""
     msg = obj.get("message", {})
 
     if not result["model"]:
@@ -252,7 +293,17 @@ def _extract_assistant_fields(obj: dict, result: dict):
     for block in content:
         if not isinstance(block, dict):
             continue
-        if block.get("type") != "tool_use":
+
+        btype = block.get("type")
+
+        # Collect assistant text
+        if btype == "text":
+            text = block.get("text", "")
+            if text.strip():
+                _append_content(result, "assistant", text)
+            continue
+
+        if btype != "tool_use":
             continue
 
         name = block.get("name", "")
@@ -260,20 +311,29 @@ def _extract_assistant_fields(obj: dict, result: dict):
 
         inp = block.get("input", {})
 
-        # Extract file paths
+        # Log tool usage with key param for searchability
         if name in FILE_TOOLS:
             fp = inp.get("file_path") or inp.get("path") or inp.get("pattern")
             if fp:
                 result["files"].add(fp)
-
-        # Extract commits from Bash git commit commands
-        if name == "Bash":
+                _append_content(result, f"tool:{name}", fp, max_per_msg=200)
+        elif name == "Bash":
             cmd = inp.get("command", "")
+            _append_content(result, "tool:Bash", cmd, max_per_msg=200)
             if "git commit" in cmd:
-                # Try to extract commit message
                 m = re.search(r'-m\s+["\'](.+?)["\']', cmd)
                 if m:
                     result["commits"].append(m.group(1)[:120])
+        elif name == "Agent":
+            desc = inp.get("description", "")
+            _append_content(result, "tool:Agent", desc, max_per_msg=200)
+        elif name.startswith("mcp__"):
+            # MCP tool — log name and query/key param
+            query = inp.get("query") or inp.get("question") or inp.get("companyName") or ""
+            _append_content(result, f"tool:{name}", query, max_per_msg=200)
+        elif name in ("WebSearch", "WebFetch"):
+            q = inp.get("query") or inp.get("url") or ""
+            _append_content(result, f"tool:{name}", q, max_per_msg=200)
 
 
 def _extract_progress_fields(obj: dict, result: dict):
@@ -382,6 +442,7 @@ def cmd_index(args):
             "cost_usd": receipt.get("cost_usd"),
             "context_pct": receipt.get("context_pct"),
             "first_message": parsed["first_message"],
+            "content_text": parsed["content_text"],
             "files_touched": json.dumps(files_list),
             "files_touched_fts": "\n".join(files_list),
             "tools_used": json.dumps(tools_list),
@@ -574,7 +635,14 @@ def cmd_search(args):
         return
 
     db = get_db()
-    query_text = _fts5_sanitize(args.query)
+    raw_query = _fts5_sanitize(args.query)
+
+    # --meta: search only first_message/files/commits (skip content_text)
+    # default: search all columns including conversation content
+    if getattr(args, "meta", False):
+        query_text = f"{{first_message files_touched_fts commits_fts}}: {raw_query}"
+    else:
+        query_text = raw_query
 
     sql = f"""
         WITH matched AS (
@@ -954,6 +1022,8 @@ def main():
     p_search = sub.add_parser("search", help="Search sessions")
     p_search.add_argument("query", help="Search query")
     p_search.add_argument("--semantic", action="store_true", help="Use emb semantic search")
+    p_search.add_argument("--meta", action="store_true",
+                          help="Search metadata only (first message, files, commits)")
     add_shared_filters(p_search)
 
     # show
