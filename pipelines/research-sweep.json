@@ -5,10 +5,10 @@
   "steps": [
     {
       "step": "search",
-      "prompt": "Search arxiv for last 7 days: 'LLM agents', 'coding agents', 'tool use', 'agentic AI'. Search Exa for Anthropic blog posts, Simon Willison, Trail of Bits, Kapoor/Narayanan. Save papers to corpus. Write findings to .claude/plans/research-sweep.md with source citations.",
+      "prompt": "Search arxiv for last 7 days: 'LLM agents', 'coding agents', 'tool use', 'agentic AI'. Search Exa using web_search_advanced_exa with type='deep' and additionalQueries for each topic cluster (generates parallel sub-searches for better recall). Target Anthropic blog posts, Simon Willison, Trail of Bits, Kapoor/Narayanan. Save papers to corpus. Write findings to .claude/plans/research-sweep.md with source citations.",
       "max_turns": 15,
       "max_budget_usd": 5.0,
-      "allowed_tools": "Read,Write,Glob,Grep,WebSearch,WebFetch,mcp__exa__web_search_exa,mcp__research__search_papers,mcp__research__save_paper,mcp__brave-search__brave_web_search,mcp__brave-search__brave_news_search,mcp__perplexity__perplexity_search,mcp__perplexity__perplexity_research"
+      "allowed_tools": "Read,Write,Glob,Grep,WebSearch,WebFetch,mcp__exa__web_search_exa,mcp__exa__web_search_advanced_exa,mcp__research__search_papers,mcp__research__save_paper,mcp__brave-search__brave_web_search,mcp__brave-search__brave_news_search,mcp__perplexity__perplexity_search,mcp__perplexity__perplexity_research"
     },
     {
       "step": "triage",

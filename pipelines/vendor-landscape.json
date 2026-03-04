@@ -8,7 +8,7 @@
       "prompt": "Monthly vendor tooling scan. Check: (1) github.com/anthropics — new repos since last scan, updated repos, new releases. (2) platform.claude.com/docs/en/release-notes — API changes. (3) Claude Code changelog — new features, hook events, SDK updates. (4) modelcontextprotocol GitHub — MCP protocol changes. Compare against meta/research/anthropic-tooling-landscape.md. Write delta to .claude/plans/vendor-landscape-delta.md: what's new, what changed, what's relevant to our infra.\n\nEnd with a ## Handoff section containing: (a) key deltas as a numbered list, (b) items that need triage, (c) items that are purely informational.",
       "max_turns": 15,
       "max_budget_usd": 3.0,
-      "allowed_tools": "Read,Glob,Grep,WebSearch,WebFetch,mcp__exa__web_search_exa,mcp__brave-search__brave_web_search,mcp__perplexity__perplexity_search,mcp__perplexity__perplexity_ask"
+      "allowed_tools": "Read,Glob,Grep,WebSearch,WebFetch,mcp__exa__web_search_exa,mcp__exa__web_search_advanced_exa,mcp__brave-search__brave_web_search,mcp__perplexity__perplexity_search,mcp__perplexity__perplexity_ask"
     },
     {
       "step": "triage",
