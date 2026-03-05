@@ -51,3 +51,7 @@ sessions *args:
 # Scan all project backlogs (--counts for summary)
 todos *args:
     bash scripts/todos.sh {{args}}
+
+# Push all relevant repos (--dry-run to preview, --status for overview)
+git-push-all *args:
+    bash scripts/git-push-all.sh {{args}}
