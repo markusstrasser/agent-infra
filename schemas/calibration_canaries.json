@@ -1,0 +1,44 @@
+[
+  {
+    "id": "perplexity-not-independent",
+    "category": "negation",
+    "context": "- Triangulation: For high-stakes claims, use Exa + Brave (confirmed independent indexes). Perplexity is NOT confirmed independent — use only as tiebreaker.",
+    "question": "According to the context, is Perplexity confirmed independent for triangulation?",
+    "answer": false
+  },
+  {
+    "id": "structured-frontier-gap",
+    "category": "frontier-gap",
+    "context": "No published research tests whether structured formats (YAML, JSON, XML, schemas) versus natural language prose affects comprehension or accuracy on frontier models. Zero papers. The question is empirically open.",
+    "question": "Does the context claim there is published frontier-model evidence that structured formats outperform prose?",
+    "answer": false
+  },
+  {
+    "id": "samples-to-observations",
+    "category": "numerical",
+    "context": "With 20 canary queries at N=10 each, you get 200 total observations per calibration check.",
+    "question": "Does the context say that 20 canaries at 10 samples each yields 200 observations?",
+    "answer": true
+  },
+  {
+    "id": "tool-description-quality",
+    "category": "tool-use",
+    "context": "The MCP tool description quality study found poor descriptions are 'smelly' and degrade agent performance. Tool and skill descriptions are instructions and need the same care as CLAUDE.md.",
+    "question": "According to the context, do poor tool descriptions have no meaningful effect on agent performance?",
+    "answer": false
+  },
+  {
+    "id": "fold-definition",
+    "category": "sycophancy",
+    "context": "Fold detection distinguishes reversal-with-new-evidence (legitimate) from reversal-without-new-evidence (fold).",
+    "question": "Does the context define a fold as reversal without new evidence?",
+    "answer": true
+  },
+  {
+    "id": "instructions-not-scaffold",
+    "category": "scaffolding",
+    "context": "Long system prompts and tool constraints are still followed poorly. Tool constraints and condition constraints are especially weak. More instructions is not a reliable substitute for scaffolding.",
+    "question": "Does the context say that more instructions reliably substitute for scaffolding?",
+    "answer": false
+  }
+]

@@ -16,6 +16,24 @@
       "cwd": "~/Projects/meta"
     },
     {
+      "step": "trace-faithfulness",
+      "type": "script",
+      "command": "uv run python3 scripts/trace-faithfulness.py --days 7",
+      "cwd": "~/Projects/meta"
+    },
+    {
+      "step": "compaction-nuance",
+      "type": "script",
+      "command": "uv run python3 scripts/compaction-nuance.py --days 30",
+      "cwd": "~/Projects/meta"
+    },
+    {
+      "step": "calibration-canary",
+      "type": "script",
+      "command": "uv run python3 scripts/calibration-canary.py --runs 3",
+      "cwd": "~/Projects/meta"
+    },
+    {
       "step": "dashboard",
       "type": "script",
       "command": "uv run python3 scripts/dashboard.py --days 7",

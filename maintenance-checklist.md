@@ -182,9 +182,9 @@ Project-level subagents. Upgraded 2026-03-01 with frontmatter (memory, model, to
 
 ## PostToolUse Output Rewrite Hooks (`updatedMCPToolOutput`)
 - [x] PostToolUse `updatedMCPToolOutput` for research MCP `read_paper` — restructure raw PDF text to sections
-- [ ] PostToolUse `updatedMCPToolOutput` for Exa `web_search` — trim verbose metadata, keep title+URL+snippet
-- [ ] PostToolUse `updatedMCPToolOutput` for paper-search — normalize cross-source output format
-- [ ] Audit: raw output retention + hash logging for all rewrite hooks (epistemic integrity)
+- [x] PostToolUse `updatedMCPToolOutput` for Exa `web_search` — trim verbose metadata, keep title+URL+snippet
+- [x] PostToolUse `updatedMCPToolOutput` for paper-search — normalize cross-source output format
+- [x] Audit: raw output retention + hash logging for rewrite hooks now active in global settings (`~/.claude/tool-output-archive/`)
 
 ## Key Architecture Docs
 - `search-retrieval-architecture.md` — CAG vs embedding retrieval decision framework, Groq/Gemini/Kimi assessment (2026-02-28)

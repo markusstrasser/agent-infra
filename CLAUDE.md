@@ -181,7 +181,7 @@ orchestrator.py summary                              # daily markdown
 - [ ] **Hook ROI telemetry** — Log every hook trigger/decision to JSONL for false-positive measurement. Prerequisite for progressive enforcement. (Source: constitution model-review 2026-02-28)
 - [ ] **Regret/corrections metric** — Instrument corrections per session as a first-class metric from session-analyst. (Source: constitution model-review 2026-02-28)
 - [ ] **Telegram approval bot** — Notify + approve/reject/modify orchestrator tasks from phone. ~50 lines Python + BotFather token. Slots into `requires_approval` gate. (Source: orchestrator plan session 2026-03-01)
-- [ ] **Canary calibration system** — 20 queries with known ground truth (5 categories: hallucinated specifics, temporal/staleness, negation/attention, numerical reasoning, domain crossover). Run 10× each through Haiku monthly, score with Brier, log to epistemic-metrics.jsonl. ~150 lines Python + query JSON. Half queries from our research files (stable ground truth), half external facts (Exa-verifiable). Slots into `epistemic-baseline.json` pipeline. ~$2/month. (Source: calibration-measurement-practical.md design, backlogged since 2026-03-02)
+- [ ] **Expand calibration canary beyond bootstrap** — Current baseline includes a small local-context canary set with Brier scoring. Remaining work: grow to ~20 queries, add temporal/staleness and external-fact canaries, increase runs, and separate monthly deep calibration from weekly cheap checks. (Source: calibration-measurement-practical.md design, bootstrap implemented 2026-03-05)
 
 ## What This Repo Is NOT
 - Not a place to write more rules about rules.

@@ -12,6 +12,10 @@ dashboard *args:
 dashboard-days days:
     uv run python3 scripts/dashboard.py --days {{days}}
 
+# Normalize Codex/OpenAI run receipts
+agent-receipts *args:
+    uv run python3 scripts/agent_receipts.py {{args}}
+
 # ── Health ─────────────────────────────────────────────────────────
 
 # Cross-project health check
@@ -31,6 +35,18 @@ epistemic-lint *args:
 # SAFE-lite factual precision check
 safe-lite *args:
     uv run python3 scripts/safe-lite-eval.py {{args}}
+
+# Tool-trace faithfulness from session transcripts
+trace-faithfulness *args:
+    uv run python3 scripts/trace-faithfulness.py {{args}}
+
+# Pre-compaction nuance density summary
+compaction-nuance *args:
+    uv run python3 scripts/compaction-nuance.py {{args}}
+
+# Small fixed calibration canary set
+calibration-canary *args:
+    uv run python3 scripts/calibration-canary.py {{args}}
 
 # User #tag annotations from session transcripts
 tags *args:
