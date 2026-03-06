@@ -45,7 +45,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Token waste — redundant tool calls (recurring pattern, also observed 2026-03-04)
 - **Proposed fix:** [rule] Existing guidance covers this. Pattern recurs despite rules — may warrant a PreToolUse hook that detects duplicate Read calls on same path within a session. However, the git log variants are harder to catch (different flags, same intent).
 - **Severity:** medium — 5 wasted git commands + 2 redundant reads + hallucinated paths = ~10 wasted tool calls in one session
-- **Status:** [ ] proposed
+- **Status:** [x] implemented — `scripts/daily-recon.sh` consolidates cross-project git/receipt/orchestrator queries into one command (2026-03-06)
 
 ### [2026-03-05] TOKEN WASTE: Overlapping git log + ls commands for daily summary
 - **Session:** meta 8f6128c6
@@ -53,7 +53,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Token waste — redundant tool calls (same pattern as 52ac8991)
 - **Proposed fix:** [skill] A "daily summary" skill that runs one consolidated command (git log across projects + receipt scan + daily memory check) would eliminate this recurring multi-command reconnaissance pattern. Both sessions 8f6128c6 and 52ac8991 spent their first 4-5 tool calls doing the same kind of cross-project git archaeology.
 - **Severity:** low — 4 overlapping commands, small token cost
-- **Status:** [ ] proposed
+- **Status:** [x] implemented — same `scripts/daily-recon.sh` fix (2026-03-06)
 
 ### [2026-03-05] TOKEN WASTE: Exploratory grep scatter across skills directory
 - **Session:** meta cf694f57

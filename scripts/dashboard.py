@@ -158,6 +158,9 @@ def main():
     # --- OpenAI / Codex panel ---
     print_openai_panel(cutoff)
 
+    # --- Session facets panel (from /insights data) ---
+    print_facets_panel(cutoff)
+
     # --- Epistemic metrics panel ---
     print_epistemic_panel(cutoff)
 
@@ -311,6 +314,100 @@ def print_orchestrator_panel(cutoff: datetime):
 
     print()
     db.close()
+
+
+def print_facets_panel(cutoff: datetime):
+    """Print session quality metrics from Claude Code /insights facet data."""
+    facets_dir = Path.home() / ".claude" / "usage-data" / "facets"
+    meta_dir = Path.home() / ".claude" / "usage-data" / "session-meta"
+    if not facets_dir.exists():
+        return
+
+    # Load facets and session-meta, join by session_id
+    facets = []
+    for f in facets_dir.glob("*.json"):
+        try:
+            data = json.loads(f.read_text())
+            facets.append(data)
+        except (json.JSONDecodeError, OSError):
+            continue
+
+    # Load session-meta for timestamp filtering
+    meta_by_id: dict[str, dict] = {}
+    if meta_dir.exists():
+        for f in meta_dir.glob("*.json"):
+            try:
+                data = json.loads(f.read_text())
+                sid = data.get("session_id", f.stem)
+                meta_by_id[sid] = data
+            except (json.JSONDecodeError, OSError):
+                continue
+
+    # Filter to recent sessions
+    recent_facets = []
+    for fac in facets:
+        sid = fac.get("session_id", "")
+        meta = meta_by_id.get(sid, {})
+        ts = meta.get("start_time", "")
+        if ts and parse_ts(ts) > cutoff:
+            recent_facets.append((fac, meta))
+
+    if not recent_facets:
+        return
+
+    print()
+    print(f"{'=' * 50}")
+    print(f"  Session Facets ({len(recent_facets)} sessions)")
+    print(f"{'=' * 50}")
+    print()
+
+    # Outcome distribution
+    outcomes: dict[str, int] = defaultdict(int)
+    friction_totals: dict[str, int] = defaultdict(int)
+    session_types: dict[str, int] = defaultdict(int)
+    total_tool_errors = 0
+    total_friction_sessions = 0
+
+    for fac, meta in recent_facets:
+        outcome = fac.get("outcome", "?")
+        outcomes[outcome] += 1
+
+        stype = fac.get("session_type", "?")
+        session_types[stype] += 1
+
+        fc = fac.get("friction_counts", {})
+        if fc:
+            total_friction_sessions += 1
+            for ftype, count in fc.items():
+                friction_totals[ftype] += count
+
+        total_tool_errors += meta.get("tool_errors", 0)
+
+    # Outcomes
+    outcome_parts = []
+    for o in ["fully_achieved", "mostly_achieved", "partially_achieved", "not_achieved"]:
+        if outcomes.get(o):
+            outcome_parts.append(f"{outcomes[o]} {o.replace('_', ' ')}")
+    if outcome_parts:
+        print(f"  Outcomes:     {', '.join(outcome_parts)}")
+
+    # Friction
+    if friction_totals:
+        sorted_friction = sorted(friction_totals.items(), key=lambda x: -x[1])[:5]
+        friction_str = ", ".join(f"{k}={v}" for k, v in sorted_friction)
+        print(f"  Friction:     {total_friction_sessions}/{len(recent_facets)} sessions ({friction_str})")
+    else:
+        print(f"  Friction:     0/{len(recent_facets)} sessions")
+
+    if total_tool_errors:
+        print(f"  Tool errors:  {total_tool_errors}")
+
+    # Session types
+    if session_types:
+        type_parts = sorted(session_types.items(), key=lambda x: -x[1])[:4]
+        print(f"  Types:        {', '.join(f'{v} {k}' for k, v in type_parts)}")
+
+    print()
 
 
 def print_epistemic_panel(cutoff: datetime):
