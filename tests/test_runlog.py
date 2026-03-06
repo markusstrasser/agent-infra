@@ -77,6 +77,35 @@ class RunlogFixtureImportTest(unittest.TestCase):
         edge_rows = json.loads(edges.stdout)
         self.assertTrue(any(row["edge_type"] == "spawned_by" for row in edge_rows))
 
+    def test_claude_import_handles_lone_surrogates(self) -> None:
+        transcript = Path(self.temp_dir.name) / "projects" / "-Users-test-Projects-meta" / "surrogate-session.jsonl"
+        transcript.parent.mkdir(parents=True, exist_ok=True)
+        record = {
+            "type": "assistant",
+            "timestamp": "2026-03-05T12:00:00Z",
+            "cwd": "/Users/test/Projects/meta",
+            "permissionMode": "default",
+            "gitBranch": "main",
+            "version": "1.0.0",
+            "message": {
+                "model": "claude-opus-4.6",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "surrogate \\ud835 survives import",
+                    }
+                ],
+            },
+        }
+        transcript.write_text(json.dumps(record) + "\n", encoding="utf-8")
+
+        self.run_cli("init-db")
+        result = self.run_cli("import", "--vendor", "claude", "--source", str(transcript))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        summary = json.loads(result.stdout)
+        self.assertEqual(summary["failed"], 0)
+        self.assertEqual(summary["imported"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

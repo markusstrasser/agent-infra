@@ -23,10 +23,11 @@ from .common import (
     stable_id,
     text_from_content,
     tool_source_from_name,
+    utf8_len,
 )
 
 PARSER_NAME = "claude"
-PARSER_VERSION = "2026-03-05"
+PARSER_VERSION = "2026-03-05.1"
 CLIENT = "claude-code"
 
 
@@ -74,7 +75,7 @@ def parse_source(source: DiscoveredSource) -> ParsedSource:
     with path.open() as handle:
         byte_start = 0
         for line_no, raw_line in enumerate(handle, 1):
-            byte_end = byte_start + len(raw_line.encode("utf-8"))
+            byte_end = byte_start + utf8_len(raw_line)
             raw = raw_line.strip()
             if not raw:
                 byte_start = byte_end

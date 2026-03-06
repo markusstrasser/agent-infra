@@ -156,7 +156,7 @@ LIST_PATH_KEY_CANDIDATES = ("paths", "files")
 
 def stable_id(prefix: str, *parts: Any) -> str:
     payload = "|".join("" if part is None else str(part) for part in parts)
-    digest = hashlib.sha1(payload.encode("utf-8")).hexdigest()[:16]
+    digest = hashlib.sha1(payload.encode("utf-8", "surrogatepass")).hexdigest()[:16]
     return f"{prefix}{digest}"
 
 
@@ -167,7 +167,11 @@ def stable_hash(value: Any) -> str:
         raw = json.dumps(value, sort_keys=True, separators=(",", ":"))
     else:
         raw = str(value)
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+    return hashlib.sha256(raw.encode("utf-8", "surrogatepass")).hexdigest()
+
+
+def utf8_len(value: str) -> int:
+    return len(value.encode("utf-8", "surrogatepass"))
 
 
 def json_dumps(value: Any) -> str | None:

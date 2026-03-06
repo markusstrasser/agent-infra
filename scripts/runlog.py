@@ -26,6 +26,12 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
+def db_text(value: object | None) -> str | None:
+    if value is None:
+        return None
+    return str(value).encode("utf-8", "backslashreplace").decode("utf-8")
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -72,9 +78,9 @@ def upsert_source(db: sqlite3.Connection, source: DiscoveredSource, sha256: str)
             size_bytes = excluded.size_bytes
         """,
         (
-            source.vendor,
-            source.source_kind,
-            str(source.path),
+            db_text(source.vendor),
+            db_text(source.source_kind),
+            db_text(str(source.path)),
             sha256,
             utc_now(),
             stat.st_mtime,
@@ -207,11 +213,11 @@ def ensure_session_pk(db: sqlite3.Connection, session_row) -> int:
         """,
         (
             session_row.vendor,
-            session_row.client,
-            session_row.vendor_session_id,
+            db_text(session_row.client),
+            db_text(session_row.vendor_session_id),
             session_row.synthetic_session_key,
-            session_row.project_root,
-            session_row.project_slug,
+            db_text(session_row.project_root),
+            db_text(session_row.project_slug),
         ),
     )
     return int(cursor.lastrowid)
@@ -257,27 +263,27 @@ def upsert_run(db: sqlite3.Connection, run_row, session_pk: int, source_id: int)
         (
             run_row.run_id,
             session_pk,
-            run_row.vendor,
-            run_row.client,
-            run_row.transport,
-            run_row.protocol,
-            run_row.provider_name,
-            run_row.base_url,
-            run_row.cwd,
-            run_row.started_at,
-            run_row.ended_at,
-            run_row.status,
-            run_row.model_requested,
-            run_row.model_resolved,
-            run_row.approval_mode,
-            run_row.sandbox_mode,
-            run_row.instruction_hash,
-            run_row.config_hash,
-            run_row.mcp_set_hash,
-            run_row.git_head,
+            db_text(run_row.vendor),
+            db_text(run_row.client),
+            db_text(run_row.transport),
+            db_text(run_row.protocol),
+            db_text(run_row.provider_name),
+            db_text(run_row.base_url),
+            db_text(run_row.cwd),
+            db_text(run_row.started_at),
+            db_text(run_row.ended_at),
+            db_text(run_row.status),
+            db_text(run_row.model_requested),
+            db_text(run_row.model_resolved),
+            db_text(run_row.approval_mode),
+            db_text(run_row.sandbox_mode),
+            db_text(run_row.instruction_hash),
+            db_text(run_row.config_hash),
+            db_text(run_row.mcp_set_hash),
+            db_text(run_row.git_head),
             source_id,
-            run_row.completeness,
-            run_row.completeness_notes,
+            db_text(run_row.completeness),
+            db_text(run_row.completeness_notes),
         ),
     )
 
@@ -294,11 +300,11 @@ def upsert_run_config(db: sqlite3.Connection, row) -> None:
             metadata_json = COALESCE(excluded.metadata_json, run_configs.metadata_json)
         """,
         (
-            row.run_id,
-            row.instruction_ref,
-            json_dumps(row.tools),
-            json_dumps(row.mcp_servers),
-            json_dumps(row.metadata),
+            db_text(row.run_id),
+            db_text(row.instruction_ref),
+            db_text(json_dumps(row.tools)),
+            db_text(json_dumps(row.mcp_servers)),
+            db_text(json_dumps(row.metadata)),
         ),
     )
 
@@ -326,20 +332,20 @@ def upsert_event(db: sqlite3.Connection, row, record_ref_id: int | None) -> None
             tool_call_id = COALESCE(excluded.tool_call_id, events.tool_call_id)
         """,
         (
-            row.event_id,
-            row.run_id,
+            db_text(row.event_id),
+            db_text(row.run_id),
             row.seq,
-            row.ts,
-            row.kind,
-            row.vendor_kind,
-            row.vendor_event_id,
-            row.role,
-            row.text,
-            json_dumps(row.payload),
+            db_text(row.ts),
+            db_text(row.kind),
+            db_text(row.vendor_kind),
+            db_text(row.vendor_event_id),
+            db_text(row.role),
+            db_text(row.text),
+            db_text(json_dumps(row.payload)),
             record_ref_id,
-            row.parent_event_id,
-            row.correlation_id,
-            row.tool_call_id,
+            db_text(row.parent_event_id),
+            db_text(row.correlation_id),
+            db_text(row.tool_call_id),
         ),
     )
 
@@ -368,18 +374,18 @@ def upsert_tool_call(db: sqlite3.Connection, row, start_ref_id: int | None, end_
             end_record_ref_id = COALESCE(excluded.end_record_ref_id, tool_calls.end_record_ref_id)
         """,
         (
-            row.tool_call_id,
-            row.run_id,
-            row.tool_name,
-            row.tool_source,
-            row.mcp_server,
-            row.ts_start,
-            row.ts_end,
-            json_dumps(row.args),
-            json_dumps(row.result),
-            row.status,
+            db_text(row.tool_call_id),
+            db_text(row.run_id),
+            db_text(row.tool_name),
+            db_text(row.tool_source),
+            db_text(row.mcp_server),
+            db_text(row.ts_start),
+            db_text(row.ts_end),
+            db_text(json_dumps(row.args)),
+            db_text(json_dumps(row.result)),
+            db_text(row.status),
             row.exit_code,
-            row.correlation_id,
+            db_text(row.correlation_id),
             start_ref_id,
             end_ref_id,
         ),
@@ -392,7 +398,7 @@ def insert_file_touch(db: sqlite3.Connection, row, record_ref_id: int | None) ->
         INSERT OR IGNORE INTO file_touches (run_id, tool_call_id, path, op, record_ref_id)
         VALUES (?, ?, ?, ?, ?)
         """,
-        (row.run_id, row.tool_call_id, row.path, row.op, record_ref_id),
+        (db_text(row.run_id), db_text(row.tool_call_id), db_text(row.path), db_text(row.op), record_ref_id),
     )
 
 
@@ -409,7 +415,13 @@ def upsert_run_edge(db: sqlite3.Connection, row) -> None:
             inference_method = excluded.inference_method,
             confidence = excluded.confidence
         """,
-        (row.src_run_id, row.dst_run_id, row.edge_type, row.inference_method, row.confidence),
+        (
+            db_text(row.src_run_id),
+            db_text(row.dst_run_id),
+            db_text(row.edge_type),
+            db_text(row.inference_method),
+            row.confidence,
+        ),
     )
 
 
@@ -496,12 +508,12 @@ def command_import(args: argparse.Namespace) -> int:
                         (
                             source_id,
                             import_id,
-                            record.raw_record_hash,
-                            record.raw_record_key,
+                            db_text(record.raw_record_hash),
+                            db_text(record.raw_record_key),
                             record.line_no,
                             record.byte_start,
                             record.byte_end,
-                            record.ts_raw,
+                            db_text(record.ts_raw),
                         ),
                     )
                     record_ref_ids[record.raw_record_key] = int(cursor.lastrowid)

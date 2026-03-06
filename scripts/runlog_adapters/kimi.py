@@ -27,6 +27,7 @@ from .common import (
     text_from_content,
     tool_source_from_name,
     typed_text_parts,
+    utf8_len,
 )
 
 PARSER_NAME = "kimi"
@@ -83,7 +84,7 @@ def parse_source(source: DiscoveredSource) -> ParsedSource:
     with source.path.open() as handle:
         byte_start = 0
         for line_no, raw_line in enumerate(handle, 1):
-            byte_end = byte_start + len(raw_line.encode("utf-8"))
+            byte_end = byte_start + utf8_len(raw_line)
             raw = raw_line.strip()
             if not raw:
                 byte_start = byte_end
