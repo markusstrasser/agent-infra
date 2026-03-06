@@ -1,7 +1,7 @@
 # Divergent vs Convergent Thinking in LLMs
 
 **Date:** 2026-03-05
-**Status:** v1 deployed (skill edits 2026-03-05), architecture upgrade planned (model-review 2026-03-06)
+**Status:** v2 deployed (Phase 1 skill edits 2026-03-05, Phase 2 architecture 2026-03-06)
 **Sources:** Perplexity Deep Research (35 citations, 2024-2026 literature), cross-referenced against known findings
 
 ## Core Finding: Fundamental Asymmetry
