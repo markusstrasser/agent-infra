@@ -108,17 +108,31 @@ Error correction per session is the secondary constraint: autonomy only increase
 - **Propose and wait:** touches shared infrastructure, multiple viable approaches, affects other projects, deletes/restructures architecture
 - **Always human-approved:** this Constitution section, GOALS.md
 
-**5. Research is first-class.** Divergent (explore) → convergent (build) → eat your own dogfood → analyze → research again when stuck. Not every session. Action produces information. Opportunistic, not calendar-driven.
+**5. Divergence budget by uncertainty × irreversibility.** Not every task needs exploration. Routine implementation, bug fixes, and tasks with one correct answer should converge fast. But when both uncertainty (unclear right approach) AND irreversibility (costly wrong move) are high, extend the divergent phase:
+- **low uncertainty, low irreversibility** → converge fast, no exploration needed
+- **high uncertainty, low irreversibility** → short divergence (brainstorm 3-5 options, pick one, iterate)
+- **low uncertainty, high irreversibility** → cautious validation (verify the obvious answer thoroughly)
+- **high uncertainty, high irreversibility** → extended divergence + cross-model review required. Produce explicit phase artifacts: options explored, selection rationale, then implementation.
 
-**6. Skills governance.** Meta owns skill quality: authoring, testing, propagation. Skills stay in `~/Projects/skills/` (separate). Meta governs through session-analyst (sees usage across projects) and improvement-log.
+This replaces taste-based "should I brainstorm?" with a decision rule grounded in stakes.
 
-**7. Fail open, carve out exceptions.** Hooks fail open by default. Explicit fail-closed list: protected data writes, multiline bash, repeated failure loops (>5). List grows only with measured ROI data.
+**6. Phase-state artifacts for design decisions.** When a task involves a genuine design choice (architecture, strategy, shared infrastructure), the exploration and selection must be written down as auditable artifacts — not just happening implicitly in conversation. Convention:
+- `divergent-options.md` (or section): 5-10 option families with different mechanisms
+- `selection-rationale.md` (or section): why these 1-2 were chosen, what was rejected and why
+- Then implementation.
+These can be sections in a plan file, a research memo, or standalone. The point: if someone asks "what alternatives did you consider?" the answer is a file, not "I thought about it." Session-analyst checks for existence on design tasks.
 
-**8. Recurring patterns become architecture.** If used/encountered 10+ times → hook, skill, or scaffolding. Not a snippet, not a manual habit. (The Raycast heuristic.)
+**7. Research is first-class.** Divergent (explore) → convergent (build) → eat your own dogfood → analyze → research again when stuck. Not every session. Action produces information. Opportunistic, not calendar-driven.
 
-**9. Cross-model review for non-trivial decisions.** Same-model review is a martingale. Cross-model provides real adversarial pressure. Required for multi-project or shared infrastructure changes. **Dispatch on proposals, not open questions** — critique is sharper than brainstorming. When model review disagrees with user's expressed preference, surface the disagreement and let the user decide.
+**8. Skills governance.** Meta owns skill quality: authoring, testing, propagation. Skills stay in `~/Projects/skills/` (separate). Meta governs through session-analyst (sees usage across projects) and improvement-log.
 
-**10. The git log is the learning.** Every correction is a commit. The error-correction ledger is the moat. Commits touching governance files (CLAUDE.md, MEMORY.md, improvement-log, hooks) require evidence trailers.
+**9. Fail open, carve out exceptions.** Hooks fail open by default. Explicit fail-closed list: protected data writes, multiline bash, repeated failure loops (>5). List grows only with measured ROI data.
+
+**10. Recurring patterns become architecture.** If used/encountered 10+ times → hook, skill, or scaffolding. Not a snippet, not a manual habit. (The Raycast heuristic.)
+
+**11. Cross-model review for non-trivial decisions.** Same-model review is a martingale. Cross-model provides real adversarial pressure. Required for multi-project or shared infrastructure changes. **Dispatch on proposals, not open questions** — critique is sharper than brainstorming. When model review disagrees with user's expressed preference, surface the disagreement and let the user decide.
+
+**12. The git log is the learning.** Every correction is a commit. The error-correction ledger is the moat. Commits touching governance files (CLAUDE.md, MEMORY.md, improvement-log, hooks) require evidence trailers.
 
 ### Autonomy Boundaries
 
