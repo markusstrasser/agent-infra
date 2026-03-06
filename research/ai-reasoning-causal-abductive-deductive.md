@@ -52,6 +52,10 @@ Before conclusions, the specific evidence this report rests on:
 | 11 | RL fine-tuning on executable counterfactuals generalizes 1.5-2x vs SFT | arXiv:2510.01539 | MEDIUM | [F3] secondary | UNVERIFIED |
 | 12 | Parallel abductive + deductive + inductive agents outperform Self-Consistency | ACL 2025 | MEDIUM | Abdaljalil et al. arXiv:2506.07106 | [F3] secondary |
 | 13 | Most causal reasoning benchmarks test retrieval, not reasoning | Oxford critical review | HIGH | Yang et al. arXiv:2407.08029 | VERIFIED (PDF read) |
+| 14 | Post-trained 14B model hits 93.5% on CaLM vs 55.4% for o3 — causal post-training works | CauGym benchmark, 7 tasks, 5 test sets | MEDIUM | Chen et al. arXiv:2602.06337, 2026 | VERIFIED (abstract, [PREPRINT]) |
+| 15 | LLMs should be restricted to non-decisional support in causal discovery — heuristic search only | Empirical study + theoretical argument | MEDIUM | Wu et al. arXiv:2506.00844, 3 citations | VERIFIED (abstract) |
+| 16 | VersaPRM: multi-domain PRM achieves +7.9% on Law vs +1.3% for math-only PRM | MMLU-Pro Law benchmark | MEDIUM | Zeng et al. arXiv:2502.06737, 22 citations | VERIFIED (abstract) |
+| 17 | SOTA reasoning LLMs match human average but significantly below human ceiling on deductive reasoning | JustLogic benchmark, synthetic | MEDIUM | Chen et al. arXiv:2501.14851, 10 citations | VERIFIED (abstract) |
 
 ---
 
@@ -78,6 +82,10 @@ Before conclusions, the specific evidence this report rests on:
 **The Skepticism Trap:** Claude Haiku 3.5 rejects 60% of VALID associational claims. Safety-tuning creates systematic over-refusal at L1. Claude Sonnet 4.5 is better (80% L1) but still has 14% "fatalism" at L3 — rejecting counterfactuals as inherently unknowable. [SOURCE: T3, PDF read]
 
 **RCA (Recursive Causal Audit) helps:** Process verification — forcing the model to check its reasoning step-by-step — reduces over-hedging and improves L3 performance. This is the T3 analog of what our `causal-check` skill does. [SOURCE: T3, PDF read]
+
+**CauGym (Chen et al. 2026) — a counter-narrative:** Targeted causal post-training on a 14B model achieved 93.5% on CaLM benchmark vs 55.4% for o3. Uses GRPO (RL variant). Strong generalization and robustness under distribution shifts. This is the first systematic evidence that the rung-collapse limitation can be partially overcome with post-training, though it requires causal-specific training data. [SOURCE: arXiv:2602.06337, [PREPRINT]]
+
+**"LLMs Cannot Discover Causality" (Wu et al. 2025):** Argues the opposite direction — LLMs should be strictly confined to non-decisional support. But concedes that LLM-guided *heuristic search* accelerates causal graph convergence. The reconciliation: LLMs shouldn't determine causal edges, but can accelerate the search over candidate graphs. [SOURCE: arXiv:2506.00844]
 
 ### What this means for our IQ project
 
@@ -179,6 +187,8 @@ This is implementable NOW with our existing skills + a structured prompt templat
 
 But these are SIMPLE deductive tasks. Complex multi-step deduction remains fragile.
 
+**JustLogic (Chen et al. 2025, 10 citations):** Synthetic deductive reasoning benchmark designed to eliminate prior-knowledge confounding. Finding: SOTA reasoning LLMs perform at or above human average, but **significantly below human ceiling**. Non-reasoning models still underperform human average. Heterogeneous effects of reasoning depth and argument form on accuracy — deeper chains degrade faster. [SOURCE: arXiv:2501.14851]
+
 ### Process Reward Models (PRMs) — step-by-step verification
 
 **GenPRM (2025, 56 citations):** Scales test-time compute by using generative PRMs that can evaluate reasoning steps. Instead of just classifying "correct/incorrect," it generates explanations of WHY a step is wrong. This is closer to what we need for causal reasoning verification. [SOURCE: abstract]
@@ -188,7 +198,9 @@ But these are SIMPLE deductive tasks. Complex multi-step deduction remains fragi
 - PRMs are sensitive to the distribution of errors in training data
 - Best used for VERIFICATION, not generation [SOURCE: abstract]
 
-**Gap: No PRMs for causal reasoning.** All current PRM work is on math. Extending PRMs to causal reasoning (checking DAG consistency, identifying bad controls, verifying counterfactual logic) is an open research problem. [INFERENCE — no paper found that does this]
+**VersaPRM (Zeng et al. 2025, 22 citations):** First multi-domain PRM trained on synthetic reasoning data. Achieves +7.9% on MMLU-Pro Law (vs +1.3% for math-only Qwen2.5-Math-PRM). Open-sourced data, code, models. This proves PRMs can generalize beyond math, but **no causal reasoning domain included yet.** [SOURCE: arXiv:2502.06737]
+
+**Gap: No PRMs for causal reasoning.** VersaPRM shows multi-domain PRMs are feasible, but no one has built one for causal reasoning (checking DAG consistency, identifying bad controls, verifying counterfactual logic). This remains an open research problem. [INFERENCE]
 
 ### Practical recommendation
 
@@ -334,6 +346,14 @@ For AI agents, this suggests:
 - Improving constraint-based discovery with robust propagation and reliable LLM priors
 - T3: Benchmarking Sycophancy and Skepticism in Causal Judgment
 - Right for the Wrong Reasons: Epistemic Regret Minimization for Causal Rung Collapse
+- Can Post-Training Transform LLMs into Causal Reasoners? (CauGym)
+- LLM Cannot Discover Causality (Wu et al.)
+- VersaPRM: Multi-Domain Process Reward Model
+- JustLogic: Comprehensive Benchmark for Deductive Reasoning
+- LogicSkills: Structured Benchmark for Formal Reasoning
+- PRISM: Pushing the Frontier via PRM-Guided Inference
+- Socratic-PRMBench: Benchmarking PRMs with Systematic Reasoning Patterns
+- Causal AI Scientist (CAIS)
 
 ## Frontier Model Caveat
 
@@ -341,4 +361,4 @@ Most benchmarks tested GPT-4o/o1 or GPT-5.2, Claude Sonnet 4.5, Claude Haiku 3.5
 
 ---
 
-*Added 2026-03-06. Primary sources: T3 and Rung Collapse papers read in full. Causal-Copilot key sections read. Others at abstract/summary level. Three research subagents dispatched; findings integrated where available.*
+*Added 2026-03-06. Primary sources: T3 and Rung Collapse papers read in full. Causal-Copilot key sections read. Others at abstract/summary level. Three research subagents dispatched — didn't complete synthesis but saved 15 papers to corpus; findings from their corpus integrated in this update.*
