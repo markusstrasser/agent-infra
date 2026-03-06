@@ -25,7 +25,7 @@ The closer sessions get to "optimal run" (what would happen if the agent had per
 
 ## Secondary Metrics
 
-- **Wasted supervision rate** — % of human turns that are corrections, boilerplate, or rubber stamps. Currently ~21%. No numeric target, but qualitative trend should be downward.
+- **Wasted supervision rate** — % of human turns that are corrections, boilerplate, or rubber stamps. Baseline ~21% (2026-02-28). Measured weekly via session-analyst. Qualitative trend should be downward.
 - **Agent reliability** — % of tasks completed correctly without correction.
 - **Time-to-capability** — how fast a new project gets proper agent infrastructure.
 
@@ -43,19 +43,19 @@ The invariants: the Constitution section (in CLAUDE.md) and GOALS.md are human-o
 1. **Session forensics** — session-analyst finds behavioral anti-patterns, improvement-log tracks them to architectural fixes
 2. **Hook engineering** — deterministic guards that prevent known failure modes (instructions alone = 0% reliable)
 3. **Observability** — cockpit components keep the human informed without requiring them to ask
-4. **Research** — stay current on agent behavior research, absorb what's applicable, ignore what's not
-5. **Cross-project propagation** — skills, hooks, rules, and patterns flow from meta to all projects
-6. **Self-improvement** — meta improves its own tooling using the same methods it applies to sub-projects
+4. **Research** — stay current on agent behavior research, absorb what's applicable, ignore what's not. Research has intrinsic value — it changes how agents think and prompt, even when it doesn't produce a hook or script. No enforcement quota on research-to-implementation conversion.
+5. **Cross-project propagation** — organic, pull-based. The human runs sessions from meta that touch other repos. Sub-projects query meta-knowledge via MCP when relevant. Projects don't need meta's full knowledge pushed to them — the MCP is the bridge.
+6. **Multi-vendor agent ops** — strategic. Claude Code is primary, but Codex/Gemini/Kimi CLIs serve as sub-agents and alternative interfaces. Subscriptions are often cheaper than API. Runlog, dashboard, and receipts cover all vendors. CLAUDE.md symlinks (AGENTS.md, GEMINI.md) ensure instruction parity where possible.
+7. **Self-improvement** — meta improves its own tooling using the same methods it applies to sub-projects
 
 ## Orchestrator
 
-**Unblocked.** The orchestrator is meta-level infrastructure, independent of any specific project's validation status. Build it for tasks that are clearly automatable now:
-- Entity refresh cycles
-- Data maintenance
-- Research sweeps
-- Self-improvement passes (`/project-upgrade`, `/goals` elicitation)
+**Built, not yet primary.** The orchestrator (`scripts/orchestrator.py`) works — dual-engine, SQLite queue, pipeline templates, cost caps. But two gaps block daily use:
 
-The vision: any project can receive `/project-upgrade` or `/goals` and get meta's full toolkit applied autonomously, stopping only when a quality judge determines no further improvement is possible given the project's goals.
+1. **Logging/visibility.** Can't see what's happening during a run. Claude Code's interactive UX is better for observing agent work. Until the orchestrator has a real-time feed (streaming logs, structured output), pasting prompts into Claude Code sessions is the superior workflow.
+2. **Task proposal.** The human still has to decide "what's next." The orchestrator should surface proposals — "here are 5 things that look stale/broken/actionable" — not wait for manual `submit`. The loop should be: orchestrator proposes → human approves/rejects → orchestrator executes → human reviews output.
+
+Fixing these two gaps is the highest-leverage work meta can do. The orchestrator is the autonomy engine — without it, the generative principle can't compound.
 
 ## Research Cadence
 
@@ -67,11 +67,20 @@ The cycle: research (divergent) until diminishing returns → build (convergent)
 - **Opportunistic.** New model ships → immediate sweep. Stuck on a problem → search for prior art. Steep improvement curve → more research. Diminishing returns → more action.
 - **Action produces information.** At some point, building and using is more informative than reading papers.
 
+## Knowledge Management
+
+Meta's research index, improvement log, and maintenance checklist are valuable — but should trend toward **index over content dump**. Best practices:
+- Research memos: actionable findings up front, evidence below. The index table in CLAUDE.md is the discovery layer.
+- Improvement log: findings should resolve (implemented, rejected, superseded), not accumulate indefinitely. Archive entries older than 60 days that haven't been acted on.
+- Backlog: items without a clear path to implementation should be pruned, not preserved.
+
+The warning stands: meta is not a place to write more rules about rules. If knowledge isn't changing agent behavior, it's dead weight.
+
 ## Projects Served
 
-All projects: intel, selve, genomics, skills, papers-mcp, and any future repos. The uneven attention to date (mostly intel) is an artifact of where work has concentrated, not a priority decision.
+All projects: intel, selve, genomics, skills, papers-mcp, and any future repos. Cross-project work happens organically — the human runs Claude Code from meta and touches other repos as needed. The meta-knowledge MCP provides a query interface so sub-projects can access meta's knowledge without carrying it.
 
-Meta provides: shared skills, hooks, MCP servers, maintenance checklists, session analysis, observability, and the research pipeline. Any project should be able to install meta's toolkit and benefit.
+Meta provides: shared skills, hooks, MCP servers, maintenance checklists, session analysis, observability, and the research pipeline.
 
 ## Skills Ownership
 
@@ -85,7 +94,15 @@ Recurring patterns (used/encountered 10+ times) must become architecture — not
 
 Qualitative reports from session-analyst are the primary feedback mechanism. No arbitrary numeric targets — the goal is "no stupid shit in the logs," judged by comparing actual runs against what an optimal run would look like.
 
-## Open Questions (dispatched to model-review)
+## Resource Constraints
+
+- Single human operator with limited attention
+- Cost-conscious (session receipts track spend)
+- Compute: local Mac + cloud APIs (Anthropic, Google, OpenAI, Exa)
+- Storage: SSK1TB external drive for large datasets
+- Multi-vendor subscriptions provide cheaper compute for sub-agent work
+
+## Open Questions
 
 - **Enforcement granularity** — which principles deserve hooks vs. which stay instructional? Hooks can be annoying. Need empirical data from meta sessions. Progressive approach for now.
 - **Autonomy gradient threshold** — where exactly does "clear improvement" end and "multiple valid solutions" begin? Probably can't be defined precisely; needs examples over time.
@@ -96,6 +113,7 @@ Qualitative reports from session-analyst are the primary feedback mechanism. No 
 - **IB API / trading automation** — blocked by paper trading validation in intel, not meta's concern
 - **Fraud/corruption separation** — stays in intel until compute burden forces a split
 - **Numeric benchmarking** — qualitative assessment first, formalize metrics when patterns stabilize
+- **Shared library extraction** (`~/Projects/lib/`) — active work, plan exists, will update goals when it lands
 
 ## Exit Condition
 
@@ -106,13 +124,6 @@ Meta becomes unnecessary when:
 
 This may never fully happen — meta encodes domain-specific and personal-idiosyncratic knowledge that generic tooling won't replicate. But the goal is to make meta's job progressively smaller, not to preserve it.
 
-## Resource Constraints
-
-- Single human operator with limited attention
-- Cost-conscious (session receipts track spend)
-- Compute: local Mac + cloud APIs (Anthropic, Google, OpenAI, Exa)
-- Storage: SSK1TB external drive for large datasets
-
 ---
 
-*Created: 2026-02-28. Updated: 2026-02-28 (generative principle, self-modification boundaries, research philosophy, skills ownership). Elicited via goals + constitution questionnaire.*
+*Created: 2026-02-28. Revised: 2026-03-06 (orchestrator UX gaps as top priority, multi-vendor strategic, pull-based propagation, knowledge management hygiene, weekly supervision measurement).*
