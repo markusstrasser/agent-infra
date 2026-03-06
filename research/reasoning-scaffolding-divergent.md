@@ -247,6 +247,8 @@ Cost: zero (prompt-only). Expected benefit: catches temporal ordering errors lik
 | 4 | **`dag_suggest.py`** — causal-learn PC + LLM priors | 1 day | MEDIUM | Data-driven DAG suggestion, high false-confidence risk |
 | 5 | **Best-of-N DAGs** — generate multiple, evaluate with dag_check.py | 2 hours | LOW-MED | FunSearch pattern applied to causal specification |
 
+| 6 | **DoWhy backend for dag_check.py** — replace custom backdoor check with DoWhy's 4 strategies + ID algorithm | 1 day | HIGH | Mature library (v0.14), optimal adjustment sets for free |
+
 ### Deferred
 
 | What | Why |
@@ -255,6 +257,7 @@ Cost: zero (prompt-only). Expected benefit: catches temporal ordering errors lik
 | PRM integration for causal reasoning | No domain-specific PRM exists yet; ThinkPRM is math-focused |
 | White-box CRV verification | Requires model internals access |
 | Full Causal-Copilot integration | Too heavyweight; better to use causal-learn directly |
+| interwhen-style interleaved verification | Promising (Microsoft Research, Feb 2026) but preprint only |
 
 ---
 
@@ -277,3 +280,17 @@ Key new papers from this session:
 - Robin multi-agent discovery (799017d2), Emergent analogical reasoning (3cbffab9)
 - TimeBench (f37d1ef3), TRAM (811f451f), LLMs Can Learn Temporal (5ff337e9)
 - Recursive Causal Discovery (JMLR 2025, via web search)
+
+---
+
+## Companion Memo
+
+Full reasoning verification deep-dive (Axis 3 expanded): `reasoning-trace-verification.md`
+
+Key findings from that memo not duplicated here:
+- **DoWhy v0.14** provides 4 backdoor strategies, ID algorithm, front-door criterion, optimal adjustment sets — should replace dag_check.py backend
+- **VRPM** (rule-based verifiers): +20% F1 over neural PRMs in structured domains — validates our dag_check.py architectural approach
+- **interwhen** (Microsoft Research, Feb 2026): interleave generation with verification at controllable granularity — natural fit for DAG construction
+- **No PRM targets causal reasoning** — confirmed negative result across extensive search
+- **Self-consistency has special power for causal reasoning** because conclusions are formally verifiable (generate 5 DAGs, formally check each, vote among those that pass)
+- **Verification gap is in DAG CONSTRUCTION, not DAG ANALYSIS** — formal tools verify adjustment sets with certainty; no tool verifies "is this DAG correct?"
