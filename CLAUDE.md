@@ -208,6 +208,8 @@ orchestrator.py summary                              # daily markdown
 - [ ] **Design-bakeoff worktrees** — For high-uncertainty architecture tasks, spawn 2-3 parallel implementation spikes in separate worktrees, compare and select. Maps to Claude Code `--worktree` support. (Source: model-review 2026-03-06, P1)
 - [ ] **Cross-session anti-repetition cache** — Store recently proposed paradigms per topic so future brainstorming is pushed away from already-used idea families. Needs persistent storage mechanism. (Source: model-review 2026-03-06, P8)
 - [ ] **Intentional Contextual Fracture** — Redact/distort different parts of context for parallel generators; incomplete context forces different anchoring and pulls solutions from different domains. Needs orchestrator to manage parallel redacted prompts. (Source: model-review 2026-03-06, D2)
+- [ ] **Session-analyst design-task check** — Verify that design tasks (architecture, strategy, shared infra) produce phase-state artifacts (divergent-options + selection-rationale). Forward commitment from constitutional P6. (Source: causal-scaffolding-v2 plan 2026-03-06)
+- [ ] **dag_suggest CPDAG output** — Data-driven DAG skeleton via causal-learn PC + bootstrap stability. Deferred: Phase 4 DoWhy assessment found tool ecosystem adds no value beyond dag_check.py for current use cases. Revisit if causal discovery from data becomes a need. (Source: causal-scaffolding-v2 plan 2026-03-06)
 
 ## What This Repo Is NOT
 - Not a place to write more rules about rules.
