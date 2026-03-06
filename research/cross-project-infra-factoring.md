@@ -1,189 +1,178 @@
-# Cross-Project Infrastructure Factoring
+# Cross-Project Infrastructure Factoring (v2)
 
 **Date:** 2026-03-06
-**Scope:** intel, research, genomics, selve, meta, papers-mcp
+**Scope:** intel, research, genomics, selve, meta, papers-mcp, emb
 
 ---
 
 ## 1. Duplication Inventory
 
-### Tier A: Identical code copy-pasted across projects
+### Tier A: Identical code copy-pasted (same function, 2+ places)
 
-| Pattern | Intel | Research | Genomics | Meta | Papers-MCP | Copies | Total LOC |
-|---------|-------|----------|----------|------|------------|--------|-----------|
-| `load_jsonl()` | — | — | — | dashboard.py, agent_receipts.py, compaction-nuance.py | — | 3 | ~45 |
-| `parse_ts()` (timestamp parsing) | — | — | — | dashboard.py, agent_receipts.py, hook-roi.py, compaction-nuance.py | — | 4 | ~80 |
-| `weighted_mean()` | — | 10 files (nlscya, eclsk, pisa, nels, els, hsls, nlsy79, nlsy97, early_school) | — | — | — | 10 | ~40 |
-| `weighted_var()` | — | 9 files (same as above) | — | — | — | 9 | ~36 |
-| `weighted_standardize()` | — | 5 files (early_school_*, hsls, nels, els, nlsy97_behavior) | — | — | — | 5 | ~50 |
-| `pooled_weighted_sd()` | — | nlsy97_stats, nlsy79_stats (+ 3 callers) | — | — | — | 2 | ~36 |
-| Weighted Cohen's d | timss_common `weighted_effect` | 8 files (inline pattern) | — | — | — | 9 | ~180 |
+| Pattern | Where | Copies | LOC each |
+|---------|-------|--------|----------|
+| `load_jsonl(path) -> list[dict]` | meta: dashboard.py, agent_receipts.py, compaction-nuance.py | 3 | 13 |
+| `parse_ts(value) -> datetime` | meta: dashboard.py, agent_receipts.py, hook-roi.py, compaction-nuance.py | 4 | 15-20 |
+| `safe_float(value) -> float\|None` | genomics: variant_evidence_core.py, modal_annotsv_manta.py, generate_review_packets.py (x2), modal_local_ancestry.py, modal_ancestry_admixture.py | 5 | 8-12 |
+| `weighted_mean(values, weights)` | research: 10 files (nlscya, eclsk, eclsk2011, pisa, nels, els, hsls×2, nlsy79, nlsy97_transcript) | 10 | 3-4 |
+| `weighted_var(values, weights)` | research: same 9 files | 9 | 3-4 |
+| `weighted_standardize(values, weights)` | research: 5 files (early_school×2, hsls_wedge, nels, els, nlsy97_behavior) | 5 | 6-8 |
 
-### Tier B: Same pattern, different implementations
+### Tier B: Same problem, different implementations (pattern duplication)
 
-| Pattern | Intel | Research | Genomics | Meta | Papers-MCP | Impls | Total LOC |
-|---------|-------|----------|----------|------|------------|-------|-----------|
-| HTTP retry + backoff | `tools/lib/http.py` (195) | `download_nces_*.py` (~15) | `query_mastermind.py` (~35) | — | `discovery.py` + `openalex.py` (~50) | 4 | ~295 |
-| SQLite WAL + schema init | — | — | — | orchestrator.py (25), runlog.py (25) | db.py (25) | 3 | ~75 |
-| JSONL telemetry/logging | `tools/lib/telemetry.py` (124) | — | `pipeline_log.py` (110) | `config.py` (50) | — | 3 | ~284 |
-| DuckDB connection mgmt | `tools/lib/db.py` (167) | (inline) | `variant_lakehouse.py` (304) | — | — | 2 | ~471 |
-| File schema introspection | `tools/lib/schema.py` (62) | — | `lakehouse_materialize.py` (partial) | — | — | 2 | ~100 |
-| Subprocess w/ timeout | — | — | `modal_utils.py` `run_cmd` (40) | `doctor.py` `run` (10) | — | 2 | ~50 |
-| Content-addressable hash | — | — | `modal_utils.py` `StageSignature` (100) | `runlog_adapters/common.py` `stable_id` (30) | — | 2 | ~130 |
-| Health check framework | — | — | `preflight.py` (279) | `doctor.py` (200) | — | 2 | ~479 |
-| Checkpoint / file validation | `fetch_url.py` (partial) | — | `modal_utils.py` (40) | — | — | 2 | ~60 |
+| Pattern | Implementations | Projects |
+|---------|----------------|----------|
+| **Atomic file write** (.tmp + rename) | intel http.py:161-174, intel download_manifest.py:63-68, intel paper_ledger.py:289-291, intel prediction_tracker.py:124-126, intel download_datasets.py:2188+2223, genomics modal_utils.py (log_stage_state) | intel, genomics |
+| **fcntl file locking** | intel db.py:99-145 (DuckDBLock class), intel download_manifest.py:65-67, meta orchestrator.py:108-114, selve agent_coord.py:125-148 | intel, meta, selve |
+| **HTML trap detection** (downloaded file is actually an error page) | intel fetch_url.py:28 `is_html_trap`, intel download.py:166 `_is_html_trap`, intel setup_duckdb.py:135 `_is_csv_content`, intel setup_duckdb.py:150 `_is_real_file` | intel (4× internal) |
+| **SQLite WAL + schema init** | meta orchestrator.py:71-76, meta runlog.py:43-50, papers-mcp db.py:48-56 | meta, papers-mcp |
+| **SQLite column migration** (ALTER TABLE ... ADD COLUMN, catch OperationalError) | meta orchestrator.py:82-92, papers-mcp db.py:58-63 | meta, papers-mcp |
+| **JSONL append with timestamp** (telemetry/metrics) | intel telemetry.py:34-71 `log_run`, genomics pipeline_log.py:61-65 `_write`, meta config.py:21-25 `log_metric` | intel, genomics, meta |
+| **Timed operation context manager** | intel telemetry.py:96-124 `timed_run`, genomics modal_utils.py `init_stage/finalize_stage` | intel, genomics |
+| **HTTP retry + exponential backoff** (requests-based) | intel http.py:81-127 `fetch_with_retry`, genomics query_mastermind.py:99-132 `_api_get` | intel, genomics |
+| **Streaming file download** (chunked + validate) | intel http.py:130-190 `fetch_streaming`, research download_nces.py `stream_download` | intel, research |
+| **DuckDB schema introspection** | intel schema.py:24-46 `_fetch_schema`, genomics variant_lakehouse.py `create_connection` | intel, genomics |
+| **Health check accumulation** (collect errors, report at end) | meta doctor.py (Check class), genomics preflight.py (279 lines), genomics pipeline_qc_gates.py | meta, genomics |
+| **Config file discovery** (try multiple candidate paths) | genomics variant_evidence_core.py:13-26 `resolve_threshold_config` | genomics (but universal problem) |
+| **Content-addressable hashing** | genomics modal_utils.py:273-375 StageSignature, meta runlog_adapters/common.py:157-170 stable_id | meta, genomics |
+| **MCP server lifespan** (FastMCP + async context + shared clients) | papers-mcp server.py:27-70, meta meta_mcp.py | meta, papers-mcp |
 
-### Tier C: Single-project utilities that other projects would use
+### Tier C: Within-project duplication worth noting
 
-| Pattern | Location | LOC | Would benefit |
-|---------|----------|-----|---------------|
-| `DuckDBLock` (flock) | intel `tools/lib/db.py:99-167` | 68 | genomics (DuckDB lakehouse), research (future) |
-| `normalize_name()` | intel `tools/lib/normalize.py` | 156 | research (entity matching), selve |
-| `timed_run()` context manager | intel `tools/lib/telemetry.py:96-124` | 28 | genomics, meta |
-| Admiralty source grading | intel `tools/lib/admiralty.py` | 178 | research (evidence quality) |
-| `load_sav_from_zip()` | research `timss_common.py:29-39` | 11 | any survey data project |
-| Jackknife variance | research `timss_common.py:83-117` | 35 | any replicate-weight survey |
-| Plausible value MI + JK | research `timss_common.py:120-165` | 45 | any ILSAs (TIMSS, PISA, PIRLS) |
+| Pattern | Where | Count | LOC each |
+|---------|-------|-------|----------|
+| CSV DictWriter boilerplate | intel: 46 scripts use identical 4-line write pattern | 46 | 4 |
+| Hardcoded PROJECT_ROOT / DATASETS | intel: 61 scripts ignore existing `lib/paths.py` | 61 | 3-5 |
+| `_is_csv_content` / `_is_html_trap` | intel: fetch_url.py, download.py, setup_duckdb.py | 4 | 10-15 |
 
 ---
 
 ## 2. Extraction Plan
 
-### Module 1: `shared.io` — JSONL, timestamps, hashing
+### Module 1: `shared.io` — JSONL, timestamps, atomic writes, safe coercion
 
-**Purpose:** Eliminate the most-copied utility functions across meta scripts.
+**Purpose:** The most-copied functions across all projects.
 
-**Source of truth:** `meta/scripts/agent_receipts.py` (most robust `parse_ts`), `meta/scripts/dashboard.py` (`load_jsonl`)
+**What moves (source of truth in parens):**
+- `load_jsonl(path) -> list[dict]` — (meta agent_receipts.py:63-76)
+- `write_jsonl(path, rows)` — (meta agent_receipts.py:79+)
+- `append_jsonl(path, entry)` — consolidate from config.py:21-25, telemetry.py:70-71
+- `parse_ts(value) -> datetime | None` — (meta agent_receipts.py:35-54, handles str/int/float/None, UTC normalization)
+- `stable_id(prefix, *parts) -> str` — (meta runlog_adapters/common.py:157-170)
+- `sha256_file(path) -> str` — (meta runlog.py:35-40)
+- `atomic_write(path, content_fn, *, suffix=".tmp")` — consolidate from 6+ intel atomic-write sites
+- `safe_float(value) -> float | None` — (genomics variant_evidence_core.py:51-62, handles "", ".", "NA", "nan", "None")
+- `is_html_trap(content_type, first_bytes) -> bool` — (intel fetch_url.py:28-45, consolidate 4 intel variants)
+
+**Dependencies:** stdlib only
+
+**Migration risk:** LOW. Pure functions. Biggest win is within-meta (7 copies) and within-genomics (5 copies of safe_float).
+
+**Consumers:** meta (7 scripts), genomics (5 scripts), intel (4+ scripts for HTML trap + atomic write)
+
+---
+
+### Module 2: `shared.files` — File locking + validated downloads
+
+**Purpose:** Consolidate the 4 different fcntl locking implementations and the download-validation pattern.
 
 **What moves:**
-- `load_jsonl(path: Path) -> list[dict]` — from `agent_receipts.py:63-76`
-- `write_jsonl(path: Path, rows: list[dict])` — from `agent_receipts.py:79+`
-- `append_jsonl(path: Path, entry: dict)` — consolidate from `config.py:21-25`, `telemetry.py:70-71`
-- `parse_ts(value) -> datetime | None` — from `agent_receipts.py:35-54` (handles str, int, float, None)
-- `stable_id(prefix: str, *parts) -> str` — from `runlog_adapters/common.py:157-170`
-- `sha256_file(path: Path) -> str` — from `runlog.py:35-40`
+- `FileLock(path, *, exclusive=False, timeout=30)` — generalize from intel DuckDBLock (db.py:99-145). Same context-manager API, parameterized path instead of hardcoded DB_PATH. Includes `_find_holders()` diagnostics via lsof.
+- `atomic_download(session, url, dest, *, chunk_size=8192, timeout=1800, max_retries=3, validate=True) -> bool` — merge intel http.py:130-190 `fetch_streaming` + fetch_url.py:28 `is_html_trap`. Downloads to .tmp, validates not HTML error page, atomic rename.
+- `verify_file(path, *, min_bytes=None, not_html=True) -> tuple[bool, str]` — merge intel setup_duckdb.py `_is_csv_content`/`_is_real_file` + genomics modal_utils.py `validate_file`
 
-**What stays:** Project-specific callers unchanged — just `from shared.io import load_jsonl, parse_ts`
+**What stays:**
+- intel `DuckDBLock` becomes a thin wrapper: `FileLock(DB_PATH.parent / ".duckdb.lock", exclusive=exclusive, timeout=timeout)`
+- selve `agent_coord.py` — keep as-is (different purpose: agent coordination, not file safety)
+- genomics `checkpoint_exists()` — stays (it does vol.reload() which is Modal-specific)
 
-**Dependencies:** stdlib only (json, datetime, hashlib, pathlib)
+**Dependencies:** stdlib (fcntl, os, pathlib, time, subprocess)
 
-**Migration risk:** LOW. Pure functions, no state, no side effects.
+**Migration risk:** LOW. The intel DuckDBLock API is preserved exactly. Other locking sites simplify.
+
+**Consumers:** intel (DuckDB lock + download verification), meta (orchestrator lock), genomics (file validation)
 
 ---
 
-### Module 2: `shared.http` — Session, retry, streaming downloads
+### Module 3: `shared.db` — SQLite init + DuckDB helpers
 
-**Purpose:** One HTTP retry implementation instead of four.
-
-**Source of truth:** `intel/tools/lib/http.py` — most complete (195 lines, covers session setup, manual backoff, atomic streaming, rate limiting)
+**Purpose:** Three identical SQLite init patterns; DuckDB schema introspection useful in 2+ projects.
 
 **What moves:**
-- `get_session(user_agent, max_retries, backoff_factor, status_forcelist, timeout)` — http.py:35-78
-- `fetch_with_retry(session, url, *, max_retries, timeout, sleep_base, raise_on_failure)` — http.py:81-127
-- `fetch_streaming(session, url, dest, *, chunk_size, timeout, max_retries, sleep_base)` — http.py:130-190
-- `rate_limit_sleep(seconds)` — http.py:193-195
-- Move `USER_AGENTS` dict but make it extensible (projects can register their own)
+```python
+# SQLite
+def get_db(path, schema_sql=None, *, wal=True, busy_timeout=5000,
+           foreign_keys=False, row_factory=True) -> sqlite3.Connection
 
-**What stays:**
-- `intel/tools/fetch_url.py` — stays as intel CLI tool, imports shared HTTP
-- `papers-mcp/discovery.py` — keeps httpx+tenacity (different HTTP library); no change
-- `genomics/query_mastermind.py` — refactor to use shared.http.get_session
+def migrate_columns(db, migrations: list[str])
+# tries each ALTER TABLE, catches OperationalError (column exists)
 
-**Dependencies:** `requests`, `urllib3`
+# DuckDB
+def describe_file(file_path) -> list[tuple[str, str]]  # (col_name, col_type)
+def get_columns(file_path) -> list[str]
+def validate_columns(file_path, required) -> list[str]  # returns missing
+```
 
-**Migration risk:** LOW. Intel's `http.py` already has zero intel-specific code. Genomics uses `requests` too. Papers-MCP uses `httpx` — leave it alone.
+**Source of truth:**
+- SQLite: meta runlog.py:43-50 (most complete — WAL + foreign_keys + row_factory)
+- DuckDB schema: intel schema.py (62 lines, cleanly factored)
+- Migration: papers-mcp db.py:58-63
 
----
+**Dependencies:** sqlite3 (stdlib), duckdb (optional extra)
 
-### Module 3: `shared.stats` — Weighted statistics and effect sizes
+**Migration risk:** LOW. Drop-in replacements.
 
-**Purpose:** Eliminate 10+ copies of `weighted_mean`/`weighted_var`/`weighted_standardize` in research, and provide a shared effect-size toolkit.
-
-**Source of truth:** Research `timss_common.py` for survey stats; intel `scoring.py` for Bayesian stats. These serve different purposes and should be separate submodules.
-
-**What moves into `shared.stats.weighted`:**
-- `weighted_mean(values, weights)` — consolidate from 10 research files
-- `weighted_var(values, weights)` — consolidate from 9 research files
-- `weighted_standardize(values, weights)` — consolidate from 5 research files
-- `pooled_weighted_sd(values, weights, group_mask)` — from `nlsy97_stats_pipeline.py:101-119`
-- `cohens_d_weighted(values, weights, group_mask, min_n=30)` — from `timss_common.py:49-80`
-
-**What moves into `shared.stats.survey`:**
-- `jackknife_variance(values, weights, group_mask, jkzone, jkrep)` — from `timss_common.py:83-117`
-- `plausible_value_summary(estimates, sampling_vars)` — generalize from `timss_common.py:120-165`
-- `load_sav_from_zip(zip_path, member, usecols)` — from `timss_common.py:29-39`
-
-**What stays:**
-- `intel/tools/lib/scoring.py` — stays in intel. Its LLR/EB/Bayes functions are intel-specific calibration tools. The generic statistics it contains (Welch t, Stouffer, BH FDR) could move eventually but aren't duplicated elsewhere yet.
-- Research scripts keep their domain logic, just `from shared.stats.weighted import weighted_mean, cohens_d_weighted`
-
-**Dependencies:** `numpy`, `pandas` (optional, for Series overloads), `pyreadstat` (optional, for `load_sav_from_zip`)
-
-**Migration risk:** MEDIUM. The 10 research files that define `weighted_mean` need import changes. But each is self-contained — change one at a time, run the script, verify output matches.
+**Consumers:** meta (orchestrator, runlog), papers-mcp, intel, genomics
 
 ---
 
-### Module 4: `shared.db` — SQLite and DuckDB helpers
+### Module 4: `shared.telemetry` — Operation logging + timing
 
-**Purpose:** Consolidate 3 identical SQLite init patterns and the DuckDB file-locking pattern.
-
-**What moves into `shared.db.sqlite`:**
-- `get_sqlite_db(path, schema_sql, *, wal=True, busy_timeout=5000, foreign_keys=False)` — consolidate from:
-  - `meta/orchestrator.py:71-76`
-  - `meta/runlog.py:43-50`
-  - `papers-mcp/db.py:48-56`
-- `migrate_columns(db, table, migrations: list[str])` — from `papers-mcp/db.py:58-63`
-
-**What moves into `shared.db.duckdb`:**
-- `DuckDBLock(lock_path, exclusive, timeout)` — from `intel/tools/lib/db.py:99-167`, parameterize lock path
-- `view_exists(con, name)` — from `intel/tools/lib/db.py:76-82`
-- `get_memory_connection()` — from `intel/tools/lib/db.py:85-89`
-- `describe_file(file_path)` — from `intel/tools/lib/schema.py:24-46`
-- `get_columns(file_path)` — from `intel/tools/lib/schema.py:49-51`
-- `validate_columns(file_path, required)` — from `intel/tools/lib/schema.py:59-62`
-
-**What stays:**
-- `intel/tools/lib/db.py` — keep `get_connection()`, `get_state_connection()`, `check_stale_paths()` (project-specific paths). Import `DuckDBLock` from shared.
-- `papers-mcp/db.py` — keep `PaperDB` class (domain-specific). Init uses `shared.db.sqlite.get_sqlite_db()`.
-- `genomics/variant_lakehouse.py` — keep as-is (its DuckDB-over-Parquet pattern is more specialized)
-
-**Dependencies:** `sqlite3` (stdlib), `duckdb` (optional), `fcntl` (stdlib, macOS/Linux)
-
-**Migration risk:** LOW for SQLite (drop-in replacement). LOW for DuckDB lock (parameterize path, same API).
-
----
-
-### Module 5: `shared.telemetry` — Structured operation logging
-
-**Purpose:** One JSONL telemetry pattern instead of three.
-
-**Source of truth:** `intel/tools/lib/telemetry.py` — best API design (log_run + timed_run context manager)
+**Purpose:** Three projects write timestamped JSONL telemetry with identical schemas.
 
 **What moves:**
-- `log_run(job_name, *, log_path, inputs, outputs, duration_ms, status, error, row_counts)` — from `telemetry.py:34-71`, add `log_path` parameter
-- `timed_run(job_name, *, log_path, inputs)` — from `telemetry.py:96-124`
-- `_RunContext` class — from `telemetry.py:74-93`
-- `log_event(event_name, *, log_path, **fields)` — consolidate `config.py:log_metric` and `config.py:log_hook_event`
+- `log_event(event_name, *, log_path, **fields)` — consolidate config.py:log_metric, config.py:log_hook_event. One function that appends `{ts, event, **fields}` to JSONL.
+- `timed_run(job_name, *, log_path, inputs=None)` — from intel telemetry.py:96-124. Context manager that auto-logs duration, status, error.
 
 **What stays:**
-- `genomics/pipeline_log.py` `PipelineLogger` — keeps Modal volume commit integration (Modal-specific). Could optionally wrap `shared.telemetry.log_run` for the JSONL part.
-- `meta/config.py` — replace `log_metric`/`log_hook_event` with `shared.telemetry.log_event`
+- genomics `PipelineLogger` — keeps Modal volume.commit() integration. Could internally use `shared.telemetry.log_event` for the JSONL writing, but the class stays in genomics.
+- intel `telemetry.py` — becomes thin wrapper importing from shared
 
-**Dependencies:** stdlib only (json, os, socket, time, datetime, pathlib, contextlib)
+**Dependencies:** stdlib only
 
-**Migration risk:** LOW. All three implementations write to JSONL with the same schema shape.
+**Migration risk:** LOW.
 
 ---
 
-### Module 6: `shared.env` — Environment and API key helpers
+### Module 5: `shared.http` — Session + retry (requests-based)
 
-**Purpose:** Standardize .env.local loading and project root discovery.
+**Purpose:** Intel's http.py is already project-agnostic. Publishing it as shared lets genomics use it instead of reimplementing.
 
-**Source of truth:** `intel/tools/lib/env.py` (34 lines)
+**What moves:** Intel `tools/lib/http.py` as-is (195 lines). Zero changes needed — it's already generic.
+- `get_session(user_agent, max_retries, backoff_factor, status_forcelist, timeout)`
+- `fetch_with_retry(session, url, *, max_retries, timeout, sleep_base, raise_on_failure)`
+- `rate_limit_sleep(seconds)`
+
+**Note:** `fetch_streaming` moves to `shared.files.atomic_download` (Module 2) since it's really a file operation with HTTP as transport.
+
+**What doesn't move:** papers-mcp stays on httpx+tenacity (different ecosystem, no benefit to unifying).
+
+**Dependencies:** requests, urllib3
+
+**Migration risk:** TRIVIAL. Literally moving a file.
+
+**Consumers:** intel (already using it), genomics (replace query_mastermind._api_get)
+
+---
+
+### Module 6: `shared.env` — API keys + project root discovery + config file resolution
+
+**Purpose:** Standardize the 3 different approaches to finding config/env files.
 
 **What moves:**
-- `get_key(name, *, env_file=".env.local")` — from `env.py`, parameterize env file path
-- `find_project_root(marker_files=("pyproject.toml", ".git"))` — new utility to replace hardcoded `Path(__file__).parent.parent.parent` patterns
+- `get_key(name, *, env_file=".env.local")` — from intel env.py (34 lines)
+- `find_project_root(markers=("pyproject.toml", ".git"))` — new, replaces 61+ hardcoded `Path(__file__).parent.parent.parent` in intel
+- `resolve_config(filename, candidates=None)` — from genomics variant_evidence_core.py:13-26 pattern. Tries multiple candidate directories, raises FileNotFoundError listing all candidates tried.
 
 **Dependencies:** stdlib only
 
@@ -195,43 +184,36 @@
 
 ```
 ~/Projects/lib/
-├── pyproject.toml          # name = "shared-lib", no heavy deps by default
+├── pyproject.toml
 ├── src/
 │   └── shared/
 │       ├── __init__.py
-│       ├── io.py           # JSONL, timestamps, hashing (~80 lines)
-│       ├── http.py          # Session, retry, streaming (~200 lines)
-│       ├── env.py           # API keys, project root (~40 lines)
-│       ├── telemetry.py     # Structured JSONL logging (~130 lines)
-│       ├── db/
-│       │   ├── __init__.py
-│       │   ├── sqlite.py    # WAL init, migrations (~50 lines)
-│       │   └── duckdb.py    # Lock, schema introspection (~150 lines)
-│       └── stats/
-│           ├── __init__.py
-│           ├── weighted.py  # weighted_mean/var/sd, Cohen's d (~100 lines)
-│           └── survey.py    # JK variance, MI, SPSS loader (~100 lines)
+│       ├── io.py           # JSONL, timestamps, hashing, safe_float, html_trap (~120 lines)
+│       ├── files.py         # FileLock, atomic_download, verify_file (~120 lines)
+│       ├── http.py          # Session, retry — intel http.py verbatim (~200 lines)
+│       ├── env.py           # API keys, project root, config resolution (~60 lines)
+│       ├── telemetry.py     # log_event, timed_run (~80 lines)
+│       └── db.py            # get_db (SQLite), describe_file (DuckDB) (~100 lines)
 └── tests/
     ├── test_io.py
-    ├── test_http.py
-    ├── test_stats.py
-    └── test_db.py
+    ├── test_files.py
+    ├── test_db.py
+    └── test_telemetry.py
 ```
 
-**pyproject.toml:**
+**~680 lines total.** No `stats/` module — use numpy/scipy/pingouin.
+
 ```toml
 [project]
 name = "shared-lib"
 version = "0.1.0"
 requires-python = ">=3.11"
-dependencies = []  # zero required deps — everything optional
+dependencies = []  # everything optional
 
 [project.optional-dependencies]
 http = ["requests>=2.31"]
 duckdb = ["duckdb>=1.0"]
-stats = ["numpy>=1.24"]
-survey = ["numpy>=1.24", "pandas>=2.0", "pyreadstat>=1.2"]
-all = ["shared-lib[http,duckdb,stats,survey]"]
+all = ["shared-lib[http,duckdb]"]
 
 [build-system]
 requires = ["hatchling"]
@@ -241,88 +223,119 @@ build-backend = "hatchling.build"
 packages = ["src/shared"]
 ```
 
-**Consumer projects add as path dependency:**
+**Consumer projects:**
 ```toml
-# In intel/pyproject.toml
-dependencies = [
-    "shared-lib[http,duckdb] @ file:///${PROJECT_ROOT}/../lib",
-    ...
-]
-
-# Or via uv sources:
+# uv sources (preferred)
 [tool.uv.sources]
 shared-lib = { path = "../lib" }
 ```
+
+Precedent: `emb` library already works this way (selve depends on `../emb`).
 
 ---
 
 ## 4. Migration Order
 
-Each step is independently committable and testable.
+### Step 1: `shared.io` — JSONL + timestamps + safe_float + html_trap
+**Value:** HIGHEST. Eliminates 7 copies within meta, 5 copies of safe_float in genomics, 4 copies of html_trap in intel.
+**Risk:** TRIVIAL (pure functions, stdlib only)
+**Verify:** `uv run python3 scripts/dashboard.py`, `uv run python3 scripts/agent_receipts.py sync-codex`
 
-### Step 1: `shared.io` (JSONL + timestamps)
-**Value:** HIGH (eliminates 3 copies of `load_jsonl`, 4 copies of `parse_ts` within meta alone)
-**Risk:** TRIVIAL (pure functions, stdlib only, no external deps)
-**Verify:** Run `uv run python3 scripts/dashboard.py` and `uv run python3 scripts/agent_receipts.py sync-codex` — output identical
+### Step 2: `shared.files` — FileLock + atomic_download + verify_file
+**Value:** HIGH. The DuckDBLock pattern is non-trivial (68 lines, with lsof diagnostics and timeout). Used in 4 places across 3 projects. Atomic-write pattern in 6+ places.
+**Risk:** LOW (context manager API preserved exactly)
+**Verify:** `intel/tools/setup_duckdb.py` with concurrent readers, orchestrator tick under lock
 
-### Step 2: `shared.stats.weighted` (weighted statistics)
-**Value:** HIGH (eliminates 10+ copies of `weighted_mean` in research)
-**Risk:** LOW (pure functions, but need to update 10 files)
-**Verify:** For each research script, run before/after and diff the TSV output
-
-### Step 3: `shared.http` (HTTP retry)
-**Value:** MEDIUM (intel already has it factored; mainly benefits genomics)
-**Risk:** LOW (intel's existing implementation is battle-tested)
-**Verify:** Run one intel download script and one genomics script that uses HTTP
-
-### Step 4: `shared.db.sqlite` (SQLite init)
-**Value:** MEDIUM (3 implementations, but they're small)
-**Risk:** LOW (drop-in replacement)
+### Step 3: `shared.db` — SQLite init + DuckDB schema
+**Value:** MEDIUM. 3 SQLite init copies, 2 DuckDB schema introspection copies.
+**Risk:** LOW
 **Verify:** `orchestrator.py status`, `runlog.py stats`, papers-mcp server start
 
-### Step 5: `shared.db.duckdb` (DuckDB lock + schema)
-**Value:** MEDIUM (DuckDBLock is high-quality; schema introspection prevents column-guessing bugs)
-**Risk:** LOW (intel's implementation is production-proven)
-**Verify:** `intel/tools/setup_duckdb.py` with concurrent readers
+### Step 4: `shared.http` — Session + retry
+**Value:** MEDIUM. Intel's http.py is already the extraction — just publish it.
+**Risk:** TRIVIAL (literally moving a file)
+**Verify:** Any intel download script
 
-### Step 6: `shared.telemetry` (operation logging)
-**Value:** LOW-MEDIUM (3 implementations but not heavily duplicated)
+### Step 5: `shared.telemetry` — log_event + timed_run
+**Value:** MEDIUM. 3 implementations.
 **Risk:** LOW
-**Verify:** Check JSONL output format matches expectations
+**Verify:** Check JSONL output format
 
-### Step 7: `shared.stats.survey` (JK/MI/SPSS)
-**Value:** LOW (only used in research, but prevents future duplication)
-**Risk:** LOW (timss_common.py is well-tested)
-**Verify:** Run TIMSS analysis scripts, compare output
-
-### Step 8: `shared.env` (API keys)
-**Value:** LOW (small utility, but standardizes a pattern)
+### Step 6: `shared.env` — API keys + config resolution
+**Value:** LOW-MEDIUM. Small functions but standardizes a pattern.
 **Risk:** TRIVIAL
-**Verify:** Any script that calls `get_key()`
 
 ---
 
 ## 5. What I Decided NOT to Extract and Why
 
+### Use existing libraries instead
+
+| Candidate | Use this instead |
+|-----------|-----------------|
+| `weighted_mean()` (10 copies in research) | `np.average(values, weights=weights)` — built into numpy |
+| `weighted_var()` (9 copies) | `np.average((values - np.average(values, weights=weights))**2, weights=weights)` |
+| `pooled_weighted_sd()`, Cohen's d | `pingouin.compute_effsize` or inline with numpy (3 lines) |
+| `weighted_standardize()` (5 copies) | `(values - np.average(values, w=w)) / np.sqrt(weighted_var)` — 2 lines |
+| Jackknife variance | Stay in `timss_common.py` — too specialized for a library, but the research project should deduplicate internally by importing from timss_common instead of copy-pasting |
+| Meta-analysis (DerSimonian-Laird) | `statsmodels.stats.meta_analysis` or the `meta-analysis` PyPI package |
+
+**Action for research:** Don't extract — just make the 10 files import from one local `research/sources/iq-sex-diff/stats_common.py` that calls numpy. Internal refactor, not a shared library.
+
+### Too few consumers (single project, no realistic second user)
+
 | Candidate | Why not |
 |-----------|---------|
-| **intel `scoring.py`** (799 lines: LLR, EB shrinkage, evidence fusion) | Only used in intel. Despite being generic statistics, there's no second consumer. The weighted stats overlap (Cohen's d) is extracted separately. Move scoring.py when a second project needs Bayesian LLR. |
-| **intel `normalize.py`** (entity name normalization, 156 lines) | Only intel does entity name matching. Generic, but single user. |
-| **intel `admiralty.py`** (source grading, 178 lines) | The architecture is generic but the grade tables are intel-specific. Already exists as a skill (`source-grading`). |
-| **intel `watchlist.py`**, `xwalk.py`, `signal_schema.py`, `sentinels.py` | Domain-specific to investment research. |
-| **intel `claim_extraction.py`**, `falsification.py`**, `ach_scorer.py` | Intel-specific methodology. ACH is already a skill. |
-| **genomics `PipelineLogger`** | Tightly coupled to Modal volume commits. Pattern overlaps with `shared.telemetry` but the Modal integration makes it genomics-specific. |
-| **genomics `StageSignature`** (content-addressable caching) | Excellent pattern but only genomics has multi-stage pipelines. Would extract when orchestrator or another project needs input-hash-based cache invalidation. |
-| **genomics `preflight.py`** | Overlaps conceptually with `meta/doctor.py` but the check registries are completely different. Extract only if a third project needs preflight checks. |
-| **genomics `run_cmd()`** (subprocess wrapper) | 40 lines. Not enough duplication to justify a shared module. `subprocess.run()` with `capture_output=True, timeout=N` is already pretty clean. |
-| **papers-mcp `PaperDB`** | Domain-specific (papers schema). The SQLite init pattern moves to shared, but the rest stays. |
-| **papers-mcp httpx+tenacity retry** | Different HTTP library (httpx vs requests). Not worth unifying — let projects pick their HTTP client. |
-| **research `stage0_config.py`** | Excellent config pattern (314 lines) but entirely dataset-specific. The pattern is "use a Python module as config" — that's a convention, not a library. |
-| **research `timss_common.py` domain functions** | `member_country_code()`, `plausible_value_summary()` with TIMSS-specific column names (ITSEX, TOTWGT, JKZONE) — stays in research. Only the generic statistical functions move. |
-| **selve `search.py`** (2100+ lines) | Massive semantic search system. Only selve uses it. Papers-MCP uses a completely different search approach (API clients). |
-| **meta `orchestrator.py`** | Task queue is meta-specific. The Agent SDK wrapper pattern is interesting but too coupled to orchestrator's status machine. |
-| **Skills** | Already in `~/Projects/skills/`. Not a library concern. |
-| **Hooks** | Already in `~/Projects/skills/hooks/`. Not a library concern. |
+| intel `scoring.py` (799 lines: LLR, EB, Bayes) | Only intel. Move when a second project needs Bayesian scoring. |
+| intel `normalize.py` (entity name normalization) | Only intel does entity matching. |
+| intel `watchlist.py`, `xwalk.py`, `sentinels.py`, `signal_schema.py` | Intel-domain. |
+| intel `claim_extraction.py`, `falsification.py`, `ach_scorer.py` | Intel-domain. ACH is already a skill. |
+| intel `admiralty.py` (source grading) | Already exists as a skill. Grade tables are intel-specific. |
+| genomics `PipelineLogger` | Coupled to Modal volume commits. |
+| genomics `StageSignature` (content-addressable caching) | Only genomics has multi-stage pipelines. Extract if orchestrator needs it. |
+| genomics `preflight.py` | Overlaps with meta doctor.py conceptually, but check registries are completely different. |
+| genomics `Sample` dataclass (path management) | Genomics-specific path conventions. |
+| genomics `pipeline_stages.py` (stage DAG) | Genomics pipeline-specific. |
+| papers-mcp `PaperDB`, `SemanticScholar`, `OpenAlex` | Domain-specific API clients. |
+| papers-mcp CAG (Gemini 1M context) | Specialized to papers-mcp. |
+| selve `search.py` (2100+ lines) | Massive, selve-specific. emb already extracted as shared lib. |
+| selve connector/parser pattern | Architectural pattern, not a library. |
+| meta `orchestrator.py` task state machine | Meta-specific. |
+| meta `doctor.py` Check class | Only meta uses it. Genomics has preflight.py with different structure. Would extract if a third project needed health checks. |
+| meta `runlog_adapters/*` | Specific to vendor-specific session parsing. |
+
+### Pattern, not code (conventions beat libraries)
+
+| Pattern | Why not a library |
+|---------|------------------|
+| Config-as-Python-module (research stage0_config.py) | Convention: "put your config in a .py module." No code to extract. |
+| Frozen dataclass + hash (genomics wgs_config.py) | Convention: "use frozen dataclasses + SHA256 for config versioning." Write it up, don't library-ify it. |
+| CSV DictWriter 4-line boilerplate (intel, 46 scripts) | Too thin. The boilerplate IS the pattern. Wrap if you want, but `csv.DictWriter` is already the API. |
+| Subprocess with timeout (10-40 lines) | `subprocess.run(cmd, capture_output=True, timeout=N)` is already clean enough. |
+
+---
+
+## 6. Within-Project Cleanup (Not Shared, But Worth Doing)
+
+These aren't cross-project extractions but were found during the scan:
+
+### Intel
+- **61 scripts ignore `lib/paths.py`** — hardcode `PROJECT_ROOT = Path(__file__).resolve().parent.parent`. Retrofit imports.
+- **4 variants of HTML trap detection** — consolidate into `lib/http.py` or `lib/validation.py`.
+- **`download.py` reimplements `lib/http.py`** (has its own rate-limit dict + User-Agent map). Should import from lib/http.py.
+- **46 scripts duplicate CSV DictWriter setup** — not worth abstracting, but worth a code review to standardize.
+
+### Research
+- **10 files define `weighted_mean`** — import from numpy or create one local `stats_common.py`.
+- **3 files define `parse_numeric` with MISSING_CODES** — consolidate into one research-local utility.
+- **`meta_analysis.py` reimplements DerSimonian-Laird** — replace with `statsmodels.stats.meta_analysis`.
+
+### Genomics
+- **5 files define `_safe_float`** with slightly different signatures — consolidate into `variant_evidence_core.py` (already the best version) and import from there, OR move to shared.io.
+
+### Meta
+- **4 files define `parse_ts`** — highest priority for shared.io extraction.
+- **3 files define `load_jsonl`** — same.
 
 ---
 
@@ -330,12 +343,16 @@ Each step is independently committable and testable.
 
 | Metric | Before | After |
 |--------|--------|-------|
-| Copies of `weighted_mean` | 10 | 1 |
-| Copies of `load_jsonl` | 3 | 1 |
-| Copies of `parse_ts` | 4 | 1 |
-| SQLite init patterns | 3 | 1 |
-| HTTP retry implementations | 4 | 2 (shared + papers-mcp httpx) |
-| JSONL telemetry patterns | 3 | 1 (+ genomics Modal-specific) |
-| Total duplicated LOC eliminated | ~900 | — |
-| New shared library LOC | — | ~850 |
-| Projects consuming shared lib | — | intel, research, meta, genomics |
+| `load_jsonl` copies | 3 (meta) | 1 (shared.io) |
+| `parse_ts` copies | 4 (meta) | 1 (shared.io) |
+| `safe_float` copies | 5 (genomics) | 1 (shared.io) |
+| HTML trap detection copies | 4 (intel) | 1 (shared.io) |
+| Atomic write patterns | 6+ (intel, genomics) | 1 (shared.files) |
+| fcntl locking implementations | 4 (intel, meta, selve) | 1 (shared.files.FileLock) |
+| SQLite WAL init patterns | 3 (meta, papers-mcp) | 1 (shared.db) |
+| SQLite migration patterns | 2 (meta, papers-mcp) | 1 (shared.db) |
+| HTTP retry implementations | 2 requests-based (intel, genomics) | 1 (shared.http) |
+| Telemetry JSONL patterns | 3 (intel, genomics, meta) | 1 (shared.telemetry) |
+| research `weighted_mean` copies | 10 | 0 (use numpy) |
+| New shared library LOC | — | ~680 |
+| Projects consuming shared lib | — | intel, meta, genomics, papers-mcp |
