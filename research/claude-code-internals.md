@@ -1,6 +1,6 @@
 # Claude Code Architecture: Research Notes
 
-**Date:** 2026-02-27, **updated 2026-03-03** (Jan-Mar 2026 changelog sweep)
+**Date:** 2026-02-27, **updated 2026-03-05** (Jan-Mar 2026 changelog sweep, v2.1.68–2.1.70)
 **Sources:** Anthropic engineering blog, claude-code-docs bundle, Trail of Bits config, incident.io blog, decodeclaude.com, community posts, 50+ GitHub repos (99%+ slop filtered out), official changelog (code.claude.com/docs/en/changelog), GitHub releases (anthropics/claude-code), Agent SDK Python changelog (anthropics/claude-agent-sdk-python)
 
 ---
@@ -322,7 +322,7 @@ Team/community distribution. One `claude plugin install` replaces manual setup o
 
 [SOURCE: code.claude.com/docs/en/plugins, anthropic.com/news/claude-code-plugins (Oct 2025), morphllm.com/claude-code-plugins (Feb 2026)]
 
-## Jan-Mar 2026 Changelog Summary (v2.1.2 — v2.1.66)
+## Jan-Mar 2026 Changelog Summary (v2.1.2 — v2.1.70)
 
 Added 2026-03-03. 40+ releases in 8 weeks. Major themes below.
 
@@ -396,6 +396,32 @@ Added 2026-03-03. 40+ releases in 8 weeks. Major themes below.
 5. **Plugin ecosystem.** npm registries, git SHA pinning, OS-level managed settings (plist/Registry).
 6. **Performance/stability.** 20+ memory leak fixes. Long session scaling is clearly a production concern.
 7. **Context management.** PDF pages, tool results to disk, partial compaction, MCP tool search auto-mode, skill budget scaling.
+
+## v2.1.68–2.1.70 Notable Changes (Mar 2026)
+
+### New Hook Events and Fields
+- **`InstructionsLoaded`**: fires when CLAUDE.md / `.claude/rules/*.md` load. No decision control — diagnostic/logging only.
+- **`agent_id` and `agent_type`** now reliably present in ALL hook events (previously only SubagentStop). Enables agent-differentiated hook behavior (e.g., lenient bash-loop-guard for subagents).
+- **`worktree` field in status line commands**: provides `name`, `path`, `branch`, `original_repo_dir`.
+- **`TeammateIdle`/`TaskCompleted`** now support `{"continue": false, "stopReason": "..."}` to stop teammates.
+- **`WorktreeCreate`/`WorktreeRemove`** plugin hooks now work (were previously broken).
+
+### New Settings and Variables
+- **`includeGitInstructions: false`**: disables built-in git instructions (~600 tokens of generic branch/PR/Co-Authored-By workflow). Useful when projects have custom git conventions that conflict with defaults.
+- **`${CLAUDE_SKILL_DIR}`**: skills can reference their own directory in SKILL.md content. Enables skills that bundle companion files (templates, configs) without hardcoding paths.
+
+### Performance and Stability
+- **~16MB baseline memory reduction** from dependency optimizations.
+- **74% fewer prompt re-renders** — significant reduction in redundant processing.
+- **12+ memory leak fixes** across long sessions, subagents, and hook accumulation (continuing from v2.1.63 fixes).
+- **ToolSearch empty response fix**: no longer returns empty results spuriously.
+
+### Compaction Changes
+- **Images preserved through compaction** (v2.1.70): previously dropped during auto/manual compaction.
+- **No preamble recap after compaction** (v2.1.69): post-compaction context is cleaner, no redundant restatement of what was discussed.
+- **Skill listing not re-injected on `--resume`** (v2.1.69): saves ~600 tokens per resume.
+
+---
 
 ## Design Principles Summary
 
