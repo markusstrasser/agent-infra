@@ -203,6 +203,11 @@ orchestrator.py summary                              # daily markdown
 - [ ] **Regret/corrections metric** — Instrument corrections per session as a first-class metric from session-analyst. (Source: constitution model-review 2026-02-28)
 - [ ] **Telegram approval bot** — Notify + approve/reject/modify orchestrator tasks from phone. ~50 lines Python + BotFather token. Slots into `requires_approval` gate. (Source: orchestrator plan session 2026-03-01)
 - [ ] **Expand calibration canary beyond bootstrap** — Current baseline includes a small local-context canary set with Brier scoring. Remaining work: grow to ~20 queries, add temporal/staleness and external-fact canaries, increase runs, and separate monthly deep calibration from weekly cheap checks. (Source: calibration-measurement-practical.md design, bootstrap implemented 2026-03-05)
+- [ ] **Evolutionary/genetic parallel mutation** — Spawn N parallel sub-agents with injected noise, select survivors, mutate again. Divergence as structural byproduct of mutation+selection, not brainstorming. Blocked on orchestrator parallel sub-agent infrastructure. (Source: model-review 2026-03-06, G1)
+- [ ] **Orthogonal RAG injection** — RAG pipeline that deliberately retrieves tangential/unrelated domain docs to force cross-domain mapping during divergent phases. Blocked on RAG pipeline. Analogical forcing (deployed) is the lightweight version. (Source: model-review 2026-03-06, G3)
+- [ ] **Design-bakeoff worktrees** — For high-uncertainty architecture tasks, spawn 2-3 parallel implementation spikes in separate worktrees, compare and select. Maps to Claude Code `--worktree` support. (Source: model-review 2026-03-06, P1)
+- [ ] **Cross-session anti-repetition cache** — Store recently proposed paradigms per topic so future brainstorming is pushed away from already-used idea families. Needs persistent storage mechanism. (Source: model-review 2026-03-06, P8)
+- [ ] **Intentional Contextual Fracture** — Redact/distort different parts of context for parallel generators; incomplete context forces different anchoring and pulls solutions from different domains. Needs orchestrator to manage parallel redacted prompts. (Source: model-review 2026-03-06, D2)
 
 ## What This Repo Is NOT
 - Not a place to write more rules about rules.
