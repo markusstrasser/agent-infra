@@ -54,23 +54,8 @@ The other two read the same instructions via symlink. They don't have hooks, ski
 - [ ] Update `frontier-agentic-models.md` with significant findings
 - [ ] **Use Exa for recency searches, not S2** (S2 has no date filtering)
 
-### 4a. Papers Pending Save (2026-02-27 sweep)
-- [x] arXiv:2602.16666 — Princeton reliability (Kapoor/Narayanan/Rabanser). Saved 2026-03-03.
-- [x] arXiv:2601.17915 — EoG graph-guided investigation (IBM). Saved 2026-03-03.
-- [x] arXiv:2602.11224 — Agent-Diff state-diff evaluation. Saved 2026-03-03.
-- [x] arXiv:2601.06112 — ReliabilityBench. Saved 2026-03-03.
-- [x] arXiv:2512.08296 — Google scaling agent systems. Saved 2026-03-03.
-- [x] arXiv:2510.05381 — Du et al. "Context Length Alone Hurts". Saved 2026-03-03.
-- [x] arXiv:2602.10975 — FeatureBench (ICLR 2026). Saved 2026-03-03.
-- [x] arXiv:2511.14136 — CLEAR framework. Saved 2026-03-03.
-- [x] arXiv:2508.17536 — "Debate or Vote" (ACL 2025). Saved 2026-03-03.
+### 4a. Papers Pending Save
 - [ ] arXiv:2602.16943 — Mind the GAP. Not in S2 index yet — retry later.
-- [x] arXiv:2602.04197 — Toxic Proactivity. Saved 2026-03-03.
-- [x] arXiv:2602.19843 — MAS-FIRE. Saved 2026-03-03.
-- [x] arXiv:2503.13657 — MAST taxonomy. Saved 2026-03-03.
-- [x] arXiv:2601.22290 — Six Sigma Agent. Saved 2026-03-03.
-- [x] arXiv:2512.18470 — SWE-EVO. Saved 2026-03-03.
-- [x] arXiv:2601.03868 — What Matters for Safety Alignment. Saved 2026-03-03.
 - [ ] arXiv:2506.04018 — AgentMisalignment. Capability-misalignment scaling.
 - [ ] arXiv:2601.20103 — TRACE. Reward hacking detection. 37% undetectable.
 - [ ] arXiv:2509.25370 — AgentDebug. Targeted correction +24% vs blind retry.
@@ -193,32 +178,8 @@ Project-level subagents. Upgraded 2026-03-01 with frontmatter (memory, model, to
 
 ## Ideas / Future Work
 
-### Orchestrator MVP
-A Python script (not an LLM session) that runs the agent autonomously. Each task gets a fresh context — no context rot.
-
-**What it does:**
-```
-Every 15 minutes (cron):
-  1. Query SQLite task queue (what's stale? what signals fired?)
-  2. Pick highest-priority task
-  3. Run: claude -p "Update HIMS entity" --max-turns 15 --output-format json
-  4. Kill if stuck (subprocess timeout 30min)
-  5. Log result, pick next task
-```
-
-**MVP spec (from review-synthesis.md):** ~100 lines Python. Cron + SQLite + subprocess. No DAG, no diversity monitor, no Agent SDK (premature optimizations).
-
-**Status: UNBLOCKED.** The orchestrator is meta-level infrastructure, independent of any specific project's validation status. Build for tasks that are clearly automatable: research sweeps, self-improvement passes, entity refresh, data maintenance. (Decision: goals elicitation 2026-02-28)
-
-**Key design decisions (already validated by multi-model review):**
-- Fresh `claude -p` per task, NOT `--resume` (quadratic cost)
-- 15 turns max per task (context degrades beyond this)
-- Self-improvement is a dedicated fresh-context task every 5 tasks, not a wrap-up prompt
-- subprocess.run(timeout=1800) as watchdog
-- JSONL event log for debugging
-- Daily markdown summary for human review
-
-See `autonomous-agent-architecture.md` and `review-synthesis.md` for full design.
+### Cross-Project Shared Library (`~/Projects/lib/`)
+Deduplicate ~680 LOC across intel, meta, genomics, papers-mcp. Six modules: io, files, db, http, telemetry, env. Full plan: `research/cross-project-infra-factoring.md`. Implementation plan: `.claude/plans/65730c3c-infra-and-cleanup.md`.
 
 ### IB API Integration (Future Phase)
 Interactive Brokers API for agent-managed trading. $10K sandbox account. Outbox pattern: agent proposes → queue → execute. Pending paper trading validation proving consistent edge.
