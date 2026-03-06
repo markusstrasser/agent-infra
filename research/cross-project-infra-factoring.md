@@ -22,7 +22,14 @@
 
 ### What this means
 
-The right extraction is a **shared utility library** (`shared-lib`, ~680 lines) — not a new standalone project. The v2 module plan below is the correct granularity. The "bigger things" at the system level are either too domain-coupled or too different across projects to unify without over-engineering.
+~~The right extraction is a shared utility library — not a new standalone project.~~
+
+**Decision (2026-03-06): Shared library plan killed.** After model review and user assessment, the shared-lib approach was abandoned. Key reasoning:
+1. AI agents write trivial utility functions (parse_ts, safe_float, load_jsonl) fine — deduplication ROI is near-zero when agents generate code.
+2. The only high-value shared problem is **web scraping infrastructure** (SSL fallback chains, Cloudflare bypass, HTML trap detection) — ~1000 lines of brittle code across intel and research.
+3. **Solution: paid APIs replace shared code.** Scrapfly ($0-30/month) for government data downloads + Browserbase (free tier) for auth-gated sites. An API key replaces a library.
+
+See execution plan: `.claude/plans/65730c3c-shared-lib.md` (web scraping infrastructure).
 
 **Future triggers for new extractions:**
 - If a 3rd project needs content-addressable caching → extract `sigcache` from genomics StageSignature
