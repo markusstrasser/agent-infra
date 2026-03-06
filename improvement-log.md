@@ -35,6 +35,42 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Status:** [ ] noted, no action needed
 
 
+### [2026-03-05] Session Analyst — Behavioral Anti-Patterns (meta, 5 sessions)
+- **Source:** Gemini 3.1 Pro transcript analysis + manual validation
+- **Sessions:** 48c7bd21, a2014ed4 (empty), cf694f57, 8f6128c6, 52ac8991
+
+### [2026-03-05] TOKEN WASTE: Redundant git log commands — 5 overlapping attempts to get daily commits
+- **Session:** meta 52ac8991
+- **Evidence:** Five `git log` commands in sequence (lines 328-346 of transcript): `git log --oneline --since="2026-03-05" --all`, then same without `--all`, then `git -C` variant, then `-20` variant, then `--after/--before` variant. All targeting the same information. Additionally, `outbox_gauntlet.py` was read 3 times (lines 400, 413, 447) with no intervening edits. Also hallucinated file paths under `/intel/docs/` before correcting to `/intel/analysis/research/`.
+- **Failure mode:** Token waste — redundant tool calls (recurring pattern, also observed 2026-03-04)
+- **Proposed fix:** [rule] Existing guidance covers this. Pattern recurs despite rules — may warrant a PreToolUse hook that detects duplicate Read calls on same path within a session. However, the git log variants are harder to catch (different flags, same intent).
+- **Severity:** medium — 5 wasted git commands + 2 redundant reads + hallucinated paths = ~10 wasted tool calls in one session
+- **Status:** [ ] proposed
+
+### [2026-03-05] TOKEN WASTE: Overlapping git log + ls commands for daily summary
+- **Session:** meta 8f6128c6
+- **Evidence:** Four overlapping `git log` calls (lines 263-284): first across all projects with `--all`, then per-project loop, then another `ls` for `2026-03-05.md`, then another per-project `git log` without `--all`. The session's job was "tell me what happened today" — a single well-structured command could have gathered everything.
+- **Failure mode:** Token waste — redundant tool calls (same pattern as 52ac8991)
+- **Proposed fix:** [skill] A "daily summary" skill that runs one consolidated command (git log across projects + receipt scan + daily memory check) would eliminate this recurring multi-command reconnaissance pattern. Both sessions 8f6128c6 and 52ac8991 spent their first 4-5 tool calls doing the same kind of cross-project git archaeology.
+- **Severity:** low — 4 overlapping commands, small token cost
+- **Status:** [ ] proposed
+
+### [2026-03-05] TOKEN WASTE: Exploratory grep scatter across skills directory
+- **Session:** meta cf694f57
+- **Evidence:** Five separate grep commands searching the skills directory for `CLAUDE_SKILL_DIR`, `agent_id`, `agent_type`, `InstructionsLoaded`, `includeGitInstructions` (lines 178-198). Each searched overlapping file sets. Could have been one grep with alternation pattern (which the first command partially was, but then 4 more followed for related terms).
+- **Failure mode:** Token waste — redundant searches (low severity, exploratory context)
+- **Proposed fix:** None needed — this was exploratory analysis of new changelog features. The scatter was partially justified by narrowing scope across iterations.
+- **Severity:** low
+- **Status:** [ ] noted, no action needed
+
+### [2026-03-05] Gemini false positive: "unprompted commit" flagged as rule violation
+- **Note:** Gemini 3.1 Pro flagged sessions 48c7bd21 and 52ac8991 as HIGH severity rule violations for committing without being asked. This is a false positive — the global CLAUDE.md explicitly authorizes auto-commit: "After completing a task, commit your changes without being asked." Gemini lacked access to the project's rules and applied a generic "don't commit unless asked" heuristic. This is a known limitation of external-model analysis of sessions governed by custom rules.
+
+**Cross-cutting patterns (2026-03-05):**
+1. **Redundant git log is the #1 token waste pattern.** Sessions 52ac8991 and 8f6128c6 both opened with 4-5 overlapping git history queries. A consolidated "daily recon" command or skill would eliminate this.
+2. **File re-reads persist.** `outbox_gauntlet.py` read 3x in 52ac8991 (same file, no edits between reads). Same pattern flagged 2026-03-04 with `sessions.py`. The rule exists but isn't being followed.
+3. **Path hallucination.** Session 52ac8991 tried `/intel/docs/` paths that don't exist, then corrected to `/intel/analysis/research/`. A `find` or `ls` before `Read` would prevent this — but the cost is low (one failed Read + one corrective command).
+
 **LOW severity (noted, no action):**
 - Session 3feb5b79: User pasted implementation plan, agent responded "Nothing pending" (71 output tokens). Appears to be a session start that was abandoned for f27cc590. No anti-patterns — just an empty session.
 - Session 18384e69: Good pattern — agent correctly caught Gemini Flash hallucinating "Sonnet 4.6 is a hallucination" (Sonnet 4.6 is real, released Feb 17 2026). Cross-model error detection working as intended.
