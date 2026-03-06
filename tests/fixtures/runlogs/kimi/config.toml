@@ -1,0 +1,9 @@
+default_model = "kimi_test"
+
+[models.kimi_test]
+provider = "moonshot"
+model = "kimi-k2"
+
+[providers.moonshot]
+type = "openai_compatible"
+base_url = "https://api.moonshot.test/v1"

@@ -1,0 +1,5 @@
+{"timestamp":"2026-03-05T12:30:00Z","type":"session_meta","payload":{"id":"22222222-2222-2222-2222-222222222222","timestamp":"2026-03-05T12:30:00Z","cwd":"/Users/test/Projects/meta","originator":"codex_cli_rs","cli_version":"0.93.0","source":"cli","model_provider":"openai","base_instructions":{"text":"Be precise."},"git":{"branch":"main"}}}
+{"timestamp":"2026-03-05T12:30:00Z","type":"turn_context","payload":{"turn_id":"turn-2","cwd":"/Users/test/Projects/meta","approval_policy":"never","sandbox_policy":{"type":"danger-full-access"},"model":"gpt-5.4"}}
+{"timestamp":"2026-03-05T12:30:01Z","type":"response_item","payload":{"type":"custom_tool_call","name":"apply_patch","arguments":"{\"patch\":\"*** Begin Patch\\n*** Update File: README.md\\n-foo\\n+bar\\n*** End Patch\\n\"}","call_id":"call-2"}}
+{"timestamp":"2026-03-05T12:30:02Z","type":"response_item","payload":{"type":"custom_tool_call_output","call_id":"call-2","output":{"error":"patch failed","is_error":true}}}
+{"timestamp":"2026-03-05T12:30:03Z","type":"event_msg","payload":{"type":"turn_aborted","turn_id":"turn-2","reason":"patch failed"}}

@@ -1,0 +1,6 @@
+{"type":"metadata","protocol_version":"1.3"}
+{"timestamp":"2026-03-05T12:10:00Z","message":{"type":"ApprovalRequest","payload":{"id":"approval-1","tool_call_id":"ReadFile:1","sender":"tool","action":"read","description":"Read schema file"}}}
+{"timestamp":"2026-03-05T12:10:01Z","message":{"type":"ApprovalResponse","payload":{"tool_call_id":"ReadFile:1","approved":true}}}
+{"timestamp":"2026-03-05T12:10:02Z","message":{"type":"ToolCall","payload":{"tool_call_id":"ReadFile:1","name":"ReadFile","arguments":"{\"path\":\"/Users/test/Projects/meta/scripts/runlog_schema.sql\"}"}}}
+{"timestamp":"2026-03-05T12:10:03Z","message":{"type":"ToolResult","payload":{"tool_call_id":"ReadFile:1","return_value":{"is_error":false,"output":"CREATE TABLE sources (...)"}}}}
+{"timestamp":"2026-03-05T12:10:04Z","message":{"type":"StatusUpdate","payload":{"token_usage":{"input":120,"output":40}}}}

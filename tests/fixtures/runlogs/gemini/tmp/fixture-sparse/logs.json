@@ -1,0 +1,16 @@
+[
+  {
+    "sessionId": "22222222-2222-2222-2222-222222222222",
+    "messageId": 0,
+    "type": "user",
+    "message": "resume the sparse session",
+    "timestamp": "2026-03-05T12:20:00Z"
+  },
+  {
+    "sessionId": "22222222-2222-2222-2222-222222222222",
+    "messageId": 1,
+    "type": "user",
+    "message": "only the prompt log is available here",
+    "timestamp": "2026-03-05T12:20:10Z"
+  }
+]
