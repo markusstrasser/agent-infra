@@ -100,6 +100,62 @@ Our infrastructure currently doesn't fight the default at all. We rely on the mo
 
 The lowest-hanging fruit: make divergent/convergent mode a first-class concept in skills and research workflows, with different system prompts and explicit phase transitions. Not temperature control (we can't via API), but prompt-level framing that tells the model "generate alternatives without evaluating" vs "evaluate and select."
 
+## Additional Findings (second research pass, 2026-03-05)
+
+### The "Artificial Hivemind" Effect (CREATIVEDC, arxiv 2512.23601)
+The strongest paper found. Names the core problem: LLMs exhibit **intra-model repetition** (same model generates similar outputs) AND **inter-model homogeneity** (different models converge on the same outputs). RLHF amplifies this — alignment pushes toward statistically average responses, reducing creativity.
+
+**CREATIVEDC method:** Two-phase prompting that explicitly scaffolds divergent then convergent thinking. Phase 1: "Think about different elements, objects, scenarios... push for unusual, surprising, unconventional ideas." Phase 2: "From your brainstormed ideas, select one and connect it with the required constraints."
+
+**Results:** Semantic novelty +51.5% over baseline, +63.5% over CoT. No significant reduction in utility. At K=100 sampled outputs, CREATIVEDC generates 72% more effectively distinct problems than CoT (measured by Vendi Score). The diversity advantage *grows* with more samples — exactly the scaling property you want.
+
+**Key insight:** Simply increasing temperature increases surface-level diversity but does NOT improve originality — and can reduce creativity. The two-phase scaffolding is what matters, not parameter tweaking. This validates your skepticism about meta-prompt libraries vs just using a normal prompt — but the "normal prompt" needs to explicitly separate "explore without constraints" from "now satisfy constraints."
+
+### "Functional Fixedness" in LLMs
+LLMs exhibit the same cognitive bias as humans — they fail to use familiar objects innovatively in creative problem-solving benchmarks. This is a training artifact: the model has learned conventional uses and struggles to override them. Explicit scaffolding (like CREATIVEDC's phase separation) overcomes this, but simply asking "be creative" does not.
+
+### TinyTim: Specialized Divergent Models (arxiv 2508.11607)
+Radical approach: fine-tune a small model on James Joyce's Finnegans Wake to create a *dedicated divergent generator*. The result: Yule's K lexical richness score 24x higher than baseline LLMs. But benchmark performance drops to 52% (vs 91% for baselines). The model is a "lexical inventor" — useful only when paired with a convergent system for filtering.
+
+**Architectural implication:** Divergent and convergent might be better as **separate models** in an ensemble rather than trying to get one model to do both. The TinyTim→convergent-LLM pipeline is analogous to how the brain pairs Default Mode Network (divergent) with Executive Control Network (convergent).
+
+This is interesting but impractical for us — we can't fine-tune models. The insight to take: when dispatching to multiple models in model-review brainstorming mode, one model could be prompted as the "wild ideas" generator while the other evaluates/refines.
+
+### Nature Human Behaviour: Large-Scale Comparison (2025)
+100,000 humans vs LLMs on DAT and creative writing. LLMs surpass average human performance but remain below the **top half** of human participants. Key: temperature and linguistic strategy prompts produce "reliable gains in semantic divergence for several models" — prompt design matters, but there's a ceiling.
+
+### CreativityPrism (arxiv 2510.20091)
+Holistic benchmark spanning multiple creativity dimensions (not just divergence). Argues existing evals are too narrow — real creativity involves convergent selection too, not just idea volume.
+
+### "Beyond Divergent Creativity" (arxiv 2601.20546, Jan 2026)
+Argues DAT focuses too much on novelty and ignores other creativity dimensions. LLM creativity assessment needs to be grounded in human creativity theory, not just semantic distance metrics.
+
+### CogRouter: "Think Fast and Slow" for Agents (Feb 2026)
+Dynamically adjusts cognitive depth per reasoning step, inspired by ACT-R cognitive theory. Not creativity-specific but relevant: agents should spend more compute on divergent/exploration steps and less on routine convergent steps. Adaptive compute allocation by step type.
+
+### Multi-Agent Debate for Divergent Thinking (899 citations)
+Liang et al. (EMNLP 2024): multi-agent debate encourages divergent thinking in LLMs for complex reasoning. Most cited paper in this space. The adversarial pressure from disagreeing agents forces exploration of alternatives — structurally similar to denial prompting but through social dynamics rather than explicit constraints.
+
+### Hallucination-Creativity Connection
+Survey (arxiv 2402.06647, 56 citations): Hallucinations and creativity share a mechanism — both involve generating low-probability continuations. The difference is whether the output is evaluated against ground truth (hallucination) or against novelty (creativity). This explains why techniques that reduce hallucination (RLHF, safety training) also reduce creativity.
+
+### "550 Hallucinations, Zero Discoveries" (Feb 2026)
+Forcing Claude to "invent mathematics" produced 550 hallucinations and zero genuine discoveries. Pure divergent generation without domain structure = noise. Divergent thinking needs constraints and domain knowledge to be productive — unconstrained generation is hallucination, not creativity.
+
+## Updated Synthesis
+
+The second pass reinforces the core finding but adds important nuance:
+
+1. **The Artificial Hivemind is the real enemy, not "lack of creativity."** LLMs can be creative — they just converge on the *same* creative outputs. The problem isn't that any single output is bad; it's that 100 outputs look alike. CREATIVEDC shows that two-phase scaffolding fixes this at scale (72% more distinct outputs at K=100).
+
+2. **Temperature is a red herring for originality.** Multiple papers now confirm: higher temperature increases surface diversity (different words) without improving semantic novelty (different ideas). The CREATIVEDC result is definitive — scaffolding beats parameter tweaking.
+
+3. **The hallucination-creativity tradeoff is real and structural.** RLHF/safety training reduces both. "Be creative" fights against alignment training. Explicit phase separation ("now explore freely, evaluation comes later") is the workaround.
+
+4. **Multi-agent debate ≈ denial prompting through social dynamics.** Both force the model off its default trajectory. Our model-review brainstorming mode already does this (two models generating independently). Could be enhanced by having them explicitly disagree and iterate.
+
+5. **Unconstrained divergence = hallucination.** The "550 Hallucinations" finding is a corrective — divergent thinking isn't "generate randomly." It's "explore broadly *within domain structure*." CREATIVEDC's Phase 1 works because it's still thematically anchored.
+
 ## Key Papers to Track
 
 - LiveIdeaBench (arxiv 2412.17596) — monthly-updated divergent thinking benchmark
@@ -108,6 +164,12 @@ The lowest-hanging fruit: make divergent/convergent mode a first-class concept i
 - HAIExplore (arxiv 2512.18388) — brainstorm→refine workflow design
 - Persona-guided divergent/convergent (arxiv 2510.26490)
 - CS4 creativity under constraints (arxiv 2410.04197)
+- CREATIVEDC / Artificial Hivemind (arxiv 2512.23601) — two-phase scaffolding, Vendi Score scaling
+- TinyTim divergent models (arxiv 2508.11607) — specialized divergent fine-tuning
+- Nature Human Behaviour large-scale comparison (doi 10.1038/s41562-025-02331-1)
+- CreativityPrism holistic benchmark (arxiv 2510.20091)
+- CogRouter adaptive cognitive depth (Feb 2026)
+- Multi-agent debate for divergence (arxiv 2305.19118, 899 citations)
 
 ## Citations
 
