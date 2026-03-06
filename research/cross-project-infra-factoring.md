@@ -1,7 +1,33 @@
-# Cross-Project Infrastructure Factoring (v2)
+# Cross-Project Infrastructure Factoring (v3)
 
 **Date:** 2026-03-06
 **Scope:** intel, research, genomics, selve, meta, papers-mcp, emb
+
+---
+
+## 0. Architectural Assessment: Are There More `emb`-Level Extractions?
+
+**Answer: No.** After deep architectural analysis of all major subsystems, the projects are more different than similar at the system level. `emb` worked because embeddings are a **pure, domain-agnostic capability** with a clean interface (text in → vector out). No other cross-project pattern meets that bar.
+
+### Why each candidate fails
+
+| Candidate system | Projects | Why it doesn't extract |
+|-----------------|----------|----------------------|
+| **Dataset ingestion pipeline** (manifest → download → validate → catalog → DuckDB views) | intel (full), genomics (simple) | Intel's value is in domain-specific parts: per-source rate limits (SEC 0.1s, LDA 2.5s), UA spoofing by domain, healthcare/SEC/nonprofit domain categories, 50+ dataset-specific views. The generic kernel (manifest-driven download with validation) is ~200 lines — too thin for a project, and the domain config IS the system. |
+| **Pipeline DAG executor** (stage specs → async execution → QC gates → checkpointing) | genomics (full DAG), meta (task queue), intel (bash script) | Fundamentally different systems. Genomics: data pipeline producing files on Modal NFS, async subprocess executor, content-addressable caching via StageSignature. Meta: agent task queue with approval gates, Claude SDK engine, SQLite state, cost caps. Intel: sequential bash with criticality tiers. The overlap (dependency tracking, state) is thin; the differences (execution model, state storage, scheduling) dominate. |
+| **Agent telemetry / observability** | meta, intel, genomics | It's JSONL append with timestamps. ~30 lines of code. A standalone project for 30 lines is absurd. Belongs in shared-lib as a module, not a project. |
+| **MCP server framework** | meta, papers-mcp, intel | FastMCP IS the framework. The shared pattern (lifespan + SQLite WAL init + tool registration) is a cookiecutter template for scaffolding new servers, not runtime-importable code. |
+| **Content-addressable caching** | genomics (StageSignature) | Only genomics uses it. Strongest future extraction candidate — if meta's orchestrator or intel's daily pipeline ever needs "skip if inputs unchanged" logic, extract then. Not today. |
+| **Health check / preflight** | meta (doctor.py), genomics (preflight.py) | Same concept (accumulate checks, report), completely different check registries. The Check class is ~20 lines; the value is in what gets checked, which is 100% project-specific. |
+
+### What this means
+
+The right extraction is a **shared utility library** (`shared-lib`, ~680 lines) — not a new standalone project. The v2 module plan below is the correct granularity. The "bigger things" at the system level are either too domain-coupled or too different across projects to unify without over-engineering.
+
+**Future triggers for new extractions:**
+- If a 3rd project needs content-addressable caching → extract `sigcache` from genomics StageSignature
+- If we build 2+ more MCP servers → extract a cookiecutter template (not a library)
+- If intel's dataset pipeline patterns show up in genomics data downloads → extract `datapipe` manifest system
 
 ---
 
