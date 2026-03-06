@@ -10,7 +10,9 @@ This repo plans and tracks improvements to agent infrastructure across projects 
 - `meta_mcp.py` — meta-knowledge MCP server (section-based search over all .md files)
 - `scripts/orchestrator.py` — cron-driven task runner (dual-engine: `claude -p` + scripts)
 - `scripts/doctor.py` — cross-project health checker (hooks, settings, skills, MCP, git state)
+- `scripts/runlog.py` — cross-vendor run importer/query CLI for Claude, Codex, Gemini, and Kimi local logs
 - `scripts/schema.sql` — SQLite DDL for orchestrator task queue
+- `runlog.md` — runlog architecture, import/query usage, named queries, and vendor coverage
 - `pipelines/` — JSON pipeline templates (recurring workflows)
 - `maintenance-checklist.md` — pending improvements, monitoring list, sweep schedule
 - `agent-failure-modes.md` — documented failure modes from real sessions
@@ -260,5 +262,8 @@ Status line, notifications, receipts, and dashboard. Full details in `cockpit.md
 - Chat histories: `~/.claude/projects/-Users-alien-Projects-*/UUID.jsonl`
 - Compaction log: `~/.claude/compact-log.jsonl`
 - Session receipts: `~/.claude/session-receipts.jsonl`
+- Runlog DB: `~/.claude/runlogs.db`
+- Runlog docs: `meta/runlog.md`
+- Runlog CLI: `uv run python3 scripts/runlog.py stats|import|query`
 - Top error sources (Feb 2026): zsh multiline loops (178/wk), DuckDB column guessing (324/wk), llmx wrong flags (16/wk)
 </session_forensics>

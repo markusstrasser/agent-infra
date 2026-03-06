@@ -67,6 +67,15 @@
 - **Stored Responses API objects can be imported** with `just agent-receipts import-openai path/to/responses.jsonl`.
 - **If you care about project/task tags on raw API runs, set `metadata` when you create the response.** Otherwise the dashboard can only show what the raw object already contains.
 
+## Runlog / Forensics
+
+- **Use `runlog` for cross-vendor forensics.** It is the deep store; dashboard/receipts are the lightweight operator view.
+- **Quick health check:** `uv run python3 scripts/runlog.py stats`
+- **Path history:** `uv run python3 scripts/runlog.py query runs_touching_path --param path_like=%foo% --format json`
+- **Supervision rate by vendor/week:** `uv run python3 scripts/runlog.py query supervision_ratio_by_vendor_week --format json`
+- **Tool/MCP mix:** `uv run python3 scripts/runlog.py query tool_usage_by_mcp_server --param vendor=codex --format json`
+- **Canonical doc:** `runlog.md`
+
 ## Post-Session
 
 - **Retro on bad sessions.** If a session had reverted work, 5-hour runs that should have been 1-hour, or repeated corrections — that's signal. Run `/session-analyst` on it.
