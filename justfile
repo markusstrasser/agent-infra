@@ -62,6 +62,12 @@ hook-telemetry *args:
 sessions *args:
     uv run python3 scripts/sessions.py {{args}}
 
+# ── Codex Sync ──────────────────────────────────────────────────
+
+# Generate AGENTS.md from CLAUDE.md for all projects
+sync-agents *args:
+    uv run python3 scripts/sync-agents.py --all {{args}}
+
 # ── Cross-Project ────────────────────────────────────────────────
 
 # Scan all project backlogs (--counts for summary)

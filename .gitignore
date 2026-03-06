@@ -45,3 +45,6 @@ downloads/
 .claude/overview-trigger.log
 .project-upgrade/
 .model-review/
+bundles/*
+bundles
+AGENTS.md
