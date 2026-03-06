@@ -11,6 +11,12 @@ This repo plans and tracks improvements to agent infrastructure across projects 
 - `scripts/orchestrator.py` — cron-driven task runner (dual-engine: `claude -p` + scripts)
 - `scripts/doctor.py` — cross-project health checker (hooks, settings, skills, MCP, git state)
 - `scripts/runlog.py` — cross-vendor run importer/query CLI for Claude, Codex, Gemini, and Kimi local logs
+- `scripts/repo_tools_mcp.py` — MCP server exposing repo navigation tools (outline, callgraph, imports, deps, changes, summary). Configured in all projects' `.mcp.json`.
+- `scripts/repo-outline.py` — AST-based class/function signatures + line numbers, callgraph
+- `scripts/repo-imports.py` — cross-file import graph (--internal, --deps, --for modes)
+- `scripts/repo-deps.py` — pyproject.toml deps with PyPI descriptions
+- `scripts/repo-changes.py` — recent git changes by area/hotspots
+- `scripts/repo-summary.py` — per-file one-liners (docstring-first, optional Haiku)
 - `scripts/schema.sql` — SQLite DDL for orchestrator task queue
 - `runlog.md` — runlog architecture, import/query usage, named queries, and vendor coverage
 - `pipelines/` — JSON pipeline templates (recurring workflows)
