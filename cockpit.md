@@ -21,9 +21,9 @@ Persistent bar inside Claude Code TUI. Updates after every assistant turn.
 
 **Thresholds:**
 - Context bar: green <50%, yellow 50-80%, red >80%
-- Cost: turns red at threshold (default $2.00, set in cockpit.conf)
 - Context >80%: shows `→ /compact` inline guidance
 - Error state is reserved for actual failure signals; high context alone is attention, not error
+- Cost is always visible but never alerts — the operator checks it themselves
 
 **Also:** updates Ghostty tab title via OSC 2 (`glyph · project · short status · $cost · ctx%`).
 
@@ -34,7 +34,6 @@ Stop hook. Sends macOS notifications via `osascript`, but only for classified st
 - `needs_input`
 - `tests_failed`
 - `background_complete`
-- `cost_threshold_crossed`
 
 Notification dedupe is session-local. `working` clears the prior event marker; repeated identical stop events without new work do not re-fire.
 
@@ -84,7 +83,6 @@ uv run python3 scripts/dashboard.py --days 30
 ### Config (`~/.claude/cockpit.conf`)
 ```
 notifications=on       # macOS notifications on idle
-cost_warning=2.00      # cost threshold for red visual
 ```
 
 ## Architecture

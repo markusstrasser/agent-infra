@@ -19,7 +19,7 @@ This repo plans and tracks improvements to agent infrastructure across projects 
 - `improvement-log.md` — structured findings from session analysis (session-analyst appends here)
 - `search-retrieval-architecture.md` — CAG vs embedding retrieval, Groq/Gemini assessment, routing decision framework
 - `cockpit.md` — human-agent interface: status line, notifications, receipts, dashboard, ideas backlog
-- `human-instructions.md` — operator playbook (session start, cost monitoring, manual interventions)
+- `human-instructions.md` — operator decision guide (when to intervene, tool routing, post-session)
 - `.claude/overviews/` — auto-generated source + tooling overviews (Gemini via repomix). All projects have these — read for fast codebase orientation.
 - `AGENTS.md`, `GEMINI.md` — symlinks to CLAUDE.md (multi-editor compatibility)
 
@@ -279,7 +279,7 @@ Status line, notifications, receipts, and dashboard. Full details in `cockpit.md
 | Component | Location | What |
 |-----------|----------|------|
 | Status line | `~/.claude/statusline.sh` | Model, branch, cost, context bar |
-| Config | `~/.claude/cockpit.conf` | `notifications=on\|off`, `cost_warning=2.00` |
+| Config | `~/.claude/cockpit.conf` | `notifications=on\|off` |
 | Dashboard | `meta/scripts/dashboard.py` | `uv run python3 scripts/dashboard.py [--days N]` |
 </cockpit>
 
