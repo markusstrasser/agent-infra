@@ -1,24 +1,42 @@
-# Cockpit — Human-Agent Interface
+# Cockpit — Agent Ops Interface
 
-The "cockpit" is the set of tools that keep the human operator informed, oriented, and in control during Claude Code sessions. Design principle: the human should never have to ask "what's happening?" — the answer should already be visible.
+The "cockpit" is the set of tools that keep the human operator informed, oriented, and in control across interactive agent runs. Claude Code is the deepest integration today, but the dashboard and receipt model now also cover Codex CLI sessions and stored OpenAI Responses API runs.
+
+Design principle: the human should never have to ask "what's happening?" — the answer should already be visible.
 
 ## Deployed Components
 
 ### Status Line (`~/.claude/statusline.sh`)
 Persistent bar inside Claude Code TUI. Updates after every assistant turn.
 
-**Shows:** model · branch · $cost · ▓▓▓░░░ ctx% · duration · lines+/-
+**Shows:** state glyph · model/branch · $cost ($/min) · context bar/tokens · tool · elapsed
+
+**Line 2:** throughput · cache% · context growth · ETA to compact · lines · other agents
+
+**Visual grammar:** 4 states, 4 glyphs, restrained palette
+- `working` → `◐` (dim/default)
+- `attention` → `◆` (yellow)
+- `error` → `▲` (red)
+- `done` → `●` (green)
+
 **Thresholds:**
 - Context bar: green <50%, yellow 50-80%, red >80%
 - Cost: turns red at threshold (default $2.00, set in cockpit.conf)
 - Context >80%: shows `→ /compact` inline guidance
-- Duration: shows `Xm` suffix after 5 min
-- Lines: shows `+N/-N` when non-zero
+- Error state is reserved for actual failure signals; high context alone is attention, not error
 
-**Also:** updates Ghostty tab title via OSC 2 (`Model · branch · $cost · ctx%`).
+**Also:** updates Ghostty tab title via OSC 2 (`glyph · project · short status · $cost · ctx%`).
 
 ### Idle Notification (`~/.claude/hooks/stop-notify.sh`)
-Stop hook. Sends macOS notification via `osascript` when Claude finishes responding. Shows first line of response as notification body.
+Stop hook. Sends macOS notifications via `osascript`, but only for classified state transitions.
+
+**Events:**
+- `needs_input`
+- `tests_failed`
+- `background_complete`
+- `cost_threshold_crossed`
+
+Notification dedupe is session-local. `working` clears the prior event marker; repeated identical stop events without new work do not re-fire.
 
 **Toggle:** `~/.claude/cockpit.conf` → `notifications=on|off`
 
@@ -35,8 +53,23 @@ SessionEnd hook (enhanced). Writes two logs:
 
 Cost data flows: status line persists to `/tmp/claude-cockpit-{session_id}` → SessionEnd reads it.
 
+### Agent Receipts (`meta/scripts/agent_receipts.py`)
+Normalizes non-Claude OpenAI runs into the same dashboard vocabulary.
+
+**Sources:**
+- Codex CLI session JSONL under `~/.codex/sessions/`
+- Stored OpenAI Responses API objects imported manually
+
+**Commands:**
+```bash
+uv run python3 scripts/agent_receipts.py sync-codex --days 7
+uv run python3 scripts/agent_receipts.py import-openai path/to/responses.jsonl
+```
+
+**Normalized fields:** `response_id` (when present), `status` / `background_state`, `reasoning_effort`, `reasoning_output_tokens`, `cached_input_tokens`, `tool_call_count`, `project`, `task_label`, `task_tags`.
+
 ### Dashboard (`meta/scripts/dashboard.py`)
-Reads session-receipts.jsonl. Shows weekly/all-time stats.
+Reads Claude receipts plus Codex/OpenAI receipts. Shows weekly/all-time stats and a provider-specific panel for OpenAI/Codex runs.
 
 ```
 uv run python3 scripts/dashboard.py          # last 7 days
@@ -71,37 +104,39 @@ cost_warning=2.00      # cost threshold for red visual
                     └─────────┬─────────┘
                               │
                     ┌─────────▼─────────┐
+                    │ agent_receipts.py │
+                    │ Codex/OpenAI norm │
+                    └─────────┬─────────┘
+                              │
+                    ┌─────────▼─────────┐
                     │  dashboard.py     │
-                    │  (weekly stats)   │
+                    │  Agent ops view   │
                     └───────────────────┘
 ```
 
 ## Ideas Backlog
 
-### Feasible, Not Yet Prioritized
+### Ship Next
 
 - **Project-specific SessionStart hooks** — per-project reminders on session start. Intel: "check market hours". Genomics: "check Modal credits". Could use a `~/.claude/project-reminders/` directory with `project-name.txt` files.
-
-- **Compaction countdown** — status line estimates turns remaining before auto-compaction based on context growth rate. Would need to track delta between updates.
 
 - **Session templates** — pre-configured `.claude/session-start.md` files per project that set context for common task types (debugging, research, feature work).
 
 - **Agent-type stop hook verifier** — use a `type: "agent"` Stop hook (has Read/Grep/Glob access) to verify output quality before session ends. E.g., check that all new files have tests, or that MEMORY.md wasn't corrupted.
 
-- **Cost rate display** — show $/min in status line. Useful for spotting expensive loops. Need a rolling window, not just total/duration.
-
-- **Sound alerts** — terminal bell (`\a`) on task completion or error threshold. Complements visual notification for when terminal isn't focused.
-
 - **Multi-session sidebar** — cmux (Ghostty-based terminal wrapper) provides vertical tabs with per-pane context. Worth evaluating if running parallel sessions regularly.
 
-- **Model comparison logging** — structured logging of task type + model used + cost + outcome. Over time, builds evidence for "use sonnet for X, opus for Y" routing decisions.
+- **Responses API import automation** — hook or helper that archives raw response objects automatically so OpenAI API runs appear without manual import.
 
-### Speculative / Low Priority
+### Maybe Later
 
 - **UserPromptSubmit preprocessing** — hook that analyzes user input before Claude sees it. Could detect pasted AI output and add a warning tag. Complex, unclear value.
 
 - **PermissionRequest class-based hooks** — intercept permission dialogs by category (destructive, network, file write) instead of tool-by-tool. Cleaner than current Bash text matching but requires understanding the permission model deeply.
 
-- **OpenTelemetry export** — full metrics pipeline to Prometheus/Grafana. Overkill for single-user, but the infrastructure exists in Claude Code.
-
 - **Ghostty status bar widget** — blocked on Ghostty feature request #2421. When available, would allow persistent info display in terminal chrome separate from Claude Code's TUI.
+
+### Won't Do For Now
+
+- **OpenTelemetry export** — full metrics pipeline to Prometheus/Grafana. Overkill for a single-user terminal cockpit.
+- **Always-notify stop hooks** — generic "assistant stopped" notifications. Low signal compared to state-classified transitions.

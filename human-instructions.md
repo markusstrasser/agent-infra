@@ -53,6 +53,20 @@
 - **Subagent delegation is cheap** when the subagent is on haiku/sonnet with limited turns.
 - **If the agent hits "out of extra usage"**, it will spin trying to retry. No hook can catch this (system message, not tool output). Interrupt manually.
 
+## Intervene Now
+
+- **Red state means real failure, not just urgency.** `▲` is for repeated command/test failure. Interrupt and inspect before the agent burns more time.
+- **Yellow state is your "look now" signal.** `◆` means input needed, compaction pressure, or cost threshold crossed.
+- **If cost crosses the threshold without meaningful delta**, stop. "Meaningful delta" = tests passed, files changed for a reason, or evidence gathered that changes the plan.
+- **If the same failure reappears after you already redirected once**, take over or narrow the task. Repeated steering on the same point is supervision debt.
+
+## Codex / OpenAI Runs
+
+- **Codex sessions now count as cockpit data.** `just dashboard` includes a Codex/OpenAI panel; it is no longer Claude-only.
+- **Codex CLI gives you session facts, not API metadata.** You'll get model, reasoning effort, cached/reasoning tokens, tool-call count, project, and a rough task label from the transcript.
+- **Stored Responses API objects can be imported** with `just agent-receipts import-openai path/to/responses.jsonl`.
+- **If you care about project/task tags on raw API runs, set `metadata` when you create the response.** Otherwise the dashboard can only show what the raw object already contains.
+
 ## Post-Session
 
 - **Retro on bad sessions.** If a session had reverted work, 5-hour runs that should have been 1-hour, or repeated corrections — that's signal. Run `/session-analyst` on it.
