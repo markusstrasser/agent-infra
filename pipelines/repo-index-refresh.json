@@ -1,0 +1,37 @@
+{
+  "name": "repo-index-refresh",
+  "schedule": "0 6 * * *",
+  "project": "meta",
+  "steps": [
+    {
+      "step": "summary-meta",
+      "type": "script",
+      "command": "uv run python3 scripts/repo-summary.py ~/Projects/meta/scripts --refresh --no-llm",
+      "cwd": "~/Projects/meta"
+    },
+    {
+      "step": "summary-intel",
+      "type": "script",
+      "command": "uv run python3 scripts/repo-summary.py ~/Projects/intel/src --refresh --no-llm",
+      "cwd": "~/Projects/meta"
+    },
+    {
+      "step": "summary-papers-mcp",
+      "type": "script",
+      "command": "uv run python3 scripts/repo-summary.py ~/Projects/papers-mcp/src --refresh --no-llm",
+      "cwd": "~/Projects/meta"
+    },
+    {
+      "step": "summary-genomics",
+      "type": "script",
+      "command": "uv run python3 scripts/repo-summary.py ~/Projects/genomics --refresh --no-llm",
+      "cwd": "~/Projects/meta"
+    },
+    {
+      "step": "summary-llm-pass",
+      "type": "script",
+      "command": "uv run python3 scripts/repo-summary.py ~/Projects/meta/scripts --refresh --model haiku --workers 4",
+      "cwd": "~/Projects/meta"
+    }
+  ]
+}
