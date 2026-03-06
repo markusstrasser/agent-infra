@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Claude Code session dashboard.
+"""Agent ops dashboard.
 
-Reads ~/.claude/session-receipts.jsonl and ~/.claude/compact-log.jsonl
-to show weekly/all-time stats: cost, duration, compactions, top projects.
+Reads Claude Code receipts plus Codex/OpenAI run data to show weekly/all-time
+stats: cost, duration, compactions, top projects, and provider-specific usage.
 
 Usage: uv run python3 scripts/dashboard.py [--days N]
 """
@@ -13,9 +13,12 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from agent_receipts import collect_codex_receipts, load_openai_receipts
+
 RECEIPTS = Path.home() / ".claude" / "session-receipts.jsonl"
 COMPACTIONS = Path.home() / ".claude" / "compact-log.jsonl"
 EPISTEMIC_METRICS = Path.home() / ".claude" / "epistemic-metrics.jsonl"
+MIN_TS = datetime.min
 
 
 def load_jsonl(path: Path) -> list[dict]:
@@ -34,7 +37,16 @@ def load_jsonl(path: Path) -> list[dict]:
 
 
 def parse_ts(ts: str) -> datetime:
-    # Handle both ISO formats
+    if ts.endswith("Z"):
+        try:
+            return datetime.fromisoformat(ts[:-1] + "+00:00").replace(tzinfo=None)
+        except ValueError:
+            pass
+    try:
+        return datetime.fromisoformat(ts).replace(tzinfo=None)
+    except ValueError:
+        pass
+    # Handle legacy ISO formats
     for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f"):
         try:
             return datetime.strptime(ts, fmt)
@@ -101,7 +113,7 @@ def main():
 
     # --- Print ---
     print(f"{'=' * 50}")
-    print(f"  Claude Code Dashboard — last {days} days")
+    print(f"  Agent Ops Dashboard — last {days} days")
     print(f"{'=' * 50}")
     print()
     print(f"  Sessions:     {len(recent)}")
@@ -143,8 +155,81 @@ def main():
     # --- Orchestrator panel ---
     print_orchestrator_panel(cutoff)
 
+    # --- OpenAI / Codex panel ---
+    print_openai_panel(cutoff)
+
     # --- Epistemic metrics panel ---
     print_epistemic_panel(cutoff)
+
+
+def print_openai_panel(cutoff: datetime):
+    """Print Codex/OpenAI usage from normalized receipts."""
+    codex = collect_codex_receipts(cutoff=cutoff)
+    openai = [r for r in load_openai_receipts() if parse_ts(r.get("ts", "")) > cutoff]
+    runs = codex + openai
+    if not runs:
+        return
+
+    print()
+    print(f"{'=' * 50}")
+    print("  OpenAI / Codex")
+    print(f"{'=' * 50}")
+    print()
+
+    by_source = defaultdict(int)
+    by_status = defaultdict(int)
+    total_in = 0
+    total_out = 0
+    total_reasoning = 0
+    total_cached = 0
+    total_tools = 0
+
+    for run in runs:
+        by_source[run.get("source", "?")] += 1
+        by_status[run.get("status", "?")] += 1
+        total_in += int(run.get("input_tokens", 0) or 0)
+        total_out += int(run.get("output_tokens", 0) or 0)
+        total_reasoning += int(run.get("reasoning_output_tokens", 0) or 0)
+        total_cached += int(run.get("cached_input_tokens", 0) or 0)
+        total_tools += int(run.get("tool_call_count", 0) or 0)
+
+    source_str = ", ".join(f"{count} {source}" for source, count in sorted(by_source.items()))
+    status_str = ", ".join(f"{count} {status}" for status, count in sorted(by_status.items()))
+    print(f"  Runs:         {len(runs)} ({source_str})")
+    print(f"  Status:       {status_str}")
+    print(f"  Tokens:       {total_in:,} in / {total_out:,} out / {total_reasoning:,} reasoning / {total_cached:,} cached")
+    print(f"  Tool calls:   {total_tools:,}")
+
+    background = defaultdict(int)
+    for run in openai:
+        state = run.get("background_state")
+        if state:
+            background[state] += 1
+    if background:
+        bg_str = ", ".join(f"{count} {state}" for state, count in sorted(background.items()))
+        print(f"  Background:   {bg_str}")
+
+    print()
+    print("  Recent runs:")
+    recent = sorted(runs, key=lambda row: parse_ts(row.get("ts", "")) or MIN_TS, reverse=True)[:6]
+    for run in recent:
+        source = run.get("source", "?")
+        run_id = run.get("response_id") or run.get("session") or run.get("run_id") or "?"
+        short_id = str(run_id)[:12]
+        project = run.get("project") or "?"
+        model = run.get("model") or "?"
+        effort = run.get("reasoning_effort") or "-"
+        status = run.get("background_state") or run.get("status") or "?"
+        tools = int(run.get("tool_call_count", 0) or 0)
+        tags = run.get("task_tags") or run.get("metadata_tags") or []
+        tag_str = ",".join(tags[:3]) if tags else "-"
+        task_label = run.get("task_label") or "-"
+        print(
+            f"    {source:<16} {short_id:<12} {project:<12} {model:<12} "
+            f"{status:<11} tools={tools:<3} effort={effort:<6} tags={tag_str}"
+        )
+        if task_label != "-":
+            print(f"      {task_label[:90]}")
 
 
 def print_orchestrator_panel(cutoff: datetime):
@@ -284,6 +369,18 @@ def print_epistemic_panel(cutoff: datetime):
         else:
             print(f"  SAFE-lite:          {checked} claims checked, no judged results")
 
+    # Latest trace-faithfulness results
+    trace = [m for m in recent if m.get("metric") == "trace_faithfulness"]
+    if trace:
+        latest = trace[-1]
+        faith = latest.get("faithfulness_score")
+        fabricated = latest.get("fabricated_sources")
+        file_cites = (latest.get("verified_sources", 0) or 0) + (fabricated or 0)
+        if faith is not None:
+            print(f"  Trace faithfulness:  {faith:.1%} ({latest.get('matched_claims', 0)} matched / {latest.get('info_claims', 0)} claims)")
+        if fabricated is not None:
+            print(f"  Fabricated cites:    {fabricated} of {file_cites} file citations")
+
     # Trend: show all pushback entries for trend direction
     if len(pushback) >= 2:
         rates = [m.get("overall_rate", 0) for m in pushback]
@@ -312,6 +409,26 @@ def print_epistemic_panel(cutoff: datetime):
         vr = latest.get("verified_rate", 0)
         sr = latest.get("sourced_rate", 0)
         print(f"  Claims:             {total} total, {vr:.0%} verified, {sr:.0%} sourced")
+
+    # Latest compaction nuance
+    compaction = [m for m in recent if m.get("metric") == "compaction_nuance"]
+    if compaction:
+        latest = compaction[-1]
+        avg_density = latest.get("avg_density")
+        if avg_density is not None:
+            print(f"  Compaction nuance:   {avg_density:.4f} avg density ({latest.get('low_nuance_events', 0)} low-nuance events)")
+        else:
+            print(f"  Compaction nuance:   {latest.get('events', 0)} events, no density data")
+
+    # Latest calibration canary
+    canary = [m for m in recent if m.get("metric") == "calibration_canary"]
+    if canary:
+        latest = canary[-1]
+        acc = latest.get("accuracy")
+        brier = latest.get("brier_score")
+        consistency = latest.get("avg_consistency")
+        if acc is not None and brier is not None:
+            print(f"  Calibration canary:  {acc:.1%} acc / {brier:.4f} Brier / {consistency:.1%} consistency")
 
     print()
 
