@@ -8,11 +8,13 @@
 - [ ] Compare latency/cost vs scripted Playwright approach
 - [ ] Reference: https://ai.google.dev/gemini-api/docs/models/gemini-2.5-computer-use-preview
 
-### Gemini 3.1 Flash-Lite Preview
-- [ ] Update model strings in intel/tools/llm_check.py
-- [ ] Benchmark cost/quality vs gemini-3-flash-preview
-- [ ] Update model-guide skill with new model info
-- [ ] Released March 3, 2026
+### Gemini 3.1 Flash-Lite Preview — DONE 2026-03-05
+- [x] Update model strings in intel/tools/llm_check.py — Set as default for `verify` task ($0.25/$1.50 vs $2/$12)
+- [x] Add FAST_MODELS dict for --fast flag option across all tasks
+- [x] Update daily_synthesis.py default to Flash-Lite
+- [x] Update model-guide skill with pricing, benchmarks, prompting tips
+- **Benchmarks:** 34 intelligence (vs Flash 46, Pro 57), 389 tok/s (99th percentile), $0.25/$1.50/M
+- **Verdict:** Use for high-volume simple tasks; Flash non-reasoning is strictly better for complex work
 
 ### Gemini thinking_level Parameter (Gemini 3+)
 - [ ] Add thinking_level control to claim_extraction.py (use "low" for structured extraction)
@@ -22,15 +24,15 @@
 
 ## In Progress
 
-### Google Trends API (Alpha)
+### Google Trends API (Alpha) — BLOCKED
 - [x] Create download_google_trends_api.py with official API support
 - [x] Add OAuth2 authentication flow
 - [x] Implement fallback to scraping when API unavailable
 - [x] Add to pyproject.toml dependencies
-- [ ] Apply for alpha access at https://developers.google.com/search/apis/trends
-- [ ] Download client.json to intel/config/
-- [ ] Test end-to-end with real API credentials
-- [ ] Compare data consistency with scraped data
+- [ ] ~~Apply for alpha access~~ — **Requires organization/corporate account**, individual access not available
+- [ ] ~~Download client.json~~ — Blocked pending alpha access
+- **Fallback:** Old scraping method (`download_google_trends.py`) still works — verified 2026-03-05
+- **Revisit:** If/when API opens to individuals or org access obtained
 
 ## Architecture Improvements
 
