@@ -640,7 +640,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** llmx dispatch retry without diagnosis (Failure Mode 24, recurring). Escalation: MEMORY.md documents the `-f` gotcha but agents don't read it or forget post-compaction.
 - **Proposed fix:** [hook] PreToolUse:Bash hook that detects `llmx.*-f` and rewrites to stdin pipe pattern. Or: fix llmx `-f` to work with Gemini CLI transport. The instruction-only approach has failed — this is the 4th occurrence across sessions.
 - **Severity:** high — ~47 wasted tool calls, 3 separate sessions, pattern persists despite documentation
-- **Status:** [ ] proposed
+- **Status:** [x] fixed (2026-03-06). llmx `--output` flag added (a5c654b), model-review templates updated to use `-o` instead of `> file 2>&1` (0ffb52c). Root cause: shell redirects buffer until process exit; `--output` writes via Python TeeWriter.
 
 ### [2026-03-07] MISSING PUSHBACK: Agent complied with request to relabel research purpose
 - **Session:** meta 8c7dcbfb
@@ -702,6 +702,6 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - Session 8bd2cc37 (refs) — too small to analyze meaningfully
 
 **Cross-cutting patterns:**
-1. **llmx `-f` is the single highest-waste recurring pattern.** Documented in MEMORY.md, llmx-guide skill, and now 4+ improvement-log entries. Instructions have failed to prevent it. This needs a hook or an llmx code fix.
+1. **llmx polling loop — FIXED (2026-03-06).** Root cause was shell `> file` redirects buffering until process exit, not the `-f` flag itself. Fix: `llmx --output` flag (TeeWriter, unbuffered) + model-review templates updated. Instructions failed; code fix succeeded.
 2. **Companion skill bypass** — epistemics, llmx-guide, and other mandatory companions are routinely skipped. The "invoke if relevant" instruction is too weak. Consider: domain-detection hook that auto-loads relevant skills.
 3. **Probe-before-build discipline** is still missing for data acquisition and domain integration tasks. Agents write full implementations before validating the underlying assumption (auth works, data is selective, API returns what's expected).
