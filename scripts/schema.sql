@@ -51,3 +51,14 @@ CREATE INDEX IF NOT EXISTS idx_tasks_claimable
 CREATE INDEX IF NOT EXISTS idx_tasks_finished
     ON tasks(finished_at)
     WHERE finished_at IS NOT NULL;
+
+-- Idempotent scheduled pipeline ledger (Phase 3).
+-- Prevents duplicate submissions: unique constraint on (pipeline_name, period_start).
+CREATE TABLE IF NOT EXISTS scheduled_runs (
+    id INTEGER PRIMARY KEY,
+    pipeline_name TEXT NOT NULL,
+    period_start TEXT NOT NULL,
+    submitted_at TEXT DEFAULT (datetime('now','localtime')),
+    task_id INTEGER REFERENCES tasks(id),
+    UNIQUE(pipeline_name, period_start)
+);

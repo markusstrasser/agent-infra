@@ -88,6 +88,17 @@ def _migrate_if_needed(db):
         db.execute("ALTER TABLE tasks ADD COLUMN subagents TEXT")
     if "step_options" not in cols:
         db.execute("ALTER TABLE tasks ADD COLUMN step_options TEXT")
+    # Ensure scheduled_runs table exists (Phase 3 scheduler)
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS scheduled_runs (
+            id INTEGER PRIMARY KEY,
+            pipeline_name TEXT NOT NULL,
+            period_start TEXT NOT NULL,
+            submitted_at TEXT DEFAULT (datetime('now','localtime')),
+            task_id INTEGER REFERENCES tasks(id),
+            UNIQUE(pipeline_name, period_start)
+        )
+    """)
     db.commit()
     _migrated = True
 
@@ -992,12 +1003,116 @@ def cmd_pipelines(args):
     db.close()
 
 
+def _check_scheduled_pipelines(db):
+    """Auto-submit scheduled pipelines if their period has elapsed.
+
+    Uses the scheduled_runs table with a unique (pipeline_name, period_start)
+    constraint to prevent duplicate submissions. Cron-style schedules parsed
+    as daily-only (hour check against current time).
+    """
+    pipelines = db.execute(
+        "SELECT name, schedule, project FROM pipelines WHERE enabled = 1 AND schedule IS NOT NULL"
+    ).fetchall()
+
+    now = datetime.now()
+    today = now.strftime("%Y-%m-%d")
+
+    for pipeline in pipelines:
+        name = pipeline["name"]
+        schedule = pipeline["schedule"]
+
+        # Parse simple cron: "0 22 * * *" -> hour=22
+        parts = schedule.split()
+        if len(parts) < 5:
+            continue
+        try:
+            sched_hour = int(parts[1])
+        except ValueError:
+            continue
+
+        # Only submit if current hour >= scheduled hour (run once per day)
+        if now.hour < sched_hour:
+            continue
+
+        # Check if already submitted for today
+        existing = db.execute(
+            "SELECT id FROM scheduled_runs WHERE pipeline_name = ? AND period_start = ?",
+            (name, today),
+        ).fetchone()
+
+        if existing:
+            continue
+
+        # Submit the pipeline
+        template_path = PIPELINE_DIR / f"{name}.json"
+        if not template_path.exists():
+            log_event({"action": "schedule_skip", "pipeline": name, "reason": "template_not_found"})
+            continue
+
+        template = json.loads(template_path.read_text())
+        project = pipeline["project"]
+        pause_before = template.get("pause_before", [])
+        steps = template.get("steps", [])
+
+        prev_task_id = None
+        for step_def in steps:
+            step_name = step_def["step"]
+            prompt = step_def.get("prompt", "")
+            step_project = step_def.get("project", project)
+            needs_approval = 1 if step_name in pause_before else 0
+            if step_project != "meta" and step_name == "execute":
+                needs_approval = 1
+
+            step_options_keys = ("output_format", "inject_meta_infra")
+            step_options = {k: step_def[k] for k in step_options_keys if k in step_def}
+            step_options_json = json.dumps(step_options) if step_options else None
+
+            subagents_raw = step_def.get("subagents")
+            subagents_json = json.dumps(subagents_raw) if subagents_raw else None
+
+            db.execute("""
+                INSERT INTO tasks (pipeline, step, project, prompt, engine, priority,
+                    max_turns, max_budget_usd, model, agent, allowed_tools, effort, cwd,
+                    requires_approval, depends_on, subagents, step_options)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                name, step_name, step_project, prompt,
+                step_def.get("engine", "claude"),
+                step_def.get("priority", 5),
+                step_def.get("max_turns", 15),
+                step_def.get("max_budget_usd", 5.0),
+                step_def.get("model"),
+                step_def.get("agent"),
+                step_def.get("allowed_tools"),
+                step_def.get("effort"),
+                step_def.get("cwd"),
+                needs_approval,
+                prev_task_id,
+                subagents_json,
+                step_options_json,
+            ))
+            prev_task_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+        # Record in scheduled_runs ledger
+        db.execute(
+            "INSERT INTO scheduled_runs (pipeline_name, period_start, task_id) VALUES (?, ?, ?)",
+            (name, today, prev_task_id),
+        )
+        db.commit()
+        log_event({"action": "scheduled_submit", "pipeline": name, "period": today,
+                   "task_id": prev_task_id})
+
+
 def cmd_tick(args):
     lock_fd = acquire_lock()
     if not lock_fd:
         return
 
     db = get_db()
+
+    # Check if any scheduled pipelines need submission
+    _check_scheduled_pipelines(db)
+
     ran = execute_one(db)
 
     # Send macOS notification for completed/failed tasks
