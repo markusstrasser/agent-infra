@@ -13,10 +13,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+from config import PROJECT_ROOTS
+
 # --- Configuration ---
 
 PROJECTS_DIR = Path.home() / "Projects"
-PROJECTS = ["intel", "selve", "genomics", "anki", "meta"]
+PROJECTS = list(PROJECT_ROOTS.keys())
 GLOBAL_SETTINGS = Path.home() / ".claude" / "settings.json"
 GLOBAL_CLAUDE_MD = Path.home() / ".claude" / "CLAUDE.md"
 MEMORY_WARN_LINES = 180

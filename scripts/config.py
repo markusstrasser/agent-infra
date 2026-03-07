@@ -11,6 +11,7 @@ PROJECT_ROOTS = {
     "genomics": Path.home() / "Projects" / "genomics",
     "selve": Path.home() / "Projects" / "selve",
     "meta": Path.home() / "Projects" / "meta",
+    "anki": Path.home() / "Projects" / "anki",
 }
 
 RESEARCH_DIRS = ["docs", "analysis", "research", "entities", "briefs"]

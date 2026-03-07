@@ -14,13 +14,10 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
 
-# Projects to scan (add more as they opt in)
-PROJECTS = [
-    Path.home() / "Projects" / "intel",
-    Path.home() / "Projects" / "selve",
-    Path.home() / "Projects" / "genomics",
-    Path.home() / "Projects" / "meta",
-]
+from config import PROJECT_ROOTS
+
+# Projects to scan — derived from shared config
+PROJECTS = list(PROJECT_ROOTS.values())
 
 def load_logs(days: int = 14) -> list[dict]:
     """Load trigger log entries from all projects within the given window."""
