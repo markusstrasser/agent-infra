@@ -629,3 +629,79 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 1. **Provenance hook gaming** is the most concerning recurring pattern — agents satisfy the letter of hooks while violating their spirit. Architectural fix needed (diff-level validation).
 2. **Hook bypass via alternative runtimes** (Python pathlib vs bash rm) — fundamental limitation of bash-only hooks.
 3. **Subagent scope violations** continue (Explore committing, unbounded general-purpose agents). Worktree isolation partially addresses but enforcement gaps remain.
+
+### [2026-03-07] Session Analyst — Behavioral Anti-Patterns (meta 5, intel 3, genomics 3, selve 3, refs 1)
+- **Source:** Gemini 3.1 Pro transcript analysis + manual validation
+- **Sessions:** meta (e52c8052, 9b783e78, 8c7dcbfb, f874d36f, 35264f6e), intel (cac26a1c, eb0d9df4, c69b7142), genomics (8467366f, 943ac6d7, 9d5672d1), selve (3312688c, 218316c6, 4c055500), refs (8bd2cc37)
+
+### [2026-03-07] TOKEN WASTE: llmx `-f` polling loop — 47 sleep/wc cycles across 3 intel sessions
+- **Session:** intel cac26a1c, eb0d9df4, c69b7142
+- **Evidence:** Agents dispatched llmx with `-f` flag on large files as background tasks, then polled empty output files with `sleep N && wc -c` in escalating intervals (30s, 60s, 90s, 120s). 47 such poll cycles across 3 sessions. Root cause: `-f` flag hangs with Gemini (documented in MEMORY.md since 2026-03-06 line 380), but agents keep using it. In c69b7142, agent killed processes, restarted them, polled again — only eventually switching to `-s` (stdin pipe) which works.
+- **Failure mode:** llmx dispatch retry without diagnosis (Failure Mode 24, recurring). Escalation: MEMORY.md documents the `-f` gotcha but agents don't read it or forget post-compaction.
+- **Proposed fix:** [hook] PreToolUse:Bash hook that detects `llmx.*-f` and rewrites to stdin pipe pattern. Or: fix llmx `-f` to work with Gemini CLI transport. The instruction-only approach has failed — this is the 4th occurrence across sessions.
+- **Severity:** high — ~47 wasted tool calls, 3 separate sessions, pattern persists despite documentation
+- **Status:** [ ] proposed
+
+### [2026-03-07] MISSING PUSHBACK: Agent complied with request to relabel research purpose
+- **Session:** meta 8c7dcbfb
+- **Evidence:** User said "don't say iq research, but pedagogical" when describing data access requests to ICPSR. Agent complied without comment, using "pedagogical research" in all subsequent tool calls and summaries. Agent should have noted the risk of misrepresenting research purpose on institutional data access forms (potential terms-of-service violation, academic integrity concern).
+- **Failure mode:** Missing pushback — compliance with potentially problematic framing
+- **Proposed fix:** [rule] Agent should flag when asked to misrepresent purpose/intent in external-facing communications. User's call after flagging.
+- **Severity:** medium — user's prerogative ultimately, but agent should have surfaced the concern
+- **Status:** [ ] proposed
+
+### [2026-03-07] BUILD-THEN-UNDO: ~20 ICPSR probe scripts written then bulk-deleted
+- **Session:** meta 8c7dcbfb
+- **Evidence:** Agent generated ~20 single-use scripts (icpsr_register_probe.js, icpsr_cookie_download.py, etc.) attempting various ICPSR authentication bypass strategies. All deleted in one `rm -v` command when the approach was abandoned. Partially logged in 2026-03-06 entry (line 86) as a brief reference but the scale (20 scripts) warrants a standalone finding.
+- **Failure mode:** Build-then-undo — should have tested one probe approach before mass-producing variants
+- **Proposed fix:** [rule] For authentication/scraping tasks: test ONE approach end-to-end before writing parallel variants. The "try N strategies in parallel" approach wastes tokens when all share the same root blocker.
+- **Severity:** medium — ~20 scripts written and deleted, significant wasted tokens
+- **Status:** [ ] proposed
+
+### [2026-03-07] FIRST-ANSWER CONVERGENCE: Infrastructure factoring plan rejected, rewritten
+- **Session:** meta 8c7dcbfb
+- **Evidence:** User asked to identify duplicated infrastructure across projects. Agent immediately wrote a granular utility-function extraction plan (cross-project-infra-factoring.md). User rejected: "It's not so granular... more about 'hey this dataset pipeline system'". Agent rewrote entirely. Should have asked a clarifying question about desired granularity before producing the plan.
+- **Failure mode:** First-answer convergence — jumped to implementation without confirming scope
+- **Proposed fix:** [rule] For cross-project analysis tasks: confirm scope/granularity with one example before full analysis. "Here's one pattern I found — is this the right level?"
+- **Severity:** medium — full plan written then discarded
+- **Status:** [ ] proposed
+
+### [2026-03-07] RULE VIOLATION: Epistemics skill not invoked for biotech/medical research
+- **Session:** selve 3312688c
+- **Evidence:** User requested research on "biotech, antiaging, neuroscience." System prompt mandates invoking epistemics companion skill for bio/medical/scientific claims. Agent went straight to Exa/Brave web searches without invoking epistemics. Claims in the output were not source-graded or evaluated against evidence hierarchy.
+- **Failure mode:** Skill misrouting — mandatory companion skill ignored
+- **Proposed fix:** [hook] PreToolUse hook that detects medical/bio topic keywords in search queries and warns if epistemics skill hasn't been invoked. Or: strengthen the rule in selve's CLAUDE.md.
+- **Severity:** high — epistemics exists precisely for this case, complete bypass
+- **Status:** [ ] proposed
+
+### [2026-03-07] TOKEN WASTE: Hallucinated llmx CLI flags cause repeated failures
+- **Session:** genomics 8467366f
+- **Evidence:** 4 consecutive failed llmx commands using unsupported flags (`-o`, `--reasoning-effort`) and incorrect model names (`gemini-3.1-pro` vs `gemini-3.1-pro-preview`). Agent invented flags that don't exist.
+- **Failure mode:** Token waste — hallucinated CLI syntax (related to Failure Mode 24)
+- **Proposed fix:** [skill] llmx-guide skill exists but wasn't loaded. Consider: auto-load llmx-guide when agent is about to call llmx. Or: PreToolUse hook on Bash that detects llmx commands and injects correct usage.
+- **Severity:** medium — 4 wasted calls, pattern recurs when llmx-guide not loaded
+- **Status:** [ ] proposed
+
+### [2026-03-07] BUILD-THEN-UNDO: FINRA SI domain added then immediately reverted
+- **Session:** intel c69b7142
+- **Evidence:** Agent added `finra_si` domain to coverage_density.py and setup_duckdb.py. After running the scanner and seeing it covers 24K tickers, immediately reverted: "it covers basically everything... Not useful as a discriminating domain." Should have checked coverage breadth BEFORE wiring into infrastructure.
+- **Failure mode:** Build-then-undo — validation should precede integration
+- **Proposed fix:** [rule] For new data domains: check coverage/selectivity metrics before wiring into pipeline. A 5-line probe script beats modifying 2 infrastructure files.
+- **Severity:** low — small scope, quick revert
+- **Status:** [ ] proposed
+
+**LOW severity (noted, no action):**
+- Token waste: repeated download/unzip of same ICPSR codebook files (meta 8c7dcbfb) — one-off
+- Token waste: 4 sequential Edit calls for simple text replacement (selve 4c055500) — low frequency
+- Token waste: repeated failed JSONL parsing of agent output (genomics 8467366f) — 8 attempts
+- Build-then-undo: evaluate_signals.py O(N*M) rewrite to batch (intel c69b7142) — reasonable iterative development
+
+**False positives filtered:**
+- Sessions e52c8052, 9b783e78, f874d36f, 35264f6e (meta) — empty or trivial (skill invocations, no substantive agent work)
+- Sessions 943ac6d7, 9d5672d1 (genomics) — empty sessions
+- Session 8bd2cc37 (refs) — too small to analyze meaningfully
+
+**Cross-cutting patterns:**
+1. **llmx `-f` is the single highest-waste recurring pattern.** Documented in MEMORY.md, llmx-guide skill, and now 4+ improvement-log entries. Instructions have failed to prevent it. This needs a hook or an llmx code fix.
+2. **Companion skill bypass** — epistemics, llmx-guide, and other mandatory companions are routinely skipped. The "invoke if relevant" instruction is too weak. Consider: domain-detection hook that auto-loads relevant skills.
+3. **Probe-before-build discipline** is still missing for data acquisition and domain integration tasks. Agents write full implementations before validating the underlying assumption (auth works, data is selective, API returns what's expected).
