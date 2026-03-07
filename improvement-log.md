@@ -81,6 +81,14 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 2. **Pre-frontier timeliness bias is the most persistent epistemic failure** — third occurrence. Now in MEMORY.md as a rule. But given Failure Mode 12 (instructions alone = 0% reliable), this will likely recur without a hook. The research-output advisory could be extended to check for model names matching a known pre-frontier list.
 3. **Inline research (outside /researcher) skips the researcher skill's guardrails.** The broadcast-search → wasted-results pattern in 0e8dccbc happened because the user triggered ad-hoc research, and the agent didn't apply the researcher skill's sequential search discipline. This is a coverage gap — the researcher skill's safeguards only apply when explicitly invoked.
 
+### [2026-03-06] BUILD_THEN_UNDO: Skill written at wrong scope, full rewrite required
+- **Session:** skills/research 8c7dcbfb
+- **Evidence:** First data-acquisition skill version (commit `3248690`, 280 lines) was dataset-specific (ICPSR/NCES workflows). User corrected: "Not dataset specific stuff... just the apis, tools." Complete rewrite to tool/API-focused version (`51782f8`).
+- **Failure mode:** Wrong assumption about skill scope — started writing before confirming what the user wanted covered.
+- **Proposed fix:** [rule] Scope-check before large skill creation. Added to skill-authoring skill: "Before writing a skill >50 lines, confirm scope with the user."
+- **Severity:** medium — 280 lines written then replaced, ~2 turns of user correction
+- **Status:** [x] implemented — scope-check section added to skill-authoring SKILL.md (2026-03-06)
+
 ### [2026-02-28] TOKEN WASTE: Iterative regex parsing via repeated Bash one-liners
 - **Session:** intel 16552a95
 - **Evidence:** 9 reads of `setup_duckdb.py`, 6 separate `python3 -c "import re..."` Bash commands to iteratively test regex parsing of view names from Python source. Each attempt failed, requiring a new iteration with slightly modified regex.

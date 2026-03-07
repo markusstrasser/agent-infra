@@ -9,6 +9,15 @@ description: Create, design, and validate Agent Skills for Claude Code. Use when
 
 **The context window is a public good.** Skills share context with conversation, system prompt, and other skills. Every line must justify its token cost. Only add context Claude doesn't already have — generic instructions the model already knows are low-value (Agent-Diff: +3.4 for known APIs vs +19 for novel).
 
+## Before Writing: Scope Check
+
+Before writing a skill >50 lines, confirm scope with the user. One question saves a full rewrite:
+- **Tools vs domain?** "Should this cover the APIs/tools, or the domain-specific workflows?"
+- **Who's the audience?** All projects (global skill) or one project (local skill)?
+- **What's excluded?** Knowing what NOT to cover prevents bloat.
+
+Don't write 280 lines then discover the user wanted a different angle.
+
 ## File Structure
 
 ```
