@@ -270,7 +270,9 @@ async def _run_claude_task_async(task, cwd, progress_file=None):
     # Must unset CLAUDECODE from os.environ itself, not just the env dict overlay.
     saved_claudecode = os.environ.pop("CLAUDECODE", None)
     os.environ["CLAUDE_AGENT_SDK_SKIP_VERSION_CHECK"] = "1"  # belt-and-suspenders
-    env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+    # Filter out vars that trigger nested-session detection in the bundled claude binary
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT")}
     if effort == "low":
         env["CLAUDE_CODE_SUBAGENT_MODEL"] = "haiku"
     if effort:
@@ -306,6 +308,7 @@ async def _run_claude_task_async(task, cwd, progress_file=None):
         system_prompt={"type": "preset", "preset": "claude_code"},
         env=env,
         agents=agents,
+        stderr=lambda line: print(f"[sdk-stderr] {line}", flush=True),
         **sdk_kwargs,
     )
 
