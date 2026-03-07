@@ -11,12 +11,7 @@ This repo plans and tracks improvements to agent infrastructure across projects 
 - `scripts/orchestrator.py` — cron-driven task runner (dual-engine: `claude -p` + scripts)
 - `scripts/doctor.py` — cross-project health checker (hooks, settings, skills, MCP, git state)
 - `scripts/runlog.py` — cross-vendor run importer/query CLI for Claude, Codex, Gemini, and Kimi local logs
-- `scripts/repo_tools_mcp.py` — MCP server exposing repo navigation tools (outline, callgraph, imports, deps, changes, summary). Configured in all projects' `.mcp.json`.
-- `scripts/repo-outline.py` — AST-based class/function signatures + line numbers, callgraph
-- `scripts/repo-imports.py` — cross-file import graph (--internal, --deps, --for modes)
-- `scripts/repo-deps.py` — pyproject.toml deps with PyPI descriptions
-- `scripts/repo-changes.py` — recent git changes by area/hotspots
-- `scripts/repo-summary.py` — per-file one-liners (docstring-first, optional Haiku)
+- `scripts/repo_tools_mcp.py` — MCP server exposing repo navigation tools (outline, callgraph, imports, deps, changes, summary). Backends: `repo-outline.py`, `repo-imports.py`, `repo-deps.py`, `repo-changes.py`, `repo-summary.py`. Configured in all projects' `.mcp.json`.
 - `scripts/propose-work.py` — daily morning brief: ranked work proposals from cross-project signals
 - `scripts/hook-outcome-correlator.py` — joins hook triggers with session receipts for effectiveness scoring
 - `scripts/hook-roi.py` — hook trigger pattern analysis (fires, blocks, false positive candidates)
@@ -81,9 +76,20 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `mcp-protocol-evolution.md` | MCP spec WG tracking: Tasks (SEP-1686, Amazon-authored), Skills Over MCP, Multi Round-Trip, Task Continuity, HTTP transport. Implications for orchestrator engine swap. | Orchestrator engine migration, MCP tool design, multi-session architecture |
 | `ai-reasoning-causal-abductive-deductive.md` | Frontier model causal/abductive/deductive reasoning: T3 benchmark numbers, Scaling Paradox, Causal Rung Collapse proof, Causal-Copilot, GEAR abduction, PRMs, deployable tools | Causal inference in agent workflows, DAG construction, bad-control prevention, research agent design |
 | `reasoning-scaffolding-divergent.md` | Beyond DAGs: causal discovery from data (causal-learn, LLM priors), sensitivity analysis (PySensemakr), ThinkPRM generative verification, Think² metacognition, analogical reasoning limits, AI Scientist v2, ScienceAgentBench | Extending causal scaffolding, deciding what to build next, sensitivity analysis integration |
-| `reasoning-trace-verification.md` | Verifying agent reasoning: PRMs beyond math (ThinkPRM, VersaPRM, Med-PRM, VRPM), CoT faithfulness, formal causal verification (DoWhy, dagitty, ananke), self-consistency for causal claims, BMA over DAGs, interwhen interleaved verification | Reasoning verification, dag_check.py upgrades, DoWhy integration, formal verification architecture |
 | `reasoning-trace-verification.md` | Verifying agent reasoning traces: PRMs (ThinkPRM/VersaPRM/Med-PRM/VRPM), CoT faithfulness (7-13%), formal causal verification (DoWhy/dagitty/ananke), self-consistency for DAGs, cross-model review, interwhen interleaving. Rule-based > neural for formally verifiable domains. | Causal reasoning verification, dag_check.py upgrades, adjustment set validation, PRM selection |
 | `code-structure-for-agents.md` | Repo formatting for agents: bitter lesson test, graph tools (CodexGraph/RIG/"One Tool Is Enough"), comments vs architecture maps, RAPTOR for code, what survives model improvements. File naming and CLAUDE.md maps are high-ROI; graph DBs and inline comments are not. | Repo/file organization, agent pliability, code navigation tools |
+| `agent-scaffolding-instructions-infra-2026-03.md` | Recent agent scaffolding, instruction-following, and infrastructure papers; signal vs noise filtering | Building agent harnesses, prompt/schema design, reliability infrastructure |
+| `anthropic-platform-sweep-2026-03-02.md` | Claude Code v2.1.30→v2.1.63 features, API/SDK updates, Sonnet 4.6 launch, financial plugins inventory | Platform capability updates, Claude Code native features, SDK integration decisions |
+| `causal-reasoning-evidence.md` | LLM causal/abductive reasoning gaps, Rung Collapse, architectural limits vs prompt fixes, constrained output suppression | Causal inference in agents, DAG construction, reasoning scaffolding design |
+| `cross-project-infra-factoring.md` | Architectural assessment of 7-project overlap; why embeddings extracted, why dataset/DAG/telemetry/MCP/caching don't | Designing shared libraries, infrastructure extraction, future delegation candidates |
+| `epistemic-scaffolding-evidence.md` | Measurement infrastructure in agentic systems, PRMs vs outcome supervision, reflection gains (+4-14%), frontier agent benchmarks | Building epistemic verification, process supervision, sycophancy detection |
+| `exa-skill-vs-ours.md` | Exa's single-tool research skill vs our 7-tool+multi-source architecture (papers-mcp, Brave, Perplexity) | Research skill design, triangulation strategy, subagent delegation patterns |
+| `firecrawl-api-deep-dive.md` | 7 API endpoints, AGPL license, MCP server (14 tools), pricing tiers, self-hosting gaps | Web scraping tool selection, MCP configuration, self-hosted infrastructure |
+| `perplexity-sonar-api-landscape.md` | Four Perplexity APIs (Sonar/Agent/Search/Embeddings), billing models, OpenAI-compatible endpoints | Search API selection, grounded LLM integration, multi-model routing |
+| `runlog-otel-compatibility.md` | Runlog schema borrowing from OpenInference/OTel vocabulary; local-first domain model with later export target | Instrumentation design, observability schema, run logging architecture |
+| `schema-bounded-review-packets-2026-03.md` | Narrow use of schemas at handoff points (search→evidence→review→synthesize) vs wholesale structure conversion | Agent workflow design, interface minimization, when to structure vs prose |
+| `search-api-integration-landscape.md` | All 5 search APIs configured (Brave/Perplexity/Firecrawl/Exa/papers), migration to user scope, 14+ tool MCP footprint | Search tool selection, MCP configuration, API integration sequencing |
+| `skill-provenance-controls-2026-03.md` | Mutable instruction supply chain: skill inventory, version hashing, change detection | Skills governance, supply chain visibility, skill versioning strategy |
 
 <constitution>
 > **Human-protected.** Agent may propose changes but must not modify without explicit approval.
@@ -193,7 +199,7 @@ orchestrator.py pipelines                            # cost/status rollup by pip
 orchestrator.py summary                              # daily markdown
 ```
 
-**Pipelines** (`pipelines/*.json`): research-and-implement, entity-refresh, morning-prep, skills-drift, earnings-refresh, session-retro, research-sweep, vendor-landscape. Templates support `{variable}` substitution and `pause_before` approval gates.
+**Pipelines** (`pipelines/*.json`): research-and-implement, entity-refresh, morning-prep, skills-drift, earnings-refresh, session-retro, research-sweep, vendor-landscape, deep-dive, epistemic-baseline, repo-index-refresh, research-api-benchmark, algorithm-provenance-audit, trigger-monitor. Templates support `{variable}` substitution and `pause_before` approval gates.
 
 **Key design choices:**
 - `--no-session-persistence` and `--worktree` both dropped — they suppress transcripts (breaks session-analyst)
@@ -228,7 +234,6 @@ orchestrator.py summary                              # daily markdown
 - [ ] **Intentional Contextual Fracture** — Redact/distort different parts of context for parallel generators; incomplete context forces different anchoring and pulls solutions from different domains. Needs orchestrator to manage parallel redacted prompts. (Source: model-review 2026-03-06, D2)
 - [ ] **Session-analyst design-task check** — Verify that design tasks (architecture, strategy, shared infra) produce phase-state artifacts (divergent-options + selection-rationale). Forward commitment from constitutional P6. (Source: causal-scaffolding-v2 plan 2026-03-06)
 - [ ] **dag_suggest CPDAG output** — Data-driven DAG skeleton via causal-learn PC + bootstrap stability. Deferred: Phase 4 DoWhy assessment found tool ecosystem adds no value beyond dag_check.py for current use cases. Revisit if causal discovery from data becomes a need. (Source: causal-scaffolding-v2 plan 2026-03-06)
-
 
 ## What This Repo Is NOT
 - Not a place to write more rules about rules.
@@ -310,5 +315,5 @@ Status line, notifications, receipts, and dashboard. Full details in `cockpit.md
 - Runlog DB: `~/.claude/runlogs.db`
 - Runlog docs: `meta/runlog.md`
 - Runlog CLI: `uv run python3 scripts/runlog.py stats|import|query`
-- Top error sources (Feb 2026): zsh multiline loops (178/wk), DuckDB column guessing (324/wk), llmx wrong flags (16/wk)
+- Top error sources (Feb 2026, stale — run `just hook-telemetry` for current): zsh multiline loops, DuckDB column guessing, llmx wrong flags
 </session_forensics>
