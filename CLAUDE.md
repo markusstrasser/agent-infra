@@ -5,7 +5,7 @@ This repo plans and tracks improvements to agent infrastructure across projects 
 
 ## Key Files
 - `GOALS.md` — what the system optimizes for (human-owned)
-- `justfile` — task runner: `just dashboard`, `just doctor`, `just pushback`, `just epistemic-lint`, `just safe-lite`
+- `justfile` — task runner (grouped): `just --list` shows groups. Root workspace justfile at `~/Projects/justfile` for cross-project dispatch (`all-health`, `push-all`, `todos`)
 - `schemas/` — epistemic schemas: `open_questions.md` (null result tracking), `pertinent_negatives.json` (thesis negatives)
 - `meta_mcp.py` — meta-knowledge MCP server (section-based search over all .md files)
 - `scripts/orchestrator.py` — cron-driven task runner (dual-engine: `claude -p` + scripts)
@@ -228,6 +228,7 @@ orchestrator.py summary                              # daily markdown
 - [ ] **Intentional Contextual Fracture** — Redact/distort different parts of context for parallel generators; incomplete context forces different anchoring and pulls solutions from different domains. Needs orchestrator to manage parallel redacted prompts. (Source: model-review 2026-03-06, D2)
 - [ ] **Session-analyst design-task check** — Verify that design tasks (architecture, strategy, shared infra) produce phase-state artifacts (divergent-options + selection-rationale). Forward commitment from constitutional P6. (Source: causal-scaffolding-v2 plan 2026-03-06)
 - [ ] **dag_suggest CPDAG output** — Data-driven DAG skeleton via causal-learn PC + bootstrap stability. Deferred: Phase 4 DoWhy assessment found tool ecosystem adds no value beyond dag_check.py for current use cases. Revisit if causal discovery from data becomes a need. (Source: causal-scaffolding-v2 plan 2026-03-06)
+- [ ] **Task runner Phase 2 — measure usage** — Track for 2 weeks: `all-health` invocations (≥4/month to keep), grouped `--list` satisfaction, watch mode desire (≥8/week to justify Phase 3 watchexec). Phase 1 done 2026-03-07: groups added to all 4 core repos, root justfile at `~/Projects/`, `views-clean` → `views-rebuild`, `dotenv-load` for intel+selve. (Source: model-review 2026-03-06, plan `.claude/plans/99723321-task-runner-upgrade.md`)
 
 ## What This Repo Is NOT
 - Not a place to write more rules about rules.
