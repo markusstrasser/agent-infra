@@ -18,7 +18,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from config import METRICS_FILE, PROJECT_ROOTS, RESEARCH_DIRS
+from config import PROJECT_ROOTS, RESEARCH_DIRS, log_metric
 
 # Per-claim JSONL log for detailed analysis
 CLAIM_LOG = Path.home() / ".claude" / "safe-lite-claims.jsonl"
@@ -510,24 +510,21 @@ def main():
 
     # Log metrics
     backend_tag = "legacy" if legacy else "exa"
-    metric = {
-        "ts": datetime.now().isoformat(),
-        "metric": "safe_lite_eval",
-        "project": project,
-        "backend": backend_tag,
-        "files_evaluated": len(file_results),
-        "total_claims": sum(r["claims"] for r in file_results),
-        "claims_checked": total_claims_checked,
-        "supported": total_supported,
-        "contradicted": total_contradicted,
-        "unclear": total_unclear,
-        "factual_precision": round(overall_precision, 4) if overall_precision is not None else None,
-        "total_cost": round(total_cost, 6) if total_cost > 0 else None,
-        "avg_latency_ms": total_latency // total_claims_checked if total_claims_checked else None,
-    }
-    with open(METRICS_FILE, "a") as f:
-        f.write(json.dumps(metric) + "\n")
-    print(f"  Logged to {METRICS_FILE}")
+    log_metric(
+        "safe_lite_eval",
+        project=project,
+        backend=backend_tag,
+        files_evaluated=len(file_results),
+        total_claims=sum(r["claims"] for r in file_results),
+        claims_checked=total_claims_checked,
+        supported=total_supported,
+        contradicted=total_contradicted,
+        unclear=total_unclear,
+        factual_precision=round(overall_precision, 4) if overall_precision is not None else None,
+        total_cost=round(total_cost, 6) if total_cost > 0 else None,
+        avg_latency_ms=total_latency // total_claims_checked if total_claims_checked else None,
+    )
+    print(f"  Logged to epistemic-metrics.jsonl")
     if CLAIM_LOG.exists():
         print(f"  Per-claim log: {CLAIM_LOG}")
 
