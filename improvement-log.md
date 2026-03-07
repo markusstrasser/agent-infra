@@ -703,5 +703,6 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 
 **Cross-cutting patterns:**
 1. **llmx polling loop — FIXED (2026-03-06).** Root cause was shell `> file` redirects buffering until process exit, not the `-f` flag itself. Fix: `llmx --output` flag (TeeWriter, unbuffered) + model-review templates updated. Instructions failed; code fix succeeded.
+   - **Follow-up (2026-03-07):** `--timeout` was also broken — litellm passes timeout as `httpx.Timeout(float)` which is a per-read socket timeout, not wall-clock. Streaming calls and chunked-transfer responses never timed out. Fix: SIGALRM wall-clock enforcement in llmx v0.5.3 (llmx@727e521). Also: pretool-llmx-guard.sh advisory hook catches shell redirects, PYTHONUNBUFFERED, and stdbuf cargo cults. Model-downgrade anti-pattern documented in llmx-guide skill.
 2. **Companion skill bypass** — epistemics, llmx-guide, and other mandatory companions are routinely skipped. The "invoke if relevant" instruction is too weak. Consider: domain-detection hook that auto-loads relevant skills.
 3. **Probe-before-build discipline** is still missing for data acquisition and domain integration tasks. Agents write full implementations before validating the underlying assumption (auth works, data is selective, API returns what's expected).
