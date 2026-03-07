@@ -253,7 +253,7 @@ def _build_telemetry_hooks(metrics_path: Path) -> dict:
 
 async def _run_claude_task_async(task, cwd, progress_file=None):
     """Run a claude task via Agent SDK query(). Returns TaskResult-like dict."""
-    effort = task["effort"] or DEFAULT_EFFORT.get(task.get("pipeline") or "", "medium")
+    effort = task["effort"] or DEFAULT_EFFORT.get(task["pipeline"] or "", "medium")
     allowed_tools = (
         task["allowed_tools"].split(",") if task["allowed_tools"] else None
     )
@@ -355,8 +355,8 @@ def execute_one(db):
     # Budget-aware degradation: downgrade effort or skip non-critical tasks
     remaining = DAILY_COST_CAP - daily_cost
     max_budget = task["max_budget_usd"] or 5.0
-    task_effort = task["effort"] or DEFAULT_EFFORT.get(task.get("pipeline") or "", "medium")
-    pipeline = task.get("pipeline") or ""
+    task_effort = task["effort"] or DEFAULT_EFFORT.get(task["pipeline"] or "", "medium")
+    pipeline = task["pipeline"] or ""
     if max_budget > remaining:
         if task_effort in ("high", "max"):
             log_event({"action": "budget_degrade", "task_id": task["id"],
