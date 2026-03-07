@@ -167,13 +167,7 @@ def load_receipts() -> dict[str, dict]:
 # Project name extraction
 # ---------------------------------------------------------------------------
 
-def extract_project_name(dir_name: str) -> str:
-    """Convert '-Users-alien-Projects-intel' to 'intel'."""
-    parts = dir_name.split("-")
-    for i, p in enumerate(parts):
-        if p == "Projects" and i + 1 < len(parts):
-            return "-".join(parts[i + 1:])
-    return dir_name
+from config import extract_project_name
 
 
 # ---------------------------------------------------------------------------

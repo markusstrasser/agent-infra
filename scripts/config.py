@@ -19,6 +19,15 @@ RESEARCH_DIRS = ["docs", "analysis", "research", "entities", "briefs"]
 PROSE_EXTENSIONS = {".md", ".txt", ".rst"}
 
 
+def extract_project_name(dir_name: str) -> str:
+    """Convert dir name like '-Users-alien-Projects-intel' to 'intel'."""
+    parts = dir_name.split("-")
+    for i, p in enumerate(parts):
+        if p == "Projects" and i + 1 < len(parts):
+            return "-".join(parts[i + 1:])
+    return dir_name
+
+
 def log_metric(metric_name: str, **fields) -> None:
     """Append a metric entry to epistemic-metrics.jsonl."""
     entry = {"ts": datetime.now().isoformat(), "metric": metric_name, **fields}
