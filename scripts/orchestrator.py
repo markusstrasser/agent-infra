@@ -270,7 +270,7 @@ async def _run_claude_task_async(task, cwd, progress_file=None):
     # Must unset CLAUDECODE from os.environ itself, not just the env dict overlay.
     saved_claudecode = os.environ.pop("CLAUDECODE", None)
     os.environ["CLAUDE_AGENT_SDK_SKIP_VERSION_CHECK"] = "1"  # belt-and-suspenders
-    env = dict(os.environ)
+    env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
     if effort == "low":
         env["CLAUDE_CODE_SUBAGENT_MODEL"] = "haiku"
     if effort:
@@ -487,13 +487,18 @@ def execute_one(db):
                 """, (status, str(output_file), summary, cost, tokens_in, tokens_out, task_id))
                 log_event({"action": status, "task_id": task_id, "cost_usd": cost})
 
-    except Exception as e:
+    except BaseException as e:
+        # Extract nested exceptions from ExceptionGroup/TaskGroup
+        error_msg = str(e)
+        if hasattr(e, 'exceptions'):
+            nested = "; ".join(f"{type(sub).__name__}: {sub}" for sub in e.exceptions)
+            error_msg = f"{error_msg} [{nested}]"
         db.execute(
             "UPDATE tasks SET status='failed', finished_at=datetime('now','localtime'), error=? WHERE id=?",
-            (str(e)[:500], task_id),
+            (error_msg[:500], task_id),
         )
         cascade_failure(db, task_id)
-        log_event({"action": "error", "task_id": task_id, "error": str(e)[:200]})
+        log_event({"action": "error", "task_id": task_id, "error": error_msg[:500]})
 
     db.commit()
     return True
