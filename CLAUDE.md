@@ -17,7 +17,10 @@ This repo plans and tracks improvements to agent infrastructure across projects 
 - `scripts/repo-deps.py` — pyproject.toml deps with PyPI descriptions
 - `scripts/repo-changes.py` — recent git changes by area/hotspots
 - `scripts/repo-summary.py` — per-file one-liners (docstring-first, optional Haiku)
-- `scripts/schema.sql` — SQLite DDL for orchestrator task queue
+- `scripts/propose-work.py` — daily morning brief: ranked work proposals from cross-project signals
+- `scripts/hook-outcome-correlator.py` — joins hook triggers with session receipts for effectiveness scoring
+- `scripts/hook-roi.py` — hook trigger pattern analysis (fires, blocks, false positive candidates)
+- `scripts/schema.sql` — SQLite DDL for orchestrator task queue + scheduled_runs ledger
 - `runlog.md` — runlog architecture, import/query usage, named queries, and vendor coverage
 - `pipelines/` — JSON pipeline templates (recurring workflows)
 - `maintenance-checklist.md` — pending improvements, monitoring list, sweep schedule
@@ -199,9 +202,17 @@ orchestrator.py summary                              # daily markdown
 - `DAILY_COST_CAP = $25` enforced before each tick
 - `fcntl.flock` prevents concurrent runs
 
-**Scheduling:** `scripts/com.meta.orchestrator.plist` (launchd, 15-min interval). Not loaded yet — copy to `~/Library/LaunchAgents/` and `launchctl load` when ready.
+**Scheduling:** Loaded launchd agents in `~/Library/LaunchAgents/`:
+- `com.meta.orchestrator.plist` — tick every 15 min (runs queued tasks)
+- `com.meta.session-retro-daily.plist` — submits session-retro at 22:00
+- `com.meta.hook-roi-daily.plist` — generates hook ROI report at 22:30
+- `com.meta.propose-work-daily.plist` — morning brief at 05:00 (not yet loaded)
 
-**Design spec:** `research/orchestrator-design.md`. **Plan:** `.claude/plans/3a65775d-orchestrator.md`.
+**Scheduler:** `tick()` auto-submits scheduled pipelines via `scheduled_runs` table (unique constraint prevents duplicates). Pipelines with `"schedule"` in their JSON template are auto-submitted when their cron hour elapses.
+
+**Artifacts:** `artifacts/session-retro/` and `artifacts/hook-roi/` (gitignored). Session-retro outputs drafts here, not directly to improvement-log.
+
+**Design spec:** `research/orchestrator-design.md`.
 
 ## Backlog
 
