@@ -3,21 +3,24 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.meta.orchestrator</string>
+    <string>com.meta.session-retro-daily</string>
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
         <string>-c</string>
-        <string>cd /Users/alien/Projects/meta &amp;&amp; uv run python3 scripts/orchestrator.py tick</string>
+        <string>cd /Users/alien/Projects/meta &amp;&amp; uv run python3 scripts/orchestrator.py submit session-retro</string>
     </array>
-    <key>WorkingDirectory</key>
-    <string>/Users/alien/Projects/meta</string>
-    <key>StartInterval</key>
-    <integer>900</integer>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>22</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
     <key>StandardOutPath</key>
-    <string>/Users/alien/.claude/orchestrator-stdout.log</string>
+    <string>/Users/alien/.claude/session-retro-daily-stdout.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/alien/.claude/orchestrator-stderr.log</string>
+    <string>/Users/alien/.claude/session-retro-daily-stderr.log</string>
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
@@ -25,7 +28,5 @@
         <key>HOME</key>
         <string>/Users/alien</string>
     </dict>
-    <key>RunAtLoad</key>
-    <false/>
 </dict>
 </plist>

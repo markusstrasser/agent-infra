@@ -5,7 +5,7 @@
   "steps": [
     {
       "step": "analyze",
-      "prompt": "Analyze today's sessions across all projects for behavioral anti-patterns: sycophancy, over-engineering, build-then-undo, token waste, search flooding. Use extract_transcript.py to preprocess, then dispatch to Gemini for analysis. Append structured findings to improvement-log.md. RECURRENCE GATE: Only draft CLAUDE.md or hook changes if a finding recurs in 2+ sessions -- check existing improvement-log entries before proposing. If orchestrator .metrics.jsonl files exist for today's tasks, include tool failure patterns in your analysis.",
+      "prompt": "Analyze today's sessions across all projects for behavioral anti-patterns: sycophancy, over-engineering, build-then-undo, token waste, search flooding. Use extract_transcript.py to preprocess, then dispatch to Gemini for analysis. Write findings to artifacts/session-retro/YYYY-MM-DD.md (use today's date). Do NOT append directly to improvement-log.md — output draft findings only. RECURRENCE GATE: Only draft CLAUDE.md or hook changes if a finding recurs in 2+ sessions -- check existing improvement-log entries before proposing. If orchestrator .metrics.jsonl files exist for today's tasks, include tool failure patterns in your analysis.",
       "max_turns": 15,
       "max_budget_usd": 3.0,
       "model": "sonnet",
