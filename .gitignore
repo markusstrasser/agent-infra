@@ -48,3 +48,5 @@ downloads/
 bundles/*
 bundles
 artifacts/
+.autoresearch-worktrees/
+experiments/*/runs/

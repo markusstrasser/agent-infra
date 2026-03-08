@@ -1,0 +1,141 @@
+{
+  "dev": [
+    {
+      "query": "python machine learning",
+      "documents": [
+        {"text": "Python is a popular programming language for machine learning and data science", "relevant": true},
+        {"text": "JavaScript frameworks for web development include React and Vue", "relevant": false},
+        {"text": "ML models can be trained using PyTorch or TensorFlow in Python", "relevant": true},
+        {"text": "The weather forecast shows rain tomorrow afternoon", "relevant": false}
+      ]
+    },
+    {
+      "query": "database indexing performance",
+      "documents": [
+        {"text": "B-tree indexes improve database query performance significantly", "relevant": true},
+        {"text": "Cooking recipes for Italian pasta dishes", "relevant": false},
+        {"text": "PostgreSQL supports various index types including hash and GIN indexes", "relevant": true},
+        {"text": "Index funds are a type of mutual fund for passive investing", "relevant": false}
+      ]
+    },
+    {
+      "query": "neural network architecture",
+      "documents": [
+        {"text": "Transformer architectures have revolutionized neural network design", "relevant": true},
+        {"text": "The architecture of ancient Roman buildings used arches", "relevant": false},
+        {"text": "Convolutional neural networks excel at image recognition tasks", "relevant": true},
+        {"text": "Network cables connect computers in a local area network", "relevant": false}
+      ]
+    },
+    {
+      "query": "climate change effects",
+      "documents": [
+        {"text": "Rising sea levels are a major consequence of global warming and climate change", "relevant": true},
+        {"text": "The stock market experienced significant changes in trading volume", "relevant": false},
+        {"text": "Deforestation contributes to increased greenhouse gas emissions", "relevant": true},
+        {"text": "Changing your car's oil regularly improves engine performance", "relevant": false}
+      ]
+    },
+    {
+      "query": "distributed systems consensus",
+      "documents": [
+        {"text": "The Raft consensus algorithm provides fault tolerance in distributed systems", "relevant": true},
+        {"text": "Political consensus building requires negotiation skills", "relevant": false},
+        {"text": "Paxos is a family of protocols for achieving consensus in distributed computing", "relevant": true},
+        {"text": "The solar system consists of eight planets orbiting the sun", "relevant": false}
+      ]
+    },
+    {
+      "query": "natural language processing",
+      "documents": [
+        {"text": "BERT and GPT models have advanced natural language understanding capabilities", "relevant": true},
+        {"text": "Natural gas is extracted through hydraulic fracturing", "relevant": false},
+        {"text": "Tokenization is a fundamental step in text processing for NLP", "relevant": true},
+        {"text": "Language schools offer courses in French and Spanish", "relevant": false}
+      ]
+    },
+    {
+      "query": "kubernetes container orchestration",
+      "documents": [
+        {"text": "Kubernetes manages containerized applications across multiple hosts", "relevant": true},
+        {"text": "Orchestra conductors coordinate musicians during performances", "relevant": false},
+        {"text": "Docker containers package applications with their dependencies for deployment", "relevant": true},
+        {"text": "Shipping containers are used to transport goods across oceans", "relevant": false}
+      ]
+    },
+    {
+      "query": "cryptography encryption security",
+      "documents": [
+        {"text": "AES encryption is widely used for securing data at rest and in transit", "relevant": true},
+        {"text": "Home security systems include cameras and motion sensors", "relevant": false},
+        {"text": "Public key cryptography enables secure communication over insecure channels", "relevant": true},
+        {"text": "Security guards patrol buildings during nighttime hours", "relevant": false}
+      ]
+    },
+    {
+      "query": "graph database query optimization",
+      "documents": [
+        {"text": "Neo4j uses Cypher query language for traversing graph databases efficiently", "relevant": true},
+        {"text": "Bar graphs and pie charts are common data visualization techniques", "relevant": false},
+        {"text": "Graph traversal algorithms like BFS and DFS optimize pathfinding queries", "relevant": true},
+        {"text": "Optimization of supply chains reduces costs in manufacturing", "relevant": false}
+      ]
+    },
+    {
+      "query": "reinforcement learning reward",
+      "documents": [
+        {"text": "Q-learning uses reward signals to train agents in reinforcement learning", "relevant": true},
+        {"text": "Credit card reward points can be redeemed for travel", "relevant": false},
+        {"text": "Policy gradient methods optimize expected cumulative rewards in RL", "relevant": true},
+        {"text": "Learning to play piano requires daily practice and dedication", "relevant": false}
+      ]
+    }
+  ],
+  "holdout": [
+    {
+      "query": "operating system memory management",
+      "documents": [
+        {"text": "Virtual memory allows processes to use more memory than physically available through paging", "relevant": true},
+        {"text": "Memory foam mattresses conform to body shape for comfort", "relevant": false},
+        {"text": "Garbage collection in managed languages automatically frees unused memory", "relevant": true},
+        {"text": "Time management techniques include the Pomodoro method", "relevant": false}
+      ]
+    },
+    {
+      "query": "API rate limiting throttling",
+      "documents": [
+        {"text": "Token bucket algorithms are commonly used to implement API rate limiting", "relevant": true},
+        {"text": "Speed limiting zones in residential areas reduce accidents", "relevant": false},
+        {"text": "HTTP 429 status code indicates too many requests from rate throttling", "relevant": true},
+        {"text": "Throttle control in motorcycles adjusts engine speed", "relevant": false}
+      ]
+    },
+    {
+      "query": "genetic algorithm optimization",
+      "documents": [
+        {"text": "Crossover and mutation operators drive exploration in genetic algorithms", "relevant": true},
+        {"text": "Genetic testing reveals predisposition to certain health conditions", "relevant": false},
+        {"text": "Evolutionary strategies optimize objective functions through population-based search", "relevant": true},
+        {"text": "Algorithm complexity analysis uses Big O notation", "relevant": false}
+      ]
+    },
+    {
+      "query": "microservices event driven architecture",
+      "documents": [
+        {"text": "Apache Kafka enables event-driven communication between microservices", "relevant": true},
+        {"text": "Event planning involves organizing venues and catering services", "relevant": false},
+        {"text": "Service mesh tools like Istio manage microservice communication patterns", "relevant": true},
+        {"text": "Architecture firms design residential and commercial buildings", "relevant": false}
+      ]
+    },
+    {
+      "query": "time series forecasting prediction",
+      "documents": [
+        {"text": "ARIMA models capture temporal patterns for time series forecasting", "relevant": true},
+        {"text": "Weather predictions use satellite imagery and atmospheric models", "relevant": false},
+        {"text": "Prophet by Facebook handles seasonality in time series prediction tasks", "relevant": true},
+        {"text": "Fortune tellers claim to predict future events using mystical methods", "relevant": false}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "type": "autoresearch",
+  "eval_command": "python3 eval.py",
+  "metric_name": "accuracy",
+  "metric_direction": "higher",
+  "time_budget_seconds": 30,
+  "editable_files": ["scorer.py"],
+  "readonly_context": ["eval.py", "test_cases.json"],
+  "program_md": "program.md",
+  "holdout_eval_command": "python3 eval.py --holdout",
+  "holdout_every_k_keeps": 5,
+  "model": "sonnet",
+  "max_budget_usd": 1.0,
+  "max_turns": 8
+}
