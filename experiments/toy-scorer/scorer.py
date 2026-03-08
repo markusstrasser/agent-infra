@@ -26,7 +26,23 @@ def _stem(word: str) -> str:
     return word
 
 
-SYNONYMS = {
+EXPANSIONS = {
+    # Acronyms
+    "nlp": ["natural", "language", "processing"],
+    "ml": ["machine", "learning"],
+    "rl": ["reinforcement", "learning"],
+    "ai": ["artificial", "intelligence"],
+    "dl": ["deep", "learning"],
+    "cv": ["computer", "vision"],
+    "db": ["database"],
+    "api": ["application", "programming", "interface"],
+    "sql": ["structured", "query", "language"],
+    "cpu": ["processor", "computing"],
+    "gpu": ["graphics", "processor"],
+    "http": ["web", "request", "protocol"],
+    "iot": ["internet", "things"],
+    "k8s": ["kubernetes"],
+    # Domain synonyms
     "deforestation": ["climate", "environment"],
     "greenhouse": ["climate", "warming"],
     "emission": ["climate", "pollution"],
@@ -57,23 +73,6 @@ SYNONYMS = {
     "process": ["operating", "system"],
 }
 
-ACRONYMS = {
-    "nlp": ["natural", "language", "processing"],
-    "ml": ["machine", "learning"],
-    "rl": ["reinforcement", "learning"],
-    "ai": ["artificial", "intelligence"],
-    "dl": ["deep", "learning"],
-    "cv": ["computer", "vision"],
-    "db": ["database"],
-    "api": ["application", "programming", "interface"],
-    "sql": ["structured", "query", "language"],
-    "cpu": ["processor", "computing"],
-    "gpu": ["graphics", "processor"],
-    "http": ["web", "request", "protocol"],
-    "iot": ["internet", "things"],
-    "k8s": ["kubernetes"],
-}
-
 
 def _tokenize(text: str) -> set[str]:
     """Lowercase, split, remove stopwords, stem, expand acronyms."""
@@ -82,15 +81,12 @@ def _tokenize(text: str) -> set[str]:
         w = w.strip(".,;:!?\"'()-[]{}|/\\")
         if not w or len(w) <= 1:
             continue
-        if w in ACRONYMS:
-            for expanded in ACRONYMS[w]:
-                words.add(_stem(expanded))
         stemmed = _stem(w)
-        # Check synonyms on both original and stemmed form
+        # Expand acronyms and domain synonyms (check original and stemmed)
         for form in (w, stemmed):
-            if form in SYNONYMS:
-                for syn in SYNONYMS[form]:
-                    words.add(_stem(syn))
+            if form in EXPANSIONS:
+                for exp in EXPANSIONS[form]:
+                    words.add(_stem(exp))
         if w not in STOPWORDS:
             words.add(stemmed)
     return words
