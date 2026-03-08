@@ -1,0 +1,12 @@
+commit	accuracy	status	description
+baseline	0.762500	keep	baseline keyword overlap scorer
+d2c07c3	0.775000	keep	stopwords removal + partial substring matching
+904e0ef	0.762500	discard	BM25-style TF saturation (no improvement)
+(reset)	0.775000	discard	bigram overlap bonus (no improvement over exp 1)
+(reset)	0.712500	discard	density bonus for query-relevant token fraction
+fbe030d	0.850000	keep	minimal suffix stemmer
+(reset)	0.850000	discard	power-scaled coverage (no improvement)
+(reset)	0.850000	discard	co-occurrence bonus (no improvement)
+fbea389	0.887500	keep	word-length IDF proxy weighting
+23f51cb	0.925000	keep	acronym expansion dictionary
+(reset)	0.925000	discard	character trigram overlap (no improvement)
