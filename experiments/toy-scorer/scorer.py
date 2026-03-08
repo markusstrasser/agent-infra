@@ -33,7 +33,8 @@ SYNONYMS = {
     "warming": ["climate", "temperature"],
     "sea": ["ocean", "climate"],
     "kafka": ["event", "stream", "messaging"],
-    "istio": ["microservice", "mesh"],
+    "istio": ["microservic", "mesh", "event", "driven"],
+    "mesh": ["microservic", "network"],
     "docker": ["container", "orchestrat"],
     "cypher": ["graph", "query"],
     "neo4j": ["graph", "database"],
@@ -51,6 +52,9 @@ SYNONYMS = {
     "evolutionary": ["genetic", "algorithm", "optimiz"],
     "crossover": ["genetic", "algorithm"],
     "mutation": ["genetic", "algorithm"],
+    "virtual": ["computer", "system", "software"],
+    "paging": ["memory", "operating", "system"],
+    "process": ["operating", "system"],
 }
 
 ACRONYMS = {
