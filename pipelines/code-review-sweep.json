@@ -1,0 +1,23 @@
+{
+  "name": "code-review-sweep",
+  "schedule": "0 3 * * *",
+  "project": "meta",
+  "steps": [
+    {
+      "step": "scout",
+      "engine": "script",
+      "command": "uv run python3 scripts/code-review-scout.py ~/Projects/{project} --focus {focus} --both --workers 4",
+      "max_budget_usd": 0.0,
+      "timeout_s": 1800
+    },
+    {
+      "step": "validate-and-implement",
+      "prompt": "Read the latest code review findings from artifacts/code-review/{project}/ (today's JSONL file). For each HIGH severity finding:\n\n1. Read the actual file and verify the finding is real (models hallucinate)\n2. If verified and the fix is straightforward (<20 lines changed), implement it\n3. Commit each fix separately with: [{project}] Fix: description — code-review-sweep finding\n\nFor MEDIUM findings: verify and list which ones are real. Don't implement unless trivially safe.\nFor LOW findings: skip.\n\nWrite a summary of what was verified, implemented, and skipped to artifacts/code-review/{project}/validated-{date}.md.",
+      "max_turns": 20,
+      "max_budget_usd": 3.0,
+      "model": "sonnet",
+      "effort": "medium",
+      "cwd": "~/Projects/{project}"
+    }
+  ]
+}
