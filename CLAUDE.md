@@ -235,6 +235,20 @@ orchestrator.py summary                              # daily markdown
 - [ ] **Session-analyst design-task check** — Verify that design tasks (architecture, strategy, shared infra) produce phase-state artifacts (divergent-options + selection-rationale). Forward commitment from constitutional P6. (Source: causal-scaffolding-v2 plan 2026-03-06)
 - [ ] **dag_suggest CPDAG output** — Data-driven DAG skeleton via causal-learn PC + bootstrap stability. Deferred: Phase 4 DoWhy assessment found tool ecosystem adds no value beyond dag_check.py for current use cases. Revisit if causal discovery from data becomes a need. (Source: causal-scaffolding-v2 plan 2026-03-06)
 
+## Decision Journal (`decisions/`)
+
+Lightweight decision records for concept-level pivots — when an approach is chosen, dropped, or superseded. One file per decision, format: `YYYY-MM-DD-slug.md`. Template in `decisions/.template.md`.
+
+**When to write a decision record:**
+- Choosing between alternative approaches (architecture, methodology, strategy)
+- Dropping or shelving an approach that was previously active
+- Pivoting based on new evidence (benchmark results, model review, failed experiment)
+- Any fork where "why not the other way?" would be a fair question later
+
+**Convention for research memos:** When updating a memo with revised understanding, add a dated `## Revisions` entry at the bottom linking to the decision that prompted it. The git diff shows what changed; the revision note says *why*.
+
+**Commit bodies for concept shifts:** Commits touching `research/` or `decisions/` should have a non-empty body naming the concept affected and what changed directionally. `git log --format='%s%n%b' -- decisions/` should read as a concept evolution timeline.
+
 ## What This Repo Is NOT
 - Not a place to write more rules about rules.
 - Not a place to document things that should be implemented. Plan here → implement in target repo in same session.
