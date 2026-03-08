@@ -656,7 +656,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Build-then-undo — should have tested one probe approach before mass-producing variants
 - **Proposed fix:** [rule] For authentication/scraping tasks: test ONE approach end-to-end before writing parallel variants. The "try N strategies in parallel" approach wastes tokens when all share the same root blocker.
 - **Severity:** medium — ~20 scripts written and deleted, significant wasted tokens
-- **Status:** [ ] proposed
+- **Status:** [x] implemented — global CLAUDE.md rule: "Probe before build" (2026-03-07)
 
 ### [2026-03-07] FIRST-ANSWER CONVERGENCE: Infrastructure factoring plan rejected, rewritten
 - **Session:** meta 8c7dcbfb
@@ -680,7 +680,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Token waste — hallucinated CLI syntax (related to Failure Mode 24)
 - **Proposed fix:** [skill] llmx-guide skill exists but wasn't loaded. Consider: auto-load llmx-guide when agent is about to call llmx. Or: PreToolUse hook on Bash that detects llmx commands and injects correct usage.
 - **Severity:** medium — 4 wasted calls, pattern recurs when llmx-guide not loaded
-- **Status:** [ ] proposed
+- **Status:** [x] implemented — pretool-llmx-guard.sh upgraded: blocks invalid flags (whitelist), catches hallucinated model names (gemini-3.1-pro missing -preview, gpt-5.3 missing -chat-latest), warns on unrecognized models (2026-03-07)
 
 ### [2026-03-07] BUILD-THEN-UNDO: FINRA SI domain added then immediately reverted
 - **Session:** intel c69b7142
@@ -688,7 +688,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Build-then-undo — validation should precede integration
 - **Proposed fix:** [rule] For new data domains: check coverage/selectivity metrics before wiring into pipeline. A 5-line probe script beats modifying 2 infrastructure files.
 - **Severity:** low — small scope, quick revert
-- **Status:** [ ] proposed
+- **Status:** [x] implemented — covered by global CLAUDE.md rule: "Probe before build" (2026-03-07)
 
 **LOW severity (noted, no action):**
 - Token waste: repeated download/unzip of same ICPSR codebook files (meta 8c7dcbfb) — one-off
@@ -707,7 +707,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Build-then-undo — incremental edits on structural changes cause compounding errors
 - **Proposed fix:** [rule] When restructuring >3 sections of a document (especially renumbering), use Write to rewrite the whole file rather than sequential Edit calls. Edit is for local changes; structural rewrites need full-file operations.
 - **Severity:** medium — 13+ wasted tool calls, required full rewrite anyway
-- **Status:** [ ] proposed
+- **Status:** [x] implemented — global CLAUDE.md rule: "Write for structural rewrites" (2026-03-07)
 
 ### [2026-03-07] FIRST-ANSWER CONVERGENCE: Built orchestrator pipeline before evaluating simpler alternatives
 - **Session:** meta 4d0ccc70
@@ -715,7 +715,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** First-answer convergence — jumped to complex solution without exploring alternatives
 - **Proposed fix:** [rule] For new automation tasks, explicitly compare: (1) orchestrator pipeline, (2) skill + /loop, (3) standalone script, (4) existing tool. State tradeoffs before building.
 - **Severity:** medium — wasted effort building orchestrator pipeline that was immediately abandoned
-- **Status:** [ ] proposed
+- **Status:** [x] implemented — global CLAUDE.md rule: "Compare automation alternatives" (2026-03-07)
 
 ### [2026-03-07] MISSING PHASE ARTIFACTS: Code review system designed without written alternatives
 - **Session:** meta 4d0ccc70
@@ -731,7 +731,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Sycophantic compliance — accepted unverified claim, deployed architectural change
 - **Proposed fix:** [rule] When user reports agent failure contradicting explicit config/code, verify in logs before deploying fixes. Unverified claims should not drive global hook deployment.
 - **Severity:** medium — global blocking hook deployed on zero evidence
-- **Status:** [ ] proposed
+- **Status:** [x] implemented — global CLAUDE.md rule: "Verify failure claims in logs" (2026-03-07)
 
 ### [2026-03-07] MISSING PHASE ARTIFACTS: Conviction expression strategy changed without artifacts
 - **Session:** intel 31cc620b
