@@ -186,13 +186,23 @@ def load_previous_findings(project_name: str) -> set[str]:
     return hashes
 
 
+# Track which provider hit a hard rate limit so we skip remaining batches for it
+_rate_limited_providers: set[str] = set()
+
+
 def dispatch_review(code_context: str, focus: str, provider_cfg: dict,
-                    batch_label: str, max_retries: int = 2) -> str | None:
+                    batch_label: str) -> str | None:
     """Send code to LLM CLI for review. Returns raw output.
 
-    Retries on rate limits (exit 3) with exponential backoff.
+    On rate limit: retries once after 30s. If still limited, marks the provider
+    as exhausted for the rest of this run (no point waiting hours).
     """
     import time as _time
+
+    provider_name = provider_cfg["name"]
+    if provider_name in _rate_limited_providers:
+        print(f"  [{batch_label}] skipped — {provider_name} rate limited", file=sys.stderr)
+        return None
 
     focus_prompt = FOCUS_PROMPTS[focus]
 
@@ -219,7 +229,7 @@ Review the following code files. Focus: {focus_prompt}
     extra_parts = provider_cfg["extra"].split()
     cmd = ["llmx", "chat"] + model_parts + extra_parts + [prompt]
 
-    for attempt in range(max_retries + 1):
+    for attempt in range(2):  # try once, retry once on rate limit
         try:
             result = subprocess.run(
                 cmd,
@@ -229,11 +239,18 @@ Review the following code files. Focus: {focus_prompt}
             if result.returncode == 0 and result.stdout.strip():
                 return result.stdout.strip()
             if result.returncode == 3:  # rate limit
-                wait = 30 * (attempt + 1)
-                print(f"  [{batch_label}] rate limited, waiting {wait}s "
-                      f"(attempt {attempt + 1}/{max_retries + 1})", file=sys.stderr)
-                _time.sleep(wait)
-                continue
+                if attempt == 0:
+                    print(f"  [{batch_label}] rate limited, retrying in 30s...",
+                          file=sys.stderr)
+                    _time.sleep(30)
+                    continue
+                else:
+                    # Still limited after retry — give up on this provider
+                    print(f"  [{batch_label}] {provider_name} rate limited twice, "
+                          f"skipping remaining batches for this provider",
+                          file=sys.stderr)
+                    _rate_limited_providers.add(provider_name)
+                    return None
             if result.returncode != 0:
                 print(f"  [{batch_label}] exit {result.returncode}: "
                       f"{result.stderr[:200]}", file=sys.stderr)
@@ -457,6 +474,12 @@ def main():
                       f"{f['description']} ({f['source']})")
     else:
         print(f"\n# No new findings for {project_name}/{args.focus}", file=sys.stderr)
+
+    # Report rate-limited providers
+    if _rate_limited_providers:
+        skipped = ", ".join(sorted(_rate_limited_providers))
+        print(f"\n**Rate limited:** {skipped} — re-run later or use the other provider.",
+              file=sys.stderr)
 
 
 if __name__ == "__main__":
