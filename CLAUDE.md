@@ -19,6 +19,8 @@ This repo plans and tracks improvements to agent infrastructure across projects 
 - `runlog.md` — runlog architecture, import/query usage, named queries, and vendor coverage
 - `scripts/code-review-scout.py` — continuous code review: batches project code, dispatches to Gemini/Codex CLI (free tier), writes findings to `artifacts/code-review/`
 - `scripts/code-review-schedule.py` — daily rotation: 5 projects × 5 focuses (refactoring, dead-code, optimization, patterns, security), 25-day cycle
+- `scripts/autoresearch.py` — evolutionary code search: LLM edits code in sandboxed worktree, deterministic eval keeps/discards, git reset on regression. Adapted from karpathy/autoresearch.
+- `experiments/` — autoresearch experiment configs (config.json, eval.py, program.md, editable code). Toy-scorer validates engine.
 - `pipelines/` — JSON pipeline templates (recurring workflows)
 - `maintenance-checklist.md` — pending improvements, monitoring list, sweep schedule
 - `agent-failure-modes.md` — documented failure modes from real sessions
@@ -81,6 +83,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `reasoning-trace-verification.md` | Verifying agent reasoning traces: PRMs (ThinkPRM/VersaPRM/Med-PRM/VRPM), CoT faithfulness (7-13%), formal causal verification (DoWhy/dagitty/ananke), self-consistency for DAGs, cross-model review, interwhen interleaving. Rule-based > neural for formally verifiable domains. | Causal reasoning verification, dag_check.py upgrades, adjustment set validation, PRM selection |
 | `symphony-orchestrator-assessment.md` | OpenAI Symphony (Elixir/BEAM): continuous daemon polling Linear, Codex app-server protocol, WORKFLOW.md config, workpad-as-checkpoint, stall detection, per-state concurrency, no-DB in-memory state. Comparison to our orchestrator. | Orchestrator improvements, agent supervision patterns, multi-agent concurrency |
 | `code-structure-for-agents.md` | Repo formatting for agents: bitter lesson test, graph tools (CodexGraph/RIG/"One Tool Is Enough"), comments vs architecture maps, RAPTOR for code, what survives model improvements. File naming and CLAUDE.md maps are high-ROI; graph DBs and inline comments are not. | Repo/file organization, agent pliability, code navigation tools |
+| `autoresearch-analysis.md` | Karpathy's autoresearch: evolutionary code search with LLM-as-mutator, four viability conditions, cross-model reviewed adaptation plan, domain applicability | Autoresearch engine development, experiment design, autonomous optimization loops |
 | `agent-scaffolding-instructions-infra-2026-03.md` | Recent agent scaffolding, instruction-following, and infrastructure papers; signal vs noise filtering | Building agent harnesses, prompt/schema design, reliability infrastructure |
 | `anthropic-platform-sweep-2026-03-02.md` | Claude Code v2.1.30→v2.1.63 features, API/SDK updates, Sonnet 4.6 launch, financial plugins inventory | Platform capability updates, Claude Code native features, SDK integration decisions |
 | `causal-reasoning-evidence.md` | LLM causal/abductive reasoning gaps, Rung Collapse, architectural limits vs prompt fixes, constrained output suppression | Causal inference in agents, DAG construction, reasoning scaffolding design |
