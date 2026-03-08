@@ -1,0 +1,91 @@
+{
+  "dev": [
+    {
+      "name": "broken system > stale project",
+      "higher": {"category": "health", "title": "FAIL: MCP server papers-mcp not responding", "metadata": {}},
+      "lower": {"category": "staleness", "title": "genomics has no commits in 5 days", "metadata": {"days_ago": 5}}
+    },
+    {
+      "name": "failed orchestrator task > hook promotion",
+      "higher": {"category": "orchestrator", "title": "Task #12 failed: session-retro/analyze — timeout", "metadata": {}},
+      "lower": {"category": "hook-roi", "title": "Hook 'spinning' fires 910x but never blocks — consider promoting", "metadata": {"total": 910, "blocks": 0}}
+    },
+    {
+      "name": "doctor FAIL > doctor WARN",
+      "higher": {"category": "health", "title": "FAIL: selve hooks missing from settings.json", "metadata": {}},
+      "lower": {"category": "health", "title": "WARN: intel .mcp.json has stale server path", "metadata": {}}
+    },
+    {
+      "name": "old unresolved finding > recent unresolved",
+      "higher": {"category": "improvement-log", "title": "Unresolved (21d): Build-then-undo pattern in orchestrator", "metadata": {"age_days": 21}},
+      "lower": {"category": "improvement-log", "title": "Unresolved (3d): Token waste in search flooding", "metadata": {"age_days": 3}}
+    },
+    {
+      "name": "very stale project > slightly stale",
+      "higher": {"category": "staleness", "title": "papers-mcp has no commits in 14 days", "metadata": {"days_ago": 14}},
+      "lower": {"category": "staleness", "title": "skills has no commits in 4 days", "metadata": {"days_ago": 4}}
+    },
+    {
+      "name": "high-block hook (false positive) > never-blocks hook",
+      "higher": {"category": "hook-roi", "title": "Hook 'bash-guard' blocking 80% (45/56) — review for false positives", "metadata": {"total": 56, "blocks": 45, "block_rate": 0.8}},
+      "lower": {"category": "hook-roi", "title": "Hook 'epistemic-gate' fires 47x but never blocks — consider promoting", "metadata": {"total": 47, "blocks": 0, "block_rate": 0.0}}
+    },
+    {
+      "name": "autonomy-blocking finding > cosmetic finding",
+      "higher": {"category": "improvement-log", "title": "Unresolved (18d): Agent loops on permission denials — needs hook", "metadata": {"age_days": 18, "tags": ["autonomy", "hook"]}},
+      "lower": {"category": "improvement-log", "title": "Unresolved (25d): Commit messages inconsistent format", "metadata": {"age_days": 25, "tags": ["style"]}}
+    },
+    {
+      "name": "orchestrator failure > old stale project",
+      "higher": {"category": "orchestrator", "title": "Task #3 failed: research-sweep/execute — rate limit", "metadata": {}},
+      "lower": {"category": "staleness", "title": "selve has no commits in 10 days", "metadata": {"days_ago": 10}}
+    },
+    {
+      "name": "system broken > unresolved finding",
+      "higher": {"category": "health", "title": "FAIL: orchestrator.db locked — tick cannot run", "metadata": {}},
+      "lower": {"category": "improvement-log", "title": "Unresolved (30d): Missing null-result tracking for research", "metadata": {"age_days": 30}}
+    },
+    {
+      "name": "recurring orchestrator fail > single fail",
+      "higher": {"category": "orchestrator", "title": "Task #8 failed: session-retro/analyze — 3rd consecutive failure", "metadata": {"consecutive_failures": 3}},
+      "lower": {"category": "orchestrator", "title": "Task #15 failed: research-sweep/collect — timeout once", "metadata": {"consecutive_failures": 1}}
+    },
+    {
+      "name": "cross-project health > single-project stale",
+      "higher": {"category": "health", "title": "WARN: shared hooks directory has uncommitted changes", "metadata": {"scope": "shared"}},
+      "lower": {"category": "staleness", "title": "genomics has no commits in 4 days", "metadata": {"days_ago": 4}}
+    },
+    {
+      "name": "autonomy improvement > info-only hook",
+      "higher": {"category": "improvement-log", "title": "Unresolved (15d): Subagent delegation threshold too aggressive", "metadata": {"age_days": 15, "tags": ["autonomy"]}},
+      "lower": {"category": "hook-roi", "title": "Hook 'commit-check' fires 253x but never blocks — consider promoting", "metadata": {"total": 253, "blocks": 0}}
+    }
+  ],
+  "holdout": [
+    {
+      "name": "data loss risk > performance issue",
+      "higher": {"category": "health", "title": "FAIL: runlogs.db import failing — losing session data", "metadata": {}},
+      "lower": {"category": "health", "title": "WARN: doctor.py taking 45s to complete", "metadata": {}}
+    },
+    {
+      "name": "blocked pipeline > stale project",
+      "higher": {"category": "orchestrator", "title": "Task #20 failed: morning-prep/collect — DB locked", "metadata": {"consecutive_failures": 2}},
+      "lower": {"category": "staleness", "title": "intel has no commits in 6 days", "metadata": {"days_ago": 6}}
+    },
+    {
+      "name": "high false-positive hook > low-fire hook",
+      "higher": {"category": "hook-roi", "title": "Hook 'search-burst' blocking 70% (50/71) — review for false positives", "metadata": {"total": 71, "blocks": 50, "block_rate": 0.7}},
+      "lower": {"category": "hook-roi", "title": "Hook 'source-remind' fires 12x but never blocks", "metadata": {"total": 12, "blocks": 0, "block_rate": 0.0}}
+    },
+    {
+      "name": "30-day unresolved > 5-day unresolved",
+      "higher": {"category": "improvement-log", "title": "Unresolved (30d): Hook ROI telemetry not wired", "metadata": {"age_days": 30}},
+      "lower": {"category": "improvement-log", "title": "Unresolved (5d): Session-analyst missing design-task check", "metadata": {"age_days": 5}}
+    },
+    {
+      "name": "system health > cosmetic hook suggestion",
+      "higher": {"category": "health", "title": "WARN: 3 MCP servers have stale configs", "metadata": {}},
+      "lower": {"category": "hook-roi", "title": "Hook 'subagent-gate' fires 33x but never blocks", "metadata": {"total": 33, "blocks": 0}}
+    }
+  ]
+}
