@@ -88,11 +88,6 @@ def _tokenize(text: str) -> set[str]:
     return words
 
 
-def _word_weight(word: str) -> float:
-    """Longer/rarer words are more specific — weight them higher."""
-    return math.log(1 + len(word))
-
-
 def score(query: str, document: str) -> float:
     """Score relevance of document to query. Returns 0.0 to 1.0."""
     q_set = _tokenize(query)
@@ -101,17 +96,17 @@ def score(query: str, document: str) -> float:
     if not q_set:
         return 0.0
 
-    total_weight = sum(_word_weight(qw) for qw in q_set)
+    wt = {qw: math.log(1 + len(qw)) for qw in q_set}
+    total_weight = sum(wt.values())
     matched_weight = 0.0
 
     for qw in q_set:
-        w = _word_weight(qw)
         if qw in d_set:
-            matched_weight += w
+            matched_weight += wt[qw]
         else:
             for dw in d_set:
                 if qw in dw or dw in qw:
-                    matched_weight += w * 0.5
+                    matched_weight += wt[qw] * 0.5
                     break
 
     return min(1.0, matched_weight / total_weight)
