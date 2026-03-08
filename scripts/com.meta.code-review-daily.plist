@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.meta.code-review-daily</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/alien/.local/bin/uv</string>
+        <string>run</string>
+        <string>python3</string>
+        <string>scripts/code-review-schedule.py</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/alien/Projects/meta</string>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>3</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/Users/alien/.claude/code-review-stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/alien/.claude/code-review-stderr.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/alien/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>/Users/alien</string>
+    </dict>
+</dict>
+</plist>
