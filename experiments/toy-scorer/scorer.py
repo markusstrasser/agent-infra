@@ -26,6 +26,23 @@ def _stem(word: str) -> str:
     return word
 
 
+SYNONYMS = {
+    "deforestation": ["climate", "environment"],
+    "greenhouse": ["climate", "warming"],
+    "emission": ["climate", "pollution"],
+    "warming": ["climate", "temperature"],
+    "sea": ["ocean", "climate"],
+    "kafka": ["event", "stream", "messaging"],
+    "istio": ["microservice", "mesh"],
+    "docker": ["container", "orchestrat"],
+    "cypher": ["graph", "query"],
+    "neo4j": ["graph", "database"],
+    "paxos": ["consensus", "distribut"],
+    "raft": ["consensus", "distribut"],
+    "prophet": ["forecast", "time", "series"],
+    "arima": ["forecast", "time", "series"],
+}
+
 ACRONYMS = {
     "nlp": ["natural", "language", "processing"],
     "ml": ["machine", "learning"],
@@ -54,8 +71,12 @@ def _tokenize(text: str) -> set[str]:
         if w in ACRONYMS:
             for expanded in ACRONYMS[w]:
                 words.add(_stem(expanded))
+        stemmed = _stem(w)
+        if stemmed in SYNONYMS:
+            for syn in SYNONYMS[stemmed]:
+                words.add(_stem(syn))
         if w not in STOPWORDS:
-            words.add(_stem(w))
+            words.add(stemmed)
     return words
 
 
