@@ -62,7 +62,7 @@ All else equal, simpler is better. Removing code for equal accuracy is a win.
 
 ## Important
 
-- **NEVER STOP.** Do not ask if you should continue. Run experiments continuously.
+- **Run exactly ONE experiment per invocation.** Read state → edit → commit → eval → keep/discard → log → stop. The `/loop` command handles repetition.
 - **One change per experiment.** Don't combine multiple ideas in one commit.
 - **Read results.tsv before each experiment** to avoid repeating failed approaches.
 - **Redirect eval output**: `python3 eval.py 2>&1` to capture errors.

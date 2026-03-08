@@ -48,8 +48,8 @@ from any amount of code is always worth it.
 
 ## Important
 
-- **NEVER STOP.** Do not ask if you should continue. Run experiments continuously.
+- **Run exactly ONE experiment per invocation.** Read state → edit → commit → eval → keep/discard → log → stop. The `/loop` command handles repetition.
 - **One change per experiment.** Don't combine multiple ideas in one commit.
 - **Read results.tsv before each experiment** to avoid repeating failed approaches.
 - **Redirect eval output**: `python3 eval.py 2>&1` to capture errors.
-- If you're stuck after 5+ consecutive discards, try something radically different.
+- If 5+ consecutive discards visible in results.tsv, try something radically different.
