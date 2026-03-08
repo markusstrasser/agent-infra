@@ -196,6 +196,7 @@ orchestrator.py run -p <project> --prompt "..."      # one-off task
 orchestrator.py status                               # show queue
 orchestrator.py show <id> [--full]                   # full task details + transcript path
 orchestrator.py approve <id|pipeline>                # approve paused task
+orchestrator.py retry <id>                           # reset failed/blocked task to pending
 orchestrator.py tick                                 # run one task (launchd calls this)
 orchestrator.py log --today [--pipeline P] [--project P] [--last N]  # event log
 orchestrator.py pipelines                            # cost/status rollup by pipeline
@@ -210,6 +211,8 @@ orchestrator.py summary                              # daily markdown
 - `done_with_denials` is a distinct terminal status (permission denials are not silent)
 - `DAILY_COST_CAP = $25` enforced before each tick
 - `fcntl.flock` prevents concurrent runs
+- Stall detection: `anyio.fail_after(600s)` kills hung claude tasks
+- Per-pipeline concurrency: max 3 running tasks from same pipeline
 
 **Scheduling:** Loaded launchd agents in `~/Library/LaunchAgents/`:
 - `com.meta.orchestrator.plist` — tick every 15 min (runs queued tasks)
