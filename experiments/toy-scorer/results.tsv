@@ -18,3 +18,4 @@ b0ead1a	1.000000	keep	expanded synonyms (postgresql→database, evolutionary→g
 (reset)	0.975000	discard	remove word-length weighting (dev regressed — weighting is load-bearing)
 3e9d7a4	1.000000	keep	merge ACRONYMS+SYNONYMS into single EXPANSIONS dict (-4 lines, same accuracy)
 (reset)	0.950000	discard	remove substring matching (still load-bearing, dev dropped to 95%)
+1aee853	1.000000	keep	remove izing/ized stemmer special cases (-4 lines, substring matching compensates)
