@@ -16,3 +16,4 @@ f231ac9	0.975000	keep	domain synonym expansion (deforestation→climate, tool na
 b0ead1a	1.000000	keep	expanded synonyms (postgresql→database, evolutionary→genetic, pytorch→ml) — holdout 75→85%
 197abe3	1.000000	keep	OS/microservice domain synonyms (virtual→system, istio→event+driven, paging→memory) — holdout 85→100%
 (reset)	0.975000	discard	remove word-length weighting (dev regressed — weighting is load-bearing)
+3e9d7a4	1.000000	keep	merge ACRONYMS+SYNONYMS into single EXPANSIONS dict (-4 lines, same accuracy)
