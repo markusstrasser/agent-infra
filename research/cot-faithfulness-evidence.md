@@ -19,8 +19,22 @@ All prior findings hold. Additionally:
 
 **NEW — Mechanistic interpretability of CoT (arXiv:2507.22928):** Uses sparse autoencoding to study how CoT reasoning works mechanistically inside the model. Moving beyond behavioral evaluation to understanding the actual circuits. [SOURCE: arXiv:2507.22928] [PREPRINT]
 
+**NEW — "Reasoning Theater" (arXiv:2603.05488, Goodfire AI + Harvard, March 2026):** Strongest evidence yet for difficulty-dependent performative CoT. Attention probes decode a reasoning model's final answer far earlier than CoT text reveals it. Key findings: [SOURCE: arXiv:2603.05488] [PREPRINT]
+
+- **Difficulty split:** On MMLU (easy recall), CoT is largely performative — the model "knows" its answer immediately but generates hundreds of reasoning tokens. On GPQA-Diamond (hard multihop), CoT tracks genuine belief evolution.
+- **Inflection points are real:** Backtracking and "aha" moments occur almost exclusively in responses with large internal belief shifts (measured via probes). These are genuine uncertainty resolution, not theater.
+- **Probe-guided early exit:** Attention probes enable 80% token savings on MMLU and 30% on GPQA-Diamond with comparable accuracy. Positions probing as more reliable than CoT monitoring.
+- **Cooperative speaker framing:** Reasoning models are not cooperative speakers (Grice 1975). CoT fidelity is incidental to outcome reward optimization. CoT monitors are "at best cooperative listeners" — they assume the model is trying to communicate, but it isn't.
+- **Models tested:** DeepSeek-R1 671B, GPT-OSS 120B. Larger models show more performativity (less test-time compute needed → more theater on easy tasks).
+- **Implication for monitoring:** Text-based CoT monitors lag behind internal state. On tasks the model finds easy, the trace is unreliable for detecting early commitments, measuring uncertainty, or auditing decisions. Activation monitoring covers these failure cases.
+
 ### What this means for agentic use
 
 Our prior conclusion holds but gets sharper: **the thinking trace is an imperfect window into the model's actual reasoning.** The Oxford paper adds formal rigor to what we suspected — procedural correctness AND causal accuracy are both required for faithfulness, and neither is reliably present.
 
 **NEW nuance from ICLR 2026 wild study:** Unfaithfulness happens on **normal, clean prompts** — not just adversarial ones. 7-13% baseline unfaithfulness means roughly 1 in 10 reasoning traces are misleading even without any attack. Design for this in production.
+
+**NEW nuance from Reasoning Theater (March 2026):** Performativity is **task-difficulty-dependent**, not uniform. Easy tasks = mostly theater. Hard tasks = more genuine reasoning. This means:
+- Cross-model review on easy/obvious tasks may be especially susceptible to false agreement (both models "know" the answer, both generate performative reasoning that looks deliberate)
+- Our session-analyst should be more suspicious of long reasoning traces on tasks that should be easy
+- The token cost of reasoning models is significantly inflatable — 80% of MMLU tokens are theater. Budget-conscious orchestration should consider task difficulty when selecting reasoning vs non-reasoning models
