@@ -72,9 +72,11 @@ def _tokenize(text: str) -> set[str]:
             for expanded in ACRONYMS[w]:
                 words.add(_stem(expanded))
         stemmed = _stem(w)
-        if stemmed in SYNONYMS:
-            for syn in SYNONYMS[stemmed]:
-                words.add(_stem(syn))
+        # Check synonyms on both original and stemmed form
+        for form in (w, stemmed):
+            if form in SYNONYMS:
+                for syn in SYNONYMS[form]:
+                    words.add(_stem(syn))
         if w not in STOPWORDS:
             words.add(stemmed)
     return words
