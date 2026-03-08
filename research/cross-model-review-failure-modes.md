@@ -229,3 +229,13 @@ The current `/model-review` skill dispatches a proposal to multiple models (typi
 | arXiv:2508.17536 PDF | paper-search read | Full text (81K chars) extracted |
 | arXiv:2410.21819 HTML | Exa crawl | Full text with all numbers extracted |
 | Perplexity ask: position bias numbers | perplexity_ask | Could not retrieve specific percentages |
+
+## Revisions
+
+**2026-03-07 — Added A-BB debiasing framework and Reasoning Theater cross-reference.**
+
+Two new papers from March 5, 2026 are relevant to this memo:
+
+1. **Bias-Bounded Evaluation (A-BB)** (arXiv:2603.05485, Feuer et al.): Formal framework for bounding LLM judge bias via calibrated Gaussian noise (inspired by differential privacy). Achieves (τ=0.5, δ=0.01)-bias-bounded guarantees while retaining 61-99% ranking correlation. Key insight: rather than enumerating specific biases (position, format, self-preference), A-BB bounds ALL measurable biases simultaneously. Code: `github.com/penfever/bias-bounded-evaluation`. **Applicability to our model-review:** Currently blocked — our cross-model review outputs prose, not structured numeric scores. To use A-BB, we'd need to restructure model-review output to include rubric-scored judgments. Worth doing if we scale review volume. [SOURCE: arXiv:2603.05485] [PREPRINT]
+
+2. **Reasoning Theater** (arXiv:2603.05488): Cross-referenced from `cot-faithfulness-evidence.md`. Implication for cross-model review: on easy/obvious tasks, both models may generate performative reasoning that *looks* deliberate but is theater. False agreement on easy tasks is a distinct failure mode from correlated errors on hard tasks (Claim #1). Review quality is inversely proportional to task easiness — counterintuitive but measured.

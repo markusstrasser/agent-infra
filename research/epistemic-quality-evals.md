@@ -192,3 +192,6 @@ Agents in production loops accumulate variance: small inconsistencies in earlier
 | 10 | 60% pass@1 drops to 25% over 8 consecutive agent runs | CLEAR framework | MEDIUM | arXiv:2511.14136, existing corpus | VERIFIED |
 | 11 | RAG improves factuality 1.35x OR in biomedical meta-analysis | Systematic review, JAMIA 2025 | MEDIUM | W4406421570 | VERIFIED |
 | 12 | SeekBench is the first process-level benchmark for agent epistemic competence | ICLR 2026 | MEDIUM | arXiv:2509.22391 | VERIFIED — paper claims "first" but not independently confirmed |
+| 13 | INTRA: internal representations (esp. middle layers) outperform logit-based approaches for fact-checking without retrieval | 9 datasets, 18 methods, 3 models | MEDIUM | arXiv:2603.05471 | PREPRINT — March 2026. Requires model internals, not usable via API |
+| 14 | Epistemic AI agents need 3 properties: demonstrable competence, falsifiability, epistemically virtuous behavior | Normative framework (Google DeepMind) | MEDIUM | arXiv:2603.02960 | PREPRINT — normative, not empirical. Framework aligns with our constitution |
+| 15 | Performative CoT is difficulty-dependent: 80% tokens theater on easy tasks, genuine on hard | Attention probes on DeepSeek-R1 671B, GPT-OSS 120B | HIGH | arXiv:2603.05488 | PREPRINT — see cot-faithfulness-evidence.md |
