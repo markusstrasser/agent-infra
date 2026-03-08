@@ -26,12 +26,35 @@ def _stem(word: str) -> str:
     return word
 
 
+ACRONYMS = {
+    "nlp": ["natural", "language", "processing"],
+    "ml": ["machine", "learning"],
+    "rl": ["reinforcement", "learning"],
+    "ai": ["artificial", "intelligence"],
+    "dl": ["deep", "learning"],
+    "cv": ["computer", "vision"],
+    "db": ["database"],
+    "api": ["application", "programming", "interface"],
+    "sql": ["structured", "query", "language"],
+    "cpu": ["processor", "computing"],
+    "gpu": ["graphics", "processor"],
+    "http": ["web", "request", "protocol"],
+    "iot": ["internet", "things"],
+    "k8s": ["kubernetes"],
+}
+
+
 def _tokenize(text: str) -> set[str]:
-    """Lowercase, split, remove stopwords, stem."""
+    """Lowercase, split, remove stopwords, stem, expand acronyms."""
     words = set()
     for w in text.lower().split():
         w = w.strip(".,;:!?\"'()-[]{}|/\\")
-        if w and w not in STOPWORDS and len(w) > 1:
+        if not w or len(w) <= 1:
+            continue
+        if w in ACRONYMS:
+            for expanded in ACRONYMS[w]:
+                words.add(_stem(expanded))
+        if w not in STOPWORDS:
             words.add(_stem(w))
     return words
 
