@@ -1,3 +1,15 @@
+---
+id: 2026-03-07-decision-journal-convention
+concept: decision-journal
+repo: meta
+decision_date: 2026-03-07
+recorded_date: 2026-03-07
+provenance: backfilled
+status: accepted
+initial_leaning: git archaeology + ephemeral plan files (status quo)
+relations: []
+---
+
 # 2026-03-07: Establish decision journal convention across publishable repos
 
 ## Context
