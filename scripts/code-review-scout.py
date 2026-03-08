@@ -187,8 +187,13 @@ def load_previous_findings(project_name: str) -> set[str]:
 
 
 def dispatch_review(code_context: str, focus: str, provider_cfg: dict,
-                    batch_label: str) -> str | None:
-    """Send code to LLM CLI for review. Returns raw output."""
+                    batch_label: str, max_retries: int = 2) -> str | None:
+    """Send code to LLM CLI for review. Returns raw output.
+
+    Retries on rate limits (exit 3) with exponential backoff.
+    """
+    import time as _time
+
     focus_prompt = FOCUS_PROMPTS[focus]
 
     prompt = f"""<system>
@@ -214,22 +219,31 @@ Review the following code files. Focus: {focus_prompt}
     extra_parts = provider_cfg["extra"].split()
     cmd = ["llmx", "chat"] + model_parts + extra_parts + [prompt]
 
-    try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True, text=True,
-            timeout=240,  # 4 min max
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            return result.stdout.strip()
-        if result.returncode != 0:
-            print(f"  [{batch_label}] exit {result.returncode}: {result.stderr[:200]}",
-                  file=sys.stderr)
-    except subprocess.TimeoutExpired:
-        print(f"  [{batch_label}] timeout", file=sys.stderr)
-    except FileNotFoundError:
-        print("llmx not found — install it first", file=sys.stderr)
-        sys.exit(1)
+    for attempt in range(max_retries + 1):
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True, text=True,
+                timeout=300,  # 5 min max
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+            if result.returncode == 3:  # rate limit
+                wait = 30 * (attempt + 1)
+                print(f"  [{batch_label}] rate limited, waiting {wait}s "
+                      f"(attempt {attempt + 1}/{max_retries + 1})", file=sys.stderr)
+                _time.sleep(wait)
+                continue
+            if result.returncode != 0:
+                print(f"  [{batch_label}] exit {result.returncode}: "
+                      f"{result.stderr[:200]}", file=sys.stderr)
+                break
+        except subprocess.TimeoutExpired:
+            print(f"  [{batch_label}] timeout", file=sys.stderr)
+            break
+        except FileNotFoundError:
+            print("llmx not found — install it first", file=sys.stderr)
+            sys.exit(1)
     return None
 
 
@@ -305,6 +319,8 @@ def main():
                         help="Show batches without dispatching")
     parser.add_argument("--workers", type=int, default=2,
                         help="Parallel dispatch workers")
+    parser.add_argument("--delay", type=float, default=0,
+                        help="Seconds to wait between batch dispatches (rate limit throttle)")
     args = parser.parse_args()
 
     root = args.project_path.resolve()
@@ -373,6 +389,10 @@ def main():
     total_batches = len(batches) * len(providers)
 
     def review_batch(batch_idx: int, batch: list[Path], provider: dict):
+        import time as _time
+        # Throttle: wait before dispatching (helps with Gemini rate limits on large runs)
+        if args.delay > 0 and batch_idx > 0:
+            _time.sleep(args.delay)
         label = f"{provider['name']}:batch-{batch_idx+1}"
         code_ctx = build_code_context(batch, root)
         print(f"  Dispatching {label} ({len(batch)} files, "
