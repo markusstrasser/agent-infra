@@ -16,10 +16,6 @@ STOPWORDS = frozenset({
 
 def _stem(word: str) -> str:
     """Minimal suffix stemmer."""
-    if word.endswith("izing"):
-        return word[:-5] + "ize"
-    if word.endswith("ized"):
-        return word[:-4] + "ize"
     for suffix in ("ation", "ment", "ness", "ting", "ing", "ies", "ous", "ive", "ers", "ed", "ly", "es", "er", "al", "s"):
         if len(word) > len(suffix) + 2 and word.endswith(suffix):
             return word[:-len(suffix)]
