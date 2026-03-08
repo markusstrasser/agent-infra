@@ -237,15 +237,18 @@ orchestrator.py summary                              # daily markdown
 
 ## Decision Journal (`decisions/`)
 
-Lightweight decision records for concept-level pivots — when an approach is chosen, dropped, or superseded. One file per decision, format: `YYYY-MM-DD-slug.md`. Template in `decisions/.template.md`.
+Lightweight decision records for concept-level pivots — when an approach is chosen, dropped, or superseded. One file per decision, format: `YYYY-MM-DD-slug.md`. Template in `decisions/.template.md`. Records use YAML frontmatter for machine-readable metadata (concept grouping, typed relations, provenance).
 
 **When to write a decision record:**
-- Choosing between alternative approaches (architecture, methodology, strategy)
-- Dropping or shelving an approach that was previously active
-- Pivoting based on new evidence (benchmark results, model review, failed experiment)
-- Any fork where "why not the other way?" would be a fair question later
+- Path-dependent: choosing this forecloses alternatives
+- Costly to reconstruct later (the reasoning, not just the outcome)
+- Based on evidence that changed belief
+- Likely to matter in publication or external explanation
+- Do NOT write for: parameter tweaks, routine implementation, local execution details
 
-**Convention for research memos:** When updating a memo with revised understanding, add a dated `## Revisions` entry at the bottom linking to the decision that prompted it. The git diff shows what changed; the revision note says *why*.
+**Convention for research memos:** When updating a memo with revised understanding, add a dated `## Revisions` entry at the bottom linking to the decision that prompted it. Only for claim/interpretation/confidence changes — if wording or organization changed without changing the conclusion, don't add a revision entry. The git diff shows what changed; the revision note says *why*.
+
+**Cross-repo convention:** Cross-repo decisions live canonically in one repo (usually meta for infrastructure, or the repo where the evidence lives for research). Affected repos get a one-line stub: `See [repo]/decisions/YYYY-MM-DD-slug.md`.
 
 **Commit bodies for concept shifts:** Commits touching `research/` or `decisions/` should have a non-empty body naming the concept affected and what changed directionally. `git log --format='%s%n%b' -- decisions/` should read as a concept evolution timeline.
 

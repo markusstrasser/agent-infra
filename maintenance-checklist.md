@@ -1,5 +1,14 @@
 # Agent Infrastructure Maintenance Checklist
 
+## Dated Checkpoints
+
+- [ ] **2026-04-07 Decision journal 30-day check:**
+  - Reconstruction time <10 min for any concept fork
+  - >60% prospective coverage of concept-affecting commits
+  - Anti-hivemind: >20% of records show non-default initial_leaning
+  - >85% commit body compliance on research/decisions files (check hook telemetry)
+  - ## Revisions used for >80% of substantive memo reinterpretations
+
 ## When a New Model Ships (Claude, GPT, Gemini)
 
 ### 1. Update Model Guide
