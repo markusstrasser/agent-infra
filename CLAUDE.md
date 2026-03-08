@@ -17,6 +17,8 @@ This repo plans and tracks improvements to agent infrastructure across projects 
 - `scripts/hook-roi.py` — hook trigger pattern analysis (fires, blocks, false positive candidates)
 - `scripts/schema.sql` — SQLite DDL for orchestrator task queue + scheduled_runs ledger
 - `runlog.md` — runlog architecture, import/query usage, named queries, and vendor coverage
+- `scripts/code-review-scout.py` — continuous code review: batches project code, dispatches to Gemini/Codex CLI (free tier), writes findings to `artifacts/code-review/`
+- `scripts/code-review-schedule.py` — daily rotation: 5 projects × 5 focuses (refactoring, dead-code, optimization, patterns, security), 25-day cycle
 - `pipelines/` — JSON pipeline templates (recurring workflows)
 - `maintenance-checklist.md` — pending improvements, monitoring list, sweep schedule
 - `agent-failure-modes.md` — documented failure modes from real sessions
