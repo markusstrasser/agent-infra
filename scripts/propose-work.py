@@ -236,6 +236,50 @@ def last_hook_roi() -> str | None:
 # Proposal generation
 # ---------------------------------------------------------------------------
 
+def _rank_score(proposal: dict) -> float:
+    """Score a proposal for sorting. Higher = more urgent.
+
+    Derived from autoresearch experiment (experiments/proposal-ranker/).
+    Constitutional priority: health > orchestrator > high-block hooks >
+    autonomy findings > staleness > cosmetic/info.
+    """
+    category = proposal.get("category", "")
+    title = proposal.get("title", "")
+    metadata = proposal.get("metadata", {})
+
+    base = {
+        "health": 80, "orchestrator": 70, "staleness": 40,
+        "improvement-log": 30, "hook-roi": 20,
+    }.get(category, 10)
+
+    if "FAIL" in title:
+        base += 20
+    elif "WARN" in title:
+        base += 5
+
+    age_days = metadata.get("age_days", 0)
+    if age_days > 14:
+        base += min(age_days - 14, 20)
+
+    days_ago = metadata.get("days_ago", 0)
+    if days_ago > 7:
+        base += 10
+
+    block_rate = metadata.get("block_rate", 0)
+    if block_rate > 0.3:
+        base += 30
+
+    consecutive = metadata.get("consecutive_failures", 0)
+    if consecutive > 1:
+        base += consecutive * 5
+
+    tags = metadata.get("tags", [])
+    if "autonomy" in tags or "hook" in tags:
+        base += 15
+
+    return base
+
+
 def generate_proposals(data: dict) -> list[dict]:
     """Generate ranked work proposals from collected data."""
     proposals = []
@@ -244,9 +288,9 @@ def generate_proposals(data: dict) -> list[dict]:
     for proj in data["stale_projects"]:
         if proj["days_ago"] >= STALE_DAYS:
             proposals.append({
-                "priority": 3 if proj["days_ago"] > 7 else 4,
                 "category": "staleness",
                 "title": f"{proj['project']} has no commits in {proj['days_ago']} days",
+                "metadata": {"days_ago": proj["days_ago"]},
                 "command": f'orchestrator.py run -p {proj["project"]} --prompt "Review recent state, check for stale TODOs or pending work"',
             })
 
@@ -254,9 +298,9 @@ def generate_proposals(data: dict) -> list[dict]:
     for check in data["doctor_failures"]:
         is_fail = check.get("status") == "fail"
         proposals.append({
-            "priority": 2 if is_fail else 4,
             "category": "health",
             "title": f"{'FAIL' if is_fail else 'WARN'}: {check['name']} — {check.get('message', '')[:80]}",
+            "metadata": {"scope": check.get("scope", "single")},
             "command": None,
         })
 
@@ -264,9 +308,9 @@ def generate_proposals(data: dict) -> list[dict]:
     for finding in data["unresolved_findings"]:
         if finding["age_days"] >= 14:
             proposals.append({
-                "priority": 3,
                 "category": "improvement-log",
                 "title": f"Unresolved ({finding['age_days']}d): {finding['title'][:60]}",
+                "metadata": {"age_days": finding["age_days"]},
                 "command": None,
             })
 
@@ -274,29 +318,36 @@ def generate_proposals(data: dict) -> list[dict]:
     for hook in data["hook_roi"].get("hooks", []):
         if hook["blocks"] > 5 and hook["block_rate"] > 0.5:
             proposals.append({
-                "priority": 3,
                 "category": "hook-roi",
                 "title": f"Hook '{hook['hook']}' blocking {hook['block_rate']:.0%} ({hook['blocks']}/{hook['total']}) — review for false positives",
+                "metadata": {"block_rate": hook["block_rate"], "total": hook["total"], "blocks": hook["blocks"]},
                 "command": None,
             })
         elif hook["total"] > 20 and hook["blocks"] == 0:
             proposals.append({
-                "priority": 5,
                 "category": "hook-roi",
                 "title": f"Hook '{hook['hook']}' fires {hook['total']}x but never blocks — consider promoting",
+                "metadata": {"block_rate": 0, "total": hook["total"], "blocks": 0},
                 "command": None,
             })
 
     # Failed orchestrator tasks
     for task in data["orchestrator"].get("tasks", []):
         proposals.append({
-            "priority": 2,
             "category": "orchestrator",
             "title": f"Task #{task['id']} failed: {task.get('pipeline', '?')}/{task.get('step', '?')} — {(task.get('error') or '?')[:60]}",
+            "metadata": {},
             "command": f"orchestrator.py show {task['id']} --full",
         })
 
-    return sorted(proposals, key=lambda x: x["priority"])
+    # Score and sort (higher score = more urgent = first)
+    for p in proposals:
+        p["score"] = _rank_score(p)
+        # Map score to priority label for display
+        s = p["score"]
+        p["priority"] = 1 if s >= 95 else 2 if s >= 70 else 3 if s >= 40 else 4 if s >= 25 else 5
+
+    return sorted(proposals, key=lambda x: -x["score"])
 
 
 # ---------------------------------------------------------------------------
