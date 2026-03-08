@@ -11,3 +11,5 @@ fbea389	0.887500	keep	word-length IDF proxy weighting
 23f51cb	0.925000	keep	acronym expansion dictionary
 (reset)	0.925000	discard	character trigram overlap (no improvement)
 f231ac9	0.975000	keep	domain synonym expansion (deforestation→climate, tool names→domains)
+(reset)	0.975000	discard	multi-match bonus (ties have match_count=1, bonus doesn't fire)
+897a3c9	0.987500	keep	synonym lookup on original word before stemming (docker→dock missed synonyms)
