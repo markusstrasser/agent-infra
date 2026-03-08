@@ -672,7 +672,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Skill misrouting — mandatory companion skill ignored
 - **Proposed fix:** [hook] PreToolUse hook that detects medical/bio topic keywords in search queries and warns if epistemics skill hasn't been invoked. Or: strengthen the rule in selve's CLAUDE.md.
 - **Severity:** high — epistemics exists precisely for this case, complete bypass
-- **Status:** [ ] proposed
+- **Status:** [x] implemented — pretool-companion-remind.sh detects bio/medical terms in search queries, reminds once per session (2026-03-07)
 
 ### [2026-03-07] TOKEN WASTE: Hallucinated llmx CLI flags cause repeated failures
 - **Session:** genomics 8467366f
