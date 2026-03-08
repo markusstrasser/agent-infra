@@ -48,6 +48,8 @@ OUTPUT_DIR = Path("~/.claude/orchestrator-outputs").expanduser()
 PIPELINE_DIR = Path(__file__).resolve().parent.parent / "pipelines"
 SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
 DAILY_COST_CAP = 25.0
+STALL_TIMEOUT_SECONDS = 600  # Kill claude tasks silent for >10 min
+MAX_CONCURRENT_PER_PIPELINE = 3  # Max running tasks from same pipeline
 
 # Default effort by pipeline when not specified in step definition.
 DEFAULT_EFFORT = {
@@ -142,15 +144,28 @@ def log_event(event):
 
 def claim_task(db):
     db.execute("BEGIN IMMEDIATE")
-    task = db.execute("""
+    candidates = db.execute("""
         SELECT * FROM tasks
         WHERE status = 'pending'
           AND (requires_approval = 0 OR approved_at IS NOT NULL)
           AND (depends_on IS NULL
                OR depends_on IN (SELECT id FROM tasks WHERE status IN ('done', 'done_with_denials')))
         ORDER BY priority ASC, created_at ASC
-        LIMIT 1
-    """).fetchone()
+    """).fetchall()
+
+    task = None
+    for candidate in candidates:
+        # Per-pipeline concurrency limit
+        if candidate["pipeline"]:
+            running = db.execute(
+                "SELECT COUNT(*) as n FROM tasks WHERE pipeline=? AND status='running'",
+                (candidate["pipeline"],),
+            ).fetchone()["n"]
+            if running >= MAX_CONCURRENT_PER_PIPELINE:
+                continue
+        task = candidate
+        break
+
     if task:
         db.execute(
             "UPDATE tasks SET status='running', started_at=datetime('now','localtime') WHERE id=?",
@@ -352,8 +367,11 @@ async def _run_claude_task_async(task, cwd, progress_file=None):
 
 
 def run_claude_task(task, cwd, progress_file=None):
-    """Sync wrapper around async SDK query()."""
-    return anyio.run(_run_claude_task_async, task, cwd, progress_file)
+    """Sync wrapper around async SDK query() with stall detection."""
+    async def _with_timeout():
+        with anyio.fail_after(STALL_TIMEOUT_SECONDS):
+            return await _run_claude_task_async(task, cwd, progress_file)
+    return anyio.run(_with_timeout)
 
 
 def execute_one(db):
@@ -431,6 +449,9 @@ def execute_one(db):
         else:
             # Agent SDK path
             progress_file = OUTPUT_DIR / f"{task_id}.live"
+            metrics_path = OUTPUT_DIR / f"{task_id}.metrics.jsonl"
+            raw_opts = task["step_options"]
+            step_options = json.loads(raw_opts) if raw_opts else {}
             sdk_result = run_claude_task(task, cwd, progress_file=progress_file)
             result_msg = sdk_result["result_msg"]
             text_parts = sdk_result["text_parts"]
@@ -1103,6 +1124,39 @@ def _check_scheduled_pipelines(db):
                    "task_id": prev_task_id})
 
 
+def cmd_retry(args):
+    db = get_db()
+    task = db.execute("SELECT id, status, pipeline, step FROM tasks WHERE id=?",
+                      (args.task_id,)).fetchone()
+    if not task:
+        print(f"Task #{args.task_id} not found", file=sys.stderr)
+        return
+    if task["status"] not in ("failed", "blocked", "skipped"):
+        print(f"Task #{args.task_id} is {task['status']}, not retryable", file=sys.stderr)
+        return
+
+    db.execute("""
+        UPDATE tasks SET status='pending', started_at=NULL, finished_at=NULL,
+            error=NULL, blocked_reason=NULL, cost_usd=NULL,
+            tokens_in=NULL, tokens_out=NULL
+        WHERE id=?
+    """, (args.task_id,))
+
+    # Also unblock any downstream tasks that were blocked by this failure
+    db.execute("""
+        UPDATE tasks SET status='pending', blocked_reason=NULL
+        WHERE depends_on=? AND status='blocked' AND blocked_reason='dependency_failed'
+    """, (args.task_id,))
+    unblocked = db.execute("SELECT changes()").fetchone()[0]
+
+    db.commit()
+    log_event({"action": "retry", "task_id": args.task_id})
+    print(f"Task #{args.task_id} ({task['pipeline']}/{task['step']}) reset to pending")
+    if unblocked:
+        print(f"  Unblocked {unblocked} downstream task(s)")
+    db.close()
+
+
 def cmd_tick(args):
     lock_fd = acquire_lock()
     if not lock_fd:
@@ -1177,6 +1231,9 @@ def main():
 
     sub.add_parser("summary", help="Generate daily summary")
 
+    p_retry = sub.add_parser("retry", help="Reset failed/blocked task to pending")
+    p_retry.add_argument("task_id", type=int, help="Task ID to retry")
+
     sub.add_parser("tick", help="Run one task (called by launchd)")
 
     args = parser.parse_args()
@@ -1199,6 +1256,8 @@ def main():
         cmd_pipelines(args)
     elif args.command == "summary":
         cmd_summary(args)
+    elif args.command == "retry":
+        cmd_retry(args)
     elif args.command == "tick":
         cmd_tick(args)
     else:
