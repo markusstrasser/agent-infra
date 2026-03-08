@@ -701,8 +701,66 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - Sessions 943ac6d7, 9d5672d1 (genomics) — empty sessions
 - Session 8bd2cc37 (refs) — too small to analyze meaningfully
 
+### [2026-03-07] BUILD-THEN-UNDO: Document corruption from sequential Edit calls
+- **Session:** intel 488f1515
+- **Evidence:** Agent applied 13 sequential `Edit` calls to restructure a strategy doc. Phase numbering corrupted, sections duplicated. Agent acknowledged: "There's duplicate content — the old Phase 3 is still there alongside the new Phase 1... Let me do a full rewrite to clean this up properly — it's getting messy with incremental edits."
+- **Failure mode:** Build-then-undo — incremental edits on structural changes cause compounding errors
+- **Proposed fix:** [rule] When restructuring >3 sections of a document (especially renumbering), use Write to rewrite the whole file rather than sequential Edit calls. Edit is for local changes; structural rewrites need full-file operations.
+- **Severity:** medium — 13+ wasted tool calls, required full rewrite anyway
+- **Status:** [ ] proposed
+
+### [2026-03-07] FIRST-ANSWER CONVERGENCE: Built orchestrator pipeline before evaluating simpler alternatives
+- **Session:** meta 4d0ccc70
+- **Evidence:** User asked to find "cron jobs or do a Claude Code loop" for continuous code review. Agent immediately built orchestrator pipeline (`code-review-sweep.json`) and launchd plist. Only after user asked "would it be better to be a skill that I can run with claude code /loop?" did the agent evaluate tradeoffs, realize `/loop` uses subscription credits (free), and abandon the orchestrator approach for a skill.
+- **Failure mode:** First-answer convergence — jumped to complex solution without exploring alternatives
+- **Proposed fix:** [rule] For new automation tasks, explicitly compare: (1) orchestrator pipeline, (2) skill + /loop, (3) standalone script, (4) existing tool. State tradeoffs before building.
+- **Severity:** medium — wasted effort building orchestrator pipeline that was immediately abandoned
+- **Status:** [ ] proposed
+
+### [2026-03-07] MISSING PHASE ARTIFACTS: Code review system designed without written alternatives
+- **Session:** meta 4d0ccc70
+- **Evidence:** Built multi-project continuous code review system (code-review-scout.py, code-review-schedule.py, skill) — a shared infrastructure design decision — without producing divergent-options or selection-rationale artifacts as required by Constitution Principle 6.
+- **Failure mode:** Missing phase artifacts — design decision without auditable alternatives
+- **Proposed fix:** [hook] Session-analyst check: creation of new shared scripts/ or skills/ should be preceded by phase-state artifacts. Currently advisory only.
+- **Severity:** medium — constitutional violation on shared infrastructure
+- **Status:** [ ] proposed
+
+### [2026-03-07] SYCOPHANCY: Deployed global hook based on unverified user claim
+- **Session:** meta 062592e9
+- **Evidence:** User claimed "you used [Gemini 2.5] just now in the session analyst." Agent checked skill config (correctly shows gemini-3.1-pro-preview), but instead of verifying via runlogs whether 2.5 was actually called, rationalized the claim and deployed a global blocking hook against Gemini 2.5. When asked for evidence, user said "idk." Agent should have pushed back: "Config says 3.1 — let me check runlogs to verify before deploying a global block."
+- **Failure mode:** Sycophantic compliance — accepted unverified claim, deployed architectural change
+- **Proposed fix:** [rule] When user reports agent failure contradicting explicit config/code, verify in logs before deploying fixes. Unverified claims should not drive global hook deployment.
+- **Severity:** medium — global blocking hook deployed on zero evidence
+- **Status:** [ ] proposed
+
+### [2026-03-07] MISSING PHASE ARTIFACTS: Conviction expression strategy changed without artifacts
+- **Session:** intel 31cc620b
+- **Evidence:** User requested unlocking all financial instruments for paper trading (modifying Constitution). Agent brainstormed options in chat context and modified conviction-schema.md, but did not produce written divergent-options or selection-rationale for this strategy change.
+- **Failure mode:** Missing phase artifacts — strategy/schema change without auditable artifacts
+- **Proposed fix:** [rule] Modifications to constitutional or strategy files (conviction-schema, GOALS.md) always require phase-state artifacts.
+- **Severity:** low — brainstorming happened in chat but wasn't persisted
+- **Status:** [ ] proposed
+
+**LOW severity (noted, no action):**
+- Token waste: Edit tool `replace_all` parameter type error repeated 4x (intel b69c1175) — agent passed string "false" instead of boolean. Low frequency.
+- Token waste: repeated download/unzip of same ICPSR codebook files (meta 8c7dcbfb) — one-off
+- Token waste: 4 sequential Edit calls for simple text replacement (selve 4c055500) — low frequency
+- Token waste: repeated failed JSONL parsing of agent output (genomics 8467366f) — 8 attempts
+- Build-then-undo: evaluate_signals.py O(N*M) rewrite to batch (intel c69b7142) — reasonable iterative development
+
+**False positives filtered:**
+- Sessions e52c8052, 9b783e78, f874d36f, 35264f6e (meta) — empty or trivial (skill invocations, no substantive agent work)
+- Sessions 943ac6d7, 9d5672d1 (genomics) — empty sessions
+- Session 8bd2cc37 (refs) — too small to analyze meaningfully
+- Sessions 547a9262, d34a5796 (intel) — empty sessions
+- Sessions afedec30 (meta) — efficient subagent delegation, no issues
+- Sessions 2c7179bc, 197eb9bf (meta) — good root-cause analysis and pushback, no issues
+- Sessions 3312688c, f8f7ff6f, 218316c6 (selve) — clean research, upgrades, and pushback, no issues
+
 **Cross-cutting patterns:**
 1. **llmx polling loop — FIXED (2026-03-06).** Root cause was shell `> file` redirects buffering until process exit, not the `-f` flag itself. Fix: `llmx --output` flag (TeeWriter, unbuffered) + model-review templates updated. Instructions failed; code fix succeeded.
    - **Follow-up (2026-03-07):** `--timeout` was also broken — litellm passes timeout as `httpx.Timeout(float)` which is a per-read socket timeout, not wall-clock. Streaming calls and chunked-transfer responses never timed out. Fix: SIGALRM wall-clock enforcement in llmx v0.5.3 (llmx@727e521). Also: pretool-llmx-guard.sh advisory hook catches shell redirects, PYTHONUNBUFFERED, and stdbuf cargo cults. Model-downgrade anti-pattern documented in llmx-guide skill.
 2. **Companion skill bypass** — epistemics, llmx-guide, and other mandatory companions are routinely skipped. The "invoke if relevant" instruction is too weak. Consider: domain-detection hook that auto-loads relevant skills.
 3. **Probe-before-build discipline** is still missing for data acquisition and domain integration tasks. Agents write full implementations before validating the underlying assumption (auth works, data is selective, API returns what's expected).
+4. **Sequential Edit for structural rewrites** — recurring pattern (13 edits in 488f1515, 4 edits in 4c055500). When a document needs structural reorganization (renumbering, reordering sections), sequential Edit calls compound errors. Write is the right tool for structural changes.
+5. **Unverified-claim-driven architecture** — agent deployed global hooks based on user claims that contradicted explicit config, without log verification (062592e9). Epistemic discipline applies to user reports too, not just external data.
