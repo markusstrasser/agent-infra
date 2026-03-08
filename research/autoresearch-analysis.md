@@ -59,8 +59,10 @@ Built `scripts/autoresearch.py` — standalone engine with:
 - Stall detection (consecutive discard streak)
 - Progress visualization
 
-Validated structurally on toy-scorer experiment. Blocked on API credits for live test.
+Validated on toy-scorer experiment (10 experiments in-session): baseline 0.7625 → 0.925 dev accuracy. 3 keepers (stemming, word-length weighting, acronym expansion), 7 discards. Key finding: targeted lexical fixes give 3-8pp each; scoring formula tweaks give 0pp; remaining ceiling requires semantic knowledge beyond keyword methods.
+
+**Workflow validated:** The Karpathy-style loop (read state → edit → commit → eval → keep/discard → log) works in a single Claude Code session. The `/loop` command can automate this. Worktree isolation is NOT needed for the in-session case because the agent manages its own state — it's only needed for the subprocess-orchestrated case where `git reset` in main checkout would destroy unrelated work.
 
 ## Revisions
 
-_(None yet)_
+- **2026-03-08:** Removed "blocked on API credits" — validated end-to-end using Claude Code subscription (in-session loop, no subprocess orchestrator needed). Updated implementation status.
