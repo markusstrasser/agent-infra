@@ -41,6 +41,16 @@ SYNONYMS = {
     "raft": ["consensus", "distribut"],
     "prophet": ["forecast", "time", "series"],
     "arima": ["forecast", "time", "series"],
+    "postgresql": ["database", "sql"],
+    "mysql": ["database", "sql"],
+    "mongodb": ["database", "nosql"],
+    "redis": ["database", "cache"],
+    "elasticsearch": ["search", "index", "database"],
+    "pytorch": ["machine", "learn", "neural"],
+    "tensorflow": ["machine", "learn", "neural"],
+    "evolutionary": ["genetic", "algorithm", "optimiz"],
+    "crossover": ["genetic", "algorithm"],
+    "mutation": ["genetic", "algorithm"],
 }
 
 ACRONYMS = {
