@@ -213,6 +213,68 @@ def check_citation_has_tool(citation: dict, tool_uses: list[dict]) -> str:
     return "fabricated"
 
 
+def detect_trajectory_risks(entries: list[dict], tool_uses: list[dict]) -> dict:
+    """Detect trajectory risk signals: repeated tools and error-then-ignore.
+
+    Based on TRACER (arXiv:2602.11409) finding that trajectory-level signals
+    beat token confidence for predicting agent failures.
+    """
+    repeated_tools = 0
+    errors_ignored = 0
+
+    # 1. Repeated tool calls (same tool + similar args within 5-entry window)
+    for i, tool in enumerate(tool_uses):
+        for j in range(max(0, i - 5), i):
+            prev = tool_uses[j]
+            if (
+                tool["name"] == prev["name"]
+                and abs(tool["entry_index"] - prev["entry_index"]) <= 8
+            ):
+                # Compare key input fields
+                t_input = json.dumps(tool.get("input", {}), sort_keys=True)[:200]
+                p_input = json.dumps(prev.get("input", {}), sort_keys=True)[:200]
+                # Simple word-overlap similarity
+                t_words = set(t_input.split())
+                p_words = set(p_input.split())
+                if t_words and p_words:
+                    overlap = len(t_words & p_words) / len(t_words | p_words)
+                    if overlap > 0.7:
+                        repeated_tools += 1
+                        break
+
+    # 2. Error-then-ignore (tool returns error, next assistant doesn't reference it)
+    for i, entry in enumerate(entries):
+        if entry.get("type") != "user":
+            continue
+        tool_result = entry.get("toolUseResult")
+        if not tool_result or not isinstance(tool_result, dict):
+            continue
+        stderr = tool_result.get("stderr", "")
+        if not stderr or tool_result.get("interrupted"):
+            continue
+
+        # Find next assistant text turn
+        for j in range(i + 1, min(i + 5, len(entries))):
+            if entries[j].get("type") != "assistant":
+                continue
+            text = extract_text(entries[j].get("message", {})).lower()
+            if not text:
+                continue
+            error_referenced = any(w in text for w in [
+                "error", "failed", "issue", "problem", "fix",
+                "doesn't work", "didn't work", "can't", "cannot",
+                "not found", "no such", "permission",
+            ])
+            if not error_referenced:
+                errors_ignored += 1
+            break
+
+    return {
+        "repeated_tools": repeated_tools,
+        "errors_ignored": errors_ignored,
+    }
+
+
 def analyze_session(path: Path) -> dict | None:
     """Analyze a single session for trace faithfulness."""
     entries = []
@@ -279,6 +341,8 @@ def analyze_session(path: Path) -> dict | None:
     total_claims = matched_claims + unmatched_claims
     faithfulness = matched_claims / total_claims if total_claims > 0 else 1.0
 
+    trajectory = detect_trajectory_risks(entries, tool_uses)
+
     return {
         "session_id": session_id or path.stem,
         "project": project or "unknown",
@@ -292,6 +356,8 @@ def analyze_session(path: Path) -> dict | None:
         "fabricated_sources": len(fabricated_sources),
         "unknown_sources": len(unknown_sources),
         "fabricated_details": fabricated_sources[:5],
+        "repeated_tools": trajectory["repeated_tools"],
+        "errors_ignored": trajectory["errors_ignored"],
     }
 
 
@@ -344,6 +410,8 @@ def main():
     total_fabricated = sum(r["fabricated_sources"] for r in results)
     total_verified = sum(r["verified_sources"] for r in results)
     total_unknown = sum(r["unknown_sources"] for r in results)
+    total_repeated = sum(r.get("repeated_tools", 0) for r in results)
+    total_errors_ignored = sum(r.get("errors_ignored", 0) for r in results)
 
     overall_faithfulness = total_matched / total_claims if total_claims > 0 else 1.0
     # Fabrication rate only counts file citations (deterministically checkable)
@@ -365,6 +433,11 @@ def main():
     print(f"    Fabricated (file):   {total_fabricated} ({fabrication_rate:.1%} of file citations)")
     print(f"    Unknown (URL):       {total_unknown} (can't deterministically verify)")
     print()
+    if total_repeated or total_errors_ignored:
+        print(f"  Trajectory risk signals:")
+        print(f"    Repeated tool calls: {total_repeated}")
+        print(f"    Errors ignored:      {total_errors_ignored}")
+        print()
 
     # By project
     by_project: dict[str, list] = defaultdict(list)
@@ -406,6 +479,8 @@ def main():
         fabricated_sources=total_fabricated,
         unknown_sources=total_unknown,
         fabrication_rate=round(fabrication_rate, 4),
+        repeated_tools=total_repeated,
+        errors_ignored=total_errors_ignored,
     )
     print(f"  Logged to ~/.claude/epistemic-metrics.jsonl")
 
