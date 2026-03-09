@@ -22,7 +22,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 CACHE_DIR = Path.home() / ".cache" / "repo-summary"
 MODELS = {
     "haiku": "claude-haiku-4-5-20251001",
-    "flash": "gemini-2.5-flash",
+    "flash": "gemini-3-flash-preview",
     "sonnet": "claude-sonnet-4-6",
 }
 EXTENSIONS = {".py", ".js", ".ts", ".tsx", ".jsx", ".rs", ".go", ".sh", ".sql"}
