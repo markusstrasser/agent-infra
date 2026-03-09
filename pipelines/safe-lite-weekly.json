@@ -1,0 +1,21 @@
+{
+  "name": "safe-lite-weekly",
+  "schedule": "0 9 * * 1",
+  "project": "meta",
+  "steps": [
+    {
+      "step": "evaluate",
+      "engine": "script",
+      "command": "uv run python3 scripts/safe-lite-eval.py --project meta --n 10 --recent-days 7 --verbose",
+      "cwd": "~/Projects/meta",
+      "timeout": 300
+    },
+    {
+      "step": "evaluate-intel",
+      "engine": "script",
+      "command": "uv run python3 scripts/safe-lite-eval.py --project intel --n 10 --recent-days 7 --verbose",
+      "cwd": "~/Projects/meta",
+      "timeout": 300
+    }
+  ]
+}
