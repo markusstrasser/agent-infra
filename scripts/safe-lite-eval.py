@@ -6,8 +6,8 @@ methodology from Google DeepMind (NeurIPS 2024). Decomposes research outputs int
 atomic claims, verifies each via Exa /answer, and judges support.
 
 Usage: uv run python3 scripts/safe-lite-eval.py [--project meta] [--n 5]
-                                                 [--verbose] [--dry-run]
-                                                 [--legacy]
+                                                 [--recent-days 7] [--verbose]
+                                                 [--dry-run] [--legacy]
 """
 
 import json
@@ -24,8 +24,14 @@ from config import PROJECT_ROOTS, RESEARCH_DIRS, log_metric
 CLAIM_LOG = Path.home() / ".claude" / "safe-lite-claims.jsonl"
 
 
-def find_recent_research_files(project: str, n: int) -> list[Path]:
-    """Find N most recently modified research files via git log."""
+def find_recent_research_files(
+    project: str, n: int, recent_days: int | None = None
+) -> list[Path]:
+    """Find N most recently modified research files.
+
+    If recent_days is set, only include files modified within that window.
+    This is used by the orchestrator pipeline to evaluate only fresh content.
+    """
     root = PROJECT_ROOTS.get(project)
     if not root or not root.exists():
         return []
@@ -45,18 +51,28 @@ def find_recent_research_files(project: str, n: int) -> list[Path]:
     # Filter out very small files (< 200 chars — likely stubs)
     files = [f for f in files if f.stat().st_size > 200]
 
+    # Time-window filter for scheduled runs
+    if recent_days is not None:
+        from datetime import timedelta
+        cutoff = datetime.now().timestamp() - timedelta(days=recent_days).total_seconds()
+        files = [f for f in files if f.stat().st_mtime >= cutoff]
+
     return files[:n]
 
 
-def decompose_claims(text: str) -> list[str]:
-    """Use Claude to decompose text into atomic verifiable claims."""
+def _get_anthropic_client():
+    """Get Anthropic client, cached."""
     try:
         import anthropic
     except ImportError:
         print("ERROR: anthropic package required. Install with: uv add anthropic")
         sys.exit(1)
+    return anthropic.Anthropic()
 
-    client = anthropic.Anthropic()
+
+def decompose_claims(text: str) -> list[str]:
+    """Use Claude to decompose text into atomic verifiable claims."""
+    client = _get_anthropic_client()
 
     # Truncate to ~4000 chars to keep cost low
     if len(text) > 4000:
@@ -93,6 +109,59 @@ JSON array:"""
         pass
 
     return []
+
+
+def classify_verifiability(claims: list[str]) -> list[dict]:
+    """Classify claims as verifiable or unverifiable.
+
+    A verifiable claim describes a single event, state, or measurable quantity
+    with enough specificity to check against a source. Unverifiable claims are
+    opinions, inferences, recommendations, or vague generalizations.
+
+    Returns list of {"claim": str, "verifiable": bool} dicts.
+    """
+    if not claims:
+        return []
+
+    client = _get_anthropic_client()
+    claims_text = "\n".join(f"{i+1}. {c}" for i, c in enumerate(claims))
+
+    response = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1000,
+        messages=[{
+            "role": "user",
+            "content": f"""Classify each claim as VERIFIABLE or UNVERIFIABLE.
+
+VERIFIABLE: Can be checked against an external source. Has specific entities, numbers, dates, or measurable properties. Examples: "Company X had $2B revenue", "The paper was published in 2024", "Algorithm Y achieves 95% accuracy on benchmark Z".
+
+UNVERIFIABLE: Opinions, recommendations, inferences, vague generalizations, meta-commentary, or claims that require subjective judgment. Examples: "This approach is better", "The system should use X", "Research suggests improvements are possible".
+
+Claims:
+{claims_text}
+
+Return ONLY a JSON array of booleans (true=verifiable, false=unverifiable), one per claim, in the same order.
+Example for 3 claims: [true, false, true]
+
+JSON array:"""
+        }],
+    )
+
+    result = response.content[0].text.strip()
+    try:
+        match = re.search(r'\[.*\]', result, re.DOTALL)
+        if match:
+            booleans = json.loads(match.group())
+            if len(booleans) == len(claims):
+                return [
+                    {"claim": c, "verifiable": bool(v)}
+                    for c, v in zip(claims, booleans)
+                ]
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    # Fallback: treat all as verifiable (conservative)
+    return [{"claim": c, "verifiable": True} for c in claims]
 
 
 # --- Exa /answer backend (default) ---
@@ -306,17 +375,27 @@ def eval_file(
     claims = decompose_claims(text)
 
     if verbose:
-        print(f"    Found {len(claims)} verifiable claims")
+        print(f"    Found {len(claims)} claims")
 
     if not claims:
-        return {"file": str(path), "claims": 0, "results": {}}
+        return {"file": str(path), "claims": 0, "claims_verifiable": 0, "results": {}}
 
-    results = {"supported": 0, "contradicted": 0, "unclear": 0}
+    # Classify verifiability
+    classified = classify_verifiability(claims)
+    verifiable = [c for c in classified if c["verifiable"]]
+    unverifiable_count = len(classified) - len(verifiable)
+
+    if verbose:
+        print(f"    Verifiable: {len(verifiable)}, Unverifiable: {unverifiable_count}")
+
+    results = {"supported": 0, "contradicted": 0, "unclear": 0, "unverifiable": unverifiable_count}
     claim_details = []
     total_cost = 0.0
     total_latency = 0
 
-    for claim in claims[:20]:  # Cap at 20 claims per file
+    # Only verify verifiable claims (skip unverifiable — they inflate "unclear")
+    for item in verifiable[:20]:  # Cap at 20 verifiable claims per file
+        claim = item["claim"]
         if verbose:
             print(f"    Checking: {claim[:70]}...")
 
@@ -334,6 +413,7 @@ def eval_file(
 
         detail = {
             "claim": claim,
+            "verifiable": True,
             "judgment": judgment,
             "evidence_count": result["evidence_count"],
         }
@@ -369,17 +449,40 @@ def eval_file(
                 schema_str = " schema:ok" if result["schema_valid"] else " schema:FAIL"
             print(f"      → {judgment} ({result['evidence_count']} sources{cost_str}{latency_str}{schema_str})")
 
+    # Log unverifiable claims too (for audit trail, no API cost)
+    for item in classified:
+        if not item["verifiable"]:
+            claim_details.append({
+                "claim": item["claim"],
+                "verifiable": False,
+                "judgment": "unverifiable",
+                "evidence_count": 0,
+            })
+
+    # Three-metric reporting
+    total_verifiable = len(verifiable)
     total_judged = results["supported"] + results["contradicted"]
-    precision = results["supported"] / total_judged if total_judged > 0 else None
+
+    # strict_precision: supported / total_verifiable (honest denominator)
+    strict_precision = results["supported"] / total_verifiable if total_verifiable > 0 else None
+    # conditional_precision: supported / (supported + contradicted) (old metric)
+    conditional_precision = results["supported"] / total_judged if total_judged > 0 else None
+    # verifiable_ratio: verifiable / total_claims
+    verifiable_ratio = total_verifiable / len(claims) if claims else None
 
     return {
         "file": str(path),
         "claims": len(claims),
-        "checked": len(claim_details),
+        "claims_verifiable": total_verifiable,
+        "claims_unverifiable": unverifiable_count,
+        "checked": len([d for d in claim_details if d.get("verifiable", True)]),
         "supported": results["supported"],
         "contradicted": results["contradicted"],
         "unclear": results["unclear"],
-        "precision": precision,
+        "unverifiable": unverifiable_count,
+        "strict_precision": strict_precision,
+        "conditional_precision": conditional_precision,
+        "verifiable_ratio": verifiable_ratio,
         "total_cost": total_cost,
         "total_latency_ms": total_latency,
         "details": claim_details,
@@ -392,6 +495,7 @@ def main():
     verbose = False
     dry_run = False
     legacy = False
+    recent_days = None
 
     args = sys.argv[1:]
     if "--project" in args:
@@ -402,6 +506,10 @@ def main():
         idx = args.index("--n")
         if idx + 1 < len(args):
             n = int(args[idx + 1])
+    if "--recent-days" in args:
+        idx = args.index("--recent-days")
+        if idx + 1 < len(args):
+            recent_days = int(args[idx + 1])
     if "--verbose" in args:
         verbose = True
     if "--dry-run" in args:
@@ -426,7 +534,7 @@ def main():
         print("  ERROR: No Exa API key found. Set EXA_API_KEY or configure .mcp.json.")
         return
 
-    files = find_recent_research_files(project, n)
+    files = find_recent_research_files(project, n, recent_days=recent_days)
     if not files:
         print(f"  No research files found in {project}.")
         return
@@ -458,14 +566,21 @@ def main():
         return
 
     # Aggregate
+    total_claims_all = sum(r["claims"] for r in file_results)
+    total_verifiable = sum(r.get("claims_verifiable", r["claims"]) for r in file_results)
+    total_unverifiable = sum(r.get("claims_unverifiable", 0) for r in file_results)
     total_supported = sum(r["supported"] for r in file_results)
     total_contradicted = sum(r["contradicted"] for r in file_results)
     total_unclear = sum(r["unclear"] for r in file_results)
     total_judged = total_supported + total_contradicted
-    overall_precision = total_supported / total_judged if total_judged > 0 else None
     total_cost = sum(r.get("total_cost", 0) for r in file_results)
     total_latency = sum(r.get("total_latency_ms", 0) for r in file_results)
     total_claims_checked = sum(r["checked"] for r in file_results)
+
+    # Three aggregate metrics
+    agg_strict = total_supported / total_verifiable if total_verifiable > 0 else None
+    agg_conditional = total_supported / total_judged if total_judged > 0 else None
+    agg_verifiable_ratio = total_verifiable / total_claims_all if total_claims_all > 0 else None
 
     print()
     print(f"  {'=' * 45}")
@@ -473,15 +588,22 @@ def main():
     print(f"  {'=' * 45}")
     print(f"  Backend:            {backend_label}")
     print(f"  Files evaluated:    {len(file_results)}")
-    print(f"  Total claims:       {sum(r['claims'] for r in file_results)}")
+    print(f"  Total claims:       {total_claims_all}")
+    print(f"    Verifiable:       {total_verifiable}")
+    print(f"    Unverifiable:     {total_unverifiable} (skipped)")
     print(f"  Claims checked:     {total_claims_checked}")
     print(f"  Supported:          {total_supported}")
     print(f"  Contradicted:       {total_contradicted}")
     print(f"  Unclear:            {total_unclear}")
-    if overall_precision is not None:
-        print(f"  Factual precision:  {overall_precision:.1%}")
-    else:
-        print("  Factual precision:  N/A (no judged claims)")
+    print()
+    print("  Three-metric reporting:")
+    if agg_strict is not None:
+        print(f"    Strict precision:      {agg_strict:.1%}  (supported / verifiable)")
+    if agg_conditional is not None:
+        print(f"    Conditional precision: {agg_conditional:.1%}  (supported / judged)")
+    if agg_verifiable_ratio is not None:
+        print(f"    Verifiable ratio:      {agg_verifiable_ratio:.1%}  (verifiable / total)")
+    print()
     if total_cost > 0:
         print(f"  Total cost:         ${total_cost:.4f}")
         if total_claims_checked:
@@ -494,8 +616,9 @@ def main():
     print("  Per file:")
     for r in file_results:
         fname = Path(r["file"]).name
-        p = f"{r['precision']:.0%}" if r["precision"] is not None else "N/A"
-        print(f"    {fname:<40} {r['checked']:>2} claims  {p} precision")
+        sp = f"{r['strict_precision']:.0%}" if r.get("strict_precision") is not None else "N/A"
+        vr = f"{r['verifiable_ratio']:.0%}" if r.get("verifiable_ratio") is not None else "N/A"
+        print(f"    {fname:<35} {r['checked']:>2} checked  strict={sp}  verif_ratio={vr}")
     print()
 
     # Schema compliance (exa /answer only)
@@ -515,12 +638,16 @@ def main():
         project=project,
         backend=backend_tag,
         files_evaluated=len(file_results),
-        total_claims=sum(r["claims"] for r in file_results),
+        total_claims=total_claims_all,
+        claims_verifiable=total_verifiable,
+        claims_unverifiable=total_unverifiable,
         claims_checked=total_claims_checked,
         supported=total_supported,
         contradicted=total_contradicted,
         unclear=total_unclear,
-        factual_precision=round(overall_precision, 4) if overall_precision is not None else None,
+        strict_precision=round(agg_strict, 4) if agg_strict is not None else None,
+        conditional_precision=round(agg_conditional, 4) if agg_conditional is not None else None,
+        verifiable_ratio=round(agg_verifiable_ratio, 4) if agg_verifiable_ratio is not None else None,
         total_cost=round(total_cost, 6) if total_cost > 0 else None,
         avg_latency_ms=total_latency // total_claims_checked if total_claims_checked else None,
     )
