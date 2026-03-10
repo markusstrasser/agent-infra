@@ -182,7 +182,7 @@ class ExperimentLog:
             f.write(
                 f"{entry['experiment_id']}\t"
                 f"{entry.get('commit', 'n/a')}\t"
-                f"{entry.get('metric_value', 0.0):.6f}\t"
+                f"{(entry.get('metric_value') or 0.0):.6f}\t"
                 f"{entry.get('cost_usd', 0.0):.4f}\t"
                 f"{entry['status']}\t"
                 f"{entry.get('description', '')}\n"
