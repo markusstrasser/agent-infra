@@ -764,3 +764,45 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 3. **Probe-before-build discipline** is still missing for data acquisition and domain integration tasks. Agents write full implementations before validating the underlying assumption (auth works, data is selective, API returns what's expected).
 4. **Sequential Edit for structural rewrites** — recurring pattern (13 edits in 488f1515, 4 edits in 4c055500). When a document needs structural reorganization (renumbering, reordering sections), sequential Edit calls compound errors. Write is the right tool for structural changes.
 5. **Unverified-claim-driven architecture** — agent deployed global hooks based on user claims that contradicted explicit config, without log verification (062592e9). Epistemic discipline applies to user reports too, not just external data.
+
+### [2026-03-10] Session Analyst — Behavioral Anti-Patterns (meta, 5 sessions)
+- **Source:** Gemini 3.1 Pro transcript analysis + manual validation
+- **Sessions:** b76a4786, 5afbed53, a01eaeca, d4b60441, 218d5173
+
+### [2026-03-10] BUILD-THEN-UNDO: Committed os._exit() fix before evaluating fallback side-effects
+- **Session:** meta 218d5173
+- **Evidence:** Agent implemented `os._exit(1)` hard-kill timer for llmx timeout, committed it, then immediately realized: "Wait — `os._exit(1)` kills the entire process, which means `--fallback gemini-3-flash-preview` never gets a chance to run." Rewrote to daemon-thread approach and amended the commit. The first-answer fix was wrong because it blocked fallback model logic.
+- **Failure mode:** First-answer convergence / Build-then-undo — committed before evaluating interaction with existing fallback system
+- **Proposed fix:** [rule] For system-level fixes (process lifecycle, signal handling, timeouts), evaluate side-effects on interdependent systems (fallback chains, error propagation) before committing.
+- **Severity:** medium — one wasted commit cycle, self-corrected within session
+- **Status:** [ ] proposed
+
+### [2026-03-10] MISSING PUSHBACK: Ran 20 experiments on dead-end ARC-AGI DSL approach
+- **Session:** meta 218d5173
+- **Evidence:** Agent pitched DSL expansion as a "creative idea" for ARC-AGI, built Codex integration and wrapper scripts, ran 20 experiments, hit poor generalization. User eventually said: "yeah i don't get why we're doing it tbh .. seems it's deemed to fail." Agent immediately agreed the approach had a hard ceiling. The agent already knew the architectural limitations but didn't surface them before investing ~40 minutes of compute. Session's own retro self-identified this as SCOPE_CREEP.
+- **Failure mode:** Missing pushback — known architectural ceiling not surfaced before compute-heavy exploration
+- **Proposed fix:** [rule] Before launching compute-heavy experimental runs (>10 minutes), explicitly state known architectural ceilings and let the user decide whether the ceiling is worth hitting. Already stated in session retro but not formalized.
+- **Severity:** high — ~40 minutes compute wasted, user had to intervene
+- **Status:** [ ] proposed
+
+### [2026-03-10] TOKEN WASTE: Subagent edits didn't persist — 10 agent calls for 5 file updates
+- **Session:** meta 218d5173
+- **Evidence:** Agent dispatched 5 simultaneous Agent() tools to update documentation across projects. After completion, discovered "agents reported success but their edits didn't persist to disk (they ran in isolated context)." Had to dispatch 5 more Agent() calls to re-apply edits. Total: 10 Agent() calls for work that could have been 5 direct Edit() calls.
+- **Failure mode:** Token waste — subagent context isolation not accounted for
+- **Proposed fix:** [rule] Don't use Agent() for simple file edits across projects. Agent() runs in isolated context — edits may not persist. Use direct Edit/Write tools for file modifications. Reserve Agent() for exploration/analysis where isolation is a feature, not a bug.
+- **Severity:** medium — 5 wasted agent dispatches
+- **Status:** [ ] proposed
+
+### [2026-03-10] TOKEN WASTE: Redundant file reads — common.py read 3x, doctor.py read 3x
+- **Session:** meta 5afbed53
+- **Evidence:** `common.py` Read at transcript lines 217, 239, 265 (3 times) plus 2 Grep calls on it. `doctor.py` Read at lines 221, 243, 358 (3 times). No intervening edits between first and second reads. This is the same pattern flagged in 2026-03-04 and 2026-03-05 — file re-reads persist as the most common low-severity waste.
+- **Failure mode:** Token waste — duplicate reads (recurring, 4th occurrence logged)
+- **Proposed fix:** None new — pattern persists despite rules. A PreToolUse:Read hook detecting same-path reads could address this, but cost is low per instance.
+- **Severity:** low — 4 redundant reads, small files
+- **Status:** [ ] noted, no action needed
+
+**Cross-cutting patterns (2026-03-10):**
+1. **Subagent file persistence is a blind spot.** Agent() tools for file edits is an anti-pattern — the isolation that makes them safe for exploration also prevents edits from persisting. This needs a rule, not a hook (low frequency, high cost when it happens).
+2. **Duplicate file reads: 4th occurrence logged.** Rules aren't working. The PreToolUse:Read hook proposal keeps being deferred. Given the low per-instance cost, this may not be worth a hook — but the recurrence should be noted.
+3. **Compute-before-ceiling-check** is a new variant of missing pushback. The agent had the knowledge to flag the limitation but optimistically proceeded. This parallels the sycophancy pattern from intel f32653c6 (compliance with directive that warranted pushback).
+4. **Sessions b76a4786, a01eaeca, d4b60441** were too small to analyze (0.0 MB each — likely abandoned or very short sessions). No anti-patterns detected.
