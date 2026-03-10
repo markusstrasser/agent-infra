@@ -74,36 +74,10 @@ def extract_imports(filepath: Path) -> list[dict]:
 
 
 def is_stdlib(module: str) -> bool:
-    """Rough check if a module is stdlib."""
-    # Top-level stdlib modules (Python 3.12+). Not exhaustive but covers common ones.
-    STDLIB = {
-        "abc", "argparse", "ast", "asyncio", "base64", "binascii", "bisect",
-        "builtins", "calendar", "cgi", "cmd", "codecs", "collections",
-        "colorsys", "compileall", "concurrent", "configparser", "contextlib",
-        "contextvars", "copy", "copyreg", "csv", "ctypes", "dataclasses",
-        "datetime", "dbm", "decimal", "difflib", "dis", "email", "encodings",
-        "enum", "errno", "faulthandler", "fcntl", "filecmp", "fileinput",
-        "fnmatch", "fractions", "ftplib", "functools", "gc", "getpass",
-        "gettext", "glob", "gzip", "hashlib", "heapq", "hmac", "html",
-        "http", "imaplib", "importlib", "inspect", "io", "ipaddress",
-        "itertools", "json", "keyword", "linecache", "locale", "logging",
-        "lzma", "mailbox", "math", "mimetypes", "mmap", "multiprocessing",
-        "numbers", "operator", "os", "pathlib", "pdb", "pickle", "pkgutil",
-        "platform", "plistlib", "poplib", "posixpath", "pprint", "profile",
-        "pstats", "queue", "quopri", "random", "re", "readline", "reprlib",
-        "resource", "rlcompleter", "runpy", "sched", "secrets", "select",
-        "selectors", "shelve", "shlex", "shutil", "signal", "site", "smtplib",
-        "socket", "socketserver", "sqlite3", "ssl", "stat", "statistics",
-        "string", "struct", "subprocess", "sys", "sysconfig", "syslog",
-        "tarfile", "tempfile", "termios", "textwrap", "threading", "time",
-        "timeit", "token", "tokenize", "tomllib", "trace", "traceback",
-        "tracemalloc", "tty", "turtle", "types", "typing", "unicodedata",
-        "unittest", "urllib", "uuid", "venv", "warnings", "wave", "weakref",
-        "webbrowser", "xml", "xmlrpc", "zipfile", "zipimport", "zlib",
-        "_thread", "__future__",
-    }
+    """Check if a module is stdlib using sys.stdlib_module_names (Python 3.10+)."""
+    import sys
     top = module.split(".")[0]
-    return top in STDLIB
+    return top in sys.stdlib_module_names
 
 
 def build_import_graph(path: Path):

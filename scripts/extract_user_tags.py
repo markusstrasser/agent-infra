@@ -17,13 +17,12 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from config import extract_project_name
+
 PROJECTS_DIR = Path.home() / ".claude" / "projects"
 
 # Match #f at word boundary (not #foo, #function, etc.)
 TAG_RE = re.compile(r"(?:^|\s)#f(?:\s|$)", re.MULTILINE)
-
-
-from config import extract_project_name
 
 
 def scan_session(session_path: Path) -> list[dict]:

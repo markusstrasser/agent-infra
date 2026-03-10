@@ -39,7 +39,7 @@ def _fts5_sanitize(query: str) -> str:
     tokens = query.split()
     if not tokens:
         return query
-    special = re.compile(r'["\-*()]')
+    special = re.compile(r'["\-\+\*\(\)\{\}\[\]\^~:]')
     if any(special.search(t) for t in tokens):
         return " ".join(f'"{t}"' for t in tokens)
     return query

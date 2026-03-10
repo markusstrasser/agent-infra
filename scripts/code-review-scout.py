@@ -181,7 +181,7 @@ def load_previous_findings(project_name: str) -> set[str]:
                 # Hash on file + category + description core
                 key = f"{entry.get('file', '')}:{entry.get('category', '')}:{entry.get('description', '')[:80]}"
                 hashes.add(hashlib.sha256(key.encode()).hexdigest()[:12])
-            except (json.JSONDecodeError, KeyError):
+            except (json.JSONDecodeError, KeyError, AttributeError):
                 continue
     return hashes
 

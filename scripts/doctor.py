@@ -84,8 +84,15 @@ def check_settings_json(path: Path, scope: str) -> list[Check]:
                 cmd = hook.get("command", "")
                 # Extract script path (first token if it's a file path)
                 parts = cmd.split()
-                if parts and parts[0].startswith("/"):
+                # Find the script file — may be the command itself or an argument to bash/python3
+                script_token = next((p for p in parts if p.endswith(('.sh', '.py'))), None)
+                if script_token:
+                    script = Path(script_token)
+                elif parts and parts[0].startswith("/"):
                     script = Path(parts[0])
+                else:
+                    script = None
+                if script is not None:
                     hc = Check(f"hook:{event}:{script.name}", scope)
                     if not script.exists():
                         checks.append(hc.fail(f"Script missing: {script}"))

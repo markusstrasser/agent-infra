@@ -35,7 +35,7 @@ def git_log(repo: Path, days: int | None = None, max_commits: int | None = None)
     commits = []
     current = None
     for line in result.stdout.splitlines():
-        if "|" in line and not line.startswith(" ") and len(line.split("|")) == 4:
+        if "|" in line and not line.startswith(" ") and len(line.split("|", 3)) == 4:
             parts = line.split("|", 3)
             if len(parts[0]) == 40:  # SHA
                 if current:

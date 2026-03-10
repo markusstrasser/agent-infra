@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -412,4 +413,4 @@ def merge_tool_call(existing: ToolCallRow | None, incoming: ToolCallRow) -> Tool
         start_record_key=incoming.start_record_key or existing.start_record_key,
         end_record_key=incoming.end_record_key or existing.end_record_key,
     )
-from datetime import datetime, timezone
+
