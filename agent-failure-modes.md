@@ -328,5 +328,28 @@ THEN agent retries same command without checking stderr, exit code, or error typ
 
 ---
 
-*Evaluated 2026-02-27, updated 2026-02-28, updated 2026-03-01, updated 2026-03-03, updated 2026-03-04. Research sweep findings (40+ primary sources), community pattern analysis, snippet/workflow audit, sycophancy audit, session-analyst findings, 2026-03-01 research update (6 new papers on agent scaling, CoT faithfulness, and sycophancy), 2026-03-03 update (causal reasoning evidence: arXiv:2602.11675, arXiv:2506.21215, arXiv:2506.07106, arXiv:2502.09061; prompt interventions: LessWrong n=900 hedging study, arXiv:2602.23971).*
+## MAST Cross-Reference (NeurIPS 2025, arXiv:2503.13657)
+
+The MAST taxonomy (1600+ annotated traces, 7 MAS frameworks, κ=0.88) identifies 14 failure modes in 3 categories. Cross-reference with our modes:
+
+| MAST Mode | % | Our Equivalent | Gap? |
+|-----------|---|---------------|------|
+| Disobey task specification | 15.7% | FM12 (instructions ≠ reliable) | Covered |
+| Step repetition | 13.2% | Build-then-undo (SA cat 3) | Covered |
+| Reasoning-action mismatch | 12.4% | **NEW** — added to session-analyst | Was missing |
+| Premature termination | 11.8% | **NEW** — added to session-analyst | Was missing |
+| Information withholding | 9.1% | **NEW** — added to session-analyst | Was missing |
+| Disobey role specification | 8.2% | FM12 (instructions ≠ reliable) | Covered |
+| Task derailment | 7.4% | Scope creep (SA cat 2) | Covered |
+| Ignored other agent's input | 6.8% | Cross-model review failures | Partial |
+| Loss of conversation history | 6.2% | **NEW** — added to session-analyst | Was missing |
+| Conversation reset | 2.8% | **NEW** — added to session-analyst | Was missing |
+| No/incomplete verification | varies | FM24 (retry without diagnosis) | Partial |
+| Incorrect verification | varies | — | Not tracked |
+| Fail to ask for clarification | 1.9% | FM21 (sycophancy) | Covered |
+| Unaware of termination | 2.2% | Premature termination (above) | Covered |
+
+**Key MAST finding:** 44.2% of failures are system design issues (fixable by architecture), 32.3% inter-agent misalignment, 23.5% task verification. Root-cause classification added to session-analyst output format.
+
+*Evaluated 2026-02-27, updated 2026-02-28, updated 2026-03-01, updated 2026-03-03, updated 2026-03-04, updated 2026-03-10. Research sweep findings (40+ primary sources), community pattern analysis, snippet/workflow audit, sycophancy audit, session-analyst findings, 2026-03-01 research update (6 new papers on agent scaling, CoT faithfulness, and sycophancy), 2026-03-03 update (causal reasoning evidence: arXiv:2602.11675, arXiv:2506.21215, arXiv:2506.07106, arXiv:2502.09061; prompt interventions: LessWrong n=900 hedging study, arXiv:2602.23971). 2026-03-10 update: MAST cross-reference (arXiv:2503.13657), 5 new failure modes added to session-analyst detection.*
 *Sources: `~/Projects/selve/docs/universal_contracts.md`, `~/Projects/selve/docs/AGENT_PROTOCOLS.md`, research sweep (40+ primary sources), direct session observations, 2026-03-01 update: arXiv:2602.03794, arXiv:2602.11201, arXiv:2601.06423, arXiv:2602.14270, SycEval (DOI:10.1609/aies.v8i1.36598), ELEPHANT (ICLR 2026 submission). 2026-03-03 update: see `research/causal-reasoning-evidence.md`, `research/anti-sycophancy-process-supervision.md`.*
