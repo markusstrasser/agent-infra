@@ -335,7 +335,21 @@ def build_prompt(config: dict, worktree: Path, log: ExperimentLog) -> str:
         for i, d in enumerate(kept_diffs, 1):
             parts.append(f"\n## Kept diff #{i}\n```diff\n{d}\n```")
 
-    # Task
+    # Task — instruction varies by engine type
+    engine = config.get("engine", "claude")
+    if engine == "llmx":
+        # Non-agentic: model must output the complete file
+        edit_instruction = (
+            "Output the COMPLETE new version of each editable file in a fenced code block.\n"
+            "Use the format:\n"
+            "```python filename.py\n"
+            "... complete file content ...\n"
+            "```\n"
+            "Before the code block, write a ONE LINE summary of what you changed and why."
+        )
+    else:
+        edit_instruction = "Edit the file(s) now."
+
     parts.append(textwrap.dedent(f"""
     # Your Task
 
@@ -349,7 +363,7 @@ def build_prompt(config: dict, worktree: Path, log: ExperimentLog) -> str:
     - Simpler is better: removing code for equal results is a win
     - Do NOT modify any read-only files
 
-    Edit the file(s) now.
+    {edit_instruction}
     """))
 
     return "\n".join(parts)
@@ -475,11 +489,87 @@ def _run_mutator_codex(config: dict, worktree: Path, prompt: str) -> tuple[str, 
         return "TIMEOUT: codex took >5min", 0.0
 
 
+def _run_mutator_llmx(config: dict, worktree: Path, prompt: str) -> tuple[str, float]:
+    """Run llmx to generate edited file content. Returns (description, cost_usd).
+
+    Non-agentic: sends prompt (which includes file contents), model returns
+    the complete new file in a code block, we parse and write it back.
+    """
+    import re
+
+    model = config.get("model", "gemini-3.1-pro-preview")
+    provider = config.get("provider", "google")
+    timeout = config.get("mutator_timeout", 300)
+
+    cmd = ["llmx", "-p", provider, "-m", model, prompt]
+
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("CLAUDECODE", "CLAUDE_SESSION_ID")}
+
+    try:
+        result = subprocess.run(
+            cmd, cwd=worktree, capture_output=True, text=True,
+            timeout=timeout, env=env,
+        )
+
+        if result.returncode != 0:
+            stderr = result.stderr.strip()[:200] if result.stderr else ""
+            return f"ERROR: llmx exit {result.returncode}: {stderr}", 0.0
+
+        output = result.stdout.strip()
+        if not output:
+            return "ERROR: llmx returned empty output", 0.0
+
+        # Extract code blocks: ```python [filename]\n...\n```
+        # Pattern matches ```python optionally followed by a filename
+        blocks = re.findall(
+            r'```python(?:\s+(\S+))?\s*\n(.*?)```',
+            output, re.DOTALL,
+        )
+
+        if not blocks:
+            return "ERROR: no code block in llmx output", 0.0
+
+        editable = config["editable_files"]
+
+        for block_filename, block_content in blocks:
+            # Match block to editable file
+            target = None
+            if block_filename:
+                # Try exact match or basename match
+                for ef in editable:
+                    if block_filename == ef or block_filename == Path(ef).name:
+                        target = ef
+                        break
+            if target is None and len(editable) == 1:
+                target = editable[0]
+            if target is None:
+                continue
+
+            target_path = worktree / target
+            target_path.write_text(block_content)
+
+        # Description: first non-empty line before the code block
+        description = ""
+        for line in output.split("\n"):
+            line = line.strip()
+            if line and not line.startswith("```") and not line.startswith("#"):
+                description = line[:120]
+                break
+
+        return description or "llmx edit (no description)", 0.0
+
+    except subprocess.TimeoutExpired:
+        return f"TIMEOUT: llmx took >{timeout}s", 0.0
+
+
 def run_mutator(config: dict, worktree: Path, prompt: str) -> tuple[str, float]:
     """Dispatch to the configured mutator engine."""
     engine = config.get("engine", "claude")
     if engine in ("codex", "codex-cli"):
         return _run_mutator_codex(config, worktree, prompt)
+    if engine == "llmx":
+        return _run_mutator_llmx(config, worktree, prompt)
     return _run_mutator_claude(config, worktree, prompt)
 
 
