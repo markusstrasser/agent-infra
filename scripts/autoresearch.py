@@ -714,6 +714,33 @@ def run_experiment_loop(config: dict, config_path: Path, tag: str,
     consecutive_discards = 0
     keeps_since_holdout = 0
 
+    # Timing probe: run 1 experiment to measure mutator latency, auto-adjust timeout
+    if experiment_id == 0:
+        configured_timeout = config.get("mutator_timeout", 300)
+        probe_prompt = build_prompt(config, worktree, log)
+        print(f"[autoresearch] Timing probe (configured timeout: {configured_timeout}s)...")
+        probe_t0 = time.time()
+        probe_desc, _ = run_mutator(config, worktree, probe_prompt)
+        probe_elapsed = time.time() - probe_t0
+        timed_out = "TIMEOUT" in probe_desc
+
+        if timed_out:
+            print(f"[autoresearch] ⚠ Probe timed out at {configured_timeout}s — "
+                  f"consider increasing mutator_timeout")
+        else:
+            print(f"[autoresearch] Probe completed in {probe_elapsed:.0f}s")
+            # Auto-adjust: set timeout to 2x observed latency (min: configured value)
+            suggested = max(configured_timeout, int(probe_elapsed * 2))
+            if suggested > configured_timeout:
+                print(f"[autoresearch] Auto-adjusting timeout: {configured_timeout}s → {suggested}s")
+                config["mutator_timeout"] = suggested
+
+        # Reset worktree from probe (don't count it)
+        if git_has_changes(worktree):
+            subprocess.run(["git", "checkout", "."], cwd=worktree, capture_output=True)
+            subprocess.run(["git", "clean", "-fd"], cwd=worktree, capture_output=True)
+        print()
+
     try:
         while experiment_id < max_experiments:
             experiment_id += 1
