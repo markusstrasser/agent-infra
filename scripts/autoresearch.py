@@ -355,9 +355,8 @@ def build_prompt(config: dict, worktree: Path, log: ExperimentLog) -> str:
     return "\n".join(parts)
 
 
-def run_mutator(config: dict, worktree: Path, prompt: str) -> tuple[str, float]:
+def _run_mutator_claude(config: dict, worktree: Path, prompt: str) -> tuple[str, float]:
     """Run claude to edit files. Returns (description, cost_usd)."""
-    # Use claude CLI with -p for non-interactive mode
     cmd = [
         "claude", "-p", prompt,
         "--dangerously-skip-permissions",
@@ -376,7 +375,7 @@ def run_mutator(config: dict, worktree: Path, prompt: str) -> tuple[str, float]:
             cwd=worktree,
             capture_output=True,
             text=True,
-            timeout=300,  # 5 min max for the LLM to think + edit
+            timeout=config.get("mutator_timeout", 300),
             env=env,
         )
 
@@ -430,6 +429,58 @@ def run_mutator(config: dict, worktree: Path, prompt: str) -> tuple[str, float]:
 
     except subprocess.TimeoutExpired:
         return "TIMEOUT: mutator took >5min", 0.0
+
+
+def _run_mutator_codex(config: dict, worktree: Path, prompt: str) -> tuple[str, float]:
+    """Run codex exec to edit files. Returns (description, cost_usd=0.0).
+
+    Codex CLI uses subscription pricing (free). Output is plain text on stdout.
+    Edits are applied directly to the worktree by Codex's agentic loop.
+    """
+    cmd = [
+        "codex", "exec",
+        "--dangerously-bypass-approvals-and-sandbox",
+        prompt,
+    ]
+    model = config.get("model")
+    if model and model not in ("codex", "codex-cli"):
+        cmd.extend(["-m", model])
+
+    # Clean env to avoid nested session detection
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("CLAUDECODE", "CLAUDE_SESSION_ID")}
+
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=worktree,
+            capture_output=True,
+            text=True,
+            timeout=config.get("mutator_timeout", 300),
+            env=env,
+        )
+
+        if result.returncode != 0:
+            stderr = result.stderr.strip()[:200] if result.stderr else ""
+            return f"ERROR: codex exit {result.returncode}: {stderr}", 0.0
+
+        # Codex plain text output — take first line as description
+        description = ""
+        if result.stdout.strip():
+            description = result.stdout.strip().split("\n")[-1][:120]
+
+        return description or "Codex edit (no description)", 0.0
+
+    except subprocess.TimeoutExpired:
+        return "TIMEOUT: codex took >5min", 0.0
+
+
+def run_mutator(config: dict, worktree: Path, prompt: str) -> tuple[str, float]:
+    """Dispatch to the configured mutator engine."""
+    engine = config.get("engine", "claude")
+    if engine in ("codex", "codex-cli"):
+        return _run_mutator_codex(config, worktree, prompt)
+    return _run_mutator_claude(config, worktree, prompt)
 
 
 # ---------------------------------------------------------------------------
