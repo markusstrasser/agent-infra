@@ -52,3 +52,4 @@ artifacts/
 .autoresearch-worktrees/
 experiments/*/runs/
 .brainstorm/
+artifacts/prompt-archaeology/
