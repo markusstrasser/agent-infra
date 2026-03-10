@@ -273,3 +273,21 @@ A 30 / 90 / 180 day action plan
 The single most dangerous architectural mistake to avoid
 
 Confusing native runtime convenience with your system’s epistemic source of truth.
+
+---
+
+## Idea: Scite MCP for citation-stance search
+
+**Source:** https://scite.ai/mcp — requires paid subscription.
+
+**What it does:** Scite indexes 1.6B+ citations classified as *supporting*, *contrasting*, or *mentioning*. Their MCP exposes: literature search, Smart Citation data (stance-classified), citation tallies, DOI lookup, related articles.
+
+**Unique capability vs current stack:** Citation stance classification. None of the current tools (S2, Exa, Brave, paper-search) can answer "which papers contradict this finding?" structurally. Currently this requires fetch_paper → ask_corpus with manual prompting, which is slow and incomplete.
+
+**Where it fits:** Research repo’s disconfirmation mandate (Constitution §4). Literature audits, novelty audits, frontier refreshes. Also useful for the evidence.polarity field in the canonical schema — Scite’s supporting/contrasting/mentioning maps directly to supports/contradicts/null.
+
+**Overlap:** Paper discovery, DOI lookup, related articles — all redundant with S2 and paper-search. Only the stance classification is new.
+
+**Risk:** Coverage skews biomedical. Psychometrics, DIF, measurement invariance coverage likely thinner. Needs a trial run on actual research topics before committing to a subscription.
+
+**Action:** Check if free tier or trial exists. Test queries on: "sex differences IRT DIF", "measurement invariance MTMM", "PISA mathematics gender". If stance-classified results are substantive, add to .mcp.json. If coverage is thin on our domains, skip.
