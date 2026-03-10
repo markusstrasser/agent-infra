@@ -51,3 +51,4 @@ bundles
 artifacts/
 .autoresearch-worktrees/
 experiments/*/runs/
+.brainstorm/
