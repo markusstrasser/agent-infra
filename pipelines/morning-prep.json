@@ -27,6 +27,13 @@
       "effort": "low"
     },
     {
+      "step": "best-sync",
+      "project": "meta",
+      "engine": "script",
+      "prompt": "python3 scripts/best-sync.py --output artifacts/vendor-versions",
+      "cwd": "~/Projects/meta"
+    },
+    {
       "step": "vendor-versions",
       "project": "meta",
       "engine": "script",
