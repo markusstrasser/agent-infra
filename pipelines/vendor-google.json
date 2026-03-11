@@ -1,0 +1,21 @@
+{
+  "name": "vendor-google",
+  "schedule": "0 9 * * 3",
+  "project": "meta",
+  "steps": [
+    {
+      "step": "scan",
+      "prompt": "Weekly Google AI ecosystem scan. Check these sources:\n\n1. **Gemini Models**: Search for new Gemini model releases, capability updates, context window changes, pricing. Check ai.google.dev docs.\n2. **SDKs**: Check PyPI google-genai and google-adk versions. Look for new features, breaking changes.\n3. **Gemini API**: Search for Gemini API changelog — new endpoints, tools, function calling updates, grounding.\n4. **Google ADK**: Check github.com/google/adk-python for releases, new agent patterns.\n5. **AI Studio / Vertex**: Major feature additions relevant to API users (not enterprise-only).\n6. **Google AI blog**: Search for recent Google AI announcements.\n\nNo existing baseline memo — create one if significant findings.\n\nWrite delta to .claude/plans/vendor-google-delta.md with sections: ## New Releases, ## Model Updates, ## API Changes, ## SDK Changes, ## Handoff.",
+      "max_turns": 15,
+      "max_budget_usd": 3.0,
+      "allowed_tools": "Read,Glob,Grep,Bash,WebSearch,WebFetch,mcp__exa__web_search_exa,mcp__exa__web_search_advanced_exa,mcp__brave-search__brave_web_search"
+    },
+    {
+      "step": "triage",
+      "prompt": "Read .claude/plans/vendor-google-delta.md — focus on ## Handoff.\n\nAssess relevance to our infrastructure: (1) model-review and model-guide skills use Gemini — any capability changes? (2) llmx routes to Gemini — any API changes? (3) code-review-scout uses Gemini free tier — still available? (4) any new features that affect multi-model routing?\n\nIf significant findings, create or update meta/research/google-ai-landscape.md.\nWrite actionable items to .claude/plans/vendor-google-actions.md.\nCommit any research docs with [vendor-scan] prefix.",
+      "max_turns": 10,
+      "max_budget_usd": 2.0,
+      "model": "sonnet"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "vendor-anthropic",
+  "schedule": "0 9 * * 1",
+  "project": "meta",
+  "steps": [
+    {
+      "step": "scan",
+      "prompt": "Weekly Anthropic ecosystem scan. Check these sources for changes since the last scan:\n\n1. **Claude Code**: Run `npm view @anthropic-ai/claude-code versions --json | tail -20` for recent releases. Read meta/research/anthropic-platform-sweep-2026-03-02.md for last known state. Check GitHub anthropics org for new/updated repos.\n2. **API & Models**: Search for Anthropic API changelog, new model releases, pricing changes, deprecations.\n3. **SDKs**: Check PyPI anthropic + claude-agent-sdk versions. Check npm @anthropic-ai/sdk. Look for new params, breaking changes.\n4. **MCP Protocol**: Check github.com/modelcontextprotocol for spec changes, new transports, SDK updates.\n5. **Anthropic blog**: Search for recent Anthropic announcements (models, features, partnerships).\n\nBaseline: meta/research/anthropic-tooling-landscape.md + meta/research/anthropic-platform-sweep-2026-03-02.md\n\nWrite delta to .claude/plans/vendor-anthropic-delta.md with sections: ## New Releases, ## Feature Changes, ## Deprecations, ## Model Updates, ## Handoff (numbered action items + informational items).",
+      "max_turns": 15,
+      "max_budget_usd": 3.0,
+      "allowed_tools": "Read,Glob,Grep,Bash,WebSearch,WebFetch,mcp__exa__web_search_exa,mcp__exa__web_search_advanced_exa,mcp__brave-search__brave_web_search"
+    },
+    {
+      "step": "triage",
+      "prompt": "Read .claude/plans/vendor-anthropic-delta.md — focus on ## Handoff.\n\nFor each item: (1) does it replace something we built? (compare against hooks in ~/Projects/skills/hooks/, orchestrator, MCP servers) (2) does it enable something new? (3) does it affect our infrastructure?\n\nUpdate meta/research/anthropic-tooling-landscape.md with new findings (append to relevant sections, add date stamps). If there are significant changes, also update the platform sweep date reference in CLAUDE.md research index.\n\nWrite actionable items to .claude/plans/vendor-anthropic-actions.md.\nCommit updated research docs with [vendor-scan] prefix.",
+      "max_turns": 10,
+      "max_budget_usd": 2.0,
+      "model": "sonnet"
+    }
+  ]
+}

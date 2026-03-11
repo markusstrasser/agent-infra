@@ -18,6 +18,7 @@ This repo plans and tracks improvements to agent infrastructure across projects 
 - `scripts/schema.sql` — SQLite DDL for orchestrator task queue + scheduled_runs ledger
 - `runlog.md` — runlog architecture, import/query usage, named queries, and vendor coverage
 - `scripts/code-review-scout.py` — continuous code review: batches project code, dispatches to Gemini/Codex CLI (free tier), writes findings to `artifacts/code-review/`
+- `scripts/vendor-versions.py` — parallel version checker for all AI vendor tools/SDKs (npm, PyPI, GitHub). Runs daily in morning-prep, writes to `artifacts/vendor-versions/`
 - `scripts/code-review-schedule.py` — daily rotation: 5 projects × 5 focuses (refactoring, dead-code, optimization, patterns, security), 25-day cycle
 - `scripts/autoresearch.py` — evolutionary code search: LLM edits code in sandboxed worktree, deterministic eval keeps/discards, git reset on regression. Adapted from karpathy/autoresearch.
 - `experiments/` — autoresearch experiment configs (config.json, eval.py, program.md, editable code). Toy-scorer validates engine.

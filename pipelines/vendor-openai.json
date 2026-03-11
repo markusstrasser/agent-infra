@@ -1,0 +1,21 @@
+{
+  "name": "vendor-openai",
+  "schedule": "0 9 * * 5",
+  "project": "meta",
+  "steps": [
+    {
+      "step": "scan",
+      "prompt": "Weekly OpenAI ecosystem scan. Check these sources:\n\n1. **Codex CLI**: Run `npm view @openai/codex versions --json | tail -10` for recent releases. Check github.com/openai/codex for changelog/issues.\n2. **Models**: Search for new GPT/o-series model releases, deprecations, pricing changes.\n3. **API**: Search for OpenAI API changelog — new endpoints, tools, response format changes.\n4. **SDKs**: Check PyPI openai and openai-agents versions. New features, breaking changes.\n5. **Agents SDK**: Check github.com/openai/openai-agents-python for new patterns, tools, handoff mechanisms.\n6. **OpenAI blog**: Search for recent OpenAI announcements.\n\nNo existing baseline memo — create one if significant findings.\n\nWrite delta to .claude/plans/vendor-openai-delta.md with sections: ## New Releases, ## Model Updates, ## API Changes, ## SDK Changes, ## Handoff.",
+      "max_turns": 15,
+      "max_budget_usd": 3.0,
+      "allowed_tools": "Read,Glob,Grep,Bash,WebSearch,WebFetch,mcp__exa__web_search_exa,mcp__exa__web_search_advanced_exa,mcp__brave-search__brave_web_search"
+    },
+    {
+      "step": "triage",
+      "prompt": "Read .claude/plans/vendor-openai-delta.md — focus on ## Handoff.\n\nAssess relevance: (1) model-review and model-guide skills route to GPT — any capability or API changes? (2) llmx routes to OpenAI — any breaking changes? (3) Codex CLI used in code-review — new features or breaking changes? (4) Agents SDK patterns we should adopt?\n\nIf significant findings, create or update meta/research/openai-landscape.md.\nWrite actionable items to .claude/plans/vendor-openai-actions.md.\nCommit any research docs with [vendor-scan] prefix.",
+      "max_turns": 10,
+      "max_budget_usd": 2.0,
+      "model": "sonnet"
+    }
+  ]
+}
