@@ -99,6 +99,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `schema-bounded-review-packets-2026-03.md` | Narrow use of schemas at handoff points (search→evidence→review→synthesize) vs wholesale structure conversion | Agent workflow design, interface minimization, when to structure vs prose |
 | `search-api-integration-landscape.md` | All 5 search APIs configured (Brave/Perplexity/Firecrawl/Exa/papers), migration to user scope, 14+ tool MCP footprint | Search tool selection, MCP configuration, API integration sequencing |
 | `skill-provenance-controls-2026-03.md` | Mutable instruction supply chain: skill inventory, version hashing, change detection | Skills governance, supply chain visibility, skill versioning strategy |
+| `epistemic-causal-bayesian-sweep-2026-03-12.md` | **March 2026 sweep.** Do-calculus three-framework comparison (Pearl/Robins-SWIGs/Dawid), Bayesian UQ (conformal prediction winning, e-values rising), PRM explosion (AgentPRM, ThinkPRM, 307-cite Alibaba lessons), Causal Rung Collapse still uncontested, uncertainty-as-active-signal paradigm | Epistemic infrastructure improvements, PRM adoption, calibration system design, causal scaffolding decisions |
 
 <constitution>
 > **Human-protected.** Agent may propose changes but must not modify without explicit approval.
