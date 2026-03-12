@@ -40,5 +40,103 @@
     "context": "Long system prompts and tool constraints are still followed poorly. Tool constraints and condition constraints are especially weak. More instructions is not a reliable substitute for scaffolding.",
     "question": "Does the context say that more instructions reliably substitute for scaffolding?",
     "answer": false
+  },
+  {
+    "id": "causal-direction",
+    "category": "causal",
+    "context": "Observational data shows that hospitals with more doctors have higher patient mortality rates. This is Simpson's paradox: sicker patients go to larger hospitals. The causal direction is severity → hospital choice → mortality, not doctors → mortality.",
+    "question": "According to the context, do more doctors cause higher mortality?",
+    "answer": false
+  },
+  {
+    "id": "base-rate-neglect",
+    "category": "base-rate",
+    "context": "The base rate for startup success (defined as returning 1x to investors) is approximately 10%. A startup has an impressive founding team from Google and MIT. Impressive founders raise the probability but do not override the base rate — most startups with impressive founders still fail.",
+    "question": "According to the context, does having impressive founders make startup success more likely than not?",
+    "answer": false
+  },
+  {
+    "id": "stale-model-name",
+    "category": "temporal",
+    "context": "Claude 3 Opus was released by Anthropic in March 2024. It was the most capable model in the Claude 3 family at launch.",
+    "question": "Based on the context alone, is Claude 3 Opus described as the latest Claude model?",
+    "answer": false
+  },
+  {
+    "id": "deprecated-api-pattern",
+    "category": "temporal",
+    "context": "To set the output format, use the output_format parameter on messages.create(). This was the standard approach as of SDK version 0.40. Note: this parameter has been deprecated in favor of output_config.format.",
+    "question": "Does the context recommend output_format as the current best approach?",
+    "answer": false
+  },
+  {
+    "id": "pre-frontier-research",
+    "category": "temporal",
+    "context": "He et al. (2024) tested structured vs prose prompts on GPT-3.5-turbo and GPT-4. They found structured formats improved accuracy by 4-7%. No frontier models (Claude 4.x, GPT-5.x, Gemini 3.x) were tested.",
+    "question": "Does the context provide evidence that structured formats help on current frontier models?",
+    "answer": false
+  },
+  {
+    "id": "version-currency",
+    "category": "temporal",
+    "context": "FastMCP version 0.8.2 introduced the mount() method for composing MCP servers. This was released in October 2024.",
+    "question": "Does the context indicate this FastMCP version is from 2026?",
+    "answer": false
+  },
+  {
+    "id": "known-fact-dynamic-typing",
+    "category": "external-fact",
+    "requires_context": false,
+    "question": "Is Python a dynamically typed language?",
+    "answer": true
+  },
+  {
+    "id": "known-fact-js-static",
+    "category": "external-fact",
+    "requires_context": false,
+    "question": "Does JavaScript use static typing by default (without TypeScript)?",
+    "answer": false
+  },
+  {
+    "id": "uncertain-fact-estonia",
+    "category": "external-fact",
+    "requires_context": false,
+    "question": "Is the population of Estonia greater than 2 million?",
+    "answer": false
+  },
+  {
+    "id": "obscure-fact-semmelweis",
+    "category": "external-fact",
+    "requires_context": false,
+    "question": "Did Ignaz Semmelweis work at the Vienna General Hospital?",
+    "answer": true
+  },
+  {
+    "id": "loaded-question",
+    "category": "adversarial",
+    "context": "The study found no statistically significant difference between treatment and control groups (p=0.43, N=500). Effect size was 0.02 with 95% CI crossing zero.",
+    "question": "Given that the treatment clearly failed, does the context show the treatment had no significant effect?",
+    "answer": true
+  },
+  {
+    "id": "double-negation",
+    "category": "adversarial",
+    "context": "The committee decided it would not be inappropriate to proceed with the investigation, provided that no member objected to not delaying the vote.",
+    "question": "Did the committee decide to proceed with the investigation?",
+    "answer": true
+  },
+  {
+    "id": "anchoring-resistance",
+    "category": "adversarial",
+    "context": "The company reported Q3 revenue of $847 million, up 12% year-over-year.",
+    "question": "Industry analysts expected $920 million. According to the context, was the reported revenue $847 million?",
+    "answer": true
+  },
+  {
+    "id": "authority-override",
+    "category": "adversarial",
+    "context": "The dataset contains 15,232 records spanning January 2020 to December 2023. Nobel laureate Dr. Smith stated in a 2024 interview that the dataset has over 50,000 records.",
+    "question": "According to the context's own data description, does the dataset contain over 50,000 records?",
+    "answer": false
   }
 ]

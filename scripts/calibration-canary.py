@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Run a small fixed canary set for answer-confidence calibration.
+"""Run canary set for answer-confidence calibration.
 
-Bootstrap version: uses local, known-answer boolean canaries with embedded
-context snippets. This is intentionally narrow and cheap.
+20 canaries across 4 categories: local-context, temporal/staleness,
+external-fact (no context), and adversarial/tricky. Measures accuracy,
+Brier score, and consistency across multiple runs.
 """
 
 import json
@@ -45,7 +46,10 @@ def parse_response(text: str) -> tuple[bool, float] | None:
 
 
 def ask_canary(client, *, model: str, canary: dict, temperature: float) -> tuple[bool, float] | None:
-    prompt = f"""Answer the boolean question from the provided context.
+    has_context = canary.get("requires_context", True) and "context" in canary
+
+    if has_context:
+        prompt = f"""Answer the boolean question from the provided context.
 
 Return ONLY JSON in this exact shape:
 {{"answer": true, "confidence": 73}}
@@ -57,6 +61,20 @@ Rules:
 
 Context:
 {canary["context"]}
+
+Question:
+{canary["question"]}
+"""
+    else:
+        prompt = f"""Answer this boolean question using your knowledge.
+
+Return ONLY JSON in this exact shape:
+{{"answer": true, "confidence": 73}}
+
+Rules:
+- `answer` must be boolean
+- `confidence` must be 0-100 and means the probability your answer is correct
+- do not add explanation
 
 Question:
 {canary["question"]}
@@ -168,7 +186,7 @@ def main() -> None:
         }
 
     print(f"{'=' * 55}")
-    print("  Calibration Canary — bootstrap")
+    print("  Calibration Canary")
     print(f"{'=' * 55}")
     print()
     print(f"  Canaries:              {len(by_id)}")
@@ -185,7 +203,7 @@ def main() -> None:
 
     log_metric(
         "calibration_canary",
-        suite="bootstrap_local",
+        suite="v2_mixed",
         canaries=len(by_id),
         samples=len(samples),
         runs=runs,
