@@ -30,7 +30,7 @@
     {
       "step": "calibration-canary",
       "type": "script",
-      "command": "uv run python3 scripts/calibration-canary.py --runs 3",
+      "command": "uv run python3 scripts/calibration-canary.py --runs 10",
       "cwd": "~/Projects/meta"
     },
     {
