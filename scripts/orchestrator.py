@@ -467,16 +467,12 @@ def execute_one(db):
                 return True
 
             usage = result_msg.usage or {}
-            tokens_in = sum(
-                v.get("inputTokens", 0) + v.get("cacheReadInputTokens", 0)
-                for v in usage.values()
-                if isinstance(v, dict)
+            tokens_in = (
+                usage.get("input_tokens", 0)
+                + usage.get("cache_read_input_tokens", 0)
+                + usage.get("cache_creation_input_tokens", 0)
             )
-            tokens_out = sum(
-                v.get("outputTokens", 0)
-                for v in usage.values()
-                if isinstance(v, dict)
-            )
+            tokens_out = usage.get("output_tokens", 0)
             cost = result_msg.total_cost_usd or 0
             summary = (result_msg.result or "\n".join(text_parts))[:2000]
             status = "done" if not result_msg.is_error else "failed"
@@ -1024,6 +1020,86 @@ def cmd_pipelines(args):
     db.close()
 
 
+def cmd_efficiency(args):
+    """Token efficiency breakdown by pipeline — avg tokens, cost, duration per completed task."""
+    db = get_db()
+    rows = db.execute("""
+        SELECT pipeline,
+               COUNT(*) as completed,
+               COALESCE(AVG(tokens_in), 0) as avg_in,
+               COALESCE(AVG(tokens_out), 0) as avg_out,
+               COALESCE(AVG(tokens_in + tokens_out), 0) as avg_total,
+               COALESCE(AVG(cost_usd), 0) as avg_cost,
+               COALESCE(AVG(
+                   CAST((julianday(finished_at) - julianday(started_at)) * 86400 AS INTEGER)
+               ), 0) as avg_secs,
+               COALESCE(SUM(cost_usd), 0) as total_cost,
+               COALESCE(SUM(tokens_in + tokens_out), 0) as total_tokens
+        FROM tasks
+        WHERE status IN ('done', 'done_with_denials')
+          AND tokens_in IS NOT NULL
+          AND pipeline IS NOT NULL
+        GROUP BY pipeline
+        ORDER BY avg_total DESC
+    """).fetchall()
+
+    if not rows:
+        print("No completed tasks with token data.")
+        db.close()
+        return
+
+    # Also get one-off tasks (no pipeline)
+    adhoc = db.execute("""
+        SELECT COUNT(*) as completed,
+               COALESCE(AVG(tokens_in), 0) as avg_in,
+               COALESCE(AVG(tokens_out), 0) as avg_out,
+               COALESCE(AVG(tokens_in + tokens_out), 0) as avg_total,
+               COALESCE(AVG(cost_usd), 0) as avg_cost,
+               COALESCE(AVG(
+                   CAST((julianday(finished_at) - julianday(started_at)) * 86400 AS INTEGER)
+               ), 0) as avg_secs,
+               COALESCE(SUM(cost_usd), 0) as total_cost,
+               COALESCE(SUM(tokens_in + tokens_out), 0) as total_tokens
+        FROM tasks
+        WHERE status IN ('done', 'done_with_denials')
+          AND tokens_in IS NOT NULL
+          AND pipeline IS NULL
+    """).fetchone()
+
+    fmt = "{:<30} {:>5} {:>10} {:>10} {:>10} {:>8} {:>6}"
+    print(fmt.format("PIPELINE", "TASKS", "AVG_IN", "AVG_OUT", "AVG_TOT", "AVG_$", "AVG_s"))
+    print("-" * 85)
+
+    for r in rows:
+        print(fmt.format(
+            r["pipeline"][:30],
+            r["completed"],
+            f"{int(r['avg_in']):,}",
+            f"{int(r['avg_out']):,}",
+            f"{int(r['avg_total']):,}",
+            f"${r['avg_cost']:.2f}",
+            int(r["avg_secs"]),
+        ))
+
+    if adhoc and adhoc["completed"] > 0:
+        print(fmt.format(
+            "(ad-hoc)",
+            adhoc["completed"],
+            f"{int(adhoc['avg_in']):,}",
+            f"{int(adhoc['avg_out']):,}",
+            f"{int(adhoc['avg_total']):,}",
+            f"${adhoc['avg_cost']:.2f}",
+            int(adhoc["avg_secs"]),
+        ))
+
+    total_cost = sum(r["total_cost"] for r in rows) + (adhoc["total_cost"] if adhoc else 0)
+    total_tokens = sum(r["total_tokens"] for r in rows) + (adhoc["total_tokens"] if adhoc else 0)
+    print("-" * 85)
+    print(f"Total: ${total_cost:.2f} / {total_tokens:,} tokens across all completed tasks")
+
+    db.close()
+
+
 def _check_scheduled_pipelines(db):
     """Auto-submit scheduled pipelines if their period has elapsed.
 
@@ -1229,6 +1305,8 @@ def main():
 
     sub.add_parser("pipelines", help="Show cost/status rollup by pipeline")
 
+    sub.add_parser("efficiency", help="Token efficiency breakdown by pipeline")
+
     sub.add_parser("summary", help="Generate daily summary")
 
     p_retry = sub.add_parser("retry", help="Reset failed/blocked task to pending")
@@ -1254,6 +1332,8 @@ def main():
         cmd_log(args)
     elif args.command == "pipelines":
         cmd_pipelines(args)
+    elif args.command == "efficiency":
+        cmd_efficiency(args)
     elif args.command == "summary":
         cmd_summary(args)
     elif args.command == "retry":
