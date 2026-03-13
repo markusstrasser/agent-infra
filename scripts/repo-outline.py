@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Lightweight code structure tools for agent navigation.
 
-Two modes:
+Three modes:
   outline  — TOC of classes/functions with signatures, one line each
   callgraph — who-calls-what within a file or directory
+  xrefs    — cross-file call resolution (joins callgraph with import graph)
 
 Uses only stdlib `ast`. Zero deps, zero index, reads live code.
 
@@ -12,6 +13,8 @@ Usage:
   repo-outline.py outline <path> --depth 1  # classes only, skip methods
   repo-outline.py callgraph <path>        # call edges within scope
   repo-outline.py callgraph <path> --external  # include calls to imported names
+  repo-outline.py xrefs <path>            # cross-file call edges
+  repo-outline.py xrefs <path> --for NAME # who calls NAME across the project?
 """
 import ast
 import sys
@@ -174,7 +177,7 @@ class CallGraphVisitor(ast.NodeVisitor):
                 callee = f"?.{node.func.attr}"
 
         if callee:
-            self.edges.append((self.current_scope, callee))
+            self.edges.append((self.current_scope, callee, node.lineno))
 
         self.generic_visit(node)
 
@@ -197,7 +200,7 @@ def callgraph_file(filepath: Path, base: Path, include_external: bool) -> list[s
 
     # Group by caller
     by_caller = defaultdict(list)
-    for caller, callee in visitor.edges:
+    for caller, callee, _lineno in visitor.edges:
         if not include_external and callee not in visitor.defined:
             # Check if it's a method of a defined class
             if "." in callee:
@@ -230,6 +233,93 @@ def callgraph(path: Path, include_external: bool = False):
         print(line)
 
 
+def _load_repo_imports():
+    """Import repo-imports.py (hyphenated filename requires importlib)."""
+    import importlib.util
+    script = Path(__file__).resolve().parent / "repo-imports.py"
+    spec = importlib.util.spec_from_file_location("repo_imports", script)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def xrefs(path: Path, target: str = ""):
+    """Cross-file call resolution: join call edges with import graph."""
+    repo_imports = _load_repo_imports()
+
+    result = repo_imports.build_import_graph(path)
+    if not result:
+        return
+    graph, internal_modules, files, base = result
+
+    # Build per-file map: local_name -> (source_module, source_name)
+    import_map = {}
+    for mod, imps in graph.items():
+        local_names = {}
+        for imp in imps:
+            if imp["kind"] != "internal":
+                continue
+            src_mod = imp["module"]
+            name = imp["name"]
+            alias = imp["alias"]
+            if name:
+                # from module import name [as alias]
+                local_names[alias or name] = (src_mod, name)
+            else:
+                # import module [as alias]
+                local_names[alias or src_mod] = (src_mod, None)
+        import_map[mod] = local_names
+
+    # Walk each file's call edges, resolve cross-file targets
+    cross_edges = []  # (src_mod, caller, dst_mod, dst_name, lineno)
+    for f in files:
+        try:
+            source = f.read_text()
+            tree = ast.parse(source, filename=str(f))
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+
+        file_mod = repo_imports.module_name(f, base)
+        local_names = import_map.get(file_mod, {})
+
+        visitor = CallGraphVisitor()
+        visitor.visit(tree)
+
+        for caller, callee, lineno in visitor.edges:
+            resolved = None
+            if callee in local_names:
+                src_mod, src_name = local_names[callee]
+                resolved = (src_mod, src_name or callee)
+            elif "." in callee:
+                prefix, attr = callee.split(".", 1)
+                if prefix in local_names:
+                    src_mod, _ = local_names[prefix]
+                    resolved = (src_mod, attr)
+            if resolved:
+                dst_mod, dst_name = resolved
+                cross_edges.append((file_mod, caller, dst_mod, dst_name, lineno))
+
+    # Output
+    if target:
+        matches = [e for e in cross_edges if e[3] == target]
+        if not matches:
+            print(f"# No cross-file callers of '{target}' found")
+            return
+        print(f"# Who calls '{target}'?\n")
+        for src, caller, dst, name, lineno in sorted(matches):
+            print(f"  {src}.{caller} (L{lineno}) -> {dst}.{name}")
+    else:
+        print(f"# Cross-file calls: {path}")
+        print(f"# {len(files)} files, {len(cross_edges)} cross-file edges\n")
+        by_source = defaultdict(lambda: defaultdict(list))
+        for src, caller, dst, name, _ln in cross_edges:
+            by_source[src][caller].append(f"{dst}.{name}")
+        for src in sorted(by_source):
+            for caller in sorted(by_source[src]):
+                targets = sorted(set(by_source[src][caller]))
+                print(f"  {src}.{caller} -> {', '.join(targets)}")
+
+
 def main():
     if len(sys.argv) < 3:
         print(__doc__)
@@ -253,8 +343,15 @@ def main():
         include_external = "--external" in sys.argv
         callgraph(path, include_external=include_external)
 
+    elif mode == "xrefs":
+        target_name = ""
+        if "--for" in sys.argv:
+            idx = sys.argv.index("--for")
+            target_name = sys.argv[idx + 1]
+        xrefs(path, target=target_name)
+
     else:
-        print(f"Unknown mode: {mode}. Use 'outline' or 'callgraph'.")
+        print(f"Unknown mode: {mode}. Use 'outline', 'callgraph', or 'xrefs'.")
         sys.exit(1)
 
 

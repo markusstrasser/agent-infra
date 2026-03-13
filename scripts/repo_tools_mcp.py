@@ -28,7 +28,8 @@ mcp = FastMCP(
     instructions=(
         "Code repository navigation tools. Use these to understand codebase structure "
         "without reading every file. Start with repo_outline or repo_summary for overview, "
-        "then repo_imports --internal for cross-file relationships."
+        "then repo_imports --internal for cross-file relationships, "
+        "then repo_callgraph with cross_file=True for call chains."
     ),
 )
 
@@ -66,13 +67,26 @@ def repo_outline(path: str, depth: int = 99) -> str:
 
 
 @mcp.tool()
-def repo_callgraph(path: str, external: bool = False) -> str:
-    """Show who-calls-what edges within Python files.
+def repo_callgraph(
+    path: str, external: bool = False, cross_file: bool = False, target: str = ""
+) -> str:
+    """Show who-calls-what edges in Python files.
+
+    Default: intra-file calls. Use cross_file=True to trace calls
+    across files (resolves imports to source modules).
+    Use target="func_name" to find all callers of a specific function.
 
     Args:
         path: File or directory to analyze (absolute path)
         external: Include calls to imported names (default: internal only)
+        cross_file: Resolve calls across files via import graph
+        target: Find all cross-file callers of this function name
     """
+    if cross_file or target:
+        args = [path]
+        if target:
+            args.extend(["--for", target])
+        return _run_script("repo-outline.py", ["xrefs"] + args)
     args = [path]
     if external:
         args.append("--external")
