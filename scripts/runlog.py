@@ -606,10 +606,56 @@ def command_stats(args: argparse.Namespace) -> int:
 
 def command_query(args: argparse.Namespace) -> int:
     db = get_db(Path(args.db))
+
+    # List available queries when no query specified
+    if args.query is None:
+        for sql_file in sorted(QUERY_DIR.glob("*.sql")):
+            name = sql_file.stem
+            # Extract params from SQL
+            sql_text = sql_file.read_text()
+            params = sorted(set(re.findall(r":([A-Za-z_][A-Za-z0-9_]*)", sql_text)))
+            param_str = f"  params: {', '.join(params)}" if params else ""
+            print(f"  {name}{param_str}")
+        return 0
+
     sql = _load_query_sql(args.query)
     params = dict(_parse_param(item) for item in (args.param or []))
     params = _bind_missing_params(sql, params)
     rows = db.execute(sql, params).fetchall()
+    if args.format == "json":
+        print(json.dumps([dict(row) for row in rows], sort_keys=True, indent=2))
+    else:
+        _print_rows(rows)
+    return 0
+
+
+def command_recent(args: argparse.Namespace) -> int:
+    """Show recent runs with key metadata."""
+    db = get_db(Path(args.db))
+    hours = args.hours or 24
+    rows = db.execute(
+        """
+        SELECT r.run_id, r.vendor, r.model_resolved,
+               SUBSTR(r.started_at, 1, 16) AS started,
+               SUBSTR(r.ended_at, 1, 16) AS ended,
+               r.status, r.cwd,
+               COUNT(DISTINCT tc.tool_call_id) AS tools,
+               COUNT(DISTINCT e.event_id) AS events
+        FROM runs r
+        LEFT JOIN tool_calls tc ON tc.run_id = r.run_id
+        LEFT JOIN events e ON e.run_id = r.run_id
+        WHERE r.started_at >= datetime('now', :offset)
+          AND (:vendor IS NULL OR r.vendor = :vendor)
+        GROUP BY r.run_id
+        ORDER BY r.started_at DESC
+        LIMIT :limit
+        """,
+        {
+            "offset": f"-{hours} hours",
+            "vendor": args.vendor,
+            "limit": args.limit or 20,
+        },
+    ).fetchall()
     if args.format == "json":
         print(json.dumps([dict(row) for row in rows], sort_keys=True, indent=2))
     else:
@@ -690,10 +736,17 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("stats", help="Show vendor-level runlog counts").set_defaults(func=command_stats)
 
     p_query = sub.add_parser("query", help="Run a named SQL query or SQL file")
-    p_query.add_argument("query", help="Named query stem or .sql path")
+    p_query.add_argument("query", nargs="?", default=None, help="Named query stem or .sql path (omit to list available)")
     p_query.add_argument("--param", action="append", help="Bind parameter in key=value form")
     p_query.add_argument("--format", choices=("table", "json"), default="table")
     p_query.set_defaults(func=command_query)
+
+    p_recent = sub.add_parser("recent", help="Show recent runs (most common forensic query)")
+    p_recent.add_argument("--hours", type=int, default=24, help="Lookback window (default: 24)")
+    p_recent.add_argument("--vendor", help="Filter by vendor")
+    p_recent.add_argument("--limit", type=int, default=20, help="Max rows (default: 20)")
+    p_recent.add_argument("--format", choices=("table", "json"), default="table")
+    p_recent.set_defaults(func=command_recent)
     return parser
 
 
