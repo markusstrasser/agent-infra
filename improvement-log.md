@@ -814,7 +814,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** tool-tracker.sh already deployed (2026-03-10). Verify it's firing for this pattern — may need tuning if reads of different line ranges bypass the duplicate check.
 - **Severity:** low — small file, marginal cost
 - **Root cause:** agent-capability
-- **Status:** [ ] verify tool-tracker coverage
+- **Status:** [x] verified + fixed — tool-tracker detection was correct (fires on different line ranges) but 75+ warnings/day caused habituation. Added recency window (20 tool calls) to reduce false positives from post-compaction re-reads (2026-03-13)
 
 ### [2026-03-13] TOKEN WASTE: Subagent turn exhaustion + 7 TaskOutput polls with escalating timeouts
 - **Session:** meta 63c78dc6
