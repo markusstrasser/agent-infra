@@ -207,6 +207,7 @@ orchestrator.py retry <id>                           # reset failed/blocked task
 orchestrator.py tick                                 # run one task (launchd calls this)
 orchestrator.py log --today [--pipeline P] [--project P] [--last N]  # event log
 orchestrator.py pipelines                            # cost/status rollup by pipeline
+orchestrator.py efficiency                           # token efficiency breakdown by pipeline
 orchestrator.py summary                              # daily markdown
 ```
 
@@ -345,6 +346,6 @@ Status line, notifications, receipts, and dashboard. Full details in `cockpit.md
 - Session receipts: `~/.claude/session-receipts.jsonl`
 - Runlog DB: `~/.claude/runlogs.db`
 - Runlog docs: `meta/runlog.md`
-- Runlog CLI: `uv run python3 scripts/runlog.py stats|import|query`
+- Runlog CLI: `uv run python3 scripts/runlog.py stats|import|query|recent`
 - Top error sources (Feb 2026, stale — run `just hook-telemetry` for current): zsh multiline loops, DuckDB column guessing, llmx wrong flags
 </session_forensics>
