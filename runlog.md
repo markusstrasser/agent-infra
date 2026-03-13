@@ -80,6 +80,19 @@ Show corpus counts:
 uv run python3 scripts/runlog.py stats
 ```
 
+Show recent runs (most common forensic query):
+
+```bash
+uv run python3 scripts/runlog.py recent                        # last 24h, all vendors
+uv run python3 scripts/runlog.py recent --hours 48 --vendor claude --format json
+```
+
+List available named queries:
+
+```bash
+uv run python3 scripts/runlog.py query                         # shows all queries + params
+```
+
 Run a named SQL query:
 
 ```bash
