@@ -12,7 +12,7 @@
     {
       "step": "summary-intel",
       "type": "script",
-      "command": "uv run python3 scripts/repo-summary.py ~/Projects/intel/src --refresh --no-llm",
+      "command": "uv run python3 scripts/repo-summary.py ~/Projects/intel/tools --refresh --no-llm",
       "cwd": "~/Projects/meta"
     },
     {
@@ -28,9 +28,27 @@
       "cwd": "~/Projects/meta"
     },
     {
-      "step": "summary-llm-pass",
+      "step": "map-meta",
       "type": "script",
-      "command": "uv run python3 scripts/repo-summary.py ~/Projects/meta/scripts --refresh --model haiku --workers 4",
+      "command": "uv run python3 scripts/codebase-map.py ~/Projects/meta --source-dirs scripts",
+      "cwd": "~/Projects/meta"
+    },
+    {
+      "step": "map-intel",
+      "type": "script",
+      "command": "uv run python3 scripts/codebase-map.py ~/Projects/intel --source-dirs tools,analysis",
+      "cwd": "~/Projects/meta"
+    },
+    {
+      "step": "map-papers-mcp",
+      "type": "script",
+      "command": "uv run python3 scripts/codebase-map.py ~/Projects/papers-mcp --source-dirs src",
+      "cwd": "~/Projects/meta"
+    },
+    {
+      "step": "map-genomics",
+      "type": "script",
+      "command": "uv run python3 scripts/codebase-map.py ~/Projects/genomics --source-dirs scripts",
       "cwd": "~/Projects/meta"
     }
   ]
