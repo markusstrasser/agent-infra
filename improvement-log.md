@@ -806,3 +806,45 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 2. **Duplicate file reads: 4th occurrence logged.** Rules aren't working — graduated to architecture per constitutional principle 10 (recurring patterns become architecture). **FIXED:** `tool-tracker.sh` now tracks Read paths per session and warns on duplicate reads with no intervening Write/Edit. Cache cleared on file modification.
 3. **Compute-before-ceiling-check** is a new variant of missing pushback. The agent had the knowledge to flag the limitation but optimistically proceeded. This parallels the sycophancy pattern from intel f32653c6 (compliance with directive that warranted pushback). **MITIGATED:** Cascade warning (Check 6) in subagent-gate now includes "Have you surfaced known limitations/ceilings of the current approach?" — blunt instrument but zero marginal cost.
 4. **Sessions b76a4786, a01eaeca, d4b60441** were too small to analyze (0.0 MB each — likely abandoned or very short sessions). No anti-patterns detected.
+
+### [2026-03-13] TOKEN WASTE: 9 consecutive Read/Grep calls on same file
+- **Session:** meta 8b61490f
+- **Evidence:** Agent called `Grep` and `Read` on `/Users/alien/Projects/meta/scripts/orchestrator.py` 9 times across the session. Multiple reads of different line ranges when a single full read + grep would have sufficed. The agent was investigating token tracking + adding an efficiency subcommand — each sub-question triggered a new Read instead of working from the already-loaded content.
+- **Failure mode:** Token waste — duplicate reads (5th occurrence logged, recurring pattern)
+- **Proposed fix:** tool-tracker.sh already deployed (2026-03-10). Verify it's firing for this pattern — may need tuning if reads of different line ranges bypass the duplicate check.
+- **Severity:** low — small file, marginal cost
+- **Root cause:** agent-capability
+- **Status:** [ ] verify tool-tracker coverage
+
+### [2026-03-13] TOKEN WASTE: Subagent turn exhaustion + 7 TaskOutput polls with escalating timeouts
+- **Session:** meta 63c78dc6
+- **Evidence:** Agent dispatched 4 research subagents. Multiple hit turn limits before synthesizing. Agent then made 7+ `TaskOutput` calls with increasing timeouts (120s, 300s, 600s), followed by 6 inline Python scripts to manually extract and parse JSONL transcripts from timed-out subagents. This is the "researcher subagents exhaust turns before synthesizing" gotcha documented in `research-tool-gotchas.md`.
+- **Failure mode:** Token waste — subagent turn exhaustion cascade (matches documented gotcha)
+- **Proposed fix:** [architectural] Subagent turn budget enforcement: when dispatching research subagents, include explicit instruction to stop searching at 70% of turns and synthesize. The gotcha is documented but not enforced. Could be a pretool hook on SendMessage that injects the budget reminder.
+- **Severity:** medium — ~15 minutes of polling + manual extraction, partial results
+- **Root cause:** system-design
+- **Status:** [ ] proposed
+
+### [2026-03-13] BUILD-THEN-UNDO: Agent-memory MEMORY.md files created then deleted
+- **Session:** meta c762d039
+- **Evidence:** Agent executed plan to create `agent-memory/` directories with MEMORY.md templates for entity-refresher, investment-reviewer, and dataset-discoverer subagents in intel. User then questioned the design: "Mhhh idk if memory is good ... might as well be a explicit declaritive doc that claude.md links to?" Agent immediately agreed and later deleted the files with `rm -rf`. The agent didn't push back or explain the tradeoffs of persistent subagent memory vs declarative docs before building.
+- **Failure mode:** Build-then-undo + missing pushback (should have discussed design before implementing)
+- **Proposed fix:** [rule] For novel architectural patterns (new directory structures, new file conventions), discuss the design with user before writing files. Especially when the pattern is unproven (subagent persistent memory has no track record in the codebase).
+- **Severity:** low — small files, easily deleted, but wasted turns
+- **Root cause:** task-specification
+- **Status:** [ ] proposed
+
+### [2026-03-13] REASONING-ACTION MISMATCH: Confidently proposed SDK features that didn't exist as described
+- **Session:** meta ad590d92
+- **Evidence:** Agent proposed "Agent Teams — exactly what your orchestrator needs for parallel work" and "SDK query() replaces orchestrator subprocess, ~40% latency improvement." When user requested validation, subagents discovered: Agent Teams is interactive-only (cannot be used from orchestrator/headless), and SDK query() was already adopted in the orchestrator. The agent presented assumptions as validated facts before checking. This is the "probe before build" rule violation — the agent should have validated core assumptions before proposing architecture changes.
+- **Failure mode:** Reasoning-action mismatch — stated capabilities as fact without verification. Also: rule violation (probe-before-build from global CLAUDE.md).
+- **Proposed fix:** [rule] Strengthen probe-before-build: when proposing adoption of specific features from external tools/SDKs, explicitly mark claims as "unverified" until a probe confirms. The agent's confident tone ("exactly what you need") was the failure — hedged language would have been appropriate.
+- **Severity:** high — user would have wasted significant effort if they'd acted on the unvalidated proposals
+- **Root cause:** agent-capability
+- **Status:** [ ] proposed
+
+**Cross-cutting patterns (2026-03-13):**
+1. **Duplicate file reads persist as #1 recurring waste.** This is the 5th logged occurrence. tool-tracker.sh (deployed 2026-03-10) should be catching this — need to verify it fires correctly when reads target different line ranges of the same file.
+2. **Subagent turn exhaustion is a system-design problem, not agent-capability.** The gotcha is documented but documentation alone doesn't prevent it (constitutional principle: "instructions alone = 0% reliable"). Needs architectural enforcement — either a turn-budget injection hook or a subagent wrapper that enforces synthesis checkpoints.
+3. **Probe-before-build violation on SDK features.** The agent's failure was tonal, not procedural — it did eventually validate, but only after the user pushed. The probe-before-build rule exists but doesn't trigger on "propose external feature adoption" as a category. May need a companion-reminder hook for feature adoption proposals.
+4. **Sessions 49b4bf13, a5445356, f2942432**: No anti-patterns detected. 204e4ced, 5d718fc0, ca1960b6, 9815be1b, 199b187d, 24520e14, a84b0146, 8aac6147: empty sessions (0 messages).
