@@ -15,6 +15,7 @@ This repo plans and tracks improvements to agent infrastructure across projects 
 - `scripts/propose-work.py` — daily morning brief: ranked work proposals from cross-project signals
 - `scripts/hook-outcome-correlator.py` — joins hook triggers with session receipts for effectiveness scoring
 - `scripts/hook-roi.py` — hook trigger pattern analysis (fires, blocks, false positive candidates)
+- `scripts/supervision-kpi.py` — supervision measurement: SLI (load index), AIR (alert intervention rate), AGR (autonomy gain rate trend)
 - `scripts/schema.sql` — SQLite DDL for orchestrator task queue + scheduled_runs ledger
 - `runlog.md` — runlog architecture, import/query usage, named queries, and vendor coverage
 - `scripts/code-review-scout.py` — continuous code review: batches project code, dispatches to Gemini/Codex CLI (free tier), writes findings to `artifacts/code-review/`
