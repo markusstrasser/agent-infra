@@ -260,10 +260,10 @@ orchestrator.py summary                              # daily markdown
 ## Backlog
 
 - [ ] **Cron/auto-update skill** — Cross-project daily job monitoring new papers/tools/databases. (Source: genomics goals elicitation 2026-02-28)
-- [ ] **Hook ROI telemetry** — Log every hook trigger/decision to JSONL for false-positive measurement. Prerequisite for progressive enforcement. (Source: constitution model-review 2026-02-28)
-- [ ] **Regret/corrections metric** — Instrument corrections per session as a first-class metric from session-analyst. (Source: constitution model-review 2026-02-28)
+- [x] ~~**Hook ROI telemetry**~~ — PARTIALLY DONE. `~/.claude/hook-triggers.jsonl` logs triggers; `hook-roi.py` analyzes. Remaining: join with session outcomes for false-positive measurement. (Source: constitution model-review 2026-02-28)
+- [x] ~~**Regret/corrections metric**~~ — DONE (2026-03-14). `supervision-kpi.py` tracks SLI (corrections + denials + repeated instructions), AIR, AGR. (Source: constitution model-review 2026-02-28)
 - [ ] **Telegram approval bot** — Notify + approve/reject/modify orchestrator tasks from phone. ~50 lines Python + BotFather token. Slots into `requires_approval` gate. (Source: orchestrator plan session 2026-03-01)
-- [x] ~~**Expand calibration canary beyond bootstrap**~~ — DONE (2026-03-11). 20 canaries across 4 categories, runs 3→10 weekly, monthly deep pipeline added.
+- [x] ~~**Expand calibration canary beyond bootstrap**~~ — DONE (2026-03-14). 25 canaries across 5 categories (added prediction_market: 5 resolved market questions), runs 3→10 weekly, monthly deep pipeline added.
 - [ ] **Evolutionary/genetic parallel mutation** — Spawn N parallel sub-agents with injected noise, select survivors, mutate again. Divergence as structural byproduct of mutation+selection, not brainstorming. Blocked on orchestrator parallel sub-agent infrastructure. (Source: model-review 2026-03-06, G1)
 - [ ] **Orthogonal RAG injection** — RAG pipeline that deliberately retrieves tangential/unrelated domain docs to force cross-domain mapping during divergent phases. Blocked on RAG pipeline. Analogical forcing (deployed) is the lightweight version. (Source: model-review 2026-03-06, G3)
 - [ ] **Design-bakeoff worktrees** — For high-uncertainty architecture tasks, spawn 2-3 parallel implementation spikes in separate worktrees, compare and select. Maps to Claude Code `--worktree` support. (Source: model-review 2026-03-06, P1)
