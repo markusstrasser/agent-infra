@@ -4,35 +4,55 @@
 This repo plans and tracks improvements to agent infrastructure across projects (intel, selve, genomics, skills, papers-mcp). It's the "thinking about thinking" repo.
 
 ## Key Files
+
+**Core:**
 - `GOALS.md` — what the system optimizes for (human-owned)
 - `justfile` — task runner (grouped): `just --list` shows groups. Root workspace justfile at `~/Projects/justfile` for cross-project dispatch (`all-health`, `push-all`, `todos`)
-- `schemas/` — epistemic schemas: `open_questions.md` (null result tracking), `pertinent_negatives.json` (thesis negatives)
-- `meta_mcp.py` — meta-knowledge MCP server (section-based search over all .md files)
-- `scripts/orchestrator.py` — cron-driven task runner (dual-engine: `claude -p` + scripts)
-- `scripts/doctor.py` — cross-project health checker (hooks, settings, skills, MCP, git state)
-- `scripts/runlog.py` — cross-vendor run importer/query CLI for Claude, Codex, Gemini, and Kimi local logs
-- `scripts/repo_tools_mcp.py` — MCP server exposing repo navigation tools (outline, callgraph, imports, deps, changes, summary). Backends: `repo-outline.py`, `repo-imports.py`, `repo-deps.py`, `repo-changes.py`, `repo-summary.py`. Configured in all projects' `.mcp.json`.
-- `scripts/propose-work.py` — daily morning brief: ranked work proposals from cross-project signals
-- `scripts/hook-outcome-correlator.py` — joins hook triggers with session receipts for effectiveness scoring
-- `scripts/hook-roi.py` — hook trigger pattern analysis (fires, blocks, false positive candidates)
-- `scripts/supervision-kpi.py` — supervision measurement: SLI (load index), AIR (alert intervention rate), AGR (autonomy gain rate trend)
-- `scripts/schema.sql` — SQLite DDL for orchestrator task queue + scheduled_runs ledger
-- `runlog.md` — runlog architecture, import/query usage, named queries, and vendor coverage
-- `scripts/code-review-scout.py` — continuous code review: batches project code, dispatches to Gemini/Codex CLI (free tier), writes findings to `artifacts/code-review/`
-- `scripts/vendor-versions.py` — parallel version checker for all AI vendor tools/SDKs (npm, PyPI, GitHub). Runs daily in morning-prep, writes to `artifacts/vendor-versions/`
-- `scripts/best-sync.py` — daily git fetch for priority OSS repos in `~/Projects/best/` (10 repos: Anthropic SDKs, claude-code-docs, MCP spec, codex, fastmcp, skills). Runs in morning-prep, reports new commits
-- `scripts/code-review-schedule.py` — daily rotation: 5 projects × 5 focuses (refactoring, dead-code, optimization, patterns, security), 25-day cycle
-- `scripts/autoresearch.py` — evolutionary code search: LLM edits code in sandboxed worktree, deterministic eval keeps/discards, git reset on regression. Adapted from karpathy/autoresearch.
-- `experiments/` — autoresearch experiment configs (config.json, eval.py, program.md, editable code). Toy-scorer validates engine.
-- `pipelines/` — JSON pipeline templates (recurring workflows)
 - `maintenance-checklist.md` — pending improvements, monitoring list, sweep schedule
-- `agent-failure-modes.md` — documented failure modes from real sessions
 - `improvement-log.md` — structured findings from session analysis (session-analyst appends here)
-- `search-retrieval-architecture.md` — CAG vs embedding retrieval, Groq/Gemini assessment, routing decision framework
-- `cockpit.md` — human-agent interface: status line, notifications, receipts, dashboard, ideas backlog
-- `human-instructions.md` — operator decision guide (when to intervene, tool routing, post-session)
-- `.claude/overviews/` — auto-generated source + tooling overviews (Gemini via repomix). All projects have these — read for fast codebase orientation.
+- `agent-failure-modes.md` — documented failure modes from real sessions
 - `AGENTS.md`, `GEMINI.md` — symlinks to CLAUDE.md (multi-editor compatibility)
+
+**MCP Servers:**
+- `meta_mcp.py` — meta-knowledge MCP server (section-based search over all .md files)
+- `scripts/repo_tools_mcp.py` — repo navigation tools (outline, callgraph, imports, deps, changes, summary). Configured in all projects' `.mcp.json`.
+
+**Orchestration & Ops:**
+- `scripts/orchestrator.py` — cron-driven task runner (dual-engine: `claude -p` + scripts). See Orchestrator section below.
+- `scripts/doctor.py` — cross-project health checker (hooks, settings, skills, MCP, git state)
+- `scripts/propose-work.py` — daily morning brief: ranked work proposals from cross-project signals
+- `scripts/runlog.py` — cross-vendor run importer/query CLI for Claude, Codex, Gemini, and Kimi local logs
+- `scripts/code-review-scout.py` — continuous code review via Gemini/Codex CLI (free tier)
+- `scripts/code-review-schedule.py` — daily rotation: 5 projects × 5 focuses, 25-day cycle
+- `scripts/vendor-versions.py` — parallel version checker for AI vendor tools/SDKs
+- `scripts/best-sync.py` — daily git fetch for priority OSS repos in `~/Projects/best/`
+- `scripts/autoresearch.py` — evolutionary code search: LLM-as-mutator, deterministic eval, git reset on regression
+- `pipelines/` — JSON pipeline templates (recurring workflows)
+- `experiments/` — autoresearch experiment configs
+
+**Epistemic Measurement** (run via `uv run python3 scripts/<name>.py --days N`):
+- `scripts/supervision-kpi.py` — SLI (supervision load), AIR (alert intervention rate), AGR (autonomy gain trend). Constitutional north-star metric.
+- `scripts/thesis-challenge.py` — measures agent pushback on investment theses in intel sessions
+- `scripts/session-features.py` — extracts 11 behavioral features per session for trajectory calibration
+- `scripts/calibration-canary.py` — 25 canaries across 5 categories (incl. prediction_market), weekly runs
+- `scripts/pushback-index.py` — sycophancy word detection + fold rate
+- `scripts/safe-lite-eval.py` — factual precision via Exa verification
+- `scripts/epistemic-lint.py` — unsourced claim detection with severity weighting
+- `scripts/trace-faithfulness.py` — matches agent claims to actual tool_use entries
+- `scripts/fail_open.py` — `@fail_open` decorator for measurement functions (timeout + graceful degradation)
+- `schemas/calibration_canaries.json` — canary definitions with ground truth
+
+**Hook Telemetry:**
+- `scripts/hook-outcome-correlator.py` — joins hook triggers with session receipts
+- `scripts/hook-roi.py` — hook trigger pattern analysis (fires, blocks, false positive candidates)
+
+**Reference:**
+- `schemas/` — epistemic schemas: `open_questions.md`, `pertinent_negatives.json`, `calibration_canaries.json`
+- `runlog.md` — runlog architecture, import/query usage, named queries
+- `cockpit.md` — human-agent interface: status line, notifications, receipts, dashboard
+- `human-instructions.md` — operator decision guide
+- `search-retrieval-architecture.md` — CAG vs embedding retrieval, routing framework
+- `.claude/overviews/` — auto-generated source + tooling overviews (Gemini via repomix)
 
 ## Research Index (`research/`)
 
