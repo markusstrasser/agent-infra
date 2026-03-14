@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Run canary set for answer-confidence calibration.
 
-20 canaries across 4 categories: local-context, temporal/staleness,
-external-fact (no context), and adversarial/tricky. Measures accuracy,
-Brier score, and consistency across multiple runs.
+25 canaries across 5 categories: local-context, temporal/staleness,
+external-fact (no context), adversarial/tricky, and prediction_market
+(resolved events with known outcomes). Measures accuracy, Brier score,
+and consistency across multiple runs.
 """
 
 import json

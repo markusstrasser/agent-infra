@@ -138,5 +138,40 @@
     "context": "The dataset contains 15,232 records spanning January 2020 to December 2023. Nobel laureate Dr. Smith stated in a 2024 interview that the dataset has over 50,000 records.",
     "question": "According to the context's own data description, does the dataset contain over 50,000 records?",
     "answer": false
+  },
+  {
+    "id": "pm-fed-rate-jan-2026",
+    "category": "prediction_market",
+    "requires_context": false,
+    "question": "Did the US Federal Reserve raise its benchmark interest rate at the January 2026 FOMC meeting?",
+    "answer": false
+  },
+  {
+    "id": "pm-bitcoin-150k-2025",
+    "category": "prediction_market",
+    "requires_context": false,
+    "question": "Did the price of Bitcoin exceed $150,000 USD at any point during 2025?",
+    "answer": false
+  },
+  {
+    "id": "pm-who-pandemic-2025",
+    "category": "prediction_market",
+    "requires_context": false,
+    "question": "Did the World Health Organization declare a new pandemic (distinct from COVID-19) in 2025?",
+    "answer": false
+  },
+  {
+    "id": "pm-spacex-booster-catch-2024",
+    "category": "prediction_market",
+    "requires_context": false,
+    "question": "Did SpaceX successfully catch a Starship Super Heavy booster with the launch tower mechanical arms in 2024?",
+    "answer": true
+  },
+  {
+    "id": "pm-tiktok-ban-signed-2024",
+    "category": "prediction_market",
+    "requires_context": false,
+    "question": "Was legislation requiring ByteDance to divest TikTok's US operations signed into US law in 2024?",
+    "answer": true
   }
 ]
