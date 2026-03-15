@@ -4,40 +4,25 @@
   "project": "meta",
   "steps": [
     {
+      "step": "shape-prefilter",
+      "type": "script",
+      "command": "uv run python3 scripts/sessions.py index && uv run python3 scripts/session-shape.py --days 1 --json > artifacts/session-retro/shape-$(date +%Y-%m-%d).json 2>/dev/null || true",
+      "cwd": "~/Projects/meta"
+    },
+    {
       "step": "analyze",
-      "prompt": "Analyze today's sessions across all projects for behavioral anti-patterns: sycophancy, over-engineering, build-then-undo, token waste, search flooding. Use extract_transcript.py to preprocess, then dispatch to Gemini for analysis. Write findings to artifacts/session-retro/YYYY-MM-DD.md (use today's date). Do NOT append directly to improvement-log.md — output draft findings only. RECURRENCE GATE: Only draft CLAUDE.md or hook changes if a finding recurs in 2+ sessions -- check existing improvement-log entries before proposing. If orchestrator .metrics.jsonl files exist for today's tasks, include tool failure patterns in your analysis.",
+      "prompt": "Analyze today's sessions across all projects for behavioral anti-patterns: sycophancy, over-engineering, build-then-undo, token waste, search flooding. First check artifacts/session-retro/shape-YYYY-MM-DD.json (today's date) — if it exists, prioritize sessions flagged as anomalous. Use extract_transcript.py to preprocess, then dispatch to Gemini for analysis. Write findings as JSON to artifacts/session-retro/YYYY-MM-DD.json (use today's date) with the schema: {findings: [{category, summary, severity, evidence, session_uuid, project, root_cause, proposed_fix}], sessions_analyzed, actionable_count}. Do NOT append directly to improvement-log.md. If orchestrator .metrics.jsonl files exist for today's tasks, include tool failure patterns in your analysis.",
       "max_turns": 15,
       "max_budget_usd": 3.0,
       "model": "sonnet",
       "effort": "medium",
-      "cwd": "~/Projects/meta",
-      "output_format": {
-        "type": "json_schema",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "findings": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "category": {"type": "string"},
-                  "summary": {"type": "string"},
-                  "severity": {"type": "string", "enum": ["low", "medium", "high"]},
-                  "evidence": {"type": "string"},
-                  "recurrence": {"type": "boolean"}
-                },
-                "required": ["category", "summary", "severity"],
-                "additionalProperties": false
-              }
-            },
-            "sessions_analyzed": {"type": "integer"},
-            "actionable_count": {"type": "integer"}
-          },
-          "required": ["findings", "sessions_analyzed", "actionable_count"],
-          "additionalProperties": false
-        }
-      }
+      "cwd": "~/Projects/meta"
+    },
+    {
+      "step": "triage",
+      "type": "script",
+      "command": "uv run python3 scripts/finding-triage.py ingest artifacts/session-retro/ && uv run python3 scripts/finding-triage.py promote && uv run python3 scripts/finding-triage.py status",
+      "cwd": "~/Projects/meta"
     }
   ]
 }
