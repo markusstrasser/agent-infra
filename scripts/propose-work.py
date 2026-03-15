@@ -149,10 +149,10 @@ def doctor_failures() -> list[dict]:
             capture_output=True, text=True, timeout=30,
             cwd=str(Path(__file__).resolve().parent.parent),
         )
-        if result.returncode != 0:
-            return [{"name": "doctor.py", "status": "fail", "message": f"exit {result.returncode}"}]
         checks = json.loads(result.stdout)
         return [c for c in checks if c.get("status") in ("warn", "fail")]
+    except json.JSONDecodeError:
+        return [{"name": "doctor.py", "status": "fail", "message": f"exit {result.returncode}, no JSON output"}]
     except Exception as e:
         return [{"name": "doctor.py", "status": "fail", "message": str(e)[:100]}]
 
