@@ -39,7 +39,7 @@ def scan_session(session_path: Path) -> list[dict]:
                 except json.JSONDecodeError:
                     continue
 
-                if msg.get("type") != "human" and msg.get("role") != "human":
+                if msg.get("type") != "user" and msg.get("role") != "user":
                     continue
 
                 text = ""
