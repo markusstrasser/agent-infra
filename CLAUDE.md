@@ -30,6 +30,11 @@ This repo plans and tracks improvements to agent infrastructure across projects 
 - `pipelines/` — JSON pipeline templates (recurring workflows)
 - `experiments/` — autoresearch experiment configs
 
+**Self-Improvement Loop** (the core feedback cycle):
+- `scripts/session-shape.py` — zero-LLM-cost structural anomaly detector. Pre-filter: flags sessions with unusual tool patterns for deep analysis
+- `scripts/finding-triage.py` — SQLite staging DB for session-analyst findings. Fingerprinting + 2+ recurrence auto-promotion. Commands: `ingest`, `promote`, `status`, `list`, `decay`
+- `scripts/fix-verify.py` — closed-loop fix validation. Runs detection queries against recent sessions to verify fixes are holding. Commands: `run`, `tag`, `report`
+
 **Epistemic Measurement** (run via `uv run python3 scripts/<name>.py --days N`):
 - `scripts/supervision-kpi.py` — SLI (supervision load), AIR (alert intervention rate), AGR (autonomy gain trend). Constitutional north-star metric.
 - `scripts/thesis-challenge.py` — measures agent pushback on investment theses in intel sessions
