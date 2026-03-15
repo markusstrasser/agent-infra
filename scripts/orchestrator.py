@@ -258,11 +258,13 @@ def _build_telemetry_hooks(metrics_path: Path) -> dict:
         return {}
 
     async def on_tool_failure(input_data, tool_use_id, context):
+        ts = _time.time()
+        start = _tool_start_times.pop(tool_use_id, ts)
         event = {
             "ts": datetime.now().isoformat(),
             "tool_name": input_data.get("tool_name", "?"),
             "tool_use_id": tool_use_id,
-            "duration_ms": 0,
+            "duration_ms": int((ts - start) * 1000),
             "success": False,
             "error": input_data.get("error", "")[:200],
         }
