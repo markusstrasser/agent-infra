@@ -169,8 +169,7 @@ def main():
         "llmx", "chat",
         "-m", args.model,
         "--max-tokens", "65536",
-        "--timeout", "300",
-        "--fallback", "gemini-3-flash-preview",
+        "--stream", "--timeout", "300",
         "-s", SYSTEM_PROMPT,
         "-o", str(out_path),
     ]
