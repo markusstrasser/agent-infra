@@ -6,6 +6,27 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-03-16] Session Analyst — Behavioral Anti-Patterns (meta, 2 sessions)
+- **Source:** Gemini 3.1 Pro analysis of sessions 8e116e4f, 16c56123 (2026-03-15)
+
+### [2026-03-16] TOKEN WASTE: Spin loop polling stuck llmx background tasks (recurrence)
+- **Session:** meta 16c56123
+- **Evidence:** Agent spent 23+ minutes monitoring stuck `llmx` background processes via sleep/ps/ls loops and TaskOutput with 300s/600s timeouts. Then killed processes and relaunched identically — same rate-limit hit again. Total: ~30 minutes of wasted polling + 8 failed background tasks.
+- **Failure mode:** llmx dispatch retry without diagnosis (FM-24, recurrence from session 18384e69 on 2026-03-04)
+- **Proposed fix:** [architectural] Hard timeout for llmx background calls (e.g., 5 min). After first failure, diagnose (stderr/exit code) before retrying. After second failure of same command, switch to serial execution or model fallback.
+- **Severity:** high — 30 min wasted, pattern recurred despite FM-24 documentation
+- **Root cause:** system-design — no enforced timeout or failure-escalation logic
+- **Status:** [ ] proposed
+
+### [2026-03-16] REASONING-ACTION MISMATCH: Documented feature without implementing it
+- **Session:** meta 16c56123
+- **Evidence:** Agent updated `project-upgrade/SKILL.md` to document diff-aware mode referencing `dump_codebase.py --files-from`, committed it, but never implemented the flag in `dump_codebase.py`. Only discovered the gap when user asked "should we improve the skills?" and agent re-read the code.
+- **Failure mode:** NEW: documentation-before-implementation — agent documents a feature in user-facing docs before verifying the implementation exists. Ship-then-discover pattern.
+- **Proposed fix:** [rule] After documenting a new feature/flag, verify the implementation exists (run `--help`, grep for the flag, or test) before committing.
+- **Severity:** medium — shipped broken feature, required follow-up session to fix
+- **Root cause:** agent-capability
+- **Status:** [ ] proposed
+
 ### [2026-03-04] Session Analyst — Behavioral Anti-Patterns (meta, 5 sessions)
 - **Source:** Direct transcript analysis (Gemini unavailable — llmx hung on API call)
 - **Sessions:** 18384e69, 0e8dccbc, f27cc590, 3feb5b79 (8261664d empty/current)
