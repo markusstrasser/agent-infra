@@ -295,6 +295,21 @@ Lightweight decision records for concept-level pivots — when an approach is ch
 
 **Commit bodies for concept shifts:** Commits touching `research/` or `decisions/` should have a non-empty body naming the concept affected and what changed directionally. `git log --format='%s%n%b' -- decisions/` should read as a concept evolution timeline.
 
+## llmx Transport Routing
+
+| Model | Transport | Flag needed | Cost |
+|-------|-----------|-------------|------|
+| Gemini Flash/Lite | CLI (free) | none | $0 |
+| Gemini Pro | API | `--stream` | ~$0.01-0.05 |
+| GPT-5.x | API (direct) | none | per-token |
+
+- **Gemini Pro on CLI hangs** (thinking models + piped input). Always `--stream`.
+- **Flash on CLI is fine** — non-thinking, good capacity.
+- **codex-cli disabled** — 10s startup, no cost benefit. GPT goes direct to API.
+- **Exit 6 = billing exhausted** (permanent). Exit 3 = rate limit (transient). Don't retry exit 6.
+- **llmx is editable-installed** (`uv tool install --editable`). Source changes in `~/Projects/llmx/` propagate instantly.
+- **No `--fallback`** — model should be the model. Diagnose failures, don't mask with model downgrade.
+
 ## What This Repo Is NOT
 - Not a place to write more rules about rules.
 - Not a place to document things that should be implemented. Plan here → implement in target repo in same session.
