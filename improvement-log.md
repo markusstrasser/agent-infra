@@ -16,7 +16,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [architectural] Hard timeout for llmx background calls (e.g., 5 min). After first failure, diagnose (stderr/exit code) before retrying. After second failure of same command, switch to serial execution or model fallback.
 - **Severity:** high — 30 min wasted, pattern recurred despite FM-24 documentation
 - **Root cause:** system-design — no enforced timeout or failure-escalation logic
-- **Status:** [ ] proposed
+- **Status:** [x] implemented — pretool-llmx-guard.sh extended with per-session call counter (warn at 4, block at 6)
 
 ### [2026-03-16] REASONING-ACTION MISMATCH: Documented feature without implementing it
 - **Session:** meta 16c56123
@@ -25,7 +25,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [rule] After documenting a new feature/flag, verify the implementation exists (run `--help`, grep for the flag, or test) before committing.
 - **Severity:** medium — shipped broken feature, required follow-up session to fix
 - **Root cause:** agent-capability
-- **Status:** [ ] proposed
+- **Status:** [x] implemented — rule #10 in global CLAUDE.md: verify implementation before documenting
 
 ### [2026-03-04] Session Analyst — Behavioral Anti-Patterns (meta, 5 sessions)
 - **Source:** Direct transcript analysis (Gemini unavailable — llmx hung on API call)
