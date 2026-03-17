@@ -433,16 +433,26 @@ def _run_claude_subprocess(task, cwd, progress_file=None):
         with open(progress_file, "w") as f:
             f.write(result.stdout[:5000])
 
-    # Parse JSON output
+    # Parse JSON output — claude -p --output-format json returns a JSON array
     result_text = result.stdout or ""
     cost = 0.0
     session_id = None
     try:
         parsed = json.loads(result_text)
-        result_text = parsed.get("result", result_text)
-        cost = parsed.get("cost_usd", 0.0)
-        session_id = parsed.get("session_id")
-    except (json.JSONDecodeError, KeyError):
+        # Handle array format: [{type: "result", result: "...", ...}]
+        if isinstance(parsed, list):
+            for item in parsed:
+                if isinstance(item, dict):
+                    if item.get("type") == "result":
+                        result_text = item.get("result", result_text)
+                        cost = item.get("cost_usd", item.get("total_cost_usd", 0.0))
+                        session_id = item.get("session_id")
+                        break
+        elif isinstance(parsed, dict):
+            result_text = parsed.get("result", result_text)
+            cost = parsed.get("cost_usd", 0.0)
+            session_id = parsed.get("session_id")
+    except (json.JSONDecodeError, KeyError, TypeError, AttributeError):
         pass
 
     if result.returncode != 0 and not result_text:
