@@ -54,7 +54,7 @@ This repo plans and tracks improvements to agent infrastructure across projects 
 - `scripts/hook-roi.py` — hook trigger pattern analysis (fires, blocks, false positive candidates)
 
 **Reference:**
-- `substrate/` — shared knowledge substrate (provenance state, dependency tracking, stale propagation). See `decisions/2026-03-17-shared-knowledge-substrate.md`.
+- `substrate/` — shared knowledge substrate. See below and `decisions/2026-03-17-shared-knowledge-substrate.md`.
 - `schemas/` — epistemic schemas: `open_questions.md`, `pertinent_negatives.json`, `calibration_canaries.json`
 - `runlog.md` — runlog architecture, import/query usage, named queries
 - `cockpit.md` — human-agent interface: status line, notifications, receipts, dashboard
@@ -198,6 +198,25 @@ orchestrator.py summary                              # daily markdown
 **Artifacts:** `artifacts/session-retro/` and `artifacts/hook-roi/` (gitignored). Session-retro outputs drafts here, not directly to improvement-log.
 
 **Design spec:** `research/orchestrator-design.md`.
+
+## Knowledge Substrate (`substrate/`)
+
+Shared provenance and dependency tracking across intel, selve, and genomics. Per-project SQLite DBs at `~/.claude/knowledge/{project}.db`. Shared schema, per-project domain profiles.
+
+**Core:** `schema.sql` (7 tables), `core.py` (KnowledgeDB class), `cli.py`, `mcp_server.py` (10 tools).
+
+```bash
+uv run python3 -m substrate --db ~/.claude/knowledge/intel.db stats    # project stats
+uv run python3 -m substrate --db ~/.claude/knowledge/intel.db stale    # stale objects
+uv run python3 substrate/propagate_cross_project.py                    # cross-project propagation
+uv run python3 substrate/stress_test.py                                # 27 tests
+uv run python3 substrate/ingest_intel.py                               # re-ingest intel entities
+uv run python3 substrate/ingest_selve.py                               # re-ingest selve memos
+```
+
+**MCP configured in:** intel, selve, genomics (`.mcp.json`). Advisory hook in global `settings.json` (PostToolUse on Write/Edit).
+
+**ADR:** `decisions/2026-03-17-shared-knowledge-substrate.md`.
 
 ## Backlog
 
