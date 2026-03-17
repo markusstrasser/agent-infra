@@ -63,7 +63,7 @@ This repo plans and tracks improvements to agent infrastructure across projects 
 
 ## Research Index
 
-63 research memos in `research/`. Full index with topics and "consult before" triggers: `.claude/rules/research-index.md` (auto-loaded).
+64 research memos in `research/`. Full index with topics and "consult before" triggers: `.claude/rules/research-index.md` (auto-loaded).
 
 <constitution>
 > **Human-protected.** Agent may propose changes but must not modify without explicit approval.
