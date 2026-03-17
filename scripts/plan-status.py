@@ -126,7 +126,7 @@ def main():
 
     plans = scan_plans()
     if args.active:
-        plans = [p for p in plans if p["status"] in ("partial", "running", "unknown")]
+        plans = [p for p in plans if p["status"] in ("partial", "running")]
 
     if args.json:
         print(json.dumps(plans, indent=2))
