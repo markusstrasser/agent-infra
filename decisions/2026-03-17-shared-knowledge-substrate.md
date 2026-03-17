@@ -58,7 +58,7 @@ This decision covers shared infrastructure design only. It does **not** authoriz
    Cons: requires discipline about what belongs in the shared kernel vs project overlays.
 
 ## Decision
-Adopt **Option 4**: one shared knowledge substrate, with **domain profiles** for `intel`, `selve`, and `genomics`.
+Adopt **Option 5**: one shared knowledge substrate, with **domain profiles** for `intel`, `selve`, and `genomics`.
 
 The shared kernel is intentionally narrower than the first-pass design. The cross-model critique surfaced a valid overbuild risk around workflow semantics. Therefore:
 
@@ -194,12 +194,33 @@ Use layered prompts:
 ## Implementation shape
 The shared kernel should start relational, local, and inspectable.
 
-Recommended first implementation shape:
+### Storage location
 
+One SQLite database per project, shared schema. Not one central DB.
+
+Rationale: each project already has its own SQLite patterns (intel: `intel_ledger.py`/DuckDB, meta: `orchestrator.db`, selve: agent coordination). A shared central DB creates a cross-project runtime dependency — any project's agent session would need the shared DB accessible, and failures cascade. Per-project DBs with the same schema keep projects independently functional while enabling cross-project queries via a read-only federation tool (MCP or script that opens multiple DBs).
+
+Cross-project dependency edges (§ below) are stored as foreign references (`project:id`) rather than direct foreign keys — the target may not be locally available.
+
+### Cross-project edges
+
+The existing genomics→selve bridge (`phenome_behavior_bridge.py` reads selve's `interpreted/` via `SELVE_ROOT`) is the one live cross-project dependency. If genomics reclassifies a variant (e.g., VUS→likely_benign), selve's memos citing that classification should be marked stale.
+
+Cross-project propagation uses the same mechanism as within-project (change-log → traversal → stale marking), but with a lightweight bridge:
+
+1. Each project's substrate emits change-log records for its own objects.
+2. A cross-project propagation script (in meta, cron or orchestrator) reads change logs from all projects, resolves `project:id` references, and marks affected downstream nodes stale in the target project's DB.
+3. The target project's local workflows handle the rebuild.
+
+This is deliberately minimal — one script reading multiple DBs, not a distributed event system. The pilot should prove that within-project propagation works before wiring cross-project edges.
+
+### Recommended first implementation shape
+
+- SQLite with shared schema (one DB per project)
 - relational tables for shared kernel objects and typed relations
 - JSON payload fields only where the domain overlay genuinely differs
 - materialized dependency views and recursive traversal queries where needed
-- generated markdown/index surfaces for git-visible auditability
+- generated markdown/index surfaces for git-visible auditability (mark with `<!-- GENERATED -->` header to prevent agent edits)
 
 Graph export is acceptable later for analysis, but a native graph or hypergraph database is **not** the default starting point.
 
@@ -253,6 +274,7 @@ Cross-model critique run on 2026-03-17 via `llmx`:
 - native graph tooling becomes operationally cheaper than materialized relational dependency views in the current stack
 - registration coverage stalls below 50% after 30 days — the substrate is not being adopted and the infra-factoring assessment was right: this doesn't extract either
 - the pilot reveals that >80% of the pain is stale indexes solvable by Option 4 (generated indexes only) without dependency tracking
+- per-project DBs create schema drift that a single shared DB would have prevented
 
 ## Supersedes
 No prior decision file. This decision draws on, but does not supersede, the decision-journal convention and existing epistemic architecture memos.
