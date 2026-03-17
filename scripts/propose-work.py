@@ -30,6 +30,7 @@ ORCHESTRATOR_DB = Path.home() / ".claude" / "orchestrator.db"
 IMPROVEMENT_LOG = Path(__file__).resolve().parent.parent / "improvement-log.md"
 RETRO_DIR = Path(__file__).resolve().parent.parent / "artifacts" / "session-retro"
 HOOK_ROI_DIR = Path(__file__).resolve().parent.parent / "artifacts" / "hook-roi"
+DESIGN_REVIEW_DIR = Path(__file__).resolve().parent.parent / "artifacts" / "design-review"
 DEFAULT_OUTPUT = Path.home() / ".claude" / "morning-brief.md"
 
 STALE_DAYS = 3  # flag projects with no commits in this many days
@@ -415,6 +416,14 @@ def render_brief(data: dict, proposals: list[dict]) -> str:
         lines.append(retro[:1000])
         lines.append("")
 
+    # Design review proposals
+    dr = data.get("design_review_proposals")
+    if dr:
+        lines.append(f"## Design Review ({len(dr)} recurring patterns)")
+        for p in dr[:5]:
+            lines.append(f"- **{p['name']}** ({p['type']}, {p['count']}× across {p['projects']})")
+        lines.append("")
+
     # Stale projects
     if data["stale_projects"]:
         lines.append("## Stale Projects")
@@ -436,6 +445,52 @@ def render_brief(data: dict, proposals: list[dict]) -> str:
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
+def design_review_proposals(days: int = 7) -> list[dict]:
+    """Read design-review patterns.jsonl and find recurring patterns (3+)."""
+    patterns_file = DESIGN_REVIEW_DIR / "patterns.jsonl"
+    if not patterns_file.exists():
+        return []
+
+    cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+    counts: dict[str, dict] = {}  # name -> {count, type, projects}
+
+    try:
+        for line in patterns_file.read_text().splitlines():
+            if not line.strip():
+                continue
+            try:
+                p = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if p.get("ts", "") < cutoff:
+                continue
+            name = p.get("name", "unknown")
+            if name not in counts:
+                counts[name] = {
+                    "name": name,
+                    "type": p.get("type", "?"),
+                    "count": 0,
+                    "projects_set": set(),
+                }
+            counts[name]["count"] += 1
+            for proj in p.get("projects", []):
+                counts[name]["projects_set"].add(proj)
+    except OSError:
+        return []
+
+    # Only surface patterns with 3+ recurrences
+    results = []
+    for entry in sorted(counts.values(), key=lambda x: -x["count"]):
+        if entry["count"] >= 3:
+            results.append({
+                "name": entry["name"],
+                "type": entry["type"],
+                "count": entry["count"],
+                "projects": ", ".join(sorted(entry["projects_set"])),
+            })
+    return results
+
 
 def main():
     import argparse
@@ -461,6 +516,7 @@ def main():
         "orchestrator": orchestrator_queue(),
         "last_retro": last_session_retro(),
         "last_hook_roi": last_hook_roi(),
+        "design_review_proposals": design_review_proposals(days=7),
     }
 
     proposals = generate_proposals(data)
