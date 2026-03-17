@@ -34,19 +34,62 @@ mcp = FastMCP(
 )
 
 
-def _run_script(script: str, args: list[str], timeout: int = 30) -> str:
-    """Run a repo-tool script and return its stdout."""
+def _serf_error(error_type: str, message: str, recoverable: bool = True,
+                 suggested_action: str = "") -> dict:
+    """Build a SERF-style structured error response.
+
+    SERF (Structured Error Response Format) enables deterministic agent
+    self-correction by providing machine-readable failure categories.
+    Source: arXiv:2603.13417 (MCP Design Patterns).
+    """
+    return {
+        "error": True,
+        "error_type": error_type,
+        "message": message,
+        "recoverable": recoverable,
+        "suggested_action": suggested_action,
+    }
+
+
+def _run_script(script: str, args: list[str], timeout: int = 30) -> str | dict:
+    """Run a repo-tool script and return its stdout, or SERF error on failure."""
     cmd = [sys.executable, str(SCRIPTS_DIR / script)] + args
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-        output = result.stdout
-        if result.returncode != 0 and result.stderr:
-            output += f"\n[stderr: {result.stderr.strip()}]"
-        return output or "(no output)"
+        if result.returncode != 0:
+            stderr = result.stderr.strip() if result.stderr else ""
+            # Classify error type from stderr/exit code
+            if "FileNotFoundError" in stderr or "No such file" in stderr:
+                return _serf_error(
+                    "FILE_NOT_FOUND", f"Path not found: {stderr[:200]}",
+                    recoverable=True, suggested_action="check path with Glob or ls",
+                )
+            elif "SyntaxError" in stderr or "IndentationError" in stderr:
+                return _serf_error(
+                    "PARSE_ERROR", f"Failed to parse source: {stderr[:200]}",
+                    recoverable=False, suggested_action="file may have syntax errors",
+                )
+            elif result.returncode == 2:
+                return _serf_error(
+                    "INVALID_ARGS", f"Invalid arguments: {stderr[:200]}",
+                    recoverable=True, suggested_action="check tool parameter docs",
+                )
+            else:
+                output = result.stdout or ""
+                if stderr:
+                    output += f"\n[stderr: {stderr}]"
+                return output or "(no output)"
+        return result.stdout or "(no output)"
     except subprocess.TimeoutExpired:
-        return f"[timeout after {timeout}s]"
+        return _serf_error(
+            "TIMEOUT", f"Script timed out after {timeout}s",
+            recoverable=True, suggested_action="try a smaller path scope or increase timeout",
+        )
     except Exception as e:
-        return f"[error: {e}]"
+        return _serf_error(
+            "INTERNAL_ERROR", str(e)[:200],
+            recoverable=False, suggested_action="report this error",
+        )
 
 
 @mcp.tool()

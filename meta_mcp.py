@@ -237,6 +237,9 @@ def create_mcp() -> FastMCP:
         """Search meta project knowledge: hook designs, agent failure modes,
         prompting patterns, architecture decisions, research findings.
 
+        Returns matching sections ranked by relevance. When no results are found,
+        returns a structured error with suggested alternative queries. Side effects: none.
+
         Args:
             query: search terms (matched against section headers and content)
             max_tokens: max response size (default 350, max 1000)
@@ -249,11 +252,38 @@ def create_mcp() -> FastMCP:
         max_tokens = min(max(max_tokens, 50), 1000)
 
         if scope not in ("all", *SCOPE_MAP):
-            scope = "all"
+            return {
+                "error": True,
+                "error_type": "INVALID_SCOPE",
+                "message": f"Unknown scope '{scope}'",
+                "recoverable": True,
+                "suggested_action": f"use one of: all, {', '.join(SCOPE_MAP.keys())}",
+                "call_number": _call_count,
+            }
+
+        if not query or not query.strip():
+            return {
+                "error": True,
+                "error_type": "EMPTY_QUERY",
+                "message": "Query string is empty",
+                "recoverable": True,
+                "suggested_action": "provide search terms (2+ chars each)",
+                "call_number": _call_count,
+            }
 
         sections = ctx.lifespan_context["sections"]
         result = _search(sections, query, scope, max_tokens)
         result["call_number"] = _call_count
+
+        if not result["results"]:
+            result["error"] = True
+            result["error_type"] = "NO_RESULTS"
+            result["recoverable"] = True
+            result["suggested_action"] = (
+                "try broader terms, different scope, or check if the topic exists "
+                "in research/ files"
+            )
+
         return result
 
     return mcp
