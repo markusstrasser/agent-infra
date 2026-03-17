@@ -5,8 +5,15 @@ Thin wrapper over SQLite. No ORM. Domain-specific logic stays in project profile
 
 import json
 import sqlite3
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
+
+
+class _DateEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, (date, datetime)):
+            return obj.isoformat()
+        return super().default(obj)
 
 SCHEMA_SQL = Path(__file__).parent / "schema.sql"
 
@@ -43,7 +50,7 @@ class KnowledgeDB:
                            title: str | None = None, source_file: str | None = None,
                            payload: dict | None = None) -> None:
         now = _now()
-        payload_json = json.dumps(payload or {})
+        payload_json = json.dumps(payload or {}, cls=_DateEncoder)
         existing = self.conn.execute(
             "SELECT status FROM assertions WHERE id = ?", (id,)
         ).fetchone()
@@ -68,7 +75,7 @@ class KnowledgeDB:
                           title: str | None = None, source_grade: str | None = None,
                           payload: dict | None = None) -> None:
         now = _now()
-        payload_json = json.dumps(payload or {})
+        payload_json = json.dumps(payload or {}, cls=_DateEncoder)
         existing = self.conn.execute(
             "SELECT id FROM evidence WHERE id = ?", (id,)
         ).fetchone()
@@ -92,7 +99,7 @@ class KnowledgeDB:
     def register_artifact(self, id: str, *, type: str, path: str | None = None,
                           title: str | None = None, payload: dict | None = None) -> None:
         now = _now()
-        payload_json = json.dumps(payload or {})
+        payload_json = json.dumps(payload or {}, cls=_DateEncoder)
         existing = self.conn.execute(
             "SELECT id FROM artifacts WHERE id = ?", (id,)
         ).fetchone()
@@ -127,7 +134,7 @@ class KnowledgeDB:
             raise ValueError(f"Cannot detect types for {source_id} -> {target_id}. "
                              "Register objects first or specify types explicitly.")
 
-        payload_json = json.dumps(payload or {})
+        payload_json = json.dumps(payload or {}, cls=_DateEncoder)
         self.conn.execute(
             """INSERT OR IGNORE INTO relations
                (source_id, source_type, target_id, target_type, relation, payload)
@@ -158,7 +165,7 @@ class KnowledgeDB:
 
         inputs/outputs: list of (object_id, object_type) tuples.
         """
-        payload_json = json.dumps(payload or {})
+        payload_json = json.dumps(payload or {}, cls=_DateEncoder)
         self.conn.execute(
             """INSERT OR REPLACE INTO derivations (id, process, description, payload, created_at)
                VALUES (?, ?, ?, ?, ?)""",
