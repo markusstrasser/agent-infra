@@ -13,7 +13,8 @@
       "max_turns": 12,
       "max_budget_usd": 3.0,
       "model": "sonnet",
-      "engine": "claude"
+      "engine": "claude",
+      "verify": true
     },
     {
       "step": "adversarial",

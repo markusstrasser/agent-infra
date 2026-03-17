@@ -50,6 +50,7 @@ SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
 DAILY_COST_CAP = 25.0
 STALL_TIMEOUT_SECONDS = 600  # Kill claude tasks silent for >10 min
 MAX_CONCURRENT_PER_PIPELINE = 3  # Max running tasks from same pipeline
+MAX_VERIFY_RETRIES = 1  # Max retries per step on verification failure
 
 # Default effort by pipeline when not specified in step definition.
 DEFAULT_EFFORT = {
@@ -376,6 +377,68 @@ def run_claude_task(task, cwd, progress_file=None):
     return anyio.run(_with_timeout)
 
 
+def verify_step_output(task, output_summary: str) -> dict:
+    """VMAO-derived: verify step output with Haiku before marking done.
+
+    Returns {"pass": True/False, "reasoning": str, "retry": bool}
+    Uses the Anthropic API directly (not Agent SDK) for cheap verification.
+    """
+    try:
+        import anthropic
+    except ImportError:
+        # Can't verify without SDK — pass by default (fail open)
+        return {"pass": True, "reasoning": "anthropic SDK not available", "retry": False}
+
+    prompt_text = task["prompt"] or ""
+    step_name = task["step"] or "unknown"
+
+    verify_prompt = f"""You are verifying the output of a pipeline step. Be concise.
+
+STEP: {step_name}
+TASK PROMPT (what was asked):
+{prompt_text[:2000]}
+
+STEP OUTPUT (what was produced):
+{output_summary[:3000]}
+
+Answer these 3 questions:
+1. Did the output address the task prompt? (yes/partially/no)
+2. Are there obvious gaps or contradictions? (list them or "none")
+3. Should this step be retried? (yes/no — only yes if output is clearly wrong or empty)
+
+Respond as JSON: {{"addressed": "yes|partially|no", "gaps": "...", "retry": true|false, "reasoning": "one sentence"}}"""
+
+    try:
+        client = anthropic.Anthropic()
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=200,
+            temperature=0.0,
+            messages=[{"role": "user", "content": verify_prompt}],
+        )
+        text = "".join(
+            block.text for block in response.content
+            if getattr(block, "type", None) == "text"
+        )
+
+        import re
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        if match:
+            result = json.loads(match.group())
+            return {
+                "pass": not result.get("retry", False),
+                "reasoning": result.get("reasoning", ""),
+                "retry": result.get("retry", False),
+                "addressed": result.get("addressed", "unknown"),
+                "gaps": result.get("gaps", ""),
+            }
+    except Exception as e:
+        log_event({"action": "verify_error", "task_id": task["id"], "error": str(e)[:200]})
+
+    # Fail open — if verification itself fails, don't block the pipeline
+    return {"pass": True, "reasoning": "verification error — passing by default", "retry": False}
+
+
 def execute_one(db):
     daily_cost = check_daily_cost(db)
     if daily_cost >= DAILY_COST_CAP:
@@ -513,6 +576,41 @@ def execute_one(db):
                 log_event({"action": "failed", "task_id": task_id, "cost_usd": cost,
                            "error": summary[:200]})
             else:
+                # VMAO-derived: optional verification step before marking done
+                verify_result = None
+                if step_options.get("verify") and status == "done":
+                    verify_result = verify_step_output(task, summary)
+                    log_event({
+                        "action": "verify", "task_id": task_id,
+                        "pass": verify_result["pass"],
+                        "reasoning": verify_result.get("reasoning", ""),
+                    })
+                    output_data["verification"] = verify_result
+
+                    if not verify_result["pass"] and verify_result.get("retry"):
+                        # Check retry budget
+                        retry_count = db.execute(
+                            "SELECT COUNT(*) FROM tasks WHERE pipeline=? AND step=? AND status='failed'",
+                            (task["pipeline"], task["step"]),
+                        ).fetchone()[0]
+
+                        if retry_count < MAX_VERIFY_RETRIES:
+                            # Reset to pending for retry
+                            db.execute("""
+                                UPDATE tasks SET status='pending', started_at=NULL,
+                                    error=? WHERE id=?
+                            """, (f"verify_retry: {verify_result.get('reasoning', '')[:200]}", task_id))
+                            log_event({"action": "verify_retry", "task_id": task_id,
+                                       "reasoning": verify_result.get("reasoning", "")[:200]})
+                            db.commit()
+                            return True
+                        else:
+                            # Exhausted retries — mark done with warning
+                            log_event({"action": "verify_exhausted", "task_id": task_id})
+
+                    # Re-write output with verification data
+                    output_file.write_text(json.dumps(output_data, indent=2, default=str))
+
                 db.execute("""
                     UPDATE tasks SET status=?, finished_at=datetime('now','localtime'),
                         output_file=?, result_summary=?, cost_usd=?,
@@ -582,7 +680,7 @@ def cmd_submit(args):
             needs_approval = 1
 
         # Build step_options from step-level config keys
-        step_options_keys = ("output_format", "inject_meta_infra")
+        step_options_keys = ("output_format", "inject_meta_infra", "verify")
         step_options = {k: step_def[k] for k in step_options_keys if k in step_def}
         step_options_json = json.dumps(step_options) if step_options else None
 
