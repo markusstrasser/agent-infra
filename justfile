@@ -68,6 +68,23 @@ tags *args:
 hook-telemetry *args:
     uv run python3 scripts/hook-telemetry-report.py {{args}}
 
+# ── Plans ────────────────────────────────────────────────────────
+
+# Show plan status across all projects
+[group('plans')]
+plans *args:
+    uv run python3 scripts/plan-status.py {{args}}
+
+# Show only active (partial/running) plans
+[group('plans')]
+plans-active:
+    uv run python3 scripts/plan-status.py --active
+
+# Show plans as JSON (machine-readable)
+[group('plans')]
+plans-json:
+    uv run python3 scripts/plan-status.py --json
+
 # ── Sessions ─────────────────────────────────────────────────────
 
 # Session search & dispatch (index, list, search, show, dispatch)
