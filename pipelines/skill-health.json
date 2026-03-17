@@ -1,0 +1,22 @@
+{
+  "name": "skill-health",
+  "schedule": "0 6 * 0",
+  "steps": [
+    {
+      "step": "validate",
+      "engine": "script",
+      "prompt": "uv run python3 scripts/skill-validator.py --json",
+      "cwd": "~/Projects/meta",
+      "project": "meta"
+    },
+    {
+      "step": "triage",
+      "prompt": "Read the skill-validator output from the previous step. If errors were found, create a plan at .claude/plans/skill-fixes-{date}.md listing each error and proposed fix. If all clean, just confirm in one sentence. Do NOT auto-fix — only plan.",
+      "project": "meta",
+      "max_turns": 5,
+      "max_budget_usd": 0.5,
+      "model": "sonnet",
+      "allowed_tools": "Read,Glob,Write"
+    }
+  ]
+}

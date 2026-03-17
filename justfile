@@ -26,6 +26,13 @@ agent-receipts *args:
 doctor:
     uv run python3 scripts/doctor.py
 
+# ── Skills ───────────────────────────────────────────────────────
+
+# Validate all skills (frontmatter, tool refs, hooks, paths)
+[group('health')]
+skill-health *args:
+    uv run python3 scripts/skill-validator.py {{args}}
+
 # ── Epistemic Metrics ─────────────────────────────────────────────
 
 # Sycophancy metric from session transcripts
