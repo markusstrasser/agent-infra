@@ -869,3 +869,26 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 2. **Subagent turn exhaustion is a system-design problem, not agent-capability.** The gotcha is documented but documentation alone doesn't prevent it (constitutional principle: "instructions alone = 0% reliable"). Needs architectural enforcement — either a turn-budget injection hook or a subagent wrapper that enforces synthesis checkpoints.
 3. **Probe-before-build violation on SDK features.** The agent's failure was tonal, not procedural — it did eventually validate, but only after the user pushed. The probe-before-build rule exists but doesn't trigger on "propose external feature adoption" as a category. May need a companion-reminder hook for feature adoption proposals.
 4. **Sessions 49b4bf13, a5445356, f2942432**: No anti-patterns detected. 204e4ced, 5d718fc0, ca1960b6, 9815be1b, 199b187d, 24520e14, a84b0146, 8aac6147: empty sessions (0 messages).
+
+### [2026-03-17] TOKEN WASTE: generate_clinical_report.py read 10x in single session (genomics)
+- **Session:** genomics fbc21de7
+- **Evidence:** Read call audit: `generate_clinical_report.py` read 10 times across the session, `generate_dashboard.py` 4 times, `variant_evidence_core.py` 3 times, 3 others 2x each. 26 total Read calls across 6 files with no new information between reads. Agent re-read full files after each edit cycle rather than holding state. This is the same recurring duplicate-read pattern but at 10x severity — significantly worse than previous logged instances (max was 9x on orchestrator.py, 2026-03-13).
+- **Failure mode:** Token waste — duplicate reads (6th logged occurrence, escalating severity)
+- **Proposed fix:** Verify tool-tracker.sh is deployed in genomics project settings.json. If not, this is a deployment gap. If deployed but not firing, the hook's recency window may be too large for large sessions.
+- **Severity:** high — 10x reads of a large file is significant token waste
+- **Root cause:** system-design (hook deployed in meta but may not be in genomics)
+- **Status:** [ ] proposed
+
+### [2026-03-17] MISSING PUSHBACK: Failed benchmark tools wired into active classifier — 129 false MOD flags (genomics)
+- **Session:** genomics d2a3cab8 (detection), prior session (integration — unknown UUID)
+- **Evidence:** JARVIS (AUROC 0.487, below random chance) and MACIE (dead download URLs, never benchmarked) were integrated into `_classify_constraint_channel`, generating 129 false MOD flags. The benchmark memo documenting JARVIS's failure was already in the CLAUDE.md research index ("JARVIS=0.09 (no discrimination)") at integration time. Self-detected and fixed in d2a3cab8 — GPN-MSA (AUPRC 0.785) promoted as replacement. Commit `ea9c1be`.
+- **Failure mode:** Missing pushback — benchmark gate not enforced at integration time
+- **Proposed fix:** [rule] Genomics CLAUDE.md: add explicit benchmark gate rule — "Never promote a tool to active classification if it fails established AUPRC/AUROC thresholds in a benchmark run. Demote to research_only fields only." The benchmark memo is in the index but the gate isn't stated as a hard constraint.
+- **Severity:** high — 129 false positives in live variant classification before self-correction
+- **Root cause:** task-specification (benchmark gate existed in research but not enforced in code integration rules)
+- **Status:** [ ] proposed
+
+**Cross-cutting patterns (2026-03-17, genomics):**
+1. **Subagent mid-flight abandonment (f462a5fb).** Agent dispatched 3 probe subagents, then duplicated their work manually before waiting for results. Same pattern as 2026-03-13 subagent exhaustion but inverse: instead of waiting too long, agent gave up too early. Two failure modes with same root — poor subagent lifecycle discipline. Staged in triage DB (first occurrence).
+2. **Wrong-tool drift: inline Python-in-Bash (f462a5fb).** 4 parallel 638-char inline python3 -c strings for JSONL file parsing. Read + temp .py file would be cleaner. Staged in triage DB (first occurrence).
+3. **Sessions 012fbd24, 3fa7eadd**: Clean — no anti-patterns detected.
