@@ -39,7 +39,9 @@ This repo plans and tracks improvements to agent infrastructure across projects 
 - `scripts/supervision-kpi.py` — SLI (supervision load), AIR (alert intervention rate), AGR (autonomy gain trend). Constitutional north-star metric.
 - `scripts/thesis-challenge.py` — measures agent pushback on investment theses in intel sessions
 - `scripts/session-features.py` — extracts 11 behavioral features per session for trajectory calibration
-- `scripts/calibration-canary.py` — 25 canaries across 5 categories (incl. prediction_market), weekly runs
+- `scripts/calibration-canary.py` — 35 canaries across 6 categories (incl. prediction_market, constitutional), weekly runs
+- `scripts/compaction-canary.py` — post-compaction invariant loss detection (baseline + analyze modes)
+- `scripts/tool-trajectory.py` — ATP-derived tool-opportunity utilization model, normalized by task type
 - `scripts/pushback-index.py` — sycophancy word detection + fold rate
 - `scripts/safe-lite-eval.py` — factual precision via Exa verification
 - `scripts/epistemic-lint.py` — unsourced claim detection with severity weighting
