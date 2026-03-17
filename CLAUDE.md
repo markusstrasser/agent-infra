@@ -54,6 +54,7 @@ This repo plans and tracks improvements to agent infrastructure across projects 
 - `scripts/hook-roi.py` — hook trigger pattern analysis (fires, blocks, false positive candidates)
 
 **Reference:**
+- `substrate/` — shared knowledge substrate (provenance state, dependency tracking, stale propagation). See `decisions/2026-03-17-shared-knowledge-substrate.md`.
 - `schemas/` — epistemic schemas: `open_questions.md`, `pertinent_negatives.json`, `calibration_canaries.json`
 - `runlog.md` — runlog architecture, import/query usage, named queries
 - `cockpit.md` — human-agent interface: status line, notifications, receipts, dashboard
