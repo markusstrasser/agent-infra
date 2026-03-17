@@ -33,6 +33,11 @@ doctor:
 skill-health *args:
     uv run python3 scripts/skill-validator.py {{args}}
 
+# Generate skill docs from templates (--dry-run to check drift)
+[group('health')]
+skill-gen *args:
+    uv run python3 scripts/gen-skill-docs.py {{args}}
+
 # ── Epistemic Metrics ─────────────────────────────────────────────
 
 # Sycophancy metric from session transcripts
