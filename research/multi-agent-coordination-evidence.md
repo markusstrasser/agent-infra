@@ -33,3 +33,24 @@ Our current architecture is validated: **orchestrator (Opus) + worker subagents 
 **NEW decision:** Route by task structure. Research tasks (multiple independent search axes) → multi-agent parallelization. Sequential analysis tasks (entity investigation, hypothesis testing) → single agent. We're already doing this implicitly with the researcher skill's parallel dispatch — make it explicit.
 
 **NEW risk:** The 45% threshold means for our best tasks (entity refresh, signal scanning), adding agents may already be past diminishing returns. Only parallelize when the single-agent success rate is below 45%.
+
+### NEW — Orchestration-Level Verification (March 2026)
+
+**VMAO (Zhang et al., AWS/HSBC, arXiv:2603.11445, ICLR 2026 Workshop):** Plan-Execute-Verify-Replan framework. DAG decomposition of complex queries into sub-questions, parallel execution, LLM-based verification at the orchestration level (not agent level), and adaptive replanning. On N=25 market research queries: completeness +35% (3.1→4.2), source quality +58% (2.6→4.1) vs single-agent. `[SOURCE: arXiv:2603.11445, read in full]`
+
+Key findings:
+1. **Verification at orchestration level is the coordination signal.** Not per-agent self-evaluation — a separate verifier evaluates whether collective results satisfy the original query.
+2. **Most replanning = retries, not new questions.** Execution variance (tool failures, insufficient search results) matters more than decomposition quality.
+3. **8.5x token cost** (850K vs 100K) — the price of the verification loop. Justified for complex queries, not for simple ones.
+4. **Configurable stop conditions:** completeness threshold (80%), high confidence (75% conf + 50% complete), diminishing returns (<5% improvement), token budget, max iterations. Balance quality vs cost.
+5. **Single model family (Claude), N=25** — modest evaluation set. Evidence is directional, not definitive.
+
+**DOVA (Shen et al., Berkeley/AWS, arXiv:2603.13327, March 2026):** Deliberation-first orchestration. Meta-reasoning layer decides *whether* to invoke tools before doing so. Three-phase hybrid reasoning: ensemble → blackboard → iterative refinement. Six-level adaptive token budget saves 40-60% on simple tasks while preserving deep reasoning capacity. `[SOURCE: arXiv:2603.13327, read in full]`
+
+Key findings:
+1. **Collaboration is highest-impact component** — removing it drops confidence by 0.14 and coverage by 0.25 (largest single ablation effect).
+2. **Self-evaluation is second** — without it, refinement rate jumps 18%→35% (low-quality responses reach user).
+3. **Deliberation reduces cost** — removing it increases latency 19% and decreases efficiency 27% through unnecessary tool invocations.
+4. **Evaluation weakness:** "architectural analysis rather than large-scale benchmarks" (authors' words). Self-assessed confidence, no real benchmark. Ideas are directionally useful, evidence is weak.
+
+**Combined implication for our orchestrator:** Add lightweight orchestration-level verification (VMAO), consider deliberation-before-tool-use (DOVA), but don't over-invest given both papers have small-N evaluations and our pipelines are 3-7 steps (VMAO shows most value at 8-12+ steps).

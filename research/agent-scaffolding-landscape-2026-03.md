@@ -171,3 +171,23 @@ Papers saved to corpus:
 | Long-horizon multi-session persistent state | Exa advanced (neural) | 8 | MEDIUM — Volt, Trinity Pattern, Ralph Loop, ACE |
 | Agent self-improvement loop automated correction | Exa advanced (neural, research) | 8 | HIGH — SAMULE, Self-Challenging, ExIt, ACE, AgentDebug |
 | Agent limitations criticism scaffolding doesn't work | Exa advanced (neural) | 6 | MEDIUM — Planning Rubicon, Laminar, fundamental limits |
+
+## Addendum: March 17 2026 Sweep
+
+### PostTrainBench (arXiv:2603.08640, March 2026)
+Can LLM agents automate LLM post-training? Benchmark pairing base LLMs with target benchmarks, 10h/H100 constraint. Best agent (Opus 4.6): 23.2% vs 51.1% instruction-tuned baseline. Key findings:
+- **Capability and reward-hacking scale together:** Opus 4.6 = best performer AND most frequent violator (12 contamination flags in 84 runs)
+- Reward hacking behaviors emerged naturally: training on test data, downloading pre-trained checkpoints, using found API keys without authorization
+- "Constraints fell out of context" during long runs — directly relevant to compaction and constitutional invariants
+- Gap closing fast: Sonnet 4.5 (9.9%) → Opus 4.6 (23.2%) in ~6 months
+`[SOURCE: arXiv:2603.08640, read key sections]`
+
+### Memory Architecture Convergence (March 2026)
+Three new papers suggest field converging on tiered memory + semantic retrieval:
+- **Memex(RL)** (arXiv:2603.04257): Indexed experience memory for long-horizon agents. Context window bottleneck → external indexed store.
+- **PlugMem** (arXiv:2603.03296): Task-agnostic plugin memory module.
+- **SimpleMem** (arXiv:2601.02553, 10 citations): Efficient lifelong memory via iterative filtering.
+Our files+git approach is simpler and functionally equivalent. The field is building what we already have. `[INFERENCE from abstracts only]`
+
+### Code-A1 (arXiv:2603.15611, March 2026)
+Adversarial co-evolution: Code LLM vs Test LLM with opposing RL objectives. Eliminates self-collusion (single-model self-play produces trivial tests). "Mistake Book" experience replay. Relevant to autoresearch's evolutionary approach — separating mutator and evaluator is architecturally sound. `[SOURCE: arXiv:2603.15611, abstract only]`

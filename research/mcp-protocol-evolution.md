@@ -59,12 +59,28 @@ Tracking MCP specification development that could affect our orchestrator, tool 
 | M3 | Skills Open Standard converges with SKILL.md format | 12 months | Check experimental-ext-skills branch |
 | M4 | HTTP transport becomes the default for production MCP deployments | 9 months | Check MCP SDK defaults |
 
+## 6. Production Deployment Gaps (NEW — March 2026)
+
+**Source:** Srinivasan, "Bridging Protocol and Production" (arXiv:2603.13417, March 2026). Field lessons from enterprise MCP deployment with AWS Bedrock. 10K+ active servers, 97M monthly SDK downloads.
+
+Three missing protocol-level primitives identified:
+
+1. **Identity propagation (CABP).** No mechanism to carry user context (identity, permissions, tenant scope) with tool invocations. Proposed: Context-Aware Broker Protocol extending JSON-RPC with identity-scoped request routing. Broker sits between agent and MCP server, injects JWT claims. **Relevance for us:** Low — we don't have multi-tenant issues. But the broker pattern is useful if we ever share MCP servers across agents. `[SOURCE: arXiv:2603.13417]`
+
+2. **Adaptive timeout budgeting (ATBA).** Sequential tool chains consume turn budget additively. If any tool exceeds timeout, entire turn fails. ATBA frames tool invocation as a budget allocation problem over heterogeneous latency distributions. **Relevance for us:** Medium — our orchestrator uses flat 600s timeout via `anyio.fail_after`. ATBA could reduce stalls on chains where one slow tool starves the rest. `[SOURCE: arXiv:2603.13417]`
+
+3. **Structured error semantics (SERF).** Current MCP error response is binary `isError` boolean. SERF proposes machine-readable failure categories enabling deterministic agent self-correction (e.g., `{"error_type": "FILE_NOT_FOUND", "recoverable": true, "suggested_action": "search"}`). **Relevance for us:** HIGH — our MCP servers (`meta_mcp.py`, `repo_tools_mcp.py`) return unstructured error strings. SERF would enable our orchestrator to distinguish recoverable from fatal errors without LLM interpretation. `[SOURCE: arXiv:2603.13417]`
+
+Additional finding: **Tool descriptions are "the most consequential artifact an MCP server ships."** Agent planner selects tools from `tools/list` based solely on name + description. Recommendation: 2-4 sentences per tool covering what it does, when to call it, what it returns, and side effects. Version suffixes (e.g., `_v2`) are an anti-pattern — agent can't determine which to invoke.
+
 ## What We Should Do Now
 
-1. **Nothing.** All specs are pre-draft. Building on them now = building on sand. [INFERENCE]
-2. **Monitor agents-wg** for Tasks spec progress — it's the most impactful for our orchestrator.
-3. **When Tasks reaches draft:** prototype replacing orchestrator's subprocess engine with MCP Tasks calls. The interface is clean enough that migration should be mechanical.
-4. **Keep our MCP tools compatible** — ensure `research` and `meta-knowledge` servers don't use patterns that conflict with the evolving spec.
+1. **Nothing on spec proposals.** All WG specs are pre-draft. Building on them = building on sand. [INFERENCE]
+2. **Implement SERF-style structured errors** in our MCP servers. This is independent of spec evolution — it's just better error handling. Production-readiness, not spec compliance.
+3. **Audit MCP tool descriptions** against the 2-4 sentence standard. One-time cost, ongoing benefit.
+4. **Monitor agents-wg** for Tasks spec progress — most impactful for orchestrator.
+5. **When Tasks reaches draft:** prototype replacing orchestrator's subprocess engine with MCP Tasks calls.
+6. **Keep our MCP tools compatible** — ensure servers don't use patterns that conflict with evolving spec.
 
 ## Sources
 - github.com/modelcontextprotocol/specification (main repo, agents-wg branch, transports-wg)

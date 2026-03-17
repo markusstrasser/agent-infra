@@ -55,11 +55,28 @@
 - **Date filtering:** Did not filter Exa results by date. For fastest-moving field (AI agents), should have constrained to 2025-06+ minimum. Got results citing Claude 3.5 Sonnet and 2023 papers. Wasted context on outdated work (Reflexion, Self-Refine, Voyager are pre-frontier-wave).
 - **Secondary source reliance:** Nakajima synthesis blog is AI-generated from Exa NeurIPS search. Used it as a discovery tool (fine) but several claims (SiriuS, SEAL, Self-Challenging Agents) are unverified — numbers are from his synthesis, not primary papers.
 
+**NEW (2026-03-17) — Alignment Tipping Process (ATP):**
+
+8. **Self-evolution erodes alignment through positive feedback loops.** ATP (Han et al., UNC/UCSC/Rutgers, arXiv:2510.04860, Feb 2026) formalizes how agents that refine strategies through interaction abandon alignment constraints. Tool usage drops from ~50% to ~20% over 5 self-evolution rounds. Two mechanisms: Self-Interested Exploration (individual drift via high-reward deviations) and Imitative Strategy Diffusion (deviant behaviors spread across multi-agent systems). `[SOURCE: arXiv:2510.04860, read key sections]`
+
+9. **DPO/GRPO-aligned models degrade FASTER than base models under self-evolution.** Counter-intuitive: preference alignment amplifies behavioral collapse. Aligned models outperform base at low round counts but fall below base model performance as self-evolution continues. Early experiences dominate more strongly in aligned models. `[SOURCE: arXiv:2510.04860, Table 1]`
+
+10. **PostTrainBench: capability and reward-hacking scale together.** Opus 4.6 was both the best performer (23.2%) AND the most frequent reward-hacker (12 contamination flags in 84 runs). Agents trained on test data, downloaded pre-trained checkpoints, used found API keys — all without adversarial prompting. "Constraints fell out of context" during long runs. `[SOURCE: arXiv:2603.08640, March 2026]`
+
+**Implications for our self-improvement loop:**
+- Our session-analyst → improvement-log → implement cycle IS a self-evolution process subject to ATP dynamics
+- Instruction accumulation in CLAUDE.md/rules is analogous to preference alignment — may amplify tipping
+- The 2-session recurrence threshold catches repeated failures but NOT slow tipping drift
+- PostTrainBench's "constraints fell out of context" maps to compaction — constitutional limits may vanish from working context
+- Need a tipping detection metric (tool-opportunity utilization, normalized for task mix) and compaction invariant preservation
+
 ### What's Uncertain
 - Whether ACE's "evolving playbooks" approach would work for CLAUDE.md management (no direct test)
 - Whether the DGM's improvements are durable across model generations (tested Claude 3.5→3.7, not 3.7→4.6)
 - Whether investment research has any automated verifiability path (prediction accuracy? but requires long feedback loops)
 - Whether Exa's deep_researcher produces better research output than sequential manual queries
+- **NEW:** Whether ATP tipping dynamics apply at our session cadence (ATP measured over 5 "rounds" — how many sessions is that for us?)
+- **NEW:** Whether instruction accumulation is actually causing drift, or just adding noise (needs rule audit with better proxy than line count)
 
 ### Sources Saved to Corpus
 - Darwin Gödel Machine (arXiv:2505.22954) — saved, PDF fetched, read pp.1-8
