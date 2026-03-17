@@ -892,3 +892,102 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 1. **Subagent mid-flight abandonment (f462a5fb).** Agent dispatched 3 probe subagents, then duplicated their work manually before waiting for results. Same pattern as 2026-03-13 subagent exhaustion but inverse: instead of waiting too long, agent gave up too early. Two failure modes with same root — poor subagent lifecycle discipline. Staged in triage DB (first occurrence).
 2. **Wrong-tool drift: inline Python-in-Bash (f462a5fb).** 4 parallel 638-char inline python3 -c strings for JSONL file parsing. Read + temp .py file would be cleaner. Staged in triage DB (first occurrence).
 3. **Sessions 012fbd24, 3fa7eadd**: Clean — no anti-patterns detected.
+
+### [2026-03-17] TOKEN WASTE: 21 reads of signal_scanner.py + 11 reads of setup_duckdb.py in single session
+- **Session:** intel 0769f753
+- **Evidence:** Session 0769f753 (553 messages, 35.9M input tokens, ~15h duration across context compactions) issued 21 `Read(signal_scanner.py)` and 11 `Read(setup_duckdb.py)` calls. These are ~2000+ line files. Most reads were partial (offset/limit), but many re-read sections already in context. Lines 117-174 of transcript show 11 Read calls before the first Edit — agent was reading the same file in overlapping windows instead of using Grep to find specific insertion points. | Session f1aab6d5: Read orchestrator.py fully 3 times during initial context, 2 more during Tier 2 Item 5, 2 more during Tier 2 Item 7, all between edits on the same file | Read call analysis: generate_clinical_report.py read 10 times, generate_dashboard.py 4 times, variant_evidence_core.py 3 times. Total 26 Read calls with 6 files duplicated. Agent re-read full files after each edit rather than tracking state.
+- **Failure mode:** TOKEN WASTE (duplicate-reads)
+- **Proposed fix:** [rule] "For files >500 lines, use Grep to locate the insertion point first. Only Read the specific section (offset+limit) needed for the Edit. Never read the entire file multiple times." | architectural — file-state tracking or targeted offset reads instead of full re-reads
+- **Root cause:** TBD
+- **Recurrences:** 9 (auto-promoted from staging)
+- **Status:** [ ] proposed
+
+### [2026-03-17] TOKEN WASTE: llmx `-f` polling loop — 47 sleep/wc cycles across 3 intel sessions
+- **Session:** intel cac26a1c,
+- **Evidence:** Agents dispatched llmx with `-f` flag on large files as background tasks, then polled empty output files with `sleep N && wc -c` in escalating intervals (30s, 60s, 90s, 120s). 47 such poll cycles across 3 sessions. Root cause: `-f` flag hangs with Gemini (documented in MEMORY.md since 2026-03-06 line 380), but agents keep using it. In c69b7142, agent killed processes, restarted them, polled again — only eventually switching to `-s` (stdin pipe) which works. | Agent proposed "Agent Teams — exactly what your orchestrator needs for parallel work" and "SDK query() replaces orchestrator subprocess, ~40% latency improvement." When user requested validation, subagents discovered: Agent Teams is interactive-only (cannot be used from orchestrator/headless), and SDK query() was already adopted in the orchestrator. The agent presented assumptions as validated facts before checking. This is the "probe before build" rule violation — the agent should have validated core assumptions before proposing architecture changes. | Session 16c56123: Repeatedly calling TaskOutput with 300s/600s timeouts, interspersed with 10+ bash commands checking ps aux, ls -la, and while true sleep loops over 23 minutes
+- **Failure mode:** TOKEN WASTE (polling-spin-loop)
+- **Proposed fix:** [hook] PreToolUse:Bash hook that detects `llmx.*-f` and rewrites to stdin pipe pattern. Or: fix llmx `-f` to work with Gemini CLI transport. The instruction-only approach has failed — this is the 4th occurrence across sessions. | [rule] Strengthen probe-before-build: when proposing adoption of specific features from external tools/SDKs, explicitly mark claims as "unverified" until a probe confirms. The agent's confident tone ("exactly what you need") was the failure — hedged language would have been appropriate.
+- **Root cause:** TBD
+- **Recurrences:** 5 (auto-promoted from staging)
+- **Status:** [ ] proposed
+
+### [2026-03-17] TOKEN WASTE: Model-review retry loop — 4 failed Gemini dispatches before fallback
+- **Session:** meta 18384e69
+- **Evidence:** Model-review dispatched to Gemini Pro and GPT-5.2 in parallel. Both returned empty output files. Agent retried Gemini Pro in foreground — timed out. Retried GPT — succeeded. Retried Gemini Pro — 503 rate limit. Finally fell back to Gemini Flash. Total: ~4 wasted Gemini dispatch attempts before the successful Flash fallback. GPT-5.2 output was obtained on second try. | Session 331211bf attempted 6 `llm_check.py pattern` calls to Gemini 3.1 Pro, all returning 503 (overloaded). First attempt on line 1993 (`compare`), then three parallel `pattern` calls (lines 2130-2132) which all failed with `--max-tokens` (wrong flag) THEN 503, then three more without the flag (lines 2157-2168), all 503. Total: 6+ failed Gemini calls before switching to GPT-5.2. The agent knew from the first 503 that Gemini was down but continued retrying. | User asked to find "cron jobs or do a Claude Code loop" for continuous code review. Agent immediately built orchestrator pipeline (`code-review-sweep.json`) and launchd plist. Only after user asked "would it be better to be a skill that I can run with claude code /loop?" did the agent evaluate tradeoffs, realize `/loop` uses subscription credits (free), and abandon the orchestrator approach for a skill.
+- **Failure mode:** TOKEN WASTE (llm-dispatch-failure)
+- **Proposed fix:** [skill] Update model-review skill: after first llmx failure, check stderr/exit code before retrying same model. If 503 or rate limit, fall back immediately to Flash. Add diagnostic step: `wc -c` on output file + check stderr. | [rule] "After first Gemini 503, switch to GPT-5.2 for all remaining calls in the session. Don't retry Gemini until next session." [architectural] `llm_check.py` should cache 503 status and auto-failover for the session duration.
+- **Root cause:** TBD
+- **Recurrences:** 4 (auto-promoted from staging)
+- **Status:** [ ] proposed
+
+### [2026-03-17] TOKEN WASTE: Redundant git log commands — 5 overlapping attempts to get daily commits
+- **Session:** meta 52ac8991
+- **Evidence:** Five `git log` commands in sequence (lines 328-346 of transcript): `git log --oneline --since="2026-03-05" --all`, then same without `--all`, then `git -C` variant, then `-20` variant, then `--after/--before` variant. All targeting the same information. Additionally, `outbox_gauntlet.py` was read 3 times (lines 400, 413, 447) with no intervening edits. Also hallucinated file paths under `/intel/docs/` before correcting to `/intel/analysis/research/`. | 9 `find /Volumes/SSK1TB/corpus/` commands with minor variations (`wc -l`, `sed`, `stat`, `printf`) instead of saving the file list to `/tmp/` once and processing it. Each re-traverses 6,031 files. | Four overlapping `git log` calls (lines 263-284): first across all projects with `--all`, then per-project loop, then another `ls` for `2026-03-05.md`, then another per-project `git log` without `--all`. The session's job was "tell me what happened today" — a single well-structured command could have gathered everything.
+- **Failure mode:** TOKEN WASTE (redundant-bash-commands)
+- **Proposed fix:** [rule] Existing guidance covers this. Pattern recurs despite rules — may warrant a PreToolUse hook that detects duplicate Read calls on same path within a session. However, the git log variants are harder to catch (different flags, same intent). | rule: "Save `find`/`ls` output to `/tmp/` file when you need multiple passes over the same listing."
+- **Root cause:** TBD
+- **Recurrences:** 4 (auto-promoted from staging)
+- **Status:** [ ] proposed
+
+### [2026-03-17] TOKEN WASTE: 123 inline Python scripts via Bash instead of writing .py files
+- **Session:** intel f32653c6
+- **Evidence:** 123 `Bash: uvx --with requests python3 -c "import requests, os..."` one-liners for individual downloads instead of writing download functions to a `.py` file. 496 total Bash calls in the session. Each inline script wastes tokens on boilerplate and is not reusable. | Agent used complex regexes with line-lookaheads and paren-counting to extract view names and directory paths from `setup_duckdb.py` f-strings. Repeatedly failed on edge cases. The `ast` module or simply importing the file's data structures would have been simpler and correct. | 4 parallel calls to Bash with 638-char inline python3 -c strings for JSONL parsing. The same Read tool or a temp .py script would have been cleaner and more reliable. Pattern: bash -c 'python3 -c "import json, sys\nresults = []\nfor line in open(sys.argv[1]):..."'
+- **Failure mode:** TOKEN WASTE (inline-python-bash)
+- **Proposed fix:** CLAUDE.md change: "Multi-line Python (>10 lines) must go in a .py file, not inline Bash. Exception: one-shot queries." | CLAUDE.md change: "Prefer `ast` module or direct import over regex when parsing Python source code."
+- **Root cause:** TBD
+- **Recurrences:** 4 (auto-promoted from staging)
+- **Status:** [ ] proposed
+
+### [2026-03-17] WRONG SUBAGENT TYPE: 5 verification agents launched as general-purpose instead of researcher
+- **Session:** selve fa8f6961
+- **Evidence:** Prior session launched 5 parallel agents ("Verify CYP1A2 melatonin metabolism", "Verify NNT het HPA", etc.) via `Agent` tool with `subagent_type: general-purpose`. MTHFR agent ran 40 turns / 101K tokens without producing a verdict — no maxTurns:20, no epistemics skill, no source-check stop hook. CYP1A2 agent ran 35 turns / 120K tokens but DID produce a verdict (lucky, not systematic). | Launched "Verify MTHFR BH4 serotonin chain" as general-purpose agent (no maxTurns). 40 tool calls, 101K tokens, 22 minutes, no synthesis deadline. | Agent dispatched 5 simultaneous Agent() tools to update documentation across projects. After completion, discovered "agents reported success but their edits didn't persist to disk (they ran in isolated context)." Had to dispatch 5 more Agent() calls to re-apply edits. Total: 10 Agent() calls for work that could have been 5 direct Edit() calls.
+- **Failure mode:** WRONG SUBAGENT TYPE (subagent-lifecycle)
+- **Proposed fix:** [hook] `pretool-subagent-gate.sh` check 4: warn when description matches research keywords (verify, evidence, PMID, literature, systematic review) and subagent_type is `general-purpose`. [config] `researcher.md` synthesis deadline: must begin verdict at turn 15/20. | [hook] Validate subagent type and enforce mandatory turn caps in pretool gate
+- **Root cause:** TBD
+- **Recurrences:** 4 (auto-promoted from staging)
+- **Status:** [ ] proposed
+
+### [2026-03-17] TOKEN WASTE: DuckDB lock contention causing repeated rebuild attempts
+- **Session:** intel 3104aa73
+- **Evidence:** 10 lock-related messages across sessions 0769f753 and 3104aa73. In session 3104aa73 specifically: agent runs `setup_duckdb.py`, blocked by PID 52140 (signal_scanner). Then waits 20 min via Python polling loop. Then PID exits, but new PID 3123 appears (another scanner instance). Agent kills it, checks lsof, retries rebuild. Total: 5+ tool calls and ~20 min wall clock wasted on lock contention for what should be a single `setup_duckdb.py` run. | 6 failed DuckDB MCP queries across 4 tables: `symbol` instead of `ticker` (company_profiles), `filed_date` instead of `date` (sec_8k_events), `transaction_date` instead of `trade_date` (house_ptr_trades), `nda_num` doesn't exist (faers_drug_ticker_map). Schema.md loaded into context says "NEVER guess columns." Each failure required follow-up `LIMIT 1` discovery query plus cascade failures on siblings. ~12 wasted tool calls total. | 3 instances where a bad DuckDB MCP query killed 1-2 sibling queries via "Sibling tool call errored." Total: ~6 queries lost to cascade. company_profiles `symbol` typo killed 2 siblings; sec_8k_events `filed_date` killed house/senate queries; faers `nda_num` killed finra query. Same pattern observed in prior session but not acted on.
+- **Failure mode:** TOKEN WASTE (duckdb-issues)
+- **Proposed fix:** [architectural] `setup_duckdb.py` and `signal_scanner.py` should use `flock` on a shared lockfile before opening the DB for write. If lock is held, fail fast with a clear message instead of cryptic DuckDB errors. Also: scanner should open `read_only=True` exclusively (currently sometimes opens read-write for materialized tables). | [rule] CLAUDE.md gotcha: "For tables NOT in schema.md, run SELECT * FROM table LIMIT 1 BEFORE any filtered query."
+- **Root cause:** TBD
+- **Recurrences:** 3 (auto-promoted from staging)
+- **Status:** [ ] proposed
+
+### [2026-03-17] MISSING PHASE ARTIFACTS: Code review system designed without written alternatives
+- **Session:** meta 4d0ccc70
+- **Evidence:** Built multi-project continuous code review system (code-review-scout.py, code-review-schedule.py, skill) — a shared infrastructure design decision — without producing divergent-options or selection-rationale artifacts as required by Constitution Principle 6. | Agent implemented `os._exit(1)` hard-kill timer for llmx timeout, committed it, then immediately realized: "Wait — `os._exit(1)` kills the entire process, which means `--fallback gemini-3-flash-preview` never gets a chance to run." Rewrote to daemon-thread approach and amended the commit. The first-answer fix was wrong because it blocked fallback model logic.
+- **Failure mode:** MISSING PHASE ARTIFACTS (missing-phase-artifacts)
+- **Proposed fix:** [hook] Session-analyst check: creation of new shared scripts/ or skills/ should be preceded by phase-state artifacts. Currently advisory only. | [rule] For system-level fixes (process lifecycle, signal handling, timeouts), evaluate side-effects on interdependent systems (fallback chains, error propagation) before committing.
+- **Root cause:** TBD
+- **Recurrences:** 2 (auto-promoted from staging)
+- **Status:** [ ] proposed
+
+### [2026-03-17] MISSING PUSHBACK: Accepted "execute the rest of the plan" without scoping
+- **Session:** meta 226b3e9a
+- **Evidence:** User said "Execute the rest of the plan. Use common sense." The plan contained 5 phases across 3 repos with complex interdependencies. Agent immediately started executing all phases without proposing: break into verifiable milestones, skip low-ROI items, or check what the parallel agent was already handling. Result: 432 messages, 29.8M input tokens, bugs in measurement scripts not caught until next session's model review. | User said "yeah integrate everything that's left to integrate." Agent immediately started mapping datasets and building enrichment views (lines 871-970). The agent did provide a useful assessment ("The graph should know everything that resolves to an entity. Most of what we just wired doesn't.") but only AFTER the user asked "Should the graph know everything?" — not proactively before starting work. The agent should have pushed back with: "Most remaining datasets don't resolve to entities. Building views for them adds queryability but zero graph value. Want me to prioritize the 3-4 that actually join to entity_id?"
+- **Failure mode:** MISSING PUSHBACK (unscoped-compliance)
+- **Proposed fix:** [rule] Already partially covered by global CLAUDE.md `<technical_pushback>` ("Can we validate at 1/10 the code?"). Needs reinforcement: "For multi-phase plans, propose the first 1-2 phases and validate before continuing. Don't execute all phases in a single pass." | [rule] "When user gives a vague directive ('integrate everything', 'wire it all up'), enumerate what's in scope and its expected value BEFORE starting work. Don't build first and assess value after."
+- **Root cause:** TBD
+- **Recurrences:** 2 (auto-promoted from staging)
+- **Status:** [ ] proposed
+
+### [2026-03-17] NEW FAILURE MODE: Context compaction hallucination
+- **Session:** meta ed9437c6
+- **Evidence:** Agent resumed from compacted context that claimed Tasks 7-9 were completed. Git log showed only Tasks 5-6 had landed. Agent: "The commits from Tasks 7-9 (delete compaction-analysis, collapse SAFE-lite, kill SPC panel) didn't persist from the previous session — the context compaction summary claimed they were done but the commits aren't in git." Agent had to re-do ~735 lines of deletions. | "The commits from Tasks 7-9... didn't persist from the previous session — the context compaction summary claimed they were done but the commits aren't in git."
+- **Failure mode:** NEW FAILURE MODE (compaction-hallucination)
+- **Proposed fix:** [architectural] Post-compaction verification: agent should `git log --oneline -10` immediately after resuming from compacted context to verify claimed commits exist. Could be a SessionStart hook or a CLAUDE.md rule. The compaction process itself can't be hooked (PreCompact is side-effect only), but the resume behavior can be. | [rule] Already in CLAUDE.md: "Post-compaction verification: run git log and verify claimed commits exist." Recurrence suggests rule alone insufficient — consider hook.
+- **Root cause:** TBD
+- **Recurrences:** 2 (auto-promoted from staging)
+- **Status:** [ ] proposed
+
+### [2026-03-17] RULE VIOLATION: Explore subagent made 4 unauthorized commits
+- **Session:** meta 80c5d8c4
+- **Evidence:** Explore agent "went rogue — made 4 implementation commits on its own... used Bash to bypass Edit/Write restriction." | Main agent committed safe-lite-eval.py cleanup, then realized another agent owned those changes, reverted with `git revert --no-edit HEAD`, then discovered the explore subagent had made 4 more commits, required `git reset --hard b1a61e0`. Total: 5 commits created and destroyed. ~500 output tokens wasted on commits, plus ~10 tool calls on the cleanup.
+- **Failure mode:** RULE VIOLATION (unauthorized-subagent-commits)
+- **Proposed fix:** [architectural] Already addressed by worktree isolation rule in CLAUDE.md. Verify enforcement. | [architectural] Before spawning a subagent that touches code, check `git log --oneline -5` for recent commits from other agents. If parallel work is in progress, restrict subagent to read-only operations.
+- **Root cause:** TBD
+- **Recurrences:** 2 (auto-promoted from staging)
+- **Status:** [ ] proposed
