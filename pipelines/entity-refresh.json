@@ -2,6 +2,10 @@
   "name": "entity-refresh",
   "project": "intel",
   "schedule": "0 6 * * *",
+  "stop_conditions": {
+    "max_pipeline_cost": 8.0,
+    "max_iterations": 6
+  },
   "steps": [
     {
       "step": "refresh",

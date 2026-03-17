@@ -2,6 +2,10 @@
   "name": "research-sweep",
   "schedule": "0 8 * * 1",
   "project": "meta",
+  "stop_conditions": {
+    "max_pipeline_cost": 10.0,
+    "max_iterations": 4
+  },
   "steps": [
     {
       "step": "search",

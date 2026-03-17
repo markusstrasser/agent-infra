@@ -439,6 +439,54 @@ Respond as JSON: {{"addressed": "yes|partially|no", "gaps": "...", "retry": true
     return {"pass": True, "reasoning": "verification error — passing by default", "retry": False}
 
 
+def check_pipeline_stop_conditions(db, task) -> str | None:
+    """Check pipeline-level stop conditions before executing a step.
+
+    Returns None if OK to proceed, or a reason string if should stop.
+    Stop conditions are defined in pipeline JSON templates.
+    """
+    pipeline = task["pipeline"]
+    if not pipeline:
+        return None
+
+    # Load template to get stop_conditions
+    template_path = PIPELINE_DIR / f"{pipeline}.json"
+    if not template_path.exists():
+        return None
+
+    try:
+        template = json.loads(template_path.read_text())
+    except (json.JSONDecodeError, OSError):
+        return None
+
+    stop = template.get("stop_conditions", {})
+    if not stop:
+        return None
+
+    # max_pipeline_cost: total cost across all tasks in this pipeline submission
+    max_cost = stop.get("max_pipeline_cost")
+    if max_cost:
+        row = db.execute("""
+            SELECT COALESCE(SUM(cost_usd), 0) as total
+            FROM tasks WHERE pipeline = ? AND status IN ('done', 'done_with_denials', 'failed')
+        """, (pipeline,)).fetchone()
+        if row["total"] >= max_cost:
+            return f"pipeline_cost_cap: ${row['total']:.2f} >= ${max_cost:.2f}"
+
+    # max_iterations: max completed tasks for this pipeline today
+    max_iter = stop.get("max_iterations")
+    if max_iter:
+        row = db.execute("""
+            SELECT COUNT(*) as n FROM tasks
+            WHERE pipeline = ? AND status IN ('done', 'done_with_denials')
+              AND date(finished_at) = date('now', 'localtime')
+        """, (pipeline,)).fetchone()
+        if row["n"] >= max_iter:
+            return f"max_iterations: {row['n']} >= {max_iter}"
+
+    return None
+
+
 def execute_one(db):
     daily_cost = check_daily_cost(db)
     if daily_cost >= DAILY_COST_CAP:
@@ -448,6 +496,17 @@ def execute_one(db):
     task = claim_task(db)
     if not task:
         return False
+
+    # Check pipeline-level stop conditions before executing
+    stop_reason = check_pipeline_stop_conditions(db, task)
+    if stop_reason:
+        db.execute("""
+            UPDATE tasks SET status='skipped', finished_at=datetime('now','localtime'),
+                error=? WHERE id=?
+        """, (f"stop_condition: {stop_reason}", task["id"]))
+        log_event({"action": "stop_condition", "task_id": task["id"], "reason": stop_reason})
+        db.commit()
+        return True
 
     # Budget-aware degradation: downgrade effort or skip non-critical tasks
     remaining = DAILY_COST_CAP - daily_cost
