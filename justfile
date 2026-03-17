@@ -68,6 +68,33 @@ tags *args:
 hook-telemetry *args:
     uv run python3 scripts/hook-telemetry-report.py {{args}}
 
+# ── Orchestrator ─────────────────────────────────────────────────
+
+# Submit + run pipeline synchronously (interactive mode)
+[group('orchestrator')]
+run-pipeline pipeline *args:
+    uv run python3 scripts/orchestrator.py run-pipeline {{pipeline}} {{args}}
+
+# Show orchestrator task queue
+[group('orchestrator')]
+orch-status:
+    uv run python3 scripts/orchestrator.py status
+
+# Show pipeline cost/status rollup
+[group('orchestrator')]
+orch-pipelines:
+    uv run python3 scripts/orchestrator.py pipelines
+
+# Run one queued task (manual tick)
+[group('orchestrator')]
+orch-tick:
+    uv run python3 scripts/orchestrator.py tick
+
+# Show orchestrator event log
+[group('orchestrator')]
+orch-log *args:
+    uv run python3 scripts/orchestrator.py log {{args}}
+
 # ── Plans ────────────────────────────────────────────────────────
 
 # Show plan status across all projects

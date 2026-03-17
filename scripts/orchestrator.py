@@ -357,6 +357,25 @@ async def _run_claude_task_async(task, cwd, progress_file=None):
                                 pf.write(block.text + "\n")
             elif isinstance(message, ResultMessage):
                 result_msg = message
+    except (RuntimeError, Exception) as e:
+        # Agent SDK has a known cleanup bug: the async generator's TaskGroup
+        # cancel scope exits in a different task during shutdown. If we already
+        # have a ResultMessage, the task actually completed — swallow the
+        # cleanup error. If we don't have a result, re-raise.
+        err = str(e)
+        is_cleanup = (
+            "cancel scope" in err
+            or "ProcessTransport" in err
+            or "message reader" in err.lower()
+        )
+        if is_cleanup and result_msg is not None:
+            log_event({
+                "action": "sdk_cleanup_error_swallowed",
+                "task_id": task["id"],
+                "error": err[:200],
+            })
+        else:
+            raise
     finally:
         # Restore CLAUDECODE so rest of process isn't affected
         if saved_claudecode is not None:
@@ -369,39 +388,113 @@ async def _run_claude_task_async(task, cwd, progress_file=None):
     }
 
 
-def run_claude_task(task, cwd, progress_file=None):
-    """Sync wrapper around async SDK query() with retry for transient startup failures.
+def _run_claude_subprocess(task, cwd, progress_file=None):
+    """Fallback: run via `claude -p` subprocess when Agent SDK fails.
 
-    Removed anyio.fail_after — it caused cancel scope nesting conflicts with Agent SDK
-    internals (100% of session-retro failures since 2026-03-07). SDK's own max_turns +
-    max_budget_usd provide natural execution bounds. Stall detection via last-message
-    timestamp instead.
+    Trades structured output for reliability. Returns same dict shape as SDK path.
     """
-    MAX_RETRIES = 2
-    RETRY_DELAY = 3  # seconds
+    prompt = task["prompt"] or ""
+    effort = task["effort"] or "medium"
+    model = task["model"] or "sonnet"
+    max_turns = task["max_turns"] or 15
 
-    for attempt in range(MAX_RETRIES + 1):
-        try:
-            return anyio.run(
-                lambda: _run_claude_task_async(task, cwd, progress_file)
-            )
-        except Exception as e:
-            err = str(e)
-            is_transient = (
-                "ProcessTransport" in err
-                or "cancel scope" in err
-                or "CLIConnectionError" in err
-            )
-            if is_transient and attempt < MAX_RETRIES:
-                log_event({
-                    "action": "sdk_retry",
-                    "task_id": task["id"],
-                    "attempt": attempt + 1,
-                    "error": err[:200],
-                })
-                _time.sleep(RETRY_DELAY * (attempt + 1))
-                continue
-            raise
+    cmd = [
+        "claude", "-p", prompt,
+        "--model", model,
+        "--max-turns", str(max_turns),
+        "--output-format", "json",
+        "--verbose",
+    ]
+
+    allowed = task["allowed_tools"]
+    if allowed:
+        for tool in allowed.split(","):
+            cmd.extend(["--allowedTools", tool.strip()])
+
+    env = {**os.environ}
+    env.pop("CLAUDECODE", None)
+    env.pop("CLAUDE_CODE_ENTRYPOINT", None)
+    if effort:
+        env["CLAUDE_CODE_EFFORT_LEVEL"] = effort
+
+    log_event({
+        "action": "subprocess_fallback",
+        "task_id": task["id"],
+        "reason": "Agent SDK CLIConnectionError",
+    })
+
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, cwd=cwd,
+        timeout=STALL_TIMEOUT_SECONDS, env=env,
+    )
+
+    # Write progress
+    if progress_file and result.stdout:
+        with open(progress_file, "w") as f:
+            f.write(result.stdout[:5000])
+
+    # Parse JSON output
+    result_text = result.stdout or ""
+    cost = 0.0
+    session_id = None
+    try:
+        parsed = json.loads(result_text)
+        result_text = parsed.get("result", result_text)
+        cost = parsed.get("cost_usd", 0.0)
+        session_id = parsed.get("session_id")
+    except (json.JSONDecodeError, KeyError):
+        pass
+
+    if result.returncode != 0 and not result_text:
+        raise RuntimeError(f"claude -p failed (exit {result.returncode}): {result.stderr[:300]}")
+
+    # Build a minimal ResultMessage-like object
+    class _FakeResult:
+        def __init__(self):
+            self.result = result_text[:2000]
+            self.total_cost_usd = cost
+            self.session_id = session_id
+            self.duration_ms = None
+            self.duration_api_ms = None
+            self.is_error = result.returncode != 0
+            self.usage = {}
+            self.model = model
+            self.num_turns = 0
+
+    return {
+        "result_msg": _FakeResult(),
+        "text_parts": [result_text[:2000]] if result_text else [],
+        "last_model": model,
+    }
+
+
+def run_claude_task(task, cwd, progress_file=None):
+    """Sync wrapper: try Agent SDK, fall back to subprocess on connection errors.
+
+    Agent SDK has known anyio cancel scope bugs that cause CLIConnectionError
+    on startup. When this happens, fall back to `claude -p` subprocess which
+    is slower but reliable.
+    """
+    try:
+        return anyio.run(
+            lambda: _run_claude_task_async(task, cwd, progress_file)
+        )
+    except BaseException as e:
+        err = str(e)
+        is_sdk_bug = (
+            "ProcessTransport" in err
+            or "cancel scope" in err
+            or "CLIConnectionError" in err
+            or "TaskGroup" in err
+        )
+        if is_sdk_bug:
+            log_event({
+                "action": "sdk_fallback",
+                "task_id": task["id"],
+                "error": err[:200],
+            })
+            return _run_claude_subprocess(task, cwd, progress_file)
+        raise
 
 
 def verify_step_output(task, output_summary: str) -> dict:
@@ -1453,6 +1546,158 @@ def cmd_tick(args):
 # Main
 # ---------------------------------------------------------------------------
 
+def cmd_run_pipeline(args):
+    """Submit pipeline and execute steps synchronously (interactive mode).
+
+    Unlike submit+tick (async/cron), this runs each step immediately in the
+    calling process, streaming live output. Designed for use from within
+    Claude Code sessions — the agent calls this instead of manually typing
+    each phase transition.
+    """
+    # First submit the pipeline to create tasks in DB
+    cmd_submit(args)
+
+    db = get_db()
+    pipeline = args.pipeline
+
+    # Get all tasks from this pipeline submission (most recent batch)
+    tasks = db.execute("""
+        SELECT id, step, status, requires_approval, depends_on
+        FROM tasks WHERE pipeline = ?
+        ORDER BY id DESC LIMIT 20
+    """, (pipeline,)).fetchall()
+    tasks = list(reversed(tasks))  # oldest first
+
+    if not tasks:
+        print("No tasks found after submission.")
+        return
+
+    print(f"\n{'='*60}")
+    print(f"  Running pipeline: {pipeline} ({len(tasks)} steps)")
+    print(f"{'='*60}\n")
+
+    for i, task_row in enumerate(tasks):
+        task_id = task_row["id"]
+        step = task_row["step"]
+
+        # Check approval gate
+        if task_row["requires_approval"] and not task_row["approved_at"]:
+            print(f"\n  Step {i+1}/{len(tasks)}: {step} — REQUIRES APPROVAL")
+            print(f"  Run: orchestrator.py approve {task_id}")
+            print(f"  Remaining steps paused.")
+            break
+
+        # Skip if dependency failed
+        if task_row["depends_on"]:
+            dep = db.execute(
+                "SELECT status FROM tasks WHERE id=?",
+                (task_row["depends_on"],),
+            ).fetchone()
+            if dep and dep["status"] not in ("done", "done_with_denials"):
+                print(f"\n  Step {i+1}/{len(tasks)}: {step} — SKIPPED (dependency failed)")
+                continue
+
+        print(f"\n  Step {i+1}/{len(tasks)}: {step}")
+        print(f"  {'─'*50}")
+
+        # Execute this task directly (bypass queue, no lock needed)
+        task = db.execute("SELECT * FROM tasks WHERE id=?", (task_id,)).fetchone()
+        if not task:
+            continue
+
+        # Mark running
+        db.execute(
+            "UPDATE tasks SET status='running', started_at=datetime('now','localtime') WHERE id=?",
+            (task_id,),
+        )
+        db.commit()
+
+        cwd = resolve_cwd(task)
+        engine = task["engine"] or "claude"
+
+        try:
+            if engine == "script":
+                result = run_script_task(task, cwd)
+                if result.returncode != 0:
+                    print(f"  FAILED (exit {result.returncode}): {result.stderr[:200]}")
+                    db.execute("""
+                        UPDATE tasks SET status='failed', finished_at=datetime('now','localtime'),
+                            error=? WHERE id=?
+                    """, (f"exit_{result.returncode}: {result.stderr[:500]}", task_id))
+                    cascade_failure(db, task_id)
+                else:
+                    summary = result.stdout[:2000] if result.stdout else "(empty)"
+                    output_file = OUTPUT_DIR / f"{task_id}.json"
+                    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+                    output_file.write_text(result.stdout or "")
+                    db.execute("""
+                        UPDATE tasks SET status='done', finished_at=datetime('now','localtime'),
+                            output_file=?, result_summary=?, cost_usd=0 WHERE id=?
+                    """, (str(output_file), summary, task_id))
+                    print(f"  Done (script)")
+            else:
+                # Agent SDK path
+                OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+                progress_file = OUTPUT_DIR / f"{task_id}.live"
+                sdk_result = run_claude_task(task, cwd, progress_file=progress_file)
+                result_msg = sdk_result["result_msg"]
+                text_parts = sdk_result["text_parts"]
+
+                if result_msg is None:
+                    db.execute("""
+                        UPDATE tasks SET status='failed', finished_at=datetime('now','localtime'),
+                            error='no_result_message' WHERE id=?
+                    """, (task_id,))
+                    cascade_failure(db, task_id)
+                    print(f"  FAILED: no result from SDK")
+                else:
+                    cost = result_msg.total_cost_usd or 0
+                    summary = (result_msg.result or "\n".join(text_parts))[:2000]
+                    status = "done" if not result_msg.is_error else "failed"
+                    output_file = OUTPUT_DIR / f"{task_id}.json"
+                    output_file.write_text(json.dumps({
+                        "result": result_msg.result,
+                        "total_cost_usd": cost,
+                        "session_id": result_msg.session_id,
+                    }, indent=2))
+                    db.execute("""
+                        UPDATE tasks SET status=?, finished_at=datetime('now','localtime'),
+                            cost_usd=?, output_file=?, result_summary=? WHERE id=?
+                    """, (status, cost, str(output_file), summary, task_id))
+                    print(f"  {status.upper()} (${cost:.2f})")
+                    if summary:
+                        # Show first 500 chars of result
+                        print(f"  {summary[:500]}")
+
+        except Exception as e:
+            err = str(e)[:500]
+            db.execute("""
+                UPDATE tasks SET status='failed', finished_at=datetime('now','localtime'),
+                    error=? WHERE id=?
+            """, (err, task_id))
+            cascade_failure(db, task_id)
+            print(f"  FAILED: {err[:200]}")
+
+        db.commit()
+
+        # Check if we should continue
+        refreshed = db.execute("SELECT status FROM tasks WHERE id=?", (task_id,)).fetchone()
+        if refreshed and refreshed["status"] == "failed":
+            print(f"\n  Pipeline stopped — step '{step}' failed.")
+            break
+
+    # Final status
+    print(f"\n{'='*60}")
+    final = db.execute("""
+        SELECT status, COUNT(*) as n FROM tasks WHERE pipeline=?
+        GROUP BY status ORDER BY status
+    """, (pipeline,)).fetchall()
+    for row in final:
+        print(f"  {row['status']}: {row['n']}")
+    print(f"{'='*60}\n")
+    db.close()
+
+
 def main():
     parser = argparse.ArgumentParser(description="Orchestrator: cron-driven task runner")
     sub = parser.add_subparsers(dest="command")
@@ -1500,6 +1745,11 @@ def main():
 
     sub.add_parser("tick", help="Run one task (called by launchd)")
 
+    p_rp = sub.add_parser("run-pipeline", help="Submit + run pipeline synchronously (interactive)")
+    p_rp.add_argument("pipeline", help="Pipeline template name")
+    p_rp.add_argument("--project", "-p", help="Override project")
+    p_rp.add_argument("--vars", nargs="*", help="Template variables: key=value")
+
     args = parser.parse_args()
 
     if args.command == "init-db":
@@ -1526,6 +1776,8 @@ def main():
         cmd_retry(args)
     elif args.command == "tick":
         cmd_tick(args)
+    elif args.command == "run-pipeline":
+        cmd_run_pipeline(args)
     else:
         parser.print_help()
 
