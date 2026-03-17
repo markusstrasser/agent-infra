@@ -1,0 +1,48 @@
+{
+  "name": "intel-research",
+  "project": "intel",
+  "pause_before": ["paper-trades"],
+  "steps": [
+    {
+      "step": "extract-claims",
+      "prompt": "Read the transcript or source at {source}. Extract all factual claims, predictions, and investment-relevant assertions. Write structured output to .claude/plans/{pipeline}-claims.md with: claim text, source, confidence, falsifiability.\n\nEnd with ## Handoff: numbered claim list, open questions.",
+      "max_turns": 10,
+      "max_budget_usd": 2.0,
+      "effort": "medium",
+      "allowed_tools": "Read,Glob,Grep,Write"
+    },
+    {
+      "step": "parallel-verify",
+      "prompt": "Read .claude/plans/{pipeline}-claims.md (## Handoff). For each claim, search for confirming AND disconfirming evidence using Exa, Brave, and S2. Write verification table to .claude/plans/{pipeline}-verified.md: | Claim | Evidence For | Evidence Against | Verdict | Sources |\n\nEnd with ## Handoff: verified claims, refuted claims, uncertain claims.",
+      "max_turns": 15,
+      "max_budget_usd": 4.0,
+      "effort": "high",
+      "allowed_tools": "Read,Glob,Grep,Write,WebSearch,WebFetch,mcp__exa__web_search_exa,mcp__exa__web_search_advanced_exa,mcp__brave-search__brave_web_search,mcp__research__search_papers",
+      "verify": true
+    },
+    {
+      "step": "causal-check",
+      "prompt": "Read .claude/plans/{pipeline}-verified.md (## Handoff). For each verified claim that implies causation, apply causal discipline: draw the DAG, identify confounders, check for bad controls. Flag claims that assume correlation=causation. Write to .claude/plans/{pipeline}-causal.md.\n\nEnd with ## Handoff: causally sound claims, flagged claims, DAG sketches.",
+      "max_turns": 10,
+      "max_budget_usd": 2.0,
+      "effort": "medium",
+      "allowed_tools": "Read,Glob,Grep,Write"
+    },
+    {
+      "step": "paper-trades",
+      "prompt": "Read .claude/plans/{pipeline}-causal.md (## Handoff). Based on verified, causally sound claims, propose paper trades. For each: ticker, direction, thesis (1-2 sentences), key risk, time horizon, confidence. Write to .claude/plans/{pipeline}-trades.md.\n\nEnd with ## Handoff: trade proposals ranked by confidence × edge.",
+      "max_turns": 10,
+      "max_budget_usd": 2.0,
+      "effort": "medium",
+      "allowed_tools": "Read,Glob,Grep,Write"
+    },
+    {
+      "step": "commit-ledger",
+      "prompt": "Read .claude/plans/{pipeline}-trades.md (## Handoff). Record approved trades to the paper trading ledger. Each entry: date, ticker, direction, entry price (current), thesis, confidence, time horizon. Commit with [intel] prefix.",
+      "max_turns": 5,
+      "max_budget_usd": 1.0,
+      "effort": "low",
+      "allowed_tools": "Read,Glob,Grep,Write,Edit,Bash"
+    }
+  ]
+}
