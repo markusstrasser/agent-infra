@@ -1,0 +1,18 @@
+{
+  "name": "qa-sweep",
+  "variables": {
+    "url": {"required": true},
+    "project": {"default": "meta"}
+  },
+  "steps": [
+    {
+      "step": "qa",
+      "prompt": "/qa {url}",
+      "project": "{project}",
+      "max_turns": 25,
+      "max_budget_usd": 3.0,
+      "model": "sonnet",
+      "allowed_tools": "Bash,Read,Write,Edit,Glob,Grep,Agent"
+    }
+  ]
+}
