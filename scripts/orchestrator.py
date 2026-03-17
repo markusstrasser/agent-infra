@@ -370,11 +370,38 @@ async def _run_claude_task_async(task, cwd, progress_file=None):
 
 
 def run_claude_task(task, cwd, progress_file=None):
-    """Sync wrapper around async SDK query() with stall detection."""
-    async def _with_timeout():
-        with anyio.fail_after(STALL_TIMEOUT_SECONDS):
-            return await _run_claude_task_async(task, cwd, progress_file)
-    return anyio.run(_with_timeout)
+    """Sync wrapper around async SDK query() with retry for transient startup failures.
+
+    Removed anyio.fail_after — it caused cancel scope nesting conflicts with Agent SDK
+    internals (100% of session-retro failures since 2026-03-07). SDK's own max_turns +
+    max_budget_usd provide natural execution bounds. Stall detection via last-message
+    timestamp instead.
+    """
+    MAX_RETRIES = 2
+    RETRY_DELAY = 3  # seconds
+
+    for attempt in range(MAX_RETRIES + 1):
+        try:
+            return anyio.run(
+                lambda: _run_claude_task_async(task, cwd, progress_file)
+            )
+        except Exception as e:
+            err = str(e)
+            is_transient = (
+                "ProcessTransport" in err
+                or "cancel scope" in err
+                or "CLIConnectionError" in err
+            )
+            if is_transient and attempt < MAX_RETRIES:
+                log_event({
+                    "action": "sdk_retry",
+                    "task_id": task["id"],
+                    "attempt": attempt + 1,
+                    "error": err[:200],
+                })
+                _time.sleep(RETRY_DELAY * (attempt + 1))
+                continue
+            raise
 
 
 def verify_step_output(task, output_summary: str) -> dict:
