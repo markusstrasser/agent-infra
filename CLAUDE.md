@@ -61,75 +61,9 @@ This repo plans and tracks improvements to agent infrastructure across projects 
 - `search-retrieval-architecture.md` — CAG vs embedding retrieval, routing framework
 - `.claude/overviews/` — auto-generated source + tooling overviews (Gemini via repomix)
 
-## Research Index (`research/`)
+## Research Index
 
-Consult these files before acting on the topic. Scan this table when starting a task.
-
-| File | Topic | Consult before |
-|------|-------|----------------|
-| `context-rot-evidence.md` | Context degradation, attention dilution, MRCR benchmarks | Context management, deciding what to put in CLAUDE.md/skills |
-| `agent-reliability-benchmarks.md` | Capability vs reliability, SWE-bench, FeatureBench, METR | Evaluating agent performance, retry/voting strategies |
-| `context-window-scaling-escapes.md` | Sparse attention, RLM, compaction alternatives | Designing subagent patterns, compaction strategy |
-| `multi-agent-coordination-evidence.md` | When multi-agent helps/hurts, 45% threshold, error amplification | Deciding single vs multi-agent, parallelization |
-| `cot-faithfulness-evidence.md` | CoT reasoning fidelity, 7-13% baseline unfaithfulness | Trusting reasoning traces, designing cross-model review |
-| `tool-use-mcp-reliability.md` | BFCL scores, MCP adoption, tool description quality | Writing MCP tools, skill descriptions |
-| `agent-memory-architectures.md` | Memory systems comparison, files+git defense | Designing memory, entity storage patterns |
-| `agentic-safety-guardrails.md` | Safety-by-construction, Mind the GAP, text≠action | Writing hooks, permission gates, safety architecture |
-| `agentic-research-synthesis.md` | Cross-cutting synthesis, unknowns, papers to track | Research planning, understanding overall landscape |
-| `opus-46-prompt-structure.md` | XML tags, emphasis markers, anti-laziness, Anthropic patterns | Writing prompts, skills, CLAUDE.md sections |
-| `agent-self-modification.md` | DGM, context collapse, reward hacking | Self-improvement loops, MEMORY.md update strategy |
-| `claude-code-internals.md` | Claude Code architecture, compaction, community patterns | Building hooks, understanding Claude Code behavior |
-| `claude-code-native-vs-meta-infra.md` | Native Claude Code features vs our custom infrastructure | Before building new hooks/skills that might duplicate native features |
-| `native-leverage-plan.md` | Implementation plan for adopting native features | Hook/skill implementation work |
-| `anthropic-soul-guidelines.md` | Anthropic's internal model guidelines (archived) | Understanding trust model, operator role |
-| `constitutional-delta.md` | Why project constitutions differ from Claude's base; error correction as telos | Constitutional design, principle derivation |
-| `philosophy-of-epistemic-agents.md` | Popper, Frankfurt, Hart, Bratman — philosophical foundations | Anti-sycophancy design, rules vs standards |
-| `orchestrator-design.md` | 24/7 autonomous agent orchestrator: task queue, 7 loops, self-improvement | Orchestrator implementation (blocked pending validation) |
-| `intel-feedback-loop-plan.md` | 5-phase plan to activate prediction feedback loop in intel | Intel feedback/calibration work |
-| `skills-audit-2026-02-28.md` | Multi-model audit of 16 skills; verified findings + action items | Skills maintenance, quality review |
-| `meta-knowledge-mcp.md` | Design memo for meta-knowledge MCP server | Meta-knowledge MCP development |
-| `openclaw-deep-dive.md` | OpenClaw analysis | OpenClaw-related work |
-| `openclaw-model-review.md` | Model review of OpenClaw | OpenClaw-related work |
-| `opus-46-action-plan.md` | Action plan for Opus 4.6 capabilities | Planning new capability adoption |
-| `epistemic-quality-evals.md` | Benchmarks for hallucination, calibration, source attribution, sycophancy in agents | Designing epistemic eval pipelines, calibration checks, researcher skill improvements |
-| `calibration-measurement-practical.md` | Practical calibration: min samples, hedging vs accuracy, scoring rules, SPC, Cromwell's rule | Building calibration measurement system, canary queries, confidence scoring |
-| `anthropic-tooling-landscape.md` | Full Anthropic tooling inventory: Agent SDK, 72 repos, API features, plugins, Skills open standard | Orchestrator SDK migration, evaluating new tools, plugin system |
-| `anti-sycophancy-process-supervision.md` | Multi-turn sycophancy detection (fold patterns), structural anti-sycophancy mechanisms, PRMs for research agents, tool-trace faithfulness | Pushback-index improvements, process supervision, fold detection, epistemic eval |
-| `temporal-epistemic-degradation.md` | Within-session precision decay, compaction nuance loss, memory belief drift, staleness detection, multi-run consistency, output position effects | Compaction strategy, MEMORY.md design, cross-session verification, epistemic monitoring |
-| `factual-verification-systems.md` | SAFE/VeriScore/FINCH-ZK production landscape, cross-model verification (+39% F1), unclear bucket diagnosis, PRMs for verification, prediction markets as ground truth | SAFE-lite improvements, model-review cross-family routing, verification pipeline design |
-| `knowledge-accrual-architecture.md` | **Core memo.** 5 institutional case studies (Wikipedia, Cochrane, ClinGen, common law, IC tradecraft), structural error-catching (double-entry parity, triangulation, conservation heuristics), 5 synthesized principles, cross-model reviewed. Companion files below for depth. | Knowledge system design, evidence taxonomy, claim schemas, null result preservation |
-| `knowledge-representation-paradigms.md` | **Companion.** Deep-dive: Wolfram, CYC post-mortem, OWL/RDF, Wikidata, Toulmin/Dung/IBIS, probabilistic DBs, type theory | Representation decisions, formalization tradeoffs |
-| `negative-space-and-meta-epistemics.md` | **Companion.** Deep-dive: Smithson taxonomy, presupposition analysis, pertinent negatives, replication crisis numbers, weather calibration, ASRS, Goodhart/Manheim | Negative space techniques, meta-monitoring, calibration |
-| `cross-model-review-failure-modes.md` | Cross-model LLM review failure modes: correlated errors (60% shared wrong answers), self-preference bias (GPT-4: 0.520), debate-is-martingale, Byzantine consensus collapse, LLM-as-judge biases, asymmetric capability | model-review skill design, cross-model routing, ensemble strategy |
-| `divergent-convergent-thinking-llms.md` | LLM divergent vs convergent thinking asymmetry, denial prompting, persona-based mode switching, LiveIdeaBench/AUT/NEOGAUGE benchmarks, temperature entropy turning point, brainstorm-then-refine workflows, infrastructure gaps | Research session design, skill mode parameters, brainstorming workflows, creative vs analytic task routing |
-| `agentic-search-api-comparison.md` | Brave/Exa/Tavily/Firecrawl/Perplexity/Parallel — benchmarks (AIMultiple), feature matrix, pricing, index independence, latency. **§10: our EBF3 benchmark** (academic 80, websearch 75, combined 83; websearch for DB lookups, academic for citation-verified lit) | Search API selection, MCP configuration, triangulation strategy, tool-class routing |
-| `brave-search-api-deep-dive.md` | Full Brave API surface (10 endpoints), LLM Context params/schema, Answers (OpenAI compat), MCP servers (official vs Anthropic), pricing restructure, unique capabilities | Brave integration, LLM Context setup, MCP server selection |
-| `epistemic-measurement-concepts.md` | Concepts reference: canary queries, fold detection, trace faithfulness, SPC, Goodhart mitigation, Brier scoring, pertinent negatives, what NOT to build | Epistemic system design, understanding measurement scripts, onboarding |
-| `epistemic-v2-synthesis.md` | 25+ papers synthesized: 22 findings, ROI assessment, measurement redesign, frameworks (SDT, OODA, scoring rules) | Epistemic system improvements, verification architecture |
-| `structured-vs-prose-for-agents.md` | **Empirical gap.** Zero frontier-model evidence on structured vs prose input formatting. Anthropic docs: prose for notes, structured for state data. "Let Me Speak Freely" methodologically contested. Pre-frontier trend: larger models more format-agnostic. | Schema design for agent-read docs, YAML frontmatter decisions, entity doc format, conviction journal format |
-| `mcp-protocol-evolution.md` | MCP spec WG tracking: Tasks (SEP-1686, Amazon-authored), Skills Over MCP, Multi Round-Trip, Task Continuity, HTTP transport. Implications for orchestrator engine swap. | Orchestrator engine migration, MCP tool design, multi-session architecture |
-| `ai-reasoning-causal-abductive-deductive.md` | Frontier model causal/abductive/deductive reasoning: T3 benchmark numbers, Scaling Paradox, Causal Rung Collapse proof, Causal-Copilot, GEAR abduction, PRMs, deployable tools | Causal inference in agent workflows, DAG construction, bad-control prevention, research agent design |
-| `reasoning-scaffolding-divergent.md` | Beyond DAGs: causal discovery from data (causal-learn, LLM priors), sensitivity analysis (PySensemakr), ThinkPRM generative verification, Think² metacognition, analogical reasoning limits, AI Scientist v2, ScienceAgentBench | Extending causal scaffolding, deciding what to build next, sensitivity analysis integration |
-| `reasoning-trace-verification.md` | Verifying agent reasoning traces: PRMs (ThinkPRM/VersaPRM/Med-PRM/VRPM), CoT faithfulness (7-13%), formal causal verification (DoWhy/dagitty/ananke), self-consistency for DAGs, cross-model review, interwhen interleaving. Rule-based > neural for formally verifiable domains. | Causal reasoning verification, dag_check.py upgrades, adjustment set validation, PRM selection |
-| `symphony-orchestrator-assessment.md` | OpenAI Symphony (Elixir/BEAM): continuous daemon polling Linear, Codex app-server protocol, WORKFLOW.md config, workpad-as-checkpoint, stall detection, per-state concurrency, no-DB in-memory state. Comparison to our orchestrator. | Orchestrator improvements, agent supervision patterns, multi-agent concurrency |
-| `code-structure-for-agents.md` | Repo formatting for agents: bitter lesson test, graph tools (CodexGraph/RIG/"One Tool Is Enough"), comments vs architecture maps, RAPTOR for code, what survives model improvements. File naming and CLAUDE.md maps are high-ROI; graph DBs and inline comments are not. | Repo/file organization, agent pliability, code navigation tools |
-| `autoresearch-analysis.md` | Karpathy's autoresearch: evolutionary code search with LLM-as-mutator, four viability conditions, cross-model reviewed adaptation plan, domain applicability | Autoresearch engine development, experiment design, autonomous optimization loops |
-| `agent-scaffolding-instructions-infra-2026-03.md` | Recent agent scaffolding, instruction-following, and infrastructure papers; signal vs noise filtering | Building agent harnesses, prompt/schema design, reliability infrastructure |
-| `agent-scaffolding-landscape-2026-03.md` | **March 2026 landscape.** MAST failure taxonomy (14 modes, 44% system design), ACT (RL for action judgment, +5 over IL), MCTS/tree planning, production 85-90% ceiling, self-improvement loops (SAMULE/ACE/ExIt), automated failure attribution (Shapley/GraphTracer), mandatory-thinking backfire, long-horizon persistence patterns | Agent architecture, failure diagnosis, self-improvement design, orchestrator improvements, planning |
-| `anthropic-platform-sweep-2026-03-02.md` | Claude Code v2.1.30→v2.1.63 features, API/SDK updates, Sonnet 4.6 launch, financial plugins inventory | Platform capability updates, Claude Code native features, SDK integration decisions |
-| `causal-reasoning-evidence.md` | LLM causal/abductive reasoning gaps, Rung Collapse, architectural limits vs prompt fixes, constrained output suppression | Causal inference in agents, DAG construction, reasoning scaffolding design |
-| `cross-project-infra-factoring.md` | Architectural assessment of 7-project overlap; why embeddings extracted, why dataset/DAG/telemetry/MCP/caching don't | Designing shared libraries, infrastructure extraction, future delegation candidates |
-| `epistemic-scaffolding-evidence.md` | Measurement infrastructure in agentic systems, PRMs vs outcome supervision, reflection gains (+4-14%), frontier agent benchmarks | Building epistemic verification, process supervision, sycophancy detection |
-| `exa-skill-vs-ours.md` | Exa's single-tool research skill vs our 7-tool+multi-source architecture (papers-mcp, Brave, Perplexity) | Research skill design, triangulation strategy, subagent delegation patterns |
-| `firecrawl-api-deep-dive.md` | 7 API endpoints, AGPL license, MCP server (14 tools), pricing tiers, self-hosting gaps | Web scraping tool selection, MCP configuration, self-hosted infrastructure |
-| `perplexity-sonar-api-landscape.md` | Four Perplexity APIs (Sonar/Agent/Search/Embeddings), billing models, OpenAI-compatible endpoints | Search API selection, grounded LLM integration, multi-model routing |
-| `runlog-otel-compatibility.md` | Runlog schema borrowing from OpenInference/OTel vocabulary; local-first domain model with later export target | Instrumentation design, observability schema, run logging architecture |
-| `schema-bounded-review-packets-2026-03.md` | Narrow use of schemas at handoff points (search→evidence→review→synthesize) vs wholesale structure conversion | Agent workflow design, interface minimization, when to structure vs prose |
-| `search-api-integration-landscape.md` | All 5 search APIs configured (Brave/Perplexity/Firecrawl/Exa/papers), migration to user scope, 14+ tool MCP footprint | Search tool selection, MCP configuration, API integration sequencing |
-| `skill-provenance-controls-2026-03.md` | Mutable instruction supply chain: skill inventory, version hashing, change detection | Skills governance, supply chain visibility, skill versioning strategy |
-| `epistemic-causal-bayesian-sweep-2026-03-12.md` | **March 2026 sweep.** Do-calculus three-framework comparison (Pearl/Robins-SWIGs/Dawid), Bayesian UQ (conformal prediction winning, e-values rising), PRM explosion (AgentPRM, ThinkPRM, 307-cite Alibaba lessons), Causal Rung Collapse still uncontested, uncertainty-as-active-signal paradigm | Epistemic infrastructure improvements, PRM adoption, calibration system design, causal scaffolding decisions |
-| `domain-specific-agent-biases.md` | Domain-specific cognitive biases: trading (bias echo, product bias, disposition mirroring), scientific review (citation prestige, positive-result amplification, consensus hallucination), engineering optimization (reward hacking, premature convergence, shortcut learning). 30 biases total, empirical evidence grading, detection methods | Domain-specific agent deployment, bias detection hooks, investment research agent design, autoresearch eval design |
-| `epistemic-architecture-v3.md` | **Core architectural memo.** Domain-branched epistemic layers (Layer 0 universal, Layer 1 domain-specific, Layer 2 meta-monitoring). 6 first-principles, 13-item phased implementation plan. New findings: ACC trajectory calibration (ECE 0.031), Girolli 2026 (bad scaffolding worse than none), scite as consensus hallucination detector, MAD skepticism. 18 papers. | Epistemic infrastructure design, domain-specific checks, calibration system, implementation prioritization |
+63 research memos in `research/`. Full index with topics and "consult before" triggers: `.claude/rules/research-index.md` (auto-loaded).
 
 <constitution>
 > **Human-protected.** Agent may propose changes but must not modify without explicit approval.
@@ -267,16 +201,12 @@ orchestrator.py summary                              # daily markdown
 ## Backlog
 
 - [ ] **Cron/auto-update skill** — Cross-project daily job monitoring new papers/tools/databases. (Source: genomics goals elicitation 2026-02-28)
-- [x] ~~**Hook ROI telemetry**~~ — PARTIALLY DONE. `~/.claude/hook-triggers.jsonl` logs triggers; `hook-roi.py` analyzes. Remaining: join with session outcomes for false-positive measurement. (Source: constitution model-review 2026-02-28)
-- [x] ~~**Regret/corrections metric**~~ — DONE (2026-03-14). `supervision-kpi.py` tracks SLI (corrections + denials + repeated instructions), AIR, AGR. (Source: constitution model-review 2026-02-28)
 - [ ] **Telegram approval bot** — Notify + approve/reject/modify orchestrator tasks from phone. ~50 lines Python + BotFather token. Slots into `requires_approval` gate. (Source: orchestrator plan session 2026-03-01)
-- [x] ~~**Expand calibration canary beyond bootstrap**~~ — DONE (2026-03-14). 25 canaries across 5 categories (added prediction_market: 5 resolved market questions), runs 3→10 weekly, monthly deep pipeline added.
 - [ ] **Evolutionary/genetic parallel mutation** — Spawn N parallel sub-agents with injected noise, select survivors, mutate again. Divergence as structural byproduct of mutation+selection, not brainstorming. Blocked on orchestrator parallel sub-agent infrastructure. (Source: model-review 2026-03-06, G1)
 - [ ] **Orthogonal RAG injection** — RAG pipeline that deliberately retrieves tangential/unrelated domain docs to force cross-domain mapping during divergent phases. Blocked on RAG pipeline. Analogical forcing (deployed) is the lightweight version. (Source: model-review 2026-03-06, G3)
 - [ ] **Design-bakeoff worktrees** — For high-uncertainty architecture tasks, spawn 2-3 parallel implementation spikes in separate worktrees, compare and select. Maps to Claude Code `--worktree` support. (Source: model-review 2026-03-06, P1)
 - [ ] **Cross-session anti-repetition cache** — Store recently proposed paradigms per topic so future brainstorming is pushed away from already-used idea families. Needs persistent storage mechanism. (Source: model-review 2026-03-06, P8)
 - [ ] **Intentional Contextual Fracture** — Redact/distort different parts of context for parallel generators; incomplete context forces different anchoring and pulls solutions from different domains. Needs orchestrator to manage parallel redacted prompts. (Source: model-review 2026-03-06, D2)
-- [x] ~~**Companion skill auto-loader**~~ — DONE (2026-03-07). `pretool-companion-remind.sh` in global hooks. Detects llmx→llmx-guide, bio/medical→epistemics. Once per skill per session.
 - [ ] **Session-analyst design-task check** — Verify that design tasks (architecture, strategy, shared infra) produce phase-state artifacts (divergent-options + selection-rationale). Forward commitment from constitutional P6. (Source: causal-scaffolding-v2 plan 2026-03-06)
 - [ ] **dag_suggest CPDAG output** — Data-driven DAG skeleton via causal-learn PC + bootstrap stability. Deferred: Phase 4 DoWhy assessment found tool ecosystem adds no value beyond dag_check.py for current use cases. Revisit if causal discovery from data becomes a need. (Source: causal-scaffolding-v2 plan 2026-03-06)
 
@@ -330,46 +260,12 @@ Lightweight decision records for concept-level pivots — when an approach is ch
 | Research MCP | `~/Projects/papers-mcp/` | Configured in `.mcp.json` per project |
 | Genomics pipeline | `~/Projects/genomics/` | Extracted from selve 2026-02-28 |
 
-## Intel-Local Skills
-
-| Shared skill | Intel-local variant | Difference |
-|-------------|---------------------|------------|
-| `competing-hypotheses` | `intel/.claude/skills/competing-hypotheses/` | Adds Bayesian LLR scoring via `ach_scorer.py` |
-| (none) | `intel/.claude/skills/thesis-check/` | Full adversarial trade-thesis stress-test (432 lines) |
-| `model-review` | `intel/.claude/skills/multi-model-review/` | Intel-specific review routing |
-
-## Hooks Summary
-
-22 global hooks (`~/Projects/skills/hooks/`), 5 intel-only, 1 skill-embedded. Full inventory in MEMORY.md under "Hooks Architecture."
-
-## Improvement Vector: Compression, Not Accumulation
-
-Things start as instructions, graduate to tools, graduate to infrastructure. Each step reduces surface area but increases expressiveness — same information, denser representation, more combinatorial power.
-
-```
-instruction (CLAUDE.md rule)  →  tool (skill/script)  →  infrastructure (hook/MCP/schema)
-15 rules about the same thing  →  3 principles + 2 hooks  →  1 architectural constraint
-5 entity-refresh prompts      →  1 pipeline template     →  1 scheduled job
-copy-paste retro snippet      →  /retro skill            →  nightly retro pipeline
-```
-
-**Observed examples:**
-- 178/week zsh multiline errors → one bash-loop-guard hook
-- 6 "don't guess column names" instructions → one DuckDB dry-run hook
-- Copy-paste retro snippets → `/retro` skill
-- Manual explore→review→plan→execute → orchestrator pipeline template
-
-**The heuristic:** Instructions that stay instructions forever are cruft. They should either die (not useful) or compress upward (become a tool or architectural constraint). When pruning, three outcomes: **keep** (still a leaf — reality needs the detail), **compress** (repeated enough to become trunk), **kill** (no longer relevant).
-
 ## Hook Design Principles
 - Deterministic > LLM-judged. Guard concrete invariants, not vibes.
 - Fail open unless blocking is clearly worth it.
 - `trap 'exit 0' ERR` swallows `exit 2` from Python — disable trap before critical Python calls.
 - Stop hooks must check `stop_hook_active` to prevent infinite loops.
-
-## Claude Code Hook Events
-
-18 events, 10 can block. Full table + decision control patterns + env vars in MEMORY.md under "Hooks Architecture." Source: https://code.claude.com/docs/en/hooks
+- 22 global hooks, 5 intel-only, 1 skill-embedded. Full inventory + hook events in MEMORY.md `hooks.md`.
 </reference_data>
 
 <cockpit>
