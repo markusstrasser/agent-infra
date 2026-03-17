@@ -470,6 +470,7 @@ def _run_claude_subprocess(task, cwd, progress_file=None):
             self.usage = {}
             self.model = model
             self.num_turns = 0
+            self.structured_output = None
 
     return {
         "result_msg": _FakeResult(),
