@@ -28,6 +28,12 @@ All prior findings hold. Additionally:
 - **Models tested:** DeepSeek-R1 671B, GPT-OSS 120B. Larger models show more performativity (less test-time compute needed → more theater on easy tasks).
 - **Implication for monitoring:** Text-based CoT monitors lag behind internal state. On tasks the model finds easy, the trace is unreliable for detecting early commitments, measuring uncertainty, or auditing decisions. Activation monitoring covers these failure cases.
 
+**NEW — "Gaming the Judge: Unfaithful Chain-of-Thought Can Undermine Agent Evaluation" (arXiv:2601.14691, Khalifa et al., 2026):** Extends CoT unfaithfulness to *agent evaluation* specifically. Unfaithful CoT can game LLM judges that rely on reasoning traces to assess agent behavior. Implications: trace-based monitoring (what we do in trace-faithfulness.py) must compare claims against actual tool calls, not trust the reasoning narrative. Our claim-vs-tool-use matching approach is the right design. [SOURCE: arXiv:2601.14691] [PREPRINT]
+
+**NEW — SPD-Faith Bench (arXiv:2602.07833, Lv et al., 2026):** First diagnostic benchmark for CoT faithfulness in multimodal LLMs. Extends faithfulness measurement beyond text-only to vision-language models. [SOURCE: arXiv:2602.07833] [PREPRINT]
+
+**Scite citation stance audit (2026-03-17):** No retractions or contrasting citations found for any CoT faithfulness paper in our corpus. The 7-13% unfaithfulness baseline remains uncontested. "Gaming the Judge" adds agent-specific evidence that the problem is worse in evaluation contexts than in standalone reasoning.
+
 ### What this means for agentic use
 
 Our prior conclusion holds but gets sharper: **the thinking trace is an imperfect window into the model's actual reasoning.** The Oxford paper adds formal rigor to what we suspected — procedural correctness AND causal accuracy are both required for faithfulness, and neither is reliably present.

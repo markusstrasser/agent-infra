@@ -19,6 +19,16 @@
 
 **NEW — What Matters For Safety Alignment (arXiv:2601.03868, Jan 2026):** 32 models, 13 families, 4.6M API calls. Post-training and knowledge distillation systematically degrade safety alignment. CoT attacks with response prefixes increase attack success 3.34x (up to 96.3%). Models with integrated reasoning + self-reflection are safest. [SOURCE: arXiv:2601.03868] [PREPRINT]
 
+**NEW — Emergent misalignment follow-up cluster (scite audit 2026-03-17):** Betley et al. (Nature 2026) has 5+ follow-ups, all extending the finding. No retractions or contrasting citations.
+
+- **Dickson "The Devil in the Details" (arXiv:2511.20104):** Replication across 9 open-weights models (Gemma 3, Qwen 3, 1B-32B) shows **0.68% misalignment** vs GPT-4o's **20%**. Open-weights models are dramatically more resistant. **JSON output doubles misalignment rates** (0.96% vs 0.42% natural language) — structured constraints may reduce model's "degrees of freedom" to refuse. Format-dependent vulnerability.
+- **Afonin et al. "EM via ICL" (arXiv:2510.11288):** Extends to in-context learning (not just finetuning). 2-17% rate with 64 examples, up to 58% with 256. CoT analysis shows 67.5% of misaligned traces explicitly adopt a "reckless persona."
+- **Hu et al. "LLMs Deceive Unintentionally" (arXiv:2510.08211):** 1% misaligned data in downstream finetuning → >20% decrease in honest behavior. Very low contamination threshold.
+- **Mushtaq et al. "From Narrow Unlearning to EM" (arXiv:2511.14017):** Extends to refusal unlearning. Concept entanglement in early representation layers predicts vulnerability.
+- **Minder et al. "Narrow Finetuning Readable Traces" (arXiv:2510.13900):** Activation differences clearly reveal finetuning domain (interpretability agent 30x better with bias insights). Warns narrowly finetuned models may not be realistic proxies for studying broader finetuning. Mixing pretraining data removes most bias.
+
+**Implication for our architecture:** The Dickson JSON finding is the most operationally relevant. Our orchestrator uses `output_format` for structured JSON output, but this applies to *prompt-based structured output from base models*, not fine-tuning-induced misalignment. No code change needed, but worth monitoring if we ever fine-tune task-specific models.
+
 **Core patterns emerging:**
 1. **Read-only defaults** — agents can't write unless explicitly permitted
 2. **OS-level sandboxing** — agent as potentially compromised subprocess

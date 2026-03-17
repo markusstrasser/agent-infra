@@ -239,3 +239,16 @@ Two new papers from March 5, 2026 are relevant to this memo:
 1. **Bias-Bounded Evaluation (A-BB)** (arXiv:2603.05485, Feuer et al.): Formal framework for bounding LLM judge bias via calibrated Gaussian noise (inspired by differential privacy). Achieves (τ=0.5, δ=0.01)-bias-bounded guarantees while retaining 61-99% ranking correlation. Key insight: rather than enumerating specific biases (position, format, self-preference), A-BB bounds ALL measurable biases simultaneously. Code: `github.com/penfever/bias-bounded-evaluation`. **Applicability to our model-review:** Currently blocked — our cross-model review outputs prose, not structured numeric scores. To use A-BB, we'd need to restructure model-review output to include rubric-scored judgments. Worth doing if we scale review volume. [SOURCE: arXiv:2603.05485] [PREPRINT]
 
 2. **Reasoning Theater** (arXiv:2603.05488): Cross-referenced from `cot-faithfulness-evidence.md`. Implication for cross-model review: on easy/obvious tasks, both models may generate performative reasoning that *looks* deliberate but is theater. False agreement on easy tasks is a distinct failure mode from correlated errors on hard tasks (Claim #1). Review quality is inversely proportional to task easiness — counterintuitive but measured.
+
+**2026-03-17 — Scite citation stance audit.**
+
+Citation landscape for key papers (as of 2026-03-17):
+
+| Paper | Citing pubs | Supporting | Contrasting | Assessment |
+|-------|-------------|-----------|-------------|------------|
+| Kim et al. "Correlated Errors" (ICML 2025) | 0 (1 mention) | 0 | 0 | **Under-tested.** The 60% shared error rate is our primary justification for cross-family review routing, but has attracted minimal independent validation. Treat as directionally correct, not established. |
+| Wataoka et al. "Self-Preference Bias" (NeurIPS 2024) | 10 | 1 | 0 | **Well-supported.** Perplexity-as-root-cause accepted. |
+| Choi et al. "Debate or Vote" (ACL 2025) | No tally data | — | — | Too new for citation ecosystem. Byzantine consensus (Berdoz et al.) provides independent corroboration. |
+| MAST failure taxonomy (NeurIPS 2025) | 24 | 0 | 0 | **Solid.** 44% system-design attribution uncontested. |
+
+No retractions, corrections, or editorial concerns found on any paper. Absence of contrasting citations is primarily a recency effect (2025-2026 papers). The Kim et al. under-citation is the most action-relevant finding — we should not overweight the specific 60% figure in design decisions, though the qualitative direction (correlated errors exist, same-provider worse) is well-established via FINCH-ZK's independent cross-family evidence (90.4% vs 59.1%).
