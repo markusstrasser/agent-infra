@@ -178,6 +178,110 @@ def analyze(events: list[dict], verbose: bool):
         print(f"- Would-block triggers: {would_block} ({rate:.1f}%) — target: ≤10% before promotion to blocking")
         print()
 
+    # --- Researcher-specific metrics ---
+    researcher_starts = [e for e in starts if e.get("agent_type") == "researcher"]
+    researcher_stops = [e for e in stops if e.get("agent_type") == "researcher"]
+
+    if researcher_starts:
+        r_start_ids = {e.get("agent_id") for e in researcher_starts if e.get("agent_id")}
+        r_stop_ids = {e.get("agent_id") for e in researcher_stops if e.get("agent_id")}
+        r_paired = r_start_ids & r_stop_ids
+        r_unpaired = r_start_ids - r_stop_ids
+
+        print(f"## Researcher Metrics ({len(researcher_starts)} spawns)\n")
+
+        # Completion rate
+        if r_start_ids:
+            comp_rate = len(r_paired) / len(r_start_ids) * 100
+            print(f"- Completion rate: {comp_rate:.1f}% ({len(r_paired)}/{len(r_start_ids)}) — target: >75%")
+            print(f"- Unpaired (silent failures): {len(r_unpaired)}")
+
+        # Weekly completion trend
+        weekly_starts = defaultdict(int)
+        weekly_stops = defaultdict(int)
+        for e in researcher_starts:
+            week = e["_ts"].strftime("%Y-W%W")
+            weekly_starts[week] += 1
+        for e in researcher_stops:
+            if e.get("agent_id") in r_start_ids:
+                week = e["_ts"].strftime("%Y-W%W")
+                weekly_stops[week] += 1
+
+        all_weeks = sorted(set(weekly_starts) | set(weekly_stops))
+        if len(all_weeks) > 1:
+            print("\n### Weekly Completion Trend\n")
+            print("| Week | Starts | Completions | Rate |")
+            print("|------|--------|-------------|------|")
+            for week in all_weeks:
+                s = weekly_starts[week]
+                c = weekly_stops[week]
+                rate = c / s * 100 if s else 0
+                print(f"| {week} | {s} | {c} | {rate:.0f}% |")
+
+        # Output quality tiers
+        r_sizes = [e.get("output_len", 0) for e in researcher_stops if e.get("output_len")]
+        if r_sizes:
+            tiers = {"empty (<200)": 0, "stub (200-2K)": 0, "partial (2K-5K)": 0, "full (>5K)": 0}
+            for s in r_sizes:
+                if s < 200:
+                    tiers["empty (<200)"] += 1
+                elif s < 2000:
+                    tiers["stub (200-2K)"] += 1
+                elif s < 5000:
+                    tiers["partial (2K-5K)"] += 1
+                else:
+                    tiers["full (>5K)"] += 1
+
+            print("\n### Output Quality Tiers\n")
+            print("| Tier | Count | Share |")
+            print("|------|-------|-------|")
+            for tier, count in tiers.items():
+                pct = count / len(r_sizes) * 100
+                print(f"| {tier} | {count} | {pct:.1f}% |")
+
+            mean_size = sum(r_sizes) / len(r_sizes)
+            print(f"\nMean researcher output: {mean_size:.0f} chars — target: >6000")
+
+        # Provenance compliance from researcher_stop_check events
+        if researcher_checks:
+            substantial = [e for e in researcher_checks if e.get("output_len", 0) >= 2000]
+            if substantial:
+                compliant = sum(1 for e in substantial if e.get("has_tags"))
+                comp_rate = compliant / len(substantial) * 100
+                print(f"\n### Provenance Compliance (output ≥2K chars)\n")
+                print(f"- Compliant: {compliant}/{len(substantial)} ({comp_rate:.1f}%) — target: >80%")
+
+        # Duration distribution (pair starts and stops by agent_id)
+        start_times = {e.get("agent_id"): e["_ts"] for e in researcher_starts if e.get("agent_id")}
+        durations = []
+        for e in researcher_stops:
+            aid = e.get("agent_id")
+            if aid and aid in start_times:
+                dur = (e["_ts"] - start_times[aid]).total_seconds()
+                if 0 < dur < 3600:  # Sanity: 0-60 minutes
+                    durations.append(dur)
+
+        if durations:
+            durations.sort()
+            mean_dur = sum(durations) / len(durations)
+            median_dur = durations[len(durations) // 2]
+            print(f"\n### Duration Distribution ({len(durations)} paired runs)\n")
+            print(f"- Mean: {mean_dur:.0f}s ({mean_dur / 60:.1f} min)")
+            print(f"- Median: {median_dur:.0f}s ({median_dur / 60:.1f} min)")
+            print(f"- Range: {durations[0]:.0f}s — {durations[-1]:.0f}s")
+
+        # Cost estimate
+        cost_per_run = 2.0
+        total_cost = len(researcher_starts) * cost_per_run
+        waste = len(r_unpaired) * cost_per_run
+        print(f"\n### Cost Estimate\n")
+        print(f"- Total researcher cost: ${total_cost:.0f} ({len(researcher_starts)} × ${cost_per_run})")
+        print(f"- Waste (unpaired): ${waste:.0f} ({len(r_unpaired)} × ${cost_per_run})")
+        if total_cost:
+            print(f"- Waste ratio: {waste / total_cost * 100:.0f}%")
+
+        print()
+
     # --- Verbose: per-type output sizes ---
     if verbose and stops:
         type_sizes = defaultdict(list)
