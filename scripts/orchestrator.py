@@ -861,6 +861,12 @@ def cmd_submit(args):
 
     for step_def in steps:
         step_name = step_def["step"]
+        # Support "type" as alias for "engine" (pipeline templates use "type": "script")
+        if "type" in step_def and "engine" not in step_def:
+            step_def["engine"] = step_def["type"]
+        # For script steps, use "command" as the prompt (stored in prompt column)
+        if step_def.get("engine") == "script" and "command" in step_def:
+            step_def.setdefault("prompt", step_def["command"])
         prompt = substitute_vars(step_def.get("prompt", ""), variables)
         step_project = step_def.get("project", project)
         needs_approval = 1 if step_name in pause_before else 0
@@ -1444,6 +1450,12 @@ def _check_scheduled_pipelines(db):
         prev_task_id = None
         for step_def in steps:
             step_name = step_def["step"]
+            # Support "type" as alias for "engine" (pipeline templates use "type": "script")
+            if "type" in step_def and "engine" not in step_def:
+                step_def["engine"] = step_def["type"]
+            # For script steps, use "command" as the prompt (stored in prompt column)
+            if step_def.get("engine") == "script" and "command" in step_def:
+                step_def.setdefault("prompt", step_def["command"])
             prompt = step_def.get("prompt", "")
             step_project = step_def.get("project", project)
             needs_approval = 1 if step_name in pause_before else 0
