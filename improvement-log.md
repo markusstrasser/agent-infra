@@ -35,7 +35,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [rule] When delegating to long-running agents, move to orthogonal tasks instead of duplicating. Use TaskOutput with block:true and appropriate timeout. If agents stall >10min, check their output — don't restart from scratch.
 - **Severity:** medium — wasted compute + duplicated effort
 - **Root cause:** agent-capability
-- **Status:** [ ] proposed
+- **Status:** [x] implemented — added subagent patience rule in global CLAUDE.md <subagent_usage> section
 
 ### [2026-03-18] TOKEN WASTE: Guessed codex CLI flags instead of --help first (cross-project recurrence)
 - **Session:** meta 44a295db, selve 948ee3e4
@@ -44,7 +44,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [rule] Before dispatching parallel CLI tasks with unfamiliar flags, run `<tool> --help` once. Existing "probe before build" principle applies to CLI tools, not just APIs.
 - **Severity:** medium — 16 wasted dispatches, easily preventable
 - **Root cause:** agent-capability
-- **Status:** [ ] proposed
+- **Status:** [x] implemented — extended probe-before-build rule #6 in global CLAUDE.md to cover CLI tools
 
 ### [2026-03-16] Session Analyst — Behavioral Anti-Patterns (meta, 2 sessions)
 - **Source:** Gemini 3.1 Pro analysis of sessions 8e116e4f, 16c56123 (2026-03-15)
