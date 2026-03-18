@@ -17,7 +17,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [rule] For bioinformatics analyses, verify theoretical feasibility against specific data characteristics before implementing pipeline. Quick sanity check: "Given [data type/quality], can [method] actually resolve [question]?"
 - **Severity:** high — full pipeline built ($15+ compute), outcome predictable from input data properties
 - **Root cause:** agent-capability
-- **Status:** [ ] proposed
+- **Status:** [~] subsumed — covered by extended probe-before-build rule #6 ("validate the core assumption BEFORE wiring into infrastructure"). Monitor for recurrence; if it recurs, add domain-specific genomics rule.
 
 ### [2026-03-18] BUILD-THEN-UNDO: 9 remote deploy iterations to debug C extension linking
 - **Session:** genomics 48f0dedc
@@ -26,7 +26,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [rule] For C extension/environment issues, reproduce locally in minimal Docker container before iterating on cloud deploys. `docker run --rm -it python:3.12 bash` for quick repro.
 - **Severity:** high — 9 deploy cycles, ~$20 compute, pattern avoidable with local repro
 - **Root cause:** task-specification
-- **Status:** [ ] proposed
+- **Status:** [~] deferred — first occurrence, partially covered by probe-before-build. Promote to explicit rule if remote-debug-loop recurs.
 
 ### [2026-03-18] LATENCY-INDUCED AVOIDANCE: Abandoned own subagents mid-flight, duplicated their work manually
 - **Session:** genomics 48f0dedc, selve 22874764
