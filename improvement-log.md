@@ -6,6 +6,46 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-03-18] Session Analyst — Behavioral Anti-Patterns (selve/genomics/meta, 13 sessions)
+- **Source:** Gemini 3.1 Pro analysis of sessions across 3 projects (2026-03-16 to 2026-03-18)
+- **Shape anomalies:** 13/43 sessions flagged (tool_intensity, mcp_fraction, commit_ratio)
+
+### [2026-03-18] MISSING PUSHBACK: Built genome-wide phasing pipeline without feasibility check
+- **Session:** genomics 3fa7eadd
+- **Evidence:** Agent wrote modal_whatshap.py and ran full WhatsHap pipeline. Only after user asked "what is this gonna give us?" admitted: median block = 2 variants, 9bp; most compound het pairs kilobases apart, remain UNKNOWN. Built first, assessed second.
+- **Failure mode:** Domain context ignored until prompted — should have checked data characteristics (read depth, fragment length) against analysis requirements before implementing
+- **Proposed fix:** [rule] For bioinformatics analyses, verify theoretical feasibility against specific data characteristics before implementing pipeline. Quick sanity check: "Given [data type/quality], can [method] actually resolve [question]?"
+- **Severity:** high — full pipeline built ($15+ compute), outcome predictable from input data properties
+- **Root cause:** agent-capability
+- **Status:** [ ] proposed
+
+### [2026-03-18] BUILD-THEN-UNDO: 9 remote deploy iterations to debug C extension linking
+- **Session:** genomics 48f0dedc
+- **Evidence:** Debugging Aldy's bgzf_read htslib error via 9 sequential Modal deployments: zlib, bioconda, LD_LIBRARY_PATH in subprocess, image env, --no-binary, HTSLIB_MODE=shared, ctypes.RTLD_GLOBAL, typo fix, RTLD_GLOBAL|RTLD_LAZY. Each = Edit + commit + modal run.
+- **Failure mode:** Remote debugging loop — trial-and-error on cloud deploys when local Docker repro would be faster and cheaper
+- **Proposed fix:** [rule] For C extension/environment issues, reproduce locally in minimal Docker container before iterating on cloud deploys. `docker run --rm -it python:3.12 bash` for quick repro.
+- **Severity:** high — 9 deploy cycles, ~$20 compute, pattern avoidable with local repro
+- **Root cause:** task-specification
+- **Status:** [ ] proposed
+
+### [2026-03-18] LATENCY-INDUCED AVOIDANCE: Abandoned own subagents mid-flight, duplicated their work manually
+- **Session:** genomics 48f0dedc, selve 22874764
+- **Evidence:** (1) Dispatched 5 Agent() tools, polled 4x with sleep, said "Let me stop waiting and work directly", curled GitHub APIs manually — rendering delegated compute wasted. (2) In selve, parsed incomplete JSONL of running agents instead of waiting for completion.
+- **Failure mode:** Impatience with async tools — ATP leading indicator (arXiv:2510.04860)
+- **Proposed fix:** [rule] When delegating to long-running agents, move to orthogonal tasks instead of duplicating. Use TaskOutput with block:true and appropriate timeout. If agents stall >10min, check their output — don't restart from scratch.
+- **Severity:** medium — wasted compute + duplicated effort
+- **Root cause:** agent-capability
+- **Status:** [ ] proposed
+
+### [2026-03-18] TOKEN WASTE: Guessed codex CLI flags instead of --help first (cross-project recurrence)
+- **Session:** meta 44a295db, selve 948ee3e4
+- **Evidence:** Both sessions: agent dispatched 6-8 parallel codex tasks with guessed flags (--quiet, missing exec subcommand). All failed. Only then ran --help. Pattern identical across two independent sessions. ~16 wasted task dispatches total.
+- **Failure mode:** Overconfident CLI flag guessing — probe before build violation
+- **Proposed fix:** [rule] Before dispatching parallel CLI tasks with unfamiliar flags, run `<tool> --help` once. Existing "probe before build" principle applies to CLI tools, not just APIs.
+- **Severity:** medium — 16 wasted dispatches, easily preventable
+- **Root cause:** agent-capability
+- **Status:** [ ] proposed
+
 ### [2026-03-16] Session Analyst — Behavioral Anti-Patterns (meta, 2 sessions)
 - **Source:** Gemini 3.1 Pro analysis of sessions 8e116e4f, 16c56123 (2026-03-15)
 
