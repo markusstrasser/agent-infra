@@ -180,6 +180,7 @@ orchestrator.py summary                              # daily markdown
 
 **Key design choices:**
 - `--no-session-persistence` and `--worktree` both dropped — they suppress transcripts (breaks session-analyst)
+- `--worktree` now loads skills/hooks (fixed in v2.1.76) — `isolation: "worktree"` agents get full skill/hook access
 - Cross-project execute steps auto-require approval (constitutional hard limit)
 - `done_with_denials` is a distinct terminal status (permission denials are not silent)
 - `DAILY_COST_CAP = $25` enforced before each tick
@@ -229,6 +230,7 @@ uv run python3 substrate/ingest_selve.py                               # re-inge
 - [ ] **Intentional Contextual Fracture** — Redact/distort different parts of context for parallel generators; incomplete context forces different anchoring and pulls solutions from different domains. Needs orchestrator to manage parallel redacted prompts. (Source: model-review 2026-03-06, D2)
 - [ ] **Session-analyst design-task check** — Verify that design tasks (architecture, strategy, shared infra) produce phase-state artifacts (divergent-options + selection-rationale). Forward commitment from constitutional P6. (Source: causal-scaffolding-v2 plan 2026-03-06)
 - [ ] **dag_suggest CPDAG output** — Data-driven DAG skeleton via causal-learn PC + bootstrap stability. Deferred: Phase 4 DoWhy assessment found tool ecosystem adds no value beyond dag_check.py for current use cases. Revisit if causal discovery from data becomes a need. (Source: causal-scaffolding-v2 plan 2026-03-06)
+- [ ] **worktree.sparsePaths for genomics** — Large repo, worktree creation is slow. `worktree.sparsePaths` (v2.1.76+) can limit checkout to relevant dirs. Measure actual worktree time first. (Source: Claude Code 2.1.76 changelog)
 
 ## Decision Journal (`decisions/`)
 
