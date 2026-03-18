@@ -161,6 +161,9 @@ def main():
     # --- Session facets panel (from /insights data) ---
     print_facets_panel(cutoff)
 
+    # --- Overview freshness panel ---
+    print_overview_panel()
+
     # --- Epistemic metrics panel ---
     print_epistemic_panel(cutoff)
 
@@ -314,6 +317,52 @@ def print_orchestrator_panel(cutoff: datetime):
 
     print()
     db.close()
+
+
+def print_overview_panel():
+    """Print overview freshness across projects."""
+    from config import PROJECT_ROOTS
+    import re as _re
+
+    rows = []
+    for name, root in PROJECT_ROOTS.items():
+        overview_dir = root / ".claude" / "overviews"
+        if not overview_dir.exists():
+            continue
+        for f in sorted(overview_dir.glob("*-overview.md")):
+            try:
+                text = f.read_text(errors="replace")[:500]
+                m = _re.search(
+                    r"<!-- Generated: (\S+) \| git: (\S+) \| model: (\S+) -->", text
+                )
+                otype = f.stem.replace("-overview", "")
+                if m:
+                    gen_ts = m.group(1)
+                    try:
+                        gen_dt = datetime.fromisoformat(gen_ts.replace("Z", "+00:00")).replace(tzinfo=None)
+                        age_days = (datetime.now() - gen_dt).days
+                        age = f"{age_days}d" if age_days > 0 else "<1d"
+                    except ValueError:
+                        age = "?"
+                else:
+                    mtime = datetime.fromtimestamp(f.stat().st_mtime)
+                    age_days = (datetime.now() - mtime).days
+                    age = f"~{age_days}d"
+                rows.append((name, otype, age))
+            except OSError:
+                continue
+
+    if not rows:
+        return
+
+    print()
+    print(f"{'=' * 50}")
+    print("  Overviews")
+    print(f"{'=' * 50}")
+    print()
+    for name, otype, age in rows:
+        print(f"    {name:<12} {otype:<12} {age}")
+    print()
 
 
 def print_facets_panel(cutoff: datetime):
