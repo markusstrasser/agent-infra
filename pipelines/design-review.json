@@ -1,0 +1,17 @@
+{
+  "name": "design-review",
+  "description": "Weekly architectural pattern review across projects",
+  "schedule": "0 10 * * 6",
+  "project": "meta",
+  "steps": [
+    {
+      "step": "review",
+      "prompt": "/design-review --days 7",
+      "max_turns": 20,
+      "max_budget_usd": 2.0,
+      "model": "sonnet",
+      "effort": "medium",
+      "cwd": "~/Projects/meta"
+    }
+  ]
+}
