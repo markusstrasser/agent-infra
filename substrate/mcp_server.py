@@ -221,6 +221,51 @@ self-documenting.""",
                 result += f"           reason: {e['reason']}\n"
         return result
 
+    @mcp.tool()
+    def register_batch(
+        assertions: str = "[]",
+        evidence: str = "[]",
+        dependencies: str = "[]",
+    ) -> str:
+        """Register multiple assertions, evidence, and dependencies in one call.
+
+        Accepts JSON arrays. Executes all registrations, then all dependencies.
+        Use this instead of calling register_assertion/evidence/add_dependency
+        individually when you have multiple items to register.
+
+        Args:
+            assertions: JSON array of {id, type, title, status?, source_file?, payload?}
+            evidence: JSON array of {id, type, source, title?, source_grade?, payload?}
+            dependencies: JSON array of {source_id, target_id, relation}
+        """
+        a_list = json.loads(assertions)
+        e_list = json.loads(evidence)
+        d_list = json.loads(dependencies)
+        counts = {"assertions": 0, "evidence": 0, "dependencies": 0}
+        for a in a_list:
+            db.register_assertion(
+                a["id"], type=a["type"], title=a["title"],
+                status=a.get("status", "active"),
+                source_file=a.get("source_file"),
+                payload=a.get("payload", {}),
+            )
+            counts["assertions"] += 1
+        for e in e_list:
+            db.register_evidence(
+                e["id"], type=e["type"], source=e["source"],
+                title=e.get("title"),
+                source_grade=e.get("source_grade"),
+                payload=e.get("payload", {}),
+            )
+            counts["evidence"] += 1
+        for d in d_list:
+            db.add_relation(d["source_id"], d["target_id"], d["relation"])
+            counts["dependencies"] += 1
+        return (
+            f"Batch registered: {counts['assertions']} assertions, "
+            f"{counts['evidence']} evidence, {counts['dependencies']} dependencies"
+        )
+
     return mcp
 
 
