@@ -42,9 +42,35 @@ Not the skill — the new API capabilities behind it:
 
 All already accessible through our existing MCP tools. Documented in `agentic-search-api-comparison.md` §11 with routing table.
 
+## Websets API Assessment (2026-03-18)
+
+**What it is:** Async entity discovery pipeline — search → AI verification against criteria → structured enrichment → scheduled monitoring via cron-like "Monitors." Managed by Exa. Results arrive as webhook events (`webset.item.created`, `webset.item.enriched`).
+
+**Key features:**
+- AI-powered verification: each result checked against user-defined criteria before inclusion
+- Enrichments: extract structured fields from discovered entities
+- Monitors: scheduled re-runs (cron + timezone) with automatic deduplication
+- Bulk export when idle
+
+**Overlap with our setup:**
+
+| Websets capability | Our equivalent | Gap? |
+|---|---|---|
+| Entity discovery | `web_search_advanced_exa` + `outputSchema` | No |
+| AI verification | `verify_claim` (Exa /answer, cached 7d) | Minor — Websets is inline, ours is post-hoc |
+| Scheduled monitoring | Orchestrator `trigger-monitor` / `entity-refresh` pipelines | No — ours has more control |
+| Enrichment | `outputSchema` with `output.grounding` | No |
+| Deduplication | Knowledge substrate (unique constraints) | No |
+| Multi-source triangulation | Exa + Brave + S2 + scite | **Websets is single-index — worse** |
+
+**Verdict: skip.** Orchestrator + multi-API triangulation is architecturally stronger than a managed single-index pipeline. The inline verification is the only novel piece, and it doesn't justify single-vendor lock-in. No Websets MCP tools exist in our current Exa config — would need custom API integration.
+
+**Revisit if:** (1) Websets adds MCP tools, (2) we need a zero-maintenance company watchlist that doesn't justify orchestrator pipeline overhead, or (3) Exa adds cross-index verification.
+
 ## Sources
 
 - Exa Search API docs: https://exa.ai/docs/reference/search
 - Exa Research API docs: https://exa.ai/docs/reference/exa-research
 - Exa Deep changelog: https://exa.ai/docs/changelog/new-deep-search-type
+- Exa Websets docs: https://exa.ai/docs/websets
 - Our benchmark: `benchmarks/comparison-report.md` (EBF3 query, §10 of search comparison)
