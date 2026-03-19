@@ -13,6 +13,10 @@ dependencies = [
 [project.scripts]
 meta-mcp = "meta_mcp:main"
 
+[tool.pyright]
+typeCheckingMode = "basic"
+exclude = ["artifacts/", "downloads/", "bundles/", ".claude/worktrees/"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
