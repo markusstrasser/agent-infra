@@ -23,7 +23,7 @@ Don't write 280 lines then discover the user wanted a different angle.
 ```
 my-skill/
 ├── SKILL.md          # Required: instructions + frontmatter
-├── references/       # Optional: loaded on demand
+├── references/       # Optional: loaded on demand (L3)
 ├── scripts/          # Optional: executed, not loaded into context
 └── assets/           # Optional: templates, resources for output
 ```
@@ -114,14 +114,14 @@ Don't set one freedom level per skill — set it per step. Different steps need 
 Annotate phases with their type for self-documentation:
 
 ```markdown
-## Phase 1 — Research ← Procedural
+## Phase 1 — Research <- Procedural
 Search broadly across 3+ sources...
 
-## Phase 2 — Evaluate ← Criteria
+## Phase 2 — Evaluate <- Criteria
 Score each option on: cost, integration ease, learning curve.
 Recommend the highest overall scorer.
 
-## Phase 3 — Report ← Template
+## Phase 3 — Report <- Template
 | # | Option | Cost | Integration | Learning | Score |
 ...
 
@@ -136,31 +136,50 @@ Recommend the highest overall scorer.
 
 Three loading stages:
 
-1. **Metadata** (~100 tokens) — description always in context
-2. **SKILL.md body** (<5K tokens) — loaded when skill triggers
-3. **Bundled files** — loaded only when Claude needs them
+1. **L1 — Metadata** (~100 tokens) — description always in context for routing
+2. **L2 — SKILL.md body** (<5K tokens ideal, 500 lines max) — loaded when skill triggers
+3. **L3 — Reference files** (`references/`) — loaded only when Claude reads them on demand
 
-Reference companion files explicitly:
+### L3 Extraction Decision Rubric
+
+When a SKILL.md exceeds ~400 lines, extract low-frequency content to `references/`. Use **decision-criticality** to decide what stays in L2 vs moves to L3:
+
+| Invocation use | Decision-critical? | Action |
+|----------------|-------------------|--------|
+| >50% of invocations | Yes | **Stays in L2** — needed before first tool call |
+| >50% of invocations | No | Stays in L2 but candidate for compression |
+| <20% of invocations | Yes | Stays in L2 as compact summary, full detail in L3 |
+| <20% of invocations | No | **Move to L3** — reference file with pointer |
+
+**The chicken-and-egg problem:** Some content (tool routing, API selection) is needed BEFORE the first tool call. If you extract it entirely to L3, the agent must read the reference file before doing anything -- adding a tool call and context load to every invocation. Keep a compact routing summary (5-15 lines) in L2 with a pointer to the full reference.
+
+**Production examples:**
+- `researcher/` -- 44-row tool table + Exa search philosophy extracted to `references/tool-routing.md` and `references/search-philosophy.md`. 15-line routing summary stays in L2. Result: 37K -> 19K (49% reduction).
+- `model-guide/` -- `PROMPTING_*.md`, `BENCHMARKS.md`, `CHANGELOG.md` moved to `references/`. Quick selection matrix stays in L2.
+
+### Reference File Pointers
+
+Use `${CLAUDE_SKILL_DIR}` for explicit paths or bare relative paths:
 
 ```markdown
-For PostgreSQL specifics, read `references/postgresql.md`.
-For optimization patterns, read `references/optimization.md`.
+For detailed tool descriptions, read `${CLAUDE_SKILL_DIR}/references/tool-routing.md`.
+For prompting specifics, read `references/PROMPTING_CLAUDE.md`.
 ```
 
-Organize by domain, not by file type:
+Organize references by domain, not by file type:
 
 ```
 references/
-├── postgresql.md
-├── mysql.md
-└── optimization.md
+├── tool-routing.md
+├── search-philosophy.md
+└── benchmarks.md
 ```
 
 For files >100 lines, include a table of contents so Claude can see scope before reading.
 
 ## Subagent Execution
 
-`context: fork` runs the skill in an isolated subagent. The skill content becomes the subagent's task — it won't see conversation history.
+`context: fork` runs the skill in an isolated subagent. The skill content becomes the subagent's task -- it won't see conversation history.
 
 ```yaml
 ---
@@ -199,3 +218,4 @@ Only works for skills with explicit tasks. Guidelines-only skills (no actionable
 - **Auxiliary file bloat** — README, CHANGELOG, docs about the skill. The agent doesn't need meta-docs.
 - **All-in-SKILL.md** — dumping 1000 lines into the main file instead of using references/.
 - **Background knowledge as task** — `user-invocable: false` skill with no actionable content.
+- **Full extraction of decision-critical content** — moving tool routing entirely to L3 when it's needed before the first tool call. Keep a compact summary in L2.
