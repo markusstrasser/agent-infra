@@ -98,8 +98,8 @@ def load_sessions(days: int = 90, project: str | None = None) -> list[SessionPro
         print(f"ERROR: No runlog DB at {DB_PATH}")
         sys.exit(1)
 
-    db = sqlite3.connect(str(DB_PATH))
-    db.row_factory = sqlite3.Row
+    from common.db import open_db
+    db = open_db(DB_PATH)
 
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
 

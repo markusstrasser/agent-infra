@@ -244,9 +244,8 @@ def print_orchestrator_panel(cutoff: datetime):
     if not db_path.exists():
         return
 
-    import sqlite3
-    db = sqlite3.connect(str(db_path))
-    db.row_factory = sqlite3.Row
+    from common.db import open_db
+    db = open_db(db_path)
 
     cutoff_str = cutoff.strftime("%Y-%m-%d %H:%M:%S")
     tasks = db.execute("""

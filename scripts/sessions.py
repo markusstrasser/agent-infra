@@ -116,10 +116,8 @@ CONTENT_TEXT_MAX = 8000
 
 
 def get_db() -> sqlite3.Connection:
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    db = sqlite3.connect(str(DB_PATH))
-    db.row_factory = sqlite3.Row
-    db.execute("PRAGMA journal_mode=WAL")
+    from common.db import open_db
+    db = open_db(DB_PATH)
     db.executescript(SCHEMA_SESSIONS)
     _migrate_schema(db)
     db.executescript(SCHEMA_FTS)

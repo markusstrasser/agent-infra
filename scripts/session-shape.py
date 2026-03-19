@@ -133,8 +133,8 @@ def main():
         print("Session DB not found. Run: uv run python3 scripts/sessions.py index", file=sys.stderr)
         sys.exit(1)
 
-    db = sqlite3.connect(str(DB_PATH))
-    db.row_factory = sqlite3.Row
+    from common.db import open_db
+    db = open_db(DB_PATH)
 
     since = (datetime.now(timezone.utc) - timedelta(days=args.days)).isoformat()
     query = """

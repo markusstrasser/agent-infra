@@ -72,9 +72,8 @@ DEFAULT_EFFORT = {
 # ---------------------------------------------------------------------------
 
 def get_db():
-    db = sqlite3.connect(str(DB_PATH))
-    db.row_factory = sqlite3.Row
-    db.execute("PRAGMA journal_mode=WAL")
+    from common.db import open_db
+    db = open_db(DB_PATH)
     _migrate_if_needed(db)
     return db
 

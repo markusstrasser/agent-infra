@@ -191,9 +191,8 @@ def orchestrator_queue() -> dict:
     if not ORCHESTRATOR_DB.exists():
         return {"pending": 0, "running": 0, "failed": 0, "tasks": []}
 
-    import sqlite3
-    db = sqlite3.connect(str(ORCHESTRATOR_DB))
-    db.row_factory = sqlite3.Row
+    from common.db import open_db
+    db = open_db(ORCHESTRATOR_DB)
 
     pending = db.execute(
         "SELECT count(*) as n FROM tasks WHERE status='pending'"

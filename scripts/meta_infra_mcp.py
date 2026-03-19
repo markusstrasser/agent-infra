@@ -30,9 +30,8 @@ IMPROVEMENT_LOG = Path(__file__).resolve().parent.parent / "improvement-log.md"
 # ---------------------------------------------------------------------------
 
 def _get_sessions_db() -> sqlite3.Connection:
-    db = sqlite3.connect(str(SESSIONS_DB), timeout=5)
-    db.row_factory = sqlite3.Row
-    return db
+    from common.db import open_db
+    return open_db(SESSIONS_DB)
 
 
 def _fts5_sanitize(query: str) -> str:

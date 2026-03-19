@@ -41,11 +41,8 @@ def sha256_file(path: Path) -> str:
 
 
 def get_db(path: Path) -> sqlite3.Connection:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    db = sqlite3.connect(str(path), isolation_level=None)
-    db.row_factory = sqlite3.Row
-    db.execute("PRAGMA foreign_keys = ON")
-    db.execute("PRAGMA journal_mode = WAL")
+    from common.db import open_db
+    db = open_db(path, foreign_keys=True, isolation_level=None)
     db.executescript(SCHEMA_PATH.read_text())
     return db
 

@@ -99,10 +99,8 @@ CREATE INDEX IF NOT EXISTS idx_last_seen ON findings(last_seen);
 
 
 def get_db() -> sqlite3.Connection:
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    db = sqlite3.connect(str(DB_PATH))
-    db.row_factory = sqlite3.Row
-    db.execute("PRAGMA journal_mode=WAL")
+    from common.db import open_db
+    db = open_db(DB_PATH)
     db.executescript(SCHEMA)
     # Add concept_tag column if missing (migration for existing DBs)
     try:

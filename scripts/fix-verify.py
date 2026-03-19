@@ -55,9 +55,8 @@ def get_findings_db() -> sqlite3.Connection:
         print("Findings DB not found. Run: uv run python3 scripts/finding-triage.py ingest",
               file=sys.stderr)
         sys.exit(1)
-    db = sqlite3.connect(str(FINDINGS_DB))
-    db.row_factory = sqlite3.Row
-    return db
+    from common.db import open_db
+    return open_db(FINDINGS_DB)
 
 
 def get_sessions_db() -> sqlite3.Connection:
@@ -65,9 +64,8 @@ def get_sessions_db() -> sqlite3.Connection:
         print("Sessions DB not found. Run: uv run python3 scripts/sessions.py index",
               file=sys.stderr)
         sys.exit(1)
-    db = sqlite3.connect(str(SESSIONS_DB))
-    db.row_factory = sqlite3.Row
-    return db
+    from common.db import open_db
+    return open_db(SESSIONS_DB)
 
 
 def run_detection_query(sessions_db: sqlite3.Connection, query: str, since: str) -> list[dict]:
