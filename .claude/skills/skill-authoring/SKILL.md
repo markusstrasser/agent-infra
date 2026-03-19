@@ -148,6 +148,7 @@ When a SKILL.md exceeds ~400 lines, extract low-frequency content to `references
 |----------------|-------------------|--------|
 | >50% of invocations | Yes | **Stays in L2** — needed before first tool call |
 | >50% of invocations | No | Stays in L2 but candidate for compression |
+| 20-50% of invocations | Either | Use judgment — L2 if decision-critical, L3 if lookup-only |
 | <20% of invocations | Yes | Stays in L2 as compact summary, full detail in L3 |
 | <20% of invocations | No | **Move to L3** — reference file with pointer |
 
