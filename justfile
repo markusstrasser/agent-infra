@@ -126,6 +126,11 @@ plans-json:
 
 # ── Sessions ─────────────────────────────────────────────────────
 
+# Import vendor logs into runlogs.db
+[group('sessions')]
+runlog-import:
+    uv run python3 scripts/runlog.py import
+
 # Session search & dispatch (index, list, search, show, dispatch)
 [group('sessions')]
 sessions *args:
