@@ -4,7 +4,9 @@ Thin wrapper over SQLite. No ORM. Domain-specific logic stays in project profile
 """
 
 import json
+import re
 import sqlite3
+from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -16,6 +18,19 @@ class _DateEncoder(json.JSONEncoder):
         return super().default(obj)
 
 SCHEMA_SQL = Path(__file__).parent / "schema.sql"
+
+
+@dataclass
+class ReflectResult:
+    """Result of a reflect() call -- LLM synthesis over recalled knowledge."""
+    text: str
+    cited_ids: list[str] = field(default_factory=list)
+    hallucinated_ids: list[str] = field(default_factory=list)
+    recalled_ids: list[str] = field(default_factory=list)
+    query: str = ""
+    model: str = ""
+    input_tokens: int = 0
+    output_tokens: int = 0
 
 
 def _now() -> str:
@@ -333,6 +348,345 @@ class KnowledgeDB:
             "SELECT * FROM changelog ORDER BY timestamp DESC LIMIT ?", (limit,)
         ).fetchall()
         return [dict(r) for r in rows]
+
+    # --- Search ---
+
+    def search_objects(self, query: str, *, max_results: int = 20) -> list[dict]:
+        """LIKE-based scan across assertions, evidence, artifacts.
+
+        Tokenizes query, scores matches in id/title/type/payload.
+        Returns top-K results with _type and _score fields.
+        Excludes stale objects.
+        """
+        tokens = [t.lower() for t in re.split(r'\s+', query.strip()) if t]
+        if not tokens:
+            return []
+
+        scored: list[tuple[float, dict]] = []
+        tables = [
+            ("assertions", "assertion"),
+            ("evidence", "evidence"),
+            ("artifacts", "artifact"),
+        ]
+        for table, obj_type in tables:
+            rows = self.conn.execute(
+                f"SELECT * FROM {table} WHERE status != 'stale'"
+            ).fetchall()
+            for row in rows:
+                d = dict(row)
+                d["_type"] = obj_type
+                if "payload" in d:
+                    d["payload"] = json.loads(d["payload"])
+
+                # Build searchable text from key fields
+                fields = [
+                    d.get("id", ""),
+                    d.get("title", "") or "",
+                    d.get("type", ""),
+                ]
+                # Extract key fields from payload instead of raw JSON
+                payload = d.get("payload", {})
+                if isinstance(payload, dict):
+                    for _k, v in payload.items():
+                        if isinstance(v, str):
+                            fields.append(v)
+                        elif isinstance(v, (list, tuple)):
+                            fields.extend(str(x) for x in v)
+
+                searchable = " ".join(fields).lower()
+                score = sum(searchable.count(t) for t in tokens)
+                if score > 0:
+                    d["_score"] = score
+                    scored.append((score, d))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [item for _, item in scored[:max_results]]
+
+    # --- Reflect (LLM synthesis) ---
+
+    def reflect(self, query: str, *, max_results: int = 20,
+                model: str = "claude-haiku-4-5-20251001",
+                max_tokens: int = 1024,
+                max_context_objects: int = 40) -> ReflectResult:
+        """Search the substrate and synthesize an answer using an LLM.
+
+        1. Recall: LIKE search across assertions+evidence+artifacts
+        2. Graph expand: 1-hop relations for each recalled object
+        3. Assemble context: Format for LLM
+        4. Synthesize: Single Anthropic SDK call
+        5. Return: ReflectResult with citations
+
+        Falls back to plain recalled context if Anthropic API fails.
+        """
+        # Step 1: Recall
+        recalled = self.search_objects(query, max_results=max_results)
+        recalled_ids = [obj["id"] for obj in recalled]
+
+        if not recalled:
+            return ReflectResult(
+                text="No relevant objects found in the knowledge substrate.",
+                cited_ids=[], hallucinated_ids=[], recalled_ids=[],
+                query=query, model=model, input_tokens=0, output_tokens=0,
+            )
+
+        # Step 2: Graph expand -- 1-hop relations for each recalled object
+        expanded: dict[str, dict] = {obj["id"]: obj for obj in recalled}
+        for obj in recalled:
+            oid = obj["id"]
+            # Outgoing relations (this object depends on target)
+            out_rows = self.conn.execute(
+                "SELECT target_id FROM relations WHERE source_id = ?",
+                (oid,),
+            ).fetchall()
+            for r in out_rows:
+                tid = r["target_id"]
+                if tid not in expanded:
+                    neighbor = self.get(tid)
+                    if neighbor and neighbor.get("status") != "stale":
+                        neighbor["_score"] = 0
+                        expanded[tid] = neighbor
+
+            # Incoming relations (other objects depend on this)
+            in_rows = self.conn.execute(
+                "SELECT source_id FROM relations WHERE target_id = ?",
+                (oid,),
+            ).fetchall()
+            for r in in_rows:
+                sid = r["source_id"]
+                if sid not in expanded:
+                    neighbor = self.get(sid)
+                    if neighbor and neighbor.get("status") != "stale":
+                        neighbor["_score"] = 0
+                        expanded[sid] = neighbor
+
+        # Cap total objects at max_context_objects, prune lowest-scored
+        all_objects = list(expanded.values())
+        all_objects.sort(key=lambda x: x.get("_score", 0), reverse=True)
+        all_objects = all_objects[:max_context_objects]
+        all_ids = {obj["id"] for obj in all_objects}
+
+        # Step 3: Assemble context
+        context_parts = []
+        for obj in all_objects:
+            obj_type = obj.get("_type", "unknown")
+            oid = obj["id"]
+            title = obj.get("title") or "(no title)"
+            status = obj.get("status", "")
+
+            # Extract key payload fields
+            payload = obj.get("payload", {})
+            payload_summary = ""
+            if isinstance(payload, dict) and payload:
+                key_fields = []
+                for k, v in list(payload.items())[:8]:
+                    if isinstance(v, str) and len(v) > 200:
+                        v = v[:200] + "..."
+                    key_fields.append(f"  {k}: {v}")
+                if key_fields:
+                    payload_summary = "\n".join(key_fields)
+
+            part = f"[{obj_type}] {oid}: {title} (status: {status})"
+            if payload_summary:
+                part += f"\n{payload_summary}"
+            context_parts.append(part)
+
+        assembled_context = "\n\n".join(context_parts)
+
+        # Step 4: Synthesize via Anthropic SDK
+        prompt = (
+            "Based on the following retrieved knowledge from a knowledge substrate, "
+            "answer the query.\n\n"
+            f"Query: {query}\n\n"
+            f"Retrieved knowledge ({len(all_objects)} objects):\n"
+            f"{assembled_context}\n\n"
+            "Instructions:\n"
+            "- Cite specific object IDs when making claims "
+            "(use the exact IDs from the retrieved knowledge).\n"
+            "- If the retrieved knowledge doesn't contain enough information, say so.\n"
+            "- Be concise and precise.\n"
+            "- Do not invent information not present in the retrieved knowledge."
+        )
+
+        try:
+            import anthropic
+            client = anthropic.Anthropic()
+            response = client.messages.create(
+                model=model,
+                max_tokens=max_tokens,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            text = response.content[0].text
+            input_tokens = response.usage.input_tokens
+            output_tokens = response.usage.output_tokens
+        except Exception:
+            # Graceful fallback: return assembled context as plain text
+            return ReflectResult(
+                text=(
+                    "[API unavailable -- returning raw recalled context]\n\n"
+                    + assembled_context
+                ),
+                cited_ids=[], hallucinated_ids=[], recalled_ids=recalled_ids,
+                query=query, model=model, input_tokens=0, output_tokens=0,
+            )
+
+        # Step 5: Extract cited IDs and detect hallucinated ones
+        # IDs are kebab-case, often prefixed with ev-, memo-, etc.
+        cited_ids: list[str] = []
+        hallucinated_ids: list[str] = []
+        for candidate in re.findall(r'[a-z][a-z0-9_-]{2,}(?:-[a-z0-9_-]+)+', text):
+            if candidate in all_ids:
+                if candidate not in cited_ids:
+                    cited_ids.append(candidate)
+            elif candidate not in hallucinated_ids:
+                # Check if it's actually a registered object we pruned
+                if self.get(candidate) is not None:
+                    if candidate not in cited_ids:
+                        cited_ids.append(candidate)
+                else:
+                    hallucinated_ids.append(candidate)
+
+        return ReflectResult(
+            text=text,
+            cited_ids=cited_ids,
+            hallucinated_ids=hallucinated_ids,
+            recalled_ids=recalled_ids,
+            query=query,
+            model=model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+        )
+
+    # --- CTE Graph Queries ---
+
+    def provenance_chain(self, object_id: str, *, max_depth: int = 10) -> list[dict]:
+        """Full downstream provenance tree using recursive CTE.
+
+        Follows target->source direction: what does this object support/feed into?
+        Returns list of dicts with id, type, depth, relation, path info.
+        """
+        rows = self.conn.execute(
+            """
+            WITH RECURSIVE chain(id, type, depth, relation, path) AS (
+                -- Base case: the starting object
+                SELECT ?, '', 0, '', ?
+                UNION ALL
+                -- Recursive: follow relations where this object is a target
+                SELECT r.source_id, r.source_type, c.depth + 1, r.relation,
+                       c.path || ' -> ' || r.source_id
+                FROM relations r
+                JOIN chain c ON r.target_id = c.id
+                WHERE c.depth < ?
+            )
+            SELECT DISTINCT id, type, depth, relation, path
+            FROM chain
+            WHERE depth > 0
+            ORDER BY depth, id
+            """,
+            (object_id, object_id, max_depth),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def impact_radius(self, object_id: str, *, max_depth: int = 5) -> list[dict]:
+        """Full upstream impact -- what does this object depend on, transitively?
+
+        Follows source->target direction: what are this object's transitive inputs?
+        """
+        rows = self.conn.execute(
+            """
+            WITH RECURSIVE chain(id, type, depth, relation, path) AS (
+                SELECT ?, '', 0, '', ?
+                UNION ALL
+                SELECT r.target_id, r.target_type, c.depth + 1, r.relation,
+                       c.path || ' -> ' || r.target_id
+                FROM relations r
+                JOIN chain c ON r.source_id = c.id
+                WHERE c.depth < ?
+            )
+            SELECT DISTINCT id, type, depth, relation, path
+            FROM chain
+            WHERE depth > 0
+            ORDER BY depth, id
+            """,
+            (object_id, object_id, max_depth),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def shared_evidence(self, object_id: str) -> list[dict]:
+        """Other assertions sharing evidence with this object via relations.
+
+        Finds assertions linked to the same evidence targets.
+        """
+        rows = self.conn.execute(
+            """
+            SELECT DISTINCT r2.source_id AS id, r2.source_type AS type,
+                   r1.target_id AS shared_evidence_id, r1.relation
+            FROM relations r1
+            JOIN relations r2 ON r1.target_id = r2.target_id
+                AND r1.relation = r2.relation
+            WHERE r1.source_id = ?
+              AND r2.source_id != ?
+              AND r1.relation IN ('supported_by', 'depends_on', 'derived_from')
+            ORDER BY r2.source_id
+            """,
+            (object_id, object_id),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def contradictory_assertions(self, object_id: str) -> list[dict]:
+        """Assertions linked via contradicted_by relations.
+
+        Returns objects that contradict or are contradicted by this object.
+        """
+        rows = self.conn.execute(
+            """
+            SELECT source_id AS id, source_type AS type,
+                   'contradicts_this' AS direction, relation
+            FROM relations
+            WHERE target_id = ? AND relation = 'contradicted_by'
+            UNION ALL
+            SELECT target_id AS id, target_type AS type,
+                   'contradicted_by_this' AS direction, relation
+            FROM relations
+            WHERE source_id = ? AND relation = 'contradicted_by'
+            ORDER BY id
+            """,
+            (object_id, object_id),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    # --- Orphan Sweeper ---
+
+    def orphans(self) -> list[dict]:
+        """Find objects with zero relations (not referenced by any relation)."""
+        results = []
+        for table, obj_type in [("assertions", "assertion"),
+                                ("evidence", "evidence"),
+                                ("artifacts", "artifact")]:
+            rows = self.conn.execute(
+                f"""
+                SELECT t.id, t.title, t.type, t.status
+                FROM {table} t
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM relations r
+                    WHERE r.source_id = t.id OR r.target_id = t.id
+                )
+                AND NOT EXISTS (
+                    SELECT 1 FROM derivation_inputs di
+                    WHERE di.input_id = t.id
+                )
+                AND NOT EXISTS (
+                    SELECT 1 FROM derivation_outputs do2
+                    WHERE do2.output_id = t.id
+                )
+                ORDER BY t.id
+                """,
+            ).fetchall()
+            for r in rows:
+                results.append({
+                    "id": r["id"], "_type": obj_type, "type": r["type"],
+                    "title": r["title"], "status": r["status"],
+                })
+        return results
 
     # --- Internals ---
 

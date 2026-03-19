@@ -287,6 +287,204 @@ def test_unknown_object():
     db.close()
 
 
+def test_search_objects():
+    """Search across objects by keyword."""
+    print("\n--- Search objects ---")
+    db = KnowledgeDB(tempfile.mktemp(suffix=".db"))
+
+    db.register_assertion("creatine-cognitive", type="claim", title="Creatine improves cognition",
+                          payload={"tags": ["supplement", "brain"]})
+    db.register_evidence("ev-rae-2003", type="paper", source="doi:10.1098/rspb.2003.2492",
+                         title="Rae et al 2003 creatine RCT")
+    db.register_assertion("caffeine-alertness", type="claim", title="Caffeine increases alertness")
+    db.register_artifact("memo-supps", type="memo", title="Supplements overview",
+                         payload={"topics": ["creatine", "caffeine", "magnesium"]})
+    # Mark one stale -- should be excluded from search
+    db.register_assertion("stale-claim", type="claim", status="stale",
+                          title="Creatine is useless")
+
+    results = db.search_objects("creatine")
+    ids = [r["id"] for r in results]
+    test("Search finds creatine assertion", "creatine-cognitive" in ids)
+    test("Search finds evidence by title", "ev-rae-2003" in ids)
+    test("Search finds artifact by payload", "memo-supps" in ids)
+    test("Search excludes stale objects", "stale-claim" not in ids)
+
+    # Scoring: creatine-cognitive should score higher (id + title match)
+    test("Higher scored first", results[0]["id"] == "creatine-cognitive",
+         f"got {results[0]['id']}")
+
+    # Empty query
+    test("Empty query returns []", db.search_objects("") == [])
+    test("No-match query returns []", db.search_objects("xyznonexistent") == [])
+
+    db.close()
+
+
+def test_provenance_chain():
+    """CTE-based downstream provenance."""
+    print("\n--- Provenance chain (CTE) ---")
+    db = KnowledgeDB(tempfile.mktemp(suffix=".db"))
+
+    # Build chain: ev -> claim_a -> claim_b -> claim_c
+    db.register_evidence("ev-root", type="paper", source="doi:root")
+    db.register_assertion("claim-a", type="claim", title="A")
+    db.register_assertion("claim-b", type="claim", title="B")
+    db.register_assertion("claim-c", type="claim", title="C")
+    db.add_relation("claim-a", "ev-root", "supported_by")
+    db.add_relation("claim-b", "claim-a", "depends_on")
+    db.add_relation("claim-c", "claim-b", "depends_on")
+
+    chain = db.provenance_chain("ev-root")
+    chain_ids = [c["id"] for c in chain]
+    test("Provenance finds claim-a", "claim-a" in chain_ids)
+    test("Provenance finds claim-b", "claim-b" in chain_ids)
+    test("Provenance finds claim-c", "claim-c" in chain_ids)
+    test("Provenance has correct depths",
+         any(c["depth"] == 1 for c in chain) and any(c["depth"] == 3 for c in chain),
+         f"depths: {[c['depth'] for c in chain]}")
+
+    # Empty provenance
+    test("No provenance for leaf", db.provenance_chain("claim-c") == [])
+
+    db.close()
+
+
+def test_impact_radius():
+    """CTE-based upstream impact."""
+    print("\n--- Impact radius (CTE) ---")
+    db = KnowledgeDB(tempfile.mktemp(suffix=".db"))
+
+    db.register_evidence("ev-1", type="paper", source="doi:1")
+    db.register_evidence("ev-2", type="paper", source="doi:2")
+    db.register_assertion("claim-x", type="claim", title="X")
+    db.add_relation("claim-x", "ev-1", "supported_by")
+    db.add_relation("claim-x", "ev-2", "depends_on")
+
+    chain = db.impact_radius("claim-x")
+    chain_ids = [c["id"] for c in chain]
+    test("Impact finds ev-1", "ev-1" in chain_ids)
+    test("Impact finds ev-2", "ev-2" in chain_ids)
+    test("Impact radius is 2 objects", len(chain) == 2, f"got {len(chain)}")
+
+    # No upstream for evidence with no dependencies
+    test("No impact for root evidence", db.impact_radius("ev-1") == [])
+
+    db.close()
+
+
+def test_shared_evidence():
+    """Find assertions sharing the same evidence."""
+    print("\n--- Shared evidence ---")
+    db = KnowledgeDB(tempfile.mktemp(suffix=".db"))
+
+    db.register_evidence("ev-shared", type="paper", source="doi:shared")
+    db.register_assertion("claim-1", type="claim", title="Claim 1")
+    db.register_assertion("claim-2", type="claim", title="Claim 2")
+    db.register_assertion("claim-3", type="claim", title="Claim 3 (different evidence)")
+    db.register_evidence("ev-other", type="paper", source="doi:other")
+
+    db.add_relation("claim-1", "ev-shared", "supported_by")
+    db.add_relation("claim-2", "ev-shared", "supported_by")
+    db.add_relation("claim-3", "ev-other", "supported_by")
+
+    shared = db.shared_evidence("claim-1")
+    shared_ids = [s["id"] for s in shared]
+    test("Shared evidence finds claim-2", "claim-2" in shared_ids)
+    test("Shared evidence excludes claim-3", "claim-3" not in shared_ids)
+    test("Shared evidence excludes self", "claim-1" not in shared_ids)
+
+    db.close()
+
+
+def test_contradictions():
+    """Find contradictory assertions."""
+    print("\n--- Contradictions ---")
+    db = KnowledgeDB(tempfile.mktemp(suffix=".db"))
+
+    db.register_assertion("bull-thesis", type="thesis", title="Company is undervalued")
+    db.register_assertion("bear-thesis", type="thesis", title="Company is overvalued")
+    db.register_assertion("unrelated", type="claim", title="Unrelated claim")
+
+    db.add_relation("bear-thesis", "bull-thesis", "contradicted_by")
+
+    contras = db.contradictory_assertions("bull-thesis")
+    contra_ids = [c["id"] for c in contras]
+    test("Contradiction finds bear-thesis", "bear-thesis" in contra_ids)
+    test("Contradiction excludes unrelated", "unrelated" not in contra_ids)
+
+    # Check from the other side
+    contras2 = db.contradictory_assertions("bear-thesis")
+    contra2_ids = [c["id"] for c in contras2]
+    test("Reverse contradiction finds bull-thesis", "bull-thesis" in contra2_ids)
+
+    db.close()
+
+
+def test_orphans():
+    """Find objects with no relations."""
+    print("\n--- Orphan sweeper ---")
+    db = KnowledgeDB(tempfile.mktemp(suffix=".db"))
+
+    # Connected objects
+    db.register_assertion("connected-claim", type="claim", title="Connected")
+    db.register_evidence("connected-ev", type="paper", source="doi:conn")
+    db.add_relation("connected-claim", "connected-ev", "supported_by")
+
+    # Orphan objects
+    db.register_assertion("orphan-claim", type="claim", title="Orphan claim")
+    db.register_evidence("orphan-ev", type="paper", source="doi:orphan")
+    db.register_artifact("orphan-memo", type="memo", title="Orphan memo")
+
+    orphan_list = db.orphans()
+    orphan_ids = [o["id"] for o in orphan_list]
+    test("Finds orphan assertion", "orphan-claim" in orphan_ids)
+    test("Finds orphan evidence", "orphan-ev" in orphan_ids)
+    test("Finds orphan artifact", "orphan-memo" in orphan_ids)
+    test("Excludes connected claim", "connected-claim" not in orphan_ids)
+    test("Excludes connected evidence", "connected-ev" not in orphan_ids)
+    test("Orphan count is 3", len(orphan_list) == 3, f"got {len(orphan_list)}")
+
+    # Object in derivation is not orphan
+    db.register_evidence("deriv-input", type="computation", source="file:pipeline.py")
+    db.register_assertion("deriv-output", type="finding", title="Pipeline result")
+    db.register_derivation("deriv-1", process="pipeline",
+                           inputs=[("deriv-input", "evidence")],
+                           outputs=[("deriv-output", "assertion")])
+    orphan_list2 = db.orphans()
+    orphan_ids2 = [o["id"] for o in orphan_list2]
+    test("Derivation input not orphan", "deriv-input" not in orphan_ids2)
+    test("Derivation output not orphan", "deriv-output" not in orphan_ids2)
+
+    db.close()
+
+
+def test_reflect_fallback():
+    """Reflect falls back gracefully when API unavailable."""
+    print("\n--- Reflect fallback ---")
+    db = KnowledgeDB(tempfile.mktemp(suffix=".db"))
+
+    db.register_assertion("test-claim", type="claim", title="Test claim about creatine",
+                          payload={"confidence": 0.8})
+    db.register_evidence("test-ev", type="paper", source="doi:test",
+                         title="Test paper on creatine")
+    db.add_relation("test-claim", "test-ev", "supported_by")
+
+    # With no valid API key, reflect should fall back gracefully
+    # We test by using a model name that won't exist
+    result = db.reflect("creatine", model="nonexistent-model-xyz")
+    test("Fallback returns text", len(result.text) > 0)
+    test("Fallback contains recalled context", "test-claim" in result.text or "creatine" in result.text.lower())
+    test("Fallback has recalled_ids", "test-claim" in result.recalled_ids)
+    test("Fallback tokens are 0", result.input_tokens == 0 and result.output_tokens == 0)
+
+    # Empty search should return early
+    result2 = db.reflect("xyznonexistentquery")
+    test("Empty recall returns message", "No relevant objects" in result2.text)
+
+    db.close()
+
+
 def main():
     print("Knowledge substrate stress test")
     print("=" * 50)
@@ -301,6 +499,13 @@ def main():
     test_cross_project_refs()
     test_relation_dedup()
     test_unknown_object()
+    test_search_objects()
+    test_provenance_chain()
+    test_impact_radius()
+    test_shared_evidence()
+    test_contradictions()
+    test_orphans()
+    test_reflect_fallback()
 
     print("\n" + "=" * 50)
     print(f"Results: {PASS} passed, {FAIL} failed")
