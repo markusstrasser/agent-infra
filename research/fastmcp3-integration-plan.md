@@ -296,20 +296,17 @@ Repos to update:
 
 ## Execution Order
 
-| Phase | What | Effort | Risk | Blocked by |
-|-------|------|--------|------|------------|
-| **0a** | Fix substrate import | 5 min | None | — |
-| **0b** | Upgrade tournament-mcp | 30 min | Low | — |
-| **5** | Pin FastMCP versions | 5 min | None | — |
-| **1** | Organize biomedical-mcp with mount() | 2 hr | Medium (tool renaming) | Decision on namespaces |
-| **3** | Telemetry middleware | 2 hr | Low | — |
-| **2** | from_openapi() for new APIs | Per-API | Low | Next API need |
-| **4** | Gateway proxy servers | 3 hr | Medium | Growth past 15 servers |
+| Phase | What | Effort | Risk | Status |
+|-------|------|--------|------|--------|
+| **0a** | Fix substrate import | 5 min | None | **DONE** (meta@c691819) |
+| **0b** | Upgrade tournament-mcp | 30 min | Low | **DONE** (tournament-mcp@6d0df1d) |
+| **5** | Pin FastMCP versions | 5 min | None | **DONE** (all 5 repos) |
+| **1** | Organize biomedical-mcp with mount() | 2 hr | Medium (tool renaming) | **DONE** (biomedical-mcp@1f7489b) — 7 domains, namespace prefixes |
+| **3** | Telemetry middleware | 2 hr | Low | **DONE** — all 6 servers (meta×3, biomedical, papers, selve) |
+| **2** | from_openapi() for new APIs | Per-API | Low | Event-driven — use when adding next API |
+| **4** | Gateway proxy servers | 3 hr | Medium | Deferred — not worth it at current scale |
 
-**Phases 0, 5:** Do in same session. No dependencies.
-**Phase 1:** Needs namespace decision. Propose: yes to namespaces, update docs in same PR.
-**Phase 3:** Independent. Can do anytime.
-**Phases 2, 4:** Event-driven, not scheduled.
+**All actionable phases complete.** Phases 2 and 4 are event-driven (triggered by future needs).
 
 ---
 
