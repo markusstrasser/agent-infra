@@ -64,7 +64,7 @@ This repo plans and tracks improvements to agent infrastructure across projects 
 
 ## Research Index
 
-64 research memos in `research/`. Full index with topics and "consult before" triggers: `.claude/rules/research-index.md` (auto-loaded).
+72 research memos in `research/`. Full index with topics and "consult before" triggers: `.claude/rules/research-index.md` (auto-loaded).
 
 <constitution>
 > **Human-protected.** Agent may propose changes but must not modify without explicit approval.
@@ -176,7 +176,7 @@ orchestrator.py efficiency                           # token efficiency breakdow
 orchestrator.py summary                              # daily markdown
 ```
 
-**Pipelines** (`pipelines/*.json`): research-and-implement, entity-refresh, morning-prep, skills-drift, earnings-refresh, session-retro, research-sweep, vendor-landscape, deep-dive, epistemic-baseline, repo-index-refresh, research-api-benchmark, algorithm-provenance-audit, trigger-monitor. Templates support `{variable}` substitution and `pause_before` approval gates.
+**Pipelines** (`pipelines/*.json`): algorithm-provenance-audit, code-review-sweep, deep-dive, design-review, earnings-refresh, entity-refresh, epistemic-baseline, epistemic-deep, fix-verify-weekly, intel-research, morning-prep, qa-sweep, repo-index-refresh, research-and-implement, research-api-benchmark, research-sweep, researcher-health, runlog-import, safe-lite-weekly, session-retro, skill-health, skills-drift, trigger-monitor, vendor-anthropic, vendor-google, vendor-openai. Templates support `{variable}` substitution and `pause_before` approval gates.
 
 **Key design choices:**
 - `--no-session-persistence` and `--worktree` both dropped — they suppress transcripts (breaks session-analyst)
@@ -202,7 +202,7 @@ orchestrator.py summary                              # daily markdown
 
 ## Knowledge Substrate (`substrate/`)
 
-Shared provenance and dependency tracking across intel, selve, and genomics. Per-project SQLite DBs at `~/.claude/knowledge/{project}.db`. Shared schema, per-project domain profiles.
+Shared provenance and dependency tracking across intel, selve, genomics, and meta. Per-project SQLite DBs at `~/.claude/knowledge/{project}.db`. Shared schema, per-project domain profiles.
 
 **Core:** `schema.sql` (7 tables), `core.py` (KnowledgeDB class), `cli.py`, `mcp_server.py` (10 tools).
 
@@ -215,7 +215,7 @@ uv run python3 substrate/ingest_intel.py                               # re-inge
 uv run python3 substrate/ingest_selve.py                               # re-ingest selve memos
 ```
 
-**MCP configured in:** intel, selve, genomics (`.mcp.json`). Advisory hook in global `settings.json` (PostToolUse on Write/Edit).
+**MCP configured in:** intel, selve, genomics (`.mcp.json`). DB also in meta. Advisory hook in global `settings.json` (PostToolUse on Write/Edit).
 
 **ADR:** `decisions/2026-03-17-shared-knowledge-substrate.md`.
 
@@ -278,7 +278,7 @@ Lightweight decision records for concept-level pivots — when an approach is ch
 - Fail open unless blocking is clearly worth it.
 - `trap 'exit 0' ERR` swallows `exit 2` from Python — disable trap before critical Python calls.
 - Stop hooks must check `stop_hook_active` to prevent infinite loops.
-- 22 global hooks, 5 intel-only, 1 skill-embedded. Full inventory + hook events in MEMORY.md `hooks.md`.
+- Hook inventory and event types documented in MEMORY.md `hooks.md`.
 </reference_data>
 
 <cockpit>
@@ -301,5 +301,5 @@ Status line, notifications, receipts, and dashboard. Full details in `cockpit.md
 - Runlog DB: `~/.claude/runlogs.db`
 - Runlog docs: `meta/runlog.md`
 - Runlog CLI: `uv run python3 scripts/runlog.py stats|import|query|recent`
-- Top error sources (Feb 2026, stale — run `just hook-telemetry` for current): zsh multiline loops, DuckDB column guessing, llmx wrong flags
+- Run `just hook-telemetry` for current error sources
 </session_forensics>
