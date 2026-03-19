@@ -136,6 +136,72 @@ runlog-import:
 sessions *args:
     uv run python3 scripts/sessions.py {{args}}
 
+# ── Native Tools ───────────────────────────────────────────────────
+
+# Quick operational state snapshot (branch, queue, plans, last receipt)
+[group('dashboard')]
+brief:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    branch=$(git branch --show-current 2>/dev/null || echo "detached")
+    dirty=$(git status --porcelain 2>/dev/null)
+    echo "=== meta ($branch) ==="
+    if [ -n "$dirty" ]; then
+        cnt=$(echo "$dirty" | wc -l | tr -d ' ')
+        files=$(echo "$dirty" | head -5 | awk '{print $2}' | tr '\n' ', ' | sed 's/,$//')
+        echo "Dirty: $cnt files ($files)"
+    else
+        echo "Dirty: clean"
+    fi
+    echo "Recent:"
+    git log --oneline --since="midnight" -5 2>/dev/null | sed 's/^/  /' || echo "  (none)"
+    DB="$HOME/.claude/orchestrator.db"
+    if [ -f "$DB" ]; then
+        echo -n "Orch: "
+        sqlite3 "$DB" "SELECT GROUP_CONCAT(status || ':' || n, ' ') FROM v_queue" 2>/dev/null || echo "(no views — run just orch-views)"
+        stalled=$(sqlite3 "$DB" "SELECT COUNT(*) FROM v_stalled" 2>/dev/null || echo "0")
+        [ "${stalled:-0}" -gt 0 ] && echo "  stalled: $stalled (>30min)"
+        proposals=$(sqlite3 "$DB" "SELECT COUNT(*) FROM v_proposals" 2>/dev/null || echo "0")
+        [ "${proposals:-0}" -gt 0 ] && echo "  proposals: $proposals actionable"
+    fi
+    plans=$(find .claude/plans -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$plans" -gt 0 ]; then
+        echo "Plans: $plans active"
+        ls -t .claude/plans/*.md 2>/dev/null | head -3 | xargs -I{} basename {} | sed 's/^/  /'
+    fi
+    receipts="$HOME/.claude/session-receipts.jsonl"
+    if [ -f "$receipts" ]; then
+        tail -1 "$receipts" 2>/dev/null | python3 -c "
+import json,sys,datetime as dt
+try:
+ d=json.load(sys.stdin);ts=d.get('ts','');cost=d.get('cost_usd',0)
+ model=d.get('model','?');ctx=d.get('context_pct',0)
+ mins=int((dt.datetime.now()-dt.datetime.fromisoformat(ts)).total_seconds()/60) if ts else 0
+ ago=f'{mins}m' if mins<60 else f'{mins//60}h' if mins<1440 else f'{mins//1440}d'
+ print(f'Receipt: {ago} ago, \${cost:.2f}, {model}, {ctx}% ctx')
+except: pass" 2>/dev/null
+    fi
+
+# Apply SQLite views to orchestrator DB
+[group('orchestrator')]
+orch-views:
+    #!/usr/bin/env bash
+    sqlite3 "$HOME/.claude/orchestrator.db" < scripts/views.sql
+    echo "Views applied"
+
+# Smoke test: all views return without error
+[group('orchestrator')]
+db-smoke:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    DB="$HOME/.claude/orchestrator.db"
+    views="v_queue v_daily_cost v_stalled v_failures v_pipeline_health v_proposals"
+    for v in $views; do
+        sqlite3 "$DB" "SELECT * FROM $v LIMIT 1" > /dev/null 2>&1 || { echo "FAIL: $v"; exit 1; }
+        echo "OK: $v"
+    done
+    echo "All views pass"
+
 # ── Git ────────────────────────────────────────────────────────────
 
 # Search Rejected: trailers across all repos

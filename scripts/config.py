@@ -35,3 +35,16 @@ def log_metric(metric_name: str, **fields) -> None:
         f.write(json.dumps(entry) + "\n")
 
 
+def jsonl_log(name: str, entry: dict) -> None:
+    """Append a JSONL entry to ~/.claude/{name}.jsonl.
+
+    Adds 'ts' if not present. Used by measurement scripts to avoid
+    duplicating the open/write/newline pattern.
+    """
+    if "ts" not in entry:
+        entry = {"ts": datetime.now().isoformat(), **entry}
+    path = Path.home() / ".claude" / f"{name}.jsonl"
+    with open(path, "a") as f:
+        f.write(json.dumps(entry, separators=(",", ":")) + "\n")
+
+
