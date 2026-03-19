@@ -171,15 +171,7 @@ brief:
     fi
     receipts="$HOME/.claude/session-receipts.jsonl"
     if [ -f "$receipts" ]; then
-        tail -1 "$receipts" 2>/dev/null | python3 -c "
-import json,sys,datetime as dt
-try:
- d=json.load(sys.stdin);ts=d.get('ts','');cost=d.get('cost_usd',0)
- model=d.get('model','?');ctx=d.get('context_pct',0)
- mins=int((dt.datetime.now()-dt.datetime.fromisoformat(ts)).total_seconds()/60) if ts else 0
- ago=f'{mins}m' if mins<60 else f'{mins//60}h' if mins<1440 else f'{mins//1440}d'
- print(f'Receipt: {ago} ago, \${cost:.2f}, {model}, {ctx}% ctx')
-except: pass" 2>/dev/null
+        tail -1 "$receipts" 2>/dev/null | python3 -c 'import json,sys,datetime as dt; d=json.load(sys.stdin); ts=d.get("ts",""); cost=d.get("cost_usd",0); model=d.get("model","?"); ctx=d.get("context_pct",0); delta=int((dt.datetime.now()-dt.datetime.fromisoformat(ts)).total_seconds()/60) if ts else 0; ago=(f"{delta}m" if delta<60 else (f"{delta//60}h" if delta<1440 else f"{delta//1440}d")); print(f"Receipt: {ago} ago, ${cost:.2f}, {model}, {ctx}% ctx")' 2>/dev/null
     fi
 
 # Apply SQLite views to orchestrator DB
