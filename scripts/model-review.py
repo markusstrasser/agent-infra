@@ -212,11 +212,11 @@ def dispatch(
     gemini_out = review_dir / "gemini-output.md"
     gpt_out = review_dir / "gpt-output.md"
 
-    # Gemini: --stream required (hangs without it on thinking models with -f)
+    # Gemini: CLI transport (free tier) — hang bug fixed in gemini-cli 0.32.1
     gemini_cmd = [
         "llmx", "chat",
         "-m", GEMINI_MODEL,
-        "--stream", "--timeout", "300",
+        "--timeout", "300",
         "-f", str(gemini_ctx),
         "-o", str(gemini_out),
         gemini_prompt,

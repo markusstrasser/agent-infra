@@ -247,12 +247,13 @@ Lightweight decision records for concept-level pivots — when an approach is ch
 | Model | Transport | Flag needed | Cost |
 |-------|-----------|-------------|------|
 | Gemini Flash/Lite | CLI (free) | none | $0 |
-| Gemini Pro | API | `--stream` | ~$0.01-0.05 |
+| Gemini Pro | CLI (free) | none (no `--stream`) | $0 |
 | GPT-5.x | API (direct) | none | per-token |
 
-- **Gemini Pro on CLI hangs** (thinking models + piped input). Always `--stream`.
-- **Flash on CLI is fine** — non-thinking, good capacity.
-- **codex-cli disabled** — 10s startup, no cost benefit. GPT goes direct to API.
+- **Gemini Pro on CLI works** — hang bug fixed in gemini-cli 0.32.1. No `--stream` needed.
+- **`--stream` forces API fallback** — only add if CLI hits rate limits.
+- **`--max-tokens` forces API fallback** — CLI caps at 8K, no override. Brainstorm still uses API.
+- **codex-cli disabled** — 34K token overhead per call (MCP descriptions), no bare mode. GPT goes direct to API.
 - **Exit 6 = billing exhausted** (permanent). Exit 3 = rate limit (transient). Don't retry exit 6.
 - **llmx is editable-installed** (`uv tool install --editable`). Source changes in `~/Projects/llmx/` propagate instantly.
 - **No `--fallback`** — model should be the model. Diagnose failures, don't mask with model downgrade.
