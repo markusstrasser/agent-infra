@@ -176,6 +176,8 @@ def cmd_ingest(args):
             continue
 
         for f in findings:
+            if not isinstance(f, dict) or "category" not in f or "summary" not in f:
+                continue  # Skip non-finding entries (e.g., shape-prefilter objects)
             fp = fingerprint(f["category"], f["summary"])
             concept = _match_concept(f["category"], f["summary"])
 
