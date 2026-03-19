@@ -30,13 +30,12 @@ def create_server(project: str) -> FastMCP:
     db_path = DB_DIR / f"{project}.db"
     db = KnowledgeDB(db_path)
 
-    # Import from parent — substrate runs via meta's uv env
-    import importlib
-    mw_mod = importlib.import_module("scripts.mcp_middleware")
+    # TelemetryMiddleware disabled — fastmcp 3.1.1 passes MiddlewareContext
+    # to request_ctx.request in context.py:663, causing AttributeError.
+    # Re-enable after fastmcp fixes middleware context propagation.
 
     mcp = FastMCP(
         f"knowledge-substrate-{project}",
-        middleware=[mw_mod.TelemetryMiddleware()],
         instructions=f"""Knowledge substrate for {project}. Use these tools to register
 assertions, evidence, and artifacts with their dependencies. The substrate tracks
 what depends on what — when evidence is invalidated, downstream assertions are
