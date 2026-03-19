@@ -221,19 +221,7 @@ uv run python3 substrate/ingest_selve.py                               # re-inge
 
 ## Backlog
 
-- [ ] **Cron/auto-update skill** — Cross-project daily job monitoring new papers/tools/databases. (Source: genomics goals elicitation 2026-02-28)
-- [ ] **Telegram approval bot** — Notify + approve/reject/modify orchestrator tasks from phone. ~50 lines Python + BotFather token. Slots into `requires_approval` gate. (Source: orchestrator plan session 2026-03-01)
-- [ ] **Evolutionary/genetic parallel mutation** — Spawn N parallel sub-agents with injected noise, select survivors, mutate again. Divergence as structural byproduct of mutation+selection, not brainstorming. Blocked on orchestrator parallel sub-agent infrastructure. (Source: model-review 2026-03-06, G1)
-- [ ] **Orthogonal RAG injection** — RAG pipeline that deliberately retrieves tangential/unrelated domain docs to force cross-domain mapping during divergent phases. Blocked on RAG pipeline. Analogical forcing (deployed) is the lightweight version. (Source: model-review 2026-03-06, G3)
-- [ ] **Design-bakeoff worktrees** — For high-uncertainty architecture tasks, spawn 2-3 parallel implementation spikes in separate worktrees, compare and select. Maps to Claude Code `--worktree` support. (Source: model-review 2026-03-06, P1)
-- [ ] **Cross-session anti-repetition cache** — Store recently proposed paradigms per topic so future brainstorming is pushed away from already-used idea families. Needs persistent storage mechanism. (Source: model-review 2026-03-06, P8)
-- [ ] **Intentional Contextual Fracture** — Redact/distort different parts of context for parallel generators; incomplete context forces different anchoring and pulls solutions from different domains. Needs orchestrator to manage parallel redacted prompts. (Source: model-review 2026-03-06, D2)
-- [ ] **Session-analyst design-task check** — Verify that design tasks (architecture, strategy, shared infra) produce phase-state artifacts (divergent-options + selection-rationale). Forward commitment from constitutional P6. (Source: causal-scaffolding-v2 plan 2026-03-06)
-- [ ] **dag_suggest CPDAG output** — Data-driven DAG skeleton via causal-learn PC + bootstrap stability. Deferred: Phase 4 DoWhy assessment found tool ecosystem adds no value beyond dag_check.py for current use cases. Revisit if causal discovery from data becomes a need. (Source: causal-scaffolding-v2 plan 2026-03-06)
-- [ ] **worktree.sparsePaths for genomics** — Large repo, worktree creation is slow. `worktree.sparsePaths` (v2.1.76+) can limit checkout to relevant dirs. Measure actual worktree time first. (Source: Claude Code 2.1.76 changelog)
-- [ ] **Skill/MCP compounding from session patterns** — Auto-detect repeated multi-tool workflows in session transcripts and suggest skill or MCP tool candidates. Session-analyst already sees patterns; add a "suggest skill" or "suggest MCP tool" mode that proposes candidates from recurring 3+ step sequences. (Source: Yodoca builder agent, OpenTulpa skill compounding — landscape sweep 2026-03-19)
-- [ ] **Per-task model routing in orchestrator** — Per-pipeline or per-step model selection via pipeline JSON field (e.g., `"model": "gemini"` for large-context synthesis, `"model": "claude"` for code). Currently hardcoded to `claude -p`. PersonalAgentKit does this via YAML frontmatter on goals. (Source: PersonalAgentKit, landscape sweep 2026-03-19)
-- [ ] **Signed skills manifest** — SHA256 hash manifest for skills/ directory. Detect tampering or unexpected changes to skill files between sessions. Low cost, meaningful supply chain safety. Gulama uses Ed25519; a simpler hash manifest is sufficient for us. (Source: Gulama, landscape sweep 2026-03-19)
+See `ideas.md` for backlog items and architectural ideas. Not loaded into context by default.
 
 ## Decision Journal (`decisions/`)
 
