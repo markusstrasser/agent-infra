@@ -12,7 +12,7 @@ class TelemetryMiddleware(Middleware):
     """Logs every tool call with timing and error status."""
 
     async def on_call_tool(self, context: MiddlewareContext, call_next):
-        tool_name = getattr(getattr(context.message, "params", None), "name", "unknown")
+        tool_name = getattr(context.message, "name", "unknown")
         start = time.monotonic()
         try:
             result = await call_next(context)
