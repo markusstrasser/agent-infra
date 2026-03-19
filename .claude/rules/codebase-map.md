@@ -26,6 +26,7 @@ description: Auto-generated file map with cross-file relationships. Updated dail
   hook-roi.py                  Hook ROI telemetry — analyze hook trigger patterns.
   hook-telemetry-report.py     Hook telemetry report — reads ~/.claude/hook-triggers.j
   meta_infra_mcp.py            In-process MCP server exposing meta infrastructure to o
+  model-review.py              Model-review dispatch — context assembly + parallel llmx
   orchestrator.py              Orchestrator: cron-driven task runner for Agent SDK and
   overview-trigger-analysis.py Analyze overview trigger logs across project…  → config
   prompt-archaeology.py        Prompt Archaeology — feed entire instruction surface in
