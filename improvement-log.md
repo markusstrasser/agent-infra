@@ -6,6 +6,37 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-03-19] Session Analyst — Behavioral Anti-Patterns (meta, 8 sessions)
+- **Source:** Gemini 3.1 Pro analysis of 8 meta sessions (2026-03-18 to 2026-03-19)
+- **Shape anomalies:** 6/20 sessions flagged (transcript_density, tool_intensity, tool_diversity, mcp_fraction, commit_ratio)
+
+### [2026-03-19] MISSING PUSHBACK: NIH bias — dismissed 8 GitHub trending projects before user correction
+- **Session:** meta a5a95b9a ($63.65, 196 min)
+- **Evidence:** Agent evaluated 8 trending GitHub projects and dismissed them all as not-worth-adopting dependencies. User intervened: "Are the dependencies bad per se? ... let's steal the best parts." Agent acknowledged: "Fair pushback — I was defaulting to NIH bias." Re-evaluation found multiple adoptable patterns (OpenViking L0/L1/L2, Hindsight memory). User correction changed the session outcome.
+- **Failure mode:** premature-conclusion / NIH default
+- **Proposed fix:** [rule] Strengthen dependency evaluation — evaluate as potential dependency first (maturity, API quality, bus factor). Fall back to pattern extraction only if due diligence fails.
+- **Severity:** medium — user had to correct; without correction the session would have been purely dismissive
+- **Root cause:** agent-capability
+- **Status:** [x] implemented — added dependency evaluation rule to global CLAUDE.md `<subagent_usage>` section
+
+### [2026-03-19] WRONG-TOOL DRIFT: Manual Bash parsing of subagent JSONL — 2nd recurrence
+- **Session:** meta a5a95b9a
+- **Evidence:** Agent ran `for f in .../tasks/*.output; do tail -c 500 "$f" | strings` to manually parse raw JSONL subagent transcripts. Session's own retro flagged this as TOKEN_WASTE. 2nd occurrence in 6 days (first: 2026-03-13, session 12b6a6a2).
+- **Failure mode:** tool-thrashing on subagent outputs
+- **Proposed fix:** [architectural] Structured subagent result extraction — either via TaskOutput improvements or a dedicated parser. 2+ recurrences meets promotion threshold.
+- **Severity:** medium — recurring, worsens with more subagent usage
+- **Root cause:** system-design
+- **Status:** [ ] proposed — meets promotion criteria (2+ recurrences). Note: global CLAUDE.md subagent output convention rule already added in a5a95b9a session. Architectural fix (structured extraction) still needed.
+
+### [2026-03-19] TOKEN WASTE: Double-polling TaskOutput with escalating timeouts — recurrence
+- **Session:** meta 05482950 ($16.12, 26 min)
+- **Evidence:** Agent dispatched 4 research subagents, polled all 4 at 180s timeout, then again at 300s, then tried Bash to read output files, then SendMessage twice, then polled again at 120s. ~8+ redundant TaskOutput calls before results arrived. After subagents returned, dispatched 3 MORE Explore agents to re-read the same codebase.
+- **Failure mode:** escalating-timeout-poll (recurrence from 2026-03-13)
+- **Proposed fix:** [architectural] Single-poll with reasonable timeout + move to orthogonal work. Existing patience rule not preventing the pattern.
+- **Severity:** low — minor token waste per occurrence, but pattern is systematic
+- **Root cause:** system-design
+- **Status:** [~] deferred — subagent patience rule exists but doesn't prevent. May need hook enforcement if pattern continues.
+
 ### [2026-03-18] Session Analyst — Behavioral Anti-Patterns (selve/genomics/meta, 13 sessions)
 - **Source:** Gemini 3.1 Pro analysis of sessions across 3 projects (2026-03-16 to 2026-03-18)
 - **Shape anomalies:** 13/43 sessions flagged (tool_intensity, mcp_fraction, commit_ratio)
