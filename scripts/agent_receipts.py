@@ -14,7 +14,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-CLAUDE_DIR = Path.home() / ".claude"
+from common.paths import CLAUDE_DIR
 CODEX_SESSIONS_DIR = Path.home() / ".codex" / "sessions"
 CODEX_RECEIPTS = CLAUDE_DIR / "codex-session-receipts.jsonl"
 OPENAI_RECEIPTS = CLAUDE_DIR / "openai-response-receipts.jsonl"

@@ -1128,7 +1128,8 @@ def cmd_show(args):
             print(f"  Session ID:  {session_id}")
             # Find transcript
             project_slug = f"-Users-alien-Projects-{task['project']}"
-            transcript = Path.home() / ".claude" / "projects" / project_slug / f"{session_id}.jsonl"
+            from common.paths import PROJECTS_DIR
+            transcript = PROJECTS_DIR / project_slug / f"{session_id}.jsonl"
             if transcript.exists():
                 print(f"  Transcript:  {transcript}")
             else:

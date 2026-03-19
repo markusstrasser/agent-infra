@@ -14,7 +14,7 @@ from pathlib import Path
 
 from config import METRICS_FILE, log_metric
 
-COMPACTIONS = Path.home() / ".claude" / "compact-log.jsonl"
+from common.paths import COMPACT_LOG as COMPACTIONS
 
 
 def load_jsonl(path: Path) -> list[dict]:

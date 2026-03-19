@@ -22,8 +22,7 @@ from pathlib import Path
 
 from config import log_metric
 
-CLAUDE_DIR = Path.home() / ".claude"
-PROJECTS_DIR = CLAUDE_DIR / "projects"
+from common.paths import PROJECTS_DIR
 
 # Patterns for agent claims about information-gathering
 INFO_CLAIM_PATTERNS = [

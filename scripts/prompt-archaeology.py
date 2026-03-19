@@ -15,7 +15,7 @@ from datetime import date
 
 PROJECTS_DIR = Path.home() / "Projects"
 SKILLS_DIR = PROJECTS_DIR / "skills"
-GLOBAL_CLAUDE = Path.home() / ".claude"
+from common.paths import CLAUDE_DIR as GLOBAL_CLAUDE
 
 # Core projects (skip throwaway/demo dirs)
 CORE_PROJECTS = [

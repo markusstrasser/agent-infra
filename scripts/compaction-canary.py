@@ -22,8 +22,7 @@ from pathlib import Path
 
 from config import METRICS_FILE, log_metric
 
-COMPACT_LOG = Path.home() / ".claude" / "compact-log.jsonl"
-SESSIONS_DIR = Path.home() / ".claude" / "projects"
+from common.paths import COMPACT_LOG, PROJECTS_DIR as SESSIONS_DIR
 CANARIES_PATH = Path(__file__).resolve().parent.parent / "schemas" / "calibration_canaries.json"
 
 # Invariant keywords — if these appear in post-compaction agent messages,

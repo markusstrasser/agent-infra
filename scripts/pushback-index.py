@@ -20,8 +20,7 @@ from pathlib import Path
 
 from config import METRICS_FILE, log_metric
 
-CLAUDE_DIR = Path.home() / ".claude"
-PROJECTS_DIR = CLAUDE_DIR / "projects"
+from common.paths import PROJECTS_DIR
 
 # Pushback indicators — assistant is disagreeing, warning, or qualifying
 PUSHBACK_PATTERNS = [

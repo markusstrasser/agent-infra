@@ -16,7 +16,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
 
-TRIGGERS_FILE = Path.home() / ".claude" / "hook-triggers.jsonl"
+from common.paths import TRIGGERS_FILE
 
 
 def load_triggers(path: Path) -> list[dict]:

@@ -14,8 +14,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from collections import Counter
 
-LOGFILE = Path.home() / ".claude" / "subagent-log.jsonl"
-PROJECTS_DIR = Path.home() / ".claude" / "projects"
+from common.paths import CLAUDE_DIR, PROJECTS_DIR
+LOGFILE = CLAUDE_DIR / "subagent-log.jsonl"
 
 
 def parse_args():

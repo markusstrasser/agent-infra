@@ -4,7 +4,9 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-METRICS_FILE = Path.home() / ".claude" / "epistemic-metrics.jsonl"
+from common.paths import CLAUDE_DIR
+
+METRICS_FILE = CLAUDE_DIR / "epistemic-metrics.jsonl"
 
 PROJECT_ROOTS = {
     "intel": Path.home() / "Projects" / "intel",
@@ -43,7 +45,7 @@ def jsonl_log(name: str, entry: dict) -> None:
     """
     if "ts" not in entry:
         entry = {"ts": datetime.now().isoformat(), **entry}
-    path = Path.home() / ".claude" / f"{name}.jsonl"
+    path = CLAUDE_DIR / f"{name}.jsonl"
     with open(path, "a") as f:
         f.write(json.dumps(entry, separators=(",", ":")) + "\n")
 

@@ -22,8 +22,7 @@ from pathlib import Path
 
 from config import log_metric
 
-FINDINGS_DB = Path.home() / ".claude" / "findings.db"
-SESSIONS_DB = Path.home() / ".claude" / "sessions.db"
+from common.paths import FINDINGS_DB, SESSIONS_DB
 SESSIONS_SCRIPT = Path.home() / "Projects" / "meta" / "scripts" / "sessions.py"
 
 # Built-in detection queries for common categories.

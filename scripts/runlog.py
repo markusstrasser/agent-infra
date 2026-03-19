@@ -16,7 +16,7 @@ from runlog_adapters import ADAPTERS
 from runlog_adapters.common import DiscoveredSource, json_dumps
 
 SCHEMA_VERSION = "v1"
-DB_PATH = Path.home() / ".claude" / "runlogs.db"
+from common.paths import RUNLOGS_DB as DB_PATH
 SCHEMA_PATH = Path(__file__).with_name("runlog_schema.sql")
 QUERY_DIR = Path(__file__).with_name("runlog_queries")
 FIXTURE_ROOT = Path(__file__).resolve().parent.parent / "tests" / "fixtures" / "runlogs"

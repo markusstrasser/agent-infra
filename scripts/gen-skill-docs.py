@@ -38,7 +38,8 @@ def resolve_mcp_tools() -> str:
             pass
 
     # Also check user-scope
-    user_mcp = Path.home() / ".claude" / ".mcp.json"
+    from common.paths import CLAUDE_DIR
+    user_mcp = CLAUDE_DIR / ".mcp.json"
     if user_mcp.exists():
         try:
             data = json.loads(user_mcp.read_text())

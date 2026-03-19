@@ -19,8 +19,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
 
-TRIGGERS_FILE = Path.home() / ".claude" / "hook-triggers.jsonl"
-RECEIPTS_FILE = Path.home() / ".claude" / "session-receipts.jsonl"
+from common.paths import TRIGGERS_FILE, RECEIPTS_PATH as RECEIPTS_FILE
 
 
 def load_jsonl(path: Path, cutoff: str) -> list[dict]:

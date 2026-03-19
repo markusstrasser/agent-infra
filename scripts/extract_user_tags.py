@@ -19,7 +19,7 @@ from pathlib import Path
 
 from config import extract_project_name
 
-PROJECTS_DIR = Path.home() / ".claude" / "projects"
+from common.paths import PROJECTS_DIR
 
 # Match #f at word boundary (not #foo, #function, etc.)
 TAG_RE = re.compile(r"(?:^|\s)#f(?:\s|$)", re.MULTILINE)

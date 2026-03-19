@@ -15,9 +15,8 @@ from pathlib import Path
 
 from agent_receipts import collect_codex_receipts, load_openai_receipts
 
-RECEIPTS = Path.home() / ".claude" / "session-receipts.jsonl"
-COMPACTIONS = Path.home() / ".claude" / "compact-log.jsonl"
-EPISTEMIC_METRICS = Path.home() / ".claude" / "epistemic-metrics.jsonl"
+from common.paths import CLAUDE_DIR, RECEIPTS_PATH as RECEIPTS, COMPACT_LOG as COMPACTIONS
+EPISTEMIC_METRICS = CLAUDE_DIR / "epistemic-metrics.jsonl"
 MIN_TS = datetime.min
 
 
@@ -240,7 +239,7 @@ def print_openai_panel(cutoff: datetime):
 
 def print_orchestrator_panel(cutoff: datetime):
     """Print orchestrator task stats from SQLite DB."""
-    db_path = Path.home() / ".claude" / "orchestrator.db"
+    from common.paths import ORCHESTRATOR_DB as db_path
     if not db_path.exists():
         return
 
@@ -366,8 +365,9 @@ def print_overview_panel():
 
 def print_facets_panel(cutoff: datetime):
     """Print session quality metrics from Claude Code /insights facet data."""
-    facets_dir = Path.home() / ".claude" / "usage-data" / "facets"
-    meta_dir = Path.home() / ".claude" / "usage-data" / "session-meta"
+    from common.paths import CLAUDE_DIR
+    facets_dir = CLAUDE_DIR / "usage-data" / "facets"
+    meta_dir = CLAUDE_DIR / "usage-data" / "session-meta"
     if not facets_dir.exists():
         return
 

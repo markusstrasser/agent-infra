@@ -16,7 +16,7 @@ from pathlib import Path
 
 from config import PROJECT_ROOTS, extract_project_name
 
-SESSIONS_DIR = Path.home() / ".claude" / "projects"
+from common.paths import PROJECTS_DIR as SESSIONS_DIR
 
 
 def scan_transcripts(days: int = 7) -> dict:

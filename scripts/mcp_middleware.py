@@ -11,7 +11,8 @@ from fastmcp.server.middleware import Middleware, MiddlewareContext
 
 log = logging.getLogger("mcp.telemetry")
 
-SEQUENCE_LOG = Path.home() / ".claude" / "tool-sequences.jsonl"
+from common.paths import CLAUDE_DIR
+SEQUENCE_LOG = CLAUDE_DIR / "tool-sequences.jsonl"
 
 
 def _extract_project(args: dict | None) -> str:

@@ -21,7 +21,8 @@ from pathlib import Path
 from config import PROJECT_ROOTS, RESEARCH_DIRS, log_metric
 
 # Per-claim JSONL log for detailed analysis
-CLAIM_LOG = Path.home() / ".claude" / "safe-lite-claims.jsonl"
+from common.paths import CLAUDE_DIR
+CLAIM_LOG = CLAUDE_DIR / "safe-lite-claims.jsonl"
 
 
 def find_recent_research_files(

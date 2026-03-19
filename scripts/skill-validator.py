@@ -52,7 +52,8 @@ def collect_mcp_servers() -> set[str]:
     servers: set[str] = set()
 
     # Global settings
-    global_settings = Path.home() / ".claude" / "settings.json"
+    from common.paths import CLAUDE_DIR
+    global_settings = CLAUDE_DIR / "settings.json"
     if global_settings.exists():
         try:
             data = json.loads(global_settings.read_text())
@@ -61,7 +62,7 @@ def collect_mcp_servers() -> set[str]:
             pass
 
     # User-scope .mcp.json
-    user_mcp = Path.home() / ".claude" / ".mcp.json"
+    user_mcp = CLAUDE_DIR / ".mcp.json"
     if user_mcp.exists():
         try:
             data = json.loads(user_mcp.read_text())

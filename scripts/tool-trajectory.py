@@ -30,7 +30,7 @@ from statistics import mean, stdev
 
 from config import METRICS_FILE, log_metric
 
-DB_PATH = Path.home() / ".claude" / "runlogs.db"
+from common.paths import RUNLOGS_DB as DB_PATH
 
 # Tool categories for task-type classification
 RESEARCH_TOOLS = {

@@ -19,8 +19,9 @@ from config import PROJECT_ROOTS
 
 PROJECTS_DIR = Path.home() / "Projects"
 PROJECTS = list(PROJECT_ROOTS.keys())
-GLOBAL_SETTINGS = Path.home() / ".claude" / "settings.json"
-GLOBAL_CLAUDE_MD = Path.home() / ".claude" / "CLAUDE.md"
+from common.paths import CLAUDE_DIR
+GLOBAL_SETTINGS = CLAUDE_DIR / "settings.json"
+GLOBAL_CLAUDE_MD = CLAUDE_DIR / "CLAUDE.md"
 MEMORY_WARN_LINES = 180
 MEMORY_MAX_LINES = 200
 
@@ -169,7 +170,7 @@ def check_skill_frontmatter(project_dir: Path) -> list[Check]:
 def check_memory_health() -> list[Check]:
     """Check MEMORY.md sizes across projects."""
     checks = []
-    memory_base = Path.home() / ".claude" / "projects"
+    memory_base = CLAUDE_DIR / "projects"
     if not memory_base.exists():
         return []
 
@@ -239,7 +240,7 @@ def check_stale_agents() -> list[Check]:
     import time
 
     checks = []
-    projects_dir = Path.home() / ".claude" / "projects"
+    projects_dir = CLAUDE_DIR / "projects"
     if not projects_dir.exists():
         return checks
 

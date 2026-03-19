@@ -22,16 +22,17 @@ from pathlib import Path
 # Config
 # ---------------------------------------------------------------------------
 
+from common.paths import (
+    CLAUDE_DIR, ORCHESTRATOR_DB, RECEIPTS_PATH as RECEIPTS_FILE,
+    TRIGGERS_FILE,
+)
 PROJECTS_DIR = Path.home() / "Projects"
 PROJECTS = ["meta", "intel", "selve", "genomics", "skills", "papers-mcp"]
-RECEIPTS_FILE = Path.home() / ".claude" / "session-receipts.jsonl"
-TRIGGERS_FILE = Path.home() / ".claude" / "hook-triggers.jsonl"
-ORCHESTRATOR_DB = Path.home() / ".claude" / "orchestrator.db"
 IMPROVEMENT_LOG = Path(__file__).resolve().parent.parent / "improvement-log.md"
 RETRO_DIR = Path(__file__).resolve().parent.parent / "artifacts" / "session-retro"
 HOOK_ROI_DIR = Path(__file__).resolve().parent.parent / "artifacts" / "hook-roi"
 DESIGN_REVIEW_DIR = Path(__file__).resolve().parent.parent / "artifacts" / "design-review"
-DEFAULT_OUTPUT = Path.home() / ".claude" / "morning-brief.md"
+DEFAULT_OUTPUT = CLAUDE_DIR / "morning-brief.md"
 
 STALE_DAYS = 3  # flag projects with no commits in this many days
 

@@ -36,7 +36,8 @@ def parser_identity() -> tuple[str, str]:
 
 
 def discover_sources(root: Path | None = None) -> list[DiscoveredSource]:
-    base = (root or (Path.home() / ".claude" / "projects")).expanduser()
+    from common.paths import PROJECTS_DIR
+    base = (root or PROJECTS_DIR).expanduser()
     if not base.exists():
         return []
 

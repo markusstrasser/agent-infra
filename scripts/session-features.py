@@ -24,8 +24,7 @@ from config import extract_project_name
 # Constants
 # ---------------------------------------------------------------------------
 
-CLAUDE_DIR = Path.home() / ".claude"
-PROJECTS_DIR = CLAUDE_DIR / "projects"
+from common.paths import PROJECTS_DIR
 
 # Tools that count as "search"
 SEARCH_TOOLS = {

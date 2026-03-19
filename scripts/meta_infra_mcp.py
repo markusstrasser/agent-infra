@@ -19,9 +19,7 @@ from pathlib import Path
 
 from claude_agent_sdk import create_sdk_mcp_server, tool
 
-CLAUDE_DIR = Path.home() / ".claude"
-SESSIONS_DB = CLAUDE_DIR / "sessions.db"
-HOOK_TRIGGERS = CLAUDE_DIR / "hook-triggers.jsonl"
+from common.paths import SESSIONS_DB, TRIGGERS_FILE as HOOK_TRIGGERS
 IMPROVEMENT_LOG = Path(__file__).resolve().parent.parent / "improvement-log.md"
 
 

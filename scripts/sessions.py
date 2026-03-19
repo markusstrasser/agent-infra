@@ -29,10 +29,9 @@ from pathlib import Path
 # Constants
 # ---------------------------------------------------------------------------
 
-CLAUDE_DIR = Path.home() / ".claude"
-PROJECTS_DIR = CLAUDE_DIR / "projects"
-RECEIPTS_PATH = CLAUDE_DIR / "session-receipts.jsonl"
-DB_PATH = CLAUDE_DIR / "sessions.db"
+from common.paths import (
+    CLAUDE_DIR, PROJECTS_DIR, RECEIPTS_PATH, SESSIONS_DB as DB_PATH,
+)
 EMB_JSONL_PATH = CLAUDE_DIR / "sessions-emb.jsonl"
 EMB_INDEX_PATH = CLAUDE_DIR / "sessions-emb-index.json"
 EMB_PROJECT = Path.home() / "Projects" / "emb"

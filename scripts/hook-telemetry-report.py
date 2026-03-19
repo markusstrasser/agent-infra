@@ -12,7 +12,7 @@ from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-LOG_FILE = Path.home() / ".claude" / "hook-triggers.jsonl"
+from common.paths import TRIGGERS_FILE as LOG_FILE
 
 
 def load_entries(days: int = 7, hook_filter: str | None = None) -> list[dict]:

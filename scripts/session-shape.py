@@ -21,7 +21,7 @@ from statistics import mean, stdev
 
 from config import log_metric
 
-DB_PATH = Path.home() / ".claude" / "sessions.db"
+from common.paths import SESSIONS_DB as DB_PATH
 
 # Structural features extracted per session
 FEATURE_NAMES = [

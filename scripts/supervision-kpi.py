@@ -30,8 +30,7 @@ from config import extract_project_name
 # Constants
 # ---------------------------------------------------------------------------
 
-CLAUDE_DIR = Path.home() / ".claude"
-PROJECTS_DIR = CLAUDE_DIR / "projects"
+from common.paths import PROJECTS_DIR
 
 # Correction keywords — checked at START of user message (first 80 chars, lowered)
 # Anchored to message start to avoid false positives from long messages about

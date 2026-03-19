@@ -254,7 +254,8 @@ def detect_folds(turns: list[Turn]) -> SessionResult:
 
 def find_sessions(project: str | None = None, recent: int = 5) -> list[Path]:
     """Find recent session JSONL files."""
-    base = Path.home() / ".claude" / "projects"
+    from common.paths import PROJECTS_DIR
+    base = PROJECTS_DIR
     if project:
         pattern = f"-Users-alien-Projects-{project}"
         dirs = [d for d in base.iterdir() if d.is_dir() and pattern in d.name]

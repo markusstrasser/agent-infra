@@ -25,7 +25,7 @@ from pathlib import Path
 
 from config import log_metric
 
-DB_PATH = Path.home() / ".claude" / "findings.db"
+from common.paths import FINDINGS_DB as DB_PATH
 IMPROVEMENT_LOG = Path.home() / "Projects" / "meta" / "improvement-log.md"
 RETRO_ARTIFACTS = Path.home() / "Projects" / "meta" / "artifacts" / "session-retro"
 
