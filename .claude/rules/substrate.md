@@ -9,3 +9,15 @@ uv run python3 substrate/stress_test.py                # 27 tests
 ```
 
 See `substrate/` directory and `decisions/2026-03-17-shared-knowledge-substrate.md` for architecture.
+
+## Adding Substrate to a New Project
+
+Add to the project's `.mcp.json`:
+```json
+"knowledge-substrate": {
+  "command": "uv",
+  "args": ["run", "--directory", "/Users/alien/Projects/meta",
+           "python3", "substrate/mcp_server.py", "--project", "PROJECT_NAME"]
+}
+```
+Then create `.claude/rules/substrate.md` with project-specific registration guidance. DB is auto-created at `~/.claude/knowledge/PROJECT_NAME.db`.

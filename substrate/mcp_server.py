@@ -406,10 +406,12 @@ self-documenting.""",
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--project", required=True, help="Project name (determines DB path)")
+    parser.add_argument("--project", default=None,
+                        help="Project name (determines DB path). Default: cwd basename.")
     args = parser.parse_args()
 
-    server = create_server(args.project)
+    project = args.project or Path.cwd().name
+    server = create_server(project)
     server.run(transport="stdio")
 
 
