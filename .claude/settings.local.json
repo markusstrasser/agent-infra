@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Skill(researcher)",
+      "mcp__exa__web_search_advanced_exa"
     ]
   }
 }

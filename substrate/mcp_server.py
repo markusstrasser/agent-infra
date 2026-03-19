@@ -17,7 +17,7 @@ import json
 import sys
 from pathlib import Path
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 # Add parent to path for substrate import
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
