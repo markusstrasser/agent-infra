@@ -453,7 +453,7 @@ def _run_mutator_codex(config: dict, worktree: Path, prompt: str) -> tuple[str, 
     """
     cmd = [
         "codex", "exec",
-        "--dangerously-bypass-approvals-and-sandbox",
+        "--full-auto",
         prompt,
     ]
     model = config.get("model")
@@ -478,7 +478,7 @@ def _run_mutator_codex(config: dict, worktree: Path, prompt: str) -> tuple[str, 
             stderr = result.stderr.strip()[:200] if result.stderr else ""
             return f"ERROR: codex exit {result.returncode}: {stderr}", 0.0
 
-        # Codex plain text output — take first line as description
+        # Codex plain text output — take last line as description (agent's final summary)
         description = ""
         if result.stdout.strip():
             description = result.stdout.strip().split("\n")[-1][:120]

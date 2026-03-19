@@ -208,11 +208,16 @@ def parse_codex_session(path: Path) -> dict | None:
     task_label = ""
     last_user_text = ""
     status = "in_progress"
+    cli_version = ""
+    originator = ""
+    approval_policy = ""
+    sandbox_policy_type = ""
     usage = {}
     rate_limits = {}
     function_call_count = 0
     web_search_call_count = 0
     custom_tool_call_count = 0
+    reasoning_count = 0
 
     try:
         with open(path) as f:
@@ -239,12 +244,22 @@ def parse_codex_session(path: Path) -> dict | None:
                     project = Path(cwd).name if cwd else project
                     provider = payload.get("model_provider", provider)
                     branch = payload.get("git", {}).get("branch", branch)
+                    cli_version = payload.get("cli_version") or cli_version
+                    originator = payload.get("originator") or originator
 
                 elif outer_type == "turn_context":
                     model = payload.get("model", model)
-                    reasoning_effort = payload.get("effort", reasoning_effort)
+                    reasoning_effort = (
+                        payload.get("effort")
+                        or payload.get("collaboration_mode", {}).get("settings", {}).get("reasoning_effort", "")
+                        or reasoning_effort
+                    )
                     cwd = payload.get("cwd", cwd)
                     project = Path(cwd).name if cwd else project
+                    approval_policy = payload.get("approval_policy") or approval_policy
+                    sp = payload.get("sandbox_policy")
+                    if isinstance(sp, dict):
+                        sandbox_policy_type = sp.get("type") or sandbox_policy_type
 
                 elif outer_type == "response_item":
                     inner_type = payload.get("type")
@@ -254,6 +269,8 @@ def parse_codex_session(path: Path) -> dict | None:
                         web_search_call_count += 1
                     elif inner_type == "custom_tool_call":
                         custom_tool_call_count += 1
+                    elif inner_type == "reasoning":
+                        reasoning_count += 1
                     elif inner_type == "message" and payload.get("role") == "user":
                         text = extract_codex_message_text(payload)
                         if text:
@@ -309,6 +326,11 @@ def parse_codex_session(path: Path) -> dict | None:
         "function_call_count": function_call_count,
         "web_search_call_count": web_search_call_count,
         "custom_tool_call_count": custom_tool_call_count,
+        "reasoning_item_count": reasoning_count,
+        "cli_version": cli_version,
+        "originator": originator,
+        "approval_policy": approval_policy,
+        "sandbox_mode": sandbox_policy_type,
     }
 
     primary = rate_limits.get("primary") or {}

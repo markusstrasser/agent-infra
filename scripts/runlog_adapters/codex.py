@@ -28,7 +28,7 @@ from .common import (
 )
 
 PARSER_NAME = "codex"
-PARSER_VERSION = "2026-03-05.1"
+PARSER_VERSION = "2026-03-19.1"
 CLIENT = "codex-cli"
 
 
@@ -59,6 +59,8 @@ def parse_source(source: DiscoveredSource) -> ParsedSource:
     model_resolved: str | None = None
     approval_mode: str | None = None
     sandbox_mode: str | None = None
+    cli_version: str | None = None
+    originator: str | None = None
     git_head: str | None = None
     base_instructions: str | None = None
     turn_context_payload: dict | None = None
@@ -105,6 +107,8 @@ def parse_source(source: DiscoveredSource) -> ParsedSource:
                 base_instructions = payload.get("base_instructions", {}).get("text") or base_instructions
                 git_head = payload.get("git", {}).get("branch") or git_head
                 source_payload = payload.get("source") if payload.get("source") is not None else source_payload
+                cli_version = payload.get("cli_version") or cli_version
+                originator = payload.get("originator") or originator
                 continue
 
             if outer_type == "turn_context":
@@ -192,6 +196,8 @@ def parse_source(source: DiscoveredSource) -> ParsedSource:
                 "turn_context": turn_context_payload,
                 "base_instructions": base_instructions,
                 "session_source": source_payload,
+                "cli_version": cli_version,
+                "originator": originator,
             },
         )
     )
@@ -233,14 +239,15 @@ def _parse_response_item(
     if inner_type == "message":
         role = payload.get("role")
         text = "\n".join(typed_text_parts(payload.get("content"))).strip()
-        if role in {"user", "assistant"} and text:
+        if role in {"user", "assistant", "developer"} and text:
+            kind_map = {"user": "user_message", "developer": "developer_message"}
             bundle.events.append(
                 EventRow(
                     event_id=stable_id("evt_", run_id, raw_key, role),
                     run_id=run_id,
                     seq=len(bundle.events) + 1,
                     ts=timestamp,
-                    kind="user_message" if role == "user" else "assistant_message",
+                    kind=kind_map.get(role, "assistant_message"),
                     vendor_kind=inner_type,
                     role=role,
                     text=text,
@@ -248,6 +255,23 @@ def _parse_response_item(
                     record_key=raw_key,
                 )
             )
+        return
+
+    if inner_type == "reasoning":
+        bundle.events.append(
+            EventRow(
+                event_id=stable_id("evt_", run_id, raw_key, "reasoning"),
+                run_id=run_id,
+                seq=len(bundle.events) + 1,
+                ts=timestamp,
+                kind="reasoning",
+                vendor_kind=inner_type,
+                role="assistant",
+                text="[reasoning]",
+                payload=payload,
+                record_key=raw_key,
+            )
+        )
         return
 
     if inner_type in {"function_call", "web_search_call", "custom_tool_call"}:
@@ -382,22 +406,7 @@ def _parse_event_msg(bundle: ParsedSource, payload: dict, raw_key: str, timestam
         )
         return
     if message_type in {"user_message", "agent_message"}:
-        role = "user" if message_type == "user_message" else "assistant"
-        text = text_from_content(payload)
-        bundle.events.append(
-            EventRow(
-                event_id=stable_id("evt_", run_id, raw_key, message_type),
-                run_id=run_id,
-                seq=len(bundle.events) + 1,
-                ts=timestamp,
-                kind="user_message" if role == "user" else "assistant_message",
-                vendor_kind=message_type,
-                role=role,
-                text=text,
-                payload=payload,
-                record_key=raw_key,
-            )
-        )
+        # Skip — these duplicate response_item/message events with less detail
         return
 
     kind = "error" if message_type == "turn_aborted" else "status_update"
