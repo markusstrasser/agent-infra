@@ -135,3 +135,18 @@ runlog-import:
 [group('sessions')]
 sessions *args:
     uv run python3 scripts/sessions.py {{args}}
+
+# ── Git ────────────────────────────────────────────────────────────
+
+# Search Rejected: trailers across all repos
+[group('git')]
+discarded:
+    #!/usr/bin/env bash
+    for repo in meta intel genomics selve skills; do
+      results=$(git -C "$HOME/Projects/$repo" log --all --format='%C(yellow)%h%Creset %s%n  %b' --grep='Rejected:' -20 2>/dev/null | head -40)
+      if [ -n "$results" ]; then
+        echo "=== $repo ==="
+        echo "$results"
+        echo
+      fi
+    done

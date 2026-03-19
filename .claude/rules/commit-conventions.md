@@ -2,16 +2,22 @@
 
 Supplements the global commit message format with meta-specific rules.
 
-## Evidence Trailers
+## Trailers
 
-`Evidence:`, `Affects:` trailers required for commits touching:
-- Classification/curation logic changes
-- Governance files (CLAUDE.md, MEMORY.md, hooks, improvement-log)
+| Trailer | When | Required? |
+|---------|------|-----------|
+| `Evidence:` | Governance files (CLAUDE.md, MEMORY.md, hooks, improvement-log, rules) | Hook-suggested |
+| `Affects:` | Classification/curation logic, cross-project changes | Hook-suggested |
+| `Rejected:` | Design choices — record what was considered and discarded | Hook-suggested |
+| `Session-ID:` | Every agent commit — auto-suggested by commit hook | Hook-suggested |
+| `Source:` | Cross-project provenance (`Source: intel@f9dfcc9`) | Manual |
+
+The commit hook (`commit-check-parse.py`) suggests trailers based on staged files and message content. No trailer is blocking — all advisory.
 
 ## Concept Shift Bodies
 
 Commits touching `research/`, `decisions/`, or index-referenced docs must have a non-empty body naming the concept affected and what changed directionally. `git log --format='%s%n%b' -- decisions/` should read as a concept evolution timeline.
 
-## Cross-Project Provenance
+## Scope Reference
 
-`Source:` trailer for cross-project provenance. When a commit implements a finding/decision from another repo, add `Source: repo@sha` (e.g., `Source: intel@f9dfcc9`). Greppable breadcrumb so agents can trace motivation across repos.
+Canonical scopes for meta are listed in `.git-scopes` (repo root). The commit hook warns on unknown scopes but doesn't block. When adding a genuinely new scope, add it to `.git-scopes`.

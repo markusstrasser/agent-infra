@@ -1,0 +1,23 @@
+# Meta canonical scopes — extracted from top-20 by frequency (200 commits)
+# Commit hook warns on unknown scopes (advisory, not blocking).
+# Add new scopes here when they represent a genuine new area.
+research
+orchestrator
+autoresearch
+substrate
+session-analyst
+infra
+docs
+epistemic
+tooling
+mcp
+code-review
+repo-tools
+meta
+supervision
+pipelines
+maintenance
+vendor-sync
+triage
+config
+ops
