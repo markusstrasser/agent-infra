@@ -343,7 +343,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Missing pushback — compliance with vague scope before clarifying priorities
 - **Proposed fix:** [rule] "When user gives a vague directive ('integrate everything', 'wire it all up'), enumerate what's in scope and its expected value BEFORE starting work. Don't build first and assess value after."
 - **Severity:** medium (work was useful but not prioritized by ROI; ~9 enrichment views built, some with zero downstream consumers)
-- **Status:** [ ] proposed — covered by global CLAUDE.md technical_pushback rules; not adding separate gotcha
+- **Status:** [x] resolved — covered by global CLAUDE.md `<technical_pushback>` rules (steward hygiene 2026-03-19)
 
 ### [2026-03-02] TOKEN WASTE: Gemini 503 retry cascade — 7+ failed calls across sessions
 - **Session:** intel 331211bf
@@ -393,7 +393,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Over-engineering -- config for a feature with one caller and no variant use case
 - **Proposed fix:** [rule] "Don't add CLI flags for features with one caller. If the behavior needs to change, edit the source."
 - **Severity:** low (3 extra Read calls, minimal code added, but sets a precedent for unnecessary config surface)
-- **Status:** [ ] proposed — covered by global CLAUDE.md anti-over-engineering rules
+- **Status:** [x] resolved — covered by global CLAUDE.md `<technical_pushback>` anti-over-engineering rules (steward hygiene 2026-03-19)
 
 ### [2026-03-02] MISSING PUSHBACK: Exa web searches for "most undervalued stocks" alongside systematic DuckDB screening
 - **Session:** intel 92774402
@@ -556,7 +556,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Token waste — iterative parsing of absent data
 - **Proposed fix:** [rule] "When checking subagent output, first check last line for `type==result`. If absent, agent didn't finish. Don't iterate."
 - **Severity:** low (4 wasted Bash calls, ~800 tokens)
-- **Status:** [ ] proposed — not worth a hook, add to MEMORY.md as gotcha
+- **Status:** [x] resolved — subagent output convention rule in global CLAUDE.md covers broader pattern; too narrow for standalone gotcha (steward hygiene 2026-03-19)
 
 ### [2026-03-02] RULE VIOLATION: DuckDB column name guessing despite schema.md mandate
 - **Session:** intel 4f92d9b7 (continuation)
@@ -640,7 +640,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Subagent scope violation — Explore agents should never commit
 - **Proposed fix:** [architectural] Already addressed by worktree isolation rule in CLAUDE.md. Verify enforcement.
 - **Severity:** high
-- **Status:** [ ] proposed — verify worktree isolation is enforced
+- **Status:** [x] resolved — worktree isolation rule in CLAUDE.md `<subagent_usage>`; Explore agent type natively restricts Edit/Write (steward hygiene 2026-03-19)
 
 ### [2026-03-03] NEW: Context compaction hallucinated completed work
 - **Session:** meta ed9437c6
@@ -648,7 +648,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** NEW: Compaction hallucination — compaction summary claims work completed that was never committed
 - **Proposed fix:** [rule] Already in CLAUDE.md: "Post-compaction verification: run git log and verify claimed commits exist." Recurrence suggests rule alone insufficient — consider hook.
 - **Severity:** high
-- **Status:** [ ] proposed — evaluate post-compaction verification hook
+- **Status:** [x] deferred — post-compaction verification rule deployed in CLAUDE.md `<context_management>`; no hookable trigger event for compaction (steward hygiene 2026-03-19)
 
 ### [2026-03-03] MISSING PUSHBACK: Destructive archival of 12 research files
 - **Session:** selve 603501f8
