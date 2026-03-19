@@ -210,6 +210,23 @@ Only works for skills with explicit tasks. Guidelines-only skills (no actionable
 - [ ] Tested: skill activates for matching queries
 - [ ] Tested: skill doesn't conflict with existing skills
 
+## Testing and Iteration
+
+This skill covers **design principles**. For eval-driven iteration (parallel test runs, grading, benchmarking, description optimization), use the official `skill-creator` plugin:
+
+```
+/skill-creator
+```
+
+The plugin provides: with-skill/baseline parallel runs, grading agents (`agents/grader.md`), benchmark aggregation, HTML eval viewer, description optimization via train/test split, and blind A/B comparison.
+
+**Recommended workflow:** Design with this skill's principles → iterate with `/skill-creator`'s eval loop.
+
+Key scripts available in the plugin (for orchestrated/automated use):
+- `scripts/run_eval.py` — automated skill eval (usable from orchestrator)
+- `scripts/improve_description.py` — description optimization without interactive loop
+- `scripts/package_skill.py` — package skill into `.skill` file
+
 ## Anti-Patterns
 
 - **Generic instructions** — telling Claude what it already knows. Low value per Agent-Diff.

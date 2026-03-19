@@ -162,9 +162,128 @@ OpenViking L0/L1/L2, our repo_tools_mcp tiers, DeepAgents' context management. T
 
 ## Action Items
 
-1. **[high] Audit 5 overlapping skills vs official plugins:** claude-md-management, code-review, frontend-design, playground, skill-creator. Determine: are official versions better? Should we adopt, fork, or keep ours?
-2. **[high] Deep-dive Hermes Agent self-improvement mechanism:** How does skill self-improvement during use work? What's the agentskills.io spec?
-3. **[medium] Add chrome-devtools-mcp to global MCP config.** Complementary to claude-in-chrome.
+1. ~~**[high] Audit 5 overlapping skills vs official plugins.**~~ DONE — see Skill Overlap Audit below. Only 2 actual overlaps; 3 are already official-only.
+2. ~~**[high] Deep-dive Hermes Agent self-improvement mechanism.**~~ DONE — see Hermes Agent Patterns below.
+3. **[medium] Add chrome-devtools-mcp to frontend-heavy project configs.** Not global — scoped per user preference. Complementary to claude-in-chrome.
 4. **[medium] Study Superpowers subagent-driven-development pattern.** Two-stage review (spec compliance + code quality) for subagent work.
 5. **[low] Consider plugin format for new skills.** Plugin distribution is the canonical mechanism now.
 6. **[low] Build hash-based incremental reprocessing** for runlog/session ingestion (CocoIndex pattern).
+
+---
+
+## Skill Overlap Audit (2026-03-19)
+
+Compared our 5 skills with official Anthropic counterparts in `anthropics/claude-plugins-official`.
+
+### State Before Audit
+
+| Our skill | Official plugin | Already installed? |
+|-----------|----------------|-------------------|
+| `skill-authoring` (meta-local, 223 lines) | `skill-creator` (479 lines) | No |
+| `code-review` (shared, 214 lines) | `code-review` (92 lines) | No |
+| (none) | `frontend-design` (41 lines) | Yes |
+| (none) | `playground` (76 lines) | Yes |
+| (none) | `claude-md-management` (179+55 lines) | Yes |
+
+3 of 5 "overlaps" were false — we never had custom versions of frontend-design, playground, or claude-md-management. Those are already purely official plugins.
+
+### Verdicts
+
+**1. skill-authoring (ours) vs skill-creator (official) → KEEP BOTH, complementary**
+
+| Dimension | Ours (skill-authoring) | Official (skill-creator) |
+|-----------|----------------------|------------------------|
+| Focus | Design principles: progressive disclosure, per-step constraints, frontmatter reference, anti-patterns, L2/L3 extraction rubric | Eval-driven iteration: parallel with/without-skill runs, grading agents, benchmark aggregation, HTML viewer, description optimization |
+| Teaches | HOW to design a good skill (architecture) | HOW to iterate until a skill works (measurement) |
+| Unique value | Agent-Diff citation (+3.4 known vs +19 novel), L3 extraction decision rubric, constraint type taxonomy | Parallel baseline comparison, blind A/B testing, train/test description optimization, eval viewer HTML |
+| Length | 223 lines (now ~240 with cross-reference) | 479 lines + agents/ + scripts/ + assets/ |
+
+**Action taken:** Installed `skill-creator@claude-plugins-official`. Updated our `skill-authoring` to reference the official plugin for eval/iteration. Workflow: design with ours → iterate with `/skill-creator`.
+
+**2. code-review (ours) vs code-review (official) → KEEP BOTH, different scope**
+
+| Dimension | Ours | Official |
+|-----------|------|----------|
+| Purpose | Continuous proactive code quality review | PR-specific review |
+| Model cost | Free (Gemini/Codex CLI) | Claude Code agents (Haiku + 5× Sonnet) |
+| Workflow | Scout → validate → fix → commit | Triage → 5 parallel review angles → confidence score → PR comment |
+| Trigger | `/loop` auto-rotation, 25-day cycle | Per-PR, responds to GH PRs |
+| Input | Entire codebase, focused by topic | PR diff |
+| Output | JSONL findings + committed fixes | PR comment with linked code |
+
+Zero functional overlap. Ours is a continuous quality scanner using free models. Theirs is a PR reviewer using Claude Code's own agents. Both are useful — ours for proactive quality, theirs for reactive PR review (if we ever use PRs; currently all-main workflow).
+
+**Not installed:** The official `code-review` plugin. Would only be useful if we adopt PR-based workflow.
+
+**3-5. frontend-design, playground, claude-md-management → N/A**
+
+We never had custom versions. Already using official plugins exclusively. No action needed.
+
+### Summary
+
+Only 2 actual overlaps out of 5. Both are complementary rather than competitive. No skills to retire. One plugin installed (skill-creator). The official code-review plugin serves a different use case (PRs) that doesn't apply to our all-main workflow.
+
+---
+
+## Hermes Agent Patterns (2026-03-19)
+
+Extracted from `NousResearch/hermes-agent` (9.1K stars, MIT, Python).
+
+### Skill Self-Improvement: Three-Layer Detection
+
+Hermes uses entirely LLM-judged detection — no automated staleness analysis, no diff-based detection, no runtime eval framework.
+
+**Layer 1: System prompt instructions** (`SKILLS_GUIDANCE` + `build_skills_system_prompt`)
+- Injected into every agent turn when `skill_manage` tool is loaded
+- Instructions: scan skills before acting, load matching skills, fix broken skills during use via `skill_manage(action='patch')`, offer to save complex tasks as skills
+- Key quote: "Skills that aren't maintained become liabilities"
+
+**Layer 2: Iteration-based nudge** (counter in `run_agent.py`)
+- Tracks tool-calling iterations per agent turn
+- After N iterations (default 15, configurable via `skills.creation_nudge_interval`), injects system message into next user message:
+  > "Save the approach as a skill if it's reusable, or update any existing skill you used if it was wrong or incomplete."
+- Counter resets when `skill_manage` is actually called
+
+**Layer 3: Tool schema description** (in `skill_manage` tool definition)
+- Create triggers: 5+ tool calls, errors overcome, user-corrected approach
+- Update triggers: stale instructions, OS-specific failures, missing steps/pitfalls found during use
+- 6 actions: create, patch (preferred), edit, delete, write_file, remove_file
+
+**Security:** Every skill write runs through `skills_guard.py` — trust levels for builtin/trusted/community/agent-created. Agent-created skills blocked on "dangerous" findings, allowed on safe+caution.
+
+### Comparison to Our Pipeline
+
+| Aspect | Hermes | Our infrastructure |
+|--------|--------|-------------------|
+| Detection timing | During use (real-time) | Post-hoc (session-analyst) |
+| Detection method | LLM-judged prompts | Structured analysis of transcripts |
+| Improvement actor | Same agent that found the issue | Human reviews → implements in target repo |
+| Quality gate | Security scan only | 2+ recurrence, checkable predicate, not already covered |
+| Skill creation | Agent creates directly | Human designs, agent assists |
+
+**Assessment:** Hermes's real-time skill patching is faster but lower quality — no recurrence requirement, no human review. Our post-hoc pipeline is slower but produces higher-quality improvements (constitutional principle: "instructions alone = 0% reliable"). Their iteration nudge (inject reminder after N tool calls) is a pattern worth considering — it's essentially a timeout-based prompt to reflect.
+
+### agentskills.io Standard
+
+The open standard (originally from Anthropic) is now adopted by ~30 products including Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI, JetBrains Junie, and others.
+
+**Format:** Identical to our SKILL.md format — YAML frontmatter (name + description required) + Markdown body + optional scripts/, references/, assets/ directories. The 3-tier progressive disclosure model matches ours exactly. We are already compliant.
+
+**Client implementation guide** specifies:
+- Discovery: scan `.<client>/skills/` and `.agents/skills/` (cross-client convention)
+- Project-level skills override user-level (our symlinks already do this)
+- Trust gating for project-level skills from untrusted repos
+
+**Eval framework** (`evals/evals.json`): Test cases with prompts, expected outputs, files, and assertions. Separate offline process for skill authors — matches what the `skill-creator` plugin automates.
+
+**Hermes extensions** (not in base standard):
+- Conditional activation: `fallback_for_toolsets`, `requires_toolsets` (show skill only when certain tools available/unavailable)
+- Platform restrictions: `platforms: [macos, linux]`
+- Env var setup on load: `required_environment_variables` with prompts
+- Multi-registry hub integration with security scanning
+
+**Implications for us:**
+1. Our skills are already agentskills.io compliant — no format changes needed
+2. The `skill-creator` plugin now provides the eval framework the standard recommends
+3. Hermes's conditional activation (`requires_toolsets`) is a pattern we lack — could be useful for skills that depend on specific MCPs
+4. Publishing our unique skills (researcher, epistemics, causal-dag, brainstorm, entity-management) to the standard ecosystem is technically trivial — they're already in the right format
