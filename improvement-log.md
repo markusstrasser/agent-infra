@@ -1049,3 +1049,57 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Root cause:** agent-capability
 - **Recurrences:** 2 (second occurrence — first was in MEMORY.md gotcha from prior session)
 - **Status:** [ ] proposed
+
+### [2026-03-19] RULE VIOLATION: Epistemics skill not invoked for biotech/medical research
+- **Session:** selve 3312688c
+- **Evidence:** User requested research on "biotech, antiaging, neuroscience." Mandatory epistemics companion skill not invoked. Agent went straight to Exa/Brave web searches. Claims in output not source-graded or evaluated against evidence hierarchy.
+- **Failure mode:** RULE VIOLATION
+- **Proposed fix:** [hook] PreToolUse hook that detects medical/bio topic keywords in search queries and warns if epistemics skill hasn't been invoked. Or: strengthen the rule in selve's CLAUDE.md.
+- **Root cause:** TBD
+- **Recurrences:** 3 (auto-promoted from staging)
+- **Status:** [ ] proposed
+
+### [2026-03-19] SEARCH_WASTE: Used semantic search for location-based contact lookup — wrong tool. Semantic embeddings match topic similarity, not relational metadata like 'X lives in Y'. Should grep raw data first.
+- **Session:** selve ?
+- **Evidence:** 3 selve search queries returned city-vibe tweets (roon, Zack Kanter) instead of contacts in Austin
+- **Failure mode:** SEARCH_WASTE
+- **Proposed fix:** Rule: for 'who do I know in [place]' queries, grep content scans + parsed JSON for place name first, semantic search second
+- **Root cause:** TBD
+- **Recurrences:** 2 (auto-promoted from staging)
+- **Status:** [ ] proposed
+
+### [2026-03-19] MISSING PUSHBACK: Agent relabeled research purpose without flagging concern
+- **Session:** meta 8c7dcbfb
+- **Evidence:** User asked to identify duplicated infrastructure across projects. Agent produced granular utility-function extraction plan (cross-project-infra-factoring.md). User: "It's not so granular... more about 'hey this dataset pipeline system'". Full plan discarded, rewritten at different abstraction level. One clarifying question before planning would have prevented the rewrite.
+- **Failure mode:** MISSING PUSHBACK
+- **Proposed fix:** TBD
+- **Root cause:** TBD
+- **Recurrences:** 2 (auto-promoted from staging)
+- **Status:** [ ] proposed
+
+### [2026-03-19] TOOL_MISUSE: ./selve view fails silently for iMessage entries. Wasted 2 calls before switching to direct JSON access.
+- **Session:** selve ?
+- **Evidence:** Could not load data for source: imessage — returned on both attempts
+- **Failure mode:** TOOL_MISUSE
+- **Proposed fix:** Document in MEMORY.md: selve view doesn't work for iMessage/Signal sources, read indexed/*_parsed.json directly
+- **Root cause:** TBD
+- **Recurrences:** 2 (auto-promoted from staging)
+- **Status:** [ ] proposed
+
+### [2026-03-19] TOKEN_WASTE: Sequential search broadening — 6 grep passes with slightly wider patterns instead of one comprehensive parallel pass. Each returned same 2 Austin mentions.
+- **Session:** selve ?
+- **Evidence:** 6 grep calls across content scans, 3 selve searches, all finding same Austin Brown and UT Austin mentions
+- **Failure mode:** TOKEN_WASTE
+- **Proposed fix:** For exhaustive location searches, run ONE parallel batch across all content sources rather than iteratively broadening
+- **Root cause:** TBD
+- **Recurrences:** 2 (auto-promoted from staging)
+- **Status:** [ ] proposed
+
+### [2026-03-19] TOKEN_WASTE: Two parallel research agents (Explore + claude-code-guide) returned overlapping SKILL.md format documentation. One agent would have sufficed.
+- **Session:** meta ?
+- **Evidence:** Both agents returned ~4k tokens of overlapping SKILL.md frontmatter and best practices content
+- **Failure mode:** TOKEN_WASTE
+- **Proposed fix:** For best-practices questions, dispatch one claude-code-guide + one Explore with distinct scopes, not two agents on same topic.
+- **Root cause:** TBD
+- **Recurrences:** 2 (auto-promoted from staging)
+- **Status:** [ ] proposed
