@@ -4,7 +4,7 @@ set -euo pipefail
 # ============================================================================
 # AI Agent Workstation Setup
 # Installs: CLI agents, terminal stack, repos, Claude Code config, skills
-# Run: curl -sL <gist-url>/setup-friend.sh | bash
+# Run: curl -sL https://gist.githubusercontent.com/markusstrasser/7576bba522c935ecb5c890ce31cd392f/raw/setup_friend_mac.sh | bash
 # ============================================================================
 
 BOLD='\033[1m'
@@ -247,10 +247,31 @@ store_key "MOONSHOT_API_KEY" "Kimi / Moonshot" \
 
 step "Setting up terminal config"
 
-# Ghostty config
+# Ghostty terminal config
 mkdir -p "$HOME/.config/ghostty"
 if [ ! -f "$HOME/.config/ghostty/config" ]; then
     cat > "$HOME/.config/ghostty/config" <<'GHOSTTY'
+# Font
+font-family = JetBrainsMono Nerd Font
+font-size = 14
+
+# Theme (Tokyo Night — matches starship colors)
+theme = tokyonight
+
+# Window
+window-padding-x = 8
+window-padding-y = 4
+window-decoration = true
+macos-titlebar-style = tabs
+window-save-state = always
+
+# Behavior
+copy-on-select = clipboard
+confirm-close-surface = false
+mouse-hide-while-typing = true
+shell-integration = zsh
+
+# Keybinds
 keybind = shift+enter=text:\x1b\r
 GHOSTTY
     ok "Ghostty config"
@@ -579,6 +600,108 @@ CLAUDEMD
     ok "Global CLAUDE.md (starter)"
 else
     skip "Global CLAUDE.md already exists"
+fi
+
+# ── Git Config ──────────────────────────────────────────────
+
+step "Setting up git config"
+
+# Global gitignore
+if [ ! -f "$HOME/.gitignore" ]; then
+    cat > "$HOME/.gitignore" <<'GITIGNORE'
+.DS_Store
+Desktop.ini
+._*
+Thumbs.db
+.Spotlight-V100
+.Trashes
+node_modules
+*.pyc
+__pycache__
+.env.local
+GITIGNORE
+    ok "Global .gitignore"
+else
+    skip "Global .gitignore already exists"
+fi
+
+# Git config — delta pager, good defaults, aliases
+if ! git config --global core.pager | grep -q delta 2>/dev/null; then
+    # Core
+    git config --global core.excludesfile "$HOME/.gitignore"
+    git config --global core.pager "delta --word-diff-regex=."
+    git config --global core.autocrlf input
+
+    # Delta (rich diffs)
+    git config --global delta.syntax-theme base16
+    git config --global delta.hyperlinks true
+    git config --global delta.navigate true
+    git config --global delta.file-style "bold yellow ul"
+    git config --global delta.hunk-header-decoration-style blue
+    git config --global interactive.diffFilter "delta --color-only"
+
+    # Push/pull
+    git config --global push.default current
+    git config --global push.autoSetupRemote true
+    git config --global pull.ff only
+    git config --global fetch.prune true
+
+    # UX
+    git config --global help.autocorrect 1
+    git config --global log.date human
+    git config --global rerere.enabled true
+    git config --global diff.colorMoved default
+    git config --global merge.conflictStyle zdiff3
+    git config --global credential.helper osxkeychain
+
+    # Aliases
+    git config --global alias.s status
+    git config --global alias.c "commit -am"
+    git config --global alias.co checkout
+    git config --global alias.lg "log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cd) %C(bold blue)<%an>%Creset' --abbrev-commit"
+    git config --global alias.undocommit "reset HEAD~"
+    git config --global alias.amend "commit --amend --all --no-edit"
+
+    # Use SSH for GitHub
+    git config --global url."git@github.com:".insteadOf "https://github.com/"
+
+    ok "Git config (delta, aliases, SSH)"
+else
+    skip "Git config already has delta"
+fi
+
+# Prompt for git identity if not set
+if [ -z "$(git config --global user.name)" ]; then
+    echo ""
+    read -rp "  Git name (e.g. 'Jane Doe'): " git_name
+    [ -n "$git_name" ] && git config --global user.name "$git_name"
+    read -rp "  Git email: " git_email
+    [ -n "$git_email" ] && git config --global user.email "$git_email"
+    ok "Git identity set"
+else
+    ok "Git identity: $(git config --global user.name) <$(git config --global user.email)>"
+fi
+
+# SSH key for GitHub
+if [ ! -f "$HOME/.ssh/id_ed25519" ]; then
+    echo ""
+    echo -e "  ${BOLD}SSH key for GitHub${RESET}"
+    echo -e "  ${DIM}Needed to push/pull private repos${RESET}"
+    read -rp "  Generate SSH key? (y/n): " gen_ssh
+    if [ "$gen_ssh" = "y" ]; then
+        ssh-keygen -t ed25519 -C "$(git config --global user.email)" -f "$HOME/.ssh/id_ed25519" -N ""
+        eval "$(ssh-agent -s)" >/dev/null
+        ssh-add "$HOME/.ssh/id_ed25519" 2>/dev/null
+        pbcopy < "$HOME/.ssh/id_ed25519.pub"
+        ok "SSH key generated + copied to clipboard"
+        echo -e "  ${YELLOW}→ Paste at: https://github.com/settings/ssh/new${RESET}"
+        echo -e "  ${DIM}Press Enter after adding to GitHub...${RESET}"
+        read -r
+    else
+        skip "SSH key"
+    fi
+else
+    ok "SSH key exists"
 fi
 
 # ── Skill Symlinks ──────────────────────────────────────────
