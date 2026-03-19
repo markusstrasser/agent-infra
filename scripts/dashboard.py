@@ -16,23 +16,9 @@ from pathlib import Path
 from agent_receipts import collect_codex_receipts, load_openai_receipts
 
 from common.paths import CLAUDE_DIR, RECEIPTS_PATH as RECEIPTS, COMPACT_LOG as COMPACTIONS
+from common.io import load_jsonl
 EPISTEMIC_METRICS = CLAUDE_DIR / "epistemic-metrics.jsonl"
 MIN_TS = datetime.min
-
-
-def load_jsonl(path: Path) -> list[dict]:
-    if not path.exists():
-        return []
-    entries = []
-    with open(path) as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                try:
-                    entries.append(json.loads(line))
-                except json.JSONDecodeError:
-                    continue
-    return entries
 
 
 def parse_ts(ts: str) -> datetime:

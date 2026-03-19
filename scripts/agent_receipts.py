@@ -60,27 +60,7 @@ def isoformat_or_empty(value: datetime | None) -> str:
     return value.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
-def load_jsonl(path: Path) -> list[dict]:
-    if not path.exists():
-        return []
-    rows = []
-    with open(path) as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                rows.append(json.loads(line))
-            except json.JSONDecodeError:
-                continue
-    return rows
-
-
-def write_jsonl(path: Path, rows: list[dict]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
-        for row in rows:
-            f.write(json.dumps(row, separators=(",", ":")) + "\n")
+from common.io import load_jsonl, write_jsonl
 
 
 def normalize_tags(value) -> list[str]:

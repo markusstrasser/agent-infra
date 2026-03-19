@@ -15,22 +15,7 @@ from pathlib import Path
 from config import METRICS_FILE, log_metric
 
 from common.paths import COMPACT_LOG as COMPACTIONS
-
-
-def load_jsonl(path: Path) -> list[dict]:
-    if not path.exists():
-        return []
-    entries = []
-    with open(path) as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                entries.append(json.loads(line))
-            except json.JSONDecodeError:
-                continue
-    return entries
+from common.io import load_jsonl
 
 
 def parse_ts(ts: str) -> datetime:

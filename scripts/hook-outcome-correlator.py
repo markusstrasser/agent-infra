@@ -20,26 +20,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from common.paths import TRIGGERS_FILE, RECEIPTS_PATH as RECEIPTS_FILE
-
-
-def load_jsonl(path: Path, cutoff: str) -> list[dict]:
-    """Load JSONL entries after cutoff timestamp."""
-    if not path.exists():
-        return []
-    entries = []
-    with open(path) as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                entry = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            ts = entry.get("ts", "")
-            if ts >= cutoff:
-                entries.append(entry)
-    return entries
+from common.io import load_jsonl
 
 
 def main():
@@ -52,8 +33,8 @@ def main():
 
     cutoff = (datetime.now() - timedelta(days=days)).isoformat()
 
-    triggers = load_jsonl(TRIGGERS_FILE, cutoff)
-    receipts = load_jsonl(RECEIPTS_FILE, cutoff)
+    triggers = load_jsonl(TRIGGERS_FILE, since=cutoff)
+    receipts = load_jsonl(RECEIPTS_FILE, since=cutoff)
 
     if not triggers:
         print(f"No hook triggers in the last {days} days.")
