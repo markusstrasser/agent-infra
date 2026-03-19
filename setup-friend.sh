@@ -602,6 +602,512 @@ else
     skip "Global CLAUDE.md already exists"
 fi
 
+# ── Claude Code Cockpit (status line + hooks) ──────────────
+
+step "Setting up Claude Code cockpit"
+
+mkdir -p "$HOME/.claude/hooks"
+
+# cockpit.conf — toggle notifications
+cat > "$HOME/.claude/cockpit.conf" <<'CONF'
+# Cockpit configuration
+# Toggle notifications when Claude finishes responding
+notifications=on
+CONF
+ok "cockpit.conf"
+
+# --- statusline.sh (325 lines) — rich status bar + Ghostty tab title ---
+cat > "$HOME/.claude/statusline.sh" <<'STATUSLINE'
+#!/usr/bin/env bash
+# Claude Code status line — rich info bar + Ghostty tab title + aggregate HUD
+# Line 1: project · cost (velocity) · context bar + tokens · tool · elapsed
+# Line 2: throughput · cache% · context rate · lines
+
+set -euo pipefail
+
+input=$(cat)
+
+model=$(echo "$input" | jq -r '.model.display_name // "?"')
+cost=$(echo "$input" | jq -r '.cost.total_cost_usd // 0')
+pct=$(echo "$input" | jq -r '.context_window.used_percentage // 0' | cut -d. -f1)
+duration_ms=$(echo "$input" | jq -r '.cost.total_duration_ms // 0' | cut -d. -f1)
+api_duration_ms=$(echo "$input" | jq -r '.cost.total_api_duration_ms // 0' | cut -d. -f1)
+lines_add=$(echo "$input" | jq -r '.cost.total_lines_added // 0')
+lines_rm=$(echo "$input" | jq -r '.cost.total_lines_removed // 0')
+session_id=$(echo "$input" | jq -r '.session_id // ""')
+workspace=$(echo "$input" | jq -r '.workspace.current_dir // "."')
+
+total_in=$(echo "$input" | jq -r '.context_window.total_input_tokens // 0' | cut -d. -f1)
+total_out=$(echo "$input" | jq -r '.context_window.total_output_tokens // 0' | cut -d. -f1)
+ctx_size=$(echo "$input" | jq -r '.context_window.context_window_size // 200000' | cut -d. -f1)
+cache_read=$(echo "$input" | jq -r '.context_window.current_usage.cache_read_input_tokens // 0' | cut -d. -f1)
+cache_create=$(echo "$input" | jq -r '.context_window.current_usage.cache_creation_input_tokens // 0' | cut -d. -f1)
+cur_input=$(echo "$input" | jq -r '.context_window.current_usage.input_tokens // 0' | cut -d. -f1)
+
+project=$(basename "$workspace")
+now=$(date +%s)
+
+model_tag=""
+[[ "$model" != "Opus 4.6" ]] && model_tag="$model "
+
+cache="/tmp/statusline-git-cache"
+if [[ -f "$cache" ]] && (( now - $(stat -f%m "$cache") < 5 )); then
+  branch=$(cat "$cache")
+else
+  branch=$(git -C "$workspace" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "—")
+  echo "$branch" > "$cache"
+fi
+branch_tag=""
+[[ "$branch" != "main" && "$branch" != "—" ]] && branch_tag="($branch) "
+
+pct_int=${pct:-0}
+filled=$(( pct_int / 10 ))
+empty=$(( 10 - filled ))
+bar=""
+(( filled > 0 )) && bar=$(printf '%0.s▓' $(seq 1 $filled))
+(( empty > 0 )) && bar+=$(printf '%0.s░' $(seq 1 $empty))
+
+fmt_k() { local n=$1; if (( n >= 1000 )); then echo "$((n / 1000))K"; else echo "$n"; fi; }
+current_tokens=$(( pct_int * ctx_size / 100 ))
+in_k=$(fmt_k "$current_tokens")
+ctx_k=$(fmt_k "$ctx_size")
+
+cache_total=$(( cache_read + cache_create + cur_input ))
+cache_pct=0
+(( cache_total > 0 )) && cache_pct=$(( cache_read * 100 / cache_total ))
+
+throughput=""
+if (( api_duration_ms > 0 && total_out > 0 )); then
+  tps=$(( total_out * 1000 / api_duration_ms ))
+  (( tps > 0 )) && throughput="${tps}t/s"
+fi
+
+cost_vel=""
+if (( duration_ms > 60000 )); then
+  vel=$(echo "scale=2; $cost * 60000 / $duration_ms" | bc -l 2>/dev/null || echo "")
+  [[ "$vel" == .* ]] && vel="0${vel}"
+  [[ -n "$vel" && "$vel" != "0" && "$vel" != "0.00" ]] && cost_vel="\$${vel}/m"
+fi
+
+ctx_rate=""
+ctx_eta=""
+if (( duration_ms > 60000 && pct_int > 5 )); then
+  rate_per_min=$(echo "scale=1; $pct_int * 60000 / $duration_ms" | bc -l 2>/dev/null || echo "")
+  if [[ -n "$rate_per_min" ]]; then
+    ctx_rate="+${rate_per_min}%/m"
+    remaining=$(( 100 - pct_int ))
+    if [[ "$rate_per_min" != "0" && "$rate_per_min" != ".0" && "$rate_per_min" != "0.0" ]]; then
+      eta_min=$(echo "scale=0; $remaining / $rate_per_min" | bc -l 2>/dev/null || echo "")
+      if [[ -n "$eta_min" && "$eta_min" -gt 0 ]] 2>/dev/null; then
+        (( eta_min > 60 )) && ctx_eta="~$((eta_min / 60))h left" || ctx_eta="~${eta_min}m left"
+      fi
+    fi
+  fi
+fi
+
+reset='\033[0m'; dim='\033[2m'; bold='\033[1m'
+if (( pct_int > 80 )); then ctx_color='\033[1;31m'
+elif (( pct_int > 50 )); then ctx_color='\033[1;33m'
+else ctx_color='\033[32m'; fi
+cost_color='\033[33m'
+cost_fmt=$(printf '$%.2f' "$cost")
+ctx_warn=""
+(( pct_int > 80 )) && ctx_warn=" ${bold}\033[31m→ /compact${reset}"
+
+tool_action=""
+tool_file="/tmp/claude-tab-tool-$PPID"
+[[ -f "$tool_file" ]] && tool_action=$(cat "$tool_file" 2>/dev/null || true)
+
+elapsed=""
+prompt_file="/tmp/claude-tab-prompt-$PPID"
+if [[ -f "$prompt_file" ]]; then
+  prompt_time=$(cat "$prompt_file" 2>/dev/null || echo 0)
+  if (( prompt_time > 0 )); then
+    delta=$(( now - prompt_time ))
+    if (( delta >= 3600 )); then elapsed="$((delta / 3600))h"
+    elif (( delta >= 60 )); then elapsed="$((delta / 60))m"
+    else elapsed="${delta}s"; fi
+  fi
+fi
+
+spinners=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏)
+spinner_file="/tmp/claude-tab-spinner-$PPID"
+spinner_idx=0
+[[ -f "$spinner_file" ]] && spinner_idx=$(cat "$spinner_file" 2>/dev/null || echo 0)
+spinner="${spinners[$((spinner_idx % 10))]}"
+echo $(( (spinner_idx + 1) % 10 )) > "$spinner_file" 2>/dev/null || true
+
+tab_state=""
+state_file="/tmp/claude-tab-state-$PPID"
+[[ -f "$state_file" ]] && tab_state=$(cat "$state_file" 2>/dev/null || true)
+
+error_file="/tmp/claude-tab-error-$PPID"
+if [[ -f "$error_file" ]]; then
+  error_val=$(cat "$error_file" 2>/dev/null || echo 0)
+  (( error_val > 0 )) && tab_state="error" || true
+fi
+(( pct_int > 80 )) && [[ "$tab_state" != "error" && "$tab_state" != "done" ]] && tab_state="attention"
+
+case "$tab_state" in
+  working) state_glyph="◐"; state_color="$dim" ;;
+  attention) state_glyph="◆"; state_color='\033[33m' ;;
+  error) state_glyph="▲"; state_color='\033[31m' ;;
+  done) state_glyph="●"; state_color='\033[32m' ;;
+  *) state_glyph="·"; state_color="$dim" ;;
+esac
+
+echo "${tab_state:-idle}|${project}|${cost_fmt}|${pct_int}" > "/tmp/claude-agent-$PPID" 2>/dev/null || true
+
+agg_working=0; agg_attention=0; agg_error=0
+cutoff=$(( now - 21600 ))
+for f in /tmp/claude-agent-*; do
+  [[ -f "$f" ]] || continue
+  fpid="${f##*-}"; [[ "$fpid" == "$PPID" ]] && continue
+  fmtime=$(stat -f%m "$f" 2>/dev/null || echo 0)
+  (( fmtime < cutoff )) && continue
+  astate=$(cut -d'|' -f1 "$f" 2>/dev/null || echo "idle")
+  case "$astate" in
+    working) (( agg_working++ )) || true ;;
+    attention) (( agg_attention++ )) || true ;;
+    error) (( agg_error++ )) || true ;;
+  esac
+done
+
+agg_badge=""
+agg_parts=()
+(( agg_attention > 0 )) && agg_parts+=("${agg_attention}◆")
+(( agg_error > 0 )) && agg_parts+=("${agg_error}▲")
+(( agg_working > 0 )) && agg_parts+=("${agg_working}◐")
+(( ${#agg_parts[@]} > 0 )) && agg_badge=" [$(IFS=' '; echo "${agg_parts[*]}")]"
+
+tool_display=""; [[ -n "$tool_action" ]] && tool_display=" ${dim}·${reset} ${tool_action}"
+elapsed_display=""; [[ -n "$elapsed" ]] && elapsed_display=" ${dim}${elapsed}${reset}"
+cost_vel_display=""; [[ -n "$cost_vel" ]] && cost_vel_display=" ${dim}${cost_vel}${reset}"
+
+printf '%b' "${state_color}${state_glyph}${reset} ${model_tag}${branch_tag}${bold}${project}${reset} ${dim}·${reset} ${cost_color}${cost_fmt}${reset}${cost_vel_display} ${dim}·${reset} ${ctx_color}${bar} ${pct_int}%${reset} ${dim}${in_k}/${ctx_k}${reset}${ctx_warn}${tool_display}${elapsed_display}"
+echo
+
+line2_parts=()
+[[ -n "$throughput" ]] && line2_parts+=("${throughput}")
+(( cache_total > 100 )) && line2_parts+=("cache ${cache_pct}%")
+[[ -n "$ctx_rate" ]] && line2_parts+=("ctx ${ctx_rate}")
+[[ -n "$ctx_eta" ]] && line2_parts+=("${ctx_eta}")
+(( lines_add > 0 || lines_rm > 0 )) && line2_parts+=("Δ+${lines_add}/-${lines_rm}")
+(( duration_ms > 300000 )) && line2_parts+=("$((duration_ms / 60000))m")
+[[ -n "$agg_badge" ]] && line2_parts+=("others:${agg_badge}")
+
+if (( ${#line2_parts[@]} > 0 )); then
+  line2=""
+  for part in "${line2_parts[@]}"; do
+    [[ -n "$line2" ]] && line2+=" ${dim}·${reset} "
+    line2+="${dim}${part}${reset}"
+  done
+  printf '%b' " $line2"; echo
+fi
+
+tab_parts="${state_glyph}"
+if [[ "$tab_state" == "working" ]]; then
+  tab_parts="${tab_parts} ${spinner} ${project}"
+  [[ -n "$tool_action" ]] && tab_parts="${tab_parts}: ${tool_action}"
+  tab_parts="${tab_parts}${agg_badge} · ${cost_fmt} ${pct_int}%"
+  [[ -n "$elapsed" ]] && tab_parts="${tab_parts} ${elapsed}"
+elif [[ "$tab_state" == "attention" ]]; then
+  tab_parts="${tab_parts} ${project} · Needs input${agg_badge} · ${cost_fmt} ${pct_int}%"
+else
+  tab_parts="${tab_parts} ${project}${agg_badge} · ${cost_fmt} ${pct_int}%"
+fi
+[[ -n "$model_tag" ]] && tab_parts="${tab_parts} [${model}]"
+printf '\033]2;%s\007' "$tab_parts" > /dev/tty 2>/dev/null || true
+
+if [[ -n "$session_id" ]]; then
+  jq -n --arg cost "$cost" --arg pct "$pct_int" --arg dur "$duration_ms" \
+    --arg la "$lines_add" --arg lr "$lines_rm" --arg model "$model" \
+    --arg branch "$branch" --arg project "$project" --arg out_tok "$total_out" \
+    '{cost:$cost,context_pct:$pct,duration_ms:$dur,lines_added:$la,lines_removed:$lr,model:$model,branch:$branch,project:$project,output_tokens:$out_tok}' \
+    > "/tmp/claude-cockpit-${session_id}" 2>/dev/null || true
+fi
+STATUSLINE
+chmod +x "$HOME/.claude/statusline.sh"
+ok "statusline.sh"
+
+# --- tab-color.sh — Ghostty tab state management ---
+cat > "$HOME/.claude/hooks/tab-color.sh" <<'TABCOLOR'
+#!/usr/bin/env bash
+# Set Ghostty tab state. States: working, attention, error, done, idle
+STATE="${1:-idle}"
+CONF="$HOME/.claude/cockpit.conf"
+if [[ -f "$CONF" ]]; then
+  tc=$(grep "^tab_colors=" "$CONF" 2>/dev/null | head -1 | cut -d= -f2-)
+  [[ "$tc" == "off" ]] && exit 0
+fi
+PID="${CLAUDE_PID:-$PPID}"
+STATE_FILE="/tmp/claude-tab-state-$PID"
+PREV_STATE=""
+[[ -f "$STATE_FILE" ]] && PREV_STATE=$(cat "$STATE_FILE" 2>/dev/null || true)
+echo "$STATE" > "$STATE_FILE" 2>/dev/null || true
+if [[ "$STATE" == "working" ]]; then
+  echo 0 > "/tmp/claude-tab-error-$PID" 2>/dev/null || true
+  date +%s > "/tmp/claude-tab-prompt-$PID" 2>/dev/null || true
+  rm -f "/tmp/claude-last-notify-$PID" 2>/dev/null || true
+fi
+if [[ "$STATE" != "$PREV_STATE" && "$STATE" =~ ^(attention|error|done)$ ]]; then
+  printf '\a' > /dev/tty 2>/dev/null || true
+fi
+exit 0
+TABCOLOR
+chmod +x "$HOME/.claude/hooks/tab-color.sh"
+ok "tab-color.sh"
+
+# --- tool-tracker.sh — Track last tool for tab title ---
+cat > "$HOME/.claude/hooks/tool-tracker.sh" <<'TOOLTRACKER'
+#!/usr/bin/env bash
+# Track last tool action for Ghostty tab title. PreToolUse hook (catch-all).
+trap 'exit 0' ERR
+STDIN=$(cat)
+TOOL=$(echo "$STDIN" | jq -r '.tool_name // ""' 2>/dev/null)
+[[ -z "$TOOL" || "$TOOL" == "null" ]] && TOOL="${CLAUDE_TOOL_NAME:-unknown}"
+INPUT=$(echo "$STDIN" | jq -r '.tool_input // ""' 2>/dev/null)
+[[ -z "$INPUT" || "$INPUT" == "null" ]] && INPUT="${CLAUDE_TOOL_INPUT:-}"
+case "$TOOL" in
+  Read|Write|Edit)
+    target=$(echo "$INPUT" | jq -r '.file_path // ""' 2>/dev/null)
+    [[ -n "$target" ]] && target=$(basename "$target") || target=""
+    action="$TOOL $target" ;;
+  Bash)
+    cmd=$(echo "$INPUT" | jq -r '.command // ""' 2>/dev/null | head -c 25)
+    action="\$ $cmd" ;;
+  Grep) action="Grep $(echo "$INPUT" | jq -r '.pattern // ""' 2>/dev/null | head -c 15)" ;;
+  Glob) action="Glob $(echo "$INPUT" | jq -r '.pattern // ""' 2>/dev/null | head -c 15)" ;;
+  Agent) action="Agent: $(echo "$INPUT" | jq -r '.description // ""' 2>/dev/null | head -c 20)" ;;
+  mcp__*) action=$(echo "$TOOL" | sed 's/mcp__//;s/__/:/g' | head -c 15) ;;
+  *) action="$TOOL" ;;
+esac
+echo "$action" > "/tmp/claude-tab-tool-$PPID" 2>/dev/null || true
+exit 0
+TOOLTRACKER
+chmod +x "$HOME/.claude/hooks/tool-tracker.sh"
+ok "tool-tracker.sh"
+
+# --- spinning-detector.sh — Detect tool-call loops ---
+cat > "$HOME/.claude/hooks/spinning-detector.sh" <<'SPINNING'
+#!/usr/bin/env bash
+# Detect agent stuck in tool-call loops. PostToolUse hook.
+trap 'exit 0' ERR
+INPUT=$(cat)
+TOOL=$(echo "$INPUT" | python3 -c 'import sys,json
+try: print(json.load(sys.stdin).get("tool_name",""))
+except: print("")' 2>/dev/null)
+[[ -z "$TOOL" ]] && exit 0
+STATE="/tmp/claude-spinning-$PPID"
+if [[ -f "$STATE" ]]; then
+  LAST_TOOL=$(sed -n '1p' "$STATE"); COUNT=$(sed -n '2p' "$STATE"); COUNT=${COUNT:-0}
+else
+  LAST_TOOL=""; COUNT=0
+fi
+[[ "$TOOL" == "$LAST_TOOL" ]] && COUNT=$((COUNT + 1)) || COUNT=1
+printf '%s\n%s\n' "$TOOL" "$COUNT" > "$STATE"
+if (( COUNT == 4 )); then
+  echo "{\"additionalContext\": \"SPINNING WARNING: You have called $TOOL $COUNT times consecutively. You may be stuck in a loop. Stop and reconsider your approach.\"}"
+elif (( COUNT >= 8 )); then
+  echo "{\"additionalContext\": \"SPINNING ALERT: $TOOL called $COUNT times consecutively. STOP. Try a completely different approach.\"}"
+fi
+exit 0
+SPINNING
+chmod +x "$HOME/.claude/hooks/spinning-detector.sh"
+ok "spinning-detector.sh"
+
+# --- stop-notify.sh — macOS notifications on idle ---
+cat > "$HOME/.claude/hooks/stop-notify.sh" <<'STOPNOTIFY'
+#!/usr/bin/env bash
+# Classified stop notifications + Ghostty title refresh.
+trap 'exit 0' ERR
+INPUT=$(cat)
+CONF="$HOME/.claude/cockpit.conf"
+notifications="on"
+if [[ -f "$CONF" ]]; then
+  val=$(grep "^notifications=" "$CONF" 2>/dev/null | head -1 | cut -d= -f2-)
+  [[ -n "$val" ]] && notifications="$val"
+fi
+CLASSIFIED=$(echo "$INPUT" | python3 -c '
+import json, os, sys
+def first_line(msg):
+    for line in msg.splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"): return line[:120]
+    return ""
+try: data = json.load(sys.stdin)
+except: sys.exit(0)
+if data.get("stop_hook_active", False): sys.exit(0)
+ppid = os.getppid()
+cwd = data.get("cwd") or os.getcwd()
+sid_path = os.path.join(cwd, ".claude", "current-session-id")
+session_id = ""
+if os.path.isfile(sid_path):
+    try:
+        with open(sid_path) as f: session_id = f.read().strip()
+    except: pass
+cockpit = {}
+if session_id:
+    cp = f"/tmp/claude-cockpit-{session_id}"
+    if os.path.isfile(cp):
+        try:
+            with open(cp) as f: cockpit = json.load(f)
+        except: pass
+project = cockpit.get("project") or os.path.basename(cwd) or "?"
+cost = float(cockpit.get("cost", 0) or 0)
+context_pct = int(cockpit.get("context_pct", 0) or 0)
+error_flag = "0"
+ep = f"/tmp/claude-tab-error-{ppid}"
+if os.path.isfile(ep):
+    try:
+        with open(ep) as f: error_flag = f.read().strip()
+    except: pass
+last_notify_path = f"/tmp/claude-last-notify-{ppid}"
+last_event = ""
+if os.path.isfile(last_notify_path):
+    try:
+        with open(last_notify_path) as f: last_event = f.read().strip()
+    except: pass
+msg = data.get("last_assistant_message", "")
+summary = first_line(msg) or "Waiting for input"
+event, state, title = "needs_input", "attention", "Needs Input"
+body = summary
+if error_flag == "1": event, state, title = "tests_failed", "error", "Tests Failed"
+notify = event != last_event
+try:
+    with open(last_notify_path, "w") as f: f.write(event)
+except: pass
+print(json.dumps({"event":event,"state":state,"notify":notify,"title":title,"body":body,"project":project,"cost_fmt":f"${cost:.2f}","context_pct":context_pct}))
+' 2>/dev/null)
+[[ -z "$CLASSIFIED" ]] && exit 0
+STATE=$(echo "$CLASSIFIED" | jq -r '.state // "attention"')
+TITLE=$(echo "$CLASSIFIED" | jq -r '.title // "Needs Input"')
+BODY=$(echo "$CLASSIFIED" | jq -r '.body // "Waiting for input"')
+PROJECT=$(echo "$CLASSIFIED" | jq -r '.project // "?"')
+COST_FMT=$(echo "$CLASSIFIED" | jq -r '.cost_fmt // "$0.00"')
+CONTEXT_PCT=$(echo "$CLASSIFIED" | jq -r '.context_pct // 0')
+NOTIFY=$(echo "$CLASSIFIED" | jq -r '.notify // false')
+CLAUDE_PID=$PPID "$HOME/.claude/hooks/tab-color.sh" "$STATE" 2>/dev/null || true
+case "$STATE" in working) glyph="◐";; attention) glyph="◆";; error) glyph="▲";; done) glyph="●";; *) glyph="·";; esac
+printf '\033]2;%s %s · %s · %s %s%%\007' "$glyph" "$PROJECT" "$TITLE" "$COST_FMT" "$CONTEXT_PCT" > /dev/tty 2>/dev/null || true
+[[ "$notifications" != "on" ]] && exit 0
+[[ "$NOTIFY" != "true" ]] && exit 0
+python3 - "$TITLE" "$BODY" <<'PY' 2>/dev/null
+import subprocess, sys
+title, body = sys.argv[1], sys.argv[2]
+subprocess.run(["osascript","-e",f"display notification \"{body}\" with title \"{title}\""],capture_output=True,timeout=5)
+PY
+exit 0
+STOPNOTIFY
+chmod +x "$HOME/.claude/hooks/stop-notify.sh"
+ok "stop-notify.sh"
+
+# --- session-init.sh — Session startup ---
+cat > "$HOME/.claude/hooks/session-init.sh" <<'SESSIONINIT'
+#!/usr/bin/env bash
+# Session init — persist session ID, reset tab state, snapshot git baseline.
+trap 'exit 0' ERR
+INPUT=$(cat)
+eval "$(echo "$INPUT" | python3 -c '
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    sid = data.get("session_id", "")
+    cwd = data.get("cwd", "")
+    if sid and cwd: print(f"SESSION={sid}"); print(f"CWD={cwd}")
+except: pass
+')"
+[ -z "$SESSION" ] || [ -z "$CWD" ] && exit 0
+mkdir -p "$CWD/.claude"
+echo "$SESSION" > "$CWD/.claude/current-session-id"
+if [ -d "$CWD/.git" ]; then
+    git -C "$CWD" status --short > "/tmp/session-baseline-${SESSION}.txt" 2>/dev/null || true
+fi
+CLAUDE_PID=$PPID "$HOME/.claude/hooks/tab-color.sh" idle 2>/dev/null || true
+if [ -n "$CLAUDE_ENV_FILE" ]; then
+    echo "export CLAUDE_SESSION_ID=$SESSION" >> "$CLAUDE_ENV_FILE"
+fi
+exit 0
+SESSIONINIT
+chmod +x "$HOME/.claude/hooks/session-init.sh"
+ok "session-init.sh"
+
+# --- settings.json — Wire everything together ---
+if [ ! -f "$HOME/.claude/settings.json" ]; then
+    cat > "$HOME/.claude/settings.json" <<'SETTINGS'
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cmd=$(echo \"$CLAUDE_TOOL_INPUT\" | grep -oE '\"command\":\\s*\"[^\"]*\"' | head -1); if echo \"$cmd\" | grep -qE '\"(python |python3 )' && ! echo \"$cmd\" | grep -q 'uv run'; then echo 'BLOCK: use \"uv run python\" not bare python'; exit 2; fi"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/tool-tracker.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/spinning-detector.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/stop-notify.sh"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/tab-color.sh working"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/session-init.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "~/.claude/statusline.sh"
+  }
+}
+SETTINGS
+    ok "settings.json (hooks wired)"
+else
+    skip "settings.json already exists"
+fi
+
 # ── Git Config ──────────────────────────────────────────────
 
 step "Setting up git config"
@@ -773,6 +1279,12 @@ echo "    g           — lazygit"
 echo "    y           — yazi file manager"
 echo "    b           — fuzzy file browser"
 echo "    a           — search all aliases"
+echo ""
+echo -e "  ${BOLD}Cockpit (Claude Code UI):${RESET}"
+echo "    Status line — 2-line display: project, cost, context bar, throughput"
+echo "    Tab title   — live Ghostty tab with spinner, tool action, state glyphs"
+echo "    Notifications — macOS alerts when Claude needs input"
+echo "    Spinning detector — warns if stuck in tool-call loops"
 echo ""
 echo -e "  ${BOLD}Next steps:${RESET}"
 echo "    1. Open Ghostty, set font to 'JetBrainsMono Nerd Font'"
