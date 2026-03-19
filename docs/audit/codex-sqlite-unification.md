@@ -1,0 +1,7 @@
+Wrote the audit to [docs/audit/codex-sqlite-unification.md](/Users/alien/Projects/meta/docs/audit/codex-sqlite-unification.md).
+
+Short version: the repo has five persistent SQLite families, not one muddled store: `orchestrator.db`, `sessions.db`, `findings.db`, `runlogs.db`, and `knowledge/{project}.db`. The schemas are split between external SQL files (`scripts/schema.sql`, `scripts/runlog_schema.sql`, `substrate/schema.sql`) and inline definitions (`scripts/sessions.py`, `scripts/finding-triage.py`). `scripts/views.sql` exists and defines `v_stalled`, `v_daily_cost`, `v_failures`, `v_pipeline_health`, `v_queue`, and `v_proposals` for `orchestrator.db`, but those views are applied manually.
+
+The main unification opportunity is connection policy, not database consolidation. `orchestrator.py`, `sessions.py`, and `finding-triage.py` each have their own near-identical `get_db()` helper; `runlog.py` has a stronger local helper; substrate has `KnowledgeDB`; and several reader scripts still open ad-hoc `sqlite3.connect(...)` connections with inconsistent `timeout`, `WAL`, `foreign_keys`, and context-manager usage. The recommendation in the doc is a small shared `db_connect()` helper plus local per-database wrappers, not a single abstraction that tries to own all schemas and migrations.
+
+I read the generated file back after writing it. No code changes beyond the new audit doc.
