@@ -234,6 +234,46 @@ def check_mcp(project_dir: Path) -> list[Check]:
         return [c.fail(f"Invalid JSON: {e}")]
 
 
+def check_stale_agents() -> list[Check]:
+    """Check for subagent JSONL files with no matching process (crashed agents)."""
+    import time
+
+    checks = []
+    projects_dir = Path.home() / ".claude" / "projects"
+    if not projects_dir.exists():
+        return checks
+
+    stale_threshold = 30 * 60  # 30 minutes
+    max_age = 2 * 60 * 60  # only check last 2 hours (older = completed, not crashed)
+    now = time.time()
+
+    for subagents_dir in projects_dir.glob("*/*/subagents"):
+        for jsonl in subagents_dir.glob("agent-*.jsonl"):
+            age = now - jsonl.stat().st_mtime
+            if age < stale_threshold or age > max_age:
+                continue
+            # Extract agent ID, check if any claude process references it
+            agent_id = jsonl.stem.replace("agent-", "")
+            try:
+                ps = subprocess.run(
+                    ["pgrep", "-f", agent_id], capture_output=True, timeout=5
+                )
+                has_process = ps.returncode == 0
+            except Exception:
+                has_process = True  # fail open — don't report if pgrep fails
+
+            if not has_process:
+                c = Check("stale-agent", agent_id[:12])
+                age_min = int(age / 60)
+                c.warn(f"No process found, last write {age_min}m ago: {jsonl.name}")
+                checks.append(c)
+
+    if not checks:
+        c = Check("stale-agents", "global")
+        checks.append(c.ok("No stale agents"))
+    return checks
+
+
 def check_gitignore(project_dir: Path) -> list[Check]:
     """Check that .claude/ artifacts are gitignored."""
     c = Check("gitignore:.claude", project_dir.name)
@@ -261,6 +301,7 @@ def run_all_checks(project_filter: str | None = None) -> list[Check]:
     if not project_filter:
         all_checks.extend(check_settings_json(GLOBAL_SETTINGS, "global"))
         all_checks.extend(check_memory_health())
+        all_checks.extend(check_stale_agents())
 
         # Global CLAUDE.md
         gc = Check("global:CLAUDE.md", "global")
