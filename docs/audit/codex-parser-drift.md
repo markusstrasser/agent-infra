@@ -1,0 +1,5 @@
+Report saved to [codex-parser-drift.md](/Users/alien/Projects/meta/docs/audit/codex-parser-drift.md).
+
+Highest-signal findings are straightforward: `response_item.reasoning` is dropped entirely, `response_item.message` drops the distinct `developer` role and therefore omits developer instructions from both events and instruction hashing, `session_meta` is only partially mapped and also maps `git.branch` into `git_head`, and the parser double-emits user and assistant text because it records both `response_item.message` and `event_msg.user_message` or `event_msg.agent_message`.
+
+I also verified the specific fields you called out: `originator` and `cli_version` are present in the real `session_meta` and not captured, `source` is handled correctly as `transport='exec'`, and `collaboration_mode_kind` is not in `session_meta` at all in this sample, but it is present in `event_msg.task_started` and is not promoted by the parser.

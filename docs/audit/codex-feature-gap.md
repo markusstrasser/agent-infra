@@ -1,0 +1,8 @@
+Saved the audit to [codex-feature-gap.md](/Users/alien/Projects/meta/docs/audit/codex-feature-gap.md).
+
+**Summary**
+The repo has one real Codex CLI integration: `codex exec` in [autoresearch.py](/Users/alien/Projects/meta/scripts/autoresearch.py#L448), using `--dangerously-bypass-approvals-and-sandbox` and conditional `-m` ([autoresearch.py](/Users/alien/Projects/meta/scripts/autoresearch.py#L455)). I did not find repo evidence for `--full-auto` or `-o/--output-last-message`; the report calls that out explicitly.
+
+Everything else is telemetry or docs around Codex sessions, not feature usage. The biggest drift is that [code-review-scout.py](/Users/alien/Projects/meta/scripts/code-review-scout.py#L5) claims `codex-cli`, but the implementation actually runs `llmx chat` with OpenAI provider settings ([code-review-scout.py](/Users/alien/Projects/meta/scripts/code-review-scout.py#L83), [code-review-scout.py](/Users/alien/Projects/meta/scripts/code-review-scout.py#L227)). High-value unused features are `codex review`, `codex mcp-server`, `codex exec --json`, `codex exec --output-schema`, and safer `exec` sandbox modes.
+
+`codex exec --json` does emit structured JSONL events, so it can replace the current last-line stdout parsing. `codex mcp-server` is clearly intended to expose Codex as a stdio MCP server, so it should be usable from Claude Code in principle. I could not fully validate either one end-to-end because the local Codex binary panics during startup in this environment before completing a normal run.
