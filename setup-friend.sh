@@ -4,7 +4,9 @@ set -euo pipefail
 # ============================================================================
 # AI Agent Workstation Setup
 # Installs: CLI agents, terminal stack, repos, Claude Code config, skills
-# Run: curl -sL https://gist.githubusercontent.com/markusstrasser/7576bba522c935ecb5c890ce31cd392f/raw/setup_friend_mac.sh | bash
+# Download first, then run:
+#   curl -sLO https://gist.githubusercontent.com/markusstrasser/7576bba522c935ecb5c890ce31cd392f/raw/setup_friend_mac.sh
+#   chmod +x setup_friend_mac.sh && ./setup_friend_mac.sh
 # ============================================================================
 
 BOLD='\033[1m'
@@ -61,8 +63,11 @@ BREW_FORMULAE=(
     eza             # ls replacement (icons, git status)
     bat             # cat replacement (syntax highlighting)
     fd              # find replacement
+    findutils       # GNU find (gfind) — used by browse()
     ripgrep         # grep replacement
     sd              # sed replacement
+    python          # needed by Claude Code hooks
+    neovim          # editor (aliased as v/vim)
     # Dev tools
     git-delta       # better git diff
     lazygit         # terminal git UI
@@ -135,12 +140,116 @@ else
     ok "Codex CLI installed"
 fi
 
+# ── Git Config + SSH ────────────────────────────────────────
+# (before repos/tools so SSH is available for private repo clones)
+
+step "Setting up git config"
+
+# Global gitignore
+if [ ! -f "$HOME/.gitignore" ]; then
+    cat > "$HOME/.gitignore" <<'GITIGNORE'
+.DS_Store
+Desktop.ini
+._*
+Thumbs.db
+.Spotlight-V100
+.Trashes
+node_modules
+*.pyc
+__pycache__
+.env.local
+GITIGNORE
+    ok "Global .gitignore"
+else
+    skip "Global .gitignore already exists"
+fi
+
+# Git config — delta pager, good defaults, aliases
+if ! git config --global core.pager | grep -q delta 2>/dev/null; then
+    git config --global core.excludesfile "$HOME/.gitignore"
+    git config --global core.pager "delta --word-diff-regex=."
+    git config --global core.autocrlf input
+    git config --global delta.syntax-theme base16
+    git config --global delta.hyperlinks true
+    git config --global delta.navigate true
+    git config --global delta.file-style "bold yellow ul"
+    git config --global delta.hunk-header-decoration-style blue
+    git config --global interactive.diffFilter "delta --color-only"
+    git config --global push.default current
+    git config --global push.autoSetupRemote true
+    git config --global pull.ff only
+    git config --global fetch.prune true
+    git config --global help.autocorrect 1
+    git config --global log.date human
+    git config --global rerere.enabled true
+    git config --global diff.colorMoved default
+    git config --global merge.conflictStyle zdiff3
+    git config --global credential.helper osxkeychain
+    git config --global alias.s status
+    git config --global alias.c "commit -am"
+    git config --global alias.co checkout
+    git config --global alias.lg "log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cd) %C(bold blue)<%an>%Creset' --abbrev-commit"
+    git config --global alias.undocommit "reset HEAD~"
+    git config --global alias.amend "commit --amend --all --no-edit"
+    ok "Git config (delta, aliases)"
+else
+    skip "Git config already has delta"
+fi
+
+# Git identity
+if [ -z "$(git config --global user.name)" ]; then
+    echo ""
+    read -rp "  Git name (e.g. 'Jane Doe'): " git_name < /dev/tty
+    [ -n "$git_name" ] && git config --global user.name "$git_name"
+    read -rp "  Git email: " git_email < /dev/tty
+    [ -n "$git_email" ] && git config --global user.email "$git_email"
+    ok "Git identity set"
+else
+    ok "Git identity: $(git config --global user.name) <$(git config --global user.email)>"
+fi
+
+# SSH key for GitHub
+if [ ! -f "$HOME/.ssh/id_ed25519" ]; then
+    echo ""
+    echo -e "  ${BOLD}SSH key for GitHub${RESET}"
+    echo -e "  ${DIM}Needed to push/pull private repos${RESET}"
+    read -rp "  Generate SSH key? (y/n): " gen_ssh < /dev/tty
+    if [ "$gen_ssh" = "y" ]; then
+        mkdir -p "$HOME/.ssh"
+        ssh-keygen -t ed25519 -C "$(git config --global user.email)" -f "$HOME/.ssh/id_ed25519" -N ""
+        eval "$(ssh-agent -s)" >/dev/null
+        ssh-add --apple-use-keychain "$HOME/.ssh/id_ed25519" 2>/dev/null || ssh-add "$HOME/.ssh/id_ed25519" 2>/dev/null
+        pbcopy < "$HOME/.ssh/id_ed25519.pub"
+        ok "SSH key generated + copied to clipboard"
+        echo -e "  ${YELLOW}→ Paste at: https://github.com/settings/ssh/new${RESET}"
+        echo -e "  ${DIM}Press Enter after adding to GitHub...${RESET}"
+        read -r < /dev/tty
+    else
+        skip "SSH key"
+    fi
+else
+    ok "SSH key exists"
+fi
+
 # ── Python Tools (uv) ───────────────────────────────────────
 
 step "Installing Python tools via uv"
 
-uv tool install "git+https://github.com/${GITHUB_USER}/llmx.git" 2>/dev/null && ok "llmx" || ok "llmx (already installed)"
-uv tool install "git+https://github.com/${GITHUB_USER}/emb.git" 2>/dev/null && ok "emb" || ok "emb (already installed)"
+if uv tool install "git+https://github.com/${GITHUB_USER}/llmx.git" 2>/dev/null; then
+    ok "llmx"
+elif command -v llmx &>/dev/null; then
+    ok "llmx (already installed)"
+else
+    warn "llmx install failed — repo may be private, set up SSH keys first"
+fi
+
+if uv tool install "git+https://github.com/${GITHUB_USER}/emb.git" 2>/dev/null; then
+    ok "emb"
+elif command -v emb &>/dev/null; then
+    ok "emb (already installed)"
+else
+    warn "emb install failed — repo may be private, set up SSH keys first"
+fi
 
 # ── Repos ──────────────────────────────────────────────────
 
@@ -199,7 +308,8 @@ store_key() {
     fi
     echo -e "  ${DIM}Get your key: ${signup_url}${RESET}"
 
-    read -rp "  Enter $key_name (or press Enter to skip): " value
+    read -rsp "  Enter $key_name (or press Enter to skip): " value < /dev/tty
+    echo
     if [ -n "$value" ]; then
         security delete-generic-password -a "$KEYCHAIN_SERVICE" -s "$key_name" 2>/dev/null || true
         security add-generic-password -a "$KEYCHAIN_SERVICE" -s "$key_name" -w "$value"
@@ -467,7 +577,7 @@ alias rl='source ~/.zshrc'
 # ── AI agent shortcuts ─────────────────────────────────────
 cdx() {
   if [[ "$1" == "update" ]]; then
-    brew upgrade codex
+    npm update -g @openai/codex
   else
     codex -m gpt-5.1-codex -c model_reasoning_effort="medium" --search "$@"
   fi
@@ -531,6 +641,11 @@ eval "$(atuin init zsh --disable-up-arrow)"
 eval "$(starship init zsh)"
 eval "$(zoxide init zsh)"
 eval "$(direnv hook zsh)"
+# fzf keybindings (Ctrl+R history, Ctrl+T files, Alt+C dirs)
+[ -f /opt/homebrew/opt/fzf/shell/key-bindings.zsh ] && source /opt/homebrew/opt/fzf/shell/key-bindings.zsh
+[ -f /opt/homebrew/opt/fzf/shell/completion.zsh ] && source /opt/homebrew/opt/fzf/shell/completion.zsh
+# thefuck (lazy-loaded to save ~200ms startup)
+fuck() { eval "$(thefuck --alias)" && fuck "$@"; }
 
 # Load API keys from macOS Keychain
 _load_keychain_key() {
@@ -992,11 +1107,7 @@ case "$STATE" in working) glyph="◐";; attention) glyph="◆";; error) glyph="�
 printf '\033]2;%s %s · %s · %s %s%%\007' "$glyph" "$PROJECT" "$TITLE" "$COST_FMT" "$CONTEXT_PCT" > /dev/tty 2>/dev/null || true
 [[ "$notifications" != "on" ]] && exit 0
 [[ "$NOTIFY" != "true" ]] && exit 0
-python3 - "$TITLE" "$BODY" <<'PY' 2>/dev/null
-import subprocess, sys
-title, body = sys.argv[1], sys.argv[2]
-subprocess.run(["osascript","-e",f"display notification \"{body}\" with title \"{title}\""],capture_output=True,timeout=5)
-PY
+terminal-notifier -title "$TITLE" -message "$BODY" -sound default 2>/dev/null || true
 exit 0
 STOPNOTIFY
 chmod +x "$HOME/.claude/hooks/stop-notify.sh"
@@ -1008,15 +1119,8 @@ cat > "$HOME/.claude/hooks/session-init.sh" <<'SESSIONINIT'
 # Session init — persist session ID, reset tab state, snapshot git baseline.
 trap 'exit 0' ERR
 INPUT=$(cat)
-eval "$(echo "$INPUT" | python3 -c '
-import sys, json
-try:
-    data = json.load(sys.stdin)
-    sid = data.get("session_id", "")
-    cwd = data.get("cwd", "")
-    if sid and cwd: print(f"SESSION={sid}"); print(f"CWD={cwd}")
-except: pass
-')"
+SESSION=$(echo "$INPUT" | jq -r '.session_id // ""' 2>/dev/null)
+CWD=$(echo "$INPUT" | jq -r '.cwd // ""' 2>/dev/null)
 [ -z "$SESSION" ] || [ -z "$CWD" ] && exit 0
 mkdir -p "$CWD/.claude"
 echo "$SESSION" > "$CWD/.claude/current-session-id"
@@ -1106,108 +1210,6 @@ SETTINGS
     ok "settings.json (hooks wired)"
 else
     skip "settings.json already exists"
-fi
-
-# ── Git Config ──────────────────────────────────────────────
-
-step "Setting up git config"
-
-# Global gitignore
-if [ ! -f "$HOME/.gitignore" ]; then
-    cat > "$HOME/.gitignore" <<'GITIGNORE'
-.DS_Store
-Desktop.ini
-._*
-Thumbs.db
-.Spotlight-V100
-.Trashes
-node_modules
-*.pyc
-__pycache__
-.env.local
-GITIGNORE
-    ok "Global .gitignore"
-else
-    skip "Global .gitignore already exists"
-fi
-
-# Git config — delta pager, good defaults, aliases
-if ! git config --global core.pager | grep -q delta 2>/dev/null; then
-    # Core
-    git config --global core.excludesfile "$HOME/.gitignore"
-    git config --global core.pager "delta --word-diff-regex=."
-    git config --global core.autocrlf input
-
-    # Delta (rich diffs)
-    git config --global delta.syntax-theme base16
-    git config --global delta.hyperlinks true
-    git config --global delta.navigate true
-    git config --global delta.file-style "bold yellow ul"
-    git config --global delta.hunk-header-decoration-style blue
-    git config --global interactive.diffFilter "delta --color-only"
-
-    # Push/pull
-    git config --global push.default current
-    git config --global push.autoSetupRemote true
-    git config --global pull.ff only
-    git config --global fetch.prune true
-
-    # UX
-    git config --global help.autocorrect 1
-    git config --global log.date human
-    git config --global rerere.enabled true
-    git config --global diff.colorMoved default
-    git config --global merge.conflictStyle zdiff3
-    git config --global credential.helper osxkeychain
-
-    # Aliases
-    git config --global alias.s status
-    git config --global alias.c "commit -am"
-    git config --global alias.co checkout
-    git config --global alias.lg "log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cd) %C(bold blue)<%an>%Creset' --abbrev-commit"
-    git config --global alias.undocommit "reset HEAD~"
-    git config --global alias.amend "commit --amend --all --no-edit"
-
-    # Use SSH for GitHub
-    git config --global url."git@github.com:".insteadOf "https://github.com/"
-
-    ok "Git config (delta, aliases, SSH)"
-else
-    skip "Git config already has delta"
-fi
-
-# Prompt for git identity if not set
-if [ -z "$(git config --global user.name)" ]; then
-    echo ""
-    read -rp "  Git name (e.g. 'Jane Doe'): " git_name
-    [ -n "$git_name" ] && git config --global user.name "$git_name"
-    read -rp "  Git email: " git_email
-    [ -n "$git_email" ] && git config --global user.email "$git_email"
-    ok "Git identity set"
-else
-    ok "Git identity: $(git config --global user.name) <$(git config --global user.email)>"
-fi
-
-# SSH key for GitHub
-if [ ! -f "$HOME/.ssh/id_ed25519" ]; then
-    echo ""
-    echo -e "  ${BOLD}SSH key for GitHub${RESET}"
-    echo -e "  ${DIM}Needed to push/pull private repos${RESET}"
-    read -rp "  Generate SSH key? (y/n): " gen_ssh
-    if [ "$gen_ssh" = "y" ]; then
-        ssh-keygen -t ed25519 -C "$(git config --global user.email)" -f "$HOME/.ssh/id_ed25519" -N ""
-        eval "$(ssh-agent -s)" >/dev/null
-        ssh-add "$HOME/.ssh/id_ed25519" 2>/dev/null
-        pbcopy < "$HOME/.ssh/id_ed25519.pub"
-        ok "SSH key generated + copied to clipboard"
-        echo -e "  ${YELLOW}→ Paste at: https://github.com/settings/ssh/new${RESET}"
-        echo -e "  ${DIM}Press Enter after adding to GitHub...${RESET}"
-        read -r
-    else
-        skip "SSH key"
-    fi
-else
-    ok "SSH key exists"
 fi
 
 # ── Skill Symlinks ──────────────────────────────────────────
