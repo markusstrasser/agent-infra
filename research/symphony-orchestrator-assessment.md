@@ -133,13 +133,13 @@ Key protocol elements:
 
 ### Worth adopting (concrete value):
 
-| Concept | Effort | Value | Notes |
-|---------|--------|-------|-------|
-| **Stall detection** | Low | High | Monitor time since last agent output during `tick()`. Kill and retry if stalled >5min. We've seen agents hang silently. |
-| **Per-state concurrency limits** | Low | Medium | Add `max_concurrent_by_pipeline` to prevent e.g. 5 research tasks consuming all budget while blocking morning-prep. |
-| **Active-run reconciliation** | Medium | Medium | Our `tick()` should check if running tasks are still relevant (e.g., project state changed). Currently we fire-and-forget. |
+| Concept | Value | Maintenance | Composability | Notes |
+|---------|-------|-------------|---------------|-------|
+| **Stall detection** | High | None (adds to tick()) | High — any orchestrator task | Monitor time since last agent output during `tick()`. Kill and retry if stalled >5min. We've seen agents hang silently. |
+| **Per-state concurrency limits** | Medium | None (config addition) | Medium — orchestrator only | Add `max_concurrent_by_pipeline` to prevent e.g. 5 research tasks consuming all budget while blocking morning-prep. |
+| **Active-run reconciliation** | Medium | Low (periodic check logic) | Medium — orchestrator only | Our `tick()` should check if running tasks are still relevant (e.g., project state changed). Currently we fire-and-forget. |
 
-### Not worth adopting:
+### Not worth maintaining (wrong fit, not wrong effort):
 
 | Concept | Why not |
 |---------|---------|

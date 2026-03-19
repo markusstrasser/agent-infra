@@ -86,11 +86,11 @@ The HAIExplore finding — that explicitly separating brainstorming from refinem
 **6. High-uncertainty decisions don't get extended divergence.**
 The "uncertainty × irreversibility" heuristic for time allocation is absent. When the orchestrator encounters a high-stakes decision, it should automatically extend the divergent phase rather than converging on the first plausible approach.
 
-### What NOT to build (low ROI or premature)
+### Not worth maintaining (wrong fit, not wrong effort)
 
-- **Automatic mode detection from conversation context.** Tempting but requires semantic classification that's unreliable. Better to make mode explicit via prompts/skill parameters.
-- **Per-turn temperature optimization.** The entropy turning point research is interesting but requires model-specific calibration we can't do through the API. Wait for API-level support.
-- **Divergent thinking evals for every session.** Measurement overhead would exceed benefit. Better as periodic audits.
+- **Automatic mode detection from conversation context.** Requires semantic classification that's unreliable and would need ongoing tuning. Better to make mode explicit via prompts/skill parameters.
+- **Per-turn temperature optimization.** Requires model-specific calibration we can't do through the API. Prerequisite: API-level temperature/effort control per-turn.
+- **Divergent thinking evals for every session.** Ongoing measurement overhead exceeds value. Better as periodic audits (no maintenance between runs).
 
 ## Synthesis: The Core Tension
 

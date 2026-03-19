@@ -255,14 +255,14 @@ For AI agents, this suggests:
 
 ### Deploy today
 
-| Tool/Approach | What it does | Effort to deploy | ROI |
-|--------------|-------------|-----------------|-----|
-| **Explicit DAG prompting** | Force agent to draw causal graph before regression | Low — prompt template | HIGH — catches bad controls |
-| **Causal-Copilot** | Automated DAG discovery + validation | Medium — pip install, API | HIGH — 20+ algorithms |
-| **ACH with LLR scoring** | Structured hypothesis comparison | Already built (skill) | MEDIUM — needs formalization |
-| **RCA pattern** | Step-by-step causal reasoning verification | Low — prompt pattern | HIGH — T3 shows it works |
-| **Theorem-of-Thought** | Parallel abd/ded/ind agents | Medium — 3 prompts + synthesis | MEDIUM — untested locally |
-| **DoWhy back-door check** | Validate adjustment sets | Low — Python package | HIGH — deterministic |
+| Tool/Approach | What it does | Maintenance | Composability | Value |
+|--------------|-------------|-------------|---------------|-------|
+| **Explicit DAG prompting** | Force agent to draw causal graph before regression | None (prompt) | High — any analysis skill | HIGH — catches bad controls |
+| **Causal-Copilot** | Automated DAG discovery + validation | Low (pip dep) | High — feeds DAG skills | HIGH — 20+ algorithms |
+| **ACH with LLR scoring** | Structured hypothesis comparison | None (already built) | High — any investigation | MEDIUM — needs formalization |
+| **RCA pattern** | Step-by-step causal reasoning verification | None (prompt) | Medium — reasoning skills | HIGH — T3 shows it works |
+| **Theorem-of-Thought** | Parallel abd/ded/ind agents | Low (3 prompts) | Medium — novel pattern | MEDIUM — untested locally |
+| **DoWhy back-door check** | Validate adjustment sets | None (mature library) | High — deterministic check | HIGH — deterministic |
 
 ### Research-stage (not deployable yet)
 

@@ -301,29 +301,29 @@ This is a form of the "generate and verify" pattern, but with the additional con
 
 > **Cross-model review correction (P20/G3/G23):** The original version of this section listed recommendations as instructions ("add tags," "add prompting," "add checklist"). Both GPT-5.2 and Gemini 3.1 Pro independently identified this as the biggest gap — the memo violated its own constitution ("instructions alone = 0% reliable"). Revised below to specify *architectural enforcement* (hooks, scripts, schemas) for each item. Items re-ordered by the synthesis priority list. Effort labels also corrected per P8.
 
-### Tier 1 — Implement now (< 1 day each, high consensus)
+### Tier 1 — Build now (high consensus)
 
-| # | What | Enforcement | Effort | Impact |
-|---|------|-------------|--------|--------|
-| 1 | **Null result enum + linting hook** | `open_questions.md` schema requires strict `["CONFIRMED", "REFUTED", "NO_EVIDENCE_FOUND"]` enum. Pre-commit hook validates resolved questions have one of these states. | LOW | Prevents publication bias in agent knowledge. *Highest consensus across both models.* [G12/P14] |
-| 2 | **Pertinent negatives artifact** | `pertinent_negatives.json` required for thesis-level analyses. Pre-commit hook verifies non-empty and maps entries to thesis claims. | LOW | Catches invisible disconfirmation — forces "what's the dog that didn't bark?" *before* investigating. [G10] |
-| 3 | **Fix conservation law claims** | *(Done — see Section 5.4 corrections above.)* | — | Removes formally false claims from the memo. [P2-P5/G15] |
+| # | What | Enforcement | Maintenance | Composability | Impact |
+|---|------|-------------|-------------|---------------|--------|
+| 1 | **Null result enum + linting hook** | `open_questions.md` schema requires strict `["CONFIRMED", "REFUTED", "NO_EVIDENCE_FOUND"]` enum. Pre-commit hook validates resolved questions have one of these states. | None (schema + hook) | High — feeds calibration, staleness detection | Prevents publication bias in agent knowledge. *Highest consensus across both models.* [G12/P14] |
+| 2 | **Pertinent negatives artifact** | `pertinent_negatives.json` required for thesis-level analyses. Pre-commit hook verifies non-empty and maps entries to thesis claims. | None (schema + hook) | Medium — standalone check | Catches invisible disconfirmation — forces "what's the dog that didn't bark?" *before* investigating. [G10] |
+| 3 | **Fix conservation law claims** | *(Done — see Section 5.4 corrections above.)* | — | — | Removes formally false claims from the memo. [P2-P5/G15] |
 
-### Tier 2 — Build next (1-3 days each, high value)
+### Tier 2 — Build next (high value)
 
-| # | What | Enforcement | Effort | Impact |
-|---|------|-------------|--------|--------|
-| 4 | **Two-channel evidence ingestion** | Separate extracted quotes/data (with exact source pointers) from interpretations. Each interpretation must reference an extract via ID. Schema-enforced, not tagging convention. | MEDIUM | Practical double-entry analog — deterministic, not semantic. [P30] |
-| 5 | **Presupposition check as pre-flight script** | Python script (not skill "phase") that extracts presuppositions from research questions and verifies against known facts *before* the task begins. Standalone executable, not instructions to an LLM. | MEDIUM | Catches wrong-question errors before wasting a 15-turn session. [G7] |
-| 6 | **Source independence checker** | Python script that parses `[SOURCE:]` URLs, fetches them, extracts outlinks, warns if sources cite each other or share domain ancestry. Advisory hook on researcher output. | MEDIUM | Prevents citogenesis and dependent-source inflation. [G14/P16] |
+| # | What | Enforcement | Maintenance | Composability | Impact |
+|---|------|-------------|-------------|---------------|--------|
+| 4 | **Two-channel evidence ingestion** | Separate extracted quotes/data (with exact source pointers) from interpretations. Each interpretation must reference an extract via ID. Schema-enforced, not tagging convention. | Low (schema evolution) | High — enables claim verification, trace faithfulness | Practical double-entry analog — deterministic, not semantic. [P30] |
+| 5 | **Presupposition check as pre-flight script** | Python script (not skill "phase") that extracts presuppositions from research questions and verifies against known facts *before* the task begins. Standalone executable, not instructions to an LLM. | None (fire-and-forget script) | Medium — usable by orchestrator | Catches wrong-question errors before wasting a 15-turn session. [G7] |
+| 6 | **Source independence checker** | Python script that parses `[SOURCE:]` URLs, fetches them, extracts outlinks, warns if sources cite each other or share domain ancestry. Advisory hook on researcher output. | Low (URL parsing may break) | Medium — advisory hook | Prevents citogenesis and dependent-source inflation. [G14/P16] |
 
-### Tier 3 — Design first, then build
+### Tier 3 — Design first (has prerequisites)
 
-| # | What | Enforcement | Effort | Impact |
-|---|------|-------------|--------|--------|
-| 7 | **Claim schema + linter** | Define structured claim object: `{claim, scope, source_pointer, verification_path, confidence, last_verified}`. Linter as advisory hook on entity/analysis files. Prerequisite for dependency tracking, staleness propagation, and many downstream checks. | MEDIUM-HIGH | Architectural prerequisite — most downstream checks depend on structured claim extraction. [P27] |
-| 8 | **Prediction registry + Brier scoring** | Upgrade `open_questions.md` with probability, resolution date, resolution criteria fields. Auto-score with Brier/log score. | MEDIUM | Requires sufficient prediction volume to be useful. Partially exists already. [P29] |
-| 9 | **Hook observability dashboard** | Before promoting any epistemic check from advisory to blocking: trigger counts, override rate, FP estimate. Extends existing `dashboard.py`. Constitutional requirement (measure before enforcing). | LOW-MEDIUM | Prevents Goodhart corruption of hook system itself. [P31] |
+| # | What | Enforcement | Maintenance | Prerequisites | Impact |
+|---|------|-------------|-------------|---------------|--------|
+| 7 | **Claim schema + linter** | Define structured claim object: `{claim, scope, source_pointer, verification_path, confidence, last_verified}`. Linter as advisory hook on entity/analysis files. | Medium (schema evolution as claims grow) | None — but is itself a prerequisite for #8 and dependency tracking | Architectural prerequisite — most downstream checks depend on structured claim extraction. [P27] |
+| 8 | **Prediction registry + Brier scoring** | Upgrade `open_questions.md` with probability, resolution date, resolution criteria fields. Auto-score with Brier/log score. | Low (scoring is deterministic) | Sufficient prediction volume + claim schema (#7) | Requires volume to be useful. Partially exists already. [P29] |
+| 9 | **Hook observability dashboard** | Before promoting any epistemic check from advisory to blocking: trigger counts, override rate, FP estimate. Extends existing `dashboard.py`. | Low (extends existing script) | None | Prevents Goodhart corruption of hook system itself. [P31] |
 
 ### Items reclassified from original list
 
@@ -365,7 +365,7 @@ This is a form of the "generate and verify" pattern, but with the additional con
 | Reconciliation pattern (dual derivation of conclusions) | Requires two independent analysis processes — expensive until we have multi-agent orchestration running |
 | ClinGen-style evidence taxonomy for investment research | Need enough entity data to justify the framework overhead |
 | Registered Reports-style pre-registration for research tasks | Already partially implemented via Bratman planning; full implementation needs orchestrator |
-| Claim dependency graph | High value but high effort. Needs sufficient claims volume. Revisit after claim schema (#7) exists [P28] |
+| Claim dependency graph | High value. Prerequisite: claim schema (#7) + sufficient claims volume [P28] |
 
 ---
 

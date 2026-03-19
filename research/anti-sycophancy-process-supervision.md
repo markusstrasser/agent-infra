@@ -204,7 +204,7 @@ SeekBench (arXiv:2509.22391, ICLR 2026) evaluates three dimensions on search age
 3. Define "ground truth" for recovery — what counts as a low-quality result in our domain
 4. Run their LLM-as-judge pipeline on converted traces
 
-**Estimated implementation cost:** 2-3 days for the converter + evaluation pipeline. Compute cost: ~$0.50-1.00 per trace evaluation using Claude as judge.
+**Maintenance:** Low (converter is fire-and-forget; evaluation pipeline reuses existing LLM-as-judge pattern). **Composability:** High — same trace format feeds fold detection and tool-trace faithfulness. **Runtime cost:** ~$0.50-1.00 per trace evaluation using Claude as judge.
 
 ### 4.3 Tool Trace vs. Reasoning Validation
 

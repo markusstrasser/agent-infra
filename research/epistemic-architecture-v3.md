@@ -212,31 +212,31 @@ Domain-specific checks require knowing which domain the agent is in. Three appro
 
 ### Phase 1: Quick Wins (This Week → This Month)
 
-| # | What | Effort | Expected Impact |
-|---|------|--------|-----------------|
-| 1 | **Wire scite into researcher Phase 4** — after synthesis, auto-check contrasting citations for top 3 claims | 2-3 hours | Catches consensus hallucination, the highest-damage scientific review bias |
-| 2 | **Implement fold detector (I2)** — already fully designed in epistemic-v2-synthesis | 1 day | Upgrades pushback measurement from word-level to behavioral |
-| 3 | **Add 5 KalshiBench questions to calibration canary set** — resolved prediction market questions as ground truth | 2 hours | External calibration ground truth (markets, not human labels) |
-| 4 | **Anonymize model identities in model-review** — remove "GPT-5" / "Gemini" labels from cross-model review prompts | 30 min | Mitigates identity-sycophancy (Choi et al.) |
+| # | What | Maintenance | Composability | Expected Impact |
+|---|------|-------------|---------------|-----------------|
+| 1 | **Wire scite into researcher Phase 4** — after synthesis, auto-check contrasting citations for top 3 claims | None (skill prompt addition) | High — any research workflow | Catches consensus hallucination, the highest-damage scientific review bias |
+| 2 | **Implement fold detector (I2)** — already fully designed in epistemic-v2-synthesis | Low (script + schema) | High — feeds supervision-kpi | Upgrades pushback measurement from word-level to behavioral |
+| 3 | **Add 5 KalshiBench questions to calibration canary set** — resolved prediction market questions as ground truth | None (data addition) | High — calibration system | External calibration ground truth (markets, not human labels) |
+| 4 | **Anonymize model identities in model-review** — remove "GPT-5" / "Gemini" labels from cross-model review prompts | None (prompt change) | Low — model-review only | Mitigates identity-sycophancy (Choi et al.) |
 
-### Phase 2: Domain Branches (Next Month)
+### Phase 2: Domain Branches
 
-| # | What | Effort | Expected Impact |
-|---|------|--------|-----------------|
-| 5 | **Trading: Thesis challenge metric** — measure whether agent presents counterarguments unprompted in intel sessions | 1 day | First domain-specific bias measurement |
-| 6 | **Research: Citation diversity audit** — compute journal impact factor Gini coefficient of researcher output citations | 1 day | Detects citation prestige bias |
-| 7 | **Research: Scite consensus check** — for any "literature supports X" claim, verify contrasting citations don't exist | Built on #1 | Structural consensus hallucination detection |
-| 8 | **Engineering: Solution diversity in autoresearch** — track Jaccard distance between successive proposed solutions | 1 day | Detects premature convergence |
-| 9 | **Domain routing hook** — extend companion auto-loader to activate domain-specific checks by project | 2 hours | Automatic domain detection |
+| # | What | Maintenance | Composability | Expected Impact |
+|---|------|-------------|---------------|-----------------|
+| 5 | **Trading: Thesis challenge metric** — measure whether agent presents counterarguments unprompted in intel sessions | Low (measurement script) | Medium — intel-specific | First domain-specific bias measurement |
+| 6 | **Research: Citation diversity audit** — compute journal impact factor Gini coefficient of researcher output citations | Low (measurement script) | Medium — researcher output | Detects citation prestige bias |
+| 7 | **Research: Scite consensus check** — for any "literature supports X" claim, verify contrasting citations don't exist | None (extends #1) | High — any synthesis | Structural consensus hallucination detection |
+| 8 | **Engineering: Solution diversity in autoresearch** — track Jaccard distance between successive proposed solutions | Low (metric addition) | Medium — autoresearch only | Detects premature convergence |
+| 9 | **Domain routing hook** — extend companion auto-loader to activate domain-specific checks by project | Low (hook config) | High — all projects | Automatic domain detection |
 
-### Phase 3: Meta-Epistemic (Month 3)
+### Phase 3: Meta-Epistemic (prerequisite: sufficient measurement data)
 
-| # | What | Effort | Expected Impact |
-|---|------|--------|-----------------|
-| 10 | **ACC-lite: trajectory features from transcripts** — extract proxy features (step count, failures, backtracking) from JSONL | 2 days | Trajectory-level reliability prediction |
-| 11 | **Missed negative rate** — compare agent disconfirmation results against scite contrasting citations | 1 day | Measures confirmation bias of the agent itself |
-| 12 | **Cross-session belief drift** — timestamp and version MEMORY.md claims, measure change velocity | 1 day | Detects silent belief drift |
-| 13 | **Goodhart detection** — correlate metric pairs (pushback_rate × factual_precision) at n≥8 | Already in dashboard skeleton | Catches performative metrics |
+| # | What | Maintenance | Composability | Expected Impact |
+|---|------|-------------|---------------|-----------------|
+| 10 | **ACC-lite: trajectory features from transcripts** — extract proxy features (step count, failures, backtracking) from JSONL | Low (parser + schema) | High — feeds dashboard, alerts | Trajectory-level reliability prediction |
+| 11 | **Missed negative rate** — compare agent disconfirmation results against scite contrasting citations | Low (joins two data sources) | Medium — researcher quality metric | Measures confirmation bias of the agent itself |
+| 12 | **Cross-session belief drift** — timestamp and version MEMORY.md claims, measure change velocity | Medium (needs claim tracking) | Medium — prerequisite: claim schema | Detects silent belief drift |
+| 13 | **Goodhart detection** — correlate metric pairs (pushback_rate × factual_precision) at n≥8 | None (already in dashboard) | High — meta-monitoring | Catches performative metrics |
 
 ---
 

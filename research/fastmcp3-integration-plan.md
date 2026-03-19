@@ -145,7 +145,7 @@ Or simpler: keep the current lifespan pattern (single server, all tools in one f
 5. Test all 41 tools still work
 6. Update genomics CLAUDE.md tool references
 
-**Effort:** ~2 hours. Medium risk (tool renaming).
+**Maintenance:** Low (one-time migration). **Risk:** Medium (tool renaming may break MCP clients).
 
 ---
 
@@ -206,7 +206,7 @@ ensembl_server = FastMCP.from_openapi(
 
 **Implementation:** Create `biomedical_mcp/openapi_providers.py` with a registry of OpenAPI specs and mount them as supplementary providers.
 
-**Effort:** ~1 hour per API. Low risk (additive).
+**Maintenance:** Low per API (auto-generated from spec, updates with spec). **Risk:** Low (additive).
 
 ---
 
@@ -245,7 +245,7 @@ mcp = FastMCP("biomedical", middleware=[TelemetryMiddleware()])
 
 **Data destination:** stderr (captured in session transcripts) or a SQLite log (like hook telemetry).
 
-**Effort:** ~1 hour for shared middleware, ~30 min per server to wire in.
+**Maintenance:** Medium (shared middleware = shared dependency; changes propagate to all servers). **Composability:** High — standardized telemetry across all MCP servers.
 
 ---
 
@@ -290,21 +290,21 @@ Repos to update:
 - `selve/mcp/pyproject.toml`
 - `tournament-mcp/pyproject.toml`
 
-**Effort:** 5 minutes.
+**Maintenance:** None (config change).
 
 ---
 
 ## Execution Order
 
-| Phase | What | Effort | Risk | Status |
-|-------|------|--------|------|--------|
-| **0a** | Fix substrate import | 5 min | None | **DONE** (meta@c691819) |
-| **0b** | Upgrade tournament-mcp | 30 min | Low | **DONE** (tournament-mcp@6d0df1d) |
-| **5** | Pin FastMCP versions | 5 min | None | **DONE** (all 5 repos) |
-| **1** | Organize biomedical-mcp with mount() | 2 hr | Medium (tool renaming) | **DONE** (biomedical-mcp@1f7489b) — 7 domains, namespace prefixes |
-| **3** | Telemetry middleware | 2 hr | Low | **DONE** — all 6 servers (meta×3, biomedical, papers, selve) |
-| **2** | from_openapi() for new APIs | Per-API | Low | Event-driven — use when adding next API |
-| **4** | Gateway proxy servers | 3 hr | Medium | Deferred — not worth it at current scale |
+| Phase | What | Maintenance | Risk | Status |
+|-------|------|-------------|------|--------|
+| **0a** | Fix substrate import | None | None | **DONE** (meta@c691819) |
+| **0b** | Upgrade tournament-mcp | None | Low | **DONE** (tournament-mcp@6d0df1d) |
+| **5** | Pin FastMCP versions | None (config) | None | **DONE** (all 5 repos) |
+| **1** | Organize biomedical-mcp with mount() | Low | Medium (tool renaming) | **DONE** (biomedical-mcp@1f7489b) — 7 domains, namespace prefixes |
+| **3** | Telemetry middleware | Medium (shared dep) | Low | **DONE** — all 6 servers (meta×3, biomedical, papers, selve) |
+| **2** | from_openapi() for new APIs | Low per API (auto-gen) | Low | Event-driven — use when adding next API |
+| **4** | Gateway proxy servers | Medium (proxy layer) | Medium | Deferred — maintenance overhead exceeds value at current scale |
 
 **All actionable phases complete.** Phases 2 and 4 are event-driven (triggered by future needs).
 

@@ -239,25 +239,24 @@ Cost: zero (prompt-only). Expected benefit: catches temporal ordering errors lik
 
 ## Priority-Ranked Build List
 
-| # | What | Effort | ROI | Rationale |
-|---|------|--------|-----|-----------|
-| 1 | **PySensemakr integration** — Phase 6 for `/causal-dag` | 2 hours | HIGH | Ready now, pure additive, quantifies DAG fragility |
-| 2 | **Metacognitive audit** — Phase 4b self-check prompt | 30 min | MEDIUM | Zero-cost prompt addition, catches temporal errors |
-| 3 | **Verification prompt** — ThinkPRM-style second-pass check | 1 hour | MEDIUM | Structured self-consistency for DAG reasoning |
-| 4 | **`dag_suggest.py`** — causal-learn PC + LLM priors | 1 day | MEDIUM | Data-driven DAG suggestion, high false-confidence risk |
-| 5 | **Best-of-N DAGs** — generate multiple, evaluate with dag_check.py | 2 hours | LOW-MED | FunSearch pattern applied to causal specification |
+| # | What | Value | Maintenance | Composability | Rationale |
+|---|------|-------|-------------|---------------|-----------|
+| 1 | **PySensemakr integration** — Phase 6 for `/causal-dag` | HIGH | None (pure library) | High — any OLS workflow | Ready now, pure additive, quantifies DAG fragility |
+| 2 | **Metacognitive audit** — Phase 4b self-check prompt | MEDIUM | None (prompt) | Medium — causal skill only | Zero-cost prompt addition, catches temporal errors |
+| 3 | **Verification prompt** — ThinkPRM-style second-pass check | MEDIUM | None (prompt) | Medium — any reasoning skill | Structured self-consistency for DAG reasoning |
+| 4 | **`dag_suggest.py`** — causal-learn PC + LLM priors | MEDIUM | Low (pip dep) | High — feeds dag_check.py | Data-driven DAG suggestion, high false-confidence risk |
+| 5 | **Best-of-N DAGs** — generate multiple, evaluate with dag_check.py | LOW-MED | None | Medium — FunSearch pattern | FunSearch pattern applied to causal specification |
+| 6 | **DoWhy backend for dag_check.py** — replace custom backdoor check with DoWhy's 4 strategies + ID algorithm | HIGH | Low (mature library v0.14) | High — optimal adjustment sets | Mature library, replaces custom code with maintained dependency |
 
-| 6 | **DoWhy backend for dag_check.py** — replace custom backdoor check with DoWhy's 4 strategies + ID algorithm | 1 day | HIGH | Mature library (v0.14), optimal adjustment sets for free |
+### Deferred (prerequisites missing)
 
-### Deferred
-
-| What | Why |
-|------|-----|
-| Analogical reasoning scaffolding | Capability gap too large (GPT-4: 0.45 vs human: 0.75) |
+| What | Prerequisite / Blocker |
+|------|----------------------|
+| Analogical reasoning scaffolding | Capability gap too large (GPT-4: 0.45 vs human: 0.75) — wait for frontier improvement |
 | PRM integration for causal reasoning | No domain-specific PRM exists yet; ThinkPRM is math-focused |
-| White-box CRV verification | Requires model internals access |
-| Full Causal-Copilot integration | Too heavyweight; better to use causal-learn directly |
-| interwhen-style interleaved verification | Promising (Microsoft Research, Feb 2026) but preprint only |
+| White-box CRV verification | Requires model internals access (not available) |
+| Full Causal-Copilot integration | causal-learn alone is sufficient; Copilot adds maintenance for no composability gain |
+| interwhen-style interleaved verification | Preprint only (Microsoft Research, Feb 2026) — no production implementation |
 
 ---
 
