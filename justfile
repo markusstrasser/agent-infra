@@ -194,6 +194,42 @@ db-smoke:
     done
     echo "All views pass"
 
+# ── Lint ───────────────────────────────────────────────────────────
+
+# Check for raw sqlite3.connect or Path.home()/.claude outside common/
+[group('health')]
+lint-dupes:
+    #!/usr/bin/env bash
+    ok=true
+    echo "Checking for raw sqlite3.connect..."
+    hits=$(grep -rn "sqlite3\.connect" scripts/*.py scripts/**/*.py 2>/dev/null | grep -v "common/" | grep -v "^#")
+    if [ -n "$hits" ]; then
+        echo "WARN: raw sqlite3.connect found:"
+        echo "$hits"
+        ok=false
+    else
+        echo "  PASS: no raw sqlite3.connect"
+    fi
+    echo "Checking for raw Path.home()/.claude..."
+    hits=$(grep -rn 'Path\.home.*"\.claude"' scripts/*.py scripts/**/*.py 2>/dev/null | grep -v "common/")
+    if [ -n "$hits" ]; then
+        echo "WARN: raw .claude paths found:"
+        echo "$hits"
+        ok=false
+    else
+        echo "  PASS: no raw .claude paths"
+    fi
+    echo "Checking for duplicate load_jsonl definitions..."
+    hits=$(grep -rn "def load_jsonl" scripts/*.py 2>/dev/null)
+    if [ -n "$hits" ]; then
+        echo "WARN: duplicate load_jsonl found:"
+        echo "$hits"
+        ok=false
+    else
+        echo "  PASS: no duplicate load_jsonl"
+    fi
+    $ok && echo "All checks pass" || echo "Some checks failed (advisory)"
+
 # ── Git ────────────────────────────────────────────────────────────
 
 # Search Rejected: trailers across all repos
