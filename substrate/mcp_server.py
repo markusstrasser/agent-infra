@@ -270,6 +270,137 @@ self-documenting.""",
             f"{counts['evidence']} evidence, {counts['dependencies']} dependencies"
         )
 
+    @mcp.tool()
+    def reflect(query: str, max_results: int = 20) -> str:
+        """Search the substrate and synthesize an answer using an LLM (Haiku).
+
+        Recalls matching objects, expands 1-hop relations, then uses Claude Haiku
+        to synthesize an answer with citations to object IDs. Falls back to raw
+        context if the API is unavailable.
+
+        Args:
+            query: Natural language question about the knowledge substrate
+            max_results: Max objects to recall before graph expansion (default 20)
+        """
+        result = db.reflect(query, max_results=max_results)
+        output = result.text
+        output += f"\n\n--- Metadata ---"
+        output += f"\nRecalled: {len(result.recalled_ids)} | Cited: {result.cited_ids}"
+        if result.hallucinated_ids:
+            output += f"\nHallucinated IDs: {result.hallucinated_ids}"
+        output += f"\nTokens: {result.input_tokens} in / {result.output_tokens} out"
+        return output
+
+    @mcp.tool()
+    def search_objects(query: str, max_results: int = 20) -> str:
+        """Search objects in the substrate by keyword matching.
+
+        Scans assertions, evidence, and artifacts. Scores by term matches
+        in id, title, type, and payload fields. Excludes stale objects.
+
+        Args:
+            query: Search terms (space-separated, matched against object fields)
+            max_results: Maximum results to return (default 20)
+        """
+        results = db.search_objects(query, max_results=max_results)
+        if not results:
+            return f"No results for: {query}"
+        output = f"{len(results)} result(s) for '{query}':\n"
+        for obj in results:
+            score = obj.get("_score", 0)
+            output += f"  [{obj['_type']}] {obj['id']} (score={score}) — {obj.get('title') or '(no title)'}\n"
+        return output
+
+    @mcp.tool()
+    def provenance_chain(object_id: str, max_depth: int = 10) -> str:
+        """Trace the full downstream provenance tree from an object.
+
+        Uses recursive CTE to follow relations transitively: what objects
+        does this one feed into / support?
+
+        Args:
+            object_id: Starting object ID
+            max_depth: Maximum traversal depth (default 10)
+        """
+        chain = db.provenance_chain(object_id, max_depth=max_depth)
+        if not chain:
+            return f"No downstream provenance for '{object_id}'."
+        output = f"Provenance chain from '{object_id}' ({len(chain)} objects):\n"
+        for item in chain:
+            indent = "  " * item["depth"]
+            output += f"{indent}[{item['type']}] {item['id']} via {item['relation']}\n"
+        return output
+
+    @mcp.tool()
+    def impact_radius(object_id: str, max_depth: int = 5) -> str:
+        """Trace the full upstream impact radius of an object.
+
+        Uses recursive CTE to follow relations transitively: what does
+        this object depend on?
+
+        Args:
+            object_id: Starting object ID
+            max_depth: Maximum traversal depth (default 5)
+        """
+        chain = db.impact_radius(object_id, max_depth=max_depth)
+        if not chain:
+            return f"No upstream impact for '{object_id}'."
+        output = f"Impact radius of '{object_id}' ({len(chain)} objects):\n"
+        for item in chain:
+            indent = "  " * item["depth"]
+            output += f"{indent}[{item['type']}] {item['id']} via {item['relation']}\n"
+        return output
+
+    @mcp.tool()
+    def query_shared_evidence(object_id: str) -> str:
+        """Find other assertions that share evidence with this object.
+
+        Discovers objects linked to the same evidence targets via
+        supported_by, depends_on, or derived_from relations.
+
+        Args:
+            object_id: ID of the assertion to check
+        """
+        shared = db.shared_evidence(object_id)
+        if not shared:
+            return f"No shared evidence for '{object_id}'."
+        output = f"Assertions sharing evidence with '{object_id}':\n"
+        for item in shared:
+            output += f"  [{item['type']}] {item['id']} — shared: {item['shared_evidence_id']} ({item['relation']})\n"
+        return output
+
+    @mcp.tool()
+    def query_contradictions(object_id: str) -> str:
+        """Find assertions linked via contradicted_by relations.
+
+        Returns objects that contradict or are contradicted by this object.
+
+        Args:
+            object_id: ID of the object to check
+        """
+        contras = db.contradictory_assertions(object_id)
+        if not contras:
+            return f"No contradictions for '{object_id}'."
+        output = f"Contradictions involving '{object_id}':\n"
+        for item in contras:
+            output += f"  [{item['type']}] {item['id']} ({item['direction']})\n"
+        return output
+
+    @mcp.tool()
+    def query_orphans() -> str:
+        """Find objects with zero relations -- not connected to any other object.
+
+        Checks assertions, evidence, and artifacts that have no relations
+        and are not part of any derivation.
+        """
+        orphan_list = db.orphans()
+        if not orphan_list:
+            return "No orphan objects."
+        output = f"{len(orphan_list)} orphan(s):\n"
+        for item in orphan_list:
+            output += f"  [{item['_type']}] {item['id']} ({item['type']}, {item['status']}) — {item.get('title') or '(no title)'}\n"
+        return output
+
     return mcp
 
 
