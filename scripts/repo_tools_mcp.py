@@ -23,6 +23,8 @@ from fastmcp import FastMCP
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
 
+from scripts.mcp_middleware import TelemetryMiddleware
+
 mcp = FastMCP(
     "repo-tools",
     instructions=(
@@ -31,6 +33,7 @@ mcp = FastMCP(
         "then repo_imports --internal for cross-file relationships, "
         "then repo_callgraph with cross_file=True for call chains."
     ),
+    middleware=[TelemetryMiddleware()],
 )
 
 

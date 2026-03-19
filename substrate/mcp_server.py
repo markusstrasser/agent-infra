@@ -30,8 +30,13 @@ def create_server(project: str) -> FastMCP:
     db_path = DB_DIR / f"{project}.db"
     db = KnowledgeDB(db_path)
 
+    # Import from parent — substrate runs via meta's uv env
+    import importlib
+    mw_mod = importlib.import_module("scripts.mcp_middleware")
+
     mcp = FastMCP(
         f"knowledge-substrate-{project}",
+        middleware=[mw_mod.TelemetryMiddleware()],
         instructions=f"""Knowledge substrate for {project}. Use these tools to register
 assertions, evidence, and artifacts with their dependencies. The substrate tracks
 what depends on what — when evidence is invalidated, downstream assertions are

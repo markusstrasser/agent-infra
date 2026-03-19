@@ -225,7 +225,10 @@ def create_mcp() -> FastMCP:
         log.info("meta-mcp: indexed %d sections from %d files", len(sections), len(files))
         yield {"sections": sections}
 
-    mcp = FastMCP("meta-knowledge", instructions=INSTRUCTIONS, lifespan=lifespan)
+    from scripts.mcp_middleware import TelemetryMiddleware
+
+    mcp = FastMCP("meta-knowledge", instructions=INSTRUCTIONS, lifespan=lifespan,
+                  middleware=[TelemetryMiddleware()])
 
     @mcp.tool()
     def search_meta(
