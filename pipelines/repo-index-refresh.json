@@ -12,7 +12,7 @@
     {
       "step": "summary-intel",
       "type": "script",
-      "command": "uv run python3 scripts/repo-summary.py ~/Projects/intel/tools --refresh --no-llm",
+      "command": "uv run python3 scripts/repo-summary.py ~/Projects/intel/tools --refresh --no-llm --compact",
       "cwd": "~/Projects/meta"
     },
     {
@@ -24,7 +24,7 @@
     {
       "step": "summary-genomics",
       "type": "script",
-      "command": "uv run python3 scripts/repo-summary.py ~/Projects/genomics --refresh --no-llm",
+      "command": "uv run python3 scripts/repo-summary.py ~/Projects/genomics --refresh --no-llm --compact",
       "cwd": "~/Projects/meta"
     },
     {

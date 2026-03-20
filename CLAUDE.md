@@ -15,7 +15,7 @@ This repo plans and tracks improvements to agent infrastructure across projects 
 
 **MCP Servers:**
 - `meta_mcp.py` — meta-knowledge MCP server (section-based search over all .md files)
-- `scripts/repo_tools_mcp.py` — repo navigation tools (outline, callgraph, imports, deps, changes, summary). Configured in all projects' `.mcp.json`.
+- `scripts/repo_tools_mcp.py` — repo navigation tools (RETIRED from MCP, 2026-03-20). Zero usage across 4,287 runs. Scripts remain as CLI tools via Bash: `repo-outline.py` (outline, callgraph, xrefs, symbol), `repo-summary.py` (file map with `--compact`).
 
 **Orchestration & Ops:**
 - `scripts/orchestrator.py` — cron-driven task runner (dual-engine: `claude -p` + scripts). See Orchestrator section below.

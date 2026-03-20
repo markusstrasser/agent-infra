@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Lightweight code structure tools for agent navigation.
 
-Three modes:
+Four modes:
   outline  — TOC of classes/functions with signatures, one line each
   callgraph — who-calls-what within a file or directory
   xrefs    — cross-file call resolution (joins callgraph with import graph)
+  symbol   — extract and print the full source of a named function/class
 
 Uses only stdlib `ast`. Zero deps, zero index, reads live code.
+Python-only — non-Python files are not supported.
 
 Usage:
   repo-outline.py outline <path>          # file or directory
@@ -15,12 +17,25 @@ Usage:
   repo-outline.py callgraph <path> --external  # include calls to imported names
   repo-outline.py xrefs <path>            # cross-file call edges
   repo-outline.py xrefs <path> --for NAME # who calls NAME across the project?
+  repo-outline.py symbol <file> <name>    # print full source of class/function
 """
 import ast
 import sys
 import os
 from pathlib import Path
 from collections import defaultdict
+
+
+def _log_usage(script: str, subcommand: str, path: Path):
+    """Append one line to usage log. Fire-and-forget."""
+    import json, time
+    log = Path.home() / ".cache" / "repo-tools-usage.jsonl"
+    try:
+        with open(log, "a") as f:
+            f.write(json.dumps({"ts": time.time(), "script": script,
+                                "cmd": subcommand, "path": str(path)}) + "\n")
+    except Exception:
+        pass
 
 
 def gather_py_files(path: Path) -> list[Path]:
@@ -233,6 +248,69 @@ def callgraph(path: Path, include_external: bool = False):
         print(line)
 
 
+def symbol(filepath: Path, name: str):
+    """Extract and print the full source of a named function/class."""
+    source = filepath.read_text()
+
+    # Try AST first
+    try:
+        tree = ast.parse(source, filename=str(filepath))
+    except SyntaxError:
+        # Fallback: grep for def/class lines
+        lines = source.splitlines()
+        matches = []
+        for i, line in enumerate(lines, 1):
+            stripped = line.lstrip()
+            if (stripped.startswith(f"def {name}(") or
+                stripped.startswith(f"def {name} (") or
+                stripped.startswith(f"class {name}(") or
+                stripped.startswith(f"class {name}:") or
+                stripped.startswith(f"class {name} ") or
+                stripped.startswith(f"async def {name}(") or
+                stripped.startswith(f"async def {name} (")):
+                matches.append(i)
+        if not matches:
+            print(f"No symbol '{name}' found in {filepath} (AST failed, grep fallback)")
+            sys.exit(1)
+        print(f"# SyntaxError — showing grep matches for '{name}' in {filepath}")
+        for lineno in matches:
+            start = max(0, lineno - 1)
+            end = min(len(lines), lineno + 20)
+            for i in range(start, end):
+                print(f"  {i+1:>5}  {lines[i]}")
+            print()
+        return
+
+    # Walk AST to find matching nodes (top-level and nested)
+    matches = []
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            if node.name == name:
+                matches.append(node)
+
+    if not matches:
+        print(f"No symbol '{name}' found in {filepath}")
+        sys.exit(1)
+
+    if len(matches) > 1:
+        print(f"# {len(matches)} matches for '{name}' in {filepath}:")
+        for node in matches:
+            kind = "class" if isinstance(node, ast.ClassDef) else "def"
+            print(f"  L{node.lineno:>5}  {kind} {node.name}")
+        print(f"\n# Showing all {len(matches)} definitions:\n")
+
+    source_lines = source.splitlines()
+    for node in matches:
+        start = node.lineno - 1
+        end = node.end_lineno  # end_lineno is 1-based inclusive
+        print(f"# {filepath}:{node.lineno}")
+        for i in range(start, end):
+            print(f"  {i+1:>5}  {source_lines[i]}")
+        print()
+
+    _log_usage("repo-outline", "symbol", filepath)
+
+
 def _load_repo_imports():
     """Import repo-imports.py (hyphenated filename requires importlib)."""
     import importlib.util
@@ -338,10 +416,12 @@ def main():
             idx = sys.argv.index("--depth")
             depth = int(sys.argv[idx + 1])
         outline(path, max_depth=depth)
+        _log_usage("repo-outline", "outline", path)
 
     elif mode == "callgraph":
         include_external = "--external" in sys.argv
         callgraph(path, include_external=include_external)
+        _log_usage("repo-outline", "callgraph", path)
 
     elif mode == "xrefs":
         target_name = ""
@@ -349,9 +429,17 @@ def main():
             idx = sys.argv.index("--for")
             target_name = sys.argv[idx + 1]
         xrefs(path, target=target_name)
+        _log_usage("repo-outline", "xrefs", path)
+
+    elif mode == "symbol":
+        if len(sys.argv) < 4:
+            print("Usage: repo-outline.py symbol <file> <name>")
+            sys.exit(1)
+        sym_name = sys.argv[3]
+        symbol(path, sym_name)
 
     else:
-        print(f"Unknown mode: {mode}. Use 'outline', 'callgraph', or 'xrefs'.")
+        print(f"Unknown mode: {mode}. Use 'outline', 'callgraph', 'xrefs', or 'symbol'.")
         sys.exit(1)
 
 

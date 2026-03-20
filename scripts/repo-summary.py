@@ -29,6 +29,18 @@ EXTENSIONS = {".py", ".js", ".ts", ".tsx", ".jsx", ".rs", ".go", ".sh", ".sql"}
 SKIP_DIRS = {".git", "__pycache__", ".venv", "node_modules", ".tox", ".mypy_cache", "dist", "build"}
 
 
+def _log_usage(script: str, subcommand: str, path: Path):
+    """Append one line to usage log. Fire-and-forget."""
+    import json as _json, time as _time
+    log = Path.home() / ".cache" / "repo-tools-usage.jsonl"
+    try:
+        with open(log, "a") as f:
+            f.write(_json.dumps({"ts": _time.time(), "script": script,
+                                 "cmd": subcommand, "path": str(path)}) + "\n")
+    except Exception:
+        pass
+
+
 def gather_files(path: Path) -> list[Path]:
     if path.is_file():
         return [path]
@@ -115,6 +127,8 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Show what would be summarized")
     parser.add_argument("--no-llm", action="store_true", help="Use docstrings only (free)")
     parser.add_argument("--workers", type=int, default=4, help="Parallel LLM calls")
+    parser.add_argument("--compact", action="store_true",
+                        help="Collapse large directories (>20 files), max 3 depth levels")
     args = parser.parse_args()
 
     path = args.path.resolve()
@@ -184,16 +198,78 @@ def main():
 
     save_cache(project_name, cache)
 
+    _log_usage("repo-summary", "compact" if args.compact else "summary", path)
+
     # Output
     print(f"# File map: {project_name}")
     print(f"# {len(files)} files\n")
 
+    if args.compact:
+        _print_compact(files, base, cache)
+    else:
+        for f in files:
+            rel = str(f.relative_to(base))
+            cached = cache.get(rel)
+            summary = cached["summary"] if cached else ""
+            marker = "" if summary else "  [no summary]"
+            print(f"  {rel:<50} {summary}{marker}")
+
+
+def _print_compact(files: list[Path], base: Path, cache: dict):
+    """Compact output: collapse dirs with >20 files, max 3 depth levels."""
+    from collections import Counter
+
+    # Group files by parent directory
+    dir_counts: Counter[str] = Counter()
     for f in files:
-        rel = str(f.relative_to(base))
-        cached = cache.get(rel)
+        rel = f.relative_to(base)
+        if len(rel.parts) > 1:
+            dir_counts[str(rel.parent)] += 1
+
+    # Determine which dirs to collapse (>20 files)
+    collapsed = {d for d, c in dir_counts.items() if c > 20}
+
+    # Track which collapsed dirs we've already printed
+    printed_collapsed: set[str] = set()
+
+    for f in files:
+        rel = f.relative_to(base)
+        rel_str = str(rel)
+        parent = str(rel.parent) if len(rel.parts) > 1 else ""
+
+        # Depth check: collapse files deeper than 3 levels
+        if len(rel.parts) > 3:
+            top3 = str(Path(*rel.parts[:3]))
+            if top3 not in printed_collapsed:
+                # Count files under this prefix
+                count = sum(1 for ff in files
+                            if len(ff.relative_to(base).parts) > 3
+                            and str(Path(*ff.relative_to(base).parts[:3])) == top3)
+                print(f"  {top3}/  ({count} files)")
+                printed_collapsed.add(top3)
+            continue
+
+        # Collapsed directory check
+        if parent in collapsed:
+            if parent not in printed_collapsed:
+                # Get a representative summary from the first file with one
+                rep_summary = ""
+                for ff in files:
+                    if str(ff.relative_to(base).parent) == parent:
+                        c = cache.get(str(ff.relative_to(base)))
+                        if c and c.get("summary"):
+                            rep_summary = c["summary"]
+                            break
+                desc = f" — {rep_summary}" if rep_summary else ""
+                print(f"  {parent}/  ({dir_counts[parent]} files{desc})")
+                printed_collapsed.add(parent)
+            continue
+
+        # Normal file: show with summary
+        cached = cache.get(rel_str)
         summary = cached["summary"] if cached else ""
         marker = "" if summary else "  [no summary]"
-        print(f"  {rel:<50} {summary}{marker}")
+        print(f"  {rel_str:<50} {summary}{marker}")
 
 
 if __name__ == "__main__":
