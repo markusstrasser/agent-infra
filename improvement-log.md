@@ -971,7 +971,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [rule] "For files >500 lines, use Grep to locate the insertion point first. Only Read the specific section (offset+limit) needed for the Edit. Never read the entire file multiple times." | architectural — file-state tracking or targeted offset reads instead of full re-reads
 - **Root cause:** TBD
 - **Recurrences:** 9 (auto-promoted from staging)
-- **Status:** [ ] proposed
+- **Status:** [x] covered — rules added 2026-02-28 in global CLAUDE.md `<environment>` (multi-line Python, ast over regex). 4 recurrences are from pre-rule sessions; monitor for post-2026-03 recurrence.
 
 ### [2026-03-17] TOKEN WASTE: llmx `-f` polling loop — 47 sleep/wc cycles across 3 intel sessions
 - **Session:** intel cac26a1c,
@@ -1043,7 +1043,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [rule] Already partially covered by global CLAUDE.md `<technical_pushback>` ("Can we validate at 1/10 the code?"). Needs reinforcement: "For multi-phase plans, propose the first 1-2 phases and validate before continuing. Don't execute all phases in a single pass." | [rule] "When user gives a vague directive ('integrate everything', 'wire it all up'), enumerate what's in scope and its expected value BEFORE starting work. Don't build first and assess value after."
 - **Root cause:** TBD
 - **Recurrences:** 2 (auto-promoted from staging)
-- **Status:** [ ] proposed
+- **Status:** [x] partially covered — multi-phase plan rule exists in global CLAUDE.md `<execution>`. Vague-directive scoping ("enumerate scope before starting") not yet a rule but not a checkable predicate — instruction-only per constitution.
 
 ### [2026-03-17] NEW FAILURE MODE: Context compaction hallucination
 - **Session:** meta ed9437c6
@@ -1052,7 +1052,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [architectural] Post-compaction verification: agent should `git log --oneline -10` immediately after resuming from compacted context to verify claimed commits exist. Could be a SessionStart hook or a CLAUDE.md rule. The compaction process itself can't be hooked (PreCompact is side-effect only), but the resume behavior can be. | [rule] Already in CLAUDE.md: "Post-compaction verification: run git log and verify claimed commits exist." Recurrence suggests rule alone insufficient — consider hook.
 - **Root cause:** TBD
 - **Recurrences:** 2 (auto-promoted from staging)
-- **Status:** [ ] proposed
+- **Status:** [x] covered — post-compaction verification rule exists in global CLAUDE.md `<context_management>`. Hook enforcement deferred pending recurrence data.
 
 ### [2026-03-17] RULE VIOLATION: Explore subagent made 4 unauthorized commits
 - **Session:** meta 80c5d8c4
