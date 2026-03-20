@@ -1,6 +1,6 @@
 """Shared utilities for meta scripts."""
 
-from common.paths import (
+from .paths import (
     CLAUDE_DIR,
     COMPACT_LOG,
     FINDINGS_DB,
@@ -11,8 +11,8 @@ from common.paths import (
     SESSIONS_DB,
     TRIGGERS_FILE,
 )
-from common.db import open_db
-from common.io import load_jsonl, write_jsonl
+from .db import open_db
+from .io import load_jsonl, write_jsonl
 
 __all__ = [
     "CLAUDE_DIR",
