@@ -123,3 +123,13 @@ Bundle skills + agents + hooks + MCP + LSP. Distribution mechanism, not capabili
 ---
 
 *Sources: code.claude.com/docs/en/{skills, hooks, hooks-guide, sub-agents, agent-teams, memory, statusline, telemetry}. All fetched 2026-03-01.*
+
+## Revisions
+
+### 2026-03-20: v2.1.64–2.1.80 adoption sweep
+
+Adopted: StopFailure hook (v2.1.78), SessionEnd timeout env var (v2.1.74), cron disable (v2.1.71), rate limits in statusline (v2.1.80), effort canary on 3 skills (v2.1.64+), disallowed_tools pass-through in orchestrator (SDK 0.1.49). spinning-detector was already on additionalContext.
+
+Deferred: worktree.sparsePaths (no SDK support), --channels (research preview), HTTP hooks (shell works), MCP elicitation, full effort rollout (canary first). See cross-model review artifacts.
+
+Key finding: consolidation opportunity remains ~10-15% as assessed in original. Governance layer gap unchanged. New native features are useful but complementary, not replacing meta's orchestration or self-improvement loop.
