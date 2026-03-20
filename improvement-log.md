@@ -6,6 +6,46 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-03-20] Session Analyst — Behavioral Anti-Patterns (meta, 7 sessions)
+- **Source:** Gemini 3.1 Pro analysis + manual verification of 7 meta sessions (2026-03-20)
+- **Shape anomalies:** 7/29 sessions flagged (transcript_density, tool_intensity, tool_diversity, mcp_fraction, bash_fraction, commit_ratio)
+
+### [2026-03-20] CAPABILITY ABANDONMENT: Wrong Claude pricing from training data — only searched when user pushed back
+- **Session:** meta 1415e8dc ($0.21, 4 min)
+- **Evidence:** Agent confidently stated "Claude Pro does not include Claude Code usage. They're completely separate products." User challenged: "are you sure? check intenret". Agent searched, found Anthropic's support page, admitted "I was wrong — Claude Pro ($20/mo) does include Claude Code access now." Factual claim about vendor pricing was asserted from stale training data without verification.
+- **Failure mode:** capability-abandonment (ATP leading indicator)
+- **Proposed fix:** [rule] Factual claims about vendor products, pricing, or features must be search-verified before assertion — training data is unreliable for fast-changing product details.
+- **Severity:** high — user received wrong information and had to demand verification
+- **Root cause:** agent-capability
+- **Status:** [ ] proposed
+
+### [2026-03-20] CAPABILITY ABANDONMENT: Presented likely hallucinated CLI flags without verification
+- **Session:** meta b52961a4 ($0.70, 7 min)
+- **Evidence:** Agent told user about `claude --remote-control`, `--spawn`, and `/mobile` command without running `claude --help` or searching to verify these flags exist. CLAUDE.md rule 11 explicitly requires "verify implementation exists before documenting." Constitution Principle 7 requires "probe before build."
+- **Failure mode:** capability-abandonment
+- **Proposed fix:** [rule] CLI flags and product features must be verified (`--help` or web search) before presenting to user as fact.
+- **Severity:** high — user may attempt to use nonexistent features
+- **Root cause:** agent-capability
+- **Status:** [ ] proposed
+
+### [2026-03-20] TOKEN WASTE: Read setup-friend.sh 6 consecutive times in same session
+- **Session:** meta e9037546 ($3.00, 33 min)
+- **Evidence:** `Read(setup-friend.sh)` called 6 times consecutively with tool_result between each. Also read sessions.py twice in session 3ba98dbb (14 transcript lines apart). Also read generate_unified_embeddings.py (2000+ lines) twice in full in session 560df1b2. Repeated-read pattern is the most common TOKEN WASTE finding (9 total in staging DB).
+- **Failure mode:** token-waste / repeated-read
+- **Proposed fix:** [hook] PostToolUse hook on Read — detect consecutive reads of same file path within N tool calls. Advisory warning, not blocking.
+- **Severity:** high (6x reads) / medium (2x reads) — varies by session
+- **Root cause:** agent-capability
+- **Status:** [ ] proposed
+
+### [2026-03-20] WRONG-TOOL DRIFT: Complex bash/grep to search session logs instead of sessions.py
+- **Session:** meta e9037546 ($3.00, 33 min)
+- **Evidence:** Agent used `for f in $(ls -t ~/.claude/projects/.../*.jsonl); do grep -ql...` and inline `python3 -c` to search transcripts. The `sessions.py` FTS search tool was available and purpose-built for this.
+- **Failure mode:** wrong-tool-drift
+- **Proposed fix:** [architectural] Make sessions.py more discoverable — add to CLAUDE.md codebase map or expose via MCP.
+- **Severity:** low — functional but wasteful
+- **Root cause:** system-design
+- **Status:** [ ] proposed
+
 ### [2026-03-19] Session Analyst — Behavioral Anti-Patterns (meta, 8 sessions)
 - **Source:** Gemini 3.1 Pro analysis of 8 meta sessions (2026-03-18 to 2026-03-19)
 - **Shape anomalies:** 6/20 sessions flagged (transcript_density, tool_intensity, tool_diversity, mcp_fraction, commit_ratio)
