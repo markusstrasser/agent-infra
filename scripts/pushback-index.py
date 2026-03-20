@@ -54,8 +54,11 @@ PUSHBACK_PATTERNS = [
 
 # Uncertainty/self-doubt expressions — from Stop Before You Fail (arxiv:2509.24711)
 # Figure 7: SHAP/PI-extracted expressions predictive of unsolvable questions.
-# High density of these in a session may indicate the model is operating beyond
-# its capability boundary. Tracked separately from pushback (which is outward-facing).
+# QUARANTINED (2026-03-20): Cross-model review + empirical check shows 0.04% hit rate
+# in 2474 Opus 4.6 assistant messages. These tokens were extracted from DeepSeek-R1/QwQ
+# reasoning traces on math tasks — they don't transfer to agentic coding sessions.
+# Kept for reference but DO NOT use for policy decisions until validated on local data.
+# To validate: label ~100 sessions for real uncertainty events, compute F1.
 UNCERTAINTY_PATTERNS = [
     r"\bI'm stuck\b",
     r"\bI'm not sure\b",
