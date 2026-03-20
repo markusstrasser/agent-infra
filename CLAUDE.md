@@ -305,4 +305,5 @@ Status line, notifications, receipts, and dashboard. Full details in `cockpit.md
 - Runlog docs: `meta/runlog.md`
 - Runlog CLI: `uv run python3 scripts/runlog.py stats|import|query|recent`
 - Run `just hook-telemetry` for current error sources
+- Session search: `uv run python3 scripts/sessions.py search <query>` (FTS5, faster than bash/grep)
 </session_forensics>
