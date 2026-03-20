@@ -310,6 +310,8 @@ async def _run_claude_task_async(task, cwd, progress_file=None):
     sdk_kwargs: dict[str, Any] = {}
     if step_options.get("output_format"):
         sdk_kwargs["output_format"] = step_options["output_format"]
+    if step_options.get("disallowed_tools"):
+        sdk_kwargs["disallowed_tools"] = step_options["disallowed_tools"]
 
     # Telemetry hooks — always inject for tool usage metrics
     metrics_path = OUTPUT_DIR / f"{task['id']}.metrics.jsonl"
@@ -875,7 +877,7 @@ def cmd_submit(args):
             needs_approval = 1
 
         # Build step_options from step-level config keys
-        step_options_keys = ("output_format", "inject_meta_infra", "verify")
+        step_options_keys = ("output_format", "inject_meta_infra", "verify", "disallowed_tools")
         step_options = {k: step_def[k] for k in step_options_keys if k in step_def}
         step_options_json = json.dumps(step_options) if step_options else None
 
@@ -1462,7 +1464,7 @@ def _check_scheduled_pipelines(db):
             if step_project != "meta" and step_name == "execute":
                 needs_approval = 1
 
-            step_options_keys = ("output_format", "inject_meta_infra")
+            step_options_keys = ("output_format", "inject_meta_infra", "disallowed_tools")
             step_options = {k: step_def[k] for k in step_options_keys if k in step_def}
             step_options_json = json.dumps(step_options) if step_options else None
 
