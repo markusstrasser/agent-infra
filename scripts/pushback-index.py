@@ -52,6 +52,47 @@ PUSHBACK_PATTERNS = [
     r"\bdecline\b",
 ]
 
+# Uncertainty/self-doubt expressions — from Stop Before You Fail (arxiv:2509.24711)
+# Figure 7: SHAP/PI-extracted expressions predictive of unsolvable questions.
+# High density of these in a session may indicate the model is operating beyond
+# its capability boundary. Tracked separately from pushback (which is outward-facing).
+UNCERTAINTY_PATTERNS = [
+    r"\bI'm stuck\b",
+    r"\bI'm not sure\b",
+    r"\bnot 100% sure\b",
+    r"\bnot entirely sure\b",
+    r"\bnot absolutely certain\b",
+    r"\bI might be wrong\b",
+    r"\bhard to say\b",
+    r"\btentatively\b",
+    r"\bapproximately\b",
+    r"\bthe answer might be\b",
+    r"\bI'm not confident\b",
+    r"\bnot entirely confident\b",
+    r"\bI don't know\b",
+    r"\bconfusion\b",
+    r"\bconfusing\b",
+    r"\bnot exact\b",
+    r"\buncertainty\b",
+    r"\bprobably not\b",
+    r"\bwait\b,",  # "wait," as hesitation marker (top SHAP feature)
+    r"\bhmm\b",
+    r"\bmy mistake\b",
+    r"\ba mistake\b",
+    r"\bmiscalculated\b",
+    r"\bmisinterpreted\b",
+    r"\bI made an error\b",
+    r"\bmust be wrong\b",
+    r"\bmust be missing\b",
+    r"\bI apologize\b",
+    r"\bgive up\b",
+    r"\bI'm sorry\b",
+    r"\bno solution\b",
+    r"\bno solutions\b",
+]
+
+UNCERTAINTY_RE = re.compile("|".join(UNCERTAINTY_PATTERNS), re.IGNORECASE)
+
 PUSHBACK_RE = re.compile("|".join(PUSHBACK_PATTERNS), re.IGNORECASE)
 
 
@@ -470,6 +511,7 @@ def analyze_session(path: Path) -> dict | None:
     # The text response is the one we want to pair with the user prompt.
     total_responses = 0
     pushback_responses = 0
+    uncertainty_responses = 0
     last_was_user_prompt = False
 
     for entry in entries:
@@ -482,6 +524,8 @@ def analyze_session(path: Path) -> dict | None:
             text = extract_text(entry.get("message", {}))
             if has_pushback(text):
                 pushback_responses += 1
+            if UNCERTAINTY_RE.search(text):
+                uncertainty_responses += 1
             last_was_user_prompt = False
             continue
 
@@ -504,6 +548,10 @@ def analyze_session(path: Path) -> dict | None:
         "total_responses": total_responses,
         "pushback_responses": pushback_responses,
         "pushback_rate": pushback_responses / total_responses,
+        # Uncertainty density — from Stop Before You Fail (arxiv:2509.24711)
+        # High values may indicate model operating beyond capability boundary
+        "uncertainty_responses": uncertainty_responses,
+        "uncertainty_rate": uncertainty_responses / total_responses,
         "file": str(path),
         # Fold metrics (v0.1 experimental)
         "fold_count": fold_result["fold_count"],
