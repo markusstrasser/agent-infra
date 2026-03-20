@@ -35,7 +35,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [hook] PostToolUse hook on Read — detect consecutive reads of same file path within N tool calls. Advisory warning, not blocking.
 - **Severity:** high (6x reads) / medium (2x reads) — varies by session
 - **Root cause:** agent-capability
-- **Status:** [ ] proposed
+- **Status:** [x] already implemented — tool-tracker.sh has dup-read detection (recency window 20, warn at 3x, block at 4x, edit-invalidation). 1,242 shadow entries, 7 blocks today. Finding proposed a hook that already existed.
 
 ### [2026-03-20] WRONG-TOOL DRIFT: Complex bash/grep to search session logs instead of sessions.py
 - **Session:** meta e9037546 ($3.00, 33 min)
