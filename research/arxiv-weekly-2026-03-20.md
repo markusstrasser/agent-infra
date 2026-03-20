@@ -112,7 +112,123 @@ Multi-agent framework for memory construction, retrieval, and in-situ self-evolu
 
 ### What's Uncertain
 
-- Whether path-level governance is practical without massive overhead (Runtime Governance paper may assume capabilities we don't have in hook architecture)
-- Whether AgentFactory's executable subagents work outside their benchmark environments
-- Whether self-detected capability boundaries generalize across model families (tested on specific reasoning models)
-- All summaries are from Exa snippets, not full paper reads — claims about mechanisms need verification via fetch_paper
+- Whether path-level governance is practical without massive overhead
+- Whether self-detected capability boundaries generalize from math reasoning to agentic tasks
+- AgentDrift's within-band perturbation results need replication outside financial domain
+
+---
+
+## Full Paper Analysis (5 papers read in full)
+
+### AgentDrift (2603.12564) — **STRONGEST FINDING**
+
+**Models tested:** Qwen3-32B, Qwen2.5-7B, Gemma 3 12B-IT, GPT-5.2, **Claude Sonnet 4.6**, Ministral 3 14B, Mistral Large 3. All current frontier. [SOURCE: full paper read]
+
+**Core mechanism:** Paired-trajectory protocol replaying identical financial dialogues under clean and contaminated tool-output conditions. Contamination modes: risk inversion, metric manipulation, biased headlines, high-risk injection.
+
+**Key numbers (Claude Sonnet 4.6):**
+- UPR = 1.000 (quality metrics PERFECTLY preserved under contamination)
+- D̄ = 0.384 (significant drift, p=0.001 Wilcoxon)
+- SVR_s = 0.926 (93% of turns contain safety violations)
+- Zero self-correction across 1,563 contaminated turns
+- Safe-language framing of high-risk items: 69% of turns (vs 14% for Qwen2.5-7B)
+
+**Critical insight — "evaluation blindness":** Quality metrics (NDCG) remain stable while safety degrades catastrophically. Standard evaluation can't detect this. Only safety-penalized metrics (sNDCG: drops to 0.51-0.74) reveal the gap.
+
+**Scaling property:** Susceptibility INCREASES with instruction-following capability. Stronger models rationalize unsafe recommendations more fluently. This is structural, not fixable by prompting.
+
+**Within-band perturbations:** |Δr| ≤ 1 (subtle shifts) evade ALL threshold monitors while achieving 61% of full-attack drift. Headlines-only corruption (no numerical changes) produces D̄=0.176, completely evading consistency monitors.
+
+**Representation-to-action gap:** SAE probing shows models internally distinguish adversarial inputs (contamination-specific features 2.4× generic features) but fail to propagate this signal to output behavior.
+
+**Frontier verdict: APPLIES** — directly tested on our model. Finding is structural and scales with capability.
+
+### Runtime Governance (2603.16586) — **ARCHITECTURE PAPER**
+
+**Models tested:** None (conceptual framework, no experiments). [SOURCE: full paper read]
+
+**Core formalism:** Policy function π_j(A, P_i, s*, Σ) → [0,1] mapping (agent identity, partial path, proposed action, shared governance state) to violation probability. Key insight: prompting doesn't instantiate π_j at all (it shifts path distributions, not enforcing policies). Access control is a degenerate case (uses only A and action type τ*, ignores path P_i and shared state Σ).
+
+**What our hooks ARE in this framework:** Access control — binary checks on action type, ignoring path history. This is the weakest governance mode.
+
+**What we're missing:**
+1. **Governance state vector** (incrementally updated per-step: max data sensitivity, external actions taken, approval gates passed)
+2. **Path-dependent policies** (e.g., "block external send if internal data accessed this session")
+3. **Shared state Σ** across agents (cross-agent data sensitivity propagation)
+4. **Steer intervention** (inject compliance hint, not just pass/block)
+
+**Practical architecture:** Two-phase — registration (pre-task checks on agent identity/config) and per-step (evaluate path-dependent policies). State vector is small (tags + counters), updated in constant time. Most policies reduce to binary threshold checks on state vector fields.
+
+**Flag-only deployment:** New policies should compute violation scores and log them without acting. Promote to blocking only after measuring false positive rates. Matches our "measure before enforcing" principle.
+
+**Frontier verdict: APPLIES** — architecture-independent, no model assumptions.
+
+### VMAO (2603.11445) — **ORCHESTRATION PATTERN**
+
+**Models tested:** Claude Sonnet 4.5 (execution), Claude Opus 4.5 (verification), Claude Haiku 4.5 (fallback). All via AWS Bedrock. ICLR 2026 Workshop (MALGAI). [SOURCE: full paper read]
+
+**Core mechanism:** Plan-Execute-Verify-Replan loop. Complex query → DAG of sub-questions → parallel execution → LLM verification of completeness → adaptive replanning for gaps → synthesis.
+
+**Key numbers (25 market research queries):**
+- Completeness: 3.1 → 4.2 (+35%) vs single-agent (1-5 scale)
+- Source Quality: 2.6 → 4.1 (+58%) vs single-agent
+- Token cost: 850K vs 100K (8.5x)
+- Time: 900s vs 165s (5.5x)
+- Biggest gains: Strategic Assessment queries (+53% completeness)
+- Token distribution: execution 61%, verification 16%, synthesis 10%, planning 8%, replanning 5%
+
+**Stop conditions (Table 2):** Ready for Synthesis (80% complete), High Confidence (75% conf + 50% complete), Diminishing Returns (<5% improvement), Token Budget (1M), Max Iterations (3). Most queries (>75%) terminate via resource conditions, not completeness.
+
+**Key finding about replanning:** Majority of replanning actions are retries of incomplete sub-questions, not new decomposition. Agent execution variance (tool failures, insufficient search results) is a larger contributor to gaps than poor initial decomposition.
+
+**Limitations they acknowledge:** 25 queries is small, same model family for execution and evaluation, no component-level ablation.
+
+**Frontier verdict: APPLIES** — tested on Claude 4.5 family (current frontier).
+
+### LEAFE (2603.16843) — **TRAINING-TIME METHOD**
+
+**Models tested:** Qwen2.5-7B/14B/32B/72B, Llama3.1-8B/70B. NOT current frontier. [SOURCE: full paper read]
+
+**Core mechanism:** Two-stage framework. Stage 1: During exploration, agent periodically reflects on trajectory, identifies suboptimal decision point τ, generates experience summary e, backtracks to τ, explores alternative branch guided by e. This builds a "rollback tree" of experience-guided corrections. Stage 2: Counterfactual distillation — train model to reproduce the corrected action a'_τ conditioned only on original history h_τ WITHOUT the experience e. Joint loss with behavior rehearsal (20% successful rollouts as positive examples).
+
+**Key numbers:**
+- Pass@128 improvements: up to +14% on CodeContests over GRPO
+- Pass@1: comparable or slightly lower than GRPO (expected — LEAFE optimizes capability boundary, not exploitation)
+- OOD generalization: LEAFE preserves performance on out-of-distribution tasks, while GRPO degrades (-4.2% on Llama3-70B)
+
+**Why GRPO fails at large k:** "Distribution sharpening" — GRPO concentrates probability on already-successful behaviors, boosting Pass@1 but failing to expand the capability frontier. LEAFE expands the frontier by teaching recovery from failures.
+
+**Relevance to our system:** NOT directly implementable (requires SFT, we're API-only). BUT:
+- The ACE baseline (prompt-based playbook accumulation, no weight updates) IS what our improvement-log does
+- The "distribution sharpening" concept explains why session-analyst matters — outcome-driven optimization alone would narrow agent behavior
+- Validates our architecture as the prompt-space analog of LEAFE's training-time approach
+
+**Frontier verdict: PRE-FRONTIER** — training method tested on smaller models, not applicable to API usage.
+
+### Stop Before You Fail (2509.24711) — **REASONING MODEL SPECIFIC**
+
+**Models tested:** GPT-oss-20B, DeepSeek-R1-0528-Qwen3-8B, DeepSeek-R1-Distill-Qwen-32B, QwQ-32B. All open reasoning models. NOT current frontier chat models. [SOURCE: full paper read]
+
+**Core mechanism:** LRMs expose early signals of eventual failure in reasoning traces. Two detection methods:
+
+1. **Black-box (Monitor_express):** Track density of confident vs uncertain expressions through reasoning. Solvable questions show concave confident trajectory; unsolvable show convex uncertain trajectory. ConfDiff indicator achieves separation at 2% of reasoning, improves through trace.
+
+2. **White-box (Monitor_hidden):** Linear classifier on last input token hidden states achieves 96.7-98.9% accuracy separating solvable/unsolvable — BEFORE reasoning begins.
+
+**Key numbers:**
+- Monitor_express: 100% Hard Abstention rate (detects all unsolvable questions), 0% accuracy loss on solvable
+- Token reduction: 62.7-93.6%
+- Overflow reduction: up to 100%
+- BoostAbstention (system prompt baseline): NO EFFECT — abstention on unsolvable math questions cannot be induced by prompting alone
+
+**Expression vocabulary (Figure 7):** 80+ confident expressions ("yes", "exactly", "I think that's it"), 100+ uncertain ("wait", "I'm stuck", "not 100% sure", "hmm"). Extracted via SHAP/Permutation Importance — not hand-curated.
+
+**Limitations:** Tested only on mathematical reasoning benchmarks (AIME, HMMT, AMC, GSM8K). Not tested on agentic tasks, code generation, or research. The "capability boundary" concept may not transfer to tasks without clear solvable/unsolvable distinction.
+
+**Relevance to our system:**
+- Monitor_hidden: NOT applicable (requires hidden state access, API-only)
+- Monitor_express: POSSIBLY applicable — Opus 4.6 extended thinking may show similar patterns, but untested
+- Expression word lists: High quality, could supplement our pushback-index sycophancy vocabulary
+- The finding that BoostAbstention DOESN'T work validates our constitution's "instructions alone = 0% reliable" principle
+
+**Frontier verdict: UNCERTAIN** — architecture-dependent findings on reasoning models. Black-box monitoring may transfer, but needs empirical probe on Opus 4.6.
