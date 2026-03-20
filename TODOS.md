@@ -54,6 +54,12 @@
 - [ ] arXiv:2509.25370 — AgentDebug (targeted correction +24% vs blind retry)
 - [ ] arXiv:2602.16943 — Mind the GAP (check S2 index)
 
+### paper-search MCP: No Date Filtering, Poor Relevance for Bio
+- [ ] `search_biorxiv` / `search_arxiv` return irrelevant results for domain queries — no date filter, keyword matching picks up unrelated fields (neuroscience for "variant interpretation", computer vision for "genome foundation model")
+- [ ] Evaluate fix options: (1) add `start_date`/`end_date` params to paper-search MCP, (2) replace with Exa `category: "research paper"` + date filter for weekly scans, (3) use bioRxiv API directly (`https://api.biorxiv.org/details/biorxiv/{start}/{end}`) which supports date ranges
+- [ ] For weekly genomics surveillance, GitHub releases API was most reliable for tool versions; Exa with specific tool names for preprints. Broad sweep queries via paper-search are currently useless.
+- **Evidence:** 2026-03-20 genomics weekly scan — 20 results from bioRxiv/arXiv, 0 relevant to WGS/genomics
+
 ### Monitor
 - [ ] RLM "Learned Context Folding" replication status
 - [ ] MCP protocol Tasks spec (SEP-1686) draft status
