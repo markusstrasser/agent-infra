@@ -118,22 +118,97 @@ Stdlib audit found the codebase is mature — `concurrent.futures`, `tomllib`, `
 | **STUMPY** | Matrix profiles | SKIP (for now) | Needs 1000+ point dense series. Our data is sparse (5-20 sessions/day). |
 | **instructor** | Structured LLM output | DEFER | Interesting but no current consumer. Revisit when we need structured agent output parsing. |
 
+## Rust/Go CLI Tools (single-binary, zero-config)
+
+### Tier 1: Strong fits
+
+**1. `jaq` — Rust jq clone, JSONL native** (3.4K stars, v3.0.0 March 2026)
+- 30x faster than jq. JSONL native. NLnet security-audited.
+- Replaces: every `for line in f: json.loads(line)` + field extraction in `just` recipes or ad-hoc exploration.
+- Example: `jaq -s '[.[] | select(.ts > "2026-03-01")] | length' ~/.claude/session-receipts.jsonl`
+- NOT a Python dep replacement — a shell-level complement. The Python scripts stay; `jaq` replaces ad-hoc `python3 -c` one-liners.
+- Install: `brew install jaq`
+- [SOURCE: github.com/01mf02/jaq]
+
+**2. `hl` — structured log viewer** (~3K stars, v0.36.0 Feb 2026)
+- Parses JSONL at 2 GiB/s. Field filtering (`-f pipeline=session-retro`), level filtering (`-l error`), time range (`--since -3h`), follow mode (`-F`).
+- Replaces: manual JSONL exploration via `cat | jq` or Python scripts.
+- Example: `hl -l error --since yesterday ~/.claude/orchestrator-log.jsonl`
+- Install: `brew install pamburus/tap/hl`
+- [SOURCE: github.com/pamburus/hl]
+
+**3. `git-cliff` — structured git log analysis** (11.6K stars, active March 2026)
+- Regex-powered commit parsing with Tera templates. Outputs structured JSON via `--context`.
+- Replaces: `repo-changes.py` git log parsing, could auto-generate improvement-log structure.
+- Our `[scope] Verb thing` commit format is directly parseable.
+- Install: `brew install git-cliff`
+- [SOURCE: github.com/orhun/git-cliff]
+
+### Tier 2: Dev convenience
+
+| Tool | Stars | What | Verdict |
+|---|---|---|---|
+| `watchexec` | 6.8K | File watcher, dev iteration | We use launchd for production. Useful for dev only. |
+| `miller` (mlr) | 9.8K | "awk for structured data" | Overlaps with jaq for JSONL. Unique for format conversion (JSONL↔CSV). |
+| `SuperDB` (ex-zq) | 1.5K | Heterogeneous data query engine | Architecturally interesting but immature. Watch. |
+
+### Excluded
+
+| Tool | Why |
+|---|---|
+| `dsq` | Dead (Sept 2023), author recommends DuckDB |
+| `xsv` | Archived, recommends `qsv`. We don't do CSV. |
+
+## Python 3.14 Stdlib Wins (zero-dep, zero-risk)
+
+**Immediate adoption — costs nothing:**
+
+| Feature | What | Where |
+|---|---|---|
+| `argparse(suggest_on_error=True)` | Typo suggestions on bad flags | All 20+ argparse scripts |
+| `argparse(color=True)` | Colored help output | All 20+ argparse scripts |
+| `argparse(deprecated=True)` | Deprecation warnings per flag | Any flag we want to sunset |
+| `pathlib.Path.copy()` / `.move()` | Replaces `shutil.copy`/`shutil.move` | Cross-project |
+
+**Not applicable (but worth noting):**
+- `InterpreterPoolExecutor` — true parallelism without subprocess. But our ThreadPoolExecutor use is I/O-bound (git, HTTP), so no benefit.
+- `dbm.sqlite3` — stdlib key-value on SQLite. Not applicable (our schemas are relational).
+- `compression.zstd` — no compression in codebase.
+
+## Missing Pattern: `common/migrate.py`
+
+Three scripts do ad-hoc `ALTER TABLE ADD COLUMN` with try/except (`finding-triage.py:107`, `sessions.py:130`, `orchestrator.py:90`). The eskerda pattern (numbered `.sql` files + `PRAGMA user_version`) is ~20 lines of stdlib Python and would standardize these. A pattern to adopt, not a library to install.
+
+## Dev Tools (not dependencies)
+
+| Tool | What | Install |
+|---|---|---|
+| `litecli` | Auto-completing SQLite CLI with syntax highlighting | `uvx litecli ~/.claude/orchestrator.db` |
+| `datasette` | Web UI over SQLite DBs | `uvx datasette ~/.claude/runlogs.db` |
+
 ## Implementation Priority
 
-| # | What | Type | Dep weight | Effort | Impact |
-|---|---|---|---|---|---|
-| 1 | Datasette for exploration | Install + launchd | 1 pip pkg | 15min | Replaces ad-hoc query workflows |
-| 2 | DuckDB Python for analytics scripts | Add dep + rewrite queries | 1 pip pkg | 2-3 scripts | Replaces JSONL parsing boilerplate |
-| 3 | IQR bounds in session-shape.py | Inline change | 0 | 1 line | More robust anomaly detection |
-| 4 | Adaptive thresholds (FastQC pattern) | Inline change | 0 | ~20 lines | Self-tuning pass/warn/fail |
-| 5 | Calibration curves in canary script | Inline change | 0 | ~15 lines | Diagnostic power for confidence |
-| 6 | `difflib.SequenceMatcher` probe | New capability | 0 (stdlib) | ~20 lines | Session similarity detection |
-| 7 | Polars for new JSONL code | Add dep | 1 pip pkg | New code only | Cleaner JSONL processing |
-| 8 | ruptures changepoint | Add dep when data sufficient | 1 pip pkg | Defer | Regime-shift detection |
+| # | What | Type | Dep weight | Impact |
+|---|---|---|---|---|
+| 1 | `argparse(suggest_on_error=True, color=True)` | Stdlib upgrade | 0 | Free UX improvement across 20+ scripts |
+| 2 | Datasette for exploration | Dev tool install | 0 (uvx) | Replaces ad-hoc query workflows |
+| 3 | `jaq` + `hl` for shell-level JSONL | Brew install | 0 (CLI tools) | Replaces ad-hoc `python3 -c` one-liners |
+| 4 | `common/migrate.py` (eskerda pattern) | ~20 lines stdlib | 0 | Standardize 3 ad-hoc schema migrations |
+| 5 | DuckDB Python for analytics scripts | 1 pip pkg | 2-3 scripts rewritten | Replaces JSONL parsing boilerplate |
+| 6 | IQR bounds + adaptive thresholds | Inline changes | 0 | More robust anomaly detection |
+| 7 | `git-cliff` for commit analysis | Brew install | 0 (CLI tool) | Could simplify repo-changes.py |
+| 8 | `difflib.SequenceMatcher` probe | stdlib | 0 | Session similarity detection |
+| 9 | Polars for new JSONL code | 1 pip pkg | New code only | Cleaner JSONL processing |
+| 10 | ruptures changepoint | 1 pip pkg | Defer to 60+ obs | Regime-shift detection |
 
 ## The Meta-Pattern
 
 The highest-leverage items share a property: they're **tools that absorb edge cases** rather than tools that add new API surface. Datasette absorbs query formatting. DuckDB absorbs JSONL parsing. IQR bounds absorb outlier sensitivity. The worst candidates are tools that add ceremony (dbt, Great Expectations, Pydantic) or language runtimes (R, Scala, Node.js).
+
+Three distinct leverage layers emerged:
+1. **Stdlib upgrades** (Python 3.14 argparse) — zero cost, zero risk, adopt immediately
+2. **CLI tools** (jaq, hl, git-cliff, datasette) — zero Python deps, complement existing scripts
+3. **Python libraries** (DuckDB, Polars, ruptures) — real deps, adopt selectively where maintenance is NEGATIVE
 
 The scientific computing angle is mostly a dead end at our data density — we have 5-20 sessions/day, not 5000. Statistical sophistication is blocked by sample size, not tooling. The one exception is `ruptures` for changepoint detection, which becomes viable once metrics accumulate 60+ observations.
 
