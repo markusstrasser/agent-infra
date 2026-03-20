@@ -1,6 +1,6 @@
 # Claude Code Native Features vs Meta Infrastructure
 
-> Assessment date: 2026-03-01. Based on actual documentation (code.claude.com), not changelog extrapolation.
+> Assessment date: 2026-03-20. Based on actual documentation (code.claude.com), verified against v2.1.80.
 
 ## Summary
 
@@ -126,10 +126,16 @@ Bundle skills + agents + hooks + MCP + LSP. Distribution mechanism, not capabili
 
 ## Revisions
 
-### 2026-03-20: v2.1.64–2.1.80 adoption sweep
+### 2026-03-20: v2.1.78–2.1.80 adoption sweep
 
-Adopted: StopFailure hook (v2.1.78), SessionEnd timeout env var (v2.1.74), cron disable (v2.1.71), rate limits in statusline (v2.1.80), effort canary on 3 skills (v2.1.64+), disallowed_tools pass-through in orchestrator (SDK 0.1.49). spinning-detector was already on additionalContext.
+**v2.1.78:** StopFailure event with matchers (billing_error, context_limit, etc.), effort/maxTurns/disallowedTools frontmatter for skills, line-by-line streaming, worktree skills/hooks fix (worktree agents now get full skill/hook access).
 
-Deferred: worktree.sparsePaths (no SDK support), --channels (research preview), HTTP hooks (shell works), MCP elicitation, full effort rollout (canary first). See cross-model review artifacts.
+**v2.1.79:** `-p` subprocess hang fix (affects orchestrator — stalls no longer require manual kill), SessionEnd fires on `/resume` (receipts now capture resumed sessions).
+
+**v2.1.80:** rate_limits in statusline JSON (five_hour + seven_day windows), effort frontmatter for skills (controls token budget), channels (research preview — webhook-style pub/sub, allowlisted plugins only, requires claude.ai OAuth), source:settings plugins, `--resume` parallel tool fix, 80MB memory reduction.
+
+**Adopted:** StopFailure billing_error matcher with osascript alert + orchestrator gate. Rate limits extraction fixed (jq path was wrong — nested `five_hour.used_percentage`, not flat). Effort frontmatter propagated to 13/13 target skills. SessionEnd timeout env var (v2.1.74). Cron disable (v2.1.71).
+
+**Deferred:** Channels (research preview, no persistent queue, requires OAuth — monitoring for webhook-receiver use case). worktree.sparsePaths (no SDK support). HTTP hooks (shell works). MCP elicitation.
 
 Key finding: consolidation opportunity remains ~10-15% as assessed in original. Governance layer gap unchanged. New native features are useful but complementary, not replacing meta's orchestration or self-improvement loop.
