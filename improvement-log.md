@@ -1134,3 +1134,39 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Root cause:** TBD
 - **Recurrences:** 2 (auto-promoted from staging)
 - **Status:** [ ] proposed
+
+### [2026-03-19] TOKEN WASTE: Search burst hook triggered — 8 parallel external search calls in single turn
+- **Session:** genomics f462a5fb
+- **Evidence:** Hook messages: 8-14 consecutive search queries without reading results
+- **Failure mode:** TOKEN WASTE (search-burst)
+- **Proposed fix:** rule: Batch searches into ≤4 parallel calls per turn. Use sequential staging when probing >4 distinct topics to stay within burst hook threshold.
+- **Root cause:** agent-capability
+- **Recurrences:** 2 (auto-promoted from staging)
+- **Status:** [ ] proposed
+
+### [2026-03-20] SEARCH_WASTE: Research memo proposed 4 fixes, 3 already existed in codebase (PRS CIs, gnomAD penetrance, non-coding AF filter). Should have grepped before writing recommendations.
+- **Session:** genomics ?
+- **Evidence:** grep found prs_prediction_intervals.py, gnomad_penetrance.py, AF filter all existing
+- **Failure mode:** SEARCH_WASTE
+- **Proposed fix:** Inventory-before-proposing: grep codebase for existing mitigations BEFORE writing what-to-do sections in research memos
+- **Root cause:** TBD
+- **Recurrences:** 2 (auto-promoted from staging)
+- **Status:** [ ] proposed
+
+### [2026-03-20] ENVIRONMENT: 4 subagents blocked by memory pressure hook. Adapted to direct search but could have checked process count first.
+- **Session:** genomics ?
+- **Evidence:** All 4 Agent calls returned MEMORY PRESSURE error
+- **Failure mode:** ENVIRONMENT
+- **Proposed fix:** Check pgrep -c claude before dispatching parallel agents in resource-constrained sessions
+- **Root cause:** TBD
+- **Recurrences:** 2 (auto-promoted from staging)
+- **Status:** [ ] proposed
+
+### [2026-03-20] TOKEN_WASTE: Large Exa result files (157K-759K chars) mostly noise from broad queries. Consumer marketing and LinkedIn posts dominated.
+- **Session:** genomics ?
+- **Evidence:** Files at tool-results/mcp-exa-web_search_advanced_exa-*.txt
+- **Failure mode:** TOKEN_WASTE
+- **Proposed fix:** Use contextMaxCharacters: 3000 + enableSummary on broad Exa sweeps
+- **Root cause:** TBD
+- **Recurrences:** 2 (auto-promoted from staging)
+- **Status:** [ ] proposed
