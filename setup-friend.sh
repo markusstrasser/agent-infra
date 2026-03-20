@@ -251,6 +251,14 @@ else
     warn "emb install failed — repo may be private, set up SSH keys first"
 fi
 
+if uv tool install "git+https://github.com/${GITHUB_USER}/parsers.git" 2>/dev/null; then
+    ok "parsers"
+elif command -v parsers &>/dev/null; then
+    ok "parsers (already installed)"
+else
+    warn "parsers install failed — repo may be private, set up SSH keys first"
+fi
+
 # ── Repos ──────────────────────────────────────────────────
 
 step "Cloning repos"
@@ -272,6 +280,8 @@ clone_repo() {
 
 clone_repo "meta"      # agent infrastructure, orchestrator, measurement
 clone_repo "skills"    # shared Claude Code skills
+clone_repo "parsers"   # platform export parsers (Twitter, iMessage, Gmail, etc.)
+clone_repo "biomedical-mcp"  # biomedical API server (genes, drugs, variants, pathways)
 
 # ── API Keys ─────────────────────────────────────────────────
 
@@ -671,7 +681,7 @@ fi
 # Agent utils (sync + push aliases)
 cat > "$HOME/.zsh_agent_utils" <<'AGENTUTILS'
 #!/usr/bin/env zsh
-alias agent-sync='bash -c '"'"'for d in skills meta llmx emb; do [ -d "$HOME/Projects/$d" ] && printf "  %-15s" "$d" && (git -C "$HOME/Projects/$d" pull --rebase --quiet 2>/dev/null && echo "ok" || echo "skip"); done; for t in llmx emb; do [ -d "$HOME/Projects/$t" ] && uv tool install --editable "$HOME/Projects/$t" --quiet 2>/dev/null; done'"'"''
+alias agent-sync='bash -c '"'"'for d in skills meta llmx emb parsers biomedical-mcp; do [ -d "$HOME/Projects/$d" ] && printf "  %-15s" "$d" && (git -C "$HOME/Projects/$d" pull --rebase --quiet 2>/dev/null && echo "ok" || echo "skip"); done; for t in llmx emb parsers; do [ -d "$HOME/Projects/$t" ] && uv tool install --editable "$HOME/Projects/$t" --quiet 2>/dev/null; done'"'"''
 alias push-all='bash -c '"'"'for d in "$HOME"/Projects/*/; do [ -d "$d/.git" ] || continue; ahead=$(git -C "$d" rev-list --count @{u}..HEAD 2>/dev/null) || continue; [ "$ahead" = "0" ] && continue; name=$(basename "$d"); printf "  %-15s %s ahead -> " "$name" "$ahead"; git -C "$d" push --quiet 2>/dev/null && echo "ok" || echo "fail"; done'"'"''
 AGENTUTILS
 ok "Agent utils (agent-sync, push-all)"
@@ -1269,10 +1279,13 @@ echo "    gemini      — Gemini CLI (free tier)"
 echo "    codex       — Codex CLI (OpenAI agent)"
 echo "    llmx        — unified LLM CLI (all providers)"
 echo "    emb         — embed + search text corpora"
+echo "    parsers     — parse platform exports (Twitter, Gmail, iMessage, etc.)"
 echo ""
 echo -e "  ${BOLD}Repos:${RESET}"
-echo "    ~/Projects/meta    — agent infrastructure"
-echo "    ~/Projects/skills  — shared Claude Code skills"
+echo "    ~/Projects/meta           — agent infrastructure"
+echo "    ~/Projects/skills         — shared Claude Code skills"
+echo "    ~/Projects/parsers        — platform export parsers"
+echo "    ~/Projects/biomedical-mcp — biomedical API server (80 tools)"
 echo ""
 echo -e "  ${BOLD}Shortcuts:${RESET}"
 echo "    agent-sync  — pull all repos + reinstall editable tools"
