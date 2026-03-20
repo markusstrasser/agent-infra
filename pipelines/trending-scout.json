@@ -1,0 +1,22 @@
+{
+  "name": "trending-scout",
+  "schedule": "0 6 * 0",
+  "project": "meta",
+  "steps": [
+    {
+      "step": "version-baseline",
+      "type": "script",
+      "command": "uv run python3 scripts/vendor-versions.py > artifacts/trending-scout/versions-$(date +%Y-%m-%d).txt 2>/dev/null || true",
+      "cwd": "~/Projects/meta"
+    },
+    {
+      "step": "scout",
+      "prompt": "/trending-scout weekly",
+      "max_turns": 25,
+      "max_budget_usd": 4.0,
+      "model": "sonnet",
+      "effort": "medium",
+      "cwd": "~/Projects/meta"
+    }
+  ]
+}
