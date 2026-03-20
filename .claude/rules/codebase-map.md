@@ -35,9 +35,9 @@ description: Auto-generated file map with cross-file relationships. Updated dail
   repo-changes.py              Recent changes grouped by area — what changed and where
   repo-deps.py                 Show project dependencies with descriptions.
   repo-imports.py              Cross-file import graph for Python projects.
-  repo-outline.py              Lightweight code structure tools for agent navigation.
-  repo-summary.py              Generate or update per-file one-line summaries using a
-  repo_tools_mcp.py            MCP server exposing repo navigation tools to AI agents.
+  repo-outline.py              Code structure tools: outline, callgraph, xrefs, symbol (Python-only).
+  repo-summary.py              Per-file summaries with --compact for large repos.
+  repo_tools_mcp.py            MCP server (RETIRED 2026-03-20, zero usage). Scripts remain as CLI.
   runlog.py                    Cross-vendor local run store for Cl…  → runlog_adapters
   safe-lite-eval.py            SAFE-lite Eval — factual precision measureme…  → config
   sessions.py                  Session search & dispatch infrastructure for…  → config
