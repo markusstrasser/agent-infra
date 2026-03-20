@@ -17,7 +17,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [rule] Factual claims about vendor products, pricing, or features must be search-verified before assertion — training data is unreliable for fast-changing product details.
 - **Severity:** high — user received wrong information and had to demand verification
 - **Root cause:** agent-capability
-- **Status:** [ ] proposed
+- **Status:** [x] implemented — global CLAUDE.md rule 12 added: "Verify vendor claims before asserting"
 
 ### [2026-03-20] CAPABILITY ABANDONMENT: Presented likely hallucinated CLI flags without verification
 - **Session:** meta b52961a4 ($0.70, 7 min)
@@ -26,7 +26,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [rule] CLI flags and product features must be verified (`--help` or web search) before presenting to user as fact.
 - **Severity:** high — user may attempt to use nonexistent features
 - **Root cause:** agent-capability
-- **Status:** [ ] proposed
+- **Status:** [x] implemented — covered by global CLAUDE.md rules 11 + 12
 
 ### [2026-03-20] TOKEN WASTE: Read setup-friend.sh 6 consecutive times in same session
 - **Session:** meta e9037546 ($3.00, 33 min)
@@ -44,7 +44,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [architectural] Make sessions.py more discoverable — add to CLAUDE.md codebase map or expose via MCP.
 - **Severity:** low — functional but wasteful
 - **Root cause:** system-design
-- **Status:** [ ] proposed
+- **Status:** [x] implemented — commit 741380a added sessions.py to CLAUDE.md session forensics section
 
 ### [2026-03-19] Session Analyst — Behavioral Anti-Patterns (meta, 8 sessions)
 - **Source:** Gemini 3.1 Pro analysis of 8 meta sessions (2026-03-18 to 2026-03-19)
