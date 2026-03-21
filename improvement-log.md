@@ -1101,7 +1101,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [architectural] Already addressed by worktree isolation rule in CLAUDE.md. Verify enforcement. | [architectural] Before spawning a subagent that touches code, check `git log --oneline -5` for recent commits from other agents. If parallel work is in progress, restrict subagent to read-only operations.
 - **Root cause:** TBD
 - **Recurrences:** 2 (auto-promoted from staging)
-- **Status:** [ ] proposed
+- **Status:** [x] covered — worktree isolation rule in CLAUDE.md `<subagent_usage>`. Explore agents excluded from Edit/Write by agent definition. No post-rule recurrences.
 
 ### [2026-03-19] RULE VIOLATION: Shared hook modified without explicit human approval
 - **Session:** meta 3a02938e
@@ -1110,7 +1110,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [rule] Reinforce that conversational continuation ("..", "ok", "go") is NOT explicit approval for constitutional hard limits. The agent must ask directly: "This modifies shared infrastructure. Approve? [yes/no]". | [hook] Consider PreToolUse hook on Edit of `~/Projects/skills/hooks/` or `~/.claude/hooks/` paths that enforces an explicit approval keyword.
 - **Root cause:** agent-capability
 - **Recurrences:** 1 (novel, high-severity — direct append)
-- **Status:** [ ] proposed
+- **Status:** [x] closed — user relaxed hard limit (2026-03-21): shared hook mods OK without explicit approval if agent has high certainty change is correct. No hook needed.
 
 ### [2026-03-19] TOKEN WASTE: Research subagents dispatched without inventory check — all 3 rediscovered completed work
 - **Session:** genomics f4732c13
@@ -1119,7 +1119,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [hook] PreToolUse on Agent/TaskCreate dispatch: reminder to check `git log --oneline -20` and existing codebase state before spawning research subagents. | [rule] Already in MEMORY.md as "Inventory before research." Second occurrence suggests rule alone is insufficient — needs architectural enforcement.
 - **Root cause:** agent-capability
 - **Recurrences:** 2 (second occurrence — first was in MEMORY.md gotcha from prior session)
-- **Status:** [ ] proposed
+- **Status:** [x] implemented — inventory-before-research rule promoted to global CLAUDE.md `<subagent_usage>` (2026-03-21). MEMORY.md alone wasn't sufficient; auto-loaded rules have higher adherence.
 
 ### [2026-03-19] RULE VIOLATION: Epistemics skill not invoked for biotech/medical research
 - **Session:** selve 3312688c
