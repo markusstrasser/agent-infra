@@ -389,3 +389,10 @@ These aren't cross-project extractions but were found during the scan:
 | research `weighted_mean` copies | 10 | 0 (use numpy) |
 | New shared library LOC | — | ~680 |
 | Projects consuming shared lib | — | intel, meta, genomics, research-mcp |
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:35Z
+hash: 54c5e8336ff0
+
+
+end-knowledge-index -->

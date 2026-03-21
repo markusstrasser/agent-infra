@@ -234,3 +234,13 @@ PRMs work for math (clear intermediate verification). They work for coding (test
 | OpenAI internal agent monitoring production | Exa | 5 — Governance cookbook, Galileo |
 | Google DeepMind Meta FAIR production agent evaluation | Brave | 5 — Meta FAIR blog, no monitoring details |
 | Scaling agent systems multi-agent Google DeepMind | S2 | 10 — arXiv:2512.08296 found |
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:36Z
+hash: 869caba0c08b
+
+sources: 1
+  TRAINING-DATA: — canonical, widely replicated
+table_claims: 23
+
+end-knowledge-index -->

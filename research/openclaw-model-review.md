@@ -54,3 +54,11 @@ Both agree fresh-context cron is superior for task execution. Heartbeat accumula
 - Gemini review: `.model-review/2026-03-01-openclaw-lessons-plan/gemini-output.md`
 - GPT review: `.model-review/2026-03-01-openclaw-lessons-plan/gpt-output.md`
 - Extraction + disposition: `.model-review/2026-03-01-openclaw-lessons-plan/extraction.md`
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:36Z
+hash: 17c314e17c2b
+
+cross_refs: research/openclaw-deep-dive.md
+
+end-knowledge-index -->

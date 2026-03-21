@@ -32,3 +32,11 @@ Option 3: `decisions/` directory with prose .md files per decision, plus `## Rev
 
 ## Revisit if
 The volume of decision files becomes noisy (>50 per repo) — may need categorization or pruning convention. Or if a better structured format emerges from actual usage patterns.
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:37Z
+hash: daf8babbb319
+
+status: accepted
+
+end-knowledge-index -->

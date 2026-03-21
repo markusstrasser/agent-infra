@@ -446,3 +446,11 @@ All primary sources accessed via raw GitHub URLs and Exa crawling. Key files:
 - `src/process/lanes.ts` — lane definitions
 - Templates: SOUL.md, IDENTITY.md, BOOTSTRAP.md, HEARTBEAT.md, SOUL.dev.md
 - Armin Ronacher's blog post on Pi philosophy
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:36Z
+hash: d2a281bc61e3
+
+cross_refs: docs/automation/cron-vs-heartbeat.md, docs/automation/hooks.md, docs/concepts/agent-workspace.md, docs/concepts/memory.md, docs/concepts/queue.md, docs/gateway/heartbeat.md, docs/reference/session-management-compaction.md, docs/reference/templates/BOOTSTRAP.md, docs/reference/templates/IDENTITY.md, docs/reference/templates/SOUL.md, docs/tools/skills.md
+
+end-knowledge-index -->

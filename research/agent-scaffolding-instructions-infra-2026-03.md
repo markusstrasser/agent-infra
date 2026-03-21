@@ -127,3 +127,12 @@ If time is limited, read in this order:
 - [SOURCE: arXiv:2505.16944]
 - [SOURCE: arXiv:2601.10343]
 - [SOURCE: arXiv:2601.16206]
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:34Z
+hash: 7002425a2b36
+
+sources: 1
+  D3: /C3
+
+end-knowledge-index -->

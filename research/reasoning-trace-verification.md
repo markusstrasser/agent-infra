@@ -328,3 +328,11 @@ Unlike most LLM tasks, causal conclusions are often formally verifiable. This me
 - GenPRM (pre-existing): `bd94932b7604933a11d1538b0de6f9543089711f`
 - VersaPRM (pre-existing): `35603018ff166b30425e879c574612145d113c11`
 - Socratic-PRMBench (pre-existing): `09933d534525fb65672a10d83d7e26dcdc12523b`
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:37Z
+hash: 0cb38476d5a6
+
+table_claims: 19
+
+end-knowledge-index -->

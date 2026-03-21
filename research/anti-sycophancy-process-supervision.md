@@ -398,3 +398,16 @@ All three together = maximum sycophancy risk. This is the pattern we most common
 - DFAH (arXiv:2601.15322): Retrieved abstract via WebFetch. r=0.45 correlation, 100% determinism for 7-20B, 3.7x for 120B+ verified.
 - Jain et al. orthogonal projection: NOT directly verified. Cited via Emergent Mind aggregator. Tagged [NOT-FETCHED].
 - Celebi et al. calibration loss: NOT directly verified. Cited via Emergent Mind aggregator. Tagged [NOT-FETCHED].
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:35Z
+hash: 05d0c079f6f0
+
+sources: 4
+  INFERENCE: from arXiv:2505.23840 + philosophy memo
+  TRAINING-DATA: for foundational claims
+  TRAINING-DATA: — not retrieved this session
+  TRAINING-DATA: for framework; SOURCE: Parr & Friston, J. R. Soc. Interface, 2017, DOI:10.1098/rsif.2017.0376
+table_claims: 26
+
+end-knowledge-index -->

@@ -203,3 +203,10 @@ That is enough to materially improve trust in the skills layer without building 
 
 - [SOURCE: arXiv:2602.20156] `SKILL-INJECT`
 - [SOURCE: skills-audit-2026-02-28.md]
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:37Z
+hash: f137f0df3752
+
+
+end-knowledge-index -->

@@ -49,3 +49,12 @@ Key learning: **CLI/Bash > MCP for generic scripts on repos this size.** MCP add
 - Repo sizes exceed 500 files (PageRank symbol graph becomes worthwhile)
 - MCP protocol adds discovery features that reduce context cost of tool definitions
 - A new MCP pattern emerges that agents prefer over Bash for repo navigation
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:37Z
+hash: 134b2304ffe7
+
+status: accepted
+cross_refs: research/context-bundling-solutions.md
+
+end-knowledge-index -->

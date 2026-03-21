@@ -46,3 +46,10 @@ as a signal source (higher cadence than spot-check predictions).
 Intel computes `KL(posterior || prior)` on scenario distributions to quantify update magnitude.
 Formula: `sum(p_i * ln(p_i / q_i))` with 0.001 floor. Useful for detecting anchoring bias
 (KL near zero despite material evidence) or overreaction (KL disproportionate to evidence strength).
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:35Z
+hash: ce6125e5e872
+
+
+end-knowledge-index -->

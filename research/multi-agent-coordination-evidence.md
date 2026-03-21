@@ -54,3 +54,10 @@ Key findings:
 4. **Evaluation weakness:** "architectural analysis rather than large-scale benchmarks" (authors' words). Self-assessed confidence, no real benchmark. Ideas are directionally useful, evidence is weak.
 
 **Combined implication for our orchestrator:** Add lightweight orchestration-level verification (VMAO), consider deliberation-before-tool-use (DOVA), but don't over-invest given both papers have small-N evaluations and our pipelines are 3-7 steps (VMAO shows most value at 8-12+ steps).
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:36Z
+hash: 430c1a393de1
+
+
+end-knowledge-index -->

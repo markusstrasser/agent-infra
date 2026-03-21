@@ -114,3 +114,10 @@ Based on architectural reasoning + Anthropic's official distinction (not researc
 - He et al. 2024 "Does Prompt Formatting Have Any Impact on LLM Performance?" (S2: 113873a4e58e2ff15ce3523ee9fb629ff6dddfe4)
 - Tam et al. 2024 "Let Me Speak Freely?" (S2: 7c394a8b4db70d7424abc300749fff0fe580bdae)
 - Elnashar et al. 2025 "Prompt engineering for structured data" (S2: 4d2ff83ff3373c8480144d55684cd34a6376974f)
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:37Z
+hash: 46800b5d9cd3
+
+
+end-knowledge-index -->

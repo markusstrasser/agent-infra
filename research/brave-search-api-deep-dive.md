@@ -402,3 +402,14 @@ We currently use Exa as primary search (MCP configured in all projects).
 | 15 | Grounding API docs | WebFetch | Confirmed = Answers endpoint, not separate |
 | 16 | Anthropic MCP server details | Exa crawling | v0.6.2, 2 tools only, last updated Dec 2024 |
 | 17 | SimpleQA 94.1% verification | verify_claim | Confirmed by 6+ sources |
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:35Z
+hash: 5036e9393892
+
+cross_refs: research/agentic-search-api-comparison.md
+sources: 2
+  D2: — self-published, but methodology is more transparent than most vendor benchmarks
+  B2: — confirmed by multiple sources
+
+end-knowledge-index -->

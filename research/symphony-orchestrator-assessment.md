@@ -165,3 +165,10 @@ Symphony is a **continuous daemon** that polls a work source and dispatches agen
 The deepest difference is where complexity lives: Symphony puts complexity in the WORKFLOW.md prompt (the agent figures out what to do), while we put complexity in the pipeline template (we tell the agent exactly what each step does). Symphony's approach requires a more capable agent but gives it more autonomy. Ours is more predictable but more brittle when steps need to adapt.
 
 Neither approach is strictly better. Symphony's is optimized for "turn tickets into PRs" — a well-defined, repeatable workflow. Ours is optimized for diverse task types (research, analysis, code review, entity refresh) where each pipeline has different structure.
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:37Z
+hash: 829fc09e2cf3
+
+
+end-knowledge-index -->

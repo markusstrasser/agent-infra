@@ -317,3 +317,10 @@ All claims tagged with provenance. Key sources:
 - [SOURCE: github.com/HKUDS/nanobot] Nanobot README
 - [SOURCE: prismnews.com] ZeroClaw emergence article
 - [SOURCE: dev.to] ZeroClaw DEV Community analysis
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:37Z
+hash: 1bc7a76c0f7e
+
+
+end-knowledge-index -->

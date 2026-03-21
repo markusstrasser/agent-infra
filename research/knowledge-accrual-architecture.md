@@ -503,3 +503,18 @@ Both models independently identified: (1) double-entry analogy overgeneralized, 
 
 - **Gemini:** Claimed "RAND found SATs are performative." RAND actually said IC has "not measured" whether SATs work. Absence of measurement ≠ evidence of inefficacy. Escalated to a stronger claim than the source supports.
 - **GPT:** Effort estimates may be 2x optimistic (GPT flagged this itself). Impact percentages are directional, not precise.
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:36Z
+hash: 8e494a2652db
+
+sources: 6
+  TRAINING-DATA: , cross-checked against Exa search for post-mortem discussions
+  TRAINING-DATA: , verified via agent search
+  TRAINING-DATA: + verified
+  TRAINING-DATA: + SOURCE: ECHO Intelligence, Exa
+  INFERENCE: , corrected per cross-model review
+  TRAINING-DATA: + verified
+table_claims: 16
+
+end-knowledge-index -->

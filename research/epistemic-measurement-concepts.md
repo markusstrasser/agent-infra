@@ -235,3 +235,11 @@ Evidence that informed design decisions. Full details in `epistemic-v2-synthesis
 | SAFE-lite precision | 71-100% | `safe-lite-eval.py` | Exa /answer backend |
 | Trace faithfulness | 91.8% | `trace-faithfulness.py` | Info claims matched to tool calls |
 | Citation fabrication | needs re-baseline | `trace-faithfulness.py` | 3-way verdict: verified/unknown/fabricated |
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:36Z
+hash: 8ddad8a9f1de
+
+table_claims: 8
+
+end-knowledge-index -->

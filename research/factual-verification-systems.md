@@ -275,3 +275,18 @@ This is the most promising approach for sparse-ground-truth domains like investm
 | PRM Radiology (Thomas et al., 2025) | Not on S2 | arXiv:2510.23217 |
 | Claimify (Metropolitansky, Larson, ACL 2025) | Not on S2 | aclanthology.org/2025.acl-long.348 |
 | TruthTensor (Shahabi et al., 2025) | Not on S2 | arXiv:2601.13545 |
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:36Z
+hash: e08d4a1d00dc
+
+sources: 6
+  INFERENCE: from search absence
+  INFERENCE: from search absence
+  INFERENCE: from exhaustive search
+  INFERENCE: splitting the 65% unclear rate into these three buckets based on VeriScore's 40% inconclusive rate among verified-verifiable claims
+  INFERENCE: implementation cost is low, ~50 lines of prompt engineering
+  INFERENCE: — no supporting evidence found
+table_claims: 29
+
+end-knowledge-index -->

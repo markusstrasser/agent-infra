@@ -49,3 +49,10 @@ Two in production (MoBA in Kimi, DSA in DeepSeek). NSA won best paper at ACL 202
 **RLM's "never summarize, delegate instead" is architecturally the same as our subagent pattern taken to its logical conclusion.** This validates our direction. But it challenges compaction — if compaction is information-lossy, maybe delegation to a sub-task is always better than summarizing the conversation.
 
 **LoongRL's result** (16K trains solve 128K) suggests that the model's ability to **search its own context strategically** may matter more than raw window size. This supports our JIT retrieval pattern over our dump-everything-in-context anti-pattern.
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:35Z
+hash: d525eff92127
+
+
+end-knowledge-index -->

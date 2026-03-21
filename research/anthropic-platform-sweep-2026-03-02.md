@@ -177,3 +177,11 @@ Key design decisions in the spike:
 - https://platform.claude.com/docs/en/build-with-claude/data-residency
 - https://docs.anthropic.com/en/api/changelog
 - https://www.anthropic.com/news/claude-sonnet-4-6
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:34Z
+hash: 5ce647d74c42
+
+table_claims: 40
+
+end-knowledge-index -->

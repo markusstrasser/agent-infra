@@ -44,3 +44,10 @@ Our prior conclusion holds but gets sharper: **the thinking trace is an imperfec
 - Cross-model review on easy/obvious tasks may be especially susceptible to false agreement (both models "know" the answer, both generate performative reasoning that looks deliberate)
 - Our session-analyst should be more suspicious of long reasoning traces on tasks that should be easy
 - The token cost of reasoning models is significantly inflatable — 80% of MMLU tokens are theater. Budget-conscious orchestration should consider task difficulty when selecting reasoning vs non-reasoning models
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:35Z
+hash: 1eb1e15a3592
+
+
+end-knowledge-index -->

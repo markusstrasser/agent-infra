@@ -203,3 +203,10 @@ That is the smallest change that matches the recent agent-scaffolding papers wit
 - [SOURCE: arXiv:2601.10343] `OCTOBENCH`
 - [SOURCE: arXiv:2603.03329] `AutoHarness`
 - [SOURCE: structured-vs-prose-for-agents.md]
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:37Z
+hash: 17bffb091194
+
+
+end-knowledge-index -->

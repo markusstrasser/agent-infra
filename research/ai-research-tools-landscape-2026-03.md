@@ -161,3 +161,10 @@ Perspective-Guided Question Asking. Simulates multi-agent conversations where wr
 - PMC12318603 — Consensus review article [B2]
 - FutureHouse GitHub: github.com/Future-House/ [A1]
 - elicit.com/pricing [A1]
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:34Z
+hash: 3b1956d00210
+
+
+end-knowledge-index -->

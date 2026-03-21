@@ -385,3 +385,10 @@ Compare: Wave 2-7 was 976 LOC for new scanners. This plan is ~1,290 LOC to make 
 | Cron pipeline uptime | 0% | >95% |
 | Scanners with empirical priors | 0/28 | 10+/28 |
 | FDR-controlled predictions | 0% | 100% |
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:36Z
+hash: f76744da7d0e
+
+
+end-knowledge-index -->

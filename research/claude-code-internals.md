@@ -435,3 +435,10 @@ Added 2026-03-03. 40+ releases in 8 weeks. Major themes below.
 8. **Two-agent architecture for multi-session work.** Initializer writes plan + progress file. Worker reads and continues. No state beyond files.
 9. **Anti-rationalization is a real failure mode.** Stop hooks that evaluate completion claims catch premature "done" declarations.
 10. **Security by default.** Disable project MCP servers, blocklist credentials, log mutations, prefer `trash` over `rm`.
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:35Z
+hash: 9af1960ed247
+
+
+end-knowledge-index -->

@@ -135,3 +135,12 @@ All three APIs configured as of 2026-03-02:
 - `research/firecrawl-api-deep-dive.md` — full Firecrawl API surface
 - `research/perplexity-sonar-api-landscape.md` — full Perplexity API surface
 - `research/agentic-search-api-comparison.md` — benchmarks, pricing, feature matrix, index independence
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:37Z
+hash: c66221175990
+
+cross_refs: research/agentic-search-api-comparison.md, research/brave-search-api-deep-dive.md, research/firecrawl-api-deep-dive.md, research/perplexity-sonar-api-landscape.md
+table_claims: 7
+
+end-knowledge-index -->

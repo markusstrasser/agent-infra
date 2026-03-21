@@ -232,3 +232,11 @@ Multi-agent framework for memory construction, retrieval, and in-situ self-evolu
 - The finding that BoostAbstention DOESN'T work validates our constitution's "instructions alone = 0% reliable" principle
 
 **Frontier verdict: UNCERTAIN** — architecture-dependent findings on reasoning models. Black-box monitoring may transfer, but needs empirical probe on Opus 4.6.
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:35Z
+hash: 647cfbd03a22
+
+cross_refs: research/causal-reasoning-evidence.md
+
+end-knowledge-index -->

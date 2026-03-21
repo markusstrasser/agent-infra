@@ -165,3 +165,21 @@ Searched for counterevidence to each domain's core claim:
 - Scherbakov et al. 2025 — "The emergence of LLMs as tools in literature reviews" (JAMIA, DOI: 10.1093/jamia/ocaf063) — found via scite
 - Anthropic 2025 — Emergent misalignment paper (Anthropic assets) — found via Exa
 - Nature 2025 — "Training on narrow tasks leads to broad misalignment" (DOI: 10.1038/s41586-025-09937-5) — found via Exa
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:35Z
+hash: 994ba6f053c5
+
+sources: 13
+  INFERENCE: from LLM autoregressive architecture + behavioral finance literature
+  INFERENCE: training data frequency → retrieval probability; consistent with O'Leary 2025 "ostrich effect"
+  INFERENCE: from training data composition
+  TRAINING-DATA: well-documented across LLM evaluation literature; specific to finance context because stakes are measurable
+  INFERENCE: confirmed by Dimino et al. showing large-cap bias correlates with analyst coverage
+  INFERENCE: structural consequence of training on published literature
+  INFERENCE: from observed LLM behavior in bio research; partially addressed by epistemics skill but not structurally enforced
+  INFERENCE: training data recency distribution; consistent with observed LLM behavior
+  TRAINING-DATA: documented in multiple LLM evaluation contexts; specific to literature review because the whole point is faithful synthesis
+  TRAINING-DATA: extensively documented in ML; specific to engineering optimization because benchmarks are the selection mechanism
+
+end-knowledge-index -->

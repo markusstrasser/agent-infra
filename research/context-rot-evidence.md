@@ -44,3 +44,10 @@ Context rot remains universal and architectural. **Every token in CLAUDE.md, rul
 **NEW nuance:** The degradation curve IS getting flatter for frontier models on retrieval tasks. But the Du et al. EMNLP result shows that even with perfect retrieval and forced attention, reasoning quality still degrades. **Don't conflate better retrieval with better reasoning over context.** Our subagent pattern remains the right architecture.
 
 **NEW technique worth adopting:** Recitation strategy (prompt model to repeat relevant evidence before answering). Training-free, model-agnostic, +4% on RULER. Low cost, easy to add to skills.
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:35Z
+hash: b64caece5218
+
+
+end-knowledge-index -->

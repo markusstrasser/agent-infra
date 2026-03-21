@@ -558,3 +558,22 @@ Web sources consulted:
 - NASA ASRS: asrs.arc.nasa.gov/docs/rs/60_Case_for_Confidential_Incident_Reporting.pdf
 - Good Judgment: goodjudgment.com/resources/the-superforecasters-track-record/
 - ECMWF verification: Ben-Bouallègue 2025, arxiv.org/pdf/2602.00622
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:36Z
+hash: bf159340b21b
+
+sources: 10
+  TRAINING-DATA: , verified against SEP entry
+  TRAINING-DATA: , well-established
+  TRAINING-DATA: , confirmed by medical literature search
+  TRAINING-DATA: , verified against Wixted 2019 history of SDT
+  TRAINING-DATA: + secondary sources
+  TRAINING-DATA: , verified against existing philosophy-of-epistemic-agents.md
+  INFERENCE: from the numbers
+  TRAINING-DATA: , verified against ECMWF/WMO verification resources
+  TRAINING-DATA: , widely confirmed
+  INFERENCE: from Scheel et al. 2021
+table_claims: 15
+
+end-knowledge-index -->

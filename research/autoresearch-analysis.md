@@ -66,3 +66,10 @@ Validated on toy-scorer experiment (10 experiments in-session): baseline 0.7625 
 ## Revisions
 
 - **2026-03-08:** Removed "blocked on API credits" — validated end-to-end using Claude Code subscription (in-session loop, no subprocess orchestrator needed). Updated implementation status.
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:35Z
+hash: 66526ff6efa2
+
+
+end-knowledge-index -->

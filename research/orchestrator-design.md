@@ -812,3 +812,11 @@ Sources:
 ---
 
 *This document is the design spec for the autonomous orchestrator. It should be reviewed and updated as implementation reveals new constraints.*
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:37Z
+hash: 8c7164edc9e8
+
+cross_refs: analysis/investments/thesis_checks/hims_2026-02-20.md, docs/CONSTITUTION.md
+
+end-knowledge-index -->

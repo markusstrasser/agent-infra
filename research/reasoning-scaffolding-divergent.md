@@ -293,3 +293,11 @@ Key findings from that memo not duplicated here:
 - **No PRM targets causal reasoning** — confirmed negative result across extensive search
 - **Self-consistency has special power for causal reasoning** because conclusions are formally verifiable (generate 5 DAGs, formally check each, vote among those that pass)
 - **Verification gap is in DAG CONSTRUCTION, not DAG ANALYSIS** — formal tools verify adjustment sets with certainty; no tool verifies "is this DAG correct?"
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:37Z
+hash: 01e7bc9d5fb3
+
+table_claims: 16
+
+end-knowledge-index -->

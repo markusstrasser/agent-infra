@@ -167,3 +167,10 @@ This directly confirms our context-rot research: every tool definition is a toke
 - [SOURCE: github.com/jgravelle/jcodemunch-mcp] jCodeMunch MCP — symbol-level retrieval
 - [SOURCE: virtuslab.com/blog/ai/code-munch-mcp-your-agent-starts-navigating] VirtusLab analysis of jCodeMunch (2026-03-11)
 - [SOURCE: reddit.com/r/ClaudeCode/comments/1rnxm5c] 63% setup removal → dramatic improvement (2026-03-13)
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:35Z
+hash: a14f0c22b568
+
+
+end-knowledge-index -->

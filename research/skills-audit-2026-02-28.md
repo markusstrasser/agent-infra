@@ -74,3 +74,12 @@
 - No token counting/truncation in context bundling
 - Recursive subagent risk (investigate → researcher → competing-hypotheses) unmitigated
 - Skills library has no version pinning — all skills mutate in place
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:37Z
+hash: 4b4f8dbd6f5d
+
+cross_refs: research/SKILL.md
+table_claims: 13
+
+end-knowledge-index -->

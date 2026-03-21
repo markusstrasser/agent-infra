@@ -171,3 +171,11 @@ What tools and MCP servers exist beyond our current search-heavy stack that prov
 | MCP.science README | WebFetch | Full analysis | 12 servers, early stage, mostly general-purpose |
 | "Beyond Tavily" comparison article | WebFetch | 5 tools analyzed | WebSearchAPI.ai, Exa, YOU.com, Bing, Felo |
 | "Exa alternatives" comparison article | WebFetch | 6 tools analyzed | Bright Data, Tavily, Firecrawl, Sonar, Linkup, Exa |
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:34Z
+hash: f71297783c1c
+
+table_claims: 10
+
+end-knowledge-index -->

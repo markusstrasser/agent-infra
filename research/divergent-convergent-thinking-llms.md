@@ -186,3 +186,10 @@ The second pass reinforces the core finding but adds important nuance:
 [29] arxiv 2512.18388 — HAIExplore brainstorm→refine
 [32] arxiv 2502.05234 — Entropy turning point, adaptive temperature
 [33] arxiv 2410.04197 — CS4 creativity under constraints
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:35Z
+hash: 35fc535e9391
+
+
+end-knowledge-index -->

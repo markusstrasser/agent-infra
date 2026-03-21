@@ -77,3 +77,10 @@ Two distribution mechanisms exist today:
 - Hooks — enforcement stays architectural
 - Skills — progressive disclosure stays native
 - Orchestrator MVP — separate backlog item for automating push triggers
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:36Z
+hash: 4e9a3287c90a
+
+
+end-knowledge-index -->

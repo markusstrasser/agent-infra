@@ -225,3 +225,14 @@ No papers saved — this was primarily a software engineering evaluation using G
 | verify_claim | LiteLLM + Instructor + Claude | 1 | HIGH — confirmed integration path |
 | WebFetch | Graphlit vs Cognee comparison | 1 | MEDIUM — competitor perspective |
 | WebFetch | PyPI metadata | 1 | HIGH — version timeline, first release March 2024 |
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:35Z
+hash: f27df10f8aa6
+
+sources: 2
+  D2: company claims, not independently verified
+  D3: self-reported, no independent replication
+table_claims: 14
+
+end-knowledge-index -->

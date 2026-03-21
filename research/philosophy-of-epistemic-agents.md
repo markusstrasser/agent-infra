@@ -141,3 +141,11 @@ The human's job shifts from "doing the analysis" to "calibrating the analyst." T
 | Principal hierarchy | Audit trail (git-versioned, correction-logged) |
 | Avoids harm | Avoids bullshit (Frankfurt) |
 | Safe > Ethical > Compliant > Helpful | Falsifiable > Plausible > Consensus > Narrative |
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:37Z
+hash: 17f8835bfd33
+
+table_claims: 6
+
+end-knowledge-index -->

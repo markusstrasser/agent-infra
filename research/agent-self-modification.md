@@ -89,3 +89,14 @@ Analyzed 35 research sessions across intel/selve. Dominant patterns:
 - **Redundant URL fetches:** 17% of sessions re-fetch same URLs (context loss in long sessions)
 - **No result flooding:** numResults stays ≤10 (skill instruction followed)
 - **No save-without-read:** minimal evidence of this anti-pattern
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:34Z
+hash: 0c556dc0af9f
+
+sources: 2
+  INFERENCE: from pattern across DGM, SICA, AlphaEvolve
+  INFERENCE: from ACE findings applied to our architecture
+table_claims: 10
+
+end-knowledge-index -->

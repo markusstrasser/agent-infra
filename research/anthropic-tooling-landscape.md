@@ -472,3 +472,11 @@ Both models reviewed independently, then synthesis merged surviving insights.
 - **Overclaimed in original**: "All beta features GA since Feb 17 2026" — Skills API is still beta (uses `skills-2025-10-02` header in SDK). Most other features are indeed GA.
 - **Underclaimed**: Agent SDK's `updatedMCPToolOutput` in PostToolUse hooks — this is more powerful than documented. Can rewrite any MCP tool output before Claude sees it.
 - **Corrected**: PermissionRequest hook can auto-allow or auto-deny but NOT modify tool input. It's a gate, not a transform.
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:35Z
+hash: d5b0506846a4
+
+cross_refs: research/anthropic-platform-sweep-2026-03-02.md, research/orchestrator-design.md
+
+end-knowledge-index -->

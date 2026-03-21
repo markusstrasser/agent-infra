@@ -75,3 +75,10 @@ Operational observations:
 **NEW — majority voting works for correctness on reasoning tasks.** The Debate-or-Vote paper proves that multi-agent debate (models arguing toward consensus) is a martingale for correctness — voting captures most gains. This validates retry logic and majority-vote architectures for deterministic tasks. NOTE: This does NOT apply to multi-model review for adversarial pressure or creative divergence (different models finding different flaws or offering different approaches). Opus-as-judge-with-context is classification, not debate. Getting alternative perspectives from Gemini/GPT is creative divergence, not consensus-seeking.
 
 **NEW — cost-normalized retry with cheaper models.** MiniMax M2.5 at SWE-bench parity opens the strategy: cheap model + many retries + majority vote may beat expensive model + single shot. Not yet tested systematically, but the economics shifted.
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:34Z
+hash: 0f13469584e3
+
+
+end-knowledge-index -->

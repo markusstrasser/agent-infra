@@ -492,3 +492,13 @@ The rate limits page table columns appear to be: Plan | /scrape | /crawl | /extr
 | 14 | Exa crawling | npmjs.com/package/firecrawl-mcp | Full MCP server README (14 tools) |
 | 15 | gh api | repos/mendableai/firecrawl | Repo metadata (87.5K stars, AGPL-3.0) |
 | 16 | verify_claim | "AGPL-3.0 license" | Confirmed |
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:36Z
+hash: 3aceb3da692d
+
+sources: 1
+  INFERENCE: Based on direct comparison of official documentation for both services. Not benchmarked head-to-head.
+table_claims: 17
+
+end-knowledge-index -->

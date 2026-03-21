@@ -182,3 +182,11 @@ For reference, since this is the current flagship:
 3. **Vertex model deprecation** -- `gemini-3-pro-preview` removed from Vertex on Mar 26. Check if any orchestrator pipelines or API calls reference this model ID.
 4. **AI Studio spend caps** -- evaluate if programmatic spend caps can replace or supplement our manual $25/day orchestrator cap.
 5. **Tool combination API** -- the ability to combine Google Search grounding with custom function calling in one API call could improve research agent quality. Worth a probe.
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:36Z
+hash: 070815c5a92c
+
+table_claims: 10
+
+end-knowledge-index -->

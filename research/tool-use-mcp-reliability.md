@@ -17,3 +17,10 @@
 
 - Whether Opus 4.6 or GPT-5.3 improve on BFCL V4 scores — no data yet.
 - MCP-Radar results for current frontier models not published yet.
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:37Z
+hash: 7ffafd7946b1
+
+
+end-knowledge-index -->

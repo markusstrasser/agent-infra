@@ -41,3 +41,10 @@
 **Our architecture IS guardrails-by-construction.** Hooks (PreToolUse, Stop) are deterministic enforcement. File protection rules are read-only defaults. Path-scoped rules are explicit permission boundaries. We arrived at this pattern from first principles (Hart: rules vs standards) — the industry converged on the same conclusion from security failures.
 
 **What we should monitor:** LLM-42's deterministic inference. If position-consistent reductions become standard, outcome consistency could improve at the infrastructure level. This doesn't eliminate the need for retry/voting but could reduce its cost.
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:34Z
+hash: 0e5245dbc86d
+
+
+end-knowledge-index -->

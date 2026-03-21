@@ -149,3 +149,13 @@ For items that are borderline: let the agent try building it. If it works and is
 | Codegen Is Not Productivity | Agent Wars / antifound | 2026-03-15 | agent-wars.com |
 | DORA 2025 report | Google | 2025 | [via Osmani] |
 | Armin Ronacher developer poll | via Osmani | 2026-01 | [5000 developer survey] |
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:34Z
+hash: 45b69b95e86b
+
+sources: 1
+  INFERENCE: from claims 1-7
+table_claims: 8
+
+end-knowledge-index -->

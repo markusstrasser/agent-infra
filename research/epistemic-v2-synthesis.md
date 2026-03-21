@@ -522,3 +522,14 @@ Phase 4 (Month 3+): SPC baselines mature
 | Alignment Bottleneck (2025) | arXiv:2602.10380 | Abstract verified |
 | Claimify (Microsoft, ACL 2025) | aclanthology.org/2025.acl-long.348 | Abstract verified |
 | Schneier & Raghavan (IEEE S&P, 2025) | schneier.com | Blog post read |
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:36Z
+hash: bf10d49e03a4
+
+sources: 2
+  INFERENCE: for power calculation
+  INFERENCE: from convergent evidence
+table_claims: 2
+
+end-knowledge-index -->

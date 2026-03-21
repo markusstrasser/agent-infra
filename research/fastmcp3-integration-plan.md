@@ -408,3 +408,10 @@ from fastmcp.server.providers import FileSystemProvider
 mcp = FastMCP("server", providers=[FileSystemProvider(Path("./tools/"))])
 # Any file in ./tools/ with @tool decorated functions gets auto-registered
 ```
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:36Z
+hash: c9b18ea36e00
+
+
+end-knowledge-index -->

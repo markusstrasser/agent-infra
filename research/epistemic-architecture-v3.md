@@ -314,3 +314,11 @@ Searched for evidence against the core proposal (domain-branched epistemic layer
 - Anthropic 2025 — Emergent misalignment paper [Exa]
 - Nature 2025 — "Narrow Training → Broad Misalignment" (DOI: 10.1038/s41586-025-09937-5) [Exa]
 - Dang et al. 2026 — Temperature as Meta-Policy (arXiv:2602.11779) [S2]
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:35Z
+hash: 9f043e035ee5
+
+table_claims: 3
+
+end-knowledge-index -->

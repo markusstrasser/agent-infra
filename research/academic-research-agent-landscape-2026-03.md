@@ -158,3 +158,11 @@ Papers discovered but not saved to corpus (S2 MCP was erroring). Key references:
 | Elicit research AI agent 2025 2026 | Brave | Systematic Review features, Research Agents, PMC evaluation |
 | scite AI new features 2025 2026 | Brave | Rate-limited, used prior research |
 | STORM arXiv:2402.14207 | WebFetch | Architecture confirmed from abstract |
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:34Z
+hash: 36e3369a781e
+
+table_claims: 8
+
+end-knowledge-index -->

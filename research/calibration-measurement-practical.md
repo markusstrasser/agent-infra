@@ -327,3 +327,18 @@ The tokenized Brier score is a proper scoring rule, which means it automatically
 | Language Generation with Strictly Proper Scoring Rules (Shao, ICML 2024) | 590088c7bc699fe26507cb1e9f70aac531d1f069 | Saved |
 | LLM Uncertainty Measurement and Calibration for Medical Diagnosis (Savage et al.) | 2285c7d0c84eb08b184e2d4ebab1f2f46647c28f | Saved, fetched, read in full |
 | RL for Better Verbalized Confidence in Long-Form Generation | fe13d660dbad9cd52d753f360424745e11d4844f | Saved |
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:35Z
+hash: b53185c48100
+
+sources: 6
+  INFERENCE: from absence of search results across S2, Exa, and WebSearch
+  INFERENCE: from absence of results
+  INFERENCE: applicable to intel project specifically
+  INFERENCE: from absence of results
+  TRAINING-DATA: — this is textbook probability theory
+  INFERENCE: from ICLR 2026 CoT faithfulness data + Cromwell's principle
+table_claims: 14
+
+end-knowledge-index -->

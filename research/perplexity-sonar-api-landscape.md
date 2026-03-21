@@ -377,3 +377,13 @@ All data retrieved from primary sources (docs.perplexity.ai, GitHub, VentureBeat
 | 16 | Exa web_search | "Perplexity Sonar API response format citations" | Citation parsing blog, LangChain integration |
 | 17 | verify_claim | "no markup" pricing claim | Supported, 0.9 confidence |
 | 18 | Exa web_search | "Perplexity Agent API developer gotchas" | SEO slop + general multi-agent article (low signal) |
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:37Z
+hash: d27eb6cf2e94
+
+sources: 1
+  INFERENCE: Pricing comparison derived from retrieved Perplexity docs + known Exa pricing from our MCP configuration. Exa pricing may have changed — verify if making cost decisions.
+table_claims: 1
+
+end-knowledge-index -->

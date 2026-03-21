@@ -188,3 +188,11 @@ The most strategically significant development of the week.
 - Aggregators: releasebot.io, llm-stats.com
 - Community: Reddit r/OpenAI, Simon Willison's blog
 - GitHub: openai/codex releases and issues
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:36Z
+hash: 72554082b40c
+
+table_claims: 10
+
+end-knowledge-index -->

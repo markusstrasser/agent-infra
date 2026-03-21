@@ -293,3 +293,11 @@ No revolutionary changes in the practical tooling landscape.
 - **`reasoning-trace-verification.md`**: Add ThinkPRM/GenPRM as generative alternatives to scalar PRMs.
 
 No revision needed for: `ai-reasoning-causal-abductive-deductive.md` (findings consistent), `factual-verification-systems.md` (no new systems), `anti-sycophancy-process-supervision.md` (no new empirical results).
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:36Z
+hash: c09327a8cabf
+
+table_claims: 14
+
+end-knowledge-index -->

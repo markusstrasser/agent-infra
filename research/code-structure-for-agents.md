@@ -105,3 +105,10 @@ Already exists in some form: `ctags`, `tree-sitter` CLI, `pyright --outputjson`.
 - [SOURCE: hex.tech/blog/bitter-lessons] Hex AI product lessons
 - [SOURCE: arXiv:2602.00933] MCP-Atlas — tool discovery failures
 - [SOURCE: arXiv:2602.14878] MCP tool descriptions study
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:35Z
+hash: 5374059f9d32
+
+
+end-knowledge-index -->

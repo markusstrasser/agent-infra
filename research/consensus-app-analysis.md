@@ -212,3 +212,11 @@ Company/partner sources:
 - OpenAI case study: https://openai.com/index/consensus/
 - Consensus blog: https://consensus.app/home/blog/announcing-our-11-5m-series-a-fundraise/
 - Consensus help center: https://help.consensus.app/en/articles/12641232-scholar-agent
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:35Z
+hash: 725ca6365b01
+
+table_claims: 10
+
+end-knowledge-index -->

@@ -442,3 +442,21 @@ We currently use Exa as primary search. Based on this analysis:
 | 19 | Brave API pricing | WebFetch | Full pricing |
 | 20 | Firecrawl pricing | WebFetch | Full credit breakdown |
 | 21 | Perplexity Sonar latency | Exa | Artificial Analysis data |
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:34Z
+hash: 200dca18a934
+
+sources: 9
+  C2: — trade press, plausible but single-source
+  D2: — self-interested source, but methodology is reasonably transparent
+  D2: — vendor-published
+  D3: — vendor marketing, no methodology disclosed
+  D2: — vendor-published
+  D2: — vendor-published
+  B2: — confirmed by multiple independent sources
+  D2: — vendor claim only, newer company, less external verification
+  F3: — cannot determine from available evidence
+table_claims: 8
+
+end-knowledge-index -->

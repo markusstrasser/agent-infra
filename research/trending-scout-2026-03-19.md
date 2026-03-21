@@ -287,3 +287,11 @@ The open standard (originally from Anthropic) is now adopted by ~30 products inc
 2. The `skill-creator` plugin now provides the eval framework the standard recommends
 3. Hermes's conditional activation (`requires_toolsets`) is a pattern we lack — could be useful for skills that depend on specific MCPs
 4. Publishing our unique skills (researcher, epistemics, causal-dag, brainstorm, entity-management) to the standard ecosystem is technically trivial — they're already in the right format
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:37Z
+hash: aa6d4beb1151
+
+cross_refs: research/cognee-technical-assessment.md
+
+end-knowledge-index -->

@@ -220,3 +220,10 @@ Smith-Waterman's gap penalties and substitution matrices are calibrated for biol
 ## Key Insight
 
 The bottleneck in our measurement system is **data volume, not statistical sophistication.** With 5-20 sessions/day and 25 calibration canaries, most statistical tools are underpowered. The right investments now are: (a) accumulate more data consistently, (b) add the 3 zero-dep improvements above, (c) monitor data volume for when `ruptures` becomes viable. Adding heavyweight scientific computing libraries to a system with 75 calibration data points is like buying a mass spectrometer to check if your coffee is hot.
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:37Z
+hash: 308ae9ecc567
+
+
+end-knowledge-index -->

@@ -213,3 +213,10 @@ Three distinct leverage layers emerged:
 The scientific computing angle is mostly a dead end at our data density — we have 5-20 sessions/day, not 5000. Statistical sophistication is blocked by sample size, not tooling. The one exception is `ruptures` for changepoint detection, which becomes viable once metrics accumulate 60+ observations.
 
 The bioinformatics crossover that actually works is methodological, not tooling: FastQC's adaptive-threshold pattern and `difflib.SequenceMatcher` for sequence alignment on tool-call streams. Extract the pattern, not the tool.
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:36Z
+hash: 14bbe1ca2654
+
+
+end-knowledge-index -->

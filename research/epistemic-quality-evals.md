@@ -195,3 +195,11 @@ Agents in production loops accumulate variance: small inconsistencies in earlier
 | 13 | INTRA: internal representations (esp. middle layers) outperform logit-based approaches for fact-checking without retrieval | 9 datasets, 18 methods, 3 models | MEDIUM | arXiv:2603.05471 | PREPRINT — March 2026. Requires model internals, not usable via API |
 | 14 | Epistemic AI agents need 3 properties: demonstrable competence, falsifiability, epistemically virtuous behavior | Normative framework (Google DeepMind) | MEDIUM | arXiv:2603.02960 | PREPRINT — normative, not empirical. Framework aligns with our constitution |
 | 15 | Performative CoT is difficulty-dependent: 80% tokens theater on easy tasks, genuine on hard | Attention probes on DeepSeek-R1 671B, GPT-OSS 120B | HIGH | arXiv:2603.05488 | PREPRINT — see cot-faithfulness-evidence.md |
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:36Z
+hash: 8a34f6d4405d
+
+table_claims: 15
+
+end-knowledge-index -->

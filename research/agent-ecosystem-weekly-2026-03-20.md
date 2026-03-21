@@ -180,3 +180,11 @@ Cognition (Devin) acquired Windsurf, triggering a search for alternatives. Users
 7. "SWE-CI benchmark coding agent maintenance" + "DeerFlow" + "NemoClaw" (Exa)
 8. "Google ADK TypeScript multi-agent" + "GPT-5.4" + "MCP v2 beta" (Exa)
 9. "open source AI agent news March 14-20 2026" (Brave)
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:34Z
+hash: 90e63ade87b8
+
+table_claims: 14
+
+end-knowledge-index -->

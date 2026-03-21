@@ -433,3 +433,15 @@ The pattern: **if rigor is optional, it will not happen**. The agent system anal
 - **Argumentation**: Searched for practical adoption evidence. Found Leclerc 2022 (judges don't use Wigmore charts), Buckingham Shum 2006 (IBIS formalization tax). Confirms that formal argumentation is powerful but underadopted due to cognitive overhead.
 - **Probabilistic DBs**: Searched for current status. Confirmed MayBMS/Trio effectively defunct. Theoretical results (dichotomy theorem) explain why — exact query evaluation is intractable for most useful queries.
 - **Type theory**: Searched "formal verification empirical claims." Found Yang et al. CACM 2026 listing this as an open challenge. Confirms the gap between formal proof and empirical evidence is unresolved.
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:36Z
+hash: efc0f1f15bf3
+
+sources: 3
+  INFERENCE: from architectural analysis
+  TRAINING-DATA: , verified name exists
+  INFERENCE: from CYC post-mortem
+table_claims: 1
+
+end-knowledge-index -->

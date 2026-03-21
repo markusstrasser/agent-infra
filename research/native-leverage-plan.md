@@ -384,3 +384,10 @@ Measure via: session-analyst runs comparing pre/post deployment, manual review o
 ---
 
 *Companion doc: `claude-code-native-vs-meta-infra.md` (same directory)*
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:36Z
+hash: 326fdcb9ba3c
+
+
+end-knowledge-index -->

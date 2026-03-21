@@ -252,3 +252,16 @@ Citation landscape for key papers (as of 2026-03-17):
 | MAST failure taxonomy (NeurIPS 2025) | 24 | 0 | 0 | **Solid.** 44% system-design attribution uncontested. |
 
 No retractions, corrections, or editorial concerns found on any paper. Absence of contrasting citations is primarily a recency effect (2025-2026 papers). The Kim et al. under-citation is the most action-relevant finding — we should not overweight the specific 60% figure in design decisions, though the qualitative direction (correlated errors exist, same-provider worse) is well-established via FINCH-ZK's independent cross-family evidence (90.4% vs 59.1%).
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:35Z
+hash: deba18a50b3f
+
+sources: 4
+  TRAINING-DATA: for numbers below
+  TRAINING-DATA: I recall the first-position preference being roughly 60-65% but cannot verify the exact number from retrieved sources
+  TRAINING-DATA: direction confirmed, exact magnitude not extracted this session
+  TRAINING-DATA: ~65% is my recall, UNVERIFIED
+table_claims: 17
+
+end-knowledge-index -->

@@ -137,3 +137,11 @@
 | Agent safety/misalignment 2026 | WebSearch/Exa | ~30 | Mind the GAP, Toxic Proactivity, What Matters for Safety, AgentMisalignment, TRACE |
 | Multi-agent failure taxonomies | WebSearch/Exa | ~20 | MAST taxonomy, MAS-FIRE, AgentDebug, Six Sigma Agent |
 | Long-horizon agent benchmarks | WebSearch/Exa | ~15 | SWE-EVO, FeatureBench (existing), APEX-Agents (existing) |
+
+<!-- knowledge-index
+generated: 2026-03-21T23:52:34Z
+hash: e61a9d16928d
+
+table_claims: 9
+
+end-knowledge-index -->
