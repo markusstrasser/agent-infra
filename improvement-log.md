@@ -955,7 +955,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [architectural] Subagent turn budget enforcement: when dispatching research subagents, include explicit instruction to stop searching at 70% of turns and synthesize. The gotcha is documented but not enforced. Could be a pretool hook on SendMessage that injects the budget reminder.
 - **Severity:** medium — ~15 minutes of polling + manual extraction, partial results
 - **Root cause:** system-design
-- **Status:** [ ] proposed
+- **Status:** [x] implemented — turn-budget rule promoted to global CLAUDE.md `<subagent_usage>` (2026-03-21). Dispatch prompt is the reliable injection point since subagents don't read gotcha files.
 
 ### [2026-03-13] BUILD-THEN-UNDO: Agent-memory MEMORY.md files created then deleted
 - **Session:** meta c762d039
@@ -1209,4 +1209,4 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** Use contextMaxCharacters: 3000 + enableSummary on broad Exa sweeps
 - **Root cause:** TBD
 - **Recurrences:** 2 (auto-promoted from staging)
-- **Status:** [ ] proposed
+- **Status:** [x] covered — Exa gotcha in `~/.claude/rules/research-tool-gotchas.md` broadened from arxiv-only to all broad queries with 3000-char limit guidance (2026-03-21).
