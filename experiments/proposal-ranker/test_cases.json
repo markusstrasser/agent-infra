@@ -2,7 +2,7 @@
   "dev": [
     {
       "name": "broken system > stale project",
-      "higher": {"category": "health", "title": "FAIL: MCP server papers-mcp not responding", "metadata": {}},
+      "higher": {"category": "health", "title": "FAIL: MCP server research-mcp not responding", "metadata": {}},
       "lower": {"category": "staleness", "title": "genomics has no commits in 5 days", "metadata": {"days_ago": 5}}
     },
     {
@@ -22,7 +22,7 @@
     },
     {
       "name": "very stale project > slightly stale",
-      "higher": {"category": "staleness", "title": "papers-mcp has no commits in 14 days", "metadata": {"days_ago": 14}},
+      "higher": {"category": "staleness", "title": "research-mcp has no commits in 14 days", "metadata": {"days_ago": 14}},
       "lower": {"category": "staleness", "title": "skills has no commits in 4 days", "metadata": {"days_ago": 4}}
     },
     {

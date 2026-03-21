@@ -64,9 +64,9 @@ Perspective-Guided Question Asking. Simulates multi-agent conversations where wr
 
 **Evidence:** Ablation p<0.001. The single highest-measured-impact component.
 
-**Gap:** Our `papers-mcp` does `fetch_paper` -> `read_paper` -> `ask_papers`. Between read and ask, raw text goes to Gemini's 1M context without compression or relevance scoring. Wastes context on irrelevant passages.
+**Gap:** Our `research-mcp` does `fetch_paper` -> `read_paper` -> `ask_papers`. Between read and ask, raw text goes to Gemini's 1M context without compression or relevance scoring. Wastes context on irrelevant passages.
 
-**Build:** `prepare_evidence(query, chunks)` tool in papers-mcp. Map an LLM (Gemini Flash, free) over retrieved chunks, producing query-specific summaries + relevance scores. Only top-scoring summaries go to synthesis.
+**Build:** `prepare_evidence(query, chunks)` tool in research-mcp. Map an LLM (Gemini Flash, free) over retrieved chunks, producing query-specific summaries + relevance scores. Only top-scoring summaries go to synthesis.
 
 **Cost:** Low. ~50 lines. Free-tier Gemini Flash per chunk.
 
@@ -84,9 +84,9 @@ Perspective-Guided Question Asking. Simulates multi-agent conversations where wr
 
 **Evidence:** Marginal accuracy but significant DOI recall improvement (p=0.022). Finds papers keyword search misses.
 
-**Gap:** We have S2 via papers-mcp but only use keyword search. Don't exploit citation graph.
+**Gap:** We have S2 via research-mcp but only use keyword search. Don't exploit citation graph.
 
-**Build:** `traverse_citations(paper_id, direction="both", overlap_alpha=0.33)` in papers-mcp. Given high-relevance paper, fetch citers/citees from S2, filter by overlap heuristic. S2 API is free.
+**Build:** `traverse_citations(paper_id, direction="both", overlap_alpha=0.33)` in research-mcp. Given high-relevance paper, fetch citers/citees from S2, filter by overlap heuristic. S2 API is free.
 
 **Cost:** Medium. ~100 lines. Main risk: S2 rate limits.
 
@@ -98,7 +98,7 @@ Perspective-Guided Question Asking. Simulates multi-agent conversations where wr
 
 **Build:** `extract_table(papers, columns)` where columns are extraction prompts (sample size, effect size, study design, population). Produces structured table. Per-paper extraction via Flash, table assembly.
 
-**Cost:** Medium. ~200 lines in papers-mcp.
+**Cost:** Medium. ~200 lines in research-mcp.
 
 ### 5. Perspective-Guided Divergence — from STORM
 
@@ -137,7 +137,7 @@ Perspective-Guided Question Asking. Simulates multi-agent conversations where wr
 
 ## Cross-Cutting Observations
 
-**1. Everyone uses S2 as backbone.** Consensus (via OpenAlex), FutureHouse, Elicit (originally, now custom), OpenScholar — all start from Semantic Scholar. Our papers-mcp S2 integration is the right foundation.
+**1. Everyone uses S2 as backbone.** Consensus (via OpenAlex), FutureHouse, Elicit (originally, now custom), OpenScholar — all start from Semantic Scholar. Our research-mcp S2 integration is the right foundation.
 
 **2. The winning pattern is search-then-synthesize, not generate-then-cite.** Every serious tool retrieves first, then grounds synthesis in retrieved papers. This is structurally safer than LLMs that generate and retroactively find citations. Our researcher skill already does this correctly.
 

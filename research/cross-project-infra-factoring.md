@@ -1,7 +1,7 @@
 # Cross-Project Infrastructure Factoring (v3)
 
 **Date:** 2026-03-06
-**Scope:** intel, research, genomics, selve, meta, papers-mcp, emb
+**Scope:** intel, research, genomics, selve, meta, research-mcp, emb
 
 ---
 
@@ -16,7 +16,7 @@
 | **Dataset ingestion pipeline** (manifest → download → validate → catalog → DuckDB views) | intel (full), genomics (simple) | Intel's value is in domain-specific parts: per-source rate limits (SEC 0.1s, LDA 2.5s), UA spoofing by domain, healthcare/SEC/nonprofit domain categories, 50+ dataset-specific views. The generic kernel (manifest-driven download with validation) is ~200 lines — too thin for a project, and the domain config IS the system. |
 | **Pipeline DAG executor** (stage specs → async execution → QC gates → checkpointing) | genomics (full DAG), meta (task queue), intel (bash script) | Fundamentally different systems. Genomics: data pipeline producing files on Modal NFS, async subprocess executor, content-addressable caching via StageSignature. Meta: agent task queue with approval gates, Claude SDK engine, SQLite state, cost caps. Intel: sequential bash with criticality tiers. The overlap (dependency tracking, state) is thin; the differences (execution model, state storage, scheduling) dominate. |
 | **Agent telemetry / observability** | meta, intel, genomics | It's JSONL append with timestamps. ~30 lines of code. A standalone project for 30 lines is absurd. Belongs in shared-lib as a module, not a project. |
-| **MCP server framework** | meta, papers-mcp, intel | FastMCP IS the framework. The shared pattern (lifespan + SQLite WAL init + tool registration) is a cookiecutter template for scaffolding new servers, not runtime-importable code. |
+| **MCP server framework** | meta, research-mcp, intel | FastMCP IS the framework. The shared pattern (lifespan + SQLite WAL init + tool registration) is a cookiecutter template for scaffolding new servers, not runtime-importable code. |
 | **Content-addressable caching** | genomics (StageSignature) | Only genomics uses it. Strongest future extraction candidate — if meta's orchestrator or intel's daily pipeline ever needs "skip if inputs unchanged" logic, extract then. Not today. |
 | **Health check / preflight** | meta (doctor.py), genomics (preflight.py) | Same concept (accumulate checks, report), completely different check registries. The Check class is ~20 lines; the value is in what gets checked, which is 100% project-specific. |
 
@@ -58,8 +58,8 @@ See execution plan: `.claude/plans/65730c3c-shared-lib.md` (web scraping infrast
 | **Atomic file write** (.tmp + rename) | intel http.py:161-174, intel download_manifest.py:63-68, intel paper_ledger.py:289-291, intel prediction_tracker.py:124-126, intel download_datasets.py:2188+2223, genomics modal_utils.py (log_stage_state) | intel, genomics |
 | **fcntl file locking** | intel db.py:99-145 (DuckDBLock class), intel download_manifest.py:65-67, meta orchestrator.py:108-114, selve agent_coord.py:125-148 | intel, meta, selve |
 | **HTML trap detection** (downloaded file is actually an error page) | intel fetch_url.py:28 `is_html_trap`, intel download.py:166 `_is_html_trap`, intel setup_duckdb.py:135 `_is_csv_content`, intel setup_duckdb.py:150 `_is_real_file` | intel (4× internal) |
-| **SQLite WAL + schema init** | meta orchestrator.py:71-76, meta runlog.py:43-50, papers-mcp db.py:48-56 | meta, papers-mcp |
-| **SQLite column migration** (ALTER TABLE ... ADD COLUMN, catch OperationalError) | meta orchestrator.py:82-92, papers-mcp db.py:58-63 | meta, papers-mcp |
+| **SQLite WAL + schema init** | meta orchestrator.py:71-76, meta runlog.py:43-50, research-mcp db.py:48-56 | meta, research-mcp |
+| **SQLite column migration** (ALTER TABLE ... ADD COLUMN, catch OperationalError) | meta orchestrator.py:82-92, research-mcp db.py:58-63 | meta, research-mcp |
 | **JSONL append with timestamp** (telemetry/metrics) | intel telemetry.py:34-71 `log_run`, genomics pipeline_log.py:61-65 `_write`, meta config.py:21-25 `log_metric` | intel, genomics, meta |
 | **Timed operation context manager** | intel telemetry.py:96-124 `timed_run`, genomics modal_utils.py `init_stage/finalize_stage` | intel, genomics |
 | **HTTP retry + exponential backoff** (requests-based) | intel http.py:81-127 `fetch_with_retry`, genomics query_mastermind.py:99-132 `_api_get` | intel, genomics |
@@ -68,7 +68,7 @@ See execution plan: `.claude/plans/65730c3c-shared-lib.md` (web scraping infrast
 | **Health check accumulation** (collect errors, report at end) | meta doctor.py (Check class), genomics preflight.py (279 lines), genomics pipeline_qc_gates.py | meta, genomics |
 | **Config file discovery** (try multiple candidate paths) | genomics variant_evidence_core.py:13-26 `resolve_threshold_config` | genomics (but universal problem) |
 | **Content-addressable hashing** | genomics modal_utils.py:273-375 StageSignature, meta runlog_adapters/common.py:157-170 stable_id | meta, genomics |
-| **MCP server lifespan** (FastMCP + async context + shared clients) | papers-mcp server.py:27-70, meta meta_mcp.py | meta, papers-mcp |
+| **MCP server lifespan** (FastMCP + async context + shared clients) | research-mcp server.py:27-70, meta meta_mcp.py | meta, research-mcp |
 
 ### Tier C: Within-project duplication worth noting
 
@@ -149,13 +149,13 @@ def validate_columns(file_path, required) -> list[str]  # returns missing
 **Source of truth:**
 - SQLite: meta runlog.py:43-50 (most complete — WAL + foreign_keys + row_factory)
 - DuckDB schema: intel schema.py (62 lines, cleanly factored)
-- Migration: papers-mcp db.py:58-63
+- Migration: research-mcp db.py:58-63
 
 **Dependencies:** sqlite3 (stdlib), duckdb (optional extra)
 
 **Migration risk:** LOW. Drop-in replacements.
 
-**Consumers:** meta (orchestrator, runlog), papers-mcp, intel, genomics
+**Consumers:** meta (orchestrator, runlog), research-mcp, intel, genomics
 
 ---
 
@@ -188,7 +188,7 @@ def validate_columns(file_path, required) -> list[str]  # returns missing
 
 **Note:** `fetch_streaming` moves to `shared.files.atomic_download` (Module 2) since it's really a file operation with HTTP as transport.
 
-**What doesn't move:** papers-mcp stays on httpx+tenacity (different ecosystem, no benefit to unifying).
+**What doesn't move:** research-mcp stays on httpx+tenacity (different ecosystem, no benefit to unifying).
 
 **Dependencies:** requests, urllib3
 
@@ -282,7 +282,7 @@ Precedent: `emb` library already works this way (selve depends on `../emb`).
 ### Step 3: `shared.db` — SQLite init + DuckDB schema
 **Value:** MEDIUM. 3 SQLite init copies, 2 DuckDB schema introspection copies.
 **Risk:** LOW
-**Verify:** `orchestrator.py status`, `runlog.py stats`, papers-mcp server start
+**Verify:** `orchestrator.py status`, `runlog.py stats`, research-mcp server start
 
 ### Step 4: `shared.http` — Session + retry
 **Value:** MEDIUM. Intel's http.py is already the extraction — just publish it.
@@ -329,8 +329,8 @@ Precedent: `emb` library already works this way (selve depends on `../emb`).
 | genomics `preflight.py` | Overlaps with meta doctor.py conceptually, but check registries are completely different. |
 | genomics `Sample` dataclass (path management) | Genomics-specific path conventions. |
 | genomics `pipeline_stages.py` (stage DAG) | Genomics pipeline-specific. |
-| papers-mcp `PaperDB`, `SemanticScholar`, `OpenAlex` | Domain-specific API clients. |
-| papers-mcp CAG (Gemini 1M context) | Specialized to papers-mcp. |
+| research-mcp `PaperDB`, `SemanticScholar`, `OpenAlex` | Domain-specific API clients. |
+| research-mcp CAG (Gemini 1M context) | Specialized to research-mcp. |
 | selve `search.py` (2100+ lines) | Massive, selve-specific. emb already extracted as shared lib. |
 | selve connector/parser pattern | Architectural pattern, not a library. |
 | meta `orchestrator.py` task state machine | Meta-specific. |
@@ -382,10 +382,10 @@ These aren't cross-project extractions but were found during the scan:
 | HTML trap detection copies | 4 (intel) | 1 (shared.io) |
 | Atomic write patterns | 6+ (intel, genomics) | 1 (shared.files) |
 | fcntl locking implementations | 4 (intel, meta, selve) | 1 (shared.files.FileLock) |
-| SQLite WAL init patterns | 3 (meta, papers-mcp) | 1 (shared.db) |
-| SQLite migration patterns | 2 (meta, papers-mcp) | 1 (shared.db) |
+| SQLite WAL init patterns | 3 (meta, research-mcp) | 1 (shared.db) |
+| SQLite migration patterns | 2 (meta, research-mcp) | 1 (shared.db) |
 | HTTP retry implementations | 2 requests-based (intel, genomics) | 1 (shared.http) |
 | Telemetry JSONL patterns | 3 (intel, genomics, meta) | 1 (shared.telemetry) |
 | research `weighted_mean` copies | 10 | 0 (use numpy) |
 | New shared library LOC | — | ~680 |
-| Projects consuming shared lib | — | intel, meta, genomics, papers-mcp |
+| Projects consuming shared lib | — | intel, meta, genomics, research-mcp |

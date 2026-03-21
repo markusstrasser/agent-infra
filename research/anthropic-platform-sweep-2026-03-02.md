@@ -129,7 +129,7 @@
 - **Fast mode API** (6x pricing, beta): Too expensive for routine use. Watch for price drops.
 - **`claude remote-control`**: Local environment serving for external builds. No current use case.
 - **Managed settings via macOS plist**: Enterprise feature. Not relevant for personal use.
-- **MCP conversion helpers in SDK v0.84.0**: Could simplify papers-mcp integration. Needs investigation.
+- **MCP conversion helpers in SDK v0.84.0**: Could simplify research-mcp integration. Needs investigation.
 
 ### Contradicts
 

@@ -48,7 +48,7 @@ Tracking MCP specification development that could affect our orchestrator, tool 
 
 **What:** Standardizing the HTTP transport for MCP (currently has SSE and stdio transports). Would enable remote MCP servers as first-class citizens.
 
-**Implications:** Our research MCP (`papers-mcp`) currently runs as stdio subprocess. HTTP transport would let it run as a persistent service, shared across concurrent agent sessions. The orchestrator could share a single MCP server instance across all its tasks. [INFERENCE]
+**Implications:** Our research MCP (`research-mcp`) currently runs as stdio subprocess. HTTP transport would let it run as a persistent service, shared across concurrent agent sessions. The orchestrator could share a single MCP server instance across all its tasks. [INFERENCE]
 
 ## Testable Predictions
 

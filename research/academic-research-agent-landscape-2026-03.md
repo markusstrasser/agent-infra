@@ -2,7 +2,7 @@
 
 **Question:** What's genuinely novel in OpenScholar, STORM, scite, PaperQA2, and adjacent tools? What patterns transfer to a personal research agent?
 **Tier:** Standard | **Date:** 2026-03-19
-**Ground truth:** Prior sweep (epistemic-causal-bayesian-sweep, March 12) noted PaperQA2/OpenScholar as "practical leaders for automated lit review" and our researcher skill + papers-mcp as "comparable in architecture." This memo goes deeper.
+**Ground truth:** Prior sweep (epistemic-causal-bayesian-sweep, March 12) noted PaperQA2/OpenScholar as "practical leaders for automated lit review" and our researcher skill + research-mcp as "comparable in architecture." This memo goes deeper.
 
 ## Claims Table
 
@@ -45,7 +45,7 @@
 
 **What's genuinely novel:** RCS is the key insight. Most RAG systems stuff raw chunks into the context and let the LLM figure it out. PaperQA2 interposes an explicit evidence quality assessment step where each chunk gets a relevance score AND a contextual summary before being promoted to the answer stage. This is essentially "evidence gathering as a first-class agent operation."
 
-**Transferable pattern:** Our papers-mcp `ask_papers` feeds full text to Gemini 1M, which is brute-force but works. The RCS pattern could improve quality by: (1) for each retrieved chunk, ask "is this relevant to the specific question?" (2) summarize relevant chunks in context, (3) only feed top-scored summaries to the synthesis prompt. This is cheaper than feeding everything and lets us use smaller context windows. Directly implementable as a pre-synthesis step in `ask_papers` or as a standalone tool.
+**Transferable pattern:** Our research-mcp `ask_papers` feeds full text to Gemini 1M, which is brute-force but works. The RCS pattern could improve quality by: (1) for each retrieved chunk, ask "is this relevant to the specific question?" (2) summarize relevant chunks in context, (3) only feed top-scored summaries to the synthesis prompt. This is cheaper than feeding everything and lets us use smaller context windows. Directly implementable as a pre-synthesis step in `ask_papers` or as a standalone tool.
 
 ### 3. STORM — The Perspective Simulator
 

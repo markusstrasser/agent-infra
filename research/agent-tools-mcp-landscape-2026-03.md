@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-19
 **Tier:** Standard
-**Ground truth:** We use Exa, Brave, Perplexity, Firecrawl, scite, Semantic Scholar (papers-mcp), context7. All configured as user-scope MCPs. Firecrawl intel-only. See `search-api-integration-landscape.md` and `agentic-search-api-comparison.md` for existing search API coverage.
+**Ground truth:** We use Exa, Brave, Perplexity, Firecrawl, scite, Semantic Scholar (research-mcp), context7. All configured as user-scope MCPs. Firecrawl intel-only. See `search-api-integration-landscape.md` and `agentic-search-api-comparison.md` for existing search API coverage.
 
 ---
 

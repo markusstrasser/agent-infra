@@ -188,7 +188,7 @@ Project-level subagents. Upgraded 2026-03-01 with frontmatter (memory, model, to
 ## Ideas / Future Work
 
 ### Cross-Project Shared Library (`~/Projects/lib/`)
-Deduplicate ~680 LOC across intel, meta, genomics, papers-mcp. Six modules: io, files, db, http, telemetry, env. Full plan: `research/cross-project-infra-factoring.md`. Implementation plan: `.claude/plans/65730c3c-infra-and-cleanup.md`.
+Deduplicate ~680 LOC across intel, meta, genomics, research-mcp. Six modules: io, files, db, http, telemetry, env. Full plan: `research/cross-project-infra-factoring.md`. Implementation plan: `.claude/plans/65730c3c-infra-and-cleanup.md`.
 
 ### IB API Integration (Future Phase)
 Interactive Brokers API for agent-managed trading. $10K sandbox account. Outbox pattern: agent proposes → queue → execute. Pending paper trading validation proving consistent edge.

@@ -362,7 +362,7 @@ Our Exa MCP already exposes all of this:
 |------|------|------|
 | Quick fact lookup | `web_search_exa` | auto |
 | Entity enrichment (company, person) | `web_search_advanced_exa` | deep + outputSchema |
-| Literature discovery | papers-mcp (S2/PubMed) | — |
+| Literature discovery | research-mcp (S2/PubMed) | — |
 | Websearch for database pages (UniProt, gnomAD) | `web_search_advanced_exa` | deep |
 | Deep autonomous research | `deep_researcher_start` | exa-research |
 | Triangulation / independent source | Brave / Perplexity | — |

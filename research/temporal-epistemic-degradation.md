@@ -252,7 +252,7 @@ But there are also reasons output position might NOT matter much:
 | 18 | Exa | Lexsis N/N+1 blog crawl | 1/1 |
 | 19 | Exa | Gilda arXiv abstract crawl | 1/1 |
 | 20 | Exa | Xian REALM paper crawl | 1/1 (full text) |
-| 21 | papers-mcp | fetch ACE paper | 1/1 (full text, 45K chars) |
+| 21 | research-mcp | fetch ACE paper | 1/1 (full text, 45K chars) |
 
 ---
 

@@ -16,7 +16,7 @@ PROJECTS=(
   ~/Projects/selve
   ~/Projects/genomics
   ~/Projects/skills
-  ~/Projects/papers-mcp
+  ~/Projects/research-mcp
 )
 
 echo "=== Daily Recon: $DATE ==="

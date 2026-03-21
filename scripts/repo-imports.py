@@ -14,7 +14,7 @@ Examples:
   repo-imports.py src/                         # all imports
   repo-imports.py src/ --internal              # just cross-file refs
   repo-imports.py src/ --for db                # who uses db module?
-  repo-imports.py ~/Projects/papers-mcp --deps # external dep usage map
+  repo-imports.py ~/Projects/research-mcp --deps # external dep usage map
 """
 import ast
 import sys

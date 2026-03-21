@@ -1,7 +1,7 @@
 # Meta — Agent Infrastructure
 
 ## Purpose
-This repo plans and tracks improvements to agent infrastructure across projects (intel, selve, genomics, skills, papers-mcp). It's the "thinking about thinking" repo.
+This repo plans and tracks improvements to agent infrastructure across projects (intel, selve, genomics, skills, research-mcp). It's the "thinking about thinking" repo.
 
 ## Key Files
 
@@ -274,7 +274,7 @@ Lightweight decision records for concept-level pivots — when an approach is ch
 | Project rules | `.claude/rules/` per project | Diverges intentionally (domain-specific) |
 | Project hooks | `.claude/settings.json` per project | Per-project, similar patterns |
 | Global hooks | `~/.claude/settings.json` | Loaded in every project |
-| Research MCP | `~/Projects/papers-mcp/` | Configured in `.mcp.json` per project |
+| Research MCP | `~/Projects/research-mcp/` | Configured in `.mcp.json` per project |
 | Genomics pipeline | `~/Projects/genomics/` | Extracted from selve 2026-02-28 |
 
 ## Hook Design Principles

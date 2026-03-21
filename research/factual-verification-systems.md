@@ -108,7 +108,7 @@ Investment research, competitive intelligence, and domain-specific analysis rely
 - SEC EDGAR for financial claims
 - Company-specific fact databases
 - Historical price data APIs
-- Our own prior research corpus (papers-mcp)
+- Our own prior research corpus (research-mcp)
 
 The Alignment Bottleneck paper (arXiv:2602.10380) confirms this: decomposition only helps when evidence is **sub-claim aligned**. Repeated claim-level evidence (throwing the same broad search at every sub-claim) "fails to improve and often degrades performance." [SOURCE: arXiv:2602.10380]
 

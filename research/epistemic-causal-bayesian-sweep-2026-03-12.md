@@ -188,7 +188,7 @@ PRMs have become the dominant approach to verifying reasoning chains. Six months
 
 - **AI Scientist v2**: Tree search over research hypotheses. Published results show improvement over v1, but no autonomous discoveries that surprised domain experts.
 - **Google Co-Scientist**: Gemini 2.0-based. Multi-agent architecture for hypothesis generation. Limited public evaluation.
-- **PaperQA2/OpenScholar**: Still the practical leaders for automated literature review. Our researcher skill + papers-mcp is comparable in architecture.
+- **PaperQA2/OpenScholar**: Still the practical leaders for automated literature review. Our researcher skill + research-mcp is comparable in architecture.
 - **"From LLM Reasoning to Autonomous AI Agents"** (2025, 110 cites): Comprehensive review. Key finding: agent reliability plateaus at 85-90% on benchmarks — the last 10-15% requires fundamentally different approaches (not just better prompting).
 
 ### Anti-Hallucination and RAG

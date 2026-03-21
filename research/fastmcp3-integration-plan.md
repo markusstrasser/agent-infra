@@ -14,7 +14,7 @@
 | 2 | `repo-tools` | meta/scripts/repo_tools_mcp.py | 6 | >=3.0 | `from fastmcp import FastMCP` | OK |
 | 3 | `knowledge-substrate` | meta/substrate/mcp_server.py | 10 | mcp pkg | `from mcp.server.fastmcp import FastMCP` | **BROKEN IMPORT** |
 | 4 | `biomedical` | biomedical-mcp/ | 41 | >=3.0 | `from fastmcp import FastMCP` | OK but needs organization |
-| 5 | `papers-mcp` (research) | papers-mcp/ | ~12 | >=3.0 | `from fastmcp import FastMCP` | OK |
+| 5 | `research-mcp` (research) | research-mcp/ | ~12 | >=3.0 | `from fastmcp import FastMCP` | OK |
 | 6 | `selve-mcp` | selve/mcp/ | ~5 | >=3.0 | `from fastmcp import FastMCP` | OK |
 | 7 | `tournament-mcp` | tournament-mcp/ | ~8 | **>=2.0** | unknown | **NEEDS UPGRADE** |
 
@@ -286,7 +286,7 @@ Current state: All repos specify `fastmcp>=3.0` (open upper bound). This means a
 Repos to update:
 - `meta/pyproject.toml`
 - `biomedical-mcp/pyproject.toml`
-- `papers-mcp/pyproject.toml`
+- `research-mcp/pyproject.toml`
 - `selve/mcp/pyproject.toml`
 - `tournament-mcp/pyproject.toml`
 

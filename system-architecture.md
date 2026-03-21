@@ -132,7 +132,7 @@ External tool access. Configured per-project in `.mcp.json` (project-scope) and 
 
 **User-scope** (available everywhere via `~/.claude/mcp.json` or system config):
 - `exa` — Neural web search, entity enrichment, deep research
-- `research` (papers-mcp) — S2 paper discovery, full-text fetch, evidence preparation, citation traversal
+- `research` (research-mcp) — S2 paper discovery, full-text fetch, evidence preparation, citation traversal
 - `brave-search` — Independent web search index
 - `perplexity` — Grounded LLM search/reasoning
 - `firecrawl` — Web scraping and extraction
@@ -229,7 +229,7 @@ Session ends:
 ├── skills/               # Shared skill library
 │   ├── */SKILL.md        # 35 skills
 │   └── hooks/            # ~50 shared hook scripts
-├── papers-mcp/           # Research paper MCP server
+├── research-mcp/           # Research paper MCP server
 ├── llmx/                 # Multi-model CLI transport (editable-installed)
 └── best/                 # OSS reference repos (auto-synced daily)
 ```
@@ -237,7 +237,7 @@ Session ends:
 **Shared resources flow downward from meta and skills:**
 - `meta` owns: constitution, hooks governance, orchestrator, measurement, research
 - `skills/` owns: capabilities (skills) and guardrails (hooks)
-- `papers-mcp` owns: research tool infrastructure
+- `research-mcp` owns: research tool infrastructure
 - `llmx` owns: multi-model dispatch
 
 **Data stores:**

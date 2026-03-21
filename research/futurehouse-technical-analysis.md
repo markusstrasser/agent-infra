@@ -62,7 +62,7 @@ CLOSED: Production infrastructure (MongoDB/PostgreSQL/Redis/K8s), Crow/Falcon/Ow
 
 ## Transferable Patterns
 
-1. **RCS over raw chunk injection** — Summarize-to-query before synthesis step. Our gap: papers-mcp passes raw text to Gemini without compression/scoring.
+1. **RCS over raw chunk injection** — Summarize-to-query before synthesis step. Our gap: research-mcp passes raw text to Gemini without compression/scoring.
 2. **Calibrated refusal** — Explicit "insufficient information" option. Our gap: researcher skill hedges but always answers.
 3. **Citation graph retrieval** — Add traverse_citations tool using S2 API with overlap filter.
 4. **Agentic conditional branching** — Value is in conditional branching (search more if insufficient), not volume of actions.

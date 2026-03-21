@@ -12,9 +12,9 @@ An MCP server that makes `emb` indexes searchable from any agent session. Three 
 
 ## Non-Goals
 
-- CAG/synthesis (deferred — papers-mcp already has `ask_papers`; add when ≥2 weekly non-paper synthesis workflows exist)
+- CAG/synthesis (deferred — research-mcp already has `ask_papers`; add when ≥2 weekly non-paper synthesis workflows exist)
 - Replacing Exa (web search stays separate)
-- Replacing papers-mcp (paper discovery/download stays there)
+- Replacing research-mcp (paper discovery/download stays there)
 - Query rewriting (agent's job, not the MCP's)
 
 ## Architecture
@@ -115,7 +115,7 @@ def indexes(ctx: Context) -> list[dict]:
     """
 ```
 
-Returns `corpus_tokens_estimate` per index (len(all_text) / 4) — enables the agent to decide if CAG via papers-mcp would be more appropriate.
+Returns `corpus_tokens_estimate` per index (len(all_text) / 4) — enables the agent to decide if CAG via research-mcp would be more appropriate.
 
 ## Router Logic (`router.py`)
 
@@ -145,7 +145,7 @@ def classify_query(query: str, index_hints: dict | None = None) -> str:
     return "dense"
 ```
 
-**Why no CAG route:** CAG is deferred from v1. The routing decision framework from `search-retrieval-architecture.md` (corpus ≤200K → CAG) requires the agent to check `indexes()` output and decide to use papers-mcp's `ask_papers` instead. That decision belongs to the agent, not inside the MCP.
+**Why no CAG route:** CAG is deferred from v1. The routing decision framework from `search-retrieval-architecture.md` (corpus ≤200K → CAG) requires the agent to check `indexes()` output and decide to use research-mcp's `ask_papers` instead. That decision belongs to the agent, not inside the MCP.
 
 **Known edge cases** (from GPT review):
 - `compare "X" vs "Y"` — quoted terms trigger BM25 even though intent is comparative. Agent can override with `strategy=hybrid`.
@@ -212,7 +212,7 @@ def create_mcp(index_dirs: list[Path] | None = None) -> FastMCP:
             "2. search — find relevant entries (fast, ~50ms, ~$0)\n"
             "3. get_content — read full text of interesting results\n\n"
             "For synthesis/comparison across many documents, consider "
-            "papers-mcp ask_papers or manual review instead.\n"
+            "research-mcp ask_papers or manual review instead.\n"
         ),
         lifespan=lifespan,
     )
@@ -294,7 +294,7 @@ Enables offline eval later without building a full harness now.
 | `add_index()` for merging? | No — per-index engines + RRF | Gemini: FTS cache invalidation |
 | Thread safety? | asyncio.Lock per pool | Gemini: emb has no locking |
 | Provenance in results? | `index` field in every result | Both: needed for traceability |
-| `ask` tool? | Cut from v1 | Both: papers-mcp covers papers; no concrete non-paper use case yet |
+| `ask` tool? | Cut from v1 | Both: research-mcp covers papers; no concrete non-paper use case yet |
 
 ## Future (v2, when needed)
 

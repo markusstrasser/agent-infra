@@ -14,7 +14,7 @@
 ## Our approach
 
 - 7-tool Exa MCP (web_search, advanced, crawling, company, people, deep_researcher)
-- papers-mcp for academic search (S2, PubMed, arXiv, bioRxiv, Google Scholar)
+- research-mcp for academic search (S2, PubMed, arXiv, bioRxiv, Google Scholar)
 - Brave + Perplexity as independent triangulation
 - Researcher skill orchestrates across all sources
 - Subagent delegation enforced architecturally (global CLAUDE.md)

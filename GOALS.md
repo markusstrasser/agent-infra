@@ -78,7 +78,7 @@ The warning stands: meta is not a place to write more rules about rules. If know
 
 ## Projects Served
 
-All projects: intel, selve, genomics, skills, papers-mcp, and any future repos. Cross-project work happens organically — the human runs Claude Code from meta and touches other repos as needed. The meta-knowledge MCP provides a query interface so sub-projects can access meta's knowledge without carrying it.
+All projects: intel, selve, genomics, skills, research-mcp, and any future repos. Cross-project work happens organically — the human runs Claude Code from meta and touches other repos as needed. The meta-knowledge MCP provides a query interface so sub-projects can access meta's knowledge without carrying it.
 
 Meta provides: shared skills, hooks, MCP servers, maintenance checklists, session analysis, observability, and the research pipeline.
 

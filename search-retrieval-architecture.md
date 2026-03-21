@@ -10,9 +10,9 @@ Research conducted 2026-02-28. Evaluated CAG (Cache-Augmented Generation) vs emb
 - **Chunking:** Sentence-aware, multi-scale (200/500 word) with parent dedup
 - **Contextual retrieval:** LLM-generated context prepended per Anthropic's method
 - **Speed:** ~50ms per query. Embedding: 50-200 entries/s on M3 Max
-- **Used by:** selve (personal knowledge), papers-mcp (research corpus)
+- **Used by:** selve (personal knowledge), research-mcp (research corpus)
 
-### CAG Implementation (`papers-mcp/src/research_mcp/cag.py`)
+### CAG Implementation (`research-mcp/src/research_mcp/cag.py`)
 - Stuffs full paper texts into Gemini's 1M context window
 - Auto-tiers: `gemini-3-flash-preview` for broad sweeps (>30 papers), `gemini-3-flash-preview` for focused analysis
 - ~930K usable tokens after reserving for prompt + output
@@ -130,7 +130,7 @@ Query arrives
 
 ## Actionable Next Steps
 
-1. **Improve routing in papers-mcp:** Auto-select EMB vs CAG based on query complexity and corpus size (the decision framework above)
+1. **Improve routing in research-mcp:** Auto-select EMB vs CAG based on query complexity and corpus size (the decision framework above)
 2. **Use Flash Preview for complex synthesis tasks** in `ask_papers` — add as a third tier above Flash
 3. **Document ordering in CAG:** Put highest-relevance papers at start and end of context (mitigate lost-in-middle)
 4. **Watch for:** Groq adding larger-context models with better caching; Gemini further reducing cached token costs

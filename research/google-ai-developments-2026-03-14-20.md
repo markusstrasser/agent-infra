@@ -31,7 +31,7 @@ The most developer-relevant change this week. The Gemini API now allows combinin
 
 Google Maps grounding was extended to Gemini 3 models specifically. [SOURCE: ai.google.dev/gemini-api/docs/changelog, blog.google/innovation-and-ai/technology/developers-tools/gemini-api-tooling-updates/]
 
-**Relevance to us:** This affects how papers-mcp or any tool using Gemini API might combine grounding with function calling. Worth noting for orchestrator tasks that use Gemini.
+**Relevance to us:** This affects how research-mcp or any tool using Gemini API might combine grounding with function calling. Worth noting for orchestrator tasks that use Gemini.
 
 #### 2. Gemini CLI v0.34.0 + v0.35.0-preview.1 (Mar 17)
 
