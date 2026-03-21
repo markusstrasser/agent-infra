@@ -48,7 +48,7 @@ OUTPUT_DIR = Path("~/.claude/orchestrator-outputs").expanduser()
 PIPELINE_DIR = Path(__file__).resolve().parent.parent / "pipelines"
 SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
 DAILY_COST_CAP = 25.0
-STALL_TIMEOUT_SECONDS = 600  # Kill claude tasks silent for >10 min
+STALL_TIMEOUT_SECONDS = 900  # Kill claude tasks silent for >15 min
 MAX_CONCURRENT_PER_PIPELINE = 3  # Max running tasks from same pipeline
 MAX_VERIFY_RETRIES = 1  # Max retries per step on verification failure
 
@@ -424,9 +424,14 @@ def _run_claude_subprocess(task, cwd, progress_file=None):
         "reason": "Agent SDK CLIConnectionError",
     })
 
+    # Per-step timeout override via step_options, else global default
+    raw_opts = task.get("step_options") or task.get("step_options", "")
+    opts = json.loads(raw_opts) if raw_opts else {}
+    timeout = opts.get("timeout_s", STALL_TIMEOUT_SECONDS)
+
     result = subprocess.run(
         cmd, capture_output=True, text=True, cwd=cwd,
-        timeout=STALL_TIMEOUT_SECONDS, env=env,
+        timeout=timeout, env=env,
     )
 
     # Write progress
@@ -877,7 +882,7 @@ def cmd_submit(args):
             needs_approval = 1
 
         # Build step_options from step-level config keys
-        step_options_keys = ("output_format", "inject_meta_infra", "verify", "disallowed_tools")
+        step_options_keys = ("output_format", "inject_meta_infra", "verify", "disallowed_tools", "timeout_s")
         step_options = {k: step_def[k] for k in step_options_keys if k in step_def}
         step_options_json = json.dumps(step_options) if step_options else None
 
@@ -1464,7 +1469,7 @@ def _check_scheduled_pipelines(db):
             if step_project != "meta" and step_name == "execute":
                 needs_approval = 1
 
-            step_options_keys = ("output_format", "inject_meta_infra", "disallowed_tools")
+            step_options_keys = ("output_format", "inject_meta_infra", "disallowed_tools", "timeout_s")
             step_options = {k: step_def[k] for k in step_options_keys if k in step_def}
             step_options_json = json.dumps(step_options) if step_options else None
 

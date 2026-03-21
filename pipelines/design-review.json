@@ -11,6 +11,7 @@
       "max_budget_usd": 2.0,
       "model": "sonnet",
       "effort": "medium",
+      "timeout_s": 1200,
       "cwd": "~/Projects/meta"
     }
   ]
