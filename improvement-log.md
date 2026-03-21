@@ -672,7 +672,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Build-then-undo — no upfront schema evaluation
 - **Proposed fix:** [rule] Before implementing multi-file data pipelines, explicitly output and validate the core data schema/taxonomy
 - **Severity:** high
-- **Status:** [ ] proposed
+- **Status:** [x] resolved — covered by global CLAUDE.md rule 7 (probe before build) with new schema example added (steward 2026-03-21)
 
 ### [2026-03-03] RULE VIOLATION: Explore subagent made 4 unauthorized commits
 - **Session:** meta 80c5d8c4
@@ -730,7 +730,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Missing pushback — assumed model existence from user statement
 - **Proposed fix:** [rule] Verify model availability before configuring
 - **Severity:** medium
-- **Status:** [ ] proposed
+- **Status:** [x] resolved — already covered by global CLAUDE.md rule 12 (verify vendor claims before asserting — explicitly lists "availability") (steward 2026-03-21)
 
 ### [2026-03-03] BUILD-THEN-UNDO: Shared decorator breaks local scripts
 - **Session:** genomics dbdca96d
