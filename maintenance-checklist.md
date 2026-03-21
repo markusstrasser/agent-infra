@@ -3,11 +3,14 @@
 ## Dated Checkpoints
 
 - [ ] **2026-04-07 Decision journal 30-day check:**
-  - Reconstruction time <10 min for any concept fork
-  - >60% prospective coverage of concept-affecting commits
-  - Anti-hivemind: >20% of records show non-default initial_leaning
+  - Decision records exist for genuinely path-dependent choices (>2 ADRs)
   - >85% commit body compliance on research/decisions files (check hook telemetry)
-  - ## Revisions used for >80% of substantive memo reinterpretations
+  - ~~Cross-referencing from research memos~~ (removed 2026-03-21 — write-only role accepted)
+- [ ] **2026-04-04 Evidence systems 2-week check:**
+  - Stale injection → action rate: >50% of sessions where stale objects surfaced
+  - `query_stale` MCP calls > 0 per week
+  - Zero PRS-pattern data regressions from documented retractions
+  - `substrate_guard.py` catches synthetic regression fixture
 
 ## When a New Model Ships (Claude, GPT, Gemini)
 
@@ -179,6 +182,19 @@ Project-level subagents. Upgraded 2026-03-01 with frontmatter (memory, model, to
 - [x] PostToolUse `updatedMCPToolOutput` for Exa `web_search` — trim verbose metadata, keep title+URL+snippet
 - [x] PostToolUse `updatedMCPToolOutput` for paper-search — normalize cross-source output format
 - [x] Audit: raw output retention + hash logging for rewrite hooks now active in global settings (`~/.claude/tool-output-archive/`)
+
+## Evidence System Health (added 2026-03-21)
+
+Consumption-based metrics, not write volume. Check bi-weekly.
+
+| Metric | What it measures | How | Target |
+|--------|-----------------|-----|--------|
+| Stale resolution (cohort) | Of objects stale at T0, fraction resolved by T+14 | changelog timestamps | >50% |
+| Stale injection → action | Do surfaced stale objects get addressed? | session-end substrate diff | >50% sessions |
+| Retraction completeness | Is data-first rule followed? | `substrate_guard.py` — 0 bypasses | 0 regressions |
+| `query_stale` MCP calls | Read path has a pulse | runlogs.db tool_calls | >0/week |
+
+**Retired:** substrate assertion count (vanity), MCP read:write ratio (invisible to runlogs with direct SQLite).
 
 ## Key Architecture Docs
 - `search-retrieval-architecture.md` — CAG vs embedding retrieval decision framework, Groq/Gemini/Kimi assessment (2026-02-28)
