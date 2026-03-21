@@ -1146,7 +1146,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** TBD
 - **Root cause:** TBD
 - **Recurrences:** 2 (auto-promoted from staging)
-- **Status:** [ ] proposed
+- **Status:** [ ] deferred — no checkable predicate. "Ask clarifying question about abstraction level" is a judgment call, not enforceable. Existing pushback rules cover the general case.
 
 ### [2026-03-19] TOOL_MISUSE: ./selve view fails silently for iMessage entries. Wasted 2 calls before switching to direct JSON access.
 - **Session:** selve ?
@@ -1191,7 +1191,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** Inventory-before-proposing: grep codebase for existing mitigations BEFORE writing what-to-do sections in research memos
 - **Root cause:** TBD
 - **Recurrences:** 2 (auto-promoted from staging)
-- **Status:** [ ] proposed
+- **Status:** [x] implemented — Pre-Build Check #1 ("Does this already exist?") extended to cover research memo recommendations (2026-03-21). Agents must grep codebase before proposing fixes.
 
 ### [2026-03-20] ENVIRONMENT: 4 subagents blocked by memory pressure hook. Adapted to direct search but could have checked process count first.
 - **Session:** genomics ?
