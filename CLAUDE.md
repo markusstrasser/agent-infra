@@ -32,7 +32,7 @@ This repo plans and tracks improvements to agent infrastructure across projects 
 
 **Self-Improvement Loop** (the core feedback cycle):
 - `scripts/session-shape.py` — zero-LLM-cost structural anomaly detector. Pre-filter: flags sessions with unusual tool patterns for deep analysis
-- `scripts/finding-triage.py` — SQLite staging DB for session-analyst findings. Fingerprinting + 2+ recurrence auto-promotion. Commands: `ingest`, `promote`, `status`, `list`, `decay`
+- `scripts/finding-triage.py` — RETIRED. Inline improvement-log approach (2+ recurrence noted in text) replaced the separate DB. Script kept as archive.
 - `scripts/fix-verify.py` — closed-loop fix validation. Runs detection queries against recent sessions to verify fixes are holding. Commands: `run`, `tag`, `report`
 
 **Epistemic Measurement** (run via `uv run python3 scripts/<name>.py --days N`):
@@ -55,7 +55,7 @@ This repo plans and tracks improvements to agent infrastructure across projects 
 
 **Reference:**
 - `substrate/` — shared knowledge substrate. See below and `decisions/2026-03-17-shared-knowledge-substrate.md`.
-- `schemas/` — epistemic schemas: `open_questions.md`, `pertinent_negatives.json`, `calibration_canaries.json`
+- `schemas/` — `calibration_canaries.json` (active). `open_questions.md` and `pertinent_negatives.json` are design references only (never instantiated by any project).
 - `runlog.md` — runlog architecture, import/query usage, named queries
 - `cockpit.md` — human-agent interface: status line, notifications, receipts, dashboard
 - `human-instructions.md` — operator decision guide
@@ -212,7 +212,7 @@ Shared provenance and dependency tracking across intel, selve, genomics, and met
 ```bash
 uv run python3 -m substrate --db ~/.claude/knowledge/intel.db stats    # project stats
 uv run python3 -m substrate --db ~/.claude/knowledge/intel.db stale    # stale objects
-uv run python3 substrate/propagate_cross_project.py                    # cross-project propagation
+uv run python3 substrate/propagate_cross_project.py                    # cross-project propagation (dormant — 1 ref in 4+ days)
 uv run python3 substrate/stress_test.py                                # 27 tests
 uv run python3 substrate/ingest_intel.py                               # re-ingest intel entities
 uv run python3 substrate/ingest_selve.py                               # re-ingest selve memos
@@ -237,7 +237,9 @@ Lightweight decision records for concept-level pivots — when an approach is ch
 - Likely to matter in publication or external explanation
 - Do NOT write for: parameter tweaks, routine implementation, local execution details
 
-**Convention for research memos:** When updating a memo with revised understanding, add a dated `## Revisions` entry at the bottom linking to the decision that prompted it. Only for claim/interpretation/confidence changes — if wording or organization changed without changing the conclusion, don't add a revision entry. The git diff shows what changed; the revision note says *why*.
+**Convention for research memos:** When updating a memo with revised understanding, add a dated `## Revisions` entry at the bottom. Only for claim/interpretation/confidence changes — if wording or organization changed without changing the conclusion, don't add a revision entry. The git diff shows what changed; the revision note says *why*.
+
+**Decision records are for human archaeology** — agents should create them for genuinely path-dependent choices but are not expected to consult them before acting. The value is in the written reasoning, not in agent retrieval.
 
 **Cross-repo convention:** Cross-repo decisions live canonically in one repo (usually meta for infrastructure, or the repo where the evidence lives for research). Affected repos get a one-line stub: `See [repo]/decisions/YYYY-MM-DD-slug.md`.
 
