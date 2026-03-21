@@ -22,6 +22,17 @@ This table is the default — deviate with a `Native-First:` commit trailer expl
 3. **Does an MCP tool or skill already cover this?** → Use it.
 4. **None of the above?** → Write the script, but add `Native-First:` trailer to the commit.
 
+## Progressive Validation Convention
+
+Every project should have these `just` recipes with standardized names:
+```
+just preflight     # fast prereq check (<10s) — tools, imports, config
+just smoke         # minimal functional test (<1m) — core path works
+just health        # full validation suite (<5m) — views, integrity, golden
+```
+Cheapest check first. Don't spend $5 of compute before spending $0.001 of validation.
+Each project's checks differ, but names and sequence are consistent.
+
 ## Examples
 
 - "I need to check orchestrator status" → `sqlite3 ~/.claude/orchestrator.db "SELECT * FROM v_queue"`
