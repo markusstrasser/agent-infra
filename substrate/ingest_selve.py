@@ -14,9 +14,12 @@ Usage:
 
 import argparse
 import re
+import sys
 from pathlib import Path
 
-import yaml
+# Shared frontmatter parser
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+from config import extract_frontmatter  # noqa: E402
 
 from substrate.core import KnowledgeDB
 
@@ -24,18 +27,6 @@ SELVE_ROOT = Path.home() / "Projects" / "selve"
 RESEARCH_DIR = SELVE_ROOT / "docs" / "research"
 ENTITIES_DIR = SELVE_ROOT / "docs" / "entities"
 DB_PATH = Path.home() / ".claude" / "knowledge" / "selve.db"
-
-
-def extract_frontmatter(path: Path) -> dict | None:
-    """Extract YAML frontmatter from a markdown file."""
-    text = path.read_text()
-    m = re.match(r'^---\n(.*?)\n---', text, re.DOTALL)
-    if not m:
-        return None
-    try:
-        return yaml.safe_load(m.group(1))
-    except yaml.YAMLError:
-        return None
 
 
 def extract_decision_claims(path: Path) -> list[dict]:

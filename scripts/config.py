@@ -1,8 +1,11 @@
 """Shared config for epistemic measurement scripts."""
 
 import json
+import re
 from datetime import datetime
 from pathlib import Path
+
+import yaml
 
 from common.paths import CLAUDE_DIR
 
@@ -48,5 +51,52 @@ def jsonl_log(name: str, entry: dict) -> None:
     path = CLAUDE_DIR / f"{name}.jsonl"
     with open(path, "a") as f:
         f.write(json.dumps(entry, separators=(",", ":")) + "\n")
+
+
+_FM_RE = re.compile(r"^---\n(.*?)\n---", re.DOTALL)
+
+
+def extract_frontmatter(path: Path) -> dict | None:
+    """Extract YAML frontmatter from a markdown file.
+
+    Returns parsed dict or None if no frontmatter found.
+    Shared by ingestion scripts, hooks, and balance checks.
+    """
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    m = _FM_RE.match(text)
+    if not m:
+        return None
+    try:
+        return yaml.safe_load(m.group(1))
+    except yaml.YAMLError:
+        return None
+
+
+# Knowledge-eligible path patterns (per project)
+KNOWLEDGE_ELIGIBLE_PATTERNS = {
+    "intel": ["analysis/entities/*.md"],
+    "selve": ["docs/research/*.md", "docs/entities/*.md"],
+    "genomics": [],  # pipeline-driven, not doc-driven (amendment A6)
+    "meta": ["research/*.md", "decisions/*.md"],
+}
+
+
+def is_knowledge_eligible(file_path: Path) -> bool:
+    """Check if a file path matches knowledge-eligible patterns."""
+    path_str = str(file_path)
+    for patterns in KNOWLEDGE_ELIGIBLE_PATTERNS.values():
+        for pattern in patterns:
+            # Convert glob pattern to a path check
+            parts = pattern.split("/")
+            # Check if path contains the directory structure
+            if all(p == "*" or p.rstrip("*.md") in path_str for p in parts if p != "*.md"):
+                # More precise: check actual path segments
+                if any(d in path_str for d in [p for p in parts if p != "*.md" and p != "*"]):
+                    if path_str.endswith(".md"):
+                        return True
+    return False
 
 

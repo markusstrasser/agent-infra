@@ -138,15 +138,55 @@ def parse_table_row(row: str, col_map: dict[str, int]) -> dict | None:
     }
 
 
+# Knowledge-index @claim pattern: <!-- @claim id=X conf=Y status=Z | statement -->
+KNOWLEDGE_CLAIM_RE = re.compile(
+    r"@claim\s+id=(\S+)\s+(?:conf(?:idence)?=(\S+)\s+)?(?:status=(\S+)\s+)?\|\s*(.+)"
+)
+
+
+def extract_claims_from_knowledge_index(text: str, path: Path) -> list[dict]:
+    """Extract claims from <!-- knowledge-index --> blocks."""
+    claims = []
+    # Find the knowledge-index block
+    m = re.search(
+        r"<!-- knowledge-index\b(.*?)end-knowledge-index -->", text, re.DOTALL
+    )
+    if not m:
+        return claims
+
+    for line in m.group(1).split("\n"):
+        line = line.strip()
+        cm = KNOWLEDGE_CLAIM_RE.match(line)
+        if cm:
+            claim_id, conf, status, statement = cm.groups()
+            claims.append({
+                "claim": statement.strip(),
+                "evidence": "",
+                "confidence": normalize_confidence(conf or ""),
+                "source": claim_id,
+                "status_raw": status or "active",
+                "status": normalize_status(status or "active"),
+                "file": str(path),
+                "source_type": "knowledge_index",
+            })
+    return claims
+
+
 def extract_claims_from_file(path: Path) -> list[dict]:
-    """Extract all claims from claims tables in a file."""
+    """Extract all claims from claims tables and knowledge-index blocks in a file."""
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return []
 
-    lines = text.split("\n")
     claims = []
+
+    # Extract from knowledge-index blocks first
+    ki_claims = extract_claims_from_knowledge_index(text, path)
+    claims.extend(ki_claims)
+
+    # Extract from markdown tables
+    lines = text.split("\n")
     i = 0
 
     while i < len(lines):
@@ -176,6 +216,7 @@ def extract_claims_from_file(path: Path) -> list[dict]:
                 claim = parse_table_row(row, col_map)
                 if claim:
                     claim["file"] = str(path)
+                    claim["source_type"] = "table"
                     claims.append(claim)
                 i += 1
         else:
