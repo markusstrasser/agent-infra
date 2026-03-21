@@ -1,5 +1,16 @@
 {
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "APPENDONLY_PATHS='improvement-log\\.md|decisions/' APPENDONLY_MSG='improvement-log.md and decisions/ are append-only. Mark stale, do not delete.' ~/Projects/skills/hooks/pretool-append-only-guard.sh"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
