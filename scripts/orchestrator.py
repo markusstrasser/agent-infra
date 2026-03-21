@@ -425,7 +425,7 @@ def _run_claude_subprocess(task, cwd, progress_file=None):
     })
 
     # Per-step timeout override via step_options, else global default
-    raw_opts = task.get("step_options") or task.get("step_options", "")
+    raw_opts = task["step_options"] or ""
     opts = json.loads(raw_opts) if raw_opts else {}
     timeout = opts.get("timeout_s", STALL_TIMEOUT_SECONDS)
 
