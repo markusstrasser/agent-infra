@@ -9,6 +9,7 @@
   "steps": [
     {
       "step": "refresh",
+      "verify": true,
       "prompt": "Read analysis/entities/ and identify entities not updated in >7 days. For each entity, use web_search_advanced_exa with type='deep' and additionalQueries (generate 2-3 domain-specific query variations from entity context — ticker, sector, known catalysts). Use outputSchema when extracting structured data (revenue, market cap, recent events). Also use brave_news_search for last 7d news, perplexity_ask for quick factual checks. Update entity files with source tags. Commit with [entity-refresh] prefix.",
       "allowed_tools": "Read,Write,Edit,Glob,Grep,WebSearch,WebFetch,mcp__brave-search__brave_news_search,mcp__perplexity__perplexity_ask,mcp__exa__web_search_exa,mcp__exa__web_search_advanced_exa",
       "max_turns": 15,

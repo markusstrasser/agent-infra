@@ -189,6 +189,7 @@ orchestrator.py summary                              # daily markdown
 - `fcntl.flock` prevents concurrent runs
 - Stall detection: `anyio.fail_after(600s)` kills hung claude tasks
 - Per-pipeline concurrency: max 3 running tasks from same pipeline
+- `verify: true` on pipeline steps uses Haiku to check **completeness** (were all sub-questions addressed?), NOT **truth** (are claims factually correct?). Orthogonal to AgentDrift-style corruption — verification of factual correctness requires cross-source checks, not step-level completion scoring.
 
 **Scheduling:** Loaded launchd agents in `~/Library/LaunchAgents/`:
 - `com.meta.orchestrator.plist` — tick every 15 min (runs queued tasks)
