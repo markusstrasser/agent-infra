@@ -71,7 +71,34 @@ self-documenting.""",
         db.register_assertion(id, type=type, status=status, title=title,
                               source_file=source_file, payload=json.loads(payload))
         deps = db.dependents(id)
-        return f"Registered assertion '{id}'. {len(deps)} dependent(s)."
+        result = f"Registered assertion '{id}'. {len(deps)} dependent(s)."
+
+        # Write-triggers-read: surface related objects and contradictions
+        try:
+            # Search by title keywords (skip short/generic words)
+            words = [w for w in (title or id).replace("-", " ").split() if len(w) > 3]
+            if words:
+                query = " ".join(words[:5])
+                related = [r for r in db.search_objects(query, max_results=6)
+                           if r["id"] != id]
+                if related:
+                    n_stale = sum(1 for r in related if r.get("status") == "stale")
+                    result += f"\n  Related: {len(related)} existing object(s)"
+                    if n_stale:
+                        result += f" ({n_stale} stale)"
+                    for r in related[:4]:
+                        s = " [STALE]" if r.get("status") == "stale" else ""
+                        result += f"\n    [{r['_type']}] {r['id']}{s} — {r.get('title') or '(no title)'}"
+
+            contras = db.contradictory_assertions(id)
+            if contras:
+                result += f"\n  Contradictions: {len(contras)}"
+                for c in contras:
+                    result += f"\n    [{c['type']}] {c['id']} ({c['direction']})"
+        except Exception:
+            pass  # fail open — registration is the primary action
+
+        return result
 
     @mcp.tool()
     def register_evidence(
