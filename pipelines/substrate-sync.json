@@ -1,0 +1,25 @@
+{
+  "name": "substrate-sync",
+  "description": "Daily ingest docs into knowledge substrate (intel entities + selve memos)",
+  "schedule": 6,
+  "steps": [
+    {
+      "engine": "script",
+      "command": "uv run python3 substrate/ingest_intel.py",
+      "project": "meta",
+      "description": "Ingest intel entity files (frontmatter + conviction journals)"
+    },
+    {
+      "engine": "script",
+      "command": "uv run python3 substrate/ingest_selve.py",
+      "project": "meta",
+      "description": "Ingest selve research memos (frontmatter + Decision Claims tables)"
+    },
+    {
+      "engine": "script",
+      "command": "uv run python3 scripts/knowledge-balance-check.py",
+      "project": "meta",
+      "description": "Run balance check validator after ingestion"
+    }
+  ]
+}
