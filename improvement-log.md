@@ -1056,7 +1056,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [hook] `pretool-subagent-gate.sh` check 4: warn when description matches research keywords (verify, evidence, PMID, literature, systematic review) and subagent_type is `general-purpose`. [config] `researcher.md` synthesis deadline: must begin verdict at turn 15/20. | [hook] Validate subagent type and enforce mandatory turn caps in pretool gate
 - **Root cause:** TBD
 - **Recurrences:** 4 (auto-promoted from staging)
-- **Status:** [ ] proposed
+- **Status:** [x] partial — agent type matching rule added to global CLAUDE.md `<subagent_usage>` (2026-03-21). Hook enforcement (pretool-subagent-gate) still proposed for stronger enforcement.
 
 ### [2026-03-17] TOKEN WASTE: DuckDB lock contention causing repeated rebuild attempts
 - **Session:** intel 3104aa73
