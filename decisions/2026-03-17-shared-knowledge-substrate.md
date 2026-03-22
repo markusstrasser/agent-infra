@@ -20,8 +20,8 @@ Three repos now exhibit the same structural problem in different forms: understa
 
 Observed local evidence:
 
-- `intel`'s own architecture memo says the repo has a state-model problem: beliefs, evidence, and outcomes are split across markdown, trackers, priors, and ledgers instead of flowing through one canonical schema. See `intel/analysis/research/intelligence-engine-knowledge-accrual-memo-2026-03-05.md`.
-- `selve` has strong memo contracts, append-only guards, and domain validators, but its epistemics audit explicitly says citation existence does not guarantee claim correctness and that missing verification/disconfirmation artifacts make regressions harder to catch. See `selve/docs/research/MEMO_CONTRACT.md`, `selve/docs/reports/research_epistemics_audit_2026_02_19.md`, and `selve/scripts/verify_variant_claims.py`.
+- `intel`'s own architecture memo says the repo has a state-model problem: beliefs, evidence, and outcomes are split across markdown, trackers, priors, and ledgers instead of flowing through one canonical schema. See `intel/intelligence-engine-knowledge-accrual-memo-2026-03-05 (removed)`.
+- `selve` has strong memo contracts, append-only guards, and domain validators, but its epistemics audit explicitly says citation existence does not guarantee claim correctness and that missing verification/disconfirmation artifacts make regressions harder to catch. See `selve/MEMO_CONTRACT (removed)`, `selve/research_epistemics_audit_2026_02_19 (removed)`, and `selve/scripts/verify_variant_claims.py`.
 - `genomics` is not just another memo repo. It is a pipeline-first system with explicit evidence thresholds, benchmark gates, classification calibration, and a stated boundary that genomics produces outputs while `selve` consumes them for phenotype cross-checks. See `genomics/CLAUDE.md`.
 - Meta's current architecture already assumes: centralized orchestration, fail-open hooks, shared global skills/hooks with intentional project divergence, and domain-branched epistemic checks rather than one universal semantic regime. See `meta/CLAUDE.md` and `meta/research/epistemic-architecture-v3.md`.
 
@@ -242,11 +242,11 @@ Local repo evidence used:
 - `meta/research/agent-scaffolding-landscape-2026-03.md` — specialized agents + orchestrator pattern
 - `meta/research/cross-model-review-failure-modes.md` — independent cross-family review beats debate
 - `meta/improvement-log.md` — ad hoc workflows bypassing skill guardrails, repeated redundant/manual operations
-- `intel/analysis/research/intelligence-engine-knowledge-accrual-memo-2026-03-05.md`
+- `intel/intelligence-engine-knowledge-accrual-memo-2026-03-05 (removed)`
 - `intel/tools/intel_ledger.py`
 - `intel/tools/prediction_tracker.py`
-- `selve/docs/research/MEMO_CONTRACT.md`
-- `selve/docs/reports/research_epistemics_audit_2026_02_19.md`
+- `selve/MEMO_CONTRACT (removed)`
+- `selve/research_epistemics_audit_2026_02_19 (removed)`
 - `selve/.claude/hooks/docs-guard.sh`
 - `selve/scripts/verify_variant_claims.py`
 - `genomics/CLAUDE.md`
@@ -284,6 +284,6 @@ generated: 2026-03-21T23:52:37Z
 hash: 883fe856bfd9
 
 status: proposed
-cross_refs: analysis/research/intelligence-engine-knowledge-accrual-memo-2026-03-05.md, docs/reports/research_epistemics_audit_2026_02_19.md, docs/research/MEMO_CONTRACT.md, research/agent-scaffolding-landscape-2026-03.md, research/cross-model-review-failure-modes.md, research/cross-project-infra-factoring.md, research/epistemic-architecture-v3.md, research/multi-agent-coordination-evidence.md
+cross_refs: intelligence-engine-knowledge-accrual-memo-2026-03-05 (removed), research_epistemics_audit_2026_02_19 (removed), MEMO_CONTRACT (removed), research/agent-scaffolding-landscape-2026-03.md, research/cross-model-review-failure-modes.md, research/cross-project-infra-factoring.md, research/epistemic-architecture-v3.md, research/multi-agent-coordination-evidence.md
 
 end-knowledge-index -->

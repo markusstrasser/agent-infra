@@ -118,7 +118,7 @@ Agent: [runs tools, checks things, then either alerts or replies HEARTBEAT_OK]
 
 [SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/src/infra/heartbeat-runner.ts]
 [SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/heartbeat (archived)]
-[SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/docs/automation/cron-vs-heartbeat.md]
+[SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/cron-vs-heartbeat (removed)]
 
 ---
 
@@ -318,8 +318,8 @@ The philosophy is **agent-as-person**: the workspace files collectively form the
 
 [SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/SOUL (archived)]
 [SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/IDENTITY (archived)]
-[SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/docs/reference/templates/BOOTSTRAP.md]
-[SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/docs/concepts/agent-workspace.md]
+[SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/BOOTSTRAP (removed)]
+[SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/agent-workspace (removed)]
 [SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/AGENTS.md]
 
 ---
@@ -451,6 +451,6 @@ All primary sources accessed via raw GitHub URLs and Exa crawling. Key files:
 generated: 2026-03-21T23:52:36Z
 hash: d2a281bc61e3
 
-cross_refs: docs/automation/cron-vs-heartbeat.md, hooks (archived), docs/concepts/agent-workspace.md, memory (archived), queue (archived), heartbeat (archived), session-management-compaction (archived), docs/reference/templates/BOOTSTRAP.md, IDENTITY (archived), SOUL (archived), skills (archived)
+cross_refs: cron-vs-heartbeat (removed), hooks (archived), agent-workspace (removed), memory (archived), queue (archived), heartbeat (archived), session-management-compaction (archived), BOOTSTRAP (removed), IDENTITY (archived), SOUL (archived), skills (archived)
 
 end-knowledge-index -->

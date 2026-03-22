@@ -10,7 +10,7 @@
 
 | # | Finding | Source | Verified How | Priority |
 |---|---------|--------|-------------|----------|
-| 1 | **architect and code-research use stale model names** (`gemini-3.1-pro-preview`, `gpt-5-pro`, `claude-sonnet-4-5`) | Flash + Gemini Pro | Grep confirmed: architect/SKILL.md:183, code-research/SKILL.md:34,80,98,182 | HIGH — causes 404s |
+| 1 | **architect and code-research use stale model names** (`gemini-3.1-pro-preview`, `gpt-5-pro`, `claude-sonnet-4-5`) | Flash + Gemini Pro | Grep confirmed: architect/SKILL.md:183, code-.claude/skills/skill-authoring/SKILL.md:34,80,98,182 | HIGH — causes 404s |
 | 2 | **Gemini temperature contradiction:** model-review says `-t 0.3`, model-guide says "Keep at 1.0 — lowering causes looping" | GPT-5.2 | model-guide/SKILL.md:92 vs model-review `-t 0.3` | HIGH — conflicting instructions |
 | 3 | **model-guide benchmark numbers are unsourced** (SimpleQA 72%, ARC-AGI-2 77.1%, etc.) — violates Principle #3 "Every Claim Sourced" | GPT-5.2 | Inspected model-guide/SKILL.md — no citations on any benchmark | MEDIUM — epistemically inconsistent |
 | 4 | **Two competing provenance ontologies** (Admiralty vs researcher tags) with no deterministic mapping | GPT-5.2 | researcher uses `[SOURCE:]`/`[INFERENCE]`; constitution mandates Admiralty `[A1]`-`[F6]` | MEDIUM — confusion in mixed workflows |
@@ -79,7 +79,7 @@
 generated: 2026-03-21T23:52:37Z
 hash: 4b4f8dbd6f5d
 
-cross_refs: research/SKILL.md
+cross_refs: .claude/skills/skill-authoring/SKILL.md
 table_claims: 13
 
 end-knowledge-index -->

@@ -391,7 +391,7 @@ Adapted from AgentTrace ([arXiv:2602.10133](https://arxiv.org/html/2602.10133v1)
 {"ts": "2026-02-27T09:00:00Z", "event": "task_start", "task_id": "t001", "type": "ENTITY_REFRESH", "entity": "HIMS", "project": "intel"}
 {"ts": "2026-02-27T09:02:15Z", "event": "tool_call", "task_id": "t001", "tool": "DuckDB", "query": "SELECT ... FROM sec_form4 WHERE ticker='HIMS'"}
 {"ts": "2026-02-27T09:15:00Z", "event": "task_end", "task_id": "t001", "status": "COMPLETED", "cost_usd": 0.85, "turns": 12, "summary": "Updated HIMS: 3 insider sells in Feb, coverage extended to 2026-02-27"}
-{"ts": "2026-02-27T09:15:30Z", "event": "task_start", "task_id": "t002", "type": "MULTI_MODEL_REVIEW", "target": "analysis/investments/thesis_checks/hims_2026-02-20.md"}
+{"ts": "2026-02-27T09:15:30Z", "event": "task_start", "task_id": "t002", "type": "MULTI_MODEL_REVIEW", "target": "hims_2026-02-20 (removed)"}
 ```
 
 **Layer 2: Daily Markdown Summary** (human-reviewable in 5 minutes)
@@ -803,7 +803,7 @@ Sources:
 
 ### Our Own Prior Work
 - `memory/claude_code_best_practices.md` — Feb 2026 research on CLAUDE.md, rules, skills, hooks, context management
-- `docs/CONSTITUTION.md` — North star, improvement loop, self-prompting priorities
+- `CONSTITUTION` (removed) — North star, improvement loop, self-prompting priorities
 - `memory/MEMORY.md` — Session memory with 30+ methodological lessons
 - `memory/analytical_reasoning.md` — 11 principles for adversarial analysis
 - `memory/mechanisms.md` — 28 fraud/investment patterns
@@ -817,6 +817,6 @@ Sources:
 generated: 2026-03-21T23:52:37Z
 hash: 8c7164edc9e8
 
-cross_refs: analysis/investments/thesis_checks/hims_2026-02-20.md, docs/CONSTITUTION.md
+cross_refs: hims_2026-02-20 (removed), CONSTITUTION (removed)
 
 end-knowledge-index -->
