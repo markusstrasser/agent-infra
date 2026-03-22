@@ -300,11 +300,12 @@ def main():
     if fm.get("title") or fm.get("ticker"):
         summary += f" [{fm.get('title') or fm.get('ticker')}]"
 
+    # Only inject context when there's something actionable.
+    # Success messages ("index updated") are noise — agent doesn't act on them.
+    # Warnings ("no frontmatter") are actionable — agent can fix.
     if fm_warning:
-        summary = fm_warning + "\n" + summary
-
-    output = {"additionalContext": summary}
-    print(json.dumps(output))
+        output = {"additionalContext": fm_warning}
+        print(json.dumps(output))
 
 
 if __name__ == "__main__":
