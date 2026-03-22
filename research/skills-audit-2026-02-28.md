@@ -76,10 +76,9 @@
 - Skills library has no version pinning — all skills mutate in place
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:37Z
-hash: 4b4f8dbd6f5d
+generated: 2026-03-22T00:10:42Z
+hash: 9afe1f134961
 
-cross_refs: .claude/skills/skill-authoring/SKILL.md
 table_claims: 13
 
 end-knowledge-index -->

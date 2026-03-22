@@ -280,10 +280,10 @@ Cross-model critique run on 2026-03-17 via `llmx`:
 No prior decision file. This decision draws on, but does not supersede, the decision-journal convention and existing epistemic architecture memos.
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:37Z
-hash: 883fe856bfd9
+generated: 2026-03-22T00:10:42Z
+hash: 585e013f726c
 
 status: proposed
-cross_refs: intelligence-engine-knowledge-accrual-memo-2026-03-05 (removed), research_epistemics_audit_2026_02_19 (removed), MEMO_CONTRACT (removed), research/agent-scaffolding-landscape-2026-03.md, research/cross-model-review-failure-modes.md, research/cross-project-infra-factoring.md, research/epistemic-architecture-v3.md, research/multi-agent-coordination-evidence.md
+cross_refs: research/agent-scaffolding-landscape-2026-03.md, research/cross-model-review-failure-modes.md, research/cross-project-infra-factoring.md, research/epistemic-architecture-v3.md, research/multi-agent-coordination-evidence.md
 
 end-knowledge-index -->

@@ -448,9 +448,8 @@ All primary sources accessed via raw GitHub URLs and Exa crawling. Key files:
 - Armin Ronacher's blog post on Pi philosophy
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:36Z
-hash: d2a281bc61e3
+generated: 2026-03-22T00:10:42Z
+hash: 51f67ae01ed5
 
-cross_refs: cron-vs-heartbeat (removed), hooks (archived), agent-workspace (removed), memory (archived), queue (archived), heartbeat (archived), session-management-compaction (archived), BOOTSTRAP (removed), IDENTITY (archived), SOUL (archived), skills (archived)
 
 end-knowledge-index -->
