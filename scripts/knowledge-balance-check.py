@@ -43,8 +43,12 @@ def find_eligible_files(project: str) -> list[Path]:
         return []
     patterns = KNOWLEDGE_ELIGIBLE_PATTERNS.get(project, [])
     files = []
+    skip_names = {"README.md", "MEMO_CONTRACT.md"}
     for pattern in patterns:
-        files.extend(root.glob(pattern))
+        for f in root.glob(pattern):
+            if f.name.startswith("_") or f.name in skip_names:
+                continue
+            files.append(f)
     return sorted(files)
 
 

@@ -63,7 +63,7 @@ Vector + Keyword → Weighted Merge → Temporal Decay → Sort → MMR → Top-
 | Pre-compaction flush | Silent agentic turn | `precompact-log.sh` (side-effect only, no agentic turn) |
 | Temporal decay | Configurable half-life | None |
 
-[SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/docs/concepts/memory.md]
+[SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/memory (archived)]
 [SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/src/auto-reply/reply/memory-flush.ts]
 
 ---
@@ -117,7 +117,7 @@ Agent: [runs tools, checks things, then either alerts or replies HEARTBEAT_OK]
 - Heartbeat is like our orchestrator concept; cron is like traditional scheduled jobs
 
 [SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/src/infra/heartbeat-runner.ts]
-[SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/docs/gateway/heartbeat.md]
+[SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/heartbeat (archived)]
 [SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/docs/automation/cron-vs-heartbeat.md]
 
 ---
@@ -161,7 +161,7 @@ We have `precompact-log.sh` which logs compaction events but does NOT inject an 
 **Key gap in Claude Code**: Claude Code's PreCompact hook has "no decision control" — it can log but cannot inject content or run an agentic turn. To replicate OpenClaw's memory flush, we would need a different approach (perhaps a UserPromptSubmit hook that monitors token usage, or a prompt hook that injects memory-save reminders).
 
 [SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/src/auto-reply/reply/memory-flush.ts]
-[SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/docs/reference/session-management-compaction.md]
+[SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/session-management-compaction (archived)]
 
 ---
 
@@ -206,7 +206,7 @@ export const enum CommandLane {
 We have nothing comparable. Claude Code processes one message at a time in a single session. No lane system, no queue coalescing, no concurrent session management. This matters less for us (single-user CLI) but would matter for any gateway/multi-channel setup.
 
 [SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/src/process/command-queue.ts]
-[SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/docs/concepts/queue.md]
+[SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/queue (archived)]
 
 ---
 
@@ -256,7 +256,7 @@ metadata:
 
 Key difference: OpenClaw skills are **filtered at load time** — if the binary/env isn't available, the skill never enters the prompt. Our skills are always loaded. This matters at scale (many skills).
 
-[SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/docs/tools/skills.md]
+[SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/skills (archived)]
 
 ---
 
@@ -316,8 +316,8 @@ Key difference: OpenClaw skills are **filtered at load time** — if the binary/
 ### Architectural Philosophy
 The philosophy is **agent-as-person**: the workspace files collectively form the agent's identity and memory. The agent is expected to evolve its own SOUL.md over time. This is fundamentally different from our approach where CLAUDE.md is human-owned and human-edited.
 
-[SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/docs/reference/templates/SOUL.md]
-[SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/docs/reference/templates/IDENTITY.md]
+[SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/SOUL (archived)]
+[SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/IDENTITY (archived)]
 [SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/docs/reference/templates/BOOTSTRAP.md]
 [SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/docs/concepts/agent-workspace.md]
 [SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/AGENTS.md]
@@ -361,7 +361,7 @@ The philosophy is **agent-as-person**: the workspace files collectively form the
 
 OpenClaw's "future events" list notably includes `session:start`, `session:end`, and `agent:error` — all of which Claude Code already has.
 
-[SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/docs/automation/hooks.md]
+[SOURCE: https://raw.githubusercontent.com/openclaw/openclaw/main/hooks (archived)]
 
 ---
 
@@ -434,12 +434,12 @@ A convention for silent agentic turns where the model does work but shouldn't pr
 ## Sources Saved
 
 All primary sources accessed via raw GitHub URLs and Exa crawling. Key files:
-- `docs/concepts/memory.md` — full memory architecture
-- `docs/gateway/heartbeat.md` — heartbeat configuration
-- `docs/concepts/queue.md` — command queue design
-- `docs/automation/hooks.md` — hook system
-- `docs/tools/skills.md` — skills system
-- `docs/reference/session-management-compaction.md` — session/compaction deep dive
+- `memory` (archived) — full memory architecture
+- `heartbeat` (archived) — heartbeat configuration
+- `queue` (archived) — command queue design
+- `hooks` (archived) — hook system
+- `skills` (archived) — skills system
+- `session-management-compaction` (archived) — session/compaction deep dive
 - `src/auto-reply/reply/memory-flush.ts` — memory flush implementation
 - `src/infra/heartbeat-runner.ts` — heartbeat runner implementation (~700 LOC)
 - `src/process/command-queue.ts` — command queue implementation
@@ -451,6 +451,6 @@ All primary sources accessed via raw GitHub URLs and Exa crawling. Key files:
 generated: 2026-03-21T23:52:36Z
 hash: d2a281bc61e3
 
-cross_refs: docs/automation/cron-vs-heartbeat.md, docs/automation/hooks.md, docs/concepts/agent-workspace.md, docs/concepts/memory.md, docs/concepts/queue.md, docs/gateway/heartbeat.md, docs/reference/session-management-compaction.md, docs/reference/templates/BOOTSTRAP.md, docs/reference/templates/IDENTITY.md, docs/reference/templates/SOUL.md, docs/tools/skills.md
+cross_refs: docs/automation/cron-vs-heartbeat.md, hooks (archived), docs/concepts/agent-workspace.md, memory (archived), queue (archived), heartbeat (archived), session-management-compaction (archived), docs/reference/templates/BOOTSTRAP.md, IDENTITY (archived), SOUL (archived), skills (archived)
 
 end-knowledge-index -->
