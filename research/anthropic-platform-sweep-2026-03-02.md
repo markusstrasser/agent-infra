@@ -1,3 +1,8 @@
+---
+title: Anthropic Platform Sweep — 2026-03-02
+date: 2026-03-02
+---
+
 # Anthropic Platform Sweep — 2026-03-02
 
 ## Summary
@@ -179,9 +184,10 @@ Key design decisions in the spike:
 - https://www.anthropic.com/news/claude-sonnet-4-6
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:50Z
-hash: a13e71737ba3
+generated: 2026-03-22T00:15:42Z
+hash: 0a400a8985ce
 
+title: Anthropic Platform Sweep — 2026-03-02
 table_claims: 40
 
 end-knowledge-index -->

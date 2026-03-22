@@ -1,3 +1,8 @@
+---
+title: "Meta Knowledge MCP — Research & Decision Record"
+date: 2026-03-01
+---
+
 # Meta Knowledge MCP — Research & Decision Record
 
 **Date:** 2026-03-01
@@ -79,8 +84,9 @@ Two distribution mechanisms exist today:
 - Orchestrator MVP — separate backlog item for automating push triggers
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:52Z
-hash: 59e4ad0c7cad
+generated: 2026-03-22T00:15:44Z
+hash: 9e43b4bfa9aa
 
+title: Meta Knowledge MCP — Research & Decision Record
 
 end-knowledge-index -->

@@ -1,3 +1,8 @@
+---
+title: "Reasoning Model Internals: CoT Faithfulness"
+date: 2026-03-21
+---
+
 # Reasoning Model Internals: CoT Faithfulness
 
 *Split from `frontier-agentic-models.md` on 2026-03-01. Part of the [agentic research synthesis](agentic-research-synthesis.md).*
@@ -46,8 +51,9 @@ Our prior conclusion holds but gets sharper: **the thinking trace is an imperfec
 - The token cost of reasoning models is significantly inflatable — 80% of MMLU tokens are theater. Budget-conscious orchestration should consider task difficulty when selecting reasoning vs non-reasoning models
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:51Z
-hash: 6344e1f6cfc8
+generated: 2026-03-22T00:15:43Z
+hash: 77572b3d6ddd
 
+title: Reasoning Model Internals: CoT Faithfulness
 
 end-knowledge-index -->

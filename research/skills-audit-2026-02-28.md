@@ -1,3 +1,8 @@
+---
+title: Skills Library Review — 2026-02-28
+date: 2026-02-28
+---
+
 # Skills Library Review — 2026-02-28
 
 **Mode:** Review (convergent)
@@ -76,9 +81,10 @@
 - Skills library has no version pinning — all skills mutate in place
 
 <!-- knowledge-index
-generated: 2026-03-22T00:10:42Z
-hash: 9afe1f134961
+generated: 2026-03-22T00:15:44Z
+hash: 55541b779336
 
+title: Skills Library Review — 2026-02-28
 table_claims: 13
 
 end-knowledge-index -->

@@ -1,3 +1,8 @@
+---
+title: Epistemic Quality System v2 — Research Synthesis
+date: 2026-03-02
+---
+
 # Epistemic Quality System v2 — Research Synthesis
 
 **Date:** 2026-03-02
@@ -524,9 +529,10 @@ Phase 4 (Month 3+): SPC baselines mature
 | Schneier & Raghavan (IEEE S&P, 2025) | schneier.com | Blog post read |
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:51Z
-hash: a4edd8ff8cbc
+generated: 2026-03-22T00:15:43Z
+hash: c43f5e50fbc0
 
+title: Epistemic Quality System v2 — Research Synthesis
 sources: 2
   INFERENCE: for power calculation
   INFERENCE: from convergent evidence

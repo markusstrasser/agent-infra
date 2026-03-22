@@ -1,3 +1,8 @@
+---
+title: MCP Protocol Evolution (March 2026)
+date: 2026-03-21
+---
+
 # MCP Protocol Evolution (March 2026)
 
 Tracking MCP specification development that could affect our orchestrator, tool design, and agent architecture. [SOURCE: github.com/modelcontextprotocol/specification]
@@ -89,8 +94,9 @@ Additional finding: **Tool descriptions are "the most consequential artifact an 
 - SEP numbering from spec repo issues/PRs
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:52Z
-hash: aaa6b2fc8794
+generated: 2026-03-22T00:15:44Z
+hash: f086bd110f84
 
+title: MCP Protocol Evolution (March 2026)
 
 end-knowledge-index -->

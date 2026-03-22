@@ -1,3 +1,8 @@
+---
+title: FastMCP 3 Integration Plan — All MCP Repos
+date: 2026-03-19
+---
+
 # FastMCP 3 Integration Plan — All MCP Repos
 
 **Date:** 2026-03-19
@@ -410,8 +415,9 @@ mcp = FastMCP("server", providers=[FileSystemProvider(Path("./tools/"))])
 ```
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:51Z
-hash: 4e0e317e85bd
+generated: 2026-03-22T00:15:43Z
+hash: b3b228b18d54
 
+title: FastMCP 3 Integration Plan — All MCP Repos
 
 end-knowledge-index -->

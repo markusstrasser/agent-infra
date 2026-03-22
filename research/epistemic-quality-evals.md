@@ -1,3 +1,8 @@
+---
+title: Epistemic Quality Evaluation for LLM Agent Systems
+date: 2026-03-21
+---
+
 # Epistemic Quality Evaluation for LLM Agent Systems
 
 *Date: 2026-03-02. Models in scope: Opus 4.6, Gemini 3.1 Pro, GPT-5.2. CLI agent (Claude Code) context.*
@@ -197,9 +202,10 @@ Agents in production loops accumulate variance: small inconsistencies in earlier
 | 15 | Performative CoT is difficulty-dependent: 80% tokens theater on easy tasks, genuine on hard | Attention probes on DeepSeek-R1 671B, GPT-OSS 120B | HIGH | arXiv:2603.05488 | PREPRINT — see cot-faithfulness-evidence.md |
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:51Z
-hash: e8b13eea6710
+generated: 2026-03-22T00:15:43Z
+hash: 44fd4914b625
 
+title: Epistemic Quality Evaluation for LLM Agent Systems
 table_claims: 15
 
 end-knowledge-index -->

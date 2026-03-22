@@ -1,3 +1,8 @@
+---
+title: Academic Research Agent Landscape — March 2026
+date: 2026-03-21
+---
+
 # Academic Research Agent Landscape — March 2026
 
 **Question:** What's genuinely novel in OpenScholar, STORM, scite, PaperQA2, and adjacent tools? What patterns transfer to a personal research agent?
@@ -160,9 +165,10 @@ Papers discovered but not saved to corpus (S2 MCP was erroring). Key references:
 | STORM arXiv:2402.14207 | WebFetch | Architecture confirmed from abstract |
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:50Z
-hash: c24946aac725
+generated: 2026-03-22T00:15:42Z
+hash: 3d1620a872b9
 
+title: Academic Research Agent Landscape — March 2026
 table_claims: 8
 
 end-knowledge-index -->

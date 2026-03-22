@@ -1,3 +1,8 @@
+---
+title: Agent Ecosystem Weekly 2026 03 20
+date: 2026-03-20
+---
+
 ## Agent Ecosystem Weekly — March 14-20, 2026
 
 **Question:** What are the latest agent ecosystem developments outside the big 3 vendors (Anthropic, Google, OpenAI)?
@@ -182,9 +187,10 @@ Cognition (Devin) acquired Windsurf, triggering a search for alternatives. Users
 9. "open source AI agent news March 14-20 2026" (Brave)
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:50Z
-hash: 366b42a3d112
+generated: 2026-03-22T00:15:42Z
+hash: 0be86616181b
 
+title: Agent Ecosystem Weekly 2026 03 20
 table_claims: 14
 
 end-knowledge-index -->

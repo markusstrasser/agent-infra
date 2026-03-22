@@ -1,3 +1,8 @@
+---
+title: Epistemic Architecture v3 — Domain-Branched Checks and Balances
+date: 2026-03-13
+---
+
 # Epistemic Architecture v3 — Domain-Branched Checks and Balances
 
 **Date:** 2026-03-13
@@ -316,9 +321,10 @@ Searched for evidence against the core proposal (domain-branched epistemic layer
 - Dang et al. 2026 — Temperature as Meta-Policy (arXiv:2602.11779) [S2]
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:51Z
-hash: 5bc553807a6a
+generated: 2026-03-22T00:15:43Z
+hash: db37caf02be6
 
+title: Epistemic Architecture v3 — Domain-Branched Checks and Balances
 table_claims: 3
 
 end-knowledge-index -->

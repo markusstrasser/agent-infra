@@ -1,3 +1,8 @@
+---
+title: "Agent Skill Improvement: Frontier LLM Techniques (March 2026)"
+date: 2026-03-17
+---
+
 # Agent Skill Improvement: Frontier LLM Techniques (March 2026)
 
 **Date:** 2026-03-17
@@ -216,9 +221,10 @@ This maps almost exactly to what our brainstorming skill already does. No eviden
 - arXiv:2502.09858 (POPPER) — downloaded, key sections read
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:53Z
-hash: 897940c16d28
+generated: 2026-03-22T00:15:44Z
+hash: fc41dd8d617b
 
+title: Agent Skill Improvement: Frontier LLM Techniques (March 2026)
 sources: 2
   INFERENCE: from ACH theory + POPPER
   INFERENCE: from survey categories

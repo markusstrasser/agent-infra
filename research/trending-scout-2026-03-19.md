@@ -1,3 +1,8 @@
+---
+title: Trending Scout — 2026-03-19
+date: 2026-03-19
+---
+
 # Trending Scout — 2026-03-19
 
 **Date:** 2026-03-19
@@ -289,9 +294,10 @@ The open standard (originally from Anthropic) is now adopted by ~30 products inc
 4. Publishing our unique skills (researcher, epistemics, causal-dag, brainstorm, entity-management) to the standard ecosystem is technically trivial — they're already in the right format
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:53Z
-hash: 70f131397668
+generated: 2026-03-22T00:15:45Z
+hash: 342bbc173c08
 
+title: Trending Scout — 2026-03-19
 cross_refs: research/cognee-technical-assessment.md
 
 end-knowledge-index -->

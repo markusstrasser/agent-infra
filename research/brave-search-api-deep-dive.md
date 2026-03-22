@@ -1,3 +1,8 @@
+---
+title: Brave Search API — Deep Dive for Agent/LLM Integration
+date: 2026-03-02
+---
+
 # Brave Search API — Deep Dive for Agent/LLM Integration
 
 **Date:** 2026-03-02
@@ -404,9 +409,10 @@ We currently use Exa as primary search (MCP configured in all projects).
 | 17 | SimpleQA 94.1% verification | verify_claim | Confirmed by 6+ sources |
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:50Z
-hash: e35c6016662d
+generated: 2026-03-22T00:15:42Z
+hash: db45e61958cd
 
+title: Brave Search API — Deep Dive for Agent/LLM Integration
 cross_refs: research/agentic-search-api-comparison.md
 sources: 2
   D2: — self-published, but methodology is more transparent than most vendor benchmarks

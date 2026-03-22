@@ -1,3 +1,8 @@
+---
+title: Exa's Recommended Skill vs Our Setup (2026-03-04)
+date: 2026-03-21
+---
+
 # Exa's Recommended Skill vs Our Setup (2026-03-04)
 
 **Context:** Exa published a "Research Paper Search Agent Skill" — single MCP tool (`web_search_advanced_exa` with `category: "research paper"`) + Claude skill for paper search. Comparison against our multi-source architecture.
@@ -76,8 +81,9 @@ All already accessible through our existing MCP tools. Documented in `agentic-se
 - Our benchmark: `benchmarks/comparison-report.md` (EBF3 query, §10 of search comparison)
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:51Z
-hash: 81a1b99c65f1
+generated: 2026-03-22T00:15:43Z
+hash: b957019877bc
 
+title: Exa's Recommended Skill vs Our Setup (2026-03-04)
 
 end-knowledge-index -->

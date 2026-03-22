@@ -1,3 +1,8 @@
+---
+title: Claude Code Native Features vs Meta Infrastructure
+date: 2026-03-21
+---
+
 # Claude Code Native Features vs Meta Infrastructure
 
 > Assessment date: 2026-03-20. Based on actual documentation (code.claude.com), verified against v2.1.80.
@@ -141,8 +146,9 @@ Bundle skills + agents + hooks + MCP + LSP. Distribution mechanism, not capabili
 Key finding: consolidation opportunity remains ~10-15% as assessed in original. Governance layer gap unchanged. New native features are useful but complementary, not replacing meta's orchestration or self-improvement loop.
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:50Z
-hash: 27e40313d68e
+generated: 2026-03-22T00:15:42Z
+hash: a06400c67a7f
 
+title: Claude Code Native Features vs Meta Infrastructure
 
 end-knowledge-index -->

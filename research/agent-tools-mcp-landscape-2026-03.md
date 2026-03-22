@@ -1,3 +1,8 @@
+---
+title: "Agent Tools & MCP Landscape Beyond Search — March 2026"
+date: 2026-03-19
+---
+
 # Agent Tools & MCP Landscape Beyond Search — March 2026
 
 **Date:** 2026-03-19
@@ -173,9 +178,10 @@ What tools and MCP servers exist beyond our current search-heavy stack that prov
 | "Exa alternatives" comparison article | WebFetch | 6 tools analyzed | Bright Data, Tavily, Firecrawl, Sonar, Linkup, Exa |
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:50Z
-hash: 926e4232e7b1
+generated: 2026-03-22T00:15:42Z
+hash: c3b7ef182d60
 
+title: Agent Tools & MCP Landscape Beyond Search — March 2026
 table_claims: 10
 
 end-knowledge-index -->

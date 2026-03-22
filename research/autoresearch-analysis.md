@@ -1,3 +1,8 @@
+---
+title: Autoresearch Analysis — Evolutionary Code Search with LLM-as-Mutator
+date: 2026-03-08
+---
+
 # Autoresearch Analysis — Evolutionary Code Search with LLM-as-Mutator
 
 **Date:** 2026-03-08
@@ -68,8 +73,9 @@ Validated on toy-scorer experiment (10 experiments in-session): baseline 0.7625 
 - **2026-03-08:** Removed "blocked on API credits" — validated end-to-end using Claude Code subscription (in-session loop, no subprocess orchestrator needed). Updated implementation status.
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:50Z
-hash: 05a6ee84729b
+generated: 2026-03-22T00:15:42Z
+hash: 1f58856e0f58
 
+title: Autoresearch Analysis — Evolutionary Code Search with LLM-as-Mutator
 
 end-knowledge-index -->

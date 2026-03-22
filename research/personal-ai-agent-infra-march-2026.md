@@ -1,3 +1,8 @@
+---
+title: Personal AI Agent Infrastructure — March 2026 Landscape Sweep
+date: 2026-03-19
+---
+
 # Personal AI Agent Infrastructure — March 2026 Landscape Sweep
 
 **Date:** 2026-03-19
@@ -319,8 +324,9 @@ All claims tagged with provenance. Key sources:
 - [SOURCE: dev.to] ZeroClaw DEV Community analysis
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:52Z
-hash: 671d79cf807c
+generated: 2026-03-22T00:15:44Z
+hash: b64313ac1cae
 
+title: Personal AI Agent Infrastructure — March 2026 Landscape Sweep
 
 end-knowledge-index -->

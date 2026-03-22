@@ -1,3 +1,8 @@
+---
+title: "Agent Reliability: Capability =/= Reliability — Now With Better Data"
+date: 2026-03-21
+---
+
 # Agent Reliability: Capability =/= Reliability — Now With Better Data
 
 *Split from `frontier-agentic-models.md` on 2026-03-01. Part of the [agentic research synthesis](agentic-research-synthesis.md).*
@@ -77,8 +82,9 @@ Operational observations:
 **NEW — cost-normalized retry with cheaper models.** MiniMax M2.5 at SWE-bench parity opens the strategy: cheap model + many retries + majority vote may beat expensive model + single shot. Not yet tested systematically, but the economics shifted.
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:50Z
-hash: 7bc02ceb257d
+generated: 2026-03-22T00:15:42Z
+hash: 695f3acbce7b
 
+title: Agent Reliability: Capability =/= Reliability — Now With Better Data
 
 end-knowledge-index -->

@@ -1,3 +1,8 @@
+---
+title: "Action Plan: Close the Error-Correction Loop"
+date: 2026-02-28
+---
+
 # Action Plan: Close the Error-Correction Loop
 
 **Date:** 2026-02-28
@@ -387,8 +392,9 @@ Compare: Wave 2-7 was 976 LOC for new scanners. This plan is ~1,290 LOC to make 
 | FDR-controlled predictions | 0% | 100% |
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:52Z
-hash: 0fd26ccfe9a4
+generated: 2026-03-22T00:15:43Z
+hash: 388512ccf036
 
+title: Action Plan: Close the Error-Correction Loop
 
 end-knowledge-index -->

@@ -1,3 +1,8 @@
+---
+title: "Native Leverage Plan: Claude Code Features → Project Infrastructure"
+date: 2026-03-21
+---
+
 # Native Leverage Plan: Claude Code Features → Project Infrastructure
 
 > Created: 2026-03-01. Based on claude-code-native-vs-meta-infra.md assessment.
@@ -386,8 +391,9 @@ Measure via: session-analyst runs comparing pre/post deployment, manual review o
 *Companion doc: `claude-code-native-vs-meta-infra.md` (same directory)*
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:52Z
-hash: 32ad3b29464b
+generated: 2026-03-22T00:15:44Z
+hash: d0d666de2416
 
+title: Native Leverage Plan: Claude Code Features → Project Infrastructure
 
 end-knowledge-index -->

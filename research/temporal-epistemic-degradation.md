@@ -1,3 +1,8 @@
+---
+title: Temporal Epistemic Degradation in AI Agents
+date: 2026-03-21
+---
+
 # Temporal Epistemic Degradation in AI Agents
 
 *Date: 2026-03-02. Part of the [agentic research synthesis](agentic-research-synthesis.md).*
@@ -332,9 +337,10 @@ But there are also reasons output position might NOT matter much:
 9. **Cross-session memory verification:** Periodic independent agent session that reads MEMORY.md and fact-checks claims against current sources. Like an internal audit.
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:53Z
-hash: 4f3e744de35c
+generated: 2026-03-22T00:15:45Z
+hash: a2ea7a2592d7
 
+title: Temporal Epistemic Degradation in AI Agents
 sources: 1
   INFERENCE: , based on convergent evidence
 table_claims: 29

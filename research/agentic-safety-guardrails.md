@@ -1,3 +1,8 @@
+---
+title: "Agentic Scaffolding: From Safety-by-Prompt to Guardrails-by-Construction"
+date: 2026-03-21
+---
+
 # Agentic Scaffolding: From Safety-by-Prompt to Guardrails-by-Construction
 
 *Split from `frontier-agentic-models.md` on 2026-03-01. Part of the [agentic research synthesis](agentic-research-synthesis.md).*
@@ -43,8 +48,9 @@
 **What we should monitor:** LLM-42's deterministic inference. If position-consistent reductions become standard, outcome consistency could improve at the infrastructure level. This doesn't eliminate the need for retry/voting but could reduce its cost.
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:50Z
-hash: 0864c3270e6e
+generated: 2026-03-22T00:15:42Z
+hash: 52986dfe9fbb
 
+title: Agentic Scaffolding: From Safety-by-Prompt to Guardrails-by-Construction
 
 end-knowledge-index -->

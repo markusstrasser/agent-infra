@@ -1,3 +1,8 @@
+---
+title: Negative Space and Meta-Epistemics for Agent Knowledge Systems
+date: 2026-03-02
+---
+
 # Negative Space and Meta-Epistemics for Agent Knowledge Systems
 
 **Date:** 2026-03-02
@@ -560,9 +565,10 @@ Web sources consulted:
 - ECMWF verification: Ben-Bouallègue 2025, arxiv.org/pdf/2602.00622
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:52Z
-hash: 440f1197d2e2
+generated: 2026-03-22T00:15:44Z
+hash: 4bf7059f8424
 
+title: Negative Space and Meta-Epistemics for Agent Knowledge Systems
 sources: 10
   TRAINING-DATA: , verified against SEP entry
   TRAINING-DATA: , well-established

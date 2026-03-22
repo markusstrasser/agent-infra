@@ -1,3 +1,8 @@
+---
+title: Agent Scaffolding, Self-Improvement, and Orchestration — March 2026 Landscape
+date: 2026-03-10
+---
+
 # Agent Scaffolding, Self-Improvement, and Orchestration — March 2026 Landscape
 
 **Date:** 2026-03-10
@@ -193,9 +198,10 @@ Our files+git approach is simpler and functionally equivalent. The field is buil
 Adversarial co-evolution: Code LLM vs Test LLM with opposing RL objectives. Eliminates self-collusion (single-model self-play produces trivial tests). "Mistake Book" experience replay. Relevant to autoresearch's evolutionary approach — separating mutator and evaluator is architecturally sound. `[SOURCE: arXiv:2603.15611, abstract only]`
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:50Z
-hash: d03bbe70e8b9
+generated: 2026-03-22T00:15:42Z
+hash: 14646c5e0fcc
 
+title: Agent Scaffolding, Self-Improvement, and Orchestration — March 2026 Landscape
 sources: 1
   INFERENCE: from abstracts only
 table_claims: 15

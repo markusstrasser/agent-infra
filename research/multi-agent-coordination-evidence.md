@@ -1,3 +1,8 @@
+---
+title: Multi-Agent Coordination — Now With Controlled Experiments
+date: 2026-03-21
+---
+
 # Multi-Agent Coordination — Now With Controlled Experiments
 
 *Split from `frontier-agentic-models.md` on 2026-03-01. Part of the [agentic research synthesis](agentic-research-synthesis.md).*
@@ -56,8 +61,9 @@ Key findings:
 **Combined implication for our orchestrator:** Add lightweight orchestration-level verification (VMAO), consider deliberation-before-tool-use (DOVA), but don't over-invest given both papers have small-N evaluations and our pipelines are 3-7 steps (VMAO shows most value at 8-12+ steps).
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:52Z
-hash: 5859946ef574
+generated: 2026-03-22T00:15:44Z
+hash: 5a90e0f8cb23
 
+title: Multi-Agent Coordination — Now With Controlled Experiments
 
 end-knowledge-index -->

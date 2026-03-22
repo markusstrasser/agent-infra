@@ -1,3 +1,8 @@
+---
+title: Conviction Tracking Pattern
+date: 2026-03-21
+---
+
 # Conviction Tracking Pattern
 
 Research memo documenting the cross-project pattern for structured belief tracking.
@@ -48,8 +53,9 @@ Formula: `sum(p_i * ln(p_i / q_i))` with 0.001 floor. Useful for detecting ancho
 (KL near zero despite material evidence) or overreaction (KL disproportionate to evidence strength).
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:51Z
-hash: 77f1079a35cb
+generated: 2026-03-22T00:15:43Z
+hash: 88e4f485cf4f
 
+title: Conviction Tracking Pattern
 
 end-knowledge-index -->

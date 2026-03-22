@@ -1,3 +1,8 @@
+---
+title: "Verifying Agent Reasoning Traces: Faithfulness, Correctness, and Formal Methods"
+date: 2026-03-21
+---
+
 # Verifying Agent Reasoning Traces: Faithfulness, Correctness, and Formal Methods
 
 *Date: 2026-03-05. Models in scope: Opus 4.6, GPT-5.x, Gemini 3.1 Pro.*
@@ -330,9 +335,10 @@ Unlike most LLM tasks, causal conclusions are often formally verifiable. This me
 - Socratic-PRMBench (pre-existing): `09933d534525fb65672a10d83d7e26dcdc12523b`
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:52Z
-hash: 9909180feeb6
+generated: 2026-03-22T00:15:44Z
+hash: 4395d3c1f275
 
+title: Verifying Agent Reasoning Traces: Faithfulness, Correctness, and Formal Methods
 table_claims: 19
 
 end-knowledge-index -->

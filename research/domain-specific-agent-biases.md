@@ -1,3 +1,8 @@
+---
+title: Domain-Specific Cognitive Biases in AI Agents — Research Memo
+date: 2026-03-21
+---
+
 # Domain-Specific Cognitive Biases in AI Agents — Research Memo
 
 **Question:** What cognitive biases and epistemic failure modes are SPECIFIC to AI agents operating in (1) trading/investment, (2) scientific literature review, and (3) engineering optimization — beyond generic LLM hallucination?
@@ -167,9 +172,10 @@ Searched for counterevidence to each domain's core claim:
 - Nature 2025 — "Training on narrow tasks leads to broad misalignment" (DOI: 10.1038/s41586-025-09937-5) — found via Exa
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:51Z
-hash: 287bc44ae294
+generated: 2026-03-22T00:15:43Z
+hash: f7fab24eecde
 
+title: Domain-Specific Cognitive Biases in AI Agents — Research Memo
 sources: 13
   INFERENCE: from LLM autoregressive architecture + behavioral finance literature
   INFERENCE: training data frequency → retrieval probability; consistent with O'Leary 2025 "ostrich effect"

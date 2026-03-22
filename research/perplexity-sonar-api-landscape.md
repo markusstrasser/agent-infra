@@ -1,3 +1,8 @@
+---
+title: Perplexity API Landscape — Research Memo
+date: 2026-03-21
+---
+
 # Perplexity API Landscape — Research Memo
 
 **Question:** Full technical assessment of the Perplexity API surface for agent/LLM integration: Sonar models, Agent API, Search API, pricing, MCP, SDKs, unique capabilities.
@@ -379,9 +384,10 @@ All data retrieved from primary sources (docs.perplexity.ai, GitHub, VentureBeat
 | 18 | Exa web_search | "Perplexity Agent API developer gotchas" | SEO slop + general multi-agent article (low signal) |
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:52Z
-hash: ef692a859c88
+generated: 2026-03-22T00:15:44Z
+hash: 45c91bd49113
 
+title: Perplexity API Landscape — Research Memo
 sources: 1
   INFERENCE: Pricing comparison derived from retrieved Perplexity docs + known Exa pricing from our MCP configuration. Exa pricing may have changed — verify if making cost decisions.
 table_claims: 1

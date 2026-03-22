@@ -1,3 +1,8 @@
+---
+title: OpenClaw Architecture Deep Dive — Research Memo
+date: 2026-03-21
+---
+
 # OpenClaw Architecture Deep Dive — Research Memo
 
 **Question:** How does OpenClaw actually implement its memory, heartbeat, pre-compaction flush, command queue, skills, hooks, and philosophy files — and what architectural lessons apply to Claude Code-based agent infrastructure?
@@ -448,8 +453,9 @@ All primary sources accessed via raw GitHub URLs and Exa crawling. Key files:
 - Armin Ronacher's blog post on Pi philosophy
 
 <!-- knowledge-index
-generated: 2026-03-22T00:10:42Z
-hash: 51f67ae01ed5
+generated: 2026-03-22T00:15:44Z
+hash: f8a51415719e
 
+title: OpenClaw Architecture Deep Dive — Research Memo
 
 end-knowledge-index -->

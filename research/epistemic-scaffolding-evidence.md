@@ -1,3 +1,8 @@
+---
+title: "Epistemic Scaffolding for Agentic Systems: What the Evidence Says"
+date: 2026-03-21
+---
+
 # Epistemic Scaffolding for Agentic Systems: What the Evidence Says
 
 **Question:** How do modern agentic systems handle epistemic scaffolding — measurement infrastructure that monitors agent quality? What does the evidence say about whether it works?
@@ -236,9 +241,10 @@ PRMs work for math (clear intermediate verification). They work for coding (test
 | Scaling agent systems multi-agent Google DeepMind | S2 | 10 — arXiv:2512.08296 found |
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:51Z
-hash: 60fd0436d95d
+generated: 2026-03-22T00:15:43Z
+hash: 74e3ff23fbaf
 
+title: Epistemic Scaffolding for Agentic Systems: What the Evidence Says
 sources: 1
   TRAINING-DATA: — canonical, widely replicated
 table_claims: 23

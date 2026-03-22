@@ -1,3 +1,8 @@
+---
+title: "Cross-Model LLM Review: Failure Modes and Biases"
+date: 2026-03-21
+---
+
 # Cross-Model LLM Review: Failure Modes and Biases
 
 *Date: 2026-03-03. Research memo for `/model-review` skill design.*
@@ -254,9 +259,10 @@ Citation landscape for key papers (as of 2026-03-17):
 No retractions, corrections, or editorial concerns found on any paper. Absence of contrasting citations is primarily a recency effect (2025-2026 papers). The Kim et al. under-citation is the most action-relevant finding — we should not overweight the specific 60% figure in design decisions, though the qualitative direction (correlated errors exist, same-provider worse) is well-established via FINCH-ZK's independent cross-family evidence (90.4% vs 59.1%).
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:51Z
-hash: 71a20eb45acc
+generated: 2026-03-22T00:15:43Z
+hash: 8f39ea1ced3e
 
+title: Cross-Model LLM Review: Failure Modes and Biases
 sources: 4
   TRAINING-DATA: for numbers below
   TRAINING-DATA: I recall the first-position preference being roughly 60-65% but cannot verify the exact number from retrieved sources

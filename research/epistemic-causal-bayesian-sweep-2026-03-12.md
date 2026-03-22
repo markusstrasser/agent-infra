@@ -1,3 +1,8 @@
+---
+title: Epistemic, Causal, and Bayesian Methods — State of the Field (March 2026)
+date: 2026-03-12
+---
+
 # Epistemic, Causal, and Bayesian Methods — State of the Field (March 2026)
 
 **Date:** 2026-03-12
@@ -295,9 +300,10 @@ No revolutionary changes in the practical tooling landscape.
 No revision needed for: `ai-reasoning-causal-abductive-deductive.md` (findings consistent), `factual-verification-systems.md` (no new systems), `anti-sycophancy-process-supervision.md` (no new empirical results).
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:51Z
-hash: 1b13f409e47f
+generated: 2026-03-22T00:15:43Z
+hash: 7a5d7424ddd6
 
+title: Epistemic, Causal, and Bayesian Methods — State of the Field (March 2026)
 table_claims: 14
 
 end-knowledge-index -->

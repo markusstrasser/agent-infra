@@ -1,3 +1,8 @@
+---
+title: Factual Verification Systems for AI Agents — Research Memo
+date: 2026-03-21
+---
+
 # Factual Verification Systems for AI Agents — Research Memo
 
 **Questions:** RQ1 (Closed-loop verification architecture) + RQ6 (What reduces slop)
@@ -277,9 +282,10 @@ This is the most promising approach for sparse-ground-truth domains like investm
 | TruthTensor (Shahabi et al., 2025) | Not on S2 | arXiv:2601.13545 |
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:51Z
-hash: d6072fb014d3
+generated: 2026-03-22T00:15:43Z
+hash: 222257906a93
 
+title: Factual Verification Systems for AI Agents — Research Memo
 sources: 6
   INFERENCE: from search absence
   INFERENCE: from search absence

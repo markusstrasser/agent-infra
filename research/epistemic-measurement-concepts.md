@@ -1,3 +1,8 @@
+---
+title: Epistemic Measurement Concepts
+date: 2026-03-21
+---
+
 # Epistemic Measurement Concepts
 
 Reference for the concepts, techniques, and vocabulary behind the epistemic quality system. Durable companion to the scripts in `scripts/` and research in this directory.
@@ -237,9 +242,10 @@ Evidence that informed design decisions. Full details in `epistemic-v2-synthesis
 | Citation fabrication | needs re-baseline | `trace-faithfulness.py` | 3-way verdict: verified/unknown/fabricated |
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:51Z
-hash: 27a16fcff498
+generated: 2026-03-22T00:15:43Z
+hash: a29338c0374c
 
+title: Epistemic Measurement Concepts
 table_claims: 8
 
 end-knowledge-index -->

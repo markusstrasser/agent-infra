@@ -1,3 +1,8 @@
+---
+title: "Agentic Research Synthesis: What We Know vs What We're Guessing"
+date: 2026-03-21
+---
+
 # Agentic Research Synthesis: What We Know vs What We're Guessing
 
 *Split from `frontier-agentic-models.md` on 2026-03-01. This is the cross-cutting synthesis — see individual topic files for evidence.*
@@ -139,9 +144,10 @@
 | Long-horizon agent benchmarks | WebSearch/Exa | ~15 | SWE-EVO, FeatureBench (existing), APEX-Agents (existing) |
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:50Z
-hash: 42d81ed57486
+generated: 2026-03-22T00:15:42Z
+hash: 782691120f60
 
+title: Agentic Research Synthesis: What We Know vs What We're Guessing
 table_claims: 9
 
 end-knowledge-index -->

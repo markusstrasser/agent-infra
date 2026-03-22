@@ -1,3 +1,8 @@
+---
+title: Consensus.app — Technical Analysis
+date: 2026-03-21
+---
+
 # Consensus.app — Technical Analysis
 
 **Question:** What does Consensus.app actually do, how does it work architecturally, what's novel, and what are the limitations?
@@ -214,9 +219,10 @@ Company/partner sources:
 - Consensus help center: https://help.consensus.app/en/articles/12641232-scholar-agent
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:51Z
-hash: efde38432af4
+generated: 2026-03-22T00:15:43Z
+hash: 1de5bc0121c3
 
+title: Consensus.app — Technical Analysis
 table_claims: 10
 
 end-knowledge-index -->

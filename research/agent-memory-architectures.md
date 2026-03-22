@@ -1,3 +1,8 @@
+---
+title: Memory and State Management
+date: 2026-03-21
+---
+
 # Memory and State Management
 
 *Split from `frontier-agentic-models.md` on 2026-03-01. Part of the [agentic research synthesis](agentic-research-synthesis.md).*
@@ -27,8 +32,9 @@ All prior findings hold. Additionally:
 Our files+git approach remains defensible. The Anatomy paper shows that fancier memory architectures "often underperform their theoretical promise" due to evaluation gaps and cost overhead. Files+git has the advantage of **auditability** (git log), **simplicity**, and **zero infrastructure**. The A-MEM Zettelkasten pattern (structured connections between memories) is conceptually interesting but adds complexity we don't need yet.
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:50Z
-hash: 2b99a8570f4a
+generated: 2026-03-22T00:15:42Z
+hash: f500151c9f68
 
+title: Memory and State Management
 
 end-knowledge-index -->

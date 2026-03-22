@@ -1,3 +1,8 @@
+---
+title: Opus 46 Prompt Structure
+date: 2026-03-21
+---
+
 ## Opus 4.6 Prompt Structure & Formatting — Research Memo
 
 **Question:** Beyond XML tags, are there formatting or structure tricks specific to Opus 4.6 for system prompts, CLAUDE.md files, and skills?
@@ -77,9 +82,10 @@ Anthropic's guide includes a sample prompt: "As you approach your token budget l
 | User tournament-mcp | Primary empirical data | No position bias in thinking models |
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:52Z
-hash: e2d250a9812e
+generated: 2026-03-22T00:15:44Z
+hash: d41497a118d3
 
+title: Opus 46 Prompt Structure
 sources: 1
   INFERENCE: from architecture + user empirical data
 table_claims: 12

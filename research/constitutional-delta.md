@@ -1,3 +1,8 @@
+---
+title: "The Constitutional Delta: What to Add on Top of Claude"
+date: 2026-02-27
+---
+
 # The Constitutional Delta: What to Add on Top of Claude
 
 **Date:** 2026-02-27
@@ -375,9 +380,10 @@ The constitutional delta is not a new layer of abstraction. It's the explicit ar
 *This document is the philosophical foundation. The technical implementation is in `autonomous-agent-architecture.md` and `review-synthesis.md` in this same repo.*
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:51Z
-hash: 11bfdc670c56
+generated: 2026-03-22T00:15:43Z
+hash: 37723086bc6a
 
+title: The Constitutional Delta: What to Add on Top of Claude
 table_claims: 6
 
 end-knowledge-index -->

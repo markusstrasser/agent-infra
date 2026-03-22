@@ -1,3 +1,8 @@
+---
+title: Agentic Search API Comparison — Brave, Exa, Tavily, Firecrawl, Perplexity Sonar, Parallel
+date: 2026-03-02
+---
+
 # Agentic Search API Comparison — Brave, Exa, Tavily, Firecrawl, Perplexity Sonar, Parallel
 
 **Date:** 2026-03-02
@@ -444,9 +449,10 @@ We currently use Exa as primary search. Based on this analysis:
 | 21 | Perplexity Sonar latency | Exa | Artificial Analysis data |
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:50Z
-hash: ef8f384891a7
+generated: 2026-03-22T00:15:42Z
+hash: f50b9b688b56
 
+title: Agentic Search API Comparison — Brave, Exa, Tavily, Firecrawl, Perplexity Sonar, Parallel
 sources: 9
   C2: — trade press, plausible but single-source
   D2: — self-interested source, but methodology is reasonably transparent

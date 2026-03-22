@@ -1,3 +1,8 @@
+---
+title: Cognee (topoteretes/cognee) — Technical Assessment
+date: 2026-03-21
+---
+
 # Cognee (topoteretes/cognee) — Technical Assessment
 
 **Question:** Is Cognee a viable dependency for an agent infrastructure system that currently uses SQLite knowledge substrate with manual claim/assertion registration and provenance tracking?
@@ -227,9 +232,10 @@ No papers saved — this was primarily a software engineering evaluation using G
 | WebFetch | PyPI metadata | 1 | HIGH — version timeline, first release March 2024 |
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:51Z
-hash: 4195a447c2ff
+generated: 2026-03-22T00:15:43Z
+hash: 3b4116692abd
 
+title: Cognee (topoteretes/cognee) — Technical Assessment
 sources: 2
   D2: company claims, not independently verified
   D3: self-reported, no independent replication

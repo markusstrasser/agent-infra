@@ -1,3 +1,8 @@
+---
+title: Runlog OTel / OpenInference Compatibility
+date: 2026-03-21
+---
+
 # Runlog OTel / OpenInference Compatibility
 
 This run store is local-first and domain-first. OTel / OpenInference is treated as a vocabulary source and later export target, not as the canonical storage model.
@@ -33,8 +38,9 @@ This run store is local-first and domain-first. OTel / OpenInference is treated 
 - Do not force span hierarchy into the canonical schema until the agentic semantic conventions stabilize.
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:52Z
-hash: bb1af7af2cb5
+generated: 2026-03-22T00:15:44Z
+hash: f53681b521b5
 
+title: Runlog OTel / OpenInference Compatibility
 
 end-knowledge-index -->

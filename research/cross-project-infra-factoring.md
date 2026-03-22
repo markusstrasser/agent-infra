@@ -1,3 +1,8 @@
+---
+title: Cross-Project Infrastructure Factoring (v3)
+date: 2026-03-06
+---
+
 # Cross-Project Infrastructure Factoring (v3)
 
 **Date:** 2026-03-06
@@ -391,8 +396,9 @@ These aren't cross-project extractions but were found during the scan:
 | Projects consuming shared lib | — | intel, meta, genomics, research-mcp |
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:51Z
-hash: a4883f6c68d7
+generated: 2026-03-22T00:15:43Z
+hash: c879e179b669
 
+title: Cross-Project Infrastructure Factoring (v3)
 
 end-knowledge-index -->

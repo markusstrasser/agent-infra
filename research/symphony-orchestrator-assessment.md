@@ -1,3 +1,8 @@
+---
+title: Symphony (OpenAI) — Deep Assessment
+date: 2026-03-07
+---
+
 # Symphony (OpenAI) — Deep Assessment
 
 **Date:** 2026-03-07
@@ -167,8 +172,9 @@ The deepest difference is where complexity lives: Symphony puts complexity in th
 Neither approach is strictly better. Symphony's is optimized for "turn tickets into PRs" — a well-defined, repeatable workflow. Ours is optimized for diverse task types (research, analysis, code review, entity refresh) where each pipeline has different structure.
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:53Z
-hash: 9a4d717460c3
+generated: 2026-03-22T00:15:45Z
+hash: c84e1aff188a
 
+title: Symphony (OpenAI) — Deep Assessment
 
 end-knowledge-index -->

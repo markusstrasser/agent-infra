@@ -1,3 +1,8 @@
+---
+title: "Agent Economics: How Near-Zero Dev Cost Changes Decision Frameworks"
+date: 2026-03-19
+---
+
 # Agent Economics: How Near-Zero Dev Cost Changes Decision Frameworks
 
 **Date:** 2026-03-19
@@ -151,9 +156,10 @@ For items that are borderline: let the agent try building it. If it works and is
 | Armin Ronacher developer poll | via Osmani | 2026-01 | [5000 developer survey] |
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:50Z
-hash: 4421d7ed7417
+generated: 2026-03-22T00:15:42Z
+hash: d4555d3e7e48
 
+title: Agent Economics: How Near-Zero Dev Cost Changes Decision Frameworks
 sources: 1
   INFERENCE: from claims 1-7
 table_claims: 8

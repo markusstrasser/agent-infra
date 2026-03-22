@@ -1,3 +1,8 @@
+---
+title: Structured vs Prose for Agent-Read Documents
+date: 2026-03-03
+---
+
 # Structured vs Prose for Agent-Read Documents
 
 **Date:** 2026-03-03
@@ -116,8 +121,9 @@ Based on architectural reasoning + Anthropic's official distinction (not researc
 - Elnashar et al. 2025 "Prompt engineering for structured data" (S2: 4d2ff83ff3373c8480144d55684cd34a6376974f)
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:53Z
-hash: ba6b8f6e78f4
+generated: 2026-03-22T00:15:45Z
+hash: 35a1bf41c8d5
 
+title: Structured vs Prose for Agent-Read Documents
 
 end-knowledge-index -->

@@ -1,3 +1,8 @@
+---
+title: "Anti-Sycophancy Beyond Word-Counting & Process Supervision for Agent Reasoning"
+date: 2026-03-02
+---
+
 # Anti-Sycophancy Beyond Word-Counting & Process Supervision for Agent Reasoning
 
 **Date:** 2026-03-02
@@ -400,9 +405,10 @@ All three together = maximum sycophancy risk. This is the pattern we most common
 - Celebi et al. calibration loss: NOT directly verified. Cited via Emergent Mind aggregator. Tagged [NOT-FETCHED].
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:50Z
-hash: 48097c81d45c
+generated: 2026-03-22T00:15:42Z
+hash: 60089dde59b2
 
+title: Anti-Sycophancy Beyond Word-Counting & Process Supervision for Agent Reasoning
 sources: 4
   INFERENCE: from arXiv:2505.23840 + philosophy memo
   TRAINING-DATA: for foundational claims

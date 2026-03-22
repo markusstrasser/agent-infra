@@ -1,3 +1,8 @@
+---
+title: Openai Developments 2026 03 14 20
+date: 2026-03-14
+---
+
 ## OpenAI Developments -- March 14-20, 2026
 
 **Question:** What are the latest OpenAI developments from mid-March 2026?
@@ -190,9 +195,10 @@ The most strategically significant development of the week.
 - GitHub: openai/codex releases and issues
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:52Z
-hash: 504be41645d6
+generated: 2026-03-22T00:15:44Z
+hash: 970e3f14b00b
 
+title: Openai Developments 2026 03 14 20
 table_claims: 10
 
 end-knowledge-index -->

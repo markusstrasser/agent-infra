@@ -1,3 +1,8 @@
+---
+title: OpenClaw Lessons — Model Review Synthesis
+date: 2026-03-01
+---
+
 # OpenClaw Lessons — Model Review Synthesis
 
 **Date:** 2026-03-01
@@ -56,9 +61,10 @@ Both agree fresh-context cron is superior for task execution. Heartbeat accumula
 - Extraction + disposition: `.model-review/2026-03-01-openclaw-lessons-plan/extraction.md`
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:52Z
-hash: f504bfc5a26a
+generated: 2026-03-22T00:15:44Z
+hash: 439659d81903
 
+title: OpenClaw Lessons — Model Review Synthesis
 cross_refs: research/openclaw-deep-dive.md
 
 end-knowledge-index -->

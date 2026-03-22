@@ -1,3 +1,8 @@
+---
+title: Search API Integration Landscape — Brave, Firecrawl, Perplexity
+date: 2026-03-02
+---
+
 # Search API Integration Landscape — Brave, Firecrawl, Perplexity
 
 **Date:** 2026-03-02
@@ -137,9 +142,10 @@ All three APIs configured as of 2026-03-02:
 - `research/agentic-search-api-comparison.md` — benchmarks, pricing, feature matrix, index independence
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:52Z
-hash: 1eef3418617d
+generated: 2026-03-22T00:15:44Z
+hash: 3e93a12a9ca5
 
+title: Search API Integration Landscape — Brave, Firecrawl, Perplexity
 cross_refs: research/agentic-search-api-comparison.md, research/brave-search-api-deep-dive.md, research/firecrawl-api-deep-dive.md, research/perplexity-sonar-api-landscape.md
 table_claims: 7
 

@@ -1,3 +1,8 @@
+---
+title: "Context Bundling & Formatting Solutions: What Can We Learn?"
+date: 2026-03-20
+---
+
 # Context Bundling & Formatting Solutions: What Can We Learn?
 
 **Date:** 2026-03-20
@@ -169,8 +174,9 @@ This directly confirms our context-rot research: every tool definition is a toke
 - [SOURCE: reddit.com/r/ClaudeCode/comments/1rnxm5c] 63% setup removal → dramatic improvement (2026-03-13)
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:51Z
-hash: a4dc7887ed6d
+generated: 2026-03-22T00:15:43Z
+hash: 36e6f2d83325
 
+title: Context Bundling & Formatting Solutions: What Can We Learn?
 
 end-knowledge-index -->

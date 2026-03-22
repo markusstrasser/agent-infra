@@ -1,3 +1,8 @@
+---
+title: Code Repository Structure for AI Agent Navigation
+date: 2026-03-06
+---
+
 # Code Repository Structure for AI Agent Navigation
 
 **Date:** 2026-03-06
@@ -107,8 +112,9 @@ Already exists in some form: `ctags`, `tree-sitter` CLI, `pyright --outputjson`.
 - [SOURCE: arXiv:2602.14878] MCP tool descriptions study
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:51Z
-hash: 891bf72cd596
+generated: 2026-03-22T00:15:42Z
+hash: 4cb9ea52d4f9
 
+title: Code Repository Structure for AI Agent Navigation
 
 end-knowledge-index -->

@@ -1,3 +1,8 @@
+---
+title: The Architecture of Knowledge Accrual — Research Memo
+date: 2026-03-21
+---
+
 # The Architecture of Knowledge Accrual — Research Memo
 
 **Question:** How does knowledge actually accumulate at scale — in science, law, intelligence, encyclopedias, formal systems — and what structural patterns can we steal for an agent knowledge system?
@@ -505,9 +510,10 @@ Both models independently identified: (1) double-entry analogy overgeneralized, 
 - **GPT:** Effort estimates may be 2x optimistic (GPT flagged this itself). Impact percentages are directional, not precise.
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:52Z
-hash: f1bc5e1de288
+generated: 2026-03-22T00:15:43Z
+hash: d7c57f36d941
 
+title: The Architecture of Knowledge Accrual — Research Memo
 sources: 6
   TRAINING-DATA: , cross-checked against Exa search for post-mortem discussions
   TRAINING-DATA: , verified via agent search

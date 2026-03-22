@@ -1,3 +1,8 @@
+---
+title: Recent Agent Scaffolding, Instruction-Following, and Infra Papers
+date: 2026-03-05
+---
+
 # Recent Agent Scaffolding, Instruction-Following, and Infra Papers
 
 **Date:** 2026-03-05
@@ -129,9 +134,10 @@ If time is limited, read in this order:
 - [SOURCE: arXiv:2601.16206]
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:50Z
-hash: c1e0123bafa9
+generated: 2026-03-22T00:15:42Z
+hash: b0d5638e2483
 
+title: Recent Agent Scaffolding, Instruction-Following, and Infra Papers
 sources: 1
   D3: /C3
 

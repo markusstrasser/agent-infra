@@ -1,3 +1,8 @@
+---
+title: "Causal and Abductive Reasoning in LLMs: What the Evidence Says"
+date: 2026-03-03
+---
+
 # Causal and Abductive Reasoning in LLMs: What the Evidence Says
 
 **Date:** 2026-03-03
@@ -174,9 +179,10 @@ These findings are [F3] from secondary summary. Before citing specific numbers i
 *Frontier model caveat applies throughout: thinking models (Opus 4.6, o3, Gemini extended thinking) may have different characteristics from standard instruction-tuned models cited in these papers. RL training on verifiable outcomes is the likely differentiator.*
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:50Z
-hash: 7e9d047a8338
+generated: 2026-03-22T00:15:42Z
+hash: 5201692a2a21
 
+title: Causal and Abductive Reasoning in LLMs: What the Evidence Says
 table_claims: 6
 
 end-knowledge-index -->

@@ -1,3 +1,8 @@
+---
+title: "Context Rot: Universal and Architectural — But the Curve Is Flattening"
+date: 2026-03-21
+---
+
 # Context Rot: Universal and Architectural — But the Curve Is Flattening
 
 *Split from `frontier-agentic-models.md` on 2026-03-01. Part of the [agentic research synthesis](agentic-research-synthesis.md).*
@@ -46,8 +51,9 @@ Context rot remains universal and architectural. **Every token in CLAUDE.md, rul
 **NEW technique worth adopting:** Recitation strategy (prompt model to repeat relevant evidence before answering). Training-free, model-agnostic, +4% on RULER. Low cost, easy to add to skills.
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:51Z
-hash: 77d70ff4a520
+generated: 2026-03-22T00:15:43Z
+hash: 35e035a1939f
 
+title: Context Rot: Universal and Architectural — But the Curve Is Flattening
 
 end-knowledge-index -->

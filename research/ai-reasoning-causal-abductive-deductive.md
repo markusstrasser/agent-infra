@@ -1,3 +1,8 @@
+---
+title: "AI Reasoning: Causal, Abductive, Deductive — State of the Art (2025-2026)"
+date: 2026-03-06
+---
+
 # AI Reasoning: Causal, Abductive, Deductive — State of the Art (2025-2026)
 
 **Date:** 2026-03-06
@@ -364,9 +369,10 @@ Most benchmarks tested GPT-4o/o1 or GPT-5.2, Claude Sonnet 4.5, Claude Haiku 3.5
 *Added 2026-03-06. Primary sources: T3 and Rung Collapse papers read in full. Causal-Copilot key sections read. Others at abstract/summary level. Three research subagents dispatched — didn't complete synthesis but saved 15 papers to corpus; findings from their corpus integrated in this update.*
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:50Z
-hash: a0accce2237f
+generated: 2026-03-22T00:15:42Z
+hash: a01b9aded72e
 
+title: AI Reasoning: Causal, Abductive, Deductive — State of the Art (2025-2026)
 table_claims: 17
 
 end-knowledge-index -->

@@ -1,3 +1,8 @@
+---
+title: "Context Window Scaling: Bigger =/= Better — But Architectural Escapes Emerging"
+date: 2026-03-21
+---
+
 # Context Window Scaling: Bigger =/= Better — But Architectural Escapes Emerging
 
 *Split from `frontier-agentic-models.md` on 2026-03-01. Part of the [agentic research synthesis](agentic-research-synthesis.md).*
@@ -51,8 +56,9 @@ Two in production (MoBA in Kimi, DSA in DeepSeek). NSA won best paper at ACL 202
 **LoongRL's result** (16K trains solve 128K) suggests that the model's ability to **search its own context strategically** may matter more than raw window size. This supports our JIT retrieval pattern over our dump-everything-in-context anti-pattern.
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:51Z
-hash: 4d5faa7a6efe
+generated: 2026-03-22T00:15:43Z
+hash: 3accc488122e
 
+title: Context Window Scaling: Bigger =/= Better — But Architectural Escapes Emerging
 
 end-knowledge-index -->

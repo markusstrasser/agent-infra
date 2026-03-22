@@ -1,3 +1,8 @@
+---
+title: Opus 46 Action Plan
+date: 2026-03-01
+---
+
 ## Opus 4.6 Prompt Structure — Action Plan
 
 **Source:** `research/opus-46-prompt-structure.md`
@@ -93,9 +98,10 @@ After implementing actions 2-3, check in 2 weeks via session-analyst:
 If no measurable improvement after 30 days, revert per meta constitution rules of adjudication.
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:52Z
-hash: b834e89bda20
+generated: 2026-03-22T00:15:44Z
+hash: 3191fc0ea286
 
+title: Opus 46 Action Plan
 cross_refs: research/opus-46-prompt-structure.md
 
 end-knowledge-index -->

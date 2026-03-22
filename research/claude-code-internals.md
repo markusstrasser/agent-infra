@@ -1,3 +1,8 @@
+---
+title: "Claude Code Architecture: Research Notes"
+date: 2026-02-27
+---
+
 # Claude Code Architecture: Research Notes
 
 **Date:** 2026-02-27, **updated 2026-03-05** (Jan-Mar 2026 changelog sweep, v2.1.68–2.1.70)
@@ -437,8 +442,9 @@ Added 2026-03-03. 40+ releases in 8 weeks. Major themes below.
 10. **Security by default.** Disable project MCP servers, blocklist credentials, log mutations, prefer `trash` over `rm`.
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:50Z
-hash: a67122aca400
+generated: 2026-03-22T00:15:42Z
+hash: 227e958f1982
 
+title: Claude Code Architecture: Research Notes
 
 end-knowledge-index -->

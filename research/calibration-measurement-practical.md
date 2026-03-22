@@ -1,3 +1,8 @@
+---
+title: Practical Calibration Measurement for AI Agents
+date: 2026-03-21
+---
+
 # Practical Calibration Measurement for AI Agents
 
 *Date: 2026-03-02. Deep tier research.*
@@ -329,9 +334,10 @@ The tokenized Brier score is a proper scoring rule, which means it automatically
 | RL for Better Verbalized Confidence in Long-Form Generation | fe13d660dbad9cd52d753f360424745e11d4844f | Saved |
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:50Z
-hash: ad2058286624
+generated: 2026-03-22T00:15:42Z
+hash: d6b2e3b1d4bd
 
+title: Practical Calibration Measurement for AI Agents
 sources: 6
   INFERENCE: from absence of search results across S2, Exa, and WebSearch
   INFERENCE: from absence of results

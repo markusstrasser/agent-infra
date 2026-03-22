@@ -1,3 +1,8 @@
+---
+title: Firecrawl API Deep Dive
+date: 2026-03-21
+---
+
 # Firecrawl API Deep Dive
 
 **Question:** Full API surface, structured extraction, pricing, MCP server, self-hosting, comparison to Exa, agent endpoint, rate limits
@@ -494,9 +499,10 @@ The rate limits page table columns appear to be: Plan | /scrape | /crawl | /extr
 | 16 | verify_claim | "AGPL-3.0 license" | Confirmed |
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:51Z
-hash: 8ce417b21dc9
+generated: 2026-03-22T00:15:43Z
+hash: 349e746e39cd
 
+title: Firecrawl API Deep Dive
 sources: 1
   INFERENCE: Based on direct comparison of official documentation for both services. Not benchmarked head-to-head.
 table_claims: 17

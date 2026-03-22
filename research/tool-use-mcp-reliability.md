@@ -1,3 +1,8 @@
+---
+title: Tool Use Reliability
+date: 2026-03-21
+---
+
 # Tool Use Reliability
 
 *Split from `frontier-agentic-models.md` on 2026-03-01. Part of the [agentic research synthesis](agentic-research-synthesis.md).*
@@ -19,8 +24,9 @@
 - MCP-Radar results for current frontier models not published yet.
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:53Z
-hash: 54e774a0760d
+generated: 2026-03-22T00:15:45Z
+hash: 3e3adbe209c0
 
+title: Tool Use Reliability
 
 end-knowledge-index -->

@@ -1,3 +1,8 @@
+---
+title: Divergent vs Convergent Thinking in LLMs
+date: 2026-03-05
+---
+
 # Divergent vs Convergent Thinking in LLMs
 
 **Date:** 2026-03-05
@@ -188,8 +193,9 @@ The second pass reinforces the core finding but adds important nuance:
 [33] arxiv 2410.04197 — CS4 creativity under constraints
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:51Z
-hash: d04d4b4e4e72
+generated: 2026-03-22T00:15:43Z
+hash: f9568ce7fe38
 
+title: Divergent vs Convergent Thinking in LLMs
 
 end-knowledge-index -->

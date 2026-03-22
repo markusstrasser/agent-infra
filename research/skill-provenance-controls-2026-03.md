@@ -1,3 +1,8 @@
+---
+title: Skill Provenance Controls
+date: 2026-03-05
+---
+
 # Skill Provenance Controls
 
 **Date:** 2026-03-05
@@ -205,8 +210,9 @@ That is enough to materially improve trust in the skills layer without building 
 - [SOURCE: skills-audit-2026-02-28.md]
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:53Z
-hash: f436623d6cc8
+generated: 2026-03-22T00:15:44Z
+hash: 1fbeb8a7c407
 
+title: Skill Provenance Controls
 
 end-knowledge-index -->

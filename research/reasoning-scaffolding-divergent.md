@@ -1,3 +1,8 @@
+---
+title: "Divergent Research: Beyond Causal DAGs — What Else Should We Build?"
+date: 2026-03-06
+---
+
 # Divergent Research: Beyond Causal DAGs — What Else Should We Build?
 
 **Date:** 2026-03-06
@@ -295,9 +300,10 @@ Key findings from that memo not duplicated here:
 - **Verification gap is in DAG CONSTRUCTION, not DAG ANALYSIS** — formal tools verify adjustment sets with certainty; no tool verifies "is this DAG correct?"
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:52Z
-hash: 10ddce31eec9
+generated: 2026-03-22T00:15:44Z
+hash: 339890f689ae
 
+title: Divergent Research: Beyond Causal DAGs — What Else Should We Build?
 table_claims: 16
 
 end-knowledge-index -->

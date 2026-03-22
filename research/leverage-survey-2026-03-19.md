@@ -1,3 +1,8 @@
+---
+title: "Leverage Survey: Packages, Languages, and Tools Beyond Python"
+date: 2026-03-19
+---
+
 # Leverage Survey: Packages, Languages, and Tools Beyond Python
 
 **Date:** 2026-03-19
@@ -215,8 +220,9 @@ The scientific computing angle is mostly a dead end at our data density — we h
 The bioinformatics crossover that actually works is methodological, not tooling: FastQC's adaptive-threshold pattern and `difflib.SequenceMatcher` for sequence alignment on tool-call streams. Extract the pattern, not the tool.
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:52Z
-hash: 6d70cd1d18ce
+generated: 2026-03-22T00:15:44Z
+hash: 92a0cb572459
 
+title: Leverage Survey: Packages, Languages, and Tools Beyond Python
 
 end-knowledge-index -->

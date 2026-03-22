@@ -1,3 +1,8 @@
+---
+title: Arxiv Weekly 2026 03 20
+date: 2026-03-20
+---
+
 ## Weekly arxiv Scan — Research Memo
 
 **Date:** 2026-03-20 | **Window:** 2026-03-12 to 2026-03-20
@@ -234,9 +239,10 @@ Multi-agent framework for memory construction, retrieval, and in-situ self-evolu
 **Frontier verdict: UNCERTAIN** — architecture-dependent findings on reasoning models. Black-box monitoring may transfer, but needs empirical probe on Opus 4.6.
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:50Z
-hash: 3f679d1cf558
+generated: 2026-03-22T00:15:42Z
+hash: 78805285d0f3
 
+title: Arxiv Weekly 2026 03 20
 cross_refs: research/causal-reasoning-evidence.md
 
 end-knowledge-index -->

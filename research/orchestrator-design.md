@@ -1,3 +1,8 @@
+---
+title: Autonomous Agent Architecture for Long-Running Intelligence Work
+date: 2026-02-27
+---
+
 # Autonomous Agent Architecture for Long-Running Intelligence Work
 
 **Date:** 2026-02-27
@@ -814,8 +819,9 @@ Sources:
 *This document is the design spec for the autonomous orchestrator. It should be reviewed and updated as implementation reveals new constraints.*
 
 <!-- knowledge-index
-generated: 2026-03-22T00:10:42Z
-hash: 21bf1970a15d
+generated: 2026-03-22T00:15:44Z
+hash: 6ee36a18d0dd
 
+title: Autonomous Agent Architecture for Long-Running Intelligence Work
 
 end-knowledge-index -->

@@ -1,3 +1,8 @@
+---
+title: Schema-Bounded Review Packets for researcher and intel
+date: 2026-03-05
+---
+
 # Schema-Bounded Review Packets for `researcher` and `intel`
 
 **Date:** 2026-03-05
@@ -205,8 +210,9 @@ That is the smallest change that matches the recent agent-scaffolding papers wit
 - [SOURCE: structured-vs-prose-for-agents.md]
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:52Z
-hash: c24a975f0823
+generated: 2026-03-22T00:15:44Z
+hash: b72e4ebe5517
 
+title: Schema-Bounded Review Packets for researcher and intel
 
 end-knowledge-index -->

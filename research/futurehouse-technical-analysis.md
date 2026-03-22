@@ -1,3 +1,8 @@
+---
+title: FutureHouse Technical Analysis
+date: 2026-03-19
+---
+
 # FutureHouse Technical Analysis
 
 **Date:** 2026-03-19
@@ -78,8 +83,9 @@ CLOSED: Production infrastructure (MongoDB/PostgreSQL/Redis/K8s), Crow/Falcon/Ow
 - Exa company_research — Company data
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:51Z
-hash: 007c4320b0f1
+generated: 2026-03-22T00:15:43Z
+hash: 772d292f527a
 
+title: FutureHouse Technical Analysis
 
 end-knowledge-index -->

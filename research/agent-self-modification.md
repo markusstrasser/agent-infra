@@ -1,3 +1,8 @@
+---
+title: Agent Self Modification
+date: 2026-03-21
+---
+
 ## Agent Self-Modification — Research Memo
 
 **Question:** Do agents that modify their own prompts, tools, or behaviors actually improve? What works, what doesn't, and what does this mean for our session-analyst pipeline?
@@ -91,9 +96,10 @@ Analyzed 35 research sessions across intel/selve. Dominant patterns:
 - **No save-without-read:** minimal evidence of this anti-pattern
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:50Z
-hash: dcc4d97684f2
+generated: 2026-03-22T00:15:42Z
+hash: 921a594eb2a2
 
+title: Agent Self Modification
 sources: 2
   INFERENCE: from pattern across DGM, SICA, AlphaEvolve
   INFERENCE: from ACE findings applied to our architecture

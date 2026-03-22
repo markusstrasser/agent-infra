@@ -1,3 +1,8 @@
+---
+title: Philosophy of Epistemic Agents
+date: 2026-02-27
+---
+
 # Philosophy of Epistemic Agents
 
 **Date:** 2026-02-27
@@ -143,9 +148,10 @@ The human's job shifts from "doing the analysis" to "calibrating the analyst." T
 | Safe > Ethical > Compliant > Helpful | Falsifiable > Plausible > Consensus > Narrative |
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:52Z
-hash: 3df8e4562916
+generated: 2026-03-22T00:15:44Z
+hash: ea041b778089
 
+title: Philosophy of Epistemic Agents
 table_claims: 6
 
 end-knowledge-index -->

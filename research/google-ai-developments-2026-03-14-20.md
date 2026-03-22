@@ -1,3 +1,8 @@
+---
+title: Google Ai Developments 2026 03 14 20
+date: 2026-03-14
+---
+
 ## Google AI / DeepMind Developments -- March 14-20, 2026
 
 **Question:** What new Google AI/DeepMind developments occurred in the past 7 days?
@@ -184,9 +189,10 @@ For reference, since this is the current flagship:
 5. **Tool combination API** -- the ability to combine Google Search grounding with custom function calling in one API call could improve research agent quality. Worth a probe.
 
 <!-- knowledge-index
-generated: 2026-03-22T00:13:51Z
-hash: 1a74c4ef3437
+generated: 2026-03-22T00:15:43Z
+hash: 1c6b6d6bfce7
 
+title: Google Ai Developments 2026 03 14 20
 table_claims: 10
 
 end-knowledge-index -->
