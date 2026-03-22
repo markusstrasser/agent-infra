@@ -704,7 +704,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Unbounded subagent — wrong agent type, no turn cap
 - **Proposed fix:** [hook] Validate subagent type and enforce mandatory turn caps in pretool gate
 - **Severity:** high
-- **Status:** [ ] proposed
+- **Status:** [x] covered — addressed by two rules added to global CLAUDE.md `<subagent_usage>` (2026-03-21): agent type matching (use researcher, not general-purpose) and turn-budget synthesis rule (70% threshold).
 
 ### [2026-03-03] MISSING PUSHBACK: Methodologically flawed genomic comparison
 - **Session:** genomics b83946cc
@@ -1164,7 +1164,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** For exhaustive location searches, run ONE parallel batch across all content sources rather than iteratively broadening
 - **Root cause:** TBD
 - **Recurrences:** 2 (auto-promoted from staging)
-- **Status:** [ ] proposed
+- **Status:** [ ] deferred — search strategy is a judgment call, not a checkable predicate. No hook surface.
 
 ### [2026-03-19] TOKEN_WASTE: Two parallel research agents (Explore + claude-code-guide) returned overlapping SKILL.md format documentation. One agent would have sufficed.
 - **Session:** meta ?
@@ -1173,7 +1173,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** For best-practices questions, dispatch one claude-code-guide + one Explore with distinct scopes, not two agents on same topic.
 - **Root cause:** TBD
 - **Recurrences:** 2 (auto-promoted from staging)
-- **Status:** [ ] proposed
+- **Status:** [ ] deferred — scope overlap between concurrent agents is a judgment call. Existing subagent delegation rules cover the general case.
 
 ### [2026-03-19] TOKEN WASTE: Search burst hook triggered — 8 parallel external search calls in single turn
 - **Session:** genomics f462a5fb
@@ -1200,7 +1200,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** Check pgrep -c claude before dispatching parallel agents in resource-constrained sessions
 - **Root cause:** TBD
 - **Recurrences:** 2 (auto-promoted from staging)
-- **Status:** [ ] proposed
+- **Status:** [ ] deferred — environment-specific (memory pressure hook already catches this). Agents adapted to direct search when blocked. System working as designed.
 
 ### [2026-03-20] TOKEN_WASTE: Large Exa result files (157K-759K chars) mostly noise from broad queries. Consumer marketing and LinkedIn posts dominated.
 - **Session:** genomics ?
