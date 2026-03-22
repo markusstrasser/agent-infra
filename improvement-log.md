@@ -1038,7 +1038,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [rule] Existing guidance covers this. Pattern recurs despite rules — may warrant a PreToolUse hook that detects duplicate Read calls on same path within a session. However, the git log variants are harder to catch (different flags, same intent). | rule: "Save `find`/`ls` output to `/tmp/` file when you need multiple passes over the same listing."
 - **Root cause:** TBD
 - **Recurrences:** 4 (auto-promoted from staging)
-- **Status:** [ ] proposed
+- **Status:** [ ] deferred — existing guidance covers this. Git log deduplication hook would be too noisy (different flags, same intent). Not a checkable predicate at instruction level.
 
 ### [2026-03-17] TOKEN WASTE: 123 inline Python scripts via Bash instead of writing .py files
 - **Session:** intel f32653c6
@@ -1047,7 +1047,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** CLAUDE.md change: "Multi-line Python (>10 lines) must go in a .py file, not inline Bash. Exception: one-shot queries." | CLAUDE.md change: "Prefer `ast` module or direct import over regex when parsing Python source code."
 - **Root cause:** TBD
 - **Recurrences:** 4 (auto-promoted from staging)
-- **Status:** [ ] proposed
+- **Status:** [x] covered — both rules already exist in global CLAUDE.md `<environment>` section. 4 recurrences are from pre-rule sessions (2026-02-28).
 
 ### [2026-03-17] WRONG SUBAGENT TYPE: 5 verification agents launched as general-purpose instead of researcher
 - **Session:** selve fa8f6961
@@ -1182,7 +1182,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** rule: Batch searches into ≤4 parallel calls per turn. Use sequential staging when probing >4 distinct topics to stay within burst hook threshold.
 - **Root cause:** agent-capability
 - **Recurrences:** 2 (auto-promoted from staging)
-- **Status:** [ ] proposed
+- **Status:** [x] covered — search-burst hook already deployed and firing. The hook IS the enforcement. Adding a rule on top of a working hook is redundant.
 
 ### [2026-03-20] SEARCH_WASTE: Research memo proposed 4 fixes, 3 already existed in codebase (PRS CIs, gnomAD penetrance, non-coding AF filter). Should have grepped before writing recommendations.
 - **Session:** genomics ?
