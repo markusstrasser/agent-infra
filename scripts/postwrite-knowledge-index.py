@@ -258,6 +258,11 @@ def main():
     except OSError:
         sys.exit(0)
 
+    # Check frontmatter — warn if missing on eligible files
+    fm_warning = ""
+    if not re.match(r"^---\n.*?\n---", text, re.DOTALL):
+        fm_warning = "WARNING: No YAML frontmatter. Add --- block with title, date, status fields."
+
     # Check if index exists and hash matches (no update needed)
     existing_match = re.search(rf"{re.escape(KI_START)}(.*?){re.escape(KI_END)}", text, re.DOTALL)
     if existing_match:
@@ -294,6 +299,9 @@ def main():
     summary = f"Knowledge index updated: {len(sources)} sources, {len(crossrefs)} cross-refs"
     if fm.get("title") or fm.get("ticker"):
         summary += f" [{fm.get('title') or fm.get('ticker')}]"
+
+    if fm_warning:
+        summary = fm_warning + "\n" + summary
 
     output = {"additionalContext": summary}
     print(json.dumps(output))
