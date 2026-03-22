@@ -188,8 +188,8 @@ The second pass reinforces the core finding but adds important nuance:
 [33] arxiv 2410.04197 — CS4 creativity under constraints
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:35Z
-hash: 35fc535e9391
+generated: 2026-03-22T00:13:51Z
+hash: d04d4b4e4e72
 
 
 end-knowledge-index -->

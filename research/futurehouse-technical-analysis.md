@@ -78,8 +78,8 @@ CLOSED: Production infrastructure (MongoDB/PostgreSQL/Redis/K8s), Crow/Falcon/Ow
 - Exa company_research — Company data
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:36Z
-hash: 3226d8d68fcf
+generated: 2026-03-22T00:13:51Z
+hash: 007c4320b0f1
 
 
 end-knowledge-index -->

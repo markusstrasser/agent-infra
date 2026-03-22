@@ -391,8 +391,8 @@ These aren't cross-project extractions but were found during the scan:
 | Projects consuming shared lib | — | intel, meta, genomics, research-mcp |
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:35Z
-hash: 54c5e8336ff0
+generated: 2026-03-22T00:13:51Z
+hash: a4883f6c68d7
 
 
 end-knowledge-index -->

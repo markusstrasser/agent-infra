@@ -160,8 +160,8 @@ Papers discovered but not saved to corpus (S2 MCP was erroring). Key references:
 | STORM arXiv:2402.14207 | WebFetch | Architecture confirmed from abstract |
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:34Z
-hash: 36e3369a781e
+generated: 2026-03-22T00:13:50Z
+hash: c24946aac725
 
 table_claims: 8
 

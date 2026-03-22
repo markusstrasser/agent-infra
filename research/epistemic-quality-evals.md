@@ -197,8 +197,8 @@ Agents in production loops accumulate variance: small inconsistencies in earlier
 | 15 | Performative CoT is difficulty-dependent: 80% tokens theater on easy tasks, genuine on hard | Attention probes on DeepSeek-R1 671B, GPT-OSS 120B | HIGH | arXiv:2603.05488 | PREPRINT — see cot-faithfulness-evidence.md |
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:36Z
-hash: 8a34f6d4405d
+generated: 2026-03-22T00:13:51Z
+hash: e8b13eea6710
 
 table_claims: 15
 

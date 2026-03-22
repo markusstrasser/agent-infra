@@ -234,8 +234,8 @@ Multi-agent framework for memory construction, retrieval, and in-situ self-evolu
 **Frontier verdict: UNCERTAIN** — architecture-dependent findings on reasoning models. Black-box monitoring may transfer, but needs empirical probe on Opus 4.6.
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:35Z
-hash: 647cfbd03a22
+generated: 2026-03-22T00:13:50Z
+hash: 3f679d1cf558
 
 cross_refs: research/causal-reasoning-evidence.md
 

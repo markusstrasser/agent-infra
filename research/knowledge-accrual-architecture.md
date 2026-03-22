@@ -505,8 +505,8 @@ Both models independently identified: (1) double-entry analogy overgeneralized, 
 - **GPT:** Effort estimates may be 2x optimistic (GPT flagged this itself). Impact percentages are directional, not precise.
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:36Z
-hash: 8e494a2652db
+generated: 2026-03-22T00:13:52Z
+hash: f1bc5e1de288
 
 sources: 6
   TRAINING-DATA: , cross-checked against Exa search for post-mortem discussions

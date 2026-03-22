@@ -236,8 +236,8 @@ PRMs work for math (clear intermediate verification). They work for coding (test
 | Scaling agent systems multi-agent Google DeepMind | S2 | 10 — arXiv:2512.08296 found |
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:36Z
-hash: 869caba0c08b
+generated: 2026-03-22T00:13:51Z
+hash: 60fd0436d95d
 
 sources: 1
   TRAINING-DATA: — canonical, widely replicated

@@ -410,8 +410,8 @@ mcp = FastMCP("server", providers=[FileSystemProvider(Path("./tools/"))])
 ```
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:36Z
-hash: c9b18ea36e00
+generated: 2026-03-22T00:13:51Z
+hash: 4e0e317e85bd
 
 
 end-knowledge-index -->

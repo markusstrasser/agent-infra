@@ -129,8 +129,8 @@ If time is limited, read in this order:
 - [SOURCE: arXiv:2601.16206]
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:34Z
-hash: 7002425a2b36
+generated: 2026-03-22T00:13:50Z
+hash: c1e0123bafa9
 
 sources: 1
   D3: /C3

@@ -77,8 +77,8 @@ Anthropic's guide includes a sample prompt: "As you approach your token budget l
 | User tournament-mcp | Primary empirical data | No position bias in thinking models |
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:37Z
-hash: e0eef1a08e3b
+generated: 2026-03-22T00:13:52Z
+hash: e2d250a9812e
 
 sources: 1
   INFERENCE: from architecture + user empirical data

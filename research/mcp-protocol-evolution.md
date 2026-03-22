@@ -89,8 +89,8 @@ Additional finding: **Tool descriptions are "the most consequential artifact an 
 - SEP numbering from spec repo issues/PRs
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:36Z
-hash: 65a259a07dd1
+generated: 2026-03-22T00:13:52Z
+hash: aaa6b2fc8794
 
 
 end-knowledge-index -->

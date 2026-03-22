@@ -116,8 +116,8 @@ Based on architectural reasoning + Anthropic's official distinction (not researc
 - Elnashar et al. 2025 "Prompt engineering for structured data" (S2: 4d2ff83ff3373c8480144d55684cd34a6376974f)
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:37Z
-hash: 46800b5d9cd3
+generated: 2026-03-22T00:13:53Z
+hash: ba6b8f6e78f4
 
 
 end-knowledge-index -->

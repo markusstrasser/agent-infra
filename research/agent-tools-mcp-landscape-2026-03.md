@@ -173,8 +173,8 @@ What tools and MCP servers exist beyond our current search-heavy stack that prov
 | "Exa alternatives" comparison article | WebFetch | 6 tools analyzed | Bright Data, Tavily, Firecrawl, Sonar, Linkup, Exa |
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:34Z
-hash: f71297783c1c
+generated: 2026-03-22T00:13:50Z
+hash: 926e4232e7b1
 
 table_claims: 10
 

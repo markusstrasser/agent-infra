@@ -56,8 +56,8 @@ Key findings:
 **Combined implication for our orchestrator:** Add lightweight orchestration-level verification (VMAO), consider deliberation-before-tool-use (DOVA), but don't over-invest given both papers have small-N evaluations and our pipelines are 3-7 steps (VMAO shows most value at 8-12+ steps).
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:36Z
-hash: 430c1a393de1
+generated: 2026-03-22T00:13:52Z
+hash: 5859946ef574
 
 
 end-knowledge-index -->

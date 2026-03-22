@@ -435,8 +435,8 @@ The pattern: **if rigor is optional, it will not happen**. The agent system anal
 - **Type theory**: Searched "formal verification empirical claims." Found Yang et al. CACM 2026 listing this as an open challenge. Confirms the gap between formal proof and empirical evidence is unresolved.
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:36Z
-hash: efc0f1f15bf3
+generated: 2026-03-22T00:13:52Z
+hash: e4f200e1bd08
 
 sources: 3
   INFERENCE: from architectural analysis

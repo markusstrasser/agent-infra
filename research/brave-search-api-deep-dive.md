@@ -404,8 +404,8 @@ We currently use Exa as primary search (MCP configured in all projects).
 | 17 | SimpleQA 94.1% verification | verify_claim | Confirmed by 6+ sources |
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:35Z
-hash: 5036e9393892
+generated: 2026-03-22T00:13:50Z
+hash: e35c6016662d
 
 cross_refs: research/agentic-search-api-comparison.md
 sources: 2

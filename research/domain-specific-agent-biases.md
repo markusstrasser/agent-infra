@@ -167,8 +167,8 @@ Searched for counterevidence to each domain's core claim:
 - Nature 2025 — "Training on narrow tasks leads to broad misalignment" (DOI: 10.1038/s41586-025-09937-5) — found via Exa
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:35Z
-hash: 994ba6f053c5
+generated: 2026-03-22T00:13:51Z
+hash: 287bc44ae294
 
 sources: 13
   INFERENCE: from LLM autoregressive architecture + behavioral finance literature

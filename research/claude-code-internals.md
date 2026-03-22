@@ -437,8 +437,8 @@ Added 2026-03-03. 40+ releases in 8 weeks. Major themes below.
 10. **Security by default.** Disable project MCP servers, blocklist credentials, log mutations, prefer `trash` over `rm`.
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:35Z
-hash: 9af1960ed247
+generated: 2026-03-22T00:13:50Z
+hash: a67122aca400
 
 
 end-knowledge-index -->

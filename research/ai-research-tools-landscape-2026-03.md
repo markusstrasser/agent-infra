@@ -163,8 +163,8 @@ Perspective-Guided Question Asking. Simulates multi-agent conversations where wr
 - elicit.com/pricing [A1]
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:34Z
-hash: 3b1956d00210
+generated: 2026-03-22T00:13:50Z
+hash: 2f4aed3ef99a
 
 
 end-knowledge-index -->

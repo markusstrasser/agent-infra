@@ -214,8 +214,8 @@ Company/partner sources:
 - Consensus help center: https://help.consensus.app/en/articles/12641232-scholar-agent
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:35Z
-hash: 725ca6365b01
+generated: 2026-03-22T00:13:51Z
+hash: efde38432af4
 
 table_claims: 10
 

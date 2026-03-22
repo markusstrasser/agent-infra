@@ -48,8 +48,8 @@ Formula: `sum(p_i * ln(p_i / q_i))` with 0.001 floor. Useful for detecting ancho
 (KL near zero despite material evidence) or overreaction (KL disproportionate to evidence strength).
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:35Z
-hash: ce6125e5e872
+generated: 2026-03-22T00:13:51Z
+hash: 77f1079a35cb
 
 
 end-knowledge-index -->

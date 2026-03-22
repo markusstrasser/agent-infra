@@ -329,8 +329,8 @@ The tokenized Brier score is a proper scoring rule, which means it automatically
 | RL for Better Verbalized Confidence in Long-Form Generation | fe13d660dbad9cd52d753f360424745e11d4844f | Saved |
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:35Z
-hash: b53185c48100
+generated: 2026-03-22T00:13:50Z
+hash: ad2058286624
 
 sources: 6
   INFERENCE: from absence of search results across S2, Exa, and WebSearch

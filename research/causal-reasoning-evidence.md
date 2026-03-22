@@ -174,8 +174,8 @@ These findings are [F3] from secondary summary. Before citing specific numbers i
 *Frontier model caveat applies throughout: thinking models (Opus 4.6, o3, Gemini extended thinking) may have different characteristics from standard instruction-tuned models cited in these papers. RL training on verifiable outcomes is the likely differentiator.*
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:35Z
-hash: 1d4236008bd8
+generated: 2026-03-22T00:13:50Z
+hash: 7e9d047a8338
 
 table_claims: 6
 

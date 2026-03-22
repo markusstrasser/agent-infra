@@ -27,8 +27,8 @@ All prior findings hold. Additionally:
 Our files+git approach remains defensible. The Anatomy paper shows that fancier memory architectures "often underperform their theoretical promise" due to evaluation gaps and cost overhead. Files+git has the advantage of **auditability** (git log), **simplicity**, and **zero infrastructure**. The A-MEM Zettelkasten pattern (structured connections between memories) is conceptually interesting but adds complexity we don't need yet.
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:34Z
-hash: 0fa3264ebfba
+generated: 2026-03-22T00:13:50Z
+hash: 2b99a8570f4a
 
 
 end-knowledge-index -->

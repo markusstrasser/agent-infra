@@ -179,8 +179,8 @@ Key design decisions in the spike:
 - https://www.anthropic.com/news/claude-sonnet-4-6
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:34Z
-hash: 5ce647d74c42
+generated: 2026-03-22T00:13:50Z
+hash: a13e71737ba3
 
 table_claims: 40
 

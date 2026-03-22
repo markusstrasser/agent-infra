@@ -330,8 +330,8 @@ Unlike most LLM tasks, causal conclusions are often formally verifiable. This me
 - Socratic-PRMBench (pre-existing): `09933d534525fb65672a10d83d7e26dcdc12523b`
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:37Z
-hash: 0cb38476d5a6
+generated: 2026-03-22T00:13:52Z
+hash: 9909180feeb6
 
 table_claims: 19
 

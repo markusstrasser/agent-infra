@@ -444,8 +444,8 @@ We currently use Exa as primary search. Based on this analysis:
 | 21 | Perplexity Sonar latency | Exa | Artificial Analysis data |
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:34Z
-hash: 200dca18a934
+generated: 2026-03-22T00:13:50Z
+hash: ef8f384891a7
 
 sources: 9
   C2: — trade press, plausible but single-source

@@ -560,8 +560,8 @@ Web sources consulted:
 - ECMWF verification: Ben-Bouallègue 2025, arxiv.org/pdf/2602.00622
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:36Z
-hash: bf159340b21b
+generated: 2026-03-22T00:13:52Z
+hash: 440f1197d2e2
 
 sources: 10
   TRAINING-DATA: , verified against SEP entry

@@ -227,8 +227,8 @@ No papers saved — this was primarily a software engineering evaluation using G
 | WebFetch | PyPI metadata | 1 | HIGH — version timeline, first release March 2024 |
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:35Z
-hash: f27df10f8aa6
+generated: 2026-03-22T00:13:51Z
+hash: 4195a447c2ff
 
 sources: 2
   D2: company claims, not independently verified

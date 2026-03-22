@@ -169,8 +169,8 @@ This directly confirms our context-rot research: every tool definition is a toke
 - [SOURCE: reddit.com/r/ClaudeCode/comments/1rnxm5c] 63% setup removal → dramatic improvement (2026-03-13)
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:35Z
-hash: a14f0c22b568
+generated: 2026-03-22T00:13:51Z
+hash: a4dc7887ed6d
 
 
 end-knowledge-index -->

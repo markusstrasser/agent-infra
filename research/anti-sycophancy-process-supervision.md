@@ -400,8 +400,8 @@ All three together = maximum sycophancy risk. This is the pattern we most common
 - Celebi et al. calibration loss: NOT directly verified. Cited via Emergent Mind aggregator. Tagged [NOT-FETCHED].
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:35Z
-hash: 05d0c079f6f0
+generated: 2026-03-22T00:13:50Z
+hash: 48097c81d45c
 
 sources: 4
   INFERENCE: from arXiv:2505.23840 + philosophy memo

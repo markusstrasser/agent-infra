@@ -76,8 +76,8 @@ All already accessible through our existing MCP tools. Documented in `agentic-se
 - Our benchmark: `benchmarks/comparison-report.md` (EBF3 query, §10 of search comparison)
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:36Z
-hash: aaf8edcd835f
+generated: 2026-03-22T00:13:51Z
+hash: 81a1b99c65f1
 
 
 end-knowledge-index -->

@@ -77,8 +77,8 @@ Operational observations:
 **NEW — cost-normalized retry with cheaper models.** MiniMax M2.5 at SWE-bench parity opens the strategy: cheap model + many retries + majority vote may beat expensive model + single shot. Not yet tested systematically, but the economics shifted.
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:34Z
-hash: 0f13469584e3
+generated: 2026-03-22T00:13:50Z
+hash: 7bc02ceb257d
 
 
 end-knowledge-index -->

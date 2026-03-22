@@ -19,8 +19,8 @@
 - MCP-Radar results for current frontier models not published yet.
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:37Z
-hash: 7ffafd7946b1
+generated: 2026-03-22T00:13:53Z
+hash: 54e774a0760d
 
 
 end-knowledge-index -->

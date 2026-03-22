@@ -141,8 +141,8 @@ Bundle skills + agents + hooks + MCP + LSP. Distribution mechanism, not capabili
 Key finding: consolidation opportunity remains ~10-15% as assessed in original. Governance layer gap unchanged. New native features are useful but complementary, not replacing meta's orchestration or self-improvement loop.
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:35Z
-hash: a6b0520c1794
+generated: 2026-03-22T00:13:50Z
+hash: 27e40313d68e
 
 
 end-knowledge-index -->

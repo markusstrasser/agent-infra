@@ -237,8 +237,8 @@ Evidence that informed design decisions. Full details in `epistemic-v2-synthesis
 | Citation fabrication | needs re-baseline | `trace-faithfulness.py` | 3-way verdict: verified/unknown/fabricated |
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:36Z
-hash: 8ddad8a9f1de
+generated: 2026-03-22T00:13:51Z
+hash: 27a16fcff498
 
 table_claims: 8
 

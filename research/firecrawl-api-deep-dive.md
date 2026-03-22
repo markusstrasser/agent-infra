@@ -494,8 +494,8 @@ The rate limits page table columns appear to be: Plan | /scrape | /crawl | /extr
 | 16 | verify_claim | "AGPL-3.0 license" | Confirmed |
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:36Z
-hash: 3aceb3da692d
+generated: 2026-03-22T00:13:51Z
+hash: 8ce417b21dc9
 
 sources: 1
   INFERENCE: Based on direct comparison of official documentation for both services. Not benchmarked head-to-head.

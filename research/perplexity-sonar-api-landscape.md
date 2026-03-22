@@ -379,8 +379,8 @@ All data retrieved from primary sources (docs.perplexity.ai, GitHub, VentureBeat
 | 18 | Exa web_search | "Perplexity Agent API developer gotchas" | SEO slop + general multi-agent article (low signal) |
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:37Z
-hash: d27eb6cf2e94
+generated: 2026-03-22T00:13:52Z
+hash: ef692a859c88
 
 sources: 1
   INFERENCE: Pricing comparison derived from retrieved Perplexity docs + known Exa pricing from our MCP configuration. Exa pricing may have changed — verify if making cost decisions.

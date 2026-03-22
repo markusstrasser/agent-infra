@@ -524,8 +524,8 @@ Phase 4 (Month 3+): SPC baselines mature
 | Schneier & Raghavan (IEEE S&P, 2025) | schneier.com | Blog post read |
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:36Z
-hash: bf10d49e03a4
+generated: 2026-03-22T00:13:51Z
+hash: a4edd8ff8cbc
 
 sources: 2
   INFERENCE: for power calculation

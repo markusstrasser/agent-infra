@@ -107,8 +107,8 @@ Already exists in some form: `ctags`, `tree-sitter` CLI, `pyright --outputjson`.
 - [SOURCE: arXiv:2602.14878] MCP tool descriptions study
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:35Z
-hash: 5374059f9d32
+generated: 2026-03-22T00:13:51Z
+hash: 891bf72cd596
 
 
 end-knowledge-index -->

@@ -216,8 +216,8 @@ This maps almost exactly to what our brainstorming skill already does. No eviden
 - arXiv:2502.09858 (POPPER) — downloaded, key sections read
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:37Z
-hash: f2b7c50d9a37
+generated: 2026-03-22T00:13:53Z
+hash: 897940c16d28
 
 sources: 2
   INFERENCE: from ACH theory + POPPER

@@ -51,8 +51,8 @@ Two in production (MoBA in Kimi, DSA in DeepSeek). NSA won best paper at ACL 202
 **LoongRL's result** (16K trains solve 128K) suggests that the model's ability to **search its own context strategically** may matter more than raw window size. This supports our JIT retrieval pattern over our dump-everything-in-context anti-pattern.
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:35Z
-hash: d525eff92127
+generated: 2026-03-22T00:13:51Z
+hash: 4d5faa7a6efe
 
 
 end-knowledge-index -->

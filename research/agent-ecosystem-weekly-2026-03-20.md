@@ -182,8 +182,8 @@ Cognition (Devin) acquired Windsurf, triggering a search for alternatives. Users
 9. "open source AI agent news March 14-20 2026" (Brave)
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:34Z
-hash: 90e63ade87b8
+generated: 2026-03-22T00:13:50Z
+hash: 366b42a3d112
 
 table_claims: 14
 

@@ -33,8 +33,8 @@ This run store is local-first and domain-first. OTel / OpenInference is treated 
 - Do not force span hierarchy into the canonical schema until the agentic semantic conventions stabilize.
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:37Z
-hash: fb0eac7dfa71
+generated: 2026-03-22T00:13:52Z
+hash: bb1af7af2cb5
 
 
 end-knowledge-index -->

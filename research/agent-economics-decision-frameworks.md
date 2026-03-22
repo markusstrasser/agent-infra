@@ -151,8 +151,8 @@ For items that are borderline: let the agent try building it. If it works and is
 | Armin Ronacher developer poll | via Osmani | 2026-01 | [5000 developer survey] |
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:34Z
-hash: 45b69b95e86b
+generated: 2026-03-22T00:13:50Z
+hash: 4421d7ed7417
 
 sources: 1
   INFERENCE: from claims 1-7

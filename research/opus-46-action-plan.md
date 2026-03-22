@@ -93,8 +93,8 @@ After implementing actions 2-3, check in 2 weeks via session-analyst:
 If no measurable improvement after 30 days, revert per meta constitution rules of adjudication.
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:36Z
-hash: 36ec5f042f73
+generated: 2026-03-22T00:13:52Z
+hash: b834e89bda20
 
 cross_refs: research/opus-46-prompt-structure.md
 

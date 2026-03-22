@@ -332,8 +332,8 @@ But there are also reasons output position might NOT matter much:
 9. **Cross-session memory verification:** Periodic independent agent session that reads MEMORY.md and fact-checks claims against current sources. Like an internal audit.
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:37Z
-hash: 71a78c0055b0
+generated: 2026-03-22T00:13:53Z
+hash: 4f3e744de35c
 
 sources: 1
   INFERENCE: , based on convergent evidence

@@ -474,8 +474,8 @@ Both models reviewed independently, then synthesis merged surviving insights.
 - **Corrected**: PermissionRequest hook can auto-allow or auto-deny but NOT modify tool input. It's a gate, not a transform.
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:35Z
-hash: d5b0506846a4
+generated: 2026-03-22T00:13:50Z
+hash: c0b5b54a327d
 
 cross_refs: research/anthropic-platform-sweep-2026-03-02.md, research/orchestrator-design.md
 

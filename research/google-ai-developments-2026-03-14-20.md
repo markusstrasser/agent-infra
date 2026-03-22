@@ -184,8 +184,8 @@ For reference, since this is the current flagship:
 5. **Tool combination API** -- the ability to combine Google Search grounding with custom function calling in one API call could improve research agent quality. Worth a probe.
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:36Z
-hash: 070815c5a92c
+generated: 2026-03-22T00:13:51Z
+hash: 1a74c4ef3437
 
 table_claims: 10
 

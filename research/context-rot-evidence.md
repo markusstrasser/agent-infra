@@ -46,8 +46,8 @@ Context rot remains universal and architectural. **Every token in CLAUDE.md, rul
 **NEW technique worth adopting:** Recitation strategy (prompt model to repeat relevant evidence before answering). Training-free, model-agnostic, +4% on RULER. Low cost, easy to add to skills.
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:35Z
-hash: b64caece5218
+generated: 2026-03-22T00:13:51Z
+hash: 77d70ff4a520
 
 
 end-knowledge-index -->

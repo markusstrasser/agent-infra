@@ -289,8 +289,8 @@ The open standard (originally from Anthropic) is now adopted by ~30 products inc
 4. Publishing our unique skills (researcher, epistemics, causal-dag, brainstorm, entity-management) to the standard ecosystem is technically trivial — they're already in the right format
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:37Z
-hash: aa6d4beb1151
+generated: 2026-03-22T00:13:53Z
+hash: 70f131397668
 
 cross_refs: research/cognee-technical-assessment.md
 

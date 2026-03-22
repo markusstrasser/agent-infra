@@ -91,8 +91,8 @@ Analyzed 35 research sessions across intel/selve. Dominant patterns:
 - **No save-without-read:** minimal evidence of this anti-pattern
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:34Z
-hash: 0c556dc0af9f
+generated: 2026-03-22T00:13:50Z
+hash: dcc4d97684f2
 
 sources: 2
   INFERENCE: from pattern across DGM, SICA, AlphaEvolve

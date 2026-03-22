@@ -46,8 +46,8 @@ Our prior conclusion holds but gets sharper: **the thinking trace is an imperfec
 - The token cost of reasoning models is significantly inflatable — 80% of MMLU tokens are theater. Budget-conscious orchestration should consider task difficulty when selecting reasoning vs non-reasoning models
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:35Z
-hash: 1eb1e15a3592
+generated: 2026-03-22T00:13:51Z
+hash: 6344e1f6cfc8
 
 
 end-knowledge-index -->

@@ -316,8 +316,8 @@ Searched for evidence against the core proposal (domain-branched epistemic layer
 - Dang et al. 2026 — Temperature as Meta-Policy (arXiv:2602.11779) [S2]
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:35Z
-hash: 9f043e035ee5
+generated: 2026-03-22T00:13:51Z
+hash: 5bc553807a6a
 
 table_claims: 3
 

@@ -139,8 +139,8 @@
 | Long-horizon agent benchmarks | WebSearch/Exa | ~15 | SWE-EVO, FeatureBench (existing), APEX-Agents (existing) |
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:34Z
-hash: e61a9d16928d
+generated: 2026-03-22T00:13:50Z
+hash: 42d81ed57486
 
 table_claims: 9
 

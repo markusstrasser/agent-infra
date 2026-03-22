@@ -295,8 +295,8 @@ Key findings from that memo not duplicated here:
 - **Verification gap is in DAG CONSTRUCTION, not DAG ANALYSIS** — formal tools verify adjustment sets with certainty; no tool verifies "is this DAG correct?"
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:37Z
-hash: 01e7bc9d5fb3
+generated: 2026-03-22T00:13:52Z
+hash: 10ddce31eec9
 
 table_claims: 16
 

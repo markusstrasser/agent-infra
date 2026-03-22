@@ -43,8 +43,8 @@
 **What we should monitor:** LLM-42's deterministic inference. If position-consistent reductions become standard, outcome consistency could improve at the infrastructure level. This doesn't eliminate the need for retry/voting but could reduce its cost.
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:34Z
-hash: 0e5245dbc86d
+generated: 2026-03-22T00:13:50Z
+hash: 0864c3270e6e
 
 
 end-knowledge-index -->

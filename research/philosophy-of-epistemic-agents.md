@@ -143,8 +143,8 @@ The human's job shifts from "doing the analysis" to "calibrating the analyst." T
 | Safe > Ethical > Compliant > Helpful | Falsifiable > Plausible > Consensus > Narrative |
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:37Z
-hash: 17f8835bfd33
+generated: 2026-03-22T00:13:52Z
+hash: 3df8e4562916
 
 table_claims: 6
 

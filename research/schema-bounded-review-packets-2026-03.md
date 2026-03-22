@@ -205,8 +205,8 @@ That is the smallest change that matches the recent agent-scaffolding papers wit
 - [SOURCE: structured-vs-prose-for-agents.md]
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:37Z
-hash: 17bffb091194
+generated: 2026-03-22T00:13:52Z
+hash: c24a975f0823
 
 
 end-knowledge-index -->

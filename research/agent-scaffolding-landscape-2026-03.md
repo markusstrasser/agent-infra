@@ -193,8 +193,8 @@ Our files+git approach is simpler and functionally equivalent. The field is buil
 Adversarial co-evolution: Code LLM vs Test LLM with opposing RL objectives. Eliminates self-collusion (single-model self-play produces trivial tests). "Mistake Book" experience replay. Relevant to autoresearch's evolutionary approach — separating mutator and evaluator is architecturally sound. `[SOURCE: arXiv:2603.15611, abstract only]`
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:34Z
-hash: 29d4d3f49c3f
+generated: 2026-03-22T00:13:50Z
+hash: d03bbe70e8b9
 
 sources: 1
   INFERENCE: from abstracts only

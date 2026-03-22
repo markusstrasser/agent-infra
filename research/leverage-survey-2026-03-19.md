@@ -215,8 +215,8 @@ The scientific computing angle is mostly a dead end at our data density — we h
 The bioinformatics crossover that actually works is methodological, not tooling: FastQC's adaptive-threshold pattern and `difflib.SequenceMatcher` for sequence alignment on tool-call streams. Extract the pattern, not the tool.
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:36Z
-hash: 14bbe1ca2654
+generated: 2026-03-22T00:13:52Z
+hash: 6d70cd1d18ce
 
 
 end-knowledge-index -->

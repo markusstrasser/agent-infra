@@ -51,8 +51,8 @@ Key learning: **CLI/Bash > MCP for generic scripts on repos this size.** MCP add
 - A new MCP pattern emerges that agents prefer over Bash for repo navigation
 
 <!-- knowledge-index
-generated: 2026-03-21T23:52:37Z
-hash: 134b2304ffe7
+generated: 2026-03-22T00:13:53Z
+hash: 10c8762a3438
 
 status: accepted
 cross_refs: research/context-bundling-solutions.md
