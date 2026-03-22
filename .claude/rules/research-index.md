@@ -1,3 +1,9 @@
+---
+paths:
+  - "research/**"
+  - "decisions/**"
+---
+
 # Research Index (`research/`)
 
 Consult these files before acting on the topic. Scan this table when starting a task.

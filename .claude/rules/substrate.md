@@ -1,3 +1,8 @@
+---
+paths:
+  - "substrate/**"
+---
+
 # Knowledge Substrate
 
 Per-project SQLite DB at `~/.claude/knowledge/{project}.db`. The substrate MCP is configured in intel, selve, and genomics (not meta).

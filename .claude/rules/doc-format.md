@@ -1,3 +1,9 @@
+---
+paths:
+  - "research/**"
+  - "decisions/**"
+---
+
 # Document Format Requirements
 
 All knowledge-eligible files (research memos, decisions, entity files) must have YAML frontmatter.
