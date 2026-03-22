@@ -8,9 +8,6 @@ Usage:
     # Narrow review (agent provides context file)
     model-review.py --context plan.md --topic "hook architecture" "Review for gaps"
 
-    # Broad review (script picks .context/ views)
-    model-review.py --broad src --topic "auth flow" "Review the auth flow"
-
     # With project dir for constitution discovery
     model-review.py --context plan.md --topic "data wiring" --project ~/Projects/intel "Review this plan"
 """
@@ -126,7 +123,6 @@ def build_context(
     review_dir: Path,
     project_dir: Path,
     context_file: Path | None,
-    broad_view: str | None,
 ) -> tuple[Path, Path]:
     """Assemble gemini-context.md and gpt-context.md with constitutional preamble."""
     gemini_ctx = review_dir / "gemini-context.md"
@@ -148,21 +144,6 @@ def build_context(
         content = context_file.read_text()
         gemini_ctx.write_text(preamble + content)
         gpt_ctx.write_text(preamble + content)
-    elif broad_view:
-        # Broad review — use .context/ views
-        ctx_dir = project_dir / ".context"
-        gemini_view = ctx_dir / f"{broad_view}.xml"
-        gpt_view = ctx_dir / "signatures.xml"
-
-        if not gemini_view.exists():
-            print(f"error: {gemini_view} not found", file=sys.stderr)
-            sys.exit(1)
-        if not gpt_view.exists():
-            gpt_view = gemini_view  # Fall back to same view
-
-        gemini_ctx.write_text(preamble + gemini_view.read_text())
-        gpt_ctx.write_text(preamble + gpt_view.read_text())
-
     size_g = gemini_ctx.stat().st_size
     size_p = gpt_ctx.stat().st_size
     if size_g > 15_000 or size_p > 15_000:
@@ -283,7 +264,6 @@ def main() -> int:
     )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--context", type=Path, help="Context file for narrow review")
-    group.add_argument("--broad", metavar="VIEW", help=".context/ view name for broad review (src, full, infra, docs)")
     parser.add_argument("--topic", required=True, help="Short topic label (used in output dir name)")
     parser.add_argument("--project", type=Path, help="Project dir for constitution discovery (default: cwd)")
     parser.add_argument("question", nargs="?", default="Review this for logical gaps, missed edge cases, and constitutional alignment.",
@@ -308,7 +288,7 @@ def main() -> int:
 
     # Assemble context
     gemini_ctx, gpt_ctx = build_context(
-        review_dir, project_dir, args.context, args.broad
+        review_dir, project_dir, args.context
     )
 
     constitution, _ = find_constitution(project_dir)
