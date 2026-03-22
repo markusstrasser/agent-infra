@@ -51,6 +51,7 @@ DAILY_COST_CAP = 25.0
 STALL_TIMEOUT_SECONDS = 900  # Kill claude tasks silent for >15 min
 MAX_CONCURRENT_PER_PIPELINE = 3  # Max running tasks from same pipeline
 MAX_VERIFY_RETRIES = 1  # Max retries per step on verification failure
+MAX_SAME_ERROR_RETRIES = 2  # After N same-class failures, mark needs_human
 
 # Default effort by pipeline when not specified in step definition.
 DEFAULT_EFFORT = {
@@ -186,6 +187,43 @@ def cascade_failure(db, task_id):
             (row["id"],),
         )
         cascade_failure(db, row["id"])
+
+
+def classify_error(error_str: str) -> str:
+    """Classify error into broad class for OOD detection."""
+    e = error_str.lower()
+    if "credit" in e or "balance" in e or "billing" in e:
+        return "billing"
+    if "cancel scope" in e or "processtransport" in e or "taskgroup" in e:
+        return "sdk_bug"
+    if "timeout" in e or "stall" in e:
+        return "timeout"
+    if "no_result_message" in e:
+        return "no_result"
+    if "exit_1" in e or "exit_2" in e:
+        return "process_error"
+    return "unknown"
+
+
+def check_ood_escalation(db, task) -> bool:
+    """If this pipeline+step has failed N times with the same error class, escalate.
+
+    Returns True if the task should be marked needs_human instead of retried.
+    """
+    pipeline = task["pipeline"] or ""
+    step = task["step"] or ""
+    recent_errors = db.execute("""
+        SELECT error FROM tasks
+        WHERE pipeline=? AND step=? AND status='failed'
+        ORDER BY finished_at DESC LIMIT ?
+    """, (pipeline, step, MAX_SAME_ERROR_RETRIES)).fetchall()
+
+    if len(recent_errors) < MAX_SAME_ERROR_RETRIES:
+        return False
+
+    classes = [classify_error(r["error"] or "") for r in recent_errors]
+    # If all recent failures are the same class, this is OOD — escalate
+    return len(set(classes)) == 1
 
 
 def check_daily_cost(db):
@@ -820,12 +858,30 @@ def execute_one(db):
         if hasattr(e, 'exceptions'):
             nested = "; ".join(f"{type(sub).__name__}: {sub}" for sub in e.exceptions)
             error_msg = f"{error_msg} [{nested}]"
-        db.execute(
-            "UPDATE tasks SET status='failed', finished_at=datetime('now','localtime'), error=? WHERE id=?",
-            (error_msg[:500], task_id),
-        )
-        cascade_failure(db, task_id)
-        log_event({"action": "error", "task_id": task_id, "error": error_msg[:500]})
+
+        # OOD detection: if same error class keeps recurring, escalate to human
+        error_class = classify_error(error_msg)
+        if error_class == "billing":
+            # Billing exhaustion is terminal, not retriable
+            db.execute(
+                "UPDATE tasks SET status='skipped', finished_at=datetime('now','localtime'), error=? WHERE id=?",
+                (f"billing_exhausted: {error_msg[:400]}", task_id),
+            )
+            log_event({"action": "billing_skip", "task_id": task_id})
+        elif check_ood_escalation(db, task):
+            db.execute(
+                "UPDATE tasks SET status='needs_human', finished_at=datetime('now','localtime'), error=? WHERE id=?",
+                (f"ood_escalation({error_class}): {error_msg[:400]}", task_id),
+            )
+            cascade_failure(db, task_id)
+            log_event({"action": "needs_human", "task_id": task_id, "error_class": error_class})
+        else:
+            db.execute(
+                "UPDATE tasks SET status='failed', finished_at=datetime('now','localtime'), error=? WHERE id=?",
+                (error_msg[:500], task_id),
+            )
+            cascade_failure(db, task_id)
+            log_event({"action": "error", "task_id": task_id, "error": error_msg[:500]})
 
     db.commit()
     return True
@@ -861,6 +917,18 @@ def cmd_submit(args):
     project = args.project or template.get("project", "meta")
     pause_before = template.get("pause_before", [])
     steps = template.get("steps", [])
+
+    # Validate all placeholders are resolved before queuing
+    import re
+    for step_def in steps:
+        for field in ("prompt", "command"):
+            text = step_def.get(field, "")
+            unresolved = re.findall(r'\{(\w+)\}', text)
+            for placeholder in unresolved:
+                if placeholder not in variables:
+                    print(f"Error: unresolved placeholder '{{{placeholder}}}' in step '{step_def['step']}' field '{field}'", file=sys.stderr)
+                    print(f"  Available variables: {list(variables.keys())}", file=sys.stderr)
+                    sys.exit(1)
 
     db = get_db()
     prev_task_id = None
@@ -1012,7 +1080,7 @@ def cmd_status(args):
         cost_err = ""
         if t["status"] in ("done", "done_with_denials"):
             cost_err = f"${t['cost_usd'] or 0:.2f}"
-        elif t["status"] == "failed":
+        elif t["status"] in ("failed", "needs_human"):
             cost_err = (t["error"] or "")[:22]
         elif t["status"] == "blocked":
             cost_err = "dep failed"
@@ -1516,7 +1584,7 @@ def cmd_retry(args):
     if not task:
         print(f"Task #{args.task_id} not found", file=sys.stderr)
         return
-    if task["status"] not in ("failed", "blocked", "skipped"):
+    if task["status"] not in ("failed", "blocked", "skipped", "needs_human"):
         print(f"Task #{args.task_id} is {task['status']}, not retryable", file=sys.stderr)
         return
 
