@@ -1,0 +1,22 @@
+{
+  "name": "gotcha-audit",
+  "schedule": "0 9 1 * *",
+  "project": "meta",
+  "steps": [
+    {
+      "step": "inventory",
+      "type": "script",
+      "command": "echo '# Gotcha Inventory' > artifacts/gotcha-review/inventory-$(date +%Y-%m-%d).md && for dir in ~/.claude/rules ~/Projects/meta/.claude/rules ~/Projects/intel/.claude/rules ~/Projects/selve/.claude/rules ~/Projects/genomics/.claude/rules; do [ -d \"$dir\" ] && echo \"## $dir\" >> artifacts/gotcha-review/inventory-$(date +%Y-%m-%d).md && grep -l -i 'gotcha\\|workaround\\|bug\\|don.t\\|never\\|blocked\\|broken\\|CAPTCHA\\|fails\\|doesn.t work' \"$dir\"/*.md 2>/dev/null >> artifacts/gotcha-review/inventory-$(date +%Y-%m-%d).md; done && for dir in ~/.claude/projects/*/memory; do [ -d \"$dir\" ] && echo \"## $dir\" >> artifacts/gotcha-review/inventory-$(date +%Y-%m-%d).md && grep -rl 'gotcha\\|workaround\\|bug\\|broken' \"$dir\"/*.md 2>/dev/null >> artifacts/gotcha-review/inventory-$(date +%Y-%m-%d).md; done && mkdir -p artifacts/gotcha-review",
+      "cwd": "~/Projects/meta"
+    },
+    {
+      "step": "classify",
+      "prompt": "Read artifacts/gotcha-review/inventory-$(date +%Y-%m-%d).md for the list of files containing gotcha-type content. For each file, read it and classify each gotcha/workaround item as: still-relevant | stale (vendor changed, version outdated) | graduated-to-hook (already enforced by a hook) | should-be-code-fix (fix in the code, not a rule). For vendor-specific items, check current versions. Output a structured report to artifacts/gotcha-review/audit-$(date +%Y-%m-%d).md with columns: File | Item | Classification | Recommended Action | Confidence. Flag items with 0 fires in 60 days as archive candidates.",
+      "max_turns": 15,
+      "max_budget_usd": 1.5,
+      "model": "sonnet",
+      "effort": "medium",
+      "cwd": "~/Projects/meta"
+    }
+  ]
+}

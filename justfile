@@ -107,6 +107,13 @@ orch-tick:
 orch-log *args:
     uv run python3 scripts/orchestrator.py log {{args}}
 
+# ── Governance ──────────────────────────────────────────────────
+
+# Audit gotchas across all projects (monthly via pipeline, or ad-hoc)
+[group('governance')]
+gotcha-audit:
+    uv run python3 scripts/orchestrator.py submit gotcha-audit
+
 # ── Plans ────────────────────────────────────────────────────────
 
 # Show plan status across all projects
