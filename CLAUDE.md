@@ -191,11 +191,7 @@ orchestrator.py summary                              # daily markdown
 - Per-pipeline concurrency: max 3 running tasks from same pipeline
 - `verify: true` on pipeline steps uses Haiku to check **completeness** (were all sub-questions addressed?), NOT **truth** (are claims factually correct?). Orthogonal to AgentDrift-style corruption — verification of factual correctness requires cross-source checks, not step-level completion scoring.
 
-**Scheduling:** Loaded launchd agents in `~/Library/LaunchAgents/`:
-- `com.meta.orchestrator.plist` — tick every 15 min (runs queued tasks)
-- `com.meta.session-retro-daily.plist` — submits session-retro at 22:00
-- `com.meta.hook-roi-daily.plist` — generates hook ROI report at 22:30
-- `com.meta.propose-work-daily.plist` — morning brief at 05:00 (not yet loaded)
+**Scheduling:** Launchd agents removed (intentional). Orchestrator ticks only when manually invoked (`orchestrator.py tick`) or from within a session. Pending tasks require manual ticking.
 
 **Scheduler:** `tick()` auto-submits scheduled pipelines via `scheduled_runs` table (unique constraint prevents duplicates). Pipelines with `"schedule"` in their JSON template are auto-submitted when their cron hour elapses.
 
