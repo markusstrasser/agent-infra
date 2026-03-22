@@ -34,6 +34,9 @@ This repo plans and tracks improvements to agent infrastructure across projects 
 - `scripts/session-shape.py` — zero-LLM-cost structural anomaly detector. Pre-filter: flags sessions with unusual tool patterns for deep analysis
 - `scripts/finding-triage.py` — RETIRED. Inline improvement-log approach (2+ recurrence noted in text) replaced the separate DB. Script kept as archive.
 - `scripts/fix-verify.py` — closed-loop fix validation. Runs detection queries against recent sessions to verify fixes are holding. Commands: `run`, `tag`, `report`
+- `.claude/agents/session-analyst.md` — persistent agent (memory: project). Remembers reported findings across sessions. Supports `--corrections` mode for extracting user correction patterns from transcripts.
+- `.claude/agents/researcher.md` — persistent agent (memory: user). Remembers sources checked and search strategies across sessions.
+- `pipelines/gotcha-audit.json` — monthly automated rule lifecycle audit. Classifies gotchas as still-relevant/stale/graduated/code-fix. Run via `just gotcha-audit`.
 
 **Epistemic Measurement** (run via `uv run python3 scripts/<name>.py --days N`):
 - `scripts/supervision-kpi.py` — SLI (supervision load), AIR (alert intervention rate), AGR (autonomy gain trend). Constitutional north-star metric.
@@ -277,10 +280,11 @@ Lightweight decision records for concept-level pivots — when an approach is ch
 | Genomics pipeline | `~/Projects/genomics/` | Extracted from selve 2026-02-28 |
 
 ## Hook Design Principles
-- Deterministic > LLM-judged. Guard concrete invariants, not vibes.
-- Fail open unless blocking is clearly worth it.
+- **Four hook types:** `command` (bash), `prompt` (Haiku LLM call ~$0.001), `agent` (multi-turn subagent), `http` (POST). Use deterministic command hooks for concrete invariants; use prompt hooks for semantic judgment calls (unsourced claims, unverified completion).
+- Fail open unless blocking is clearly worth it. All prompt hooks wrapped with 3-10s timeout.
 - `trap 'exit 0' ERR` swallows `exit 2` from Python — disable trap before critical Python calls.
 - Stop hooks must check `stop_hook_active` to prevent infinite loops.
+- **Deployed prompt hooks:** Agent dispatch turn-budget validation (PreToolUse), Stop verification of claimed work (Stop), unsourced claim detection (PostToolUse Write|Edit).
 - Hook inventory and event types documented in MEMORY.md `hooks.md`.
 </reference_data>
 
