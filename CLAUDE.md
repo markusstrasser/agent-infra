@@ -258,6 +258,7 @@ Lightweight decision records for concept-level pivots — when an approach is ch
 - **`--max-tokens` forces API fallback** — CLI caps at 8K, no override. Brainstorm still uses API.
 - **codex-cli disabled** — 34K token overhead per call (MCP descriptions), no bare mode. GPT goes direct to API.
 - **Exit 6 = billing exhausted** (permanent). Exit 3 = rate limit (transient). Don't retry exit 6.
+- **Gemini 503/rate-limit = session-level fallback.** After first 503 from Gemini, switch to GPT or Flash for remaining calls in the session. Don't retry the same Gemini model — 4 confirmed incidents of 4-6 wasted retries before fallback.
 - **llmx is editable-installed** (`uv tool install --editable`). Source changes in `~/Projects/llmx/` propagate instantly.
 - **No `--fallback`** — model should be the model. Diagnose failures, don't mask with model downgrade.
 

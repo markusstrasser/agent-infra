@@ -1029,7 +1029,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [skill] Update model-review skill: after first llmx failure, check stderr/exit code before retrying same model. If 503 or rate limit, fall back immediately to Flash. Add diagnostic step: `wc -c` on output file + check stderr. | [rule] "After first Gemini 503, switch to GPT-5.2 for all remaining calls in the session. Don't retry Gemini until next session." [architectural] `llm_check.py` should cache 503 status and auto-failover for the session duration.
 - **Root cause:** TBD
 - **Recurrences:** 4 (auto-promoted from staging)
-- **Status:** [ ] proposed
+- **Status:** [x] partial — session-level 503 fallback rule added to meta CLAUDE.md llmx section (2026-03-21). Architectural fix (model-review.py auto-failover) still needed.
 
 ### [2026-03-17] TOKEN WASTE: Redundant git log commands — 5 overlapping attempts to get daily commits
 - **Session:** meta 52ac8991
