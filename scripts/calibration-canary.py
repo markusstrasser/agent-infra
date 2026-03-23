@@ -35,11 +35,14 @@ def load_canaries(limit: int | None = None) -> list[dict]:
 # llmx backend — shells out to llmx CLI for multi-vendor model support
 # ---------------------------------------------------------------------------
 
-def llmx_chat(model: str, prompt: str, max_tokens: int = 80) -> str | None:
+def llmx_chat(model: str, prompt: str, max_tokens: int = 80, temperature: float | None = None) -> str | None:
     """Call llmx CLI and return text output. Returns None on failure."""
     import subprocess
     cmd = ["llmx", "chat", "-m", model, "--stream", "--timeout", "30",
-           "--max-tokens", str(max_tokens), prompt]
+           "--max-tokens", str(max_tokens)]
+    if temperature is not None:
+        cmd.extend(["-t", str(temperature)])
+    cmd.append(prompt)
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
         if result.returncode != 0:
@@ -142,7 +145,7 @@ def ask_canary_sampling(client, *, model: str, canary: dict, temperature: float,
     prompt = _build_sampling_prompt(canary)
 
     if backend == "llmx":
-        text = llmx_chat(model, prompt, max_tokens=30)
+        text = llmx_chat(model, prompt, max_tokens=30, temperature=temperature)
         if text is None:
             return None
         return _parse_bool_answer(text)
@@ -164,7 +167,7 @@ def ask_canary(client, *, model: str, canary: dict, temperature: float, backend:
     prompt = _build_verbalized_prompt(canary)
 
     if backend == "llmx":
-        text = llmx_chat(model, prompt, max_tokens=80)
+        text = llmx_chat(model, prompt, max_tokens=80, temperature=temperature)
         if text is None:
             return None
         return parse_response(text)
