@@ -31,6 +31,25 @@ def load_canaries(limit: int | None = None) -> list[dict]:
     return canaries
 
 
+# ---------------------------------------------------------------------------
+# llmx backend — shells out to llmx CLI for multi-vendor model support
+# ---------------------------------------------------------------------------
+
+def llmx_chat(model: str, prompt: str, max_tokens: int = 80) -> str | None:
+    """Call llmx CLI and return text output. Returns None on failure."""
+    import subprocess
+    cmd = ["llmx", "chat", "-m", model, "--stream", "--timeout", "30",
+           "--max-tokens", str(max_tokens), prompt]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        if result.returncode != 0:
+            return None
+        # llmx prints info lines to stderr, content to stdout
+        return result.stdout.strip()
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return None
+
+
 def parse_response(text: str) -> tuple[bool, float] | None:
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if not match:
@@ -50,12 +69,10 @@ def parse_response(text: str) -> tuple[bool, float] | None:
     return answer, confidence
 
 
-def ask_canary_sampling(client, *, model: str, canary: dict, temperature: float) -> bool | None:
-    """Ask a canary in sampling mode — boolean answer only, no confidence."""
+def _build_sampling_prompt(canary: dict) -> str:
     has_context = canary.get("requires_context", True) and "context" in canary
-
     if has_context:
-        prompt = f"""Answer the boolean question from the provided context.
+        return f"""Answer the boolean question from the provided context.
 
 Return ONLY JSON: {{"answer": true}} or {{"answer": false}}
 
@@ -63,26 +80,50 @@ Context:
 {canary["context"]}
 
 Question:
-{canary["question"]}
-"""
+{canary["question"]}"""
     else:
-        prompt = f"""Answer this boolean question using your knowledge.
+        return f"""Answer this boolean question using your knowledge.
 
 Return ONLY JSON: {{"answer": true}} or {{"answer": false}}
 
 Question:
-{canary["question"]}
-"""
-    response = client.messages.create(
-        model=model,
-        max_tokens=30,
-        temperature=temperature,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    text = "".join(
-        block.text for block in response.content
-        if getattr(block, "type", None) == "text"
-    )
+{canary["question"]}"""
+
+
+def _build_verbalized_prompt(canary: dict) -> str:
+    has_context = canary.get("requires_context", True) and "context" in canary
+    if has_context:
+        return f"""Answer the boolean question from the provided context.
+
+Return ONLY JSON in this exact shape:
+{{"answer": true, "confidence": 73}}
+
+Rules:
+- `answer` must be boolean
+- `confidence` must be 0-100 and means the probability your answer is correct
+- do not add explanation
+
+Context:
+{canary["context"]}
+
+Question:
+{canary["question"]}"""
+    else:
+        return f"""Answer this boolean question using your knowledge.
+
+Return ONLY JSON in this exact shape:
+{{"answer": true, "confidence": 73}}
+
+Rules:
+- `answer` must be boolean
+- `confidence` must be 0-100 and means the probability your answer is correct
+- do not add explanation
+
+Question:
+{canary["question"]}"""
+
+
+def _parse_bool_answer(text: str) -> bool | None:
     match = re.search(r"\{.*\}", text.strip(), re.DOTALL)
     if not match:
         return None
@@ -96,40 +137,38 @@ Question:
     return answer
 
 
-def ask_canary(client, *, model: str, canary: dict, temperature: float) -> tuple[bool, float] | None:
-    has_context = canary.get("requires_context", True) and "context" in canary
+def ask_canary_sampling(client, *, model: str, canary: dict, temperature: float, backend: str = "anthropic") -> bool | None:
+    """Ask a canary in sampling mode — boolean answer only, no confidence."""
+    prompt = _build_sampling_prompt(canary)
 
-    if has_context:
-        prompt = f"""Answer the boolean question from the provided context.
+    if backend == "llmx":
+        text = llmx_chat(model, prompt, max_tokens=30)
+        if text is None:
+            return None
+        return _parse_bool_answer(text)
 
-Return ONLY JSON in this exact shape:
-{{"answer": true, "confidence": 73}}
+    response = client.messages.create(
+        model=model,
+        max_tokens=30,
+        temperature=temperature,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    text = "".join(
+        block.text for block in response.content
+        if getattr(block, "type", None) == "text"
+    )
+    return _parse_bool_answer(text)
 
-Rules:
-- `answer` must be boolean
-- `confidence` must be 0-100 and means the probability your answer is correct
-- do not add explanation
 
-Context:
-{canary["context"]}
+def ask_canary(client, *, model: str, canary: dict, temperature: float, backend: str = "anthropic") -> tuple[bool, float] | None:
+    prompt = _build_verbalized_prompt(canary)
 
-Question:
-{canary["question"]}
-"""
-    else:
-        prompt = f"""Answer this boolean question using your knowledge.
+    if backend == "llmx":
+        text = llmx_chat(model, prompt, max_tokens=80)
+        if text is None:
+            return None
+        return parse_response(text)
 
-Return ONLY JSON in this exact shape:
-{{"answer": true, "confidence": 73}}
-
-Rules:
-- `answer` must be boolean
-- `confidence` must be 0-100 and means the probability your answer is correct
-- do not add explanation
-
-Question:
-{canary["question"]}
-"""
     response = client.messages.create(
         model=model,
         max_tokens=80,
@@ -143,13 +182,17 @@ Question:
     return parse_response(text.strip())
 
 
-def run_sampling_mode(client, canaries: list[dict], *, model: str, runs: int, temperature: float) -> list[dict]:
+def run_sampling_mode(client, canaries: list[dict], *, model: str, runs: int, temperature: float, backend: str = "anthropic") -> list[dict]:
     """Run canaries in sampling mode — boolean answer only, measure frequency."""
     samples = []
+    total_calls = len(canaries) * runs
+    call_num = 0
     for canary in canaries:
         for run_idx in range(runs):
+            call_num += 1
+            print(f"\r  Sampling: {call_num}/{total_calls}", end="", flush=True)
             answer = ask_canary_sampling(
-                client, model=model, canary=canary, temperature=temperature,
+                client, model=model, canary=canary, temperature=temperature, backend=backend,
             )
             if answer is None:
                 continue
@@ -322,6 +365,7 @@ def main() -> None:
     mode = "verbalized"
     difficulty_filter = "all"
     do_analysis = False
+    backend = "anthropic"
 
     args = sys.argv[1:]
     if "--runs" in args:
@@ -350,11 +394,27 @@ def main() -> None:
             difficulty_filter = args[idx + 1]
     if "--analysis" in args:
         do_analysis = True
+    if "--backend" in args:
+        idx = args.index("--backend")
+        if idx + 1 < len(args):
+            backend = args[idx + 1]
 
-    try:
-        import anthropic
-    except ImportError:
-        print("ERROR: anthropic package required. Install with: uv add anthropic")
+    client = None
+    if backend == "anthropic":
+        try:
+            import anthropic
+        except ImportError:
+            print("ERROR: anthropic package required. Install with: uv add anthropic")
+            sys.exit(1)
+    elif backend == "llmx":
+        # llmx temperature is model-controlled (reasoning models lock to 1.0)
+        # No SDK needed — shells out to llmx CLI
+        import shutil
+        if not shutil.which("llmx"):
+            print("ERROR: llmx CLI not found. Install with: uv tool install llmx")
+            sys.exit(1)
+    else:
+        print(f"ERROR: unknown backend '{backend}'. Use 'anthropic' or 'llmx'.")
         sys.exit(1)
 
     canaries = load_canaries(limit=None)
@@ -366,14 +426,18 @@ def main() -> None:
     if limit is not None:
         canaries = canaries[:limit]
 
-    print(f"  Canaries: {len(canaries)} (difficulty={difficulty_filter})")
+    print(f"  Canaries: {len(canaries)} (difficulty={difficulty_filter}, backend={backend}, model={model})")
 
-    client = anthropic.Anthropic()
+    if backend == "anthropic":
+        import anthropic
+        client = anthropic.Anthropic()
+    else:
+        client = None  # llmx backend doesn't need a client object
 
     # Sampling mode
     if mode == "sampling":
         sampling_runs = max(runs, 10)  # Sampling needs more runs
-        samples = run_sampling_mode(client, canaries, model=model, runs=sampling_runs, temperature=1.0)
+        samples = run_sampling_mode(client, canaries, model=model, runs=sampling_runs, temperature=1.0, backend=backend)
         print_sampling_results(samples, sampling_runs, canaries=canaries)
         return
 
@@ -384,14 +448,19 @@ def main() -> None:
 
     # Verbalized mode (default)
     samples = []
+    total_calls = len(canaries) * runs
+    call_num = 0
 
     for canary in canaries:
         for run_idx in range(runs):
+            call_num += 1
+            print(f"\r  Verbalized: {call_num}/{total_calls}", end="", flush=True)
             parsed = ask_canary(
                 client,
                 model=model,
                 canary=canary,
                 temperature=temperature,
+                backend=backend,
             )
             if parsed is None:
                 continue
@@ -503,7 +572,7 @@ def main() -> None:
         print("Running SAMPLING mode...")
         sampling_runs = max(runs, 10)
         sampling_samples = run_sampling_mode(
-            client, canaries, model=model, runs=sampling_runs, temperature=1.0,
+            client, canaries, model=model, runs=sampling_runs, temperature=1.0, backend=backend,
         )
         print_sampling_results(sampling_samples, sampling_runs, canaries=canaries)
 
