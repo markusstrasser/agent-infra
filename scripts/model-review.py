@@ -208,7 +208,7 @@ def dispatch(
         "llmx", "chat",
         "-m", GPT_MODEL,
         "--stream", "--reasoning-effort", "high",
-        "--timeout", "600", "--max-tokens", "16384",
+        "--timeout", "600", "--max-tokens", "32768",
         "-f", str(gpt_ctx),
         "-o", str(gpt_out),
         gpt_prompt,
