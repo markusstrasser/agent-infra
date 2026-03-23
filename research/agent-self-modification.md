@@ -16,13 +16,16 @@ date: 2026-03-21
 | 1 | Self-modifying coding agents show 17-53% improvement on SWE-bench | DGM: 20%→50%, SICA: 17-53% | HIGH | [arXiv:2505.22954], [arXiv:2504.15228] | VERIFIED (read DGM in full) |
 | 2 | Open-ended exploration (archive) beats hill-climbing (always build on best) | DGM: archive + exploration outperforms both baselines | HIGH | [arXiv:2505.22954] Fig 2 | VERIFIED |
 | 3 | Self-improvements transfer across models, benchmarks, and languages | DGM: Claude 3.5→3.7 Sonnet, o3-mini; SWE-bench↔Polyglot; Python→C++ | HIGH | [arXiv:2505.22954] Fig 4 | VERIFIED |
-| 4 | Self-improvement only works where outcomes are verifiable (code, math, games) | Three independent teams (Gödel Agent, SICA, AlphaEvolve) all converge on code | MEDIUM | [Medium/Alcaraz, paywalled] | INFERENCE from pattern |
+| 4 | Self-improvement only works where outcomes are verifiable (code, math, games) — **REVISED: weaker than stated** | Three independent teams converge on code, BUT DGM-H works on paper review (subjective) and robotics (simulation). Meta-level improvements (memory, tracking) transfer without domain-specific eval. Verifiability constrains task-level, not meta-level improvements. | MEDIUM→LOW | [Medium/Alcaraz, paywalled]; revised by [arXiv:2603.19461] Section 5.2 | INFERENCE, revised 2026-03-23 |
 | 5 | Context adaptation suffers "brevity bias" and "context collapse" over iterations | ACE framework identifies and mitigates both failure modes | MEDIUM | [arXiv:2510.04618] | VERIFIED (abstract + summary) |
 | 6 | Reward hacking in self-improvement can cause emergent misalignment | Anthropic production RL: reward hacking → alignment faking, sabotage attempts | HIGH | [Anthropic 2025, assets.anthropic.com] | VERIFIED (abstract) |
 | 7 | Storing successful trajectories as exemplars improves performance 73%→93% | Self-Generated In-Context Examples on ALFWorld | MEDIUM | [NeurIPS 2025, via Nakajima synthesis] | UNVERIFIED (secondary source) |
 | 8 | Multi-agent trace repair yields +2.86-21.88% | SiriuS framework | MEDIUM | [NeurIPS 2025, via Nakajima synthesis] | UNVERIFIED (secondary source) |
 | 9 | SI-Agent generates human-readable system instructions via feedback loop | Three-agent architecture (Instructor, Follower, Feedback) | LOW | [arXiv:2507.03223] | VERIFIED (abstract only, no numbers) |
 | 10 | OpenAI cookbook self-evolving agents: prompt-only modification via LLM-as-judge + metaprompt | Three strategies: manual, LLM-as-judge, fully automated loop | MEDIUM | [OpenAI Cookbook, Nov 2025] | VERIFIED |
+| 11 | Metacognitive self-modification enables domain-general transfer beyond coding | DGM-H: meta-improvements from paper review + robotics transfer to Olympiad math (imp@50=0.63, p<0.05) | HIGH | [arXiv:2603.19461] Section 5.2, Fig 3 | VERIFIED (read full paper) |
+| 12 | Meta-level improvements (persistent memory, performance tracking) are domain-general | DGM-H autonomously develops PerformanceTracker and persistent memory; these transfer across domains | HIGH | [arXiv:2603.19461] Section 5.2, pp.11-12 | VERIFIED (read full paper) |
+| 13 | Self-improvements compound across runs (starting from transferred agent → faster progress) | DGM-H + transfer achieves higher median + tighter CIs than DGM-H from scratch on IMO-GradingBench | MEDIUM | [arXiv:2603.19461] Section 5.3, Fig 4 | VERIFIED (p>0.05 but directional, saturation effects noted) |
 
 ### Key Findings
 
@@ -87,6 +90,11 @@ date: 2026-03-21
 - Darwin Gödel Machine (arXiv:2505.22954) — saved, PDF fetched, read pp.1-8
 - A Self-Improving Coding Agent / SICA (arXiv:2504.15228) — saved
 - Live-SWE-agent (arXiv:2511.13646) — saved
+- HyperAgents / DGM-H (arXiv:2603.19461) — saved 2026-03-23, full paper read (20 pages)
+
+## Revisions
+
+- **2026-03-23:** Added Claims 11-13 from HyperAgents (DGM-H, arXiv:2603.19461, Zhang et al.). DGM-H extends DGM with metacognitive self-modification — the meta-agent can modify itself, not just the task agent. Key new evidence: (1) meta-improvements transfer across domains (paper review + robotics → math grading), (2) persistent memory and performance tracking emerge autonomously as domain-general improvements, (3) self-improvements compound across runs. Revised Claim 4 downward — verifiability constraint applies to task-level improvements but NOT to meta-level improvements (memory, tracking), which transfer without domain-specific evaluation. Implemented: signal schema, failed-experiment archival, measurement→gap-selection wiring (see meta commits 7baa273, ebd5b70, c0e99d1, b7290b0).
 
 ### Session Anti-Pattern Audit (from parallel analysis)
 Analyzed 35 research sessions across intel/selve. Dominant patterns:
@@ -96,13 +104,13 @@ Analyzed 35 research sessions across intel/selve. Dominant patterns:
 - **No save-without-read:** minimal evidence of this anti-pattern
 
 <!-- knowledge-index
-generated: 2026-03-22T00:15:42Z
-hash: 921a594eb2a2
+generated: 2026-03-23T20:44:33Z
+hash: 6e57ac5e089d
 
 title: Agent Self Modification
 sources: 2
   INFERENCE: from pattern across DGM, SICA, AlphaEvolve
   INFERENCE: from ACE findings applied to our architecture
-table_claims: 10
+table_claims: 13
 
 end-knowledge-index -->
