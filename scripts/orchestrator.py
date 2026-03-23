@@ -337,8 +337,9 @@ async def _run_claude_task_async(task, cwd, progress_file=None):
     saved_claudecode = os.environ.pop("CLAUDECODE", None)
     os.environ["CLAUDE_AGENT_SDK_SKIP_VERSION_CHECK"] = "1"  # belt-and-suspenders
     # Filter out vars that trigger nested-session detection in the bundled claude binary
+    # Strip ANTHROPIC_API_KEY so claude CLI uses subscription, not API credits
     env = {k: v for k, v in os.environ.items()
-           if k not in ("CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT")}
+           if k not in ("CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "ANTHROPIC_API_KEY")}
     if effort == "low":
         env["CLAUDE_CODE_SUBAGENT_MODEL"] = "haiku"
     if effort:
@@ -453,6 +454,7 @@ def _run_claude_subprocess(task, cwd, progress_file=None):
     env = {**os.environ}
     env.pop("CLAUDECODE", None)
     env.pop("CLAUDE_CODE_ENTRYPOINT", None)
+    env.pop("ANTHROPIC_API_KEY", None)  # use subscription, not API credits
     if effort:
         env["CLAUDE_CODE_EFFORT_LEVEL"] = effort
 
