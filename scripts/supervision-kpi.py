@@ -349,17 +349,25 @@ def main():
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--today", action="store_true", help="Process today's sessions")
     group.add_argument("--days", type=int, help="Process sessions from last N days")
+    group.add_argument("--since", type=str, help="Process sessions since YYYY-MM-DD")
 
     parser.add_argument("--project", "-p", help="Filter by project name")
     parser.add_argument("--output", "-o", help="Write JSONL output to this file")
+    parser.add_argument("--compare", type=str, metavar="YYYY-MM-DD",
+                        help="Compare current window against period ending at this date (same window length)")
 
     args = parser.parse_args()
 
     # Resolve sessions
     if args.today:
         since = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        window_days = 1
+    elif args.since:
+        since = datetime.strptime(args.since, "%Y-%m-%d")
+        window_days = (datetime.now() - since).days
     else:
         since = datetime.now() - timedelta(days=args.days)
+        window_days = args.days
 
     sessions = find_sessions_by_date(since)
 
@@ -402,6 +410,40 @@ def main():
 
     # Summary to stderr
     _print_summary(results, args)
+
+    # Comparison mode: measure delta against a prior period
+    if args.compare:
+        compare_end = datetime.strptime(args.compare, "%Y-%m-%d")
+        compare_start = compare_end - timedelta(days=window_days)
+        compare_sessions = find_sessions_by_date(compare_start)
+        # Filter to only sessions before compare_end
+        compare_sessions = [s for s in compare_sessions
+                           if s.stat().st_mtime < compare_end.timestamp()]
+        if args.project:
+            compare_sessions = [s for s in compare_sessions
+                               if extract_project_name(s.parent.name) == args.project]
+        compare_results = []
+        for path in compare_sessions:
+            try:
+                compare_results.append(extract_supervision(path))
+            except Exception:
+                pass
+        if compare_results:
+            curr_slis = [r["sli"] for r in results]
+            prev_slis = [r["sli"] for r in compare_results]
+            curr_mean = sum(curr_slis) / len(curr_slis)
+            prev_mean = sum(prev_slis) / len(prev_slis)
+            delta = curr_mean - prev_mean
+            print(file=sys.stderr)
+            print(f"=== COMPARISON vs {args.compare} ===", file=sys.stderr)
+            print(f"  Prior period: {len(compare_results)} sessions, mean SLI: {prev_mean:.1f}", file=sys.stderr)
+            print(f"  Current:      {len(results)} sessions, mean SLI: {curr_mean:.1f}", file=sys.stderr)
+            print(f"  Delta:        {delta:+.1f} SLI ({'improving' if delta < 0 else 'worsening'})", file=sys.stderr)
+            min_sessions = 20
+            if len(compare_results) < min_sessions or len(results) < min_sessions:
+                print(f"  WARNING: <{min_sessions} sessions in one period — estimate underpowered", file=sys.stderr)
+        else:
+            print(f"No comparison sessions found for period ending {args.compare}", file=sys.stderr)
 
 
 def _print_summary(results: list[dict], args) -> None:

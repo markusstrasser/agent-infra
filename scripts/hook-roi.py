@@ -6,8 +6,11 @@ Reads ~/.claude/hook-triggers.jsonl to show:
 - False positive candidates (blocks followed by immediate user override)
 - Triggers by project
 - Trend over time
+- Transfer effectiveness (--transfer): per-project hook success for cross-project deployment tracking
 
-Usage: uv run python3 scripts/hook-roi.py [--days N] [--verbose]
+Usage:
+    hook-roi.py [--days N] [--verbose]
+    hook-roi.py --transfer [--since YYYY-MM-DD] [--days N]
 """
 
 import json
@@ -43,9 +46,11 @@ def parse_ts(ts: str) -> datetime:
     return datetime.min
 
 
-def main():
-    days = 7
-    verbose = "--verbose" in sys.argv
+def main(days: int = 7, verbose: bool = False):
+    if days == 7 and "--days" in sys.argv:  # legacy CLI compat
+        pass
+    if "--verbose" in sys.argv:
+        verbose = True
     if "--days" in sys.argv:
         idx = sys.argv.index("--days")
         if idx + 1 < len(sys.argv):
@@ -175,5 +180,83 @@ def main():
     print()
 
 
+def transfer_report(triggers: list[dict], days: int, since: str | None = None) -> None:
+    """Cross-project transfer effectiveness: per-hook × per-project breakdown.
+
+    Shows which hooks deployed globally are effective across projects.
+    Flags low-volume projects (<20 sessions) as underpowered.
+    """
+    cutoff_dt = datetime.now() - timedelta(days=days)
+    if since:
+        cutoff_dt = max(cutoff_dt, datetime.strptime(since, "%Y-%m-%d"))
+    cutoff = cutoff_dt.isoformat()
+    recent = [t for t in triggers if t.get("ts", "") >= cutoff]
+
+    if not recent:
+        print("No triggers in the transfer window.")
+        return
+
+    # hook × project matrix
+    matrix: dict[str, dict[str, dict[str, int]]] = defaultdict(
+        lambda: defaultdict(lambda: defaultdict(int))
+    )
+    project_session_counts: dict[str, set] = defaultdict(set)
+
+    for t in recent:
+        hook = t.get("hook", "?")
+        proj = t.get("project", "?")
+        action = t.get("action", "?")
+        session = t.get("session_id", t.get("ts", "")[:16])
+        matrix[hook][proj][action] += 1
+        matrix[hook][proj]["total"] += 1
+        project_session_counts[proj].add(session)
+
+    min_sessions = 20
+    print(f"{'=' * 60}")
+    print(f"  Hook Transfer Report — since {cutoff[:10]}")
+    print(f"{'=' * 60}")
+    print()
+
+    for hook in sorted(matrix.keys()):
+        projects = matrix[hook]
+        total = sum(p["total"] for p in projects.values())
+        if total < 3:
+            continue
+        print(f"  {hook} ({total} total):")
+        for proj in sorted(projects.keys()):
+            counts = projects[proj]
+            n_sessions = len(project_session_counts.get(proj, set()))
+            underpowered = " [UNDERPOWERED]" if n_sessions < min_sessions else ""
+            blocks = counts.get("block", 0)
+            warns = counts.get("warn", 0)
+            t = counts["total"]
+            block_rate = blocks / t if t else 0
+            print(f"    {proj:<20} {t:>3} triggers ({blocks} block, {warns} warn, "
+                  f"block_rate={block_rate:.0%}){underpowered}")
+        print()
+
+    print("  Project session counts (for denominator check):")
+    for proj, sessions in sorted(project_session_counts.items(),
+                                  key=lambda x: -len(x[1])):
+        n = len(sessions)
+        flag = " < min" if n < min_sessions else ""
+        print(f"    {proj:<20} {n:>3} sessions{flag}")
+    print()
+
+
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser(description="Hook ROI telemetry")
+    parser.add_argument("--days", type=int, default=7)
+    parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--transfer", action="store_true",
+                        help="Show per-hook × per-project transfer report")
+    parser.add_argument("--since", type=str,
+                        help="Filter triggers since YYYY-MM-DD (with --transfer)")
+    args = parser.parse_args()
+
+    triggers = load_triggers(TRIGGERS_FILE)
+    if args.transfer:
+        transfer_report(triggers, args.days, args.since)
+    else:
+        main(args.days, args.verbose)
