@@ -2,12 +2,14 @@
 """Propose ranked work items from cross-project signals.
 
 Combines: git staleness, hook ROI highlights, unresolved improvement-log findings,
-doctor.py failures, daily cost, orchestrator queue, and last session-retro findings.
-Each proposal formatted as an orchestrator-submittable command.
+doctor.py failures, daily cost, orchestrator queue, session-retro findings,
+design-review patterns, MANUAL_COORDINATION patterns, and supervision-audit labels.
 
-Output: ~/.claude/morning-brief.md
+Output: ~/.claude/morning-brief.md (default), or JSON signals for research-cycle.
 
-Usage: uv run python3 scripts/propose-work.py [--days N] [--output PATH]
+Usage:
+    propose-work.py [--days N] [--output PATH]         # morning brief (markdown)
+    propose-work.py --json [--project P] [--days N]    # signal-schema JSON for research-cycle
 """
 
 import json
@@ -34,6 +36,8 @@ HOOK_ROI_DIR = Path(__file__).resolve().parent.parent / "artifacts" / "hook-roi"
 DESIGN_REVIEW_DIR = Path(__file__).resolve().parent.parent / "artifacts" / "design-review"
 DEFAULT_OUTPUT = CLAUDE_DIR / "morning-brief.md"
 
+PATTERNS_JSONL = Path(__file__).resolve().parent.parent / "artifacts" / "design-review" / "patterns.jsonl"
+SUPERVISION_AUDIT_DIR = Path(__file__).resolve().parent.parent / "artifacts" / "supervision-audit"
 STALE_DAYS = 3  # flag projects with no commits in this many days
 
 log = logging.getLogger("propose-work")
@@ -492,11 +496,152 @@ def design_review_proposals(days: int = 7) -> list[dict]:
     return results
 
 
+def steering_patterns() -> list[dict]:
+    """Read untracked MANUAL_COORDINATION patterns from patterns.jsonl."""
+    if not PATTERNS_JSONL.exists():
+        return []
+    results = []
+    try:
+        for line in PATTERNS_JSONL.read_text().splitlines():
+            if not line.strip():
+                continue
+            try:
+                p = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if p.get("status") not in (None, "untracked"):
+                continue
+            if p.get("type") == "MANUAL_COORDINATION":
+                results.append({
+                    "name": p.get("name", "unknown"),
+                    "frequency": p.get("frequency", 0),
+                    "projects": p.get("projects", []),
+                    "sessions": len(p.get("sessions", [])),
+                })
+    except OSError:
+        pass
+    return sorted(results, key=lambda x: -x["frequency"])
+
+
+def supervision_audit_summary() -> dict:
+    """Read most recent supervision-audit raw.json for steering signal counts."""
+    if not SUPERVISION_AUDIT_DIR.exists():
+        return {}
+    files = sorted(SUPERVISION_AUDIT_DIR.glob("raw.json"), reverse=True)
+    if not files:
+        return {}
+    try:
+        data = json.loads(files[0].read_text())
+        counts = {}
+        for entry in data if isinstance(data, list) else data.get("messages", []):
+            cat = entry.get("category", "UNKNOWN")
+            counts[cat] = counts.get(cat, 0) + 1
+        return counts
+    except (json.JSONDecodeError, OSError, KeyError):
+        return {}
+
+
+def emit_json_signals(data: dict, proposals: list[dict],
+                      project_filter: str | None = None) -> list[dict]:
+    """Convert collected data into signal-schema JSON for research-cycle."""
+    signals = []
+
+    # Quality/reliability signals from proposals
+    for p in proposals:
+        sig = {
+            "source": {
+                "health": "calibration-canary",
+                "orchestrator": "orchestrator-queue",
+                "staleness": "git-staleness",
+                "improvement-log": "improvement-log",
+                "hook-roi": "fix-verify",
+            }.get(p["category"], p["category"]),
+            "severity": {1: "high", 2: "high", 3: "medium"}.get(p["priority"], "low"),
+            "confidence": 0.8,
+            "recency_days": p.get("metadata", {}).get("age_days", 1),
+            "scope": p.get("metadata", {}).get("project", "global"),
+            "steering_impact": False,
+            "category": "reliability" if p["category"] == "health" else "quality",
+            "description": p["title"],
+            "evidence_ref": f"propose-work:{p['category']}",
+            "recurrence": 1,
+        }
+        signals.append(sig)
+
+    # Steering signals from MANUAL_COORDINATION patterns
+    for sp in data.get("steering_patterns", []):
+        proj_str = ", ".join(sp["projects"]) if sp["projects"] else "global"
+        signals.append({
+            "source": "design-review-patterns",
+            "severity": "high" if sp["frequency"] >= 10 else "medium",
+            "confidence": 0.9,
+            "recency_days": 1,
+            "scope": proj_str,
+            "steering_impact": True,
+            "category": "steering",
+            "description": f"MANUAL_COORDINATION: {sp['name']} ({sp['frequency']}× across {sp['sessions']} sessions)",
+            "evidence_ref": f"patterns.jsonl:{sp['name']}",
+            "recurrence": sp["frequency"],
+        })
+
+    # Steering signals from supervision-audit
+    audit = data.get("supervision_audit", {})
+    for cat, count in audit.items():
+        if cat in ("CORRECTION", "BOILERPLATE", "RUBBER_STAMP", "RE_ORIENT"):
+            signals.append({
+                "source": "supervision-audit",
+                "severity": "high" if count >= 10 else "medium" if count >= 5 else "low",
+                "confidence": 0.7,
+                "recency_days": 1,
+                "scope": "global",
+                "steering_impact": True,
+                "category": "steering",
+                "description": f"supervision-audit: {count} {cat} interventions",
+                "evidence_ref": "supervision-audit:raw.json",
+                "recurrence": count,
+            })
+
+    # Design-review recurring patterns (non-MANUAL_COORDINATION)
+    for dp in data.get("design_review_proposals", []):
+        if dp["type"] != "MANUAL_COORDINATION":
+            signals.append({
+                "source": "design-review-patterns",
+                "severity": "medium" if dp["count"] >= 5 else "low",
+                "confidence": 0.8,
+                "recency_days": 3,
+                "scope": dp["projects"],
+                "steering_impact": False,
+                "category": "quality",
+                "description": f"{dp['type']}: {dp['name']} ({dp['count']}×)",
+                "evidence_ref": f"patterns.jsonl:{dp['name']}",
+                "recurrence": dp["count"],
+            })
+
+    # Filter by project if requested
+    if project_filter:
+        signals = [s for s in signals
+                   if project_filter in str(s.get("scope", ""))
+                   or s.get("scope") == "global"]
+
+    # Sort: steering first, then by recurrence
+    signals.sort(key=lambda s: (
+        0 if s["steering_impact"] else 1,
+        {"high": 0, "medium": 1, "low": 2}.get(s["severity"], 3),
+        -s.get("recurrence", 0),
+    ))
+
+    return signals
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="Generate morning work proposals")
     parser.add_argument("--days", type=int, default=1, help="Look-back window for costs/triggers")
     parser.add_argument("--output", type=str, default=str(DEFAULT_OUTPUT), help="Output path")
+    parser.add_argument("--json", action="store_true",
+                        help="Output signal-schema JSON for research-cycle gap-analyze")
+    parser.add_argument("--project", type=str, default=None,
+                        help="Filter signals by project (with --json)")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     args = parser.parse_args()
 
@@ -517,16 +662,26 @@ def main():
         "last_retro": last_session_retro(),
         "last_hook_roi": last_hook_roi(),
         "design_review_proposals": design_review_proposals(days=7),
+        "steering_patterns": steering_patterns(),
+        "supervision_audit": supervision_audit_summary(),
     }
 
     proposals = generate_proposals(data)
+
+    if args.json:
+        signals = emit_json_signals(data, proposals, project_filter=args.project)
+        output = json.dumps(signals, indent=2)
+        if args.output != str(DEFAULT_OUTPUT):
+            Path(args.output).write_text(output + "\n")
+        print(output)
+        return
+
     brief = render_brief(data, proposals)
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(brief)
 
-    # Also print to stdout for debugging
     print(brief)
     print(f"Written to {output_path}")
 
