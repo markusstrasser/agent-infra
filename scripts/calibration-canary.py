@@ -357,12 +357,16 @@ def main() -> None:
         print("ERROR: anthropic package required. Install with: uv add anthropic")
         sys.exit(1)
 
-    canaries = load_canaries(limit=limit)
+    canaries = load_canaries(limit=None)
 
-    # Filter by difficulty
+    # Filter by difficulty BEFORE limit
     if difficulty_filter != "all":
         canaries = [c for c in canaries if c.get("difficulty", "easy") == difficulty_filter]
-        print(f"  Filtered to {len(canaries)} canaries with difficulty={difficulty_filter}")
+
+    if limit is not None:
+        canaries = canaries[:limit]
+
+    print(f"  Canaries: {len(canaries)} (difficulty={difficulty_filter})")
 
     client = anthropic.Anthropic()
 
