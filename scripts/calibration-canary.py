@@ -16,7 +16,6 @@ import json
 import re
 import sys
 from collections import defaultdict
-from datetime import datetime
 from pathlib import Path
 
 from config import METRICS_FILE, log_metric
@@ -167,8 +166,46 @@ def run_sampling_mode(client, canaries: list[dict], *, model: str, runs: int, te
     return samples
 
 
-def print_sampling_results(samples: list[dict], runs: int) -> None:
-    """Print sampling mode results."""
+def bootstrap_ci(values: list[float], n_boot: int = 2000, alpha: float = 0.05) -> tuple[float, float]:
+    """Bootstrap confidence interval for the mean."""
+    import random
+    n = len(values)
+    if n == 0:
+        return (0.0, 0.0)
+    means = []
+    for _ in range(n_boot):
+        resample = [random.choice(values) for _ in range(n)]
+        means.append(sum(resample) / n)
+    means.sort()
+    lo = means[int(n_boot * alpha / 2)]
+    hi = means[int(n_boot * (1 - alpha / 2))]
+    return (lo, hi)
+
+
+def sampling_brier_for_canary(entries: list[dict], expected: bool) -> tuple[float, float]:
+    """Compute bias-corrected Brier score for a canary from sampling results.
+
+    Returns (raw_brier, corrected_brier).
+    Correction: subtract p̂(1-p̂)/(N-1) to remove Monte Carlo penalty.
+    Per GPT-5.4 review (2026-03-23): raw sampling adds up to 0.025/item
+    penalty at N=10, biasing compare-mode against sampling.
+    """
+    n = len(entries)
+    if n == 0:
+        return (0.0, 0.0)
+    p_true = sum(1 for e in entries if e["answer"]) / n
+    # Implicit confidence: probability assigned to the correct answer
+    implicit_conf = p_true if expected else (1.0 - p_true)
+    outcome = 1.0  # We always compare against the ground truth being correct
+    raw_brier = (implicit_conf - outcome) ** 2
+    # Bias correction: Monte Carlo variance penalty
+    correction = (p_true * (1.0 - p_true)) / max(n - 1, 1)
+    corrected_brier = max(0.0, raw_brier - correction)
+    return (raw_brier, corrected_brier)
+
+
+def print_sampling_results(samples: list[dict], runs: int, canaries: list[dict] | None = None) -> None:
+    """Print sampling mode results with bias-corrected Brier scores."""
     if not samples:
         print("No samples completed.")
         return
@@ -177,26 +214,57 @@ def print_sampling_results(samples: list[dict], runs: int) -> None:
     for s in samples:
         by_id[s["id"]].append(s)
 
+    # Build expected lookup from canaries or samples
+    expected_lookup = {}
+    if canaries:
+        for c in canaries:
+            expected_lookup[c["id"]] = bool(c["answer"])
+    else:
+        for s in samples:
+            expected_lookup[s["id"]] = s["expected"]
+
     accuracy = sum(1 for s in samples if s["correct"]) / len(samples)
 
-    print(f"{'=' * 60}")
+    # Compute per-canary Brier scores
+    raw_briers = []
+    corrected_briers = []
+    for cid, entries in by_id.items():
+        expected = expected_lookup.get(cid, True)
+        raw, corrected = sampling_brier_for_canary(entries, expected)
+        raw_briers.append(raw)
+        corrected_briers.append(corrected)
+
+    avg_raw_brier = sum(raw_briers) / len(raw_briers) if raw_briers else 0
+    avg_corrected_brier = sum(corrected_briers) / len(corrected_briers) if corrected_briers else 0
+    brier_ci = bootstrap_ci(corrected_briers)
+
+    print(f"{'=' * 65}")
     print("  Calibration Canary — SAMPLING MODE")
-    print(f"{'=' * 60}")
+    print(f"{'=' * 65}")
     print(f"  Canaries: {len(by_id)}  |  Samples: {len(samples)}  |  Runs/canary: {runs}")
-    print(f"  Overall accuracy: {accuracy:.1%}")
+    print(f"  Overall accuracy:     {accuracy:.1%}")
+    print(f"  Raw sampling Brier:   {avg_raw_brier:.4f}")
+    print(f"  Corrected Brier:      {avg_corrected_brier:.4f}  95% CI [{brier_ci[0]:.4f}, {brier_ci[1]:.4f}]")
+    print(f"  (Correction removes Monte Carlo penalty of p̂(1-p̂)/(N-1) per item)")
     print()
 
     # Per-canary breakdown
-    print(f"  {'ID':<35} {'Acc':>5} {'Cons':>5} {'Diff':>6}")
-    print(f"  {'-'*35} {'-'*5} {'-'*5} {'-'*6}")
+    canary_data = []
     for cid, entries in sorted(by_id.items()):
         acc = sum(1 for e in entries if e["correct"]) / len(entries)
         majority = max(sum(1 for e in entries if e["answer"]), sum(1 for e in entries if not e["answer"]))
         cons = majority / len(entries)
         diff = entries[0].get("difficulty", "?")
+        expected = expected_lookup.get(cid, True)
+        _, corr_brier = sampling_brier_for_canary(entries, expected)
+        canary_data.append((cid, acc, cons, diff, corr_brier))
+
+    print(f"  {'ID':<35} {'Acc':>5} {'Cons':>5} {'Brier':>6} {'Diff':>6}")
+    print(f"  {'-'*35} {'-'*5} {'-'*5} {'-'*6} {'-'*6}")
+    for cid, acc, cons, diff, brier in canary_data:
         flag = " ←" if diff == "hard" and acc > 0.9 else ""
         flag = flag or (" !!" if diff == "easy" and acc < 0.7 else "")
-        print(f"  {cid:<35} {acc:>4.0%} {cons:>4.0%}  {diff:<5}{flag}")
+        print(f"  {cid:<35} {acc:>4.0%} {cons:>4.0%} {brier:>5.3f}  {diff:<5}{flag}")
 
     # By difficulty
     by_diff: dict[str, list[dict]] = defaultdict(list)
@@ -206,7 +274,44 @@ def print_sampling_results(samples: list[dict], runs: int) -> None:
     print("  By difficulty:")
     for diff, entries in sorted(by_diff.items()):
         acc = sum(1 for e in entries if e["correct"]) / len(entries)
-        print(f"    {diff:<10} acc={acc:.0%}  (n={len(entries)})")
+        # Collect corrected briers for this difficulty
+        diff_briers = []
+        diff_by_id: dict[str, list[dict]] = defaultdict(list)
+        for e in entries:
+            diff_by_id[e["id"]].append(e)
+        for cid, elist in diff_by_id.items():
+            expected = expected_lookup.get(cid, True)
+            _, corr = sampling_brier_for_canary(elist, expected)
+            diff_briers.append(corr)
+        avg_db = sum(diff_briers) / len(diff_briers) if diff_briers else 0
+        print(f"    {diff:<10} acc={acc:.0%}  brier={avg_db:.3f}  (n={len(entries)})")
+
+    # Context vs no-context
+    has_context_ids = set()
+    no_context_ids = set()
+    if canaries:
+        for c in canaries:
+            if c.get("requires_context", True) and "context" in c:
+                has_context_ids.add(c["id"])
+            else:
+                no_context_ids.add(c["id"])
+    if has_context_ids and no_context_ids:
+        print()
+        print("  By context type:")
+        for label, ids in [("with-context", has_context_ids), ("no-context", no_context_ids)]:
+            ctx_samples = [s for s in samples if s["id"] in ids]
+            if ctx_samples:
+                ctx_acc = sum(1 for s in ctx_samples if s["correct"]) / len(ctx_samples)
+                ctx_briers = []
+                ctx_by_id: dict[str, list[dict]] = defaultdict(list)
+                for s in ctx_samples:
+                    ctx_by_id[s["id"]].append(s)
+                for cid, elist in ctx_by_id.items():
+                    expected = expected_lookup.get(cid, True)
+                    _, corr = sampling_brier_for_canary(elist, expected)
+                    ctx_briers.append(corr)
+                avg_cb = sum(ctx_briers) / len(ctx_briers) if ctx_briers else 0
+                print(f"    {label:<15} acc={ctx_acc:.0%}  brier={avg_cb:.3f}  (n={len(ctx_samples)})")
 
 
 def main() -> None:
@@ -265,7 +370,7 @@ def main() -> None:
     if mode == "sampling":
         sampling_runs = max(runs, 10)  # Sampling needs more runs
         samples = run_sampling_mode(client, canaries, model=model, runs=sampling_runs, temperature=1.0)
-        print_sampling_results(samples, sampling_runs)
+        print_sampling_results(samples, sampling_runs, canaries=canaries)
         return
 
     # Compare mode — run both
@@ -329,6 +434,13 @@ def main() -> None:
         consistency_scores.append(majority / len(answers))
     avg_consistency = sum(consistency_scores) / len(consistency_scores)
 
+    # Per-canary Brier for bootstrap CI
+    canary_briers: dict[str, list[float]] = defaultdict(list)
+    for s in samples:
+        canary_briers[s["id"]].append(s["brier"])
+    per_canary_brier = [sum(v) / len(v) for v in canary_briers.values()]
+    brier_ci = bootstrap_ci(per_canary_brier)
+
     by_category_summary = {}
     for category, entries in by_category.items():
         by_category_summary[category] = {
@@ -336,15 +448,15 @@ def main() -> None:
             "brier": round(sum(e["brier"] for e in entries) / len(entries), 4),
         }
 
-    print(f"{'=' * 55}")
-    print("  Calibration Canary")
-    print(f"{'=' * 55}")
+    print(f"{'=' * 65}")
+    print("  Calibration Canary — VERBALIZED MODE")
+    print(f"{'=' * 65}")
     print()
     print(f"  Canaries:              {len(by_id)}")
     print(f"  Samples:               {len(samples)} ({runs} run(s) each target)")
     print(f"  Accuracy:              {accuracy:.1%}")
     print(f"  Avg predicted correct: {avg_predicted:.1%}")
-    print(f"  Brier score:           {brier_score:.4f}")
+    print(f"  Brier score:           {brier_score:.4f}  95% CI [{brier_ci[0]:.4f}, {brier_ci[1]:.4f}]")
     print(f"  Avg consistency:       {avg_consistency:.1%}")
     print()
     print("  By category:")
@@ -389,32 +501,64 @@ def main() -> None:
         sampling_samples = run_sampling_mode(
             client, canaries, model=model, runs=sampling_runs, temperature=1.0,
         )
-        print_sampling_results(sampling_samples, sampling_runs)
+        print_sampling_results(sampling_samples, sampling_runs, canaries=canaries)
 
-        # Comparison table
-        verb_by_id = {}
+        # Build expected lookup
+        expected_lookup = {c["id"]: bool(c["answer"]) for c in canaries}
+
+        # Per-canary Brier comparison
+        verb_by_id: dict[str, list[dict]] = defaultdict(list)
         for s in samples:
-            if s["id"] not in verb_by_id:
-                verb_by_id[s["id"]] = []
-            verb_by_id[s["id"]].append(s["correct"])
-        samp_by_id = {}
+            verb_by_id[s["id"]].append(s)
+        samp_by_id: dict[str, list[dict]] = defaultdict(list)
         for s in sampling_samples:
-            if s["id"] not in samp_by_id:
-                samp_by_id[s["id"]] = []
-            samp_by_id[s["id"]].append(s["correct"])
+            samp_by_id[s["id"]].append(s)
 
         print()
-        print(f"{'=' * 60}")
-        print("  COMPARISON: Verbalized vs Sampling")
-        print(f"{'=' * 60}")
-        print(f"  {'ID':<35} {'Verb':>5} {'Samp':>5} {'Delta':>6}")
-        print(f"  {'-'*35} {'-'*5} {'-'*5} {'-'*6}")
-        for cid in sorted(set(list(verb_by_id.keys()) + list(samp_by_id.keys()))):
-            v_acc = sum(verb_by_id.get(cid, [])) / max(len(verb_by_id.get(cid, [])), 1)
-            s_acc = sum(samp_by_id.get(cid, [])) / max(len(samp_by_id.get(cid, [])), 1)
-            delta = s_acc - v_acc
-            flag = " *" if abs(delta) > 0.2 else ""
-            print(f"  {cid:<35} {v_acc:>4.0%} {s_acc:>4.0%} {delta:>+5.0%}{flag}")
+        print(f"{'=' * 70}")
+        print("  COMPARISON: Verbalized Brier vs Corrected Sampling Brier")
+        print(f"{'=' * 70}")
+        print(f"  {'ID':<35} {'V-Brier':>8} {'S-Brier':>8} {'Delta':>8}")
+        print(f"  {'-'*35} {'-'*8} {'-'*8} {'-'*8}")
+
+        verb_briers = []
+        samp_briers = []
+        for cid in sorted(set(verb_by_id.keys()) | set(samp_by_id.keys())):
+            expected = expected_lookup.get(cid, True)
+            # Verbalized Brier
+            v_entries = verb_by_id.get(cid, [])
+            v_brier = sum(e["brier"] for e in v_entries) / max(len(v_entries), 1) if v_entries else float("nan")
+            # Corrected sampling Brier
+            s_entries = samp_by_id.get(cid, [])
+            _, s_brier = sampling_brier_for_canary(s_entries, expected) if s_entries else (0, float("nan"))
+
+            if v_entries:
+                verb_briers.append(v_brier)
+            if s_entries:
+                samp_briers.append(s_brier)
+            delta = s_brier - v_brier
+            flag = " *" if abs(delta) > 0.05 else ""
+            print(f"  {cid:<35} {v_brier:>7.4f} {s_brier:>7.4f} {delta:>+7.4f}{flag}")
+
+        # Aggregate comparison
+        avg_v = sum(verb_briers) / len(verb_briers) if verb_briers else 0
+        avg_s = sum(samp_briers) / len(samp_briers) if samp_briers else 0
+        v_ci = bootstrap_ci(verb_briers)
+        s_ci = bootstrap_ci(samp_briers)
+        print()
+        print(f"  Verbalized mean Brier:  {avg_v:.4f}  95% CI [{v_ci[0]:.4f}, {v_ci[1]:.4f}]")
+        print(f"  Sampling mean Brier:    {avg_s:.4f}  95% CI [{s_ci[0]:.4f}, {s_ci[1]:.4f}]")
+        delta = avg_s - avg_v
+        # Pre-registered criterion: ≥0.03 improvement, CI excludes 0
+        deltas = [s - v for s, v in zip(samp_briers, verb_briers)]
+        delta_ci = bootstrap_ci(deltas) if deltas else (0, 0)
+        print(f"  Delta (sampling - verb): {delta:+.4f}  95% CI [{delta_ci[0]:+.4f}, {delta_ci[1]:+.4f}]")
+        if delta < -0.03 and delta_ci[1] < 0:
+            print("  → PASS: Sampling Brier significantly better (≥0.03, CI excludes 0)")
+        elif delta > 0.03 and delta_ci[0] > 0:
+            print("  → FAIL: Verbalized Brier significantly better")
+        else:
+            print("  → INCONCLUSIVE: Delta does not meet pre-registered ≥0.03 threshold")
 
     # Discriminant validity analysis
     if do_analysis:
