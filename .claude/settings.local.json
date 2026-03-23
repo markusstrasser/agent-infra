@@ -5,7 +5,8 @@
       "Bash(git commit:*)",
       "Skill(researcher)",
       "mcp__exa__web_search_advanced_exa",
-      "Bash(zsh -c 'source ~/.zsh_agent_utils && echo OK && agent-sync')"
+      "Bash(zsh -c 'source ~/.zsh_agent_utils && echo OK && agent-sync')",
+      "Bash(chmod:*)"
     ]
   }
 }

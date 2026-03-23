@@ -1210,3 +1210,30 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Root cause:** TBD
 - **Recurrences:** 2 (auto-promoted from staging)
 - **Status:** [x] covered — Exa gotcha in `~/.claude/rules/research-tool-gotchas.md` broadened from arxiv-only to all broad queries with 3000-char limit guidance (2026-03-21).
+
+### [2026-03-23] CAPABILITY ABANDONMENT: Agent cites training cutoff instead of searching
+- **Session:** selve 04b462d0
+- **Evidence:** User asked about 2025/2026 events. Agent responded "Most of these events fall after my training cutoff (May 2025), so I can't independently verify the details" despite having Exa, Perplexity, and Brave search tools available. User had to explicitly say "you have search" before agent proceeded.
+- **Failure mode:** capability-abandonment (ATP)
+- **Proposed fix:** CLAUDE.md rule: Never cite training cutoff as reason not to investigate. Always proactively use search tools for recent events.
+- **Root cause:** agent-capability
+- **Severity:** high
+- **Status:** [ ] proposed
+
+### [2026-03-23] CAPABILITY ABANDONMENT: Burst hook forced training-data fallback
+- **Session:** selve 929ec8ac
+- **Evidence:** Search burst hook (pretool-search-burst.sh) triggered after rapid searches, agent said "Fair — let me answer from what I know" and abandoned tools. Self-corrected later by raising thresholds to 10/30 and adding selve tools to reset list.
+- **Failure mode:** capability-abandonment (system-induced)
+- **Proposed fix:** architectural — already fixed in-session (thresholds raised). Monitor for recurrence.
+- **Root cause:** system-design
+- **Severity:** medium
+- **Status:** [x] self-corrected in-session
+
+### [2026-03-23] TOKEN WASTE: Read-Edit loop cycling (8 rounds on single file)
+- **Session:** selve 929ec8ac
+- **Evidence:** 8 Read + 8 Edit calls on omics-group-8-qb3-deep.md. Agent re-reads entire file after each small edit instead of planning and batching edits.
+- **Failure mode:** token-waste
+- **Proposed fix:** rule — plan all edits before starting, batch Edit calls, minimize re-reads
+- **Root cause:** agent-capability
+- **Severity:** medium
+- **Status:** [ ] proposed

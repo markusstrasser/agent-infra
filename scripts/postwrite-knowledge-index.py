@@ -33,7 +33,7 @@ ELIGIBLE_DIRS = {
     "docs/research",        # selve
     "docs/entities",        # selve
     "research",             # meta
-    "decisions",            # meta
+    # decisions/ excluded — document choices, not claims; no source tags expected
 }
 
 # Source tag pattern: [GRADE: source] or [DATA: source] etc.
