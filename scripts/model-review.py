@@ -5,8 +5,14 @@ Replaces the 10-tool-call manual ceremony in the model-review skill with one scr
 Agent provides context + topic + question; script handles plumbing; agent reads outputs.
 
 Usage:
-    # Narrow review (agent provides context file)
+    # Standard review (2 queries: arch + formal)
     model-review.py --context plan.md --topic "hook architecture" "Review for gaps"
+
+    # Simple review (1 query: combined)
+    model-review.py --context plan.md --topic "config tweak" --axes simple "Review this change"
+
+    # Deep review (4 queries: arch + formal + domain + mechanical)
+    model-review.py --context plan.md --topic "classification logic" --axes arch,formal,domain,mechanical "Review this"
 
     # With project dir for constitution discovery
     model-review.py --context plan.md --topic "data wiring" --project ~/Projects/intel "Review this plan"
@@ -24,10 +30,14 @@ import time
 from datetime import date
 from pathlib import Path
 
-GEMINI_MODEL = "gemini-3.1-pro-preview"
-GPT_MODEL = "gpt-5.4"
+# --- Axis definitions: model + prompt + llmx flags ---
 
-GEMINI_PROMPT = """\
+AXES = {
+    "arch": {
+        "label": "Gemini (architecture/patterns)",
+        "model": "gemini-3.1-pro-preview",
+        "flags": ["--timeout", "300"],
+        "prompt": """\
 <system>
 You are reviewing a codebase. Be concrete. No platitudes. Reference specific code, configs, and findings. It is {date}.
 Budget: ~2000 words. Dense tables and lists over prose.
@@ -53,11 +63,15 @@ Your ranked list of the 5 most impactful changes, with testable verification cri
 {constitution_instruction}
 
 ## 6. Blind Spots In My Own Analysis
-What am I (Gemini) likely getting wrong? Where should you distrust my assessment?"""
-
-GPT_PROMPT = """\
+What am I (Gemini) likely getting wrong? Where should you distrust my assessment?""",
+    },
+    "formal": {
+        "label": "GPT-5.4 (quantitative/formal)",
+        "model": "gpt-5.4",
+        "flags": ["--stream", "--reasoning-effort", "high", "--timeout", "600", "--max-tokens", "32768"],
+        "prompt": """\
 <system>
-You are performing QUANTITATIVE and FORMAL analysis. Gemini is handling qualitative pattern review separately. Focus on what Gemini can't do well. Be precise. Show your reasoning. No hand-waving.
+You are performing QUANTITATIVE and FORMAL analysis. Other reviewers handle qualitative pattern review. Focus on what they can't do well. Be precise. Show your reasoning. No hand-waving.
 Budget: ~2000 words. Tables over prose. Source-grade claims.
 </system>
 
@@ -81,7 +95,91 @@ Convert vague claims into falsifiable predictions with success criteria. If a cl
 Ranked by measurable impact. Each must have: (a) what, (b) why with quantitative justification, (c) how to verify with specific metrics.
 
 ## 6. Where I'm Likely Wrong
-What am I (GPT-5.4) probably getting wrong? Known biases to flag: overconfidence in fabricated specifics, overcautious scope-limiting, production-grade recommendations for personal projects."""
+What am I (GPT-5.4) probably getting wrong? Known biases to flag: overconfidence in fabricated specifics, overcautious scope-limiting, production-grade recommendations for personal projects.""",
+    },
+    "domain": {
+        "label": "Gemini Pro (domain correctness)",
+        "model": "gemini-3.1-pro-preview",
+        "flags": ["--timeout", "300"],
+        "prompt": """\
+<system>
+You are verifying DOMAIN-SPECIFIC CLAIMS in this plan. Other reviewers handle architecture and formal logic.
+Focus exclusively on: are the domain facts correct? Are citations real? Are API endpoints, database schemas,
+biological claims, financial numbers accurate? Check every specific claim against your knowledge.
+Budget: ~1500 words. Flat list of claims with verdict (CORRECT / WRONG / UNVERIFIABLE).
+</system>
+
+{question}
+
+For each domain-specific claim in the reviewed material:
+1. State the claim
+2. Verdict: CORRECT / WRONG / UNVERIFIABLE
+3. If WRONG: what's actually true
+4. If UNVERIFIABLE: what would you need to check
+
+Flag any URLs, API endpoints, or version numbers that should be probed before implementation.""",
+    },
+    "mechanical": {
+        "label": "Gemini Flash (mechanical audit)",
+        "model": "gemini-3-flash-preview",
+        "flags": ["--timeout", "120"],
+        "prompt": """\
+<system>
+Mechanical audit only. No analysis, no recommendations. Fast and precise.
+</system>
+
+Find in the reviewed material:
+- Stale references (wrong versions, deprecated APIs, broken links)
+- Inconsistent naming (model names, paths, conventions that don't match)
+- Missing cross-references between related documents
+- Duplicated content
+- Paths or file references that look wrong
+Output as a flat numbered list. One issue per line.""",
+    },
+    "alternatives": {
+        "label": "Kimi K2.5 (alternative approaches)",
+        "model": "kimi-k2.5",
+        "flags": ["--stream", "--timeout", "300"],
+        "prompt": """\
+<system>
+You are generating ALTERNATIVE APPROACHES to the proposed plan. Other reviewers check correctness.
+Your job: what ELSE could be done? Different mechanisms, not variations.
+Budget: ~1500 words.
+</system>
+
+{question}
+
+Generate 3-5 genuinely different approaches to the same problem. For each:
+1. Core mechanism (how it works differently)
+2. What it's better at than the proposed approach
+3. What it's worse at
+4. Rough effort to implement
+
+Do NOT critique the existing plan — generate alternatives. Different mechanisms, not tweaks.""",
+    },
+    "simple": {
+        "label": "Gemini Pro (combined review)",
+        "model": "gemini-3.1-pro-preview",
+        "flags": ["--timeout", "300"],
+        "prompt": """\
+<system>
+Quick combined review. Be concrete. It is {date}. Budget: ~1000 words.
+</system>
+
+{question}
+
+Check for: (1) anything that breaks existing functionality, (2) wrong assumptions, (3) missing edge cases.
+If everything looks correct, say so concisely.""",
+    },
+}
+
+# Presets map a single name to a list of axes
+PRESETS = {
+    "simple": ["simple"],
+    "standard": ["arch", "formal"],
+    "deep": ["arch", "formal", "domain", "mechanical"],
+    "full": ["arch", "formal", "domain", "mechanical", "alternatives"],
+}
 
 
 def slugify(text: str, max_len: int = 40) -> str:
@@ -99,14 +197,11 @@ def find_constitution(project_dir: Path) -> tuple[str, str | None]:
     claude_md = project_dir / "CLAUDE.md"
     if claude_md.exists():
         text = claude_md.read_text()
-        # Extract <constitution>...</constitution> section
         m = re.search(r"<constitution>(.*?)</constitution>", text, re.DOTALL)
         if m:
             constitution = m.group(1).strip()
-        # Fallback: ## Constitution heading
         elif "## Constitution" in text:
             idx = text.index("## Constitution")
-            # Take until next ## heading or end
             rest = text[idx:]
             end = re.search(r"\n## (?!Constitution)", rest)
             constitution = rest[: end.start()].strip() if end else rest.strip()
@@ -123,14 +218,11 @@ def build_context(
     review_dir: Path,
     project_dir: Path,
     context_file: Path | None,
-) -> tuple[Path, Path]:
-    """Assemble gemini-context.md and gpt-context.md with constitutional preamble."""
-    gemini_ctx = review_dir / "gemini-context.md"
-    gpt_ctx = review_dir / "gpt-context.md"
-
+    axis_names: list[str],
+) -> dict[str, Path]:
+    """Assemble per-axis context files with constitutional preamble."""
     constitution, goals_path = find_constitution(project_dir)
 
-    # Write constitutional preamble
     preamble = ""
     if constitution:
         preamble += "# PROJECT CONSTITUTION\nReview against these principles, not your own priors.\n\n"
@@ -139,31 +231,31 @@ def build_context(
         preamble += "# PROJECT GOALS\n\n"
         preamble += Path(goals_path).read_text() + "\n\n"
 
-    if context_file:
-        # Narrow review — same content for both
-        content = context_file.read_text()
-        gemini_ctx.write_text(preamble + content)
-        gpt_ctx.write_text(preamble + content)
-    size_g = gemini_ctx.stat().st_size
-    size_p = gpt_ctx.stat().st_size
-    if size_g > 15_000 or size_p > 15_000:
-        print(
-            f"warning: context size (gemini={size_g}, gpt={size_p}) > 15KB — consider summarizing",
-            file=sys.stderr,
-        )
+    content = context_file.read_text() if context_file else ""
 
-    return gemini_ctx, gpt_ctx
+    ctx_files = {}
+    for axis in axis_names:
+        ctx_path = review_dir / f"{axis}-context.md"
+        ctx_path.write_text(preamble + content)
+        ctx_files[axis] = ctx_path
+
+    # Warn on size
+    for axis, path in ctx_files.items():
+        size = path.stat().st_size
+        if size > 15_000:
+            print(f"warning: {axis} context {size} bytes > 15KB — consider summarizing", file=sys.stderr)
+
+    return ctx_files
 
 
 def dispatch(
     review_dir: Path,
-    gemini_ctx: Path,
-    gpt_ctx: Path,
+    ctx_files: dict[str, Path],
+    axis_names: list[str],
     question: str,
     has_constitution: bool,
 ) -> dict:
-    """Fire both llmx processes in parallel, wait, return results."""
-    # Clean env to avoid nested session detection
+    """Fire N llmx processes in parallel (one per axis), wait, return results."""
     env = {
         k: v
         for k, v in os.environ.items()
@@ -172,102 +264,90 @@ def dispatch(
 
     today = date.today().isoformat()
 
-    const_gemini = (
-        "Where does the reviewed work violate or neglect stated principles? Which principles are well-served?"
-        if has_constitution
-        else "No constitution provided — assess internal consistency only."
-    )
-    const_gpt = (
-        "For each constitutional principle: coverage score (0-100%), specific gaps, suggested fixes."
-        if has_constitution
-        else "No constitution provided — assess internal logical consistency."
-    )
-
-    gemini_prompt = GEMINI_PROMPT.format(
-        date=today, question=question, constitution_instruction=const_gemini
-    )
-    gpt_prompt = GPT_PROMPT.format(
-        date=today, question=question, constitution_instruction=const_gpt
-    )
-
-    gemini_out = review_dir / "gemini-output.md"
-    gpt_out = review_dir / "gpt-output.md"
-
-    # Gemini: CLI transport (free tier) — hang bug fixed in gemini-cli 0.32.1
-    gemini_cmd = [
-        "llmx", "chat",
-        "-m", GEMINI_MODEL,
-        "--timeout", "300",
-        "-f", str(gemini_ctx),
-        "-o", str(gemini_out),
-        gemini_prompt,
-    ]
-
-    # GPT: --stream + --reasoning-effort high + long timeout
-    gpt_cmd = [
-        "llmx", "chat",
-        "-m", GPT_MODEL,
-        "--stream", "--reasoning-effort", "high",
-        "--timeout", "600", "--max-tokens", "32768",
-        "-f", str(gpt_ctx),
-        "-o", str(gpt_out),
-        gpt_prompt,
-    ]
-
-    t0 = time.time()
-
-    gemini_proc = subprocess.Popen(
-        gemini_cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    )
-    gpt_proc = subprocess.Popen(
-        gpt_cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    )
-
-    # Wait for both
-    gemini_rc = gemini_proc.wait()
-    gpt_rc = gpt_proc.wait()
-    elapsed = time.time() - t0
-
-    gemini_stderr = (gemini_proc.stderr.read().decode(errors="replace").strip()
-                      if gemini_proc.stderr else "")
-    gpt_stderr = (gpt_proc.stderr.read().decode(errors="replace").strip()
-                  if gpt_proc.stderr else "")
-
-    result = {
-        "review_dir": str(review_dir),
-        "elapsed_seconds": round(elapsed, 1),
-        "gemini": {
-            "exit_code": gemini_rc,
-            "output": str(gemini_out),
-            "size": gemini_out.stat().st_size if gemini_out.exists() else 0,
-        },
-        "gpt": {
-            "exit_code": gpt_rc,
-            "output": str(gpt_out),
-            "size": gpt_out.stat().st_size if gpt_out.exists() else 0,
-        },
+    const_instruction = {
+        "arch": (
+            "Where does the reviewed work violate or neglect stated principles? Which principles are well-served?"
+            if has_constitution
+            else "No constitution provided — assess internal consistency only."
+        ),
+        "formal": (
+            "For each constitutional principle: coverage score (0-100%), specific gaps, suggested fixes."
+            if has_constitution
+            else "No constitution provided — assess internal logical consistency."
+        ),
     }
 
-    # Surface errors
-    if gemini_rc != 0:
-        result["gemini"]["stderr"] = gemini_stderr[-500:] if gemini_stderr else ""
-    if gpt_rc != 0:
-        result["gpt"]["stderr"] = gpt_stderr[-500:] if gpt_stderr else ""
+    procs = {}
+    outputs = {}
+    t0 = time.time()
 
-    return result
+    for axis in axis_names:
+        axis_def = AXES[axis]
+        out_path = review_dir / f"{axis}-output.md"
+        outputs[axis] = out_path
+
+        prompt = axis_def["prompt"].format(
+            date=today,
+            question=question,
+            constitution_instruction=const_instruction.get(axis, ""),
+        )
+
+        cmd = [
+            "llmx", "chat",
+            "-m", axis_def["model"],
+            *axis_def["flags"],
+            "-f", str(ctx_files[axis]),
+            "-o", str(out_path),
+            prompt,
+        ]
+
+        procs[axis] = subprocess.Popen(
+            cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+
+    # Wait for all
+    results = {"review_dir": str(review_dir), "axes": axis_names, "queries": len(axis_names)}
+    for axis in axis_names:
+        proc = procs[axis]
+        rc = proc.wait()
+        stderr = proc.stderr.read().decode(errors="replace").strip() if proc.stderr else ""
+        out_path = outputs[axis]
+
+        entry = {
+            "label": AXES[axis]["label"],
+            "model": AXES[axis]["model"],
+            "exit_code": rc,
+            "output": str(out_path),
+            "size": out_path.stat().st_size if out_path.exists() else 0,
+        }
+        if rc != 0:
+            entry["stderr"] = stderr[-500:] if stderr else ""
+
+        results[axis] = entry
+
+    results["elapsed_seconds"] = round(time.time() - t0, 1)
+    return results
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Model-review dispatch: context assembly + parallel llmx + output collection",
         formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=f"Presets: {', '.join(PRESETS.keys())}. Axes: {', '.join(AXES.keys())}.",
     )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--context", type=Path, help="Context file for narrow review")
     parser.add_argument("--topic", required=True, help="Short topic label (used in output dir name)")
     parser.add_argument("--project", type=Path, help="Project dir for constitution discovery (default: cwd)")
-    parser.add_argument("question", nargs="?", default="Review this for logical gaps, missed edge cases, and constitutional alignment.",
-                        help="Review question for both models")
+    parser.add_argument(
+        "--axes", default="standard",
+        help="Comma-separated axes or preset name (simple, standard, deep, full). Default: standard",
+    )
+    parser.add_argument(
+        "question", nargs="?",
+        default="Review this for logical gaps, missed edge cases, and constitutional alignment.",
+        help="Review question for all models",
+    )
 
     args = parser.parse_args()
 
@@ -280,6 +360,18 @@ def main() -> int:
         print(f"error: context file {args.context} not found", file=sys.stderr)
         return 1
 
+    # Resolve axes
+    if args.axes in PRESETS:
+        axis_names = PRESETS[args.axes]
+    else:
+        axis_names = [a.strip() for a in args.axes.split(",")]
+        for a in axis_names:
+            if a not in AXES:
+                print(f"error: unknown axis '{a}'. Available: {', '.join(AXES.keys())}", file=sys.stderr)
+                return 1
+
+    print(f"Dispatching {len(axis_names)} queries: {', '.join(axis_names)}", file=sys.stderr)
+
     # Create output directory
     slug = slugify(args.topic)
     hex_id = os.urandom(3).hex()
@@ -287,14 +379,12 @@ def main() -> int:
     review_dir.mkdir(parents=True, exist_ok=True)
 
     # Assemble context
-    gemini_ctx, gpt_ctx = build_context(
-        review_dir, project_dir, args.context
-    )
+    ctx_files = build_context(review_dir, project_dir, args.context, axis_names)
 
     constitution, _ = find_constitution(project_dir)
 
     # Dispatch and wait
-    result = dispatch(review_dir, gemini_ctx, gpt_ctx, args.question, bool(constitution))
+    result = dispatch(review_dir, ctx_files, axis_names, args.question, bool(constitution))
 
     print(json.dumps(result, indent=2))
     return 0
