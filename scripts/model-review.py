@@ -194,17 +194,24 @@ def find_constitution(project_dir: Path) -> tuple[str, str | None]:
     constitution = ""
     goals_path = None
 
-    claude_md = project_dir / "CLAUDE.md"
-    if claude_md.exists():
-        text = claude_md.read_text()
-        m = re.search(r"<constitution>(.*?)</constitution>", text, re.DOTALL)
-        if m:
-            constitution = m.group(1).strip()
-        elif "## Constitution" in text:
-            idx = text.index("## Constitution")
-            rest = text[idx:]
-            end = re.search(r"\n## (?!Constitution)", rest)
-            constitution = rest[: end.start()].strip() if end else rest.strip()
+    # Check .claude/rules/constitution.md first (genomics, projects with standalone file)
+    rules_const = project_dir / ".claude" / "rules" / "constitution.md"
+    if rules_const.exists():
+        constitution = rules_const.read_text().strip()
+
+    # Fall back to CLAUDE.md <constitution> tag or ## Constitution heading
+    if not constitution:
+        claude_md = project_dir / "CLAUDE.md"
+        if claude_md.exists():
+            text = claude_md.read_text()
+            m = re.search(r"<constitution>(.*?)</constitution>", text, re.DOTALL)
+            if m:
+                constitution = m.group(1).strip()
+            elif "## Constitution" in text:
+                idx = text.index("## Constitution")
+                rest = text[idx:]
+                end = re.search(r"\n## (?!Constitution)", rest)
+                constitution = rest[: end.start()].strip() if end else rest.strip()
 
     for gp in [project_dir / "GOALS.md", project_dir / "docs" / "GOALS.md"]:
         if gp.exists():
