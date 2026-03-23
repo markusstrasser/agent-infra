@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Improvement Signal",
+  "description": "Canonical schema for ranked improvement signals fed to research-cycle gap-analyze. Sources: propose-work.py aggregates supervision-kpi, fix-verify, calibration-canary, patterns.jsonl, improvement-log, supervision-audit, session-retro.",
+  "type": "object",
+  "required": ["source", "severity", "scope", "description"],
+  "properties": {
+    "source": {
+      "type": "string",
+      "enum": [
+        "supervision-kpi",
+        "fix-verify",
+        "calibration-canary",
+        "design-review-patterns",
+        "improvement-log",
+        "supervision-audit",
+        "session-retro",
+        "git-staleness",
+        "orchestrator-queue"
+      ],
+      "description": "Which measurement system produced this signal"
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["high", "medium", "low"]
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "How certain is the signal. 1.0 = deterministic measurement, 0.5 = pattern inference"
+    },
+    "recency_days": {
+      "type": "number",
+      "description": "Days since the signal was last observed"
+    },
+    "scope": {
+      "type": "string",
+      "description": "Which project or 'global' if cross-project"
+    },
+    "steering_impact": {
+      "type": "boolean",
+      "description": "True if this signal directly measures human steering load (MANUAL_COORDINATION, corrections, rubber stamps). False for quality/reliability signals."
+    },
+    "category": {
+      "type": "string",
+      "description": "Signal category for grouping: steering, reliability, quality, freshness, drift"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of what needs attention"
+    },
+    "evidence_ref": {
+      "type": "string",
+      "description": "Pointer to source data: file:line, patterns.jsonl:name, improvement-log:date"
+    },
+    "recurrence": {
+      "type": "integer",
+      "description": "Number of times this signal has been observed"
+    }
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Gap Fingerprint",
+  "description": "Identity schema for failed experiment archival and retrieval. Used by research-cycle plan phase to find prior attempts at the same gap.",
+  "type": "object",
+  "required": ["repo", "subsystem", "failure_mode"],
+  "properties": {
+    "repo": {
+      "type": "string",
+      "description": "Project repository name (genomics, intel, selve, meta, skills)"
+    },
+    "subsystem": {
+      "type": "string",
+      "description": "Affected subsystem (variant-classification, pharmacogenomics, calibration, hooks, etc.)"
+    },
+    "failure_mode": {
+      "type": "string",
+      "enum": ["compile-error", "test-fail", "regression", "wrong-output", "timeout", "permission-denied", "logic-error"],
+      "description": "How the attempt failed"
+    },
+    "mechanism_tags": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Free-form tags for the approach tried (e.g. spliceai, threshold-change, new-script)"
+    },
+    "gap_id": {
+      "type": "string",
+      "description": "Original gap identifier from CYCLE.md (e.g. G15, G17)"
+    },
+    "base_commit": {
+      "type": "string",
+      "description": "SHA of the commit before the failed change"
+    },
+    "failing_metric": {
+      "type": "string",
+      "description": "Which metric or test failed (e.g. 'AUPRC dropped 0.97→0.91', 'ast.parse SyntaxError')"
+    },
+    "plan_summary": {
+      "type": "string",
+      "description": "One-line summary of what was attempted"
+    },
+    "failure_reason": {
+      "type": "string",
+      "description": "Why it failed — for negative transfer to future plan phases"
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "When the attempt was made"
+    },
+    "patch_file": {
+      "type": "string",
+      "description": "Relative path to the saved .patch file"
+    },
+    "ttl_days": {
+      "type": "integer",
+      "default": 90,
+      "description": "Days before pruning if unretrieved"
+    }
+  }
+}
