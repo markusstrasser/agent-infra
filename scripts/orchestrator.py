@@ -23,7 +23,7 @@ import os
 import sqlite3
 import subprocess
 import sys
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from pathlib import Path
 from typing import Any
 
@@ -669,6 +669,22 @@ def execute_one(db):
     if daily_cost >= DAILY_COST_CAP:
         log_event({"action": "cost_cap", "daily_cost": daily_cost})
         return False
+
+    # Check rate-limit backoff from StopFailure hook
+    agent_state = Path.home() / ".claude" / "agent-state.json"
+    if agent_state.exists():
+        try:
+            state = json.loads(agent_state.read_text())
+            if state.get("rate_limited") or state.get("billing_exhausted"):
+                backoff_until = state.get("backoff_until", "")
+                if backoff_until and backoff_until > datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"):
+                    log_event({"action": "rate_limit_backoff", "until": backoff_until})
+                    return False
+                if state.get("billing_exhausted"):
+                    log_event({"action": "billing_exhausted_block"})
+                    return False
+        except (json.JSONDecodeError, KeyError):
+            pass
 
     task = claim_task(db)
     if not task:
