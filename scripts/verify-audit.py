@@ -16,42 +16,74 @@ import sys
 from pathlib import Path
 
 DB_PATH = Path.home() / ".claude" / "orchestrator.db"
+LOG_PATH = Path.home() / ".claude" / "orchestrator-log.jsonl"
 AUDIT_OUTPUT = Path(__file__).resolve().parent.parent / "artifacts" / "verify-audit"
 
 
 def get_verified_tasks(limit: int = 20) -> list[dict]:
-    """Pull tasks with verification results from orchestrator.db."""
-    if not DB_PATH.exists():
-        print(f"Database not found: {DB_PATH}")
-        return []
+    """Pull tasks with verification results from orchestrator log + DB.
 
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.row_factory = sqlite3.Row
+    Verify events are in orchestrator-log.jsonl (action=verify).
+    Task details are in orchestrator.db (tasks table).
+    """
+    # 1. Read verify events from JSONL log
+    verify_events = []
+    if LOG_PATH.exists():
+        for line in LOG_PATH.read_text().splitlines():
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if event.get("action") == "verify":
+                verify_events.append(event)
 
-    rows = conn.execute("""
-        SELECT t.id, t.pipeline, t.step, t.prompt, t.status, t.output,
-               e.data as event_data, e.timestamp as verify_time
-        FROM tasks t
-        JOIN events e ON e.task_id = t.id
-        WHERE e.action = 'verify'
-        ORDER BY e.timestamp DESC
-        LIMIT ?
-    """, (limit,)).fetchall()
-    conn.close()
+    if not verify_events:
+        # Fall back: check for verify_retry events (also indicates verification ran)
+        if LOG_PATH.exists():
+            for line in LOG_PATH.read_text().splitlines():
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if event.get("action") in ("verify_retry", "verify_exhausted", "verify_error"):
+                    verify_events.append(event)
+
+    verify_events = verify_events[-limit:]
+
+    # 2. Enrich with task details from DB
+    task_cache = {}
+    if DB_PATH.exists() and verify_events:
+        conn = sqlite3.connect(str(DB_PATH))
+        conn.row_factory = sqlite3.Row
+        task_ids = {str(e.get("task_id", "")) for e in verify_events}
+        for tid in task_ids:
+            if not tid:
+                continue
+            try:
+                row = conn.execute(
+                    "SELECT id, pipeline, step, prompt, status, output FROM tasks WHERE id = ?",
+                    (int(tid),),
+                ).fetchone()
+                if row:
+                    task_cache[tid] = dict(row)
+            except (ValueError, sqlite3.OperationalError):
+                continue
+        conn.close()
 
     tasks = []
-    for row in rows:
-        event_data = json.loads(row["event_data"]) if row["event_data"] else {}
+    for event in verify_events:
+        tid = str(event.get("task_id", ""))
+        task = task_cache.get(tid, {})
         tasks.append({
-            "id": row["id"],
-            "pipeline": row["pipeline"],
-            "step": row["step"],
-            "prompt": (row["prompt"] or "")[:500],
-            "output": (row["output"] or "")[:500],
-            "status": row["status"],
-            "haiku_pass": event_data.get("pass"),
-            "haiku_reasoning": event_data.get("reasoning", ""),
-            "verify_time": row["verify_time"],
+            "id": tid,
+            "pipeline": task.get("pipeline", ""),
+            "step": task.get("step", event.get("step", "")),
+            "prompt": (task.get("prompt", "") or "")[:500],
+            "output": (task.get("output", "") or "")[:500],
+            "status": task.get("status", ""),
+            "haiku_pass": event.get("pass"),
+            "haiku_reasoning": event.get("reasoning", ""),
+            "verify_time": event.get("ts", ""),
         })
     return tasks
 
