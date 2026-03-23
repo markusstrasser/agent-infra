@@ -164,7 +164,7 @@ def extract_table_claims(text: str) -> int:
     return count
 
 
-def build_knowledge_index(text: str, file_path: str) -> str:
+def build_knowledge_index(text: str) -> str:
     """Build the knowledge-index block content."""
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     h = content_hash(text)
@@ -272,7 +272,7 @@ def main():
             sys.exit(0)  # Content unchanged, index is current
 
     # Build and inject the knowledge index
-    index_block = build_knowledge_index(text, file_path)
+    index_block = build_knowledge_index(text)
     new_text = inject_index(text, index_block)
 
     # Write back
