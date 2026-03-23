@@ -275,11 +275,13 @@ Maintained resource (updated Dec 2025+) with practical guidance on benchmark des
 
 ## Revisions
 
-*(None yet — initial version.)*
+**2026-03-23 — First calibration experiment run (gpt-4o-mini via llmx)**
+
+Verbalized Brier 0.1147 vs Sampling Brier 0.0961. Delta -0.019, CI crosses zero — INCONCLUSIVE per pre-registered ≥0.03 threshold. However, one canary (`hard-conditional-probability`) showed the exact RLHF calibration distortion Nakkiran predicted: 10/10 correct in sampling (Brier=0.00) but ~27% verbalized confidence (Brier=0.53). The RLHF layer makes the model underconfident about something it reliably knows. Prediction market canaries fail due to knowledge cutoff, not calibration — exclude from cross-model comparisons. Reasoning models (gpt-5.4-nano, gpt-5.3) ignore temperature — sampling mode requires non-reasoning models.
 
 <!-- knowledge-index
-generated: 2026-03-23T20:19:14Z
-hash: ff86a0959476
+generated: 2026-03-23T22:58:51Z
+hash: 0aae1c10dab9
 
 title: The Science of Benchmarks & Evals — State of the Field (2025-2026)
 
