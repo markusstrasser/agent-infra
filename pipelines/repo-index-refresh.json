@@ -28,6 +28,12 @@
       "cwd": "~/Projects/meta"
     },
     {
+      "step": "summary-selve",
+      "type": "script",
+      "command": "uv run python3 scripts/repo-summary.py ~/Projects/selve/scripts --refresh --no-llm && uv run python3 scripts/repo-summary.py ~/Projects/selve/src --refresh --no-llm",
+      "cwd": "~/Projects/meta"
+    },
+    {
       "step": "map-meta",
       "type": "script",
       "command": "uv run python3 scripts/codebase-map.py ~/Projects/meta --source-dirs scripts",
@@ -49,6 +55,12 @@
       "step": "map-genomics",
       "type": "script",
       "command": "uv run python3 scripts/codebase-map.py ~/Projects/genomics --source-dirs scripts",
+      "cwd": "~/Projects/meta"
+    },
+    {
+      "step": "map-selve",
+      "type": "script",
+      "command": "uv run python3 scripts/codebase-map.py ~/Projects/selve --source-dirs scripts,src",
       "cwd": "~/Projects/meta"
     }
   ]
