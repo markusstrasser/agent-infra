@@ -1,0 +1,71 @@
+{
+  "name": "domain-research-cycle",
+  "description": "Autonomous discover → gap → plan → review → execute → verify → improve cycle. Dispatched by /research-cycle skill, not cron.",
+  "steps": [
+    {
+      "step": "discover",
+      "engine": "claude",
+      "prompt": "You are running the DISCOVER phase of a research cycle for {project}. Read CYCLE.md (if it exists) to see what was already discovered. Then search for new information relevant to this project:\n\n1. Search recent preprints (search_preprints, last 14 days) for keywords from the project's research index\n2. Search Exa for new tools, databases, or methods relevant to the project domain\n3. Check vendor changelogs (if applicable) for updates to tools the project uses\n4. Compare findings against existing project state (git log, research memos)\n\nOutput: Write discoveries to CYCLE.md under '## Discoveries'. Mark each with [NEW]. Skip anything already in CYCLE.md or git log. If nothing new found, write 'No new discoveries this tick.' Commit if new discoveries found.",
+      "max_turns": 15,
+      "max_budget_usd": 1.5,
+      "model": "sonnet",
+      "effort": "medium"
+    },
+    {
+      "step": "gap-analyze",
+      "engine": "claude",
+      "prompt": "You are running the GAP phase of a research cycle for {project}. Read CYCLE.md discoveries and the project's current state (CLAUDE.md, recent git log, research index). Identify gaps: what capabilities could be added based on discoveries? What existing components need updating? Write a prioritized gap list to CYCLE.md under '## Gaps'. Classify each: autonomous (reversible, existing pattern) or needs-approval (structural, new source, irreversible). Commit.",
+      "max_turns": 12,
+      "max_budget_usd": 1.0,
+      "model": "sonnet",
+      "effort": "medium"
+    },
+    {
+      "step": "plan",
+      "engine": "claude",
+      "prompt": "You are running the PLAN phase of a research cycle for {project}. Read CYCLE.md gaps. For the highest-priority gap, write an implementation plan. The plan must specify: files to change, what changes, verification method, and whether it's autonomous or needs approval. Write the plan to CYCLE.md under '## Active Plan'. If the gap needs approval, add it to '## Queue' as '- [ ] APPROVE: ...' and STOP. Do not execute unapproved plans. Commit.",
+      "max_turns": 10,
+      "max_budget_usd": 0.8,
+      "model": "sonnet",
+      "effort": "medium"
+    },
+    {
+      "step": "review",
+      "engine": "claude",
+      "prompt": "You are running the REVIEW phase. Read the active plan in CYCLE.md. Run /model-review on it. Apply verified INCLUDE findings to the plan. If model review found critical issues, move the plan back to gaps with notes. Commit updated plan.",
+      "max_turns": 15,
+      "max_budget_usd": 3.0,
+      "model": "opus",
+      "effort": "high",
+      "pause_before": false
+    },
+    {
+      "step": "execute",
+      "engine": "claude",
+      "prompt": "You are running the EXECUTE phase for {project}. Read the reviewed plan in CYCLE.md. If the plan is marked autonomous: implement it. If it needs approval: check CYCLE.md queue — if the item is marked [x] (approved by human), implement it. Otherwise STOP. After implementation, move the item from Active Plan to '## Autonomous (done)' with date. Commit all changes.",
+      "max_turns": 15,
+      "max_budget_usd": 2.0,
+      "model": "opus",
+      "effort": "medium",
+      "pause_before": true
+    },
+    {
+      "step": "verify",
+      "engine": "claude",
+      "prompt": "You are running the VERIFY phase for {project}. Read what was executed in CYCLE.md '## Autonomous (done)' (most recent item). Verify it works: run relevant tests or pipeline segments, cross-check outputs with MCP tools or known-good data, check for regressions. Write results to CYCLE.md under '## Verification Results'. If verification fails, revert the change and move it back to gaps with failure notes. Commit.",
+      "max_turns": 15,
+      "max_budget_usd": 2.0,
+      "model": "sonnet",
+      "effort": "medium"
+    },
+    {
+      "step": "improve",
+      "engine": "claude",
+      "prompt": "You are running the IMPROVE phase for {project}. Review what happened this cycle: what worked, what broke, what was slow, what was missing. Propose improvements to tools, MCP servers, verification scripts, or search strategies. Write proposals to CYCLE.md under '## Tool Improvements (proposed)'. IMPORTANT: Do NOT implement tool changes yourself. Write any structural improvement proposals to ~/.claude/steward-proposals/ for review. Only autonomous-scope items (typo fixes, config tweaks) can be done directly. Commit.",
+      "max_turns": 10,
+      "max_budget_usd": 0.8,
+      "model": "sonnet",
+      "effort": "low"
+    }
+  ]
+}
