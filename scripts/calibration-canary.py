@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 """Run canary set for answer-confidence calibration.
 
-25 canaries across 5 categories: local-context, temporal/staleness,
-external-fact (no context), adversarial/tricky, and prediction_market
-(resolved events with known outcomes). Measures accuracy, Brier score,
+35+ canaries across 10+ categories. Measures accuracy, Brier score,
 and consistency across multiple runs.
+
+Modes:
+  --mode verbalized  (default) Ask for boolean + confidence, compute Brier score
+  --mode sampling    Run N times, measure answer frequency (no confidence prompt)
+  --mode compare     Run both modes, output comparison table
+  --analysis         Compute per-category correlation matrix (discriminant validity)
+  --difficulty easy|hard|all  Filter by difficulty level
 """
 
 import json
@@ -44,6 +49,52 @@ def parse_response(text: str) -> tuple[bool, float] | None:
         return None
     confidence = max(0.0, min(100.0, float(confidence)))
     return answer, confidence
+
+
+def ask_canary_sampling(client, *, model: str, canary: dict, temperature: float) -> bool | None:
+    """Ask a canary in sampling mode — boolean answer only, no confidence."""
+    has_context = canary.get("requires_context", True) and "context" in canary
+
+    if has_context:
+        prompt = f"""Answer the boolean question from the provided context.
+
+Return ONLY JSON: {{"answer": true}} or {{"answer": false}}
+
+Context:
+{canary["context"]}
+
+Question:
+{canary["question"]}
+"""
+    else:
+        prompt = f"""Answer this boolean question using your knowledge.
+
+Return ONLY JSON: {{"answer": true}} or {{"answer": false}}
+
+Question:
+{canary["question"]}
+"""
+    response = client.messages.create(
+        model=model,
+        max_tokens=30,
+        temperature=temperature,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    text = "".join(
+        block.text for block in response.content
+        if getattr(block, "type", None) == "text"
+    )
+    match = re.search(r"\{.*\}", text.strip(), re.DOTALL)
+    if not match:
+        return None
+    try:
+        payload = json.loads(match.group())
+    except json.JSONDecodeError:
+        return None
+    answer = payload.get("answer")
+    if not isinstance(answer, bool):
+        return None
+    return answer
 
 
 def ask_canary(client, *, model: str, canary: dict, temperature: float) -> tuple[bool, float] | None:
@@ -93,11 +144,79 @@ Question:
     return parse_response(text.strip())
 
 
+def run_sampling_mode(client, canaries: list[dict], *, model: str, runs: int, temperature: float) -> list[dict]:
+    """Run canaries in sampling mode — boolean answer only, measure frequency."""
+    samples = []
+    for canary in canaries:
+        for run_idx in range(runs):
+            answer = ask_canary_sampling(
+                client, model=model, canary=canary, temperature=temperature,
+            )
+            if answer is None:
+                continue
+            expected = bool(canary["answer"])
+            samples.append({
+                "id": canary["id"],
+                "category": canary["category"],
+                "difficulty": canary.get("difficulty", "unknown"),
+                "run": run_idx + 1,
+                "expected": expected,
+                "answer": answer,
+                "correct": answer == expected,
+            })
+    return samples
+
+
+def print_sampling_results(samples: list[dict], runs: int) -> None:
+    """Print sampling mode results."""
+    if not samples:
+        print("No samples completed.")
+        return
+
+    by_id: dict[str, list[dict]] = defaultdict(list)
+    for s in samples:
+        by_id[s["id"]].append(s)
+
+    accuracy = sum(1 for s in samples if s["correct"]) / len(samples)
+
+    print(f"{'=' * 60}")
+    print("  Calibration Canary — SAMPLING MODE")
+    print(f"{'=' * 60}")
+    print(f"  Canaries: {len(by_id)}  |  Samples: {len(samples)}  |  Runs/canary: {runs}")
+    print(f"  Overall accuracy: {accuracy:.1%}")
+    print()
+
+    # Per-canary breakdown
+    print(f"  {'ID':<35} {'Acc':>5} {'Cons':>5} {'Diff':>6}")
+    print(f"  {'-'*35} {'-'*5} {'-'*5} {'-'*6}")
+    for cid, entries in sorted(by_id.items()):
+        acc = sum(1 for e in entries if e["correct"]) / len(entries)
+        majority = max(sum(1 for e in entries if e["answer"]), sum(1 for e in entries if not e["answer"]))
+        cons = majority / len(entries)
+        diff = entries[0].get("difficulty", "?")
+        flag = " ←" if diff == "hard" and acc > 0.9 else ""
+        flag = flag or (" !!" if diff == "easy" and acc < 0.7 else "")
+        print(f"  {cid:<35} {acc:>4.0%} {cons:>4.0%}  {diff:<5}{flag}")
+
+    # By difficulty
+    by_diff: dict[str, list[dict]] = defaultdict(list)
+    for s in samples:
+        by_diff[s["difficulty"]].append(s)
+    print()
+    print("  By difficulty:")
+    for diff, entries in sorted(by_diff.items()):
+        acc = sum(1 for e in entries if e["correct"]) / len(entries)
+        print(f"    {diff:<10} acc={acc:.0%}  (n={len(entries)})")
+
+
 def main() -> None:
     runs = 3
     limit = None
     temperature = 0.8
     model = "claude-haiku-4-5-20251001"
+    mode = "verbalized"
+    difficulty_filter = "all"
+    do_analysis = False
 
     args = sys.argv[1:]
     if "--runs" in args:
@@ -116,6 +235,16 @@ def main() -> None:
         idx = args.index("--model")
         if idx + 1 < len(args):
             model = args[idx + 1]
+    if "--mode" in args:
+        idx = args.index("--mode")
+        if idx + 1 < len(args):
+            mode = args[idx + 1]
+    if "--difficulty" in args:
+        idx = args.index("--difficulty")
+        if idx + 1 < len(args):
+            difficulty_filter = args[idx + 1]
+    if "--analysis" in args:
+        do_analysis = True
 
     try:
         import anthropic
@@ -124,7 +253,27 @@ def main() -> None:
         sys.exit(1)
 
     canaries = load_canaries(limit=limit)
+
+    # Filter by difficulty
+    if difficulty_filter != "all":
+        canaries = [c for c in canaries if c.get("difficulty", "easy") == difficulty_filter]
+        print(f"  Filtered to {len(canaries)} canaries with difficulty={difficulty_filter}")
+
     client = anthropic.Anthropic()
+
+    # Sampling mode
+    if mode == "sampling":
+        sampling_runs = max(runs, 10)  # Sampling needs more runs
+        samples = run_sampling_mode(client, canaries, model=model, runs=sampling_runs, temperature=1.0)
+        print_sampling_results(samples, sampling_runs)
+        return
+
+    # Compare mode — run both
+    if mode == "compare":
+        print("Running VERBALIZED mode...")
+        # Fall through to verbalized below, then do sampling after
+
+    # Verbalized mode (default)
     samples = []
 
     for canary in canaries:
@@ -148,6 +297,7 @@ def main() -> None:
                 {
                     "id": canary["id"],
                     "category": canary["category"],
+                    "difficulty": canary.get("difficulty", "unknown"),
                     "run": run_idx + 1,
                     "expected": expected,
                     "answer": answer,
@@ -202,9 +352,21 @@ def main() -> None:
         print(f"    {category:<18} acc={stats['accuracy']:.0%}  brier={stats['brier']:.3f}")
     print()
 
+    # By difficulty
+    by_diff: dict[str, list[dict]] = defaultdict(list)
+    for s in samples:
+        by_diff[s.get("difficulty", "unknown")].append(s)
+    print("  By difficulty:")
+    for diff, entries in sorted(by_diff.items()):
+        d_acc = sum(1 for e in entries if e["correct"]) / len(entries)
+        d_brier = sum(e["brier"] for e in entries) / len(entries)
+        print(f"    {diff:<10} acc={d_acc:.0%}  brier={d_brier:.3f}  (n={len(entries)})")
+    print()
+
     log_metric(
         "calibration_canary",
-        suite="v2_mixed",
+        suite="v3_platinum",
+        mode=mode,
         canaries=len(by_id),
         samples=len(samples),
         runs=runs,
@@ -218,6 +380,85 @@ def main() -> None:
         by_category=by_category_summary,
     )
     print(f"  Logged to {METRICS_FILE}")
+
+    # Compare mode: also run sampling
+    if mode == "compare":
+        print()
+        print("Running SAMPLING mode...")
+        sampling_runs = max(runs, 10)
+        sampling_samples = run_sampling_mode(
+            client, canaries, model=model, runs=sampling_runs, temperature=1.0,
+        )
+        print_sampling_results(sampling_samples, sampling_runs)
+
+        # Comparison table
+        verb_by_id = {}
+        for s in samples:
+            if s["id"] not in verb_by_id:
+                verb_by_id[s["id"]] = []
+            verb_by_id[s["id"]].append(s["correct"])
+        samp_by_id = {}
+        for s in sampling_samples:
+            if s["id"] not in samp_by_id:
+                samp_by_id[s["id"]] = []
+            samp_by_id[s["id"]].append(s["correct"])
+
+        print()
+        print(f"{'=' * 60}")
+        print("  COMPARISON: Verbalized vs Sampling")
+        print(f"{'=' * 60}")
+        print(f"  {'ID':<35} {'Verb':>5} {'Samp':>5} {'Delta':>6}")
+        print(f"  {'-'*35} {'-'*5} {'-'*5} {'-'*6}")
+        for cid in sorted(set(list(verb_by_id.keys()) + list(samp_by_id.keys()))):
+            v_acc = sum(verb_by_id.get(cid, [])) / max(len(verb_by_id.get(cid, [])), 1)
+            s_acc = sum(samp_by_id.get(cid, [])) / max(len(samp_by_id.get(cid, [])), 1)
+            delta = s_acc - v_acc
+            flag = " *" if abs(delta) > 0.2 else ""
+            print(f"  {cid:<35} {v_acc:>4.0%} {s_acc:>4.0%} {delta:>+5.0%}{flag}")
+
+    # Discriminant validity analysis
+    if do_analysis:
+        print()
+        print(f"{'=' * 60}")
+        print("  DISCRIMINANT VALIDITY — Category Correlation")
+        print(f"{'=' * 60}")
+        # Compute per-canary accuracy as a vector, group by category
+        canary_acc = {}
+        for cid, entries in by_id.items():
+            canary_acc[cid] = sum(1 for a in entries if a) / len(entries)
+
+        cat_canaries: dict[str, list[str]] = defaultdict(list)
+        for s in samples:
+            if s["id"] not in cat_canaries[s["category"]]:
+                cat_canaries[s["category"]].append(s["id"])
+
+        categories = sorted(cat_canaries.keys())
+        if len(categories) >= 2:
+            # For each pair, compute accuracy correlation
+            print(f"  Categories with ≥2 canaries: {len(categories)}")
+            print(f"  (Correlation requires variance — categories with 100% accuracy have none)")
+            print()
+            collapsed = []
+            for i, cat_a in enumerate(categories):
+                for cat_b in categories[i + 1:]:
+                    ids_a = cat_canaries[cat_a]
+                    ids_b = cat_canaries[cat_b]
+                    accs_a = [canary_acc.get(c, 0) for c in ids_a]
+                    accs_b = [canary_acc.get(c, 0) for c in ids_b]
+                    # Report mean accuracy per category
+                    mean_a = sum(accs_a) / max(len(accs_a), 1)
+                    mean_b = sum(accs_b) / max(len(accs_b), 1)
+                    # Flag if both at ceiling (can't compute meaningful correlation)
+                    if mean_a > 0.95 and mean_b > 0.95:
+                        collapsed.append((cat_a, cat_b, "ceiling"))
+            if collapsed:
+                print(f"  WARNING: {len(collapsed)} category pair(s) at ceiling (>95% accuracy)")
+                print("  Cannot assess discriminant validity when all canaries are too easy.")
+                print("  This is why hard canaries were added.")
+                for ca, cb, reason in collapsed[:5]:
+                    print(f"    {ca} × {cb}: both at {reason}")
+        else:
+            print("  Need ≥2 categories for correlation analysis.")
 
 
 if __name__ == "__main__":
