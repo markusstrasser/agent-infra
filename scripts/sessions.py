@@ -243,6 +243,19 @@ def _append_content(result: dict, prefix: str, text: str, max_per_msg: int = 400
     result["content_len"] += len(line) + 1
 
 
+def _compute_duration(start_ts: str | None, end_ts: str | None) -> float | None:
+    """Compute duration in minutes from ISO timestamps. Returns None on bad data."""
+    if not start_ts or not end_ts:
+        return None
+    try:
+        t0 = datetime.fromisoformat(start_ts.replace("Z", "+00:00"))
+        t1 = datetime.fromisoformat(end_ts.replace("Z", "+00:00"))
+        mins = (t1 - t0).total_seconds() / 60
+        return round(mins, 1) if 0 < mins < 1440 else None
+    except (ValueError, TypeError):
+        return None
+
+
 def _extract_user_fields(obj: dict, result: dict):
     """Extract first_message and content from user records."""
     # Skip tool_result responses (these are tool outputs, not user messages)
@@ -429,7 +442,7 @@ def cmd_index(args):
             "start_ts": parsed["start_ts"],
             "end_ts": parsed["end_ts"],
             "model": parsed["model"],
-            "duration_min": receipt.get("duration_min"),
+            "duration_min": receipt.get("duration_min") or _compute_duration(parsed["start_ts"], parsed["end_ts"]),
             "cost_usd": receipt.get("cost_usd"),
             "context_pct": receipt.get("context_pct"),
             "first_message": parsed["first_message"],
