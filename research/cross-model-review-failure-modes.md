@@ -258,9 +258,51 @@ Citation landscape for key papers (as of 2026-03-17):
 
 No retractions, corrections, or editorial concerns found on any paper. Absence of contrasting citations is primarily a recency effect (2025-2026 papers). The Kim et al. under-citation is the most action-relevant finding — we should not overweight the specific 60% figure in design decisions, though the qualitative direction (correlated errors exist, same-provider worse) is well-established via FINCH-ZK's independent cross-family evidence (90.4% vs 59.1%).
 
+**2026-03-23 — Empirical validation from GPT-5.4 Pro adversarial audit of genomics pipeline.**
+
+Three rounds of cross-model review (Claude Opus 4.6 → GPT-5.4 Pro → Claude verification) on a real genomics variant prioritization scorer produced the first concrete empirical data for this memo's theoretical predictions.
+
+**Setup:** Claude Opus 4.6 wrote `variant_priority_score.py` (516 LOC). GPT-5.4 Pro was given the full code with adversarial audit instructions. Claude then verified GPT's claims against the codebase and primary sources.
+
+**Key findings:**
+
+1. **Cross-family code review caught 5 real bugs that same-model review missed.** The most critical: ClinVar substring parsing where "Conflicting classifications of pathogenicity" matched "pathogenic" and got +60 points — a tier-1 misranking. Claude approved this code; GPT caught it instantly. This confirms FINCH-ZK's +31pp cross-family accuracy gain (Claim #13) in a real production codebase, not a benchmark.
+
+2. **GPT's math was 13/13 exact across 3 rounds (~150+ total claims verified).** Power analysis, AUPRC decomposition, Poisson process derivations, LOEUF impossibility proofs — all matched to 4+ significant figures. This is not a model you fact-check on math.
+
+3. **GPT's failure mode is precise and consistent: correct proof applied to the wrong object.** The admixture AF response proved f_adj ≤ popmax via convex combination — formally valid math applied to a quantity (empirical tract-level AF) that isn't a convex combination. The verification researcher noted: "GPT constructed a formally valid proof about the wrong quantity." This is a structural failure mode, not a knowledge gap.
+
+4. **Citation attribution degrades under empirical claims.** 6/9 empirical claims had correct numbers but 2 had wrong/misleading citations (WhatsHap methods chapter cited for benchmark numbers it doesn't contain; 1000G phasing paper attributed to "GLIMPSE2" which didn't exist in 2019). Pattern: numbers right, provenance fabricated. This is the classic "plausible citation for fabricated specifics" failure from SimpleQA research.
+
+5. **Prompt structure determines yield.** Prompts with actual code/data pasted in produced the highest-value findings (scorer audit, compound het FDR). Prompts asking GPT to recall empirical statistics produced citation errors. **Rule: give the data, ask for reasoning. Don't ask for data AND reasoning.**
+
+6. **The verification step itself produces research value.** Verifying GPT's ClinGen claim led to reading the actual VCEP V3.0 document (Dec 2025). Verifying the compound het claim led to Hoehe 2019 (EUR cis/trans ratio). The verification process is itself a structured literature discovery mechanism.
+
+**Calibration against this memo's predictions:**
+
+| Prediction (from memo) | Observed |
+|------------------------|----------|
+| Cross-family review catches bugs same-model misses | **CONFIRMED** — 5/5 bugs missed by Opus, caught by GPT |
+| Self-preference bias makes same-model review useless | **CONSISTENT** — Opus approved its own code without finding any of the 5 bugs |
+| Weaker models add signal from different families | **CONFIRMED** — GPT (weaker on agentic coding) caught bugs in Opus-written code |
+| Sequential debate is no better than voting | **NOT TESTED** — we used independent review, not debate |
+| Citation accuracy degrades under empirical recall | **CONFIRMED** — 2/9 citation misattributions on empirical claims |
+
+**Workflow that emerged (recommended for replication):**
+
+1. Claude writes code
+2. GPT-5.4 Pro reviews with actual code pasted (not described — pasted)
+3. Claude verifies GPT's claims against codebase + primary sources
+4. Only verified findings get implemented
+5. Total cost: ~$100-180 across 3 rounds, caught a tier-1 misranking bug
+
+This is the first empirical data point for "structured cross-family code review on a production codebase." The theoretical predictions from Kim et al. and FINCH-ZK held up in practice.
+
+[SOURCE: genomics pipeline session 2026-03-23, commit fe26d64 (scorer bug fixes)]
+
 <!-- knowledge-index
-generated: 2026-03-22T00:15:43Z
-hash: 8f39ea1ced3e
+generated: 2026-03-23T18:01:09Z
+hash: 48a69d75d6d3
 
 title: Cross-Model LLM Review: Failure Modes and Biases
 sources: 4
