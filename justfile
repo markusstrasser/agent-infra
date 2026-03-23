@@ -181,6 +181,39 @@ brief:
         tail -1 "$receipts" 2>/dev/null | python3 -c 'import json,sys,datetime as dt; d=json.load(sys.stdin); ts=d.get("ts",""); cost=d.get("cost_usd",0); model=d.get("model","?"); ctx=d.get("context_pct",0); delta=int((dt.datetime.now()-dt.datetime.fromisoformat(ts)).total_seconds()/60) if ts else 0; ago=(f"{delta}m" if delta<60 else (f"{delta//60}h" if delta<1440 else f"{delta//1440}d")); print(f"Receipt: {ago} ago, ${cost:.2f}, {model}, {ctx}% ctx")' 2>/dev/null
     fi
 
+# List unimplemented proposals (steward-proposals + design-review patterns)
+[group('dashboard')]
+proposals:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "=== Steward Proposals ==="
+    shopt -s nullglob
+    for f in ~/.claude/steward-proposals/*.md; do
+        if ! grep -q "IMPLEMENTED" "$f"; then
+            name=$(basename "$f" .md)
+            echo "  [ ] $name"
+        else
+            name=$(basename "$f" .md)
+            echo "  [x] $name"
+        fi
+    done
+    echo ""
+    echo "=== Design Review Patterns (actionable) ==="
+    pj="artifacts/design-review/patterns.jsonl"
+    if [ -f "$pj" ]; then
+        python3 -c "
+    import json
+    for line in open('$pj'):
+        p = json.loads(line.strip())
+        if p.get('type') in ('REINVENTED_LOGIC','TOOL_GAP','MANUAL_COORDINATION') and not p.get('status'):
+            freq = p.get('frequency', '?')
+            projs = ','.join(p.get('projects', []))
+            print(f'  {p[\"name\"]} (freq={freq}, projects={projs})')
+    " 2>/dev/null || echo "  (parse error)"
+    else
+        echo "  (no patterns.jsonl)"
+    fi
+
 # Apply SQLite views to orchestrator DB
 [group('orchestrator')]
 orch-views:
