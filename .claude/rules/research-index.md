@@ -23,6 +23,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `agent-self-modification.md` | DGM, context collapse, reward hacking | Self-improvement loops, MEMORY.md update strategy |
 | `claude-code-internals.md` | Claude Code architecture, compaction, community patterns | Building hooks, understanding Claude Code behavior |
 | `claude-code-native-vs-meta-infra.md` | Native Claude Code features vs our custom infrastructure | Before building new hooks/skills that might duplicate native features |
+| `claude-code-native-features-deferred.md` | Deferred adoption items (API MCP, tool compression, scoped tools, Agent Teams, --bare) with triggers | When running /trending-scout anthropic; before building infra a native feature might replace |
 | `native-leverage-plan.md` | Implementation plan for adopting native features | Hook/skill implementation work |
 | `anthropic-soul-guidelines.md` | Anthropic's internal model guidelines (archived) | Understanding trust model, operator role |
 | `constitutional-delta.md` | Why project constitutions differ from Claude's base; error correction as telos | Constitutional design, principle derivation |
