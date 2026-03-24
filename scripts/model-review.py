@@ -83,7 +83,7 @@ RESPOND WITH EXACTLY:
 Formal contradictions, unstated assumptions, invalid inferences. If math is involved, verify it.
 
 ## 2. Cost-Benefit Analysis
-For each proposed change: expected impact, maintenance burden, composability, risk. Rank by value adjusted for ongoing cost (not creation effort — dev time is ~free).
+For each proposed change: expected impact, maintenance burden, composability, risk. Rank by value adjusted for ongoing cost. Creation effort is irrelevant (agents build everything). Only ongoing drag matters: maintenance, supervision, complexity budget.
 
 ## 3. Testable Predictions
 Convert vague claims into falsifiable predictions with success criteria. If a claim can't be made testable, flag it.
@@ -153,7 +153,7 @@ Generate 3-5 genuinely different approaches to the same problem. For each:
 1. Core mechanism (how it works differently)
 2. What it's better at than the proposed approach
 3. What it's worse at
-4. Rough effort to implement
+4. Maintenance burden and complexity cost (not implementation effort — agents build everything)
 
 Do NOT critique the existing plan — generate alternatives. Different mechanisms, not tweaks.""",
     },
@@ -237,6 +237,16 @@ def build_context(
     if goals_path:
         preamble += "# PROJECT GOALS\n\n"
         preamble += Path(goals_path).read_text() + "\n\n"
+
+    # Agent economics framing — always included so reviewers don't
+    # recommend trading quality for dev time (which is ~free with agents)
+    preamble += "# DEVELOPMENT CONTEXT\n"
+    preamble += "All code, plans, and features in this project are developed by AI agents, not human developers. "
+    preamble += "Dev creation time is effectively zero. Therefore:\n"
+    preamble += "- NEVER recommend trading stability, composability, or robustness for dev time savings\n"
+    preamble += "- NEVER recommend simpler/hacky approaches because they're 'faster to implement'\n"
+    preamble += "- Cost-benefit analysis should filter on: maintenance burden, supervision cost, complexity budget, blast radius — not creation effort\n"
+    preamble += "- 'Effort to implement' is not a meaningful cost dimension — only ongoing drag matters\n\n"
 
     content = context_file.read_text() if context_file else ""
 
