@@ -19,21 +19,9 @@
       "cwd": "~/Projects/meta"
     },
     {
-      "step": "triage",
-      "type": "script",
-      "command": "uv run python3 scripts/finding-triage.py ingest artifacts/session-retro/ && uv run python3 scripts/finding-triage.py promote && uv run python3 scripts/finding-triage.py status",
-      "cwd": "~/Projects/meta"
-    },
-    {
       "step": "verify-fixes",
       "type": "script",
       "command": "uv run python3 scripts/fix-verify.py run --days 3 2>&1 | head -50 || true",
-      "cwd": "~/Projects/meta"
-    },
-    {
-      "step": "decay",
-      "type": "script",
-      "command": "uv run python3 scripts/finding-triage.py decay --days 30 2>&1 || true",
       "cwd": "~/Projects/meta"
     }
   ]
