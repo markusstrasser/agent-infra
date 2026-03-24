@@ -296,6 +296,7 @@ def main():
     fm = extract_frontmatter_fields(text)
     sources = extract_source_tags(text)
     crossrefs = extract_crossrefs(text)
+    corrections = extract_corrections(text)
     summary = f"Knowledge index updated: {len(sources)} sources, {len(crossrefs)} cross-refs"
     if fm.get("title") or fm.get("ticker"):
         summary += f" [{fm.get('title') or fm.get('ticker')}]"
@@ -303,9 +304,26 @@ def main():
     # Only inject context when there's something actionable.
     # Success messages ("index updated") are noise — agent doesn't act on them.
     # Warnings ("no frontmatter") are actionable — agent can fix.
+    # Correction advisory is actionable — agent can run propagation check.
     if fm_warning:
         output = {"additionalContext": fm_warning}
         print(json.dumps(output))
+    elif corrections:
+        # Check if corrections are new (not in prior index block)
+        prior_corrections = []
+        if existing_match:
+            for line in existing_match.group(1).split("\n"):
+                if line.strip().startswith("@correction"):
+                    prior_corrections.append(line.strip())
+        new_corrections = [f"@correction | {c}" for c in corrections]
+        if set(new_corrections) != set(prior_corrections):
+            output = {
+                "additionalContext": (
+                    f"CORRECTION detected in {file_path}. "
+                    f"Run: uv run python3 /Users/alien/Projects/meta/scripts/propagate-correction.py --from {file_path}"
+                )
+            }
+            print(json.dumps(output))
 
 
 if __name__ == "__main__":
