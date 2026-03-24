@@ -1255,7 +1255,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** architectural — Investigate why ruff --fix removes newly-added code. The hook should warn (not silently revert) when removing more than N lines. May need `--no-fix` mode that warns but doesn't auto-modify.
 - **Root cause:** system-design
 - **Severity:** high
-- **Status:** [ ] proposed
+- **Status:** [x] implemented — dropped `--fix` from ruff hook, now report-only (genomics 470c61d)
 
 ### [2026-03-24] TOKEN WASTE: git add -A committed 67 untracked .scratch/ working files
 - **Session:** genomics cebdb98e
@@ -1264,7 +1264,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** rule — Never use `git add -A` in repos with working artifact directories. Always use explicit file paths or `git add <specific files>`. Check `git status` before commit.
 - **Root cause:** agent-capability
 - **Severity:** medium
-- **Status:** [ ] proposed
+- **Status:** [x] implemented — added `git add -A` ban to global CLAUDE.md git rules
 
 ### [2026-03-24] WRONG-TOOL DRIFT: MCP batch lookup recurrence despite existing rule
 - **Session:** genomics 6d9c8b38
@@ -1274,7 +1274,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Root cause:** agent-capability
 - **Severity:** medium
 - **Recurrences:** 2 (first: 6d9c8b38 per MEMORY.md, second: same session)
-- **Status:** [ ] proposed
+- **Status:** [x] implemented — promoted to CLAUDE.md pitfall #15 (memory entry was not consulted, needs higher visibility)
 
 ### [2026-03-24] PREMATURE TERMINATION: Arbitrary "top 4" cutoff on comprehensive analysis
 - **Session:** genomics 6d9c8b38
