@@ -276,6 +276,25 @@ Cross-model critique run on 2026-03-17 via `llmx`:
 - the pilot reveals that >80% of the pain is stale indexes solvable by Option 4 (generated indexes only) without dependency tracking
 - per-project DBs create schema drift that a single shared DB would have prevented
 
+## Resolution (2026-03-24)
+
+**Outcome:** Substrate MCP retired. Knowledge-index hook + correction propagation script replace it.
+
+**What happened:** After 7 days of deployment, the substrate MCP had 60 writes (all batch-ingested by scripts) and 4 reads (one genomics session). No organic agent adoption. Staleness: intel 4%, selve 44%, genomics 98%. The PostToolUse knowledge-index hook achieved 100% file coverage automatically and solved the visible pain (discoverability, staleness, cross-refs).
+
+**Revisit conditions met:**
+- "registration coverage stalls below 50%" — organic registration was 0%
+- ">80% of pain is stale indexes solvable by Option 4" — confirmed by knowledge-index hook success
+
+**What replaces it:**
+- `scripts/propagate-correction.py` — correction propagation via backward cross-ref tracing + term matching
+- `postwrite-knowledge-index.py` — advisory hook emits propagation prompt on new @correction
+- `pipelines/correction-sweep.json` — daily scan catches out-of-band edits
+
+**What's preserved:** `substrate/` code archived in repo. DBs at `~/.claude/knowledge/archive/`.
+
+**Cross-model review:** 4-axis review (Gemini Pro arch/domain, GPT-5.4 formal, Flash mechanical). 28 findings → 8 included. Key changes: content-hash over mtime for genomics guard, daily sweep pipeline, genomics config.py fix. See `.model-review/2026-03-24-substrate-retirement-4b8505/`.
+
 ## Supersedes
 No prior decision file. This decision draws on, but does not supersede, the decision-journal convention and existing epistemic architecture memos.
 

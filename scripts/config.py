@@ -79,7 +79,7 @@ def extract_frontmatter(path: Path) -> dict | None:
 KNOWLEDGE_ELIGIBLE_PATTERNS = {
     "intel": ["analysis/entities/*.md"],
     "selve": ["docs/research/*.md", "docs/entities/*.md"],
-    "genomics": [],  # pipeline-driven, not doc-driven (amendment A6)
+    "genomics": ["docs/research/*.md"],  # was empty (A6) but hook already indexes 22 files here
     "meta": ["research/*.md", "decisions/*.md"],
 }
 

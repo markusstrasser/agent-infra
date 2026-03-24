@@ -6,7 +6,8 @@
       "Skill(researcher)",
       "mcp__exa__web_search_advanced_exa",
       "Bash(zsh -c 'source ~/.zsh_agent_utils && echo OK && agent-sync')",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(~/Projects/skills/hooks/generate-overview.sh --type source --project-root ~/Projects/arc-agi 2>&1)"
     ]
   }
 }

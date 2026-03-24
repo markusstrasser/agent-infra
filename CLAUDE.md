@@ -57,7 +57,7 @@ This repo plans and tracks improvements to agent infrastructure across projects 
 - `scripts/hook-roi.py` — hook trigger pattern analysis (fires, blocks, false positive candidates)
 
 **Reference:**
-- `substrate/` — shared knowledge substrate. See below and `decisions/2026-03-17-shared-knowledge-substrate.md`.
+- `substrate/` — RETIRED 2026-03-24 (4 reads in 7 days). See `decisions/2026-03-17-shared-knowledge-substrate.md`.
 - `schemas/` — `calibration_canaries.json` (active). `open_questions.md` and `pertinent_negatives.json` are design references only (never instantiated by any project).
 - `runlog.md` — runlog architecture, import/query usage, named queries
 - `cockpit.md` — human-agent interface: status line, notifications, receipts, dashboard
@@ -202,24 +202,11 @@ orchestrator.py summary                              # daily markdown
 
 **Design spec:** `research/orchestrator-design.md`.
 
-## Knowledge Substrate (`substrate/`)
+## Knowledge Substrate (`substrate/`) — RETIRED
 
-Shared provenance and dependency tracking across intel, selve, genomics, and meta. Per-project SQLite DBs at `~/.claude/knowledge/{project}.db`. Shared schema, per-project domain profiles.
+Retired 2026-03-24. MCP removed from all projects. 4 reads / 60 writes in 7 days — knowledge-index hook (PostToolUse, 100% coverage) solved the actual pain. Correction propagation now handled by `scripts/propagate-correction.py`.
 
-**Core:** `schema.sql` (7 tables), `core.py` (KnowledgeDB class), `cli.py`, `mcp_server.py` (10 tools).
-
-```bash
-uv run python3 -m substrate --db ~/.claude/knowledge/intel.db stats    # project stats
-uv run python3 -m substrate --db ~/.claude/knowledge/intel.db stale    # stale objects
-uv run python3 substrate/propagate_cross_project.py                    # cross-project propagation (dormant — 1 ref in 4+ days)
-uv run python3 substrate/stress_test.py                                # 27 tests
-uv run python3 substrate/ingest_intel.py                               # re-ingest intel entities
-uv run python3 substrate/ingest_selve.py                               # re-ingest selve memos
-```
-
-**MCP configured in:** intel, selve, genomics (`.mcp.json`). DB also in meta. Advisory hook in global `settings.json` (PostToolUse on Write/Edit).
-
-**ADR:** `decisions/2026-03-17-shared-knowledge-substrate.md`.
+Code archived in `substrate/`. DBs at `~/.claude/knowledge/archive/`. ADR: `decisions/2026-03-17-shared-knowledge-substrate.md`.
 
 ## Backlog
 

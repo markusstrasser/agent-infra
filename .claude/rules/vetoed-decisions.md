@@ -12,3 +12,4 @@ These decisions were made deliberately and should not be re-derived.
 - Do NOT retry same Gemini model after 503 — switch to GPT or Flash for remaining session calls. 4 confirmed incidents of wasted retries.
 - Do NOT use codex-cli for orchestrator dispatch — 34K token overhead per call from MCP descriptions, no bare mode.
 - Do NOT add finding-triage SQLite DB — retired 2026-03-21, inline improvement-log approach replaced it.
+- Do NOT rebuild knowledge substrate MCP — retired 2026-03-24, 4 reads / 60 writes in 7 days. Knowledge-index hook (100% coverage) solved the actual pain. Correction propagation via `scripts/propagate-correction.py` instead.
