@@ -35,7 +35,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [hook] PostToolUse hook on Read — detect consecutive reads of same file path within N tool calls. Advisory warning, not blocking.
 - **Severity:** high (6x reads) / medium (2x reads) — varies by session
 - **Root cause:** agent-capability
-- **Status:** [x] already implemented — tool-tracker.sh has dup-read detection (recency window 20, warn at 3x, block at 4x, edit-invalidation). 1,242 shadow entries, 7 blocks today. Finding proposed a hook that already existed.
+- **Status:** [SUPERSEDED] tool-tracker.sh already had dup-read detection when this was reported.
 
 ### [2026-03-20] WRONG-TOOL DRIFT: Complex bash/grep to search session logs instead of sessions.py
 - **Session:** meta e9037546 ($3.00, 33 min)
@@ -336,7 +336,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
   4. **corrections (4 unique):** completeness-verify (1), depth-nudge (1), env-uv-not-conda (1), capability-nudge (1). All singletons, noise not signal.
 - **Trend:** Wasted supervision 21.0% -> 5.9% in 2 days. ~60% of the drop is classifier accuracy (false positives removed), ~40% is genuine improvement from 2026-02-28 fixes (commit rule, context continuation rule, UserPromptSubmit hook).
 - **Gemini synthesis (cross-checked):**
-  - Proposed commit-boilerplate DEFAULT fix -- rejected, rule already exists (CLAUDE.md git_rules section).
+  - Proposed commit-boilerplate DEFAULT fix -- [SUPERSEDED] rule already exists (CLAUDE.md git_rules section).
   - Proposed context-exhaustion ARCHITECTURAL fix -- moot, these were false positives in the classifier.
   - Proposed build-failure SKILL and tool-error HOOK -- both from one selve/genomics session (a2679f18), not recurring. Below threshold.
 - **Fixes deployed:**
@@ -637,7 +637,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
   - env-uv-not-conda (1), capability-nudge (1), completeness-verify (1), repeat-instruction (2), halt (1), depth-nudge (2). All below recurrence threshold. No new fixes warranted.
 - **Gemini 3.1 Pro synthesis (cross-checked):**
   - Proposed: Fix premature hooks causing approval prompts — **PARTIALLY VALID.** Gemini hallucinated specific hook names but the pattern is real: some rubber-stamps are the agent asking permission when it shouldn't. Already addressed by "Execution After Plans" rule (Mar 2).
-  - Proposed: Session resumption rule — **ALREADY EXISTS.** Global CLAUDE.md already says "Resume work automatically." Gemini didn't check existing rules.
+  - Proposed: Session resumption rule — [SUPERSEDED] Global CLAUDE.md already says "Resume work automatically." Gemini didn't check existing rules.
   - Proposed: Single-line git commits — **REJECTED.** The heredoc format is specified in global CLAUDE.md for good reason (formatting with Co-Authored-By). The problem is the user's clipboard paste, not the commit format.
 - **Classifier accuracy notes:**
   - 430 "system" messages correctly filtered (hook-feedback, skill-expansion, context-continuation, slash-command)
@@ -730,7 +730,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Missing pushback — assumed model existence from user statement
 - **Proposed fix:** [rule] Verify model availability before configuring
 - **Severity:** medium
-- **Status:** [x] resolved — already covered by global CLAUDE.md rule 12 (verify vendor claims before asserting — explicitly lists "availability") (steward 2026-03-21)
+- **Status:** [SUPERSEDED] already covered by global CLAUDE.md rule 12 (verify vendor claims) when reported.
 
 ### [2026-03-03] BUILD-THEN-UNDO: Shared decorator breaks local scripts
 - **Session:** genomics dbdca96d
@@ -1047,7 +1047,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** CLAUDE.md change: "Multi-line Python (>10 lines) must go in a .py file, not inline Bash. Exception: one-shot queries." | CLAUDE.md change: "Prefer `ast` module or direct import over regex when parsing Python source code."
 - **Root cause:** TBD
 - **Recurrences:** 4 (auto-promoted from staging)
-- **Status:** [x] covered — both rules already exist in global CLAUDE.md `<environment>` section. 4 recurrences are from pre-rule sessions (2026-02-28).
+- **Status:** [SUPERSEDED] rules already existed in global CLAUDE.md `<environment>` section. Recurrences from pre-rule sessions.
 
 ### [2026-03-17] WRONG SUBAGENT TYPE: 5 verification agents launched as general-purpose instead of researcher
 - **Session:** selve fa8f6961
@@ -1182,7 +1182,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** rule: Batch searches into ≤4 parallel calls per turn. Use sequential staging when probing >4 distinct topics to stay within burst hook threshold.
 - **Root cause:** agent-capability
 - **Recurrences:** 2 (auto-promoted from staging)
-- **Status:** [x] covered — search-burst hook already deployed and firing. The hook IS the enforcement. Adding a rule on top of a working hook is redundant.
+- **Status:** [SUPERSEDED] search-burst hook already deployed and firing when reported.
 
 ### [2026-03-20] SEARCH_WASTE: Research memo proposed 4 fixes, 3 already existed in codebase (PRS CIs, gnomAD penetrance, non-coding AF filter). Should have grepped before writing recommendations.
 - **Session:** genomics ?
