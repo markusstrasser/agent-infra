@@ -108,16 +108,13 @@ def build_inverted_index(
 def trace_from_file(
     source_file: Path,
     files: list[tuple[str, Path]],
-    include_archives: bool = False,
 ) -> list[dict]:
     """Strategy 1: backward cross-ref tracing from a corrected file."""
     # Determine the relative path of source within its project
     source_rel = None
-    source_proj = None
-    for proj, root in PROJECT_ROOTS.items():
+    for _, root in PROJECT_ROOTS.items():
         try:
             source_rel = str(source_file.relative_to(root))
-            source_proj = proj
             break
         except ValueError:
             continue
@@ -130,14 +127,13 @@ def trace_from_file(
     for ref_key, referrers in inv.items():
         if ref_key == source_rel:
             for proj, fpath in referrers:
-                results.append(_classify_file(proj, fpath, f"cross-refs {source_rel}", include_archives))
+                results.append(_classify_file(proj, fpath, f"cross-refs {source_rel}"))
     return results
 
 
 def search_terms(
     terms: list[str],
     projects: list[str] | None = None,
-    include_archives: bool = False,
 ) -> list[dict]:
     """Strategy 2: forward term matching via rg."""
     targets = projects or list(PROJECT_ROOTS.keys())
@@ -184,7 +180,7 @@ def search_terms(
                     continue
 
                 results.append(
-                    _classify_file(proj, fpath, f"contains '{term}'", include_archives)
+                    _classify_file(proj, fpath, f"contains '{term}'")
                 )
     return results
 
@@ -192,7 +188,6 @@ def search_terms(
 def scan_corrections(
     files: list[tuple[str, Path]],
     all_files: list[tuple[str, Path]],
-    include_archives: bool = False,
 ) -> list[dict]:
     """Strategy 3: find files with @correction, trace their references."""
     results = []
@@ -212,11 +207,11 @@ def scan_corrections(
         if key not in seen:
             seen.add(key)
             results.append(
-                _classify_file(proj, fpath, "has @correction", include_archives)
+                _classify_file(proj, fpath, "has @correction")
             )
 
         # Trace references to this file
-        traced = trace_from_file(fpath, all_files, include_archives)
+        traced = trace_from_file(fpath, all_files)
         for r in traced:
             if r["file"] not in seen:
                 seen.add(r["file"])
@@ -230,7 +225,6 @@ def _classify_file(
     project: str,
     fpath: Path,
     why: str,
-    include_archives: bool,
 ) -> dict:
     """Classify a flagged file with status."""
     is_archive = is_archive_path(fpath)
@@ -278,13 +272,13 @@ def find_affected_files(
 
     if source_file:
         source_path = Path(source_file).resolve()
-        results.extend(trace_from_file(source_path, all_files, include_archives))
+        results.extend(trace_from_file(source_path, all_files))
 
     if terms:
-        results.extend(search_terms(terms, projects, include_archives))
+        results.extend(search_terms(terms, projects))
 
     if scan:
-        results.extend(scan_corrections(files, all_files, include_archives))
+        results.extend(scan_corrections(files, all_files))
 
     # Deduplicate by file path, keeping first occurrence
     seen: set[str] = set()
@@ -292,6 +286,10 @@ def find_affected_files(
     for r in results:
         if r["file"] not in seen:
             seen.add(r["file"])
+            # Archives always included in output but with ARCHIVE status
+            # When include_archives=False, mark them so callers can filter
+            if not include_archives and r.get("is_archive"):
+                r["status"] = "ARCHIVE"
             deduped.append(r)
     return deduped
 
@@ -309,7 +307,7 @@ def format_table(results: list[dict]) -> str:
     for r in results:
         # Shorten file path for display
         fpath = r["file"]
-        for proj, root in PROJECT_ROOTS.items():
+        for _, root in PROJECT_ROOTS.items():
             root_str = str(root)
             if fpath.startswith(root_str):
                 fpath = fpath[len(root_str) + 1:]

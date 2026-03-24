@@ -1,0 +1,18 @@
+{
+  "name": "correction-sweep",
+  "description": "Daily correction propagation scan + balance check — replaces substrate-sync",
+  "schedule": 6,
+  "project": "meta",
+  "steps": [
+    {
+      "step": "scan-corrections",
+      "type": "script",
+      "command": "uv run python3 scripts/propagate-correction.py --scan --json"
+    },
+    {
+      "step": "balance-check",
+      "type": "script",
+      "command": "uv run python3 scripts/knowledge-balance-check.py"
+    }
+  ]
+}
