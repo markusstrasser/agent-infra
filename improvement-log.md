@@ -1237,3 +1237,50 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Root cause:** agent-capability
 - **Severity:** medium
 - **Status:** [ ] proposed
+- **Recurrences:** 3 (genomics 6d9c8b38, genomics 1833d541 — CLAUDE.md read 6x, justfile 4x)
+
+### [2026-03-24] BUILD-THEN-UNDO: Codex agents exhausted turns without synthesizing, full re-dispatch via Claude
+- **Session:** genomics 631c8a46
+- **Evidence:** 4 Codex agents dispatched for report-generators, biomedical-client, reproductive-screening, newest-scripts. All 4 exhausted turns reading code without writing any synthesis file. Agent said "All 4 agents exhausted turns reading code and never synthesized — the known Codex failure pattern." Re-dispatched all 4 axes as Claude subagents. ~30 min + Codex compute wasted.
+- **Failure mode:** build-then-undo (Codex-specific variant of subagent turn exhaustion)
+- **Proposed fix:** Codex audit prompts must include: (1) "Write findings to FILE after reading 3 files — do NOT wait until end", (2) max 2 files per agent, (3) explicit word limit on synthesis. The subagent-output-discipline rule exists but Codex agents don't receive it.
+- **Root cause:** task-specification
+- **Severity:** high
+- **Status:** [ ] proposed
+
+### [2026-03-24] TOKEN WASTE: Ruff PostToolUse hook silently reverts newly-added functions
+- **Session:** genomics 6d9c8b38
+- **Evidence:** Agent added normalize_gt() and assert_merge_yield() to variant_evidence_core.py. PostToolUse ruff hook ran `ruff check --fix` which silently reverted the changes. Two full re-read/re-edit cycles wasted (~6 tool calls). Agent retro noted this as top finding.
+- **Failure mode:** token-waste (system-induced)
+- **Proposed fix:** architectural — Investigate why ruff --fix removes newly-added code. The hook should warn (not silently revert) when removing more than N lines. May need `--no-fix` mode that warns but doesn't auto-modify.
+- **Root cause:** system-design
+- **Severity:** high
+- **Status:** [ ] proposed
+
+### [2026-03-24] TOKEN WASTE: git add -A committed 67 untracked .scratch/ working files
+- **Session:** genomics cebdb98e
+- **Evidence:** Agent ran `git add -A` to commit bio-verify updates. This also staged 67 GPT-5.4 eval files from .scratch/ (never gitignored). Required gitignore + git rm --cached cleanup. User: "those files shouldn't be in git."
+- **Failure mode:** token-waste
+- **Proposed fix:** rule — Never use `git add -A` in repos with working artifact directories. Always use explicit file paths or `git add <specific files>`. Check `git status` before commit.
+- **Root cause:** agent-capability
+- **Severity:** medium
+- **Status:** [ ] proposed
+
+### [2026-03-24] WRONG-TOOL DRIFT: MCP batch lookup recurrence despite existing rule
+- **Session:** genomics 6d9c8b38
+- **Evidence:** Agent dispatched 100+ individual MCP calls for 110 rsIDs. User interrupted. The rule already exists in MEMORY.md (feedback_mcp_batch_direct_api.md): "For batch lookups >20 items, call the underlying API directly."
+- **Failure mode:** wrong-tool-drift (recurrence of covered pattern)
+- **Proposed fix:** Existing rule not consulted. Consider promoting to CLAUDE.md pitfalls or adding a hook that warns on >10 sequential MCP calls to same tool.
+- **Root cause:** agent-capability
+- **Severity:** medium
+- **Recurrences:** 2 (first: 6d9c8b38 per MEMORY.md, second: same session)
+- **Status:** [ ] proposed
+
+### [2026-03-24] PREMATURE TERMINATION: Arbitrary "top 4" cutoff on comprehensive analysis
+- **Session:** genomics 6d9c8b38
+- **Evidence:** Agent found 9 bug classes but proposed fixing only 4. User: "Why top 4? That's arbitrary ... just make a plan with ALL the good ideas." Agent acknowledged and expanded to full 9-phase plan.
+- **Failure mode:** premature-termination
+- **Proposed fix:** rule — When user asks for comprehensive/complete analysis, address ALL findings. Don't impose arbitrary cutoffs unless user sets a budget.
+- **Root cause:** agent-capability
+- **Severity:** low
+- **Status:** [ ] proposed
