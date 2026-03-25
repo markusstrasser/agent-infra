@@ -181,12 +181,79 @@ PRESETS = {
     "full": ["arch", "formal", "domain", "mechanical", "alternatives"],
 }
 
+GEMINI_PRO_MODEL = "gemini-3.1-pro-preview"
+GEMINI_FLASH_MODEL = "gemini-3-flash-preview"
+GEMINI_RATE_LIMIT_MARKERS = (
+    "503",
+    "rate limit",
+    "rate-limit",
+    "resource_exhausted",
+    "overloaded",
+    "429",
+)
+
 
 def slugify(text: str, max_len: int = 40) -> str:
     s = text.lower()
     s = re.sub(r"[^a-z0-9]+", "-", s)
     s = s.strip("-")
     return s[:max_len]
+
+
+def build_llmx_cmd(
+    model: str,
+    flags: list[str],
+    context_path: Path,
+    output_path: Path,
+    prompt: str,
+) -> list[str]:
+    return [
+        "llmx", "chat",
+        "-m", model,
+        *flags,
+        "-f", str(context_path),
+        "-o", str(output_path),
+        prompt,
+    ]
+
+
+def read_process_stderr(proc: subprocess.Popen) -> str:
+    _, stderr = proc.communicate()
+    return stderr.decode(errors="replace").strip() if stderr else ""
+
+
+def is_gemini_rate_limit_failure(model: str, exit_code: int, stderr: str, output_size: int) -> bool:
+    if model != GEMINI_PRO_MODEL:
+        return False
+    if exit_code == 0 and output_size > 0:
+        return False
+    stderr_lower = stderr.lower()
+    return exit_code == 3 or any(marker in stderr_lower for marker in GEMINI_RATE_LIMIT_MARKERS)
+
+
+def rerun_axis_with_flash(
+    axis: str,
+    axis_def: dict[str, object],
+    review_dir: Path,
+    ctx_file: Path,
+    prompt: str,
+    env: dict[str, str],
+) -> tuple[int, str, Path]:
+    out_path = review_dir / f"{axis}-output.md"
+    cmd = build_llmx_cmd(
+        GEMINI_FLASH_MODEL,
+        list(axis_def["flags"]),
+        ctx_file,
+        out_path,
+        prompt,
+    )
+    print(
+        f"warning: {axis} hit Gemini Pro rate limits; retrying once with Gemini Flash",
+        file=sys.stderr,
+    )
+    proc = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stderr = read_process_stderr(proc)
+    return proc.returncode, stderr, out_path
 
 
 def find_constitution(project_dir: Path) -> tuple[str, str | None]:
@@ -296,6 +363,7 @@ def dispatch(
 
     procs = {}
     outputs = {}
+    prompts = {}
     t0 = time.time()
 
     for axis in axis_names:
@@ -308,15 +376,15 @@ def dispatch(
             question=question,
             constitution_instruction=const_instruction.get(axis, ""),
         )
+        prompts[axis] = prompt
 
-        cmd = [
-            "llmx", "chat",
-            "-m", axis_def["model"],
-            *axis_def["flags"],
-            "-f", str(ctx_files[axis]),
-            "-o", str(out_path),
+        cmd = build_llmx_cmd(
+            str(axis_def["model"]),
+            list(axis_def["flags"]),
+            ctx_files[axis],
+            out_path,
             prompt,
-        ]
+        )
 
         procs[axis] = subprocess.Popen(
             cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE
@@ -324,19 +392,57 @@ def dispatch(
 
     # Wait for all
     results = {"review_dir": str(review_dir), "axes": axis_names, "queries": len(axis_names)}
+    gemini_rate_limited = False
     for axis in axis_names:
         proc = procs[axis]
-        rc = proc.wait()
-        stderr = proc.stderr.read().decode(errors="replace").strip() if proc.stderr else ""
+        stderr = read_process_stderr(proc)
+        rc = proc.returncode
         out_path = outputs[axis]
+        requested_model = str(AXES[axis]["model"])
+        output_size = out_path.stat().st_size if out_path.exists() else 0
+        transient_gemini_failure = is_gemini_rate_limit_failure(
+            requested_model,
+            rc,
+            stderr,
+            output_size,
+        )
+        should_fallback = requested_model == GEMINI_PRO_MODEL and (
+            transient_gemini_failure
+            or (gemini_rate_limited and (rc != 0 or output_size == 0))
+        )
+        if transient_gemini_failure:
+            gemini_rate_limited = True
 
         entry = {
             "label": AXES[axis]["label"],
-            "model": AXES[axis]["model"],
+            "requested_model": requested_model,
+            "model": requested_model,
             "exit_code": rc,
             "output": str(out_path),
-            "size": out_path.stat().st_size if out_path.exists() else 0,
+            "size": output_size,
         }
+        if should_fallback:
+            entry["fallback_from"] = requested_model
+            entry["fallback_reason"] = (
+                "gemini_rate_limit" if transient_gemini_failure else "gemini_session_rate_limit"
+            )
+            entry["initial_exit_code"] = rc
+            entry["initial_size"] = output_size
+            if stderr:
+                entry["initial_stderr"] = stderr[-500:]
+
+            rc, stderr, out_path = rerun_axis_with_flash(
+                axis,
+                AXES[axis],
+                review_dir,
+                ctx_files[axis],
+                prompts[axis],
+                env,
+            )
+            output_size = out_path.stat().st_size if out_path.exists() else 0
+            entry["model"] = GEMINI_FLASH_MODEL
+            entry["exit_code"] = rc
+            entry["size"] = output_size
         if rc != 0:
             entry["stderr"] = stderr[-500:] if stderr else ""
 
@@ -344,6 +450,88 @@ def dispatch(
 
     results["elapsed_seconds"] = round(time.time() - t0, 1)
     return results
+
+
+EXTRACTION_PROMPT = (
+    "Extract every discrete recommendation, finding, or claim as a numbered list. "
+    "One item per line. Include the specific file/code/concept referenced. "
+    "Do not evaluate or filter — extract mechanically."
+)
+
+
+def extract_claims(
+    review_dir: Path,
+    dispatch_result: dict,
+) -> str | None:
+    """Cross-family extraction: Flash extracts GPT outputs, GPT-Instant extracts Gemini outputs.
+
+    Returns path to disposition.md, or None if no outputs to extract.
+    """
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k not in ("CLAUDECODE", "CLAUDE_SESSION_ID")
+    }
+
+    extraction_procs: dict[str, tuple[subprocess.Popen, Path]] = {}
+    skip_keys = {"review_dir", "axes", "queries", "elapsed_seconds"}
+
+    for axis, info in dispatch_result.items():
+        if axis in skip_keys or not isinstance(info, dict):
+            continue
+        if info.get("size", 0) == 0:
+            continue
+
+        output_path = Path(info["output"])
+        if not output_path.exists():
+            continue
+
+        extraction_path = review_dir / f"{axis}-extraction.md"
+        model = info.get("model", "")
+
+        # Cross-family: Gemini outputs → GPT extraction, GPT outputs → Gemini Flash extraction
+        if "gemini" in model.lower():
+            extract_model = "gpt-5.3-chat-latest"
+            extract_flags = ["--stream", "--timeout", "120"]
+        else:
+            extract_model = "gemini-3-flash-preview"
+            extract_flags = ["--timeout", "120"]
+
+        cmd = build_llmx_cmd(
+            extract_model, extract_flags, output_path, extraction_path, EXTRACTION_PROMPT,
+        )
+        proc = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        extraction_procs[axis] = (proc, extraction_path)
+
+    if not extraction_procs:
+        return None
+
+    print(
+        f"Extracting claims from {len(extraction_procs)} outputs...",
+        file=sys.stderr,
+    )
+
+    # Wait for all extractions and merge
+    extractions: list[str] = []
+    for axis, (proc, path) in extraction_procs.items():
+        stderr = read_process_stderr(proc)
+        label = dispatch_result[axis].get("label", axis)
+        if proc.returncode != 0:
+            print(f"warning: extraction for {axis} failed (exit {proc.returncode})", file=sys.stderr)
+            if stderr:
+                print(f"  stderr: {stderr[:200]}", file=sys.stderr)
+            continue
+        if path.exists() and path.stat().st_size > 0:
+            extractions.append(f"## {label}\n\n{path.read_text().strip()}")
+
+    if not extractions:
+        return None
+
+    disposition = review_dir / "disposition.md"
+    disposition.write_text(
+        f"# Extracted Claims — {date.today().isoformat()}\n\n" + "\n\n---\n\n".join(extractions) + "\n"
+    )
+    return str(disposition)
 
 
 def main() -> int:
@@ -359,6 +547,10 @@ def main() -> int:
     parser.add_argument(
         "--axes", default="standard",
         help="Comma-separated axes or preset name (simple, standard, deep, full). Default: standard",
+    )
+    parser.add_argument(
+        "--extract", action="store_true",
+        help="After dispatch, auto-extract claims from each output into disposition.md",
     )
     parser.add_argument(
         "question", nargs="?",
@@ -402,6 +594,13 @@ def main() -> int:
 
     # Dispatch and wait
     result = dispatch(review_dir, ctx_files, axis_names, args.question, bool(constitution))
+
+    # Optional extraction phase
+    if args.extract:
+        disposition_path = extract_claims(review_dir, result)
+        if disposition_path:
+            result["disposition"] = disposition_path
+            print(f"Disposition written to {disposition_path}", file=sys.stderr)
 
     print(json.dumps(result, indent=2))
     return 0
