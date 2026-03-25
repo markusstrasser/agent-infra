@@ -26,6 +26,11 @@ agent-receipts *args:
 doctor:
     uv run python3 scripts/doctor.py
 
+# Browse SQLite databases in web UI (runlogs, orchestrator)
+[group('dashboard')]
+datasette *args:
+    uvx datasette ~/.claude/runlogs.db ~/.claude/orchestrator.db {{args}}
+
 # ── Skills ───────────────────────────────────────────────────────
 
 # Validate all skills (frontmatter, tool refs, hooks, paths)
@@ -40,10 +45,15 @@ skill-gen *args:
 
 # ── Epistemic Metrics ─────────────────────────────────────────────
 
-# Sycophancy metric from session transcripts
+# Sycophancy metric from session transcripts (word-level)
 [group('epistemic')]
 pushback *args:
     uv run python3 scripts/pushback-index.py {{args}}
+
+# Behavioral fold detection (agent reverses position without new evidence)
+[group('epistemic')]
+fold-detect *args:
+    uv run python3 scripts/fold-detector.py {{args}}
 
 # Static analysis for unsourced claims
 [group('epistemic')]
