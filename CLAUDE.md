@@ -18,7 +18,7 @@ This repo plans and tracks improvements to agent infrastructure across projects 
 - `scripts/repo_tools_mcp.py` — repo navigation tools (RETIRED from MCP, 2026-03-20). Zero usage across 4,287 runs. Scripts remain as CLI tools via Bash: `repo-outline.py` (outline, callgraph, xrefs, symbol), `repo-summary.py` (file map with `--compact`).
 
 **Orchestration & Ops:**
-- `scripts/orchestrator.py` — cron-driven task runner (dual-engine: `claude -p` + scripts). See Orchestrator section below.
+- `scripts/orchestrator.py` — background task runner for unattended scheduled work (session-retro, morning-brief). Not primary execution model — `/loop` + interactive sessions is.
 - `scripts/doctor.py` — cross-project health checker (hooks, settings, skills, MCP, git state)
 - `scripts/propose-work.py` — daily morning brief: ranked work proposals from cross-project signals
 - `scripts/runlog.py` — cross-vendor run importer/query CLI for Claude, Codex, Gemini, and Kimi local logs
@@ -143,9 +143,9 @@ A finding becomes a rule or fix only if: (1) recurs 2+ sessions, (2) not covered
 Primary feedback: session-analyst comparing actual runs vs optimal baseline. If a change doesn't improve things in 30 days, revert or reclassify as experimental.
 
 ### Session Architecture
-- Fresh context per orchestrated task (no --resume)
-- 15 turns max per orchestrated task
+- Interactive sessions with `/loop` for recurring work
 - Subagent delegation for fan-out (>10 discrete operations)
+- Orchestrator for unattended scheduled tasks only (session-retro, morning-brief)
 
 ### Known Limitations
 - **Sycophancy:** instruction-mitigated only. Session-analyst detects post-hoc.
@@ -162,45 +162,27 @@ How to verify this constitution is working (check via session-analyst after 2 we
 4. **Model review surfaces disagreements.** When cross-model review disagrees with a stated preference, the synthesis explicitly flags it. Test: zero instances of silently overriding user preference in review artifacts.
 </constitution>
 
-## Orchestrator (`scripts/orchestrator.py`)
+## Execution Model
 
-Cron-driven task runner. Dual-engine: `claude -p` for LLM tasks, raw `subprocess` for deterministic scripts. SQLite task queue at `~/.claude/orchestrator.db`.
+**`/loop` + interactive sessions is primary.** The human runs Claude Code directly, uses `/loop` for recurring tasks (steward, research cycles, maintenance), and steers in real-time. Subagents handle fan-out within sessions.
+
+## Orchestrator (`scripts/orchestrator.py`) — Background Only
+
+Queue-backed task runner for unattended scheduled work. Not the primary execution model — `/loop` replaced it for interactive use.
 
 ```bash
-orchestrator.py init-db                              # create DB
-orchestrator.py submit <pipeline> [--project P] [--vars k=v]  # submit pipeline
-orchestrator.py run -p <project> --prompt "..."      # one-off task
 orchestrator.py status                               # show queue
-orchestrator.py show <id> [--full]                   # full task details + transcript path
-orchestrator.py approve <id|pipeline>                # approve paused task
-orchestrator.py retry <id>                           # reset failed/blocked task to pending
-orchestrator.py tick                                 # run one task (launchd calls this)
-orchestrator.py log --today [--pipeline P] [--project P] [--last N]  # event log
-orchestrator.py pipelines                            # cost/status rollup by pipeline
-orchestrator.py efficiency                           # token efficiency breakdown by pipeline
-orchestrator.py summary                              # daily markdown
+orchestrator.py submit <pipeline> [--project P]      # submit pipeline
+orchestrator.py tick                                  # run one pending task
+orchestrator.py log --today [--last N]               # event log
+orchestrator.py pipelines                            # cost/status rollup
 ```
 
-**Pipelines** (`pipelines/*.json`): algorithm-provenance-audit, code-review-sweep, deep-dive, design-review, earnings-refresh, entity-refresh, epistemic-baseline, epistemic-deep, fix-verify-weekly, intel-research, morning-prep, qa-sweep, repo-index-refresh, research-and-implement, research-api-benchmark, research-sweep, researcher-health, runlog-import, safe-lite-weekly, session-retro, skill-health, skills-drift, trigger-monitor, vendor-anthropic, vendor-google, vendor-openai. Templates support `{variable}` substitution and `pause_before` approval gates.
+**Used for:** session-retro, morning-brief, runlog-import, and other pipelines that run unattended. Pipelines defined in `pipelines/*.json`.
 
-**Key design choices:**
-- `--no-session-persistence` and `--worktree` both dropped — they suppress transcripts (breaks session-analyst)
-- `--worktree` now loads skills/hooks (fixed in v2.1.76) — `isolation: "worktree"` agents get full skill/hook access
-- Cross-project execute steps auto-require approval (constitutional hard limit)
-- `done_with_denials` is a distinct terminal status (permission denials are not silent)
-- `DAILY_COST_CAP = $25` enforced before each tick
-- `fcntl.flock` prevents concurrent runs
-- Stall detection: `anyio.fail_after(600s)` kills hung claude tasks
-- Per-pipeline concurrency: max 3 running tasks from same pipeline
-- `verify: true` on pipeline steps uses Haiku to check **completeness** (were all sub-questions addressed?), NOT **truth** (are claims factually correct?). Orthogonal to AgentDrift-style corruption — verification of factual correctness requires cross-source checks, not step-level completion scoring.
+**Key constraints:** `DAILY_COST_CAP = $25`, `fcntl.flock` prevents concurrent runs, `anyio.fail_after(600s)` stall detection, cross-project steps require approval.
 
-**Scheduling:** Launchd agents removed (intentional). Orchestrator ticks only when manually invoked (`orchestrator.py tick`) or from within a session. Pending tasks require manual ticking.
-
-**Scheduler:** `tick()` auto-submits scheduled pipelines via `scheduled_runs` table (unique constraint prevents duplicates). Pipelines with `"schedule"` in their JSON template are auto-submitted when their cron hour elapses.
-
-**Artifacts:** `artifacts/session-retro/` and `artifacts/hook-roi/` (gitignored). Session-retro outputs drafts here, not directly to improvement-log.
-
-**Design spec:** `research/orchestrator-design.md`.
+**Artifacts:** `artifacts/session-retro/` and `artifacts/hook-roi/` (gitignored).
 
 ## Knowledge Substrate (`substrate/`) — RETIRED
 
