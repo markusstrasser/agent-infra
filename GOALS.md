@@ -48,14 +48,11 @@ The invariants: the Constitution section (in CLAUDE.md) and GOALS.md are human-o
 6. **Multi-vendor agent ops** — strategic. Claude Code is primary, but Codex/Gemini/Kimi CLIs serve as sub-agents and alternative interfaces. Subscriptions are often cheaper than API. Runlog, dashboard, and receipts cover all vendors. CLAUDE.md symlinks (AGENTS.md, GEMINI.md) ensure instruction parity where possible.
 7. **Self-improvement** — meta improves its own tooling using the same methods it applies to sub-projects
 
-## Orchestrator
+## Execution Model
 
-**Built, not yet primary.** The orchestrator (`scripts/orchestrator.py`) works — dual-engine, SQLite queue, pipeline templates, cost caps. But two gaps block daily use:
+**`/loop` + interactive sessions is the primary workflow.** The human runs Claude Code directly, uses `/loop` for recurring tasks (steward, research cycles, maintenance), and steers in real-time. This provides visibility, steerability, and full agent context that batch orchestration can't match.
 
-1. **Logging/visibility.** Can't see what's happening during a run. Claude Code's interactive UX is better for observing agent work. Until the orchestrator has a real-time feed (streaming logs, structured output), pasting prompts into Claude Code sessions is the superior workflow.
-2. **Task proposal.** The human still has to decide "what's next." The orchestrator should surface proposals — "here are 5 things that look stale/broken/actionable" — not wait for manual `submit`. The loop should be: orchestrator proposes → human approves/rejects → orchestrator executes → human reviews output.
-
-Fixing these two gaps is the highest-leverage work meta can do. The orchestrator is the autonomy engine — without it, the generative principle can't compound.
+The orchestrator (`scripts/orchestrator.py`) remains for truly unattended scheduled work — session-retro, morning-brief, runlog imports — but is not the autonomy engine. The autonomy engine is the interactive loop: human sets direction → agent executes with `/loop` or subagents → human reviews output in-session.
 
 ## Research Cadence
 
@@ -126,4 +123,4 @@ This may never fully happen — meta encodes domain-specific and personal-idiosy
 
 ---
 
-*Created: 2026-02-28. Revised: 2026-03-06 (orchestrator UX gaps as top priority, multi-vendor strategic, pull-based propagation, knowledge management hygiene, weekly supervision measurement).*
+*Created: 2026-02-28. Revised: 2026-03-25 (execution model: /loop + interactive sessions replaces orchestrator as primary workflow; orchestrator demoted to unattended scheduled tasks only).*
