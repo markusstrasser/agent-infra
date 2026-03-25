@@ -54,6 +54,10 @@
 
 ## Autonomous (done)
 
+- [2026-03-25] **G1: Stop-hook feedback relay** — Changed `stop-debrief.sh` from `decision: "allow"` to `decision: "block"`. Agent must now write debrief before stopping. Reflection: straightforward — the root cause was clear once I read the hook code.
+- [2026-03-25] **G2: Plan auto-load** — Enhanced `05-plan-scan.sh` to include plan body snippet (800 chars) with file path in additionalContext. Agent now gets plan content at session start, not just "INCOMPLETE PLANS: slug". Reflection: the hook already existed but only emitted a one-liner — the gap was in the content, not the infrastructure.
+- [2026-03-25] **Skill fix: research-cycle model override** — Removed `model: claude-sonnet-4-6` from SKILL.md frontmatter. Skill now inherits session model.
+
 ## Verification Results
 
 ## Cycle Retro
