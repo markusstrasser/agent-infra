@@ -60,6 +60,11 @@
 
 ## Verification Results
 
+- [2026-03-25] **G1 verified:** `stop-debrief.sh` contains `decision: "block"`. PASS.
+- [2026-03-25] **G2 verified:** `05-plan-scan.sh` contains snippet extraction logic. Functional test with dummy plan extracts 118-char snippet correctly. PASS.
+- [2026-03-25] **Skill fix verified:** `research-cycle/SKILL.md` has no `model:` field. PASS.
+- **Lagging indicator:** STEER signal reduction (stop-hook-feedback-relay, plan-injection-manual) measurable after 5+ sessions. Check via `just improvement-signals` in ~3 days.
+
 ## Cycle Retro
 
 ## Errors
