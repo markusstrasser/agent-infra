@@ -378,9 +378,18 @@ def dispatch(
         )
         prompts[axis] = prompt
 
+        # Auto-escalate Gemini Pro to API transport for large context.
+        # CLI transport (free) times out on thinking models above ~15KB context
+        # within the 300s window. --stream forces API transport (paid but reliable).
+        axis_flags = list(axis_def["flags"])
+        ctx_size = ctx_files[axis].stat().st_size if ctx_files[axis].exists() else 0
+        model_name = str(axis_def["model"])
+        if model_name == GEMINI_PRO_MODEL and ctx_size > 15_000 and "--stream" not in axis_flags:
+            axis_flags.append("--stream")
+
         cmd = build_llmx_cmd(
-            str(axis_def["model"]),
-            list(axis_def["flags"]),
+            model_name,
+            axis_flags,
             ctx_files[axis],
             out_path,
             prompt,
