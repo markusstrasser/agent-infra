@@ -11,6 +11,8 @@ import json
 import os
 import subprocess
 import sys
+import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from config import PROJECT_ROOTS
@@ -237,8 +239,6 @@ def check_mcp(project_dir: Path) -> list[Check]:
 
 def check_stale_agents() -> list[Check]:
     """Check for subagent JSONL files with no matching process (crashed agents)."""
-    import time
-
     checks = []
     projects_dir = CLAUDE_DIR / "projects"
     if not projects_dir.exists():
@@ -291,6 +291,103 @@ def check_gitignore(project_dir: Path) -> list[Check]:
     return [c.ok("No .claude artifacts to ignore")]
 
 
+def check_telemetry_freshness() -> list[Check]:
+    """Detect silent hook failures by comparing transcript activity to receipt/log output."""
+    checks = []
+    now = time.time()
+    cutoff = now - 86400  # 24 hours
+    cutoff_dt = datetime.now(timezone.utc) - timedelta(hours=24)
+
+    # 1. Count JSONL transcript files modified in last 24h
+    projects_base = CLAUDE_DIR / "projects"
+    transcript_count = 0
+    if projects_base.exists():
+        for jsonl in projects_base.glob("-Users-alien-Projects-*/*.jsonl"):
+            try:
+                if jsonl.stat().st_mtime > cutoff:
+                    transcript_count += 1
+            except OSError:
+                continue
+
+    # 2. Count receipt entries in last 24h
+    receipts_path = CLAUDE_DIR / "session-receipts.jsonl"
+    receipt_count = 0
+    if receipts_path.exists():
+        try:
+            for line in receipts_path.read_text().splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                    ts = entry.get("ts", "")
+                    if ts:
+                        entry_dt = datetime.fromisoformat(ts).replace(tzinfo=timezone.utc)
+                        if entry_dt >= cutoff_dt:
+                            receipt_count += 1
+                except (json.JSONDecodeError, ValueError):
+                    continue
+        except OSError:
+            pass
+
+    # 3. Count session-log entries in last 24h
+    session_log_path = CLAUDE_DIR / "session-log.jsonl"
+    session_log_count = 0
+    if session_log_path.exists():
+        try:
+            for line in session_log_path.read_text().splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                    ts = entry.get("ts", "")
+                    if ts:
+                        entry_dt = datetime.fromisoformat(ts).replace(tzinfo=timezone.utc)
+                        if entry_dt >= cutoff_dt:
+                            session_log_count += 1
+                except (json.JSONDecodeError, ValueError):
+                    continue
+        except OSError:
+            pass
+
+    # 4-7. Compare and report
+    if transcript_count == 0:
+        c = Check("telemetry:freshness", "global")
+        checks.append(c.ok("No sessions in last 24h — skipped"))
+        return checks
+
+    # Receipt check
+    c_receipt = Check("telemetry:receipts", "global")
+    if receipt_count == 0:
+        c_receipt.fail(
+            f"SessionEnd receipt hook not firing ({transcript_count} transcripts, 0 receipts in 24h)"
+        )
+    elif receipt_count / transcript_count < 0.5:
+        c_receipt.warn(
+            f"Receipt coverage low ({receipt_count}/{transcript_count} = {receipt_count/transcript_count:.0%} in 24h)"
+        )
+    else:
+        c_receipt.ok(f"{receipt_count} receipts / {transcript_count} transcripts in 24h")
+    checks.append(c_receipt)
+
+    # Session-log check
+    c_log = Check("telemetry:session-log", "global")
+    if session_log_count == 0:
+        c_log.fail(
+            f"SessionEnd session-log hook not firing ({transcript_count} transcripts, 0 session-log entries in 24h)"
+        )
+    elif session_log_count / transcript_count < 0.5:
+        c_log.warn(
+            f"Session-log coverage low ({session_log_count}/{transcript_count} = {session_log_count/transcript_count:.0%} in 24h)"
+        )
+    else:
+        c_log.ok(f"{session_log_count} log entries / {transcript_count} transcripts in 24h")
+    checks.append(c_log)
+
+    return checks
+
+
 # --- Main ---
 
 
@@ -303,6 +400,7 @@ def run_all_checks(project_filter: str | None = None) -> list[Check]:
         all_checks.extend(check_settings_json(GLOBAL_SETTINGS, "global"))
         all_checks.extend(check_memory_health())
         all_checks.extend(check_stale_agents())
+        all_checks.extend(check_telemetry_freshness())
 
         # Global CLAUDE.md
         gc = Check("global:CLAUDE.md", "global")
@@ -376,7 +474,7 @@ def main():
         elif arg == "--json":
             as_json = True
         elif arg in ("--help", "-h"):
-            print(__doc__.strip())
+            print((__doc__ or "").strip())
             sys.exit(0)
 
     checks = run_all_checks(project_filter)
