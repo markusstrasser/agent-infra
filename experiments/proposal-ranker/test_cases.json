@@ -59,6 +59,96 @@
       "name": "autonomy improvement > info-only hook",
       "higher": {"category": "improvement-log", "title": "Unresolved (15d): Subagent delegation threshold too aggressive", "metadata": {"age_days": 15, "tags": ["autonomy"]}},
       "lower": {"category": "hook-roi", "title": "Hook 'commit-check' fires 253x but never blocks — consider promoting", "metadata": {"total": 253, "blocks": 0}}
+    },
+    {
+      "name": "ADVERSARIAL: high-FP hook > old autonomy finding (tier 3 > tier 4)",
+      "higher": {"category": "hook-roi", "title": "Hook 'search-guard' blocking 75% (60/80) — false positive rate critical", "metadata": {"total": 80, "blocks": 60, "block_rate": 0.75}},
+      "lower": {"category": "improvement-log", "title": "Unresolved (20d): Agent skips cross-model review on design changes", "metadata": {"age_days": 20, "tags": ["autonomy"]}}
+    },
+    {
+      "name": "ADVERSARIAL: high-FP hook > very stale project (tier 3 > tier 5)",
+      "higher": {"category": "hook-roi", "title": "Hook 'data-guard' blocking 60% (30/50) — review for false positives", "metadata": {"total": 50, "blocks": 30, "block_rate": 0.6}},
+      "lower": {"category": "staleness", "title": "intel has no commits in 12 days", "metadata": {"days_ago": 12}}
+    },
+    {
+      "name": "ADVERSARIAL: autonomy finding > very stale (tier 4 > tier 5)",
+      "higher": {"category": "improvement-log", "title": "Unresolved (5d): Permission loop wastes 3 turns per session", "metadata": {"age_days": 5, "tags": ["autonomy"]}},
+      "lower": {"category": "staleness", "title": "selve has no commits in 15 days", "metadata": {"days_ago": 15}}
+    },
+    {
+      "name": "ADVERSARIAL: recent autonomy finding > old cosmetic (tags > age)",
+      "higher": {"category": "improvement-log", "title": "Unresolved (2d): Hook blocks legitimate edits — autonomy regression", "metadata": {"age_days": 2, "tags": ["autonomy", "hook"]}},
+      "lower": {"category": "improvement-log", "title": "Unresolved (45d): Variable naming inconsistency across scripts", "metadata": {"age_days": 45, "tags": ["style"]}}
+    },
+    {
+      "name": "ADVERSARIAL: orchestrator 5x fail > health WARN (recurring > advisory)",
+      "higher": {"category": "orchestrator", "title": "Task #2 failed: morning-brief — 5th consecutive failure, pipeline dead", "metadata": {"consecutive_failures": 5}},
+      "lower": {"category": "health", "title": "WARN: doctor.py taking 30s to complete (usually 5s)", "metadata": {}}
+    },
+    {
+      "name": "ADVERSARIAL: shared-scope WARN > single-project WARN",
+      "higher": {"category": "health", "title": "WARN: shared skills directory diverged from canonical — 3 projects affected", "metadata": {"scope": "shared", "affected_projects": 3}},
+      "lower": {"category": "health", "title": "WARN: genomics .mcp.json has unused server entry", "metadata": {"scope": "single"}}
+    },
+    {
+      "name": "ADVERSARIAL: high-FP hook > orchestrator single fail (tier 3 > tier 2 single)",
+      "higher": {"category": "hook-roi", "title": "Hook 'multiline-guard' blocking 90% (45/50) — nearly all false positives", "metadata": {"total": 50, "blocks": 45, "block_rate": 0.9}},
+      "lower": {"category": "orchestrator", "title": "Task #7 failed: runlog-import/collect — timeout once", "metadata": {"consecutive_failures": 1}}
+    },
+    {
+      "name": "health FAIL > high-FP hook (tier 1 > tier 3 always)",
+      "higher": {"category": "health", "title": "FAIL: sessions.db corrupted — search broken", "metadata": {}},
+      "lower": {"category": "hook-roi", "title": "Hook 'source-check' blocking 95% (190/200) — massive false positive rate", "metadata": {"total": 200, "blocks": 190, "block_rate": 0.95}}
+    },
+    {
+      "name": "ADVERSARIAL: unknown category with FAIL > low-priority known category",
+      "higher": {"category": "security", "title": "FAIL: API key exposed in git history", "metadata": {}},
+      "lower": {"category": "hook-roi", "title": "Hook 'format-check' fires 15x but never blocks", "metadata": {"total": 15, "blocks": 0, "block_rate": 0.0}}
+    },
+    {
+      "name": "orchestrator recurring > cosmetic finding (tier 2 > tier 6)",
+      "higher": {"category": "orchestrator", "title": "Task #11 failed: session-retro/analyze — 2nd consecutive failure", "metadata": {"consecutive_failures": 2}},
+      "lower": {"category": "improvement-log", "title": "Unresolved (40d): Dashboard graph labels truncated on small screens", "metadata": {"age_days": 40, "tags": ["ui"]}}
+    },
+    {
+      "name": "ADVERSARIAL: new high-FP hook > old zero-block hook (urgency > age)",
+      "higher": {"category": "hook-roi", "title": "Hook 'new-guard' blocking 85% (17/20) after 1 day — deployed wrong", "metadata": {"total": 20, "blocks": 17, "block_rate": 0.85, "age_days": 1}},
+      "lower": {"category": "hook-roi", "title": "Hook 'old-remind' fires 500x over 30d but never blocks — low priority", "metadata": {"total": 500, "blocks": 0, "block_rate": 0.0, "age_days": 30}}
+    },
+    {
+      "name": "ADVERSARIAL: staleness 21d > cosmetic 10d (tier 5 > tier 6)",
+      "higher": {"category": "staleness", "title": "research-mcp has no commits in 21 days — may be abandoned", "metadata": {"days_ago": 21}},
+      "lower": {"category": "improvement-log", "title": "Unresolved (10d): Commit scope names not in .git-scopes", "metadata": {"age_days": 10, "tags": ["style"]}}
+    },
+    {
+      "name": "ADVERSARIAL: missing metadata proposal > richly-tagged low-priority",
+      "higher": {"category": "health", "title": "FAIL: unknown error in hook pipeline", "metadata": {}},
+      "lower": {"category": "improvement-log", "title": "Unresolved (60d): Agent sometimes uses emoji in commits", "metadata": {"age_days": 60, "tags": ["style", "cosmetic"], "severity": "low"}}
+    },
+    {
+      "name": "EDGE: two health WARNs — shared beats single scope",
+      "higher": {"category": "health", "title": "WARN: global settings.json has conflicting hook entries — affects all projects", "metadata": {"scope": "shared"}},
+      "lower": {"category": "health", "title": "WARN: intel CLAUDE.md references deleted script", "metadata": {"scope": "single"}}
+    },
+    {
+      "name": "EDGE: orchestrator fail in critical pipeline > fail in optional pipeline",
+      "higher": {"category": "orchestrator", "title": "Task #1 failed: morning-brief/collect — daily brief not generated", "metadata": {"pipeline": "morning-brief", "consecutive_failures": 1}},
+      "lower": {"category": "orchestrator", "title": "Task #9 failed: code-review/execute — optional scout failed", "metadata": {"pipeline": "code-review", "consecutive_failures": 1}}
+    },
+    {
+      "name": "EDGE: improvement-log with hook+autonomy tags > without tags",
+      "higher": {"category": "improvement-log", "title": "Unresolved (7d): Agent can't auto-fix hook false positives", "metadata": {"age_days": 7, "tags": ["autonomy", "hook"]}},
+      "lower": {"category": "improvement-log", "title": "Unresolved (7d): Research memos lack revision dates", "metadata": {"age_days": 7, "tags": ["docs"]}}
+    },
+    {
+      "name": "ADVERSARIAL: high consecutive fails + orchestrator > health WARN (severity > category)",
+      "higher": {"category": "orchestrator", "title": "Task #4 failed: session-retro/analyze — 4th consecutive failure, pipeline broken", "metadata": {"consecutive_failures": 4}},
+      "lower": {"category": "health", "title": "WARN: vendor-versions.py reports stale SDK version", "metadata": {}}
+    },
+    {
+      "name": "EDGE: staleness with FAIL in title > normal staleness",
+      "higher": {"category": "staleness", "title": "FAIL: genomics pipeline tests failing — project stale 8 days", "metadata": {"days_ago": 8}},
+      "lower": {"category": "staleness", "title": "skills has no commits in 8 days", "metadata": {"days_ago": 8}}
     }
   ],
   "holdout": [
@@ -86,6 +176,31 @@
       "name": "system health > cosmetic hook suggestion",
       "higher": {"category": "health", "title": "WARN: 3 MCP servers have stale configs", "metadata": {}},
       "lower": {"category": "hook-roi", "title": "Hook 'subagent-gate' fires 33x but never blocks", "metadata": {"total": 33, "blocks": 0}}
+    },
+    {
+      "name": "ADVERSARIAL: high-FP hook > autonomy finding (holdout tier test)",
+      "higher": {"category": "hook-roi", "title": "Hook 'append-guard' blocking 65% (26/40) — agent productivity drain", "metadata": {"total": 40, "blocks": 26, "block_rate": 0.65}},
+      "lower": {"category": "improvement-log", "title": "Unresolved (14d): Agent doesn't surface deferred alternatives", "metadata": {"age_days": 14, "tags": ["autonomy"]}}
+    },
+    {
+      "name": "ADVERSARIAL: recurring orchestrator > stale 20d (holdout severity test)",
+      "higher": {"category": "orchestrator", "title": "Task #5 failed: hook-roi/analyze — 3rd consecutive failure", "metadata": {"consecutive_failures": 3}},
+      "lower": {"category": "staleness", "title": "selve has no commits in 20 days", "metadata": {"days_ago": 20}}
+    },
+    {
+      "name": "EDGE: new autonomy finding > old staleness (holdout tags vs age)",
+      "higher": {"category": "improvement-log", "title": "Unresolved (3d): Agent ignores cross-model review requirement", "metadata": {"age_days": 3, "tags": ["autonomy"]}},
+      "lower": {"category": "staleness", "title": "skills has no commits in 10 days", "metadata": {"days_ago": 10}}
+    },
+    {
+      "name": "health FAIL > orchestrator single failure (holdout tier 1 > tier 2)",
+      "higher": {"category": "health", "title": "FAIL: hook-triggers.jsonl corrupted — telemetry broken", "metadata": {}},
+      "lower": {"category": "orchestrator", "title": "Task #14 failed: runlog-import/execute — once", "metadata": {"consecutive_failures": 1}}
+    },
+    {
+      "name": "ADVERSARIAL: shared WARN > single FAIL-like issue (holdout scope test)",
+      "higher": {"category": "health", "title": "WARN: shared MCP config drift — 4 projects using different versions", "metadata": {"scope": "shared", "affected_projects": 4}},
+      "lower": {"category": "staleness", "title": "genomics has no commits in 3 days", "metadata": {"days_ago": 3}}
     }
   ]
 }
