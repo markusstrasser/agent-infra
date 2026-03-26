@@ -119,9 +119,13 @@ def git_diff(worktree: Path) -> str:
     return result.stdout
 
 
-def git_commit(worktree: Path, message: str) -> str:
-    """Commit all changes, return short hash."""
-    subprocess.run(["git", "add", "-A"], cwd=worktree, capture_output=True, check=True)
+def git_commit(worktree: Path, message: str, files: list[str] | None = None) -> str:
+    """Commit changes, return short hash. Stages specific files or all tracked."""
+    if files:
+        subprocess.run(["git", "add", "--"] + files, cwd=worktree, capture_output=True, check=True)
+    else:
+        # Stage tracked changes only (not untracked files)
+        subprocess.run(["git", "add", "-u"], cwd=worktree, capture_output=True, check=True)
     subprocess.run(
         ["git", "commit", "-m", message, "--allow-empty"],
         cwd=worktree, capture_output=True, check=True,
@@ -131,6 +135,14 @@ def git_commit(worktree: Path, message: str) -> str:
         cwd=worktree, capture_output=True, text=True, check=True,
     )
     return result.stdout.strip()
+
+
+def git_amend_message(worktree: Path, message: str):
+    """Amend the last commit's message (for adding eval results post-hoc)."""
+    subprocess.run(
+        ["git", "commit", "--amend", "-m", message],
+        cwd=worktree, capture_output=True, check=True,
+    )
 
 
 def git_reset_hard(worktree: Path):
@@ -825,6 +837,17 @@ def run_experiment_loop(config: dict, config_path: Path, tag: str,
                     status = "keep"
                     keeps_since_holdout += 1
                     consecutive_discards = 0
+                    # Amend commit with reproducibility receipt
+                    receipt_msg = (
+                        f"experiment #{experiment_id}: {description[:72]}\n\n"
+                        f"{config['metric_name']}: {metric_value:.6f} (prev best: {best})\n"
+                        f"cost: ${cost:.4f} | elapsed: {elapsed:.1f}s\n"
+                        f"config: {hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest()[:12]}"
+                    )
+                    try:
+                        git_amend_message(worktree, receipt_msg)
+                    except Exception:
+                        pass  # non-critical — original commit stands
                     print(f"[autoresearch] ✓ KEEP: {config['metric_name']}={metric_value:.6f} "
                           f"(prev best: {best})")
                 else:
