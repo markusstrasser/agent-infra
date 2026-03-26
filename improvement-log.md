@@ -6,6 +6,98 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-03-26] Session Analyst — Behavioral Anti-Patterns (meta, 4 sessions)
+- **Source:** Direct transcript analysis of sessions aa2981a8, 955b17d9, 7e3fdd99, a315e598 (2026-03-26)
+- **Full retro:** `artifacts/session-retro/2026-03-26-meta.md`
+- **Shape:** 4 sessions, ~40M tokens in, 9 findings (2 new, 4 recurrences, 1 code bug, 2 self-identified and already fixed)
+
+### [2026-03-26] TOKEN_WASTE: Schema-probe loop instead of reading available docs (2nd recurrence)
+- **Session:** meta aa2981a8 ($unknown, ~58 min)
+- **Evidence:** Asked for "estimated cost yesterday." Issued 9 sequential Bash/SQLite commands probing runlog DB schema and views before pivoting to receipts. `runlog.md` and `runlog.py --help` were available and not consulted. 9 wasted tool calls before changing strategy.
+- **Failure mode:** probe-before-build violation — probing underlying storage schema instead of reading available CLI docs
+- **Proposed fix:** [rule] Extend probe-before-build rule: "When a purpose-built CLI returns unexpected results, check `--help` or the project's docs file BEFORE probing the underlying DB schema directly."
+- **Severity:** medium — 9 wasted tool calls, recurring pattern
+- **Root cause:** agent-capability
+- **Status:** [ ] proposed — 2nd recurrence (first: 2026-03-20 wrong-tool-drift). Meets 2-recurrence rule-update threshold.
+
+### [2026-03-26] SYSTEM_DESIGN: Silent hook failure undetected for 7 days — consumers treated zero output as "quiet day"
+- **Session:** meta aa2981a8
+- **Evidence:** Python f-string syntax error in `sessionend-log.sh` (commit 9a46b99, 2026-03-19) broke all receipt and session-log writes silently for 7 days. `trap 'exit 0' ERR` swallowed the parse-time error. Four detection layers all failed: ast-precommit (didn't check .sh inline Python), doctor.py (checked hook existence, not execution), propose-work.py (treated "0 receipts" as "0 sessions"), supervision-kpi (transcript-based, unaffected). User discovered it by asking for cost data.
+- **Failure mode:** silent-zero-output — monitoring consumers can't distinguish "pipeline broken" from "no events today"
+- **Proposed fix:** [architectural] Already fixed in session: (1) pretool-ast-precommit.sh extended to extract and ast.parse inline Python in .sh files, (2) doctor.py freshness canary checks receipt/transcript ratio, (3) trap now logs before failing open. General pattern: any monitoring pipeline returning zero should include a freshness assertion.
+- **Severity:** high — 7 days of lost telemetry, required user to surface
+- **Root cause:** system-design (multiple overlapping blind spots)
+- **Status:** [x] implemented — 3 fixes deployed in session (2026-03-26)
+
+### [2026-03-26] SYSTEM_DESIGN: generate-overview.sh --auto fires 6 simultaneous Gemini CLI requests, causes rate-limit truncation
+- **Session:** meta aa2981a8
+- **Evidence:** Parallel overview generation (3 projects × 2 types = 6 simultaneous calls). All 3 source overviews (larger inputs, 245K-855K tokens) failed or wrote empty output. Only 3 tooling overviews (smaller) completed. Root cause: Gemini CLI rate-limited under 6 concurrent requests. Required 4 manual sequential fallback calls to complete.
+- **Failure mode:** parallel-rate-limit-naive — batch concurrency not bounded by upstream rate limits
+- **Proposed fix:** [code] In `generate-overview.sh --auto`: cap concurrency at 2 simultaneous llmx calls. Run larger projects first (fail fast). Add sequential fallback if parallel exits non-zero.
+- **Severity:** medium — will recur on every cross-project overview refresh
+- **Root cause:** system-design
+- **Status:** [ ] proposed — not fixed in session, agent noted it at session end only
+
+### [2026-03-26] TOKEN_WASTE: Repeated-read anti-pattern at hook-promotion threshold (4th+ documented session)
+- **Sessions:** aa2981a8 (6x doctor.py), 955b17d9 (3x research-index.md), 7e3fdd99 (4x model-review/SKILL.md) — plus prior: e9037546 (6x setup-friend.sh), f27cc590 (2x sessions.py), 560df1b2 (2x generate_unified_embeddings.py)
+- **Evidence:** Across 6 sessions, agent reads the same file 2-6 times in sequence without intermediate edits. Pattern: trying to locate a specific section/construct by re-reading full file rather than using Grep with a targeted pattern + Read with offset/limit.
+- **Failure mode:** repeated-read / wrong-tool for in-file search
+- **Proposed fix:** [hook] PostToolUse on Read — detect 3+ reads of same file path within 20 tool calls, emit advisory. Verify tool-tracker.sh dup-read detection is deployed first (marked SUPERSEDED in 2026-03-20 entry but unclear if active).
+- **Severity:** medium — cumulative across sessions (8-10 incidents), each instance 2-6x waste
+- **Root cause:** agent-capability
+- **Status:** [ ] proposed for promotion to hook — 8-10 recurrences approaches constitution threshold of 10. Verify tool-tracker.sh status first.
+
+### [2026-03-26] Session Analyst — Behavioral Anti-Patterns (genomics, 5 sessions)
+- **Source:** Direct transcript analysis of 5 genomics sessions (1833d541, a62b3f8f, fddae46b, 5584f9f9, 955df826)
+- **Full report:** `artifacts/session-retro/2026-03-26-genomics.md`
+- **Findings:** 7 total — 2 promotion candidates (F2 file-poll recurrence, F5 brainstorm duplication), 2 new high-severity (F1 stale PRS data, F4 parallel agent commit sweep), 3 new first-occurrence
+
+### [2026-03-26] TOKEN WASTE: Polling background-written file with repeated Read calls (3rd recurrence)
+- **Sessions:** genomics a62b3f8f (11x consecutive Read on same file), 955df826 (3x sleep-poll loops)
+- **Evidence:** After dispatching llmx background tasks for brainstorm perturbation rounds, agent read `domain-forcing.md` 11 times consecutively while the background process was writing it. In 955df826: 3 sequential `sleep N && wc` poll loops before reading. Pattern = file not done → Read anyway → repeat.
+- **Failure mode:** async-poll-loop (file-read variant). Prior instances were TaskOutput polling (2026-03-18) and double-polling (2026-03-19). Same root cause, different mechanism.
+- **Proposed fix:** [rule] Extend CLAUDE.md patience rule: "When background tasks write output files, do NOT repeatedly Read the file. Wait for task-complete notification, then read once. If polling unavoidable, move to orthogonal work between checks."
+- **Severity:** medium — 11+ redundant reads, wasted turns
+- **Root cause:** agent-capability
+- **Status:** [ ] proposed — 3rd recurrence, meets promotion criteria
+
+### [2026-03-26] TOKEN WASTE: Same brainstorm topic ran 3x across 3 parallel sessions in 2 hours
+- **Sessions:** genomics a62b3f8f, 5584f9f9, 955df826 (all ~02:33-13:27 UTC)
+- **Evidence:** Three independent sessions ran `/brainstorm` on "novel WGS analyses beyond existing pipeline" and independently discovered biosynthetic pathways, archaic introgression, DNA repair profiling, anesthesia card, variant epistasis. Each created a separate `.brainstorm/` directory without checking for existing runs. Total: 3x llmx perturbation compute, 3x researcher subagents, 3 separate plans on overlapping content.
+- **Failure mode:** Duplicate exploratory work — same class as 2026-03-19 "subagents rediscovering completed work."
+- **Proposed fix:** [rule] Add pre-check to brainstorm skill: check `.brainstorm/` for existing runs from last 24h on overlapping topics. If found, read existing synthesis and brainstorm only for gaps.
+- **Severity:** medium — ~3x brainstorm overhead, substantial overlap
+- **Root cause:** agent-capability / skill-design
+- **Status:** [ ] proposed — 2nd recurrence of class (subagent work duplication), meets promotion criteria
+
+### [2026-03-26] STALE_DATA_READ: Ignored LOW_PRECISION flag in PRS file, reported retracted finding as headline
+- **Session:** genomics fddae46b
+- **Evidence:** Agent read `prs_percentiles_with_ci.json` and presented "Schizophrenia PRS at 100th percentile" as the headline finding, despite the file containing `ci_precision_flag: "LOW_PRECISION"` and `ci95_width: 100.0` (CI = full range = meaningless). Corrected data was in `prs_matched_comparison.json` per README in same directory. User: "WE CORRECTED THIS 10 times." Corrected SCZ score: 48th percentile. Agent moved stale file to `.archive/` reactively.
+- **Failure mode:** Agent read first plausible-looking file without checking precision/status flags or co-located README.
+- **Proposed fix:** [architectural] Pipeline correction runs should immediately remove or archive stale outputs. Agent should check `flag`, `precision_flag`, `status` fields before treating numbers as canonical. A stale file at a canonical path is a trap.
+- **Severity:** high — reported opposite of truth, required user correction
+- **Root cause:** agent-capability
+- **Status:** [ ] new finding — first occurrence
+
+### [2026-03-26] ENVIRONMENT: Parallel Codex agent swept uncommitted edits into wrong commit
+- **Session:** genomics dfc98f6c
+- **Evidence:** With multiple parallel agents active, one agent's commit (`3e5a343 [mechanome]`) swept in edits from another agent's in-progress work. Session retro explicitly documented. `dispatch-research/SKILL.md` updated to add multi-agent commit safety section.
+- **Failure mode:** Multi-agent commit contamination — git add by one agent picks up another agent's uncommitted edits in shared worktree.
+- **Proposed fix:** [rule] When pgrep -c claude >= 2: commit after each individual edit OR use `isolation: "worktree"` at dispatch time.
+- **Severity:** high — mixed concerns in commit, hard to untangle
+- **Root cause:** system-design
+- **Status:** [~] fix applied to dispatch-research skill. Propose adding to invariants.md.
+
+### [2026-03-25] TOOL_MISUSE: bypassPermissions agents miss call-site renames during function dedup
+- **Evidence:** 3 of 4 dispatched dedup agents deleted function defs but left old-name call sites. Phase 3 (safe_float): 5 files with `_safe_float(` calls after def deleted. Phase 7 (trait_panel_core): 10 F401 over-imports. Required post-agent `ruff --fix` cleanup each time.
+- **Proposed fix:** Add `uv run ruff check <files> --select F821,F401 --fix` as the FINAL instruction in agent prompts, after all edits. Agents currently run verification mid-edit, so it passes prematurely.
+- **Status:** Rule added to `feedback_bypass_agent_callsite_renames.md` in genomics memory. Not yet a hook (would need to intercept agent completion events).
+
+### [2026-03-25] WRONG_ASSUMPTION: Assumed duplicate functions had identical signatures — 3 incompatible variants existed
+- **Evidence:** 11 `_safe_float` copies across scripts. 5 return `float | None`, 6 return `float` with default parameter. Discovered mid-migration after plan assumed all identical. Had to split phase and skip 6 scripts.
+- **Proposed fix:** Before batch dedup: grep ALL signatures, cluster by return type. Add to plan template: "Verify signature compatibility before migrating."
+- **Status:** Noted in daily log. No hook — this is a planning discipline issue.
+
 ### [2026-03-20] Session Analyst — Behavioral Anti-Patterns (meta, 7 sessions)
 - **Source:** Gemini 3.1 Pro analysis + manual verification of 7 meta sessions (2026-03-20)
 - **Shape anomalies:** 7/29 sessions flagged (transcript_density, tool_intensity, tool_diversity, mcp_fraction, bash_fraction, commit_ratio)
