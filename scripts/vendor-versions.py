@@ -96,6 +96,8 @@ CHECKS = [
     ("Google GenAI SDK", "google", pypi_latest, ("google-genai",)),
     ("Google ADK", "google", pypi_latest, ("google-adk",)),
     ("Firebase Genkit", "google", npm_latest, ("genkit",)),
+    # Modal
+    ("Modal", "modal", pypi_latest, ("modal",)),
 ]
 
 LOCAL_CHECKS = [
