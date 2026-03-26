@@ -37,3 +37,10 @@ Extract user correction patterns from transcripts:
 
 ## Output
 Write findings to artifacts/session-retro/ as JSON. Do NOT append directly to improvement-log.md — the triage pipeline handles promotion.
+
+### Testable Predictions (required for each finding)
+Every finding must include:
+- `target_metric`: which metric should improve if the fix works (`supervision-kpi`, `pushback-index`, or `trace-faithfulness`)
+- `prediction`: a falsifiable claim with a timeframe, e.g. "should reduce TOKEN_WASTE recurrence by 50% in 7 days" or "supervision-kpi SLI should drop below 0.15 within 14 days"
+
+This enables fix-verify to check not just "did the problem recur?" but "did the metric actually move?" Unfalsifiable findings are low-value — if you can't predict what changes, the fix can't be verified.

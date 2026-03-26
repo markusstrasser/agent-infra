@@ -49,13 +49,34 @@ DEFAULT_QUERIES = {
 }
 
 
+METRIC_SCRIPTS = {
+    "supervision-kpi": "uv run python3 scripts/supervision-kpi.py --days {days} 2>/dev/null",
+    "pushback-index": "uv run python3 scripts/pushback-index.py --days {days} 2>/dev/null",
+    "trace-faithfulness": "uv run python3 scripts/trace-faithfulness.py --days {days} 2>/dev/null",
+}
+
+
 def get_findings_db() -> sqlite3.Connection:
     if not FINDINGS_DB.exists():
         print("Findings DB not found. Run: uv run python3 scripts/finding-triage.py ingest",
               file=sys.stderr)
         sys.exit(1)
     from common.db import open_db
-    return open_db(FINDINGS_DB)
+    db = open_db(FINDINGS_DB)
+    _ensure_columns(db)
+    return db
+
+
+def _ensure_columns(db: sqlite3.Connection):
+    """Add target_metric and prediction columns if missing (idempotent)."""
+    cols = {r[1] for r in db.execute("PRAGMA table_info(findings)")}
+    if "target_metric" not in cols:
+        db.execute("ALTER TABLE findings ADD COLUMN target_metric TEXT")
+    if "prediction" not in cols:
+        db.execute("ALTER TABLE findings ADD COLUMN prediction TEXT")
+    if "fix_date" not in cols:
+        db.execute("ALTER TABLE findings ADD COLUMN fix_date TEXT")
+    db.commit()
 
 
 def get_sessions_db() -> sqlite3.Connection:
@@ -203,6 +224,59 @@ def cmd_tag(args):
     print(f"  detection_query = {args.query}")
 
 
+def cmd_tag_metric(args):
+    """Attach a target metric and prediction to a finding."""
+    db = get_findings_db()
+    result = db.execute("SELECT id, category, summary FROM findings WHERE id = ?", [args.id]).fetchone()
+    if not result:
+        print(f"No finding with ID {args.id}", file=sys.stderr)
+        sys.exit(1)
+
+    if args.metric not in METRIC_SCRIPTS:
+        print(f"Unknown metric '{args.metric}'. Available: {', '.join(METRIC_SCRIPTS)}", file=sys.stderr)
+        sys.exit(1)
+
+    updates = {"target_metric": args.metric}
+    if args.prediction:
+        updates["prediction"] = args.prediction
+    if args.fix_date:
+        updates["fix_date"] = args.fix_date
+
+    set_clause = ", ".join(f"{k} = ?" for k in updates)
+    db.execute(f"UPDATE findings SET {set_clause} WHERE id = ?",
+               [*updates.values(), args.id])
+    db.commit()
+    print(f"Tagged finding {args.id} ({result['category']}: {result['summary'][:40]})")
+    print(f"  target_metric = {args.metric}")
+    if args.prediction:
+        print(f"  prediction = {args.prediction}")
+    if args.fix_date:
+        print(f"  fix_date = {args.fix_date}")
+
+
+def _get_metric_snapshot(metric_name: str, days: int) -> str | None:
+    """Run a metric script and return its stdout (summary line)."""
+    cmd = METRIC_SCRIPTS.get(metric_name)
+    if not cmd:
+        return None
+    try:
+        result = subprocess.run(
+            cmd.format(days=days),
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd=Path.home() / "Projects" / "meta" / "scripts",
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            # Return first 3 non-empty lines as summary
+            lines = [l for l in result.stdout.strip().splitlines() if l.strip()][:3]
+            return "\n".join(lines)
+    except (subprocess.TimeoutExpired, OSError):
+        pass
+    return None
+
+
 def cmd_report(args):
     """Generate fix effectiveness report."""
     db = get_findings_db()
@@ -243,6 +317,38 @@ def cmd_report(args):
             print(f"  ✓ [{v['category']}] {v['summary'][:60]}")
         print()
 
+    # Metric-tagged findings with predictions
+    if args.with_metrics:
+        metric_findings = db.execute(
+            """SELECT id, category, summary, target_metric, prediction, fix_date, status
+               FROM findings WHERE target_metric IS NOT NULL
+               ORDER BY fix_date DESC"""
+        ).fetchall()
+        if metric_findings:
+            print("Metric-tagged fixes:")
+            print("-" * 60)
+            for f in metric_findings:
+                print(f"  [{f['category']}] {f['summary'][:50]}")
+                print(f"    metric: {f['target_metric']}, status: {f['status']}")
+                if f["prediction"]:
+                    print(f"    prediction: {f['prediction']}")
+                if f["fix_date"]:
+                    print(f"    fix_date: {f['fix_date']}")
+            print()
+
+            # Current metric values
+            metrics_seen = set()
+            for f in metric_findings:
+                m = f["target_metric"]
+                if m and m not in metrics_seen:
+                    metrics_seen.add(m)
+                    snapshot = _get_metric_snapshot(m, args.days)
+                    if snapshot:
+                        print(f"  Current {m} ({args.days}d):")
+                        for line in snapshot.splitlines():
+                            print(f"    {line}")
+                        print()
+
     # Stale staging
     stale = db.execute(
         """SELECT COUNT(*) as c FROM findings
@@ -264,14 +370,24 @@ def main():
     p_tag.add_argument("id", type=int, help="Finding ID")
     p_tag.add_argument("query", help="FTS5 search query")
 
+    p_tm = sub.add_parser("tag-metric", help="Tag finding with target metric and prediction")
+    p_tm.add_argument("id", type=int, help="Finding ID")
+    p_tm.add_argument("metric", help=f"Target metric ({', '.join(METRIC_SCRIPTS)})")
+    p_tm.add_argument("--prediction", help="Testable prediction (e.g. 'reduce TOKEN_WASTE by 50%% in 7d')")
+    p_tm.add_argument("--fix-date", help="Date fix was deployed (YYYY-MM-DD), defaults to today",
+                       default=datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+
     p_report = sub.add_parser("report", help="Fix effectiveness report")
     p_report.add_argument("--days", type=int, default=30, help="Report window (default: 30)")
+    p_report.add_argument("--with-metrics", action="store_true",
+                          help="Include metric snapshots for tagged findings")
 
     args = parser.parse_args()
 
     commands = {
         "run": cmd_run,
         "tag": cmd_tag,
+        "tag-metric": cmd_tag_metric,
         "report": cmd_report,
     }
     commands[args.command](args)
