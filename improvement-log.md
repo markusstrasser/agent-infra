@@ -1376,3 +1376,63 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Root cause:** agent-capability
 - **Severity:** low
 - **Status:** [ ] proposed
+
+### [2026-03-26] TOKEN WASTE: Repeated-read pattern (3+ reads of same file before edit)
+- **Sessions:** meta aa2981a8 (6x doctor.py), meta 955b17d9 (3x research-index), meta 7e3fdd99 (4x model-review SKILL.md), genomics a62b3f8f (11x domain-forcing.md), selve c64b1dbe (5x hifi-wgs-quote-emails.md)
+- **Evidence:** 8-10 documented occurrences across 3 projects
+- **Failure mode:** token-waste / repeated-read
+- **Proposed fix:** PostToolUse:Read advisory hook (posttool-dup-read.sh)
+- **Root cause:** agent-capability — Read when Grep or offset would suffice
+- **Severity:** medium
+- **Recurrences:** 8-10 (first documented 2026-03-20)
+- **Status:** [x] implemented — posttool-dup-read.sh deployed globally (skills a01b6a8)
+
+### [2026-03-26] TOKEN WASTE: Edit replace_all parameter forgotten — 9 sequential Edit calls for global replace
+- **Sessions:** selve c64b1dbe (9 em-dash removals), selve 4c055500 (4 sequential edits, 2026-03-07)
+- **Evidence:** 2 occurrences across selve sessions
+- **Failure mode:** token-waste / sequential-edit
+- **Proposed fix:** [monitor] Edit tool has `replace_all` parameter. 2nd recurrence — monitor for 3rd before promoting.
+- **Root cause:** agent-capability
+- **Severity:** low
+- **Recurrences:** 2
+- **Status:** [ ] monitoring
+
+### [2026-03-26] MISSING BEHAVIOR: Email-with-links summarized instead of fetched
+- **Session:** selve c64b1dbe
+- **Evidence:** User pasted email with URLs, agent summarized instead of fetching. User correction: "read the email and follow the links"
+- **Failure mode:** briefing-instead-of-action
+- **Proposed fix:** [monitor] 1st occurrence. If recurs, add rule: when user pastes email with URLs, fetch them.
+- **Root cause:** agent-capability
+- **Severity:** medium
+- **Recurrences:** 1
+- **Status:** [ ] monitoring
+
+### [2026-03-26] TOKEN WASTE: Brainstorm topic ran 3x across parallel sessions
+- **Sessions:** genomics a62b3f8f, 5584f9f9, 955df826
+- **Evidence:** 3 independent sessions brainstormed "novel WGS analyses" within 2h window
+- **Failure mode:** duplicate-work
+- **Proposed fix:** brainstorm skill dedup pre-check (check .brainstorm/ for recent runs)
+- **Root cause:** no cross-session dedup mechanism at brainstorm start
+- **Severity:** medium
+- **Recurrences:** 2nd class occurrence (subagent duplicate-work is 3rd)
+- **Status:** [x] implemented — brainstorm SKILL.md dedup pre-check added (skills 6476e72)
+
+### [2026-03-26] ENVIRONMENT: Parallel agent committed another agent's uncommitted edits
+- **Session:** genomics dfc98f6c
+- **Evidence:** Commit 3e5a343 swept in edits from a different agent working in same worktree
+- **Failure mode:** multi-agent-commit-conflict
+- **Proposed fix:** global CLAUDE.md rule — commit after each edit when pgrep -c claude >= 2, or use worktree isolation
+- **Root cause:** system-design — no coordination protocol for shared worktree
+- **Severity:** high
+- **Recurrences:** 1 (but high severity warrants immediate rule)
+- **Status:** [x] implemented — rule added to global CLAUDE.md git_rules section
+
+### [2026-03-26] TOKEN WASTE: Background file-read polling (11x Read of in-progress file)
+- **Sessions:** genomics a62b3f8f (11x domain-forcing.md, 9x constraint-inversion.md), genomics 955df826 (3 sleep-poll loops)
+- **Evidence:** 3rd recurrence of async patience anti-pattern (2026-03-18, 2026-03-19, 2026-03-26)
+- **Failure mode:** token-waste / poll-loop
+- **Proposed fix:** extend patience rule to cover file-read polls
+- **Root cause:** agent-capability — no mechanism to distinguish "file not done" from "file done but small"
+- **Severity:** medium
+- **Recurrences:** 3
+- **Status:** [x] implemented — file-read polling bullet added to global CLAUDE.md subagent_usage
