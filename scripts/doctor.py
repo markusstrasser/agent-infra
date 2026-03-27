@@ -90,9 +90,9 @@ def check_settings_json(path: Path, scope: str) -> list[Check]:
                 # Find the script file — may be the command itself or an argument to bash/python3
                 script_token = next((p for p in parts if p.endswith(('.sh', '.py'))), None)
                 if script_token:
-                    script = Path(script_token)
-                elif parts and parts[0].startswith("/"):
-                    script = Path(parts[0])
+                    script = Path(script_token).expanduser()
+                elif parts and parts[0].startswith(("/", "~")):
+                    script = Path(parts[0]).expanduser()
                 else:
                     script = None
                 if script is not None:
