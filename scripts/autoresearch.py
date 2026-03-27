@@ -245,6 +245,11 @@ class ExperimentLog:
         values = [e["metric_value"] for e in kept]
         return min(values) if direction == "lower" else max(values)
 
+    def has_patch_hash(self, patch_hash: str) -> bool:
+        """Check if a patch hash already exists in the log (duplicate detection)."""
+        entries = self.load_recent(9999)
+        return any(e.get("patch_hash") == patch_hash for e in entries)
+
     def total_cost(self) -> float:
         entries = self.load_recent(9999)
         return sum(e.get("cost_usd", 0.0) for e in entries)
@@ -817,6 +822,27 @@ def run_experiment_loop(config: dict, config_path: Path, tag: str,
 
             elapsed = time.time() - t0
 
+            # 6b. Duplicate patch detection
+            patch_hash = hashlib.sha256(diff.encode()).hexdigest()[:12]
+            if log.has_patch_hash(patch_hash):
+                print(f"[autoresearch] SKIP: duplicate patch (hash={patch_hash})")
+                entry = {
+                    "experiment_id": experiment_id,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "commit": None,
+                    "metric_value": None,
+                    "status": "skipped_duplicate",
+                    "description": description,
+                    "cost_usd": cost,
+                    "elapsed_seconds": round(time.time() - t0, 1),
+                    "eval_output_tail": None,
+                    "patch_hash": patch_hash,
+                }
+                log.log_experiment(entry)
+                git_reset_hard(worktree)
+                consecutive_discards += 1
+                continue
+
             # 7. Decide keep/discard
             if metric_value is None:
                 status = "crash"
@@ -868,7 +894,7 @@ def run_experiment_loop(config: dict, config_path: Path, tag: str,
                 "cost_usd": cost,
                 "elapsed_seconds": round(elapsed, 1),
                 "eval_output_tail": eval_output[-500:] if eval_output else None,
-                "patch_hash": hashlib.sha256(diff.encode()).hexdigest()[:12],
+                "patch_hash": patch_hash,
             }
             log.log_experiment(entry)
 
@@ -883,7 +909,7 @@ def run_experiment_loop(config: dict, config_path: Path, tag: str,
                 # Will naturally inject "try something radically different" via the prompt
                 # (recent results table shows the streak)
 
-            # 11. Holdout eval
+            # 11. Holdout eval (enforced — mismatch triggers retroactive discard)
             if (status == "keep"
                 and config.get("holdout_eval_command")
                 and keeps_since_holdout >= config.get("holdout_every_k_keeps", 5)):
@@ -895,6 +921,34 @@ def run_experiment_loop(config: dict, config_path: Path, tag: str,
                 keeps_since_holdout = 0
                 if holdout_val is not None:
                     print(f"[autoresearch] Holdout {config['metric_name']}={holdout_val:.6f}")
+                    # Check for holdout mismatch — retroactive discard if divergence too large
+                    if metric_value is not None:
+                        if config["metric_direction"] == "lower":
+                            holdout_worse = holdout_val > metric_value * 1.5
+                        else:
+                            holdout_worse = holdout_val < metric_value * 0.5
+                        if holdout_worse:
+                            reason = (
+                                f"Holdout mismatch: main={metric_value:.6f}, "
+                                f"holdout={holdout_val:.6f} (direction={config['metric_direction']})"
+                            )
+                            print(f"[autoresearch] HOLDOUT DISCARD: {reason}")
+                            # Write explanatory artifact before discarding
+                            reason_path = log.log_dir / f"{experiment_id:04d}_holdout_discard.md"
+                            reason_path.write_text(
+                                f"# Holdout Discard — Experiment #{experiment_id}\n\n"
+                                f"**Date:** {datetime.now(timezone.utc).isoformat()}\n"
+                                f"**Main metric:** {metric_value:.6f}\n"
+                                f"**Holdout metric:** {holdout_val:.6f}\n"
+                                f"**Direction:** {config['metric_direction']}\n"
+                                f"**Description:** {description}\n\n"
+                                f"Retroactively discarded because holdout performance diverged "
+                                f"significantly from main eval, indicating possible overfitting.\n"
+                            )
+                            git_reset_hard(worktree)
+                            entry["status"] = "holdout_discard"
+                            entry["commit"] = None
+                            consecutive_discards += 1
 
             # Progress summary every 10 experiments
             if experiment_id % 10 == 0:
