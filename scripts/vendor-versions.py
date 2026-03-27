@@ -93,9 +93,11 @@ CHECKS = [
     ("OpenAI TS SDK", "openai", npm_latest, ("openai",)),
     ("OpenAI Agents SDK", "openai", pypi_latest, ("openai-agents",)),
     # Google
+    ("Gemini CLI", "google", npm_latest, ("@google/gemini-cli",)),
     ("Google GenAI SDK", "google", pypi_latest, ("google-genai",)),
     ("Google ADK", "google", pypi_latest, ("google-adk",)),
-    ("Firebase Genkit", "google", npm_latest, ("genkit",)),
+    # Kimi
+    ("Kimi CLI", "kimi", pypi_latest, ("kimi-cli",)),
     # Modal
     ("Modal", "modal", pypi_latest, ("modal",)),
 ]
@@ -103,6 +105,9 @@ CHECKS = [
 LOCAL_CHECKS = [
     ("Claude Code (local)", "anthropic", ["claude", "--version"]),
     ("Codex CLI (local)", "openai", ["codex", "--version"]),
+    ("Gemini CLI (local)", "google", ["gemini", "--version"]),
+    ("Kimi CLI (local)", "kimi", ["kimi", "--version"]),
+    ("Modal (local)", "modal", ["modal", "--version"]),
 ]
 
 
