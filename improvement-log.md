@@ -18,7 +18,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [rule] Extend probe-before-build rule: "When a purpose-built CLI returns unexpected results, check `--help` or the project's docs file BEFORE probing the underlying DB schema directly."
 - **Severity:** medium — 9 wasted tool calls, recurring pattern
 - **Root cause:** agent-capability
-- **Status:** [ ] proposed — 2nd recurrence (first: 2026-03-20 wrong-tool-drift). Meets 2-recurrence rule-update threshold.
+- **Status:** [x] implemented — rule 7 extended in global CLAUDE.md with CLI-unexpected-results anti-pattern (steward, 2026-03-27)
 
 ### [2026-03-26] SYSTEM_DESIGN: Silent hook failure undetected for 7 days — consumers treated zero output as "quiet day"
 - **Session:** meta aa2981a8
@@ -59,7 +59,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [rule] Extend CLAUDE.md patience rule: "When background tasks write output files, do NOT repeatedly Read the file. Wait for task-complete notification, then read once. If polling unavoidable, move to orthogonal work between checks."
 - **Severity:** medium — 11+ redundant reads, wasted turns
 - **Root cause:** agent-capability
-- **Status:** [ ] proposed — 3rd recurrence, meets promotion criteria
+- **Status:** [x] implemented — file-read polling rule already in global CLAUDE.md subagent_usage section (verified 2026-03-27)
 
 ### [2026-03-26] TOKEN WASTE: Same brainstorm topic ran 3x across 3 parallel sessions in 2 hours
 - **Sessions:** genomics a62b3f8f, 5584f9f9, 955df826 (all ~02:33-13:27 UTC)
