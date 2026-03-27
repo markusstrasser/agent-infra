@@ -58,6 +58,7 @@ def load_config(path: str) -> dict:
     cfg.setdefault("model", "sonnet")
     cfg.setdefault("max_budget_usd", 2.0)
     cfg.setdefault("max_turns", 10)
+    cfg.setdefault("seed_implementations", [])
     return cfg
 
 
@@ -731,8 +732,48 @@ def run_experiment_loop(config: dict, config_path: Path, tag: str,
     consecutive_discards = 0
     keeps_since_holdout = 0
 
+    # Seed implementations: evaluate known baselines before mutation begins
+    seeds = config.get("seed_implementations", [])
+    if seeds and experiment_id == 0:
+        print(f"[autoresearch] Evaluating {len(seeds)} seed implementations...")
+        import shutil as _shutil
+        for i, seed_path in enumerate(seeds):
+            seed_src = Path(seed_path)
+            if not seed_src.exists():
+                print(f"[autoresearch] WARN: seed {seed_path} not found, skipping")
+                continue
+            # Copy seed files into worktree editable locations
+            for editable in config["editable_files"]:
+                src = seed_src / editable
+                dst = worktree / editable
+                if src.exists():
+                    _shutil.copy2(str(src), str(dst))
+            commit_hash = git_commit(worktree, f"seed #{i}: {seed_src.name}")
+            metric_value, eval_output = run_eval(
+                worktree, config["eval_command"], config["metric_name"],
+                timeout=config["time_budget_seconds"] + 60,
+            )
+            log.log_experiment({
+                "experiment_id": experiment_id,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "commit": commit_hash if metric_value is not None else None,
+                "metric_value": metric_value,
+                "status": "seed" if metric_value is not None else "crash",
+                "description": f"seed: {seed_src.name}",
+                "cost_usd": 0.0,
+                "elapsed_seconds": 0.0,
+                "eval_output_tail": (eval_output or "")[-500:],
+                "patch_hash": f"seed-{i}",
+            })
+            if metric_value is not None:
+                print(f"[autoresearch] Seed {seed_src.name}: {config['metric_name']}={metric_value:.6f}")
+            else:
+                print(f"[autoresearch] Seed {seed_src.name}: CRASH")
+                git_reset_hard(worktree)
+            experiment_id += 1
+
     # Timing probe: run 1 experiment to measure mutator latency, auto-adjust timeout
-    if experiment_id == 0:
+    if experiment_id == 0 or (seeds and experiment_id == len(seeds)):
         configured_timeout = config.get("mutator_timeout", 300)
         probe_prompt = build_prompt(config, worktree, log)
         print(f"[autoresearch] Timing probe (configured timeout: {configured_timeout}s)...")
