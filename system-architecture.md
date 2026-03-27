@@ -53,7 +53,7 @@ Loaded in every project, every session. The foundation.
 
 **Categories:**
 - **PreToolUse blockers**: `bash-loop-guard`, `llmx-guard`, `cost-guard`, `ast-precommit`, `commit-check`, `search-burst`, `consensus-search`, `subagent-gate`, `source-remind`, `regression-dag-gate`, `goal-drift`, `companion-remind`
-- **PostToolUse checks**: `bash-failure-loop`, `review-check`, `verify-before-expand`, `research-reformat`, `source-check`, `frontier-timeliness`, `substrate-registration-reminder`, `l3-telemetry`, `propagate-check`
+- **PostToolUse checks**: `bash-failure-loop`, `review-check`, `verify-before-expand`, `research-reformat`, `source-check`, `frontier-timeliness`, `l3-telemetry`, `propagate-check`
 - **Lifecycle**: `precompact-log`, `postcompact-verify`, `sessionend-log`, `sessionend-overview-trigger`, `sessionend-index-sessions`, `subagent-start-log`, `subagent-epistemic-gate`, `userprompt-context-warn`, `posttool-failure-log`
 - **Stop hooks**: `plan-status`, `verify-plan`, `uncommitted-warn`
 
@@ -145,7 +145,7 @@ External tool access. Configured per-project in `.mcp.json` (project-scope) and 
 **Project-scope** (per-repo `.mcp.json`):
 - `intel`: DuckDB, intelligence MCP, selve MCP, FMP (financial data)
 - `selve`: Selve MCP
-- `genomics`: Knowledge substrate MCP
+- `genomics`: (none active)
 
 ---
 
@@ -243,7 +243,6 @@ Session ends:
 **Data stores:**
 - `~/.claude/orchestrator.db` — Task queue
 - `~/.claude/runlogs.db` — Cross-vendor session transcripts
-- `~/.claude/knowledge/{project}.db` — Knowledge substrate (per-project)
 - `~/.claude/session-receipts.jsonl` — Session cost/duration log
 - `~/.claude/hook-triggers.jsonl` — Hook fire/block telemetry
 - `~/.claude/subagent-log.jsonl` — Subagent spawn/result log

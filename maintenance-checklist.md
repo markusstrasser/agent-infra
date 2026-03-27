@@ -10,7 +10,6 @@
   - Stale injection → action rate: >50% of sessions where stale objects surfaced
   - `query_stale` MCP calls > 0 per week
   - Zero PRS-pattern data regressions from documented retractions
-  - `substrate_guard.py` catches synthetic regression fixture
 
 ## When a New Model Ships (Claude, GPT, Gemini)
 
@@ -190,8 +189,6 @@ Consumption-based metrics, not write volume. Check bi-weekly.
 | Metric | What it measures | How | Target |
 |--------|-----------------|-----|--------|
 | Stale resolution (cohort) | Of objects stale at T0, fraction resolved by T+14 | changelog timestamps | >50% |
-| Stale injection → action | Do surfaced stale objects get addressed? | session-end substrate diff | >50% sessions |
-| Retraction completeness | Is data-first rule followed? | `substrate_guard.py` — 0 bypasses | 0 regressions |
 | `query_stale` MCP calls | Read path has a pulse | runlogs.db tool_calls | >0/week |
 
 **Retired:** substrate assertion count (vanity), MCP read:write ratio (invisible to runlogs with direct SQLite).
