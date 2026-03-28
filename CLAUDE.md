@@ -3,62 +3,44 @@
 ## Purpose
 This repo plans and tracks improvements to agent infrastructure across projects (intel, selve, genomics, skills, research-mcp). It's the "thinking about thinking" repo.
 
+## Quick Start
+
+```bash
+just --list                              # all recipes, grouped
+just preflight                           # fast prereq check (<10s)
+just smoke                               # minimal functional test (<1m)
+just health                              # full validation suite (<5m)
+uv run python3 scripts/doctor.py         # cross-project health check
+uv run python3 scripts/dashboard.py      # agent ops dashboard
+uv run python3 scripts/runlog.py recent  # recent runs across vendors
+uv run python3 scripts/sessions.py search <query>  # FTS5 session search
+```
+
 ## Key Files
 
-**Core:**
+**Core (root):**
 - `GOALS.md` — what the system optimizes for (human-owned)
-- `justfile` — task runner (grouped): `just --list` shows groups. Root workspace justfile at `~/Projects/justfile` for cross-project dispatch (`all-health`, `push-all`, `todos`)
+- `justfile` — task runner (grouped). Root workspace justfile at `~/Projects/justfile` for cross-project dispatch
 - `maintenance-checklist.md` — pending improvements, monitoring list, sweep schedule
 - `improvement-log.md` — structured findings from session analysis (session-analyst appends here)
 - `agent-failure-modes.md` — documented failure modes from real sessions
 - `AGENTS.md`, `GEMINI.md` — symlinks to CLAUDE.md (multi-editor compatibility)
 
-**MCP Servers:**
+**MCP Server:**
 - `meta_mcp.py` — meta-knowledge MCP server (section-based search over all .md files)
-- `scripts/repo_tools_mcp.py` — repo navigation tools (RETIRED from MCP, 2026-03-20). Zero usage across 4,287 runs. Scripts remain as CLI tools via Bash: `repo-outline.py` (outline, callgraph, xrefs, symbol), `repo-summary.py` (file map with `--compact`).
 
-**Orchestration & Ops:**
-- `scripts/orchestrator.py` — background task runner for unattended scheduled work (session-retro, morning-brief). Not primary execution model — `/loop` + interactive sessions is.
-- `scripts/doctor.py` — cross-project health checker (hooks, settings, skills, MCP, git state)
-- `scripts/propose-work.py` — daily morning brief: ranked work proposals from cross-project signals
-- `scripts/runlog.py` — cross-vendor run importer/query CLI for Claude, Codex, Gemini, and Kimi local logs
-- `scripts/code-review-scout.py` — continuous code review via Gemini/Codex CLI (free tier)
-- `scripts/code-review-schedule.py` — daily rotation: 5 projects × 5 focuses, 25-day cycle
-- `scripts/vendor-versions.py` — parallel version checker for AI vendor tools/SDKs
-- `scripts/best-sync.py` — daily git fetch for priority OSS repos in `~/Projects/best/`
-- `scripts/autoresearch.py` — evolutionary code search: LLM-as-mutator, deterministic eval, git reset on regression
-- `pipelines/` — JSON pipeline templates (recurring workflows)
-- `experiments/` — autoresearch experiment configs
+**Scripts** (61 Python files — see `.claude/rules/codebase-map.md` for full inventory with dependency arrows):
+- *Orchestration & Ops:* orchestrator, doctor, propose-work, runlog, code-review-scout/schedule, vendor-versions, best-sync, autoresearch
+- *Self-Improvement Loop:* session-shape (zero-cost pre-filter), fix-verify (closed-loop validation), sessions (FTS5 search/dispatch)
+- *Epistemic Measurement:* supervision-kpi, calibration-canary, pushback-index, safe-lite-eval, epistemic-lint, trace-faithfulness, tool-trajectory, session-features, compaction-canary
+- *Hook Telemetry:* hook-outcome-correlator, hook-roi
 
-**Self-Improvement Loop** (the core feedback cycle):
-- `scripts/session-shape.py` — zero-LLM-cost structural anomaly detector. Pre-filter: flags sessions with unusual tool patterns for deep analysis
-- `scripts/finding-triage.py` — RETIRED. Inline improvement-log approach (2+ recurrence noted in text) replaced the separate DB. Script kept as archive.
-- `scripts/fix-verify.py` — closed-loop fix validation. Runs detection queries against recent sessions to verify fixes are holding. Commands: `run`, `tag`, `report`
-- `.claude/agents/session-analyst.md` — persistent agent (memory: project). Remembers reported findings across sessions. Supports `--corrections` mode for extracting user correction patterns from transcripts.
-- `.claude/agents/researcher.md` — persistent agent (memory: user). Remembers sources checked and search strategies across sessions.
-- `pipelines/gotcha-audit.json` — monthly automated rule lifecycle audit. Classifies gotchas as still-relevant/stale/graduated/code-fix. Run via `just gotcha-audit`.
-
-**Epistemic Measurement** (run via `uv run python3 scripts/<name>.py --days N`):
-- `scripts/supervision-kpi.py` — SLI (supervision load), AIR (alert intervention rate), AGR (autonomy gain trend). Constitutional north-star metric.
-- `scripts/thesis-challenge.py` — measures agent pushback on investment theses in intel sessions
-- `scripts/session-features.py` — extracts 11 behavioral features per session for trajectory calibration
-- `scripts/calibration-canary.py` — 35 canaries across 6 categories (incl. prediction_market, constitutional), weekly runs
-- `scripts/compaction-canary.py` — post-compaction invariant loss detection (baseline + analyze modes)
-- `scripts/tool-trajectory.py` — ATP-derived tool-opportunity utilization model, normalized by task type
-- `scripts/pushback-index.py` — sycophancy word detection + fold rate
-- `scripts/safe-lite-eval.py` — factual precision via Exa verification
-- `scripts/epistemic-lint.py` — unsourced claim detection with severity weighting
-- `scripts/trace-faithfulness.py` — matches agent claims to actual tool_use entries
-- `scripts/fail_open.py` — `@fail_open` decorator for measurement functions (timeout + graceful degradation)
-- `schemas/calibration_canaries.json` — canary definitions with ground truth
-
-**Hook Telemetry:**
-- `scripts/hook-outcome-correlator.py` — joins hook triggers with session receipts
-- `scripts/hook-roi.py` — hook trigger pattern analysis (fires, blocks, false positive candidates)
+**Agents** (`.claude/agents/`):
+- `session-analyst.md` — persistent (memory: project). Behavioral anti-pattern detection, `--corrections` mode
+- `researcher.md` — persistent (memory: user). Deep research with source tracking across sessions
 
 **Reference:**
-- `substrate/` — RETIRED 2026-03-24 (4 reads in 7 days). See `decisions/2026-03-17-shared-knowledge-substrate.md`.
-- `schemas/` — `calibration_canaries.json` (active). `open_questions.md` and `pertinent_negatives.json` are design references only (never instantiated by any project).
+- `schemas/calibration_canaries.json` — canary definitions with ground truth
 - `runlog.md` — runlog architecture, import/query usage, named queries
 - `cockpit.md` — human-agent interface: status line, notifications, receipts, dashboard
 - `human-instructions.md` — operator decision guide
@@ -67,7 +49,7 @@ This repo plans and tracks improvements to agent infrastructure across projects 
 
 ## Research Index
 
-72 research memos in `research/`. Full index with topics and "consult before" triggers: `.claude/rules/research-index.md` (auto-loaded).
+~99 research memos in `research/`. Full index with topics and "consult before" triggers: `.claude/rules/research-index.md` (auto-loaded).
 
 <constitution>
 > **Human-protected.** Agent may propose changes but must not modify without explicit approval.
@@ -168,7 +150,7 @@ How to verify this constitution is working (check via session-analyst after 2 we
 
 ## Orchestrator (`scripts/orchestrator.py`) — Background Only
 
-Queue-backed task runner for unattended scheduled work. Not the primary execution model — `/loop` replaced it for interactive use.
+Queue-backed task runner for unattended scheduled work. Not the primary execution model.
 
 ```bash
 orchestrator.py status                               # show queue
@@ -181,14 +163,6 @@ orchestrator.py pipelines                            # cost/status rollup
 **Used for:** session-retro, morning-brief, runlog-import, and other pipelines that run unattended. Pipelines defined in `pipelines/*.json`.
 
 **Key constraints:** `DAILY_COST_CAP = $25`, `fcntl.flock` prevents concurrent runs, `anyio.fail_after(600s)` stall detection, cross-project steps require approval.
-
-**Artifacts:** `artifacts/session-retro/` and `artifacts/hook-roi/` (gitignored).
-
-## Knowledge Substrate (`substrate/`) — RETIRED
-
-Retired 2026-03-24. MCP removed from all projects. 4 reads / 60 writes in 7 days — knowledge-index hook (PostToolUse, 100% coverage) solved the actual pain. Correction propagation now handled by `scripts/propagate-correction.py`.
-
-Code archived in `substrate/`. DBs at `~/.claude/knowledge/archive/`. ADR: `decisions/2026-03-17-shared-knowledge-substrate.md`.
 
 ## Backlog
 
