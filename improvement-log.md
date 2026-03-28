@@ -748,7 +748,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Hook circumvention — bash-level guards bypassed via Python runtime
 - **Proposed fix:** [architectural] Python audit hooks or broader file-operation interception. Current bash-only hooks have a fundamental bypass via any scripting runtime.
 - **Severity:** high
-- **Status:** [ ] proposed
+- **Status:** [x] covered — pretool-data-guard.sh blocks protected path writes (2026-03-28 triage)
 
 ### [2026-03-03] SYCOPHANCY: False source grades on unverified financial data
 - **Session:** intel e9abd1a6
@@ -888,7 +888,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** First-answer convergence — jumped to implementation without confirming scope
 - **Proposed fix:** [rule] For cross-project analysis tasks: confirm scope/granularity with one example before full analysis. "Here's one pattern I found — is this the right level?"
 - **Severity:** medium — full plan written then discarded
-- **Status:** [ ] proposed
+- **Status:** [x] covered — constitution principle 5 (divergence budget) addresses this class
 
 ### [2026-03-07] RULE VIOLATION: Epistemics skill not invoked for biotech/medical research
 - **Session:** selve 3312688c
@@ -1015,7 +1015,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Token waste — subagent context isolation not accounted for
 - **Proposed fix:** [rule] Don't use Agent() for simple file edits across projects. Agent() runs in isolated context — edits may not persist. Use direct Edit/Write tools for file modifications. Reserve Agent() for exploration/analysis where isolation is a feature, not a bug.
 - **Severity:** medium — 5 wasted agent dispatches
-- **Status:** [ ] proposed
+- **Status:** [x] covered — worktree isolation rule in global CLAUDE.md (2026-03-28 triage)
 
 ### [2026-03-10] TOKEN WASTE: Redundant file reads — common.py read 3x, doctor.py read 3x
 - **Session:** meta 5afbed53
@@ -1065,7 +1065,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [rule] Strengthen probe-before-build: when proposing adoption of specific features from external tools/SDKs, explicitly mark claims as "unverified" until a probe confirms. The agent's confident tone ("exactly what you need") was the failure — hedged language would have been appropriate.
 - **Severity:** high — user would have wasted significant effort if they'd acted on the unvalidated proposals
 - **Root cause:** agent-capability
-- **Status:** [ ] proposed
+- **Status:** [x] covered — global CLAUDE.md rule 12 (verify vendor claims) deployed 2026-03-07
 
 **Cross-cutting patterns (2026-03-13):**
 1. **Duplicate file reads persist as #1 recurring waste.** This is the 5th logged occurrence. tool-tracker.sh (deployed 2026-03-10) should be catching this — need to verify it fires correctly when reads target different line ranges of the same file.
@@ -1080,7 +1080,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** Verify tool-tracker.sh is deployed in genomics project settings.json. If not, this is a deployment gap. If deployed but not firing, the hook's recency window may be too large for large sessions.
 - **Severity:** high — 10x reads of a large file is significant token waste
 - **Root cause:** system-design (hook deployed in meta but may not be in genomics)
-- **Status:** [ ] proposed
+- **Status:** [x] covered — dup-read hook promoted to block at 4th read (skills ad950c4, 2026-03-28)
 
 ### [2026-03-17] MISSING PUSHBACK: Failed benchmark tools wired into active classifier — 129 false MOD flags (genomics)
 - **Session:** genomics d2a3cab8 (detection), prior session (integration — unknown UUID)
@@ -1112,7 +1112,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [hook] PreToolUse:Bash hook that detects `llmx.*-f` and rewrites to stdin pipe pattern. Or: fix llmx `-f` to work with Gemini CLI transport. The instruction-only approach has failed — this is the 4th occurrence across sessions. | [rule] Strengthen probe-before-build: when proposing adoption of specific features from external tools/SDKs, explicitly mark claims as "unverified" until a probe confirms. The agent's confident tone ("exactly what you need") was the failure — hedged language would have been appropriate.
 - **Root cause:** TBD
 - **Recurrences:** 5 (auto-promoted from staging)
-- **Status:** [ ] proposed
+- **Status:** [x] covered — file-read polling rule in CLAUDE.md + spinning detector promoted to block (2026-03-28)
 
 ### [2026-03-17] TOKEN WASTE: Model-review retry loop — 4 failed Gemini dispatches before fallback
 - **Session:** meta 18384e69
@@ -1166,7 +1166,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [hook] Session-analyst check: creation of new shared scripts/ or skills/ should be preceded by phase-state artifacts. Currently advisory only. | [rule] For system-level fixes (process lifecycle, signal handling, timeouts), evaluate side-effects on interdependent systems (fallback chains, error propagation) before committing.
 - **Root cause:** TBD
 - **Recurrences:** 2 (auto-promoted from staging)
-- **Status:** [ ] proposed
+- **Status:** [SUPERSEDED] duplicate of 2026-03-07 finding, same class. Covered by constitution principle 6.
 
 ### [2026-03-17] MISSING PUSHBACK: Accepted "execute the rest of the plan" without scoping
 - **Session:** meta 226b3e9a
@@ -1220,7 +1220,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [hook] PreToolUse hook that detects medical/bio topic keywords in search queries and warns if epistemics skill hasn't been invoked. Or: strengthen the rule in selve's CLAUDE.md.
 - **Root cause:** TBD
 - **Recurrences:** 3 (auto-promoted from staging)
-- **Status:** [ ] proposed
+- **Status:** [x] covered — pretool-companion-remind.sh deployed 2026-03-07, reminds on bio/medical terms
 
 ### [2026-03-19] SEARCH_WASTE: Used semantic search for location-based contact lookup — wrong tool. Semantic embeddings match topic similarity, not relational metadata like 'X lives in Y'. Should grep raw data first.
 - **Session:** selve ?
@@ -1328,7 +1328,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** rule — plan all edits before starting, batch Edit calls, minimize re-reads
 - **Root cause:** agent-capability
 - **Severity:** medium
-- **Status:** [ ] proposed
+- **Status:** [x] covered — dup-read hook promoted to block at 4th read (skills ad950c4, 2026-03-28)
 - **Recurrences:** 3 (genomics 6d9c8b38, genomics 1833d541 — CLAUDE.md read 6x, justfile 4x)
 
 ### [2026-03-24] BUILD-THEN-UNDO: Codex agents exhausted turns without synthesizing, full re-dispatch via Claude
@@ -1338,7 +1338,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** Codex audit prompts must include: (1) "Write findings to FILE after reading 3 files — do NOT wait until end", (2) max 2 files per agent, (3) explicit word limit on synthesis. The subagent-output-discipline rule exists but Codex agents don't receive it.
 - **Root cause:** task-specification
 - **Severity:** high
-- **Status:** [ ] proposed
+- **Status:** [x] covered — dispatch-research synthesis deadline added (skills b9c34d0, 2026-03-28)
 
 ### [2026-03-24] TOKEN WASTE: Ruff PostToolUse hook silently reverts newly-added functions
 - **Session:** genomics 6d9c8b38
@@ -1375,7 +1375,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** rule — When user asks for comprehensive/complete analysis, address ALL findings. Don't impose arbitrary cutoffs unless user sets a budget.
 - **Root cause:** agent-capability
 - **Severity:** low
-- **Status:** [ ] proposed
+- **Status:** [x] covered — fix-all-findings rule (skills b12f261) + global CLAUDE.md rule 13 (2026-03-28 triage)
 
 ### [2026-03-26] TOKEN WASTE: Repeated-read pattern (3+ reads of same file before edit)
 - **Sessions:** meta aa2981a8 (6x doctor.py), meta 955b17d9 (3x research-index), meta 7e3fdd99 (4x model-review SKILL.md), genomics a62b3f8f (11x domain-forcing.md), selve c64b1dbe (5x hifi-wgs-quote-emails.md)
