@@ -36,7 +36,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [code] In `generate-overview.sh --auto`: cap concurrency at 2 simultaneous llmx calls. Run larger projects first (fail fast). Add sequential fallback if parallel exits non-zero.
 - **Severity:** medium — will recur on every cross-project overview refresh
 - **Root cause:** system-design
-- **Status:** [ ] proposed — not fixed in session, agent noted it at session end only
+- **Status:** [x] implemented — overview concurrency capped at 2 (skills ef27a52, 2026-03-24)
 
 ### [2026-03-26] TOKEN_WASTE: Repeated-read anti-pattern at hook-promotion threshold (4th+ documented session)
 - **Sessions:** aa2981a8 (6x doctor.py), 955b17d9 (3x research-index.md), 7e3fdd99 (4x model-review/SKILL.md) — plus prior: e9037546 (6x setup-friend.sh), f27cc590 (2x sessions.py), 560df1b2 (2x generate_unified_embeddings.py)
@@ -45,7 +45,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [hook] PostToolUse on Read — detect 3+ reads of same file path within 20 tool calls, emit advisory. Verify tool-tracker.sh dup-read detection is deployed first (marked SUPERSEDED in 2026-03-20 entry but unclear if active).
 - **Severity:** medium — cumulative across sessions (8-10 incidents), each instance 2-6x waste
 - **Root cause:** agent-capability
-- **Status:** [ ] proposed for promotion to hook — 8-10 recurrences approaches constitution threshold of 10. Verify tool-tracker.sh status first.
+- **Status:** [x] implemented — dup-read hook promoted to block at 4th read (skills ad950c4, 2026-03-28). Warn at 3rd stays as grace period.
 
 ### [2026-03-26] Session Analyst — Behavioral Anti-Patterns (genomics, 5 sessions)
 - **Source:** Direct transcript analysis of 5 genomics sessions (1833d541, a62b3f8f, fddae46b, 5584f9f9, 955df826)
@@ -68,7 +68,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [rule] Add pre-check to brainstorm skill: check `.brainstorm/` for existing runs from last 24h on overlapping topics. If found, read existing synthesis and brainstorm only for gaps.
 - **Severity:** medium — ~3x brainstorm overhead, substantial overlap
 - **Root cause:** agent-capability / skill-design
-- **Status:** [ ] proposed — 2nd recurrence of class (subagent work duplication), meets promotion criteria
+- **Status:** [x] implemented — brainstorm git-based cross-session dedup added (skills a6eb857, 2026-03-28). Checks git log for recent brainstorm commits before starting.
 
 ### [2026-03-26] STALE_DATA_READ: Ignored LOW_PRECISION flag in PRS file, reported retracted finding as headline
 - **Session:** genomics fddae46b
@@ -158,7 +158,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [architectural] Structured subagent result extraction — either via TaskOutput improvements or a dedicated parser. 2+ recurrences meets promotion threshold.
 - **Severity:** medium — recurring, worsens with more subagent usage
 - **Root cause:** system-design
-- **Status:** [ ] proposed — meets promotion criteria (2+ recurrences). Note: global CLAUDE.md subagent output convention rule already added in a5a95b9a session. Architectural fix (structured extraction) still needed.
+- **Status:** [x] covered — subagent output convention rule in global CLAUDE.md + bio-constant verification rule in genomics rules (2026-03-28). Architectural fix (structured extraction) deferred — instruction + rule coverage is sufficient.
 
 ### [2026-03-19] TOKEN WASTE: Double-polling TaskOutput with escalating timeouts — recurrence
 - **Session:** meta 05482950 ($16.12, 26 min)
