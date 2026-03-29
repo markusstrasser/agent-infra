@@ -1436,3 +1436,33 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Severity:** medium
 - **Recurrences:** 3
 - **Status:** [x] implemented — file-read polling bullet added to global CLAUDE.md subagent_usage
+
+### [2026-03-29] TOKEN WASTE: Bash-based file polling bypasses dup-read hook (15 polls of Gemini output)
+- **Session:** meta cf5d4556
+- **Evidence:** Agent polled `/tmp/gemini-loop-analysis.md` via `wc -l`, `ls -la`, `head`, and `sleep N && wc -l` ~10 times waiting for Gemini Flash. Global CLAUDE.md subagent_usage rule explicitly prohibits this. posttool-dup-read.sh only catches Read tool calls, not Bash-based polls of the same path.
+- **Failure mode:** token-waste / poll-loop (4th class occurrence)
+- **Proposed fix:** [architectural] Extend tool-tracker or add Bash PostToolUse hook to detect repeated file-stat commands targeting same output path
+- **Root cause:** system-design — dup-read hook covers Read tool but not Bash wc/ls/head on same path
+- **Severity:** medium
+- **Recurrences:** 4 (2026-03-18, 2026-03-19, 2026-03-26, 2026-03-29)
+- **Status:** [ ] proposed — hook gap identified
+
+### [2026-03-29] BUILD-THEN-UNDO: generate-indexes.py --fix stripped YAML frontmatter from research-index.md
+- **Session:** meta d529d5b3
+- **Evidence:** `generate-indexes.py --fix` stripped `paths:` YAML frontmatter from research-index.md. Agent spent 6+ tool calls (2 script edits, 3 re-runs, 1 verification) to diagnose and fix. Script patched in-session to always preserve frontmatter.
+- **Failure mode:** build-then-undo / utility-script-data-loss
+- **Proposed fix:** [done] Script fixed in-session. Recommend `just smoke` check verifying research-index.md frontmatter survives --fix.
+- **Root cause:** skill-weakness — generate-indexes.py didn't preserve existing file headers during rewrite
+- **Severity:** medium
+- **Recurrences:** 1
+- **Status:** [x] fixed in-session — frontmatter preservation added to generate-indexes.py
+
+### [2026-03-29] RECURRENCE: Parallel agent committed current agent's working tree changes
+- **Session:** meta cf5d4556 (genomics worktree)
+- **Evidence:** Agent's edit to precommit-qa-gate.sh was already in HEAD when it tried to commit — another parallel agent had committed the working tree including this agent's uncommitted changes. 2nd occurrence of multi-agent-commit-conflict pattern.
+- **Failure mode:** multi-agent-commit-conflict (recurrence of 2026-03-26 finding)
+- **Proposed fix:** [monitor] Rule exists in global CLAUDE.md. Verify agents are honoring "commit after each edit when pgrep >= 2" rule.
+- **Root cause:** system-design — rule deployed but not consistently followed
+- **Severity:** medium
+- **Recurrences:** 2
+- **Status:** [ ] monitoring — rule exists, compliance unverified
