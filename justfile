@@ -21,6 +21,23 @@ agent-receipts *args:
 
 # ── Health ─────────────────────────────────────────────────────────
 
+# Fast smoke test (<1m) — indexes, frontmatter, views
+[group('health')]
+smoke:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "=== Index check (informational) ==="
+    uv run python3 scripts/generate-indexes.py --check 2>&1 | tail -5 || true
+    echo "=== Research index frontmatter ==="
+    head -1 .claude/rules/research-index.md | grep -q '^---$' || { echo "FAIL: research-index.md missing YAML frontmatter"; exit 1; }
+    echo "OK: frontmatter intact"
+    echo "=== DB views ==="
+    DB="$HOME/.claude/orchestrator.db"
+    for v in v_queue v_daily_cost v_stalled v_failures v_pipeline_health v_proposals; do
+        sqlite3 "$DB" "SELECT * FROM $v LIMIT 1" > /dev/null 2>&1 || { echo "FAIL: $v"; exit 1; }
+    done
+    echo "OK: all views pass"
+
 # Cross-project health check
 [group('health')]
 doctor:

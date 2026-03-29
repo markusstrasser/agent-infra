@@ -1445,7 +1445,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Root cause:** system-design — dup-read hook covers Read tool but not Bash wc/ls/head on same path
 - **Severity:** medium
 - **Recurrences:** 4 (2026-03-18, 2026-03-19, 2026-03-26, 2026-03-29)
-- **Status:** [ ] proposed — hook gap identified
+- **Status:** [x] implemented — posttool-bash-poll.sh deployed as PostToolUse:Bash hook in global settings
 
 ### [2026-03-29] BUILD-THEN-UNDO: generate-indexes.py --fix stripped YAML frontmatter from research-index.md
 - **Session:** meta d529d5b3
@@ -1455,7 +1455,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Root cause:** skill-weakness — generate-indexes.py didn't preserve existing file headers during rewrite
 - **Severity:** medium
 - **Recurrences:** 1
-- **Status:** [x] fixed in-session — frontmatter preservation added to generate-indexes.py
+- **Status:** [x] fixed in-session + regression test — frontmatter check added to `just smoke`
 
 ### [2026-03-29] RECURRENCE: Parallel agent committed current agent's working tree changes
 - **Session:** meta cf5d4556 (genomics worktree)
