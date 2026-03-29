@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Orchestrator: cron-driven task runner for Agent SDK and deterministic scripts.
+"""Orchestrator: queue-backed task runner for Agent SDK and deterministic scripts.
 
 Dual-engine architecture:
   engine='claude'  -> Agent SDK query() with effort, max_budget_usd, hooks
@@ -13,7 +13,7 @@ Usage:
   orchestrator.py approve <task_id|pipeline>       # approve a paused task
   orchestrator.py log [--today]                    # show event log
   orchestrator.py summary                          # generate daily markdown summary
-  orchestrator.py tick                             # run one task (called by launchd)
+  orchestrator.py tick                             # run one task (manual or scheduler-triggered)
 """
 
 import argparse
@@ -454,7 +454,12 @@ def _run_claude_subprocess(task, cwd, progress_file=None):
     env = {**os.environ}
     env.pop("CLAUDECODE", None)
     env.pop("CLAUDE_CODE_ENTRYPOINT", None)
-    env.pop("ANTHROPIC_API_KEY", None)  # use subscription, not API credits
+    bare_fallback = os.environ.get("ORCHESTRATOR_BARE_FALLBACK", "")
+    if bare_fallback:
+        cmd.append("--bare")
+        # --bare requires ANTHROPIC_API_KEY; keep it in env
+    else:
+        env.pop("ANTHROPIC_API_KEY", None)  # use subscription, not API credits
     if effort:
         env["CLAUDE_CODE_EFFORT_LEVEL"] = effort
 
@@ -1815,7 +1820,7 @@ def cmd_run_pipeline(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Orchestrator: cron-driven task runner")
+    parser = argparse.ArgumentParser(description="Orchestrator: queue-backed task runner")
     sub = parser.add_subparsers(dest="command")
 
     sub.add_parser("init-db", help="Create/migrate the database")
@@ -1859,7 +1864,7 @@ def main():
     p_retry = sub.add_parser("retry", help="Reset failed/blocked task to pending")
     p_retry.add_argument("task_id", type=int, help="Task ID to retry")
 
-    sub.add_parser("tick", help="Run one task (called by launchd)")
+    sub.add_parser("tick", help="Run one task (manual or scheduler-triggered)")
 
     p_rp = sub.add_parser("run-pipeline", help="Submit + run pipeline synchronously (interactive)")
     p_rp.add_argument("pipeline", help="Pipeline template name")

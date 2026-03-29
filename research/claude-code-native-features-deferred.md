@@ -1,7 +1,7 @@
 # Claude Code Native Features — Deferred Adoption Items
 
-**Date:** 2026-03-23
-**Source:** Manual changelog/ecosystem sweep of Anthropic repos (v2.1.63–v2.1.81)
+**Date:** 2026-03-29 (updated)
+**Source:** Manual changelog/ecosystem sweep of Anthropic repos (v2.1.63–v2.1.87, Agent SDK v0.1.52)
 **Status:** Tracking — items here are viable but deferred for specific reasons
 
 ## 1. API-Level MCP Connector (Anthropic SDK v0.50+)
@@ -67,6 +67,32 @@
 
 ---
 
+## 6. `initialPrompt` Agent Frontmatter (v2.1.83)
+
+**What:** Agents can declare their initial prompt in frontmatter — auto-submits first turn without passing prompt via CLI.
+
+**Our current approach:** Both agents (researcher, session-analyst) receive task-specific prompts at invocation time. Prose preambles in the agent .md files serve as system instructions, not the initial message.
+
+**Why defer:** Both agents need task-specific prompts ("research X", "analyze session Y"). A generic `initialPrompt` would either be ignored (invoker passes a prompt) or produce a suboptimal first turn.
+
+**Trigger to revisit:** When creating a dedicated-purpose agent that always does the same thing (e.g., daily digest, nightly cleanup).
+
+## 7. `CwdChanged` / `FileChanged` Hook Events (v2.1.83)
+
+**What:** New hook events that fire on directory change or file modification. Enables reactive environment management (e.g., direnv).
+
+**Why defer:** No concrete use case. Rules files reload per-turn already. We don't use direnv. Could enable detecting external edits to watched files (GOALS.md changed by another agent), but this is not a current pain point.
+
+**Trigger to revisit:** When needing reactive environment management or external edit detection.
+
+## 8. Agent SDK `task_budget` / `get_context_usage()` (v0.1.51-52)
+
+**What:** Release notes listed `task_budget` (token budget per task, API-side) and `get_context_usage()` (context window breakdown by category).
+
+**Why defer:** Neither parameter exists in the installed Python SDK v0.1.52. Grepping the package source returns zero matches. May be TS-only or in an unreleased version.
+
+**Trigger to revisit:** When `task_budget` or `get_context_usage` appears in `claude_agent_sdk` Python package.
+
 ## Already Adopted (from this sweep)
 
 | Feature | Status | When |
@@ -76,6 +102,10 @@
 | `StopFailure` hook (rate_limit) | Done — backoff signal for orchestrator | 2026-03-23 |
 | `rate_limits` in statusline | Already had | Pre-existing |
 | `disallowedTools` | Evaluated, no use case — allowlists are stronger | 2026-03-23 |
+| `TaskCreated` hook event | Done — async telemetry logging | Pre-existing |
+| `PostCompact` hook event | Done — postcompact-verify.sh | Pre-existing |
+| Hook `if` conditionals | Done — commit-check + ast-precommit narrowed to `Bash(git commit*)` | 2026-03-29 |
+| `--bare` orchestrator fallback | Done — gated on `ORCHESTRATOR_BARE_FALLBACK` env var | 2026-03-29 |
 
 ## Not Applicable
 
@@ -86,8 +116,8 @@
 | Plugin system (marketplace, persistent state) | Using skills, not plugins |
 
 <!-- knowledge-index
-generated: 2026-03-23T14:44:28Z
-hash: f80032c0c6d3
+generated: 2026-03-29T16:04:30Z
+hash: 962189273a87
 
 
 end-knowledge-index -->
