@@ -79,6 +79,26 @@ uv run python3 scripts/runlog.py query tool_usage_by_mcp_server --param vendor=c
 - **Cross-domain synthesis.** Agent doesn't connect intel to genomics to meta. That's yours (for now).
 - **Deciding when research is done.** Agent searches forever. You call it.
 
+## CLI Power-User Tips
+
+**Session management:**
+- `/branch` — fork current session (keeps context, diverges from here)
+- `claude --resume <session-id> --fork-session` — fork from CLI
+- `/btw` — side query while agent works (doesn't interrupt main task)
+- `/voice` — voice input; hold spacebar in CLI, or use dictation on iOS/Desktop
+
+**Parallel work:**
+- `claude -w` — start session directly in a new git worktree
+- `/batch` — fan out to dozens/hundreds of worktree agents for large migrations
+- `--add-dir path/to/other/repo` — give Claude access to another repo (also `/add-dir` mid-session)
+
+**Performance:**
+- `--bare` — skip CLAUDE.md, settings, MCPs on startup (up to 10x faster). Use for non-interactive `claude -p` or SDK calls where you explicitly specify context.
+
+**Remote:**
+- `/schedule` — schedule Claude to run remotely on a cron (up to a week). Use for babysit loops, code review, rebase.
+- Dispatch (claude.com) — remote control for Claude Desktop from phone. Uses your MCPs, browser, files.
+
 ## The Endgame Check
 
 Every few weeks: is meta making sessions better?
