@@ -157,3 +157,98 @@ CREATE TABLE IF NOT EXISTS run_configs (
 CREATE INDEX IF NOT EXISTS idx_runs_vendor_started ON runs(vendor, started_at);
 CREATE INDEX IF NOT EXISTS idx_runs_model_route ON runs(provider_name, model_requested, model_resolved, transport);
 CREATE INDEX IF NOT EXISTS idx_runs_hashes ON runs(instruction_hash, config_hash, mcp_set_hash);
+
+-- Git commits with session attribution (evolution-forensics)
+CREATE TABLE IF NOT EXISTS git_commits (
+    hash TEXT NOT NULL,
+    project TEXT NOT NULL,
+    authored_at TEXT NOT NULL,
+    author TEXT,
+    subject TEXT NOT NULL,
+    scope TEXT,           -- extracted from [scope] prefix
+    commit_type TEXT,     -- fix, fix-of-fix, revert, feature, rule, research, chore
+    session_id TEXT,      -- from Session-ID trailer
+    body TEXT,
+    files_changed INTEGER,
+    insertions INTEGER,
+    deletions INTEGER,
+    PRIMARY KEY (hash, project)
+);
+
+CREATE INDEX IF NOT EXISTS idx_git_commits_session ON git_commits(session_id)
+WHERE session_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_git_commits_project_date ON git_commits(project, authored_at);
+CREATE INDEX IF NOT EXISTS idx_git_commits_type ON git_commits(commit_type);
+
+-- Files changed per commit
+CREATE TABLE IF NOT EXISTS git_commit_files (
+    hash TEXT NOT NULL,
+    project TEXT NOT NULL,
+    path TEXT NOT NULL,
+    insertions INTEGER,
+    deletions INTEGER,
+    PRIMARY KEY (hash, project, path),
+    FOREIGN KEY (hash, project) REFERENCES git_commits(hash, project) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_git_commit_files_path ON git_commit_files(path);
+
+-- Session → commit → outcome join
+CREATE VIEW IF NOT EXISTS v_session_commits AS
+SELECT
+    s.vendor_session_id,
+    s.project_slug,
+    gc.hash,
+    gc.project,
+    gc.authored_at,
+    gc.subject,
+    gc.scope,
+    gc.commit_type,
+    gc.files_changed,
+    gc.insertions,
+    gc.deletions
+FROM git_commits gc
+JOIN sessions s ON gc.session_id = s.vendor_session_id
+ORDER BY gc.authored_at;
+
+-- Fix-of-fix chains: files fixed then fixed again within 3 days
+CREATE VIEW IF NOT EXISTS v_fix_chains AS
+SELECT
+    f1.project,
+    gcf1.path,
+    f1.hash AS fix1_hash,
+    f1.authored_at AS fix1_date,
+    f1.subject AS fix1_subject,
+    f1.session_id AS fix1_session,
+    f2.hash AS fix2_hash,
+    f2.authored_at AS fix2_date,
+    f2.subject AS fix2_subject,
+    f2.session_id AS fix2_session,
+    ROUND(julianday(f2.authored_at) - julianday(f1.authored_at), 1) AS gap_days
+FROM git_commits f1
+JOIN git_commit_files gcf1 ON f1.hash = gcf1.hash AND f1.project = gcf1.project
+JOIN git_commit_files gcf2 ON gcf1.path = gcf2.path AND gcf1.project = gcf2.project
+JOIN git_commits f2 ON gcf2.hash = f2.hash AND gcf2.project = f2.project
+WHERE f1.commit_type IN ('fix', 'revert')
+  AND f2.commit_type IN ('fix', 'fix-of-fix', 'revert')
+  AND f2.authored_at > f1.authored_at
+  AND julianday(f2.authored_at) - julianday(f1.authored_at) <= 3.0
+  AND f1.hash != f2.hash
+ORDER BY f1.project, gcf1.path, f1.authored_at;
+
+-- Session durability: which sessions produce code that needs subsequent fixes?
+CREATE VIEW IF NOT EXISTS v_session_durability AS
+SELECT
+    gc.session_id,
+    gc.project,
+    COUNT(DISTINCT gc.hash) AS commits_produced,
+    COUNT(DISTINCT CASE WHEN fc.fix2_hash IS NOT NULL THEN gc.hash END) AS commits_later_fixed,
+    ROUND(
+        COUNT(DISTINCT CASE WHEN fc.fix2_hash IS NOT NULL THEN gc.hash END) * 100.0
+        / MAX(COUNT(DISTINCT gc.hash), 1),
+    1) AS fragility_pct
+FROM git_commits gc
+LEFT JOIN v_fix_chains fc ON gc.hash = fc.fix1_hash AND gc.project = fc.project
+WHERE gc.session_id IS NOT NULL
+GROUP BY gc.session_id, gc.project
+ORDER BY fragility_pct DESC;

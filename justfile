@@ -165,6 +165,11 @@ plans-json:
 runlog-import:
     uv run python3 scripts/runlog.py import
 
+# Import git commits with session attribution into runlogs.db
+[group('sessions')]
+git-import days="30":
+    uv run python3 scripts/runlog.py git-import --days {{days}}
+
 # Session search & dispatch (index, list, search, show, dispatch)
 [group('sessions')]
 sessions *args:

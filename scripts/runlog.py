@@ -715,6 +715,166 @@ def _print_rows(rows) -> None:
         print("  ".join(row[column].ljust(widths[column]) for column in columns))
 
 
+DEFAULT_PROJECTS = ["meta", "intel", "selve", "genomics", "skills"]
+PROJECTS_ROOT = Path.home() / "Projects"
+
+FIX_PATTERNS = re.compile(r"\b(fix|repair|correct|patch|resolve|handle)\b", re.I)
+REVERT_PATTERNS = re.compile(r"\b(revert|undo|drop|remove|retire)\b", re.I)
+RULE_PATHS = re.compile(r"(CLAUDE\.md|rules/|hooks/|improvement-log)")
+RESEARCH_PATHS = re.compile(r"(research/|decisions/)")
+SCOPE_RE = re.compile(r"^\[([^\]]+)\]\s*")
+
+
+def _classify_commit(subject: str, files: list[str]) -> str:
+    if REVERT_PATTERNS.search(subject):
+        return "revert"
+    if FIX_PATTERNS.search(subject):
+        return "fix"
+    if any(RULE_PATHS.search(f) for f in files):
+        return "rule"
+    if any(RESEARCH_PATHS.search(f) for f in files):
+        return "research"
+    return "feature"
+
+
+def _extract_scope(subject: str) -> str | None:
+    m = SCOPE_RE.match(subject)
+    return m.group(1) if m else None
+
+
+def _parse_git_log(project: str, project_dir: Path, days: int) -> list[dict]:
+    """Parse git log into structured commit records."""
+    import subprocess
+    sep = "\x1f"  # unit separator
+    fmt = sep.join(["%H", "%ai", "%an", "%s", "%(trailers:key=Session-ID,valueonly)"])
+    cmd = [
+        "git", "-C", str(project_dir), "log",
+        f"--since={days} days ago",
+        f"--format={fmt}",
+        "--numstat",
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    if result.returncode != 0:
+        return []
+
+    commits = []
+    current = None
+    for line in result.stdout.splitlines():
+        if sep in line:
+            if current:
+                commits.append(current)
+            parts = line.split(sep)
+            files: list[str] = []
+            current = {
+                "hash": parts[0],
+                "project": project,
+                "authored_at": parts[1] if len(parts) > 1 else "",
+                "author": parts[2] if len(parts) > 2 else "",
+                "subject": parts[3] if len(parts) > 3 else "",
+                "body": None,
+                "session_id": (parts[4].strip() or None) if len(parts) > 4 else None,
+                "scope": _extract_scope(parts[3] if len(parts) > 3 else ""),
+                "files": files,
+                "insertions": 0,
+                "deletions": 0,
+            }
+        elif current and line.strip():
+            # numstat line: insertions\tdeletions\tpath
+            numstat = line.split("\t", 2)
+            if len(numstat) == 3:
+                current["files"].append(numstat[2])
+                try:
+                    current["insertions"] += int(numstat[0])
+                except ValueError:
+                    pass
+                try:
+                    current["deletions"] += int(numstat[1])
+                except ValueError:
+                    pass
+    if current:
+        commits.append(current)
+
+    # Classify and detect fix-of-fix
+    for c in commits:
+        c["commit_type"] = _classify_commit(c["subject"], c["files"])
+
+    # Fix-of-fix: a fix touching a file that was fixed within 3 days prior
+    fix_commits = [c for c in commits if c["commit_type"] == "fix"]
+    for i, fc in enumerate(fix_commits):
+        fc_files = set(fc["files"])
+        fc_date = fc["authored_at"][:10]
+        for prior in fix_commits[i + 1:]:  # git log is newest-first
+            prior_date = prior["authored_at"][:10]
+            try:
+                gap = (datetime.fromisoformat(fc_date) - datetime.fromisoformat(prior_date)).days
+            except ValueError:
+                continue
+            if gap > 3:
+                break
+            if fc_files & set(prior["files"]):
+                fc["commit_type"] = "fix-of-fix"
+                break
+
+    return commits
+
+
+def _import_git_commits(db: sqlite3.Connection, projects: list[str], days: int) -> int:
+    """Import git commits across projects into git_commits + git_commit_files."""
+    total = 0
+    for project in projects:
+        project_dir = PROJECTS_ROOT / project
+        if not (project_dir / ".git").is_dir():
+            continue
+        commits = _parse_git_log(project, project_dir, days)
+        for c in commits:
+            db.execute(
+                """INSERT OR REPLACE INTO git_commits
+                   (hash, project, authored_at, author, subject, scope, commit_type,
+                    session_id, body, files_changed, insertions, deletions)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (c["hash"], c["project"], c["authored_at"], c["author"],
+                 c["subject"], c["scope"], c["commit_type"], c["session_id"],
+                 c["body"], len(c["files"]), c["insertions"], c["deletions"]),
+            )
+            for f in c["files"]:
+                db.execute(
+                    """INSERT OR REPLACE INTO git_commit_files
+                       (hash, project, path, insertions, deletions)
+                       VALUES (?, ?, ?, NULL, NULL)""",
+                    (c["hash"], c["project"], f),
+                )
+            total += 1
+    return total
+
+
+def command_git_import(args) -> int:
+    db = get_db(Path(args.db))
+    projects = args.project or DEFAULT_PROJECTS
+    days = args.days
+    with db:
+        count = _import_git_commits(db, projects, days)
+    print(f"Imported {count} commits across {len(projects)} projects ({days}d window)")
+
+    # Show fix-of-fix chains if any
+    rows = db.execute(
+        "SELECT * FROM v_fix_chains ORDER BY fix1_date DESC LIMIT 10"
+    ).fetchall()
+    if rows:
+        print(f"\nFix-of-fix chains ({len(rows)} found):")
+        _print_rows(rows)
+
+    # Show session durability if any
+    rows = db.execute(
+        """SELECT * FROM v_session_durability
+           WHERE commits_produced >= 2
+           ORDER BY fragility_pct DESC LIMIT 10"""
+    ).fetchall()
+    if rows:
+        print(f"\nSession durability (top fragile):")
+        _print_rows(rows)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", default=str(DB_PATH), help="SQLite database path")
@@ -737,6 +897,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_query.add_argument("--param", action="append", help="Bind parameter in key=value form")
     p_query.add_argument("--format", choices=("table", "json"), default="table")
     p_query.set_defaults(func=command_query)
+
+    p_git = sub.add_parser("git-import", help="Import git commits with session attribution")
+    p_git.add_argument("--days", type=int, default=30, help="Lookback window (default: 30)")
+    p_git.add_argument("--project", action="append", help="Project(s) to import (default: all)")
+    p_git.set_defaults(func=command_git_import)
 
     p_recent = sub.add_parser("recent", help="Show recent runs (most common forensic query)")
     p_recent.add_argument("--hours", type=int, default=24, help="Lookback window (default: 24)")
