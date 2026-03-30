@@ -212,6 +212,7 @@ JOIN sessions s ON gc.session_id = s.vendor_session_id
 ORDER BY gc.authored_at;
 
 -- Fix-of-fix chains: files fixed then fixed again within 3 days
+-- Note: authored_at has timezone offsets (-0500), so we strip to first 19 chars for julianday
 CREATE VIEW IF NOT EXISTS v_fix_chains AS
 SELECT
     f1.project,
@@ -224,7 +225,7 @@ SELECT
     f2.authored_at AS fix2_date,
     f2.subject AS fix2_subject,
     f2.session_id AS fix2_session,
-    ROUND(julianday(f2.authored_at) - julianday(f1.authored_at), 1) AS gap_days
+    ROUND(julianday(SUBSTR(f2.authored_at, 1, 19)) - julianday(SUBSTR(f1.authored_at, 1, 19)), 1) AS gap_days
 FROM git_commits f1
 JOIN git_commit_files gcf1 ON f1.hash = gcf1.hash AND f1.project = gcf1.project
 JOIN git_commit_files gcf2 ON gcf1.path = gcf2.path AND gcf1.project = gcf2.project
@@ -232,7 +233,7 @@ JOIN git_commits f2 ON gcf2.hash = f2.hash AND gcf2.project = f2.project
 WHERE f1.commit_type IN ('fix', 'revert')
   AND f2.commit_type IN ('fix', 'fix-of-fix', 'revert')
   AND f2.authored_at > f1.authored_at
-  AND julianday(f2.authored_at) - julianday(f1.authored_at) <= 3.0
+  AND julianday(SUBSTR(f2.authored_at, 1, 19)) - julianday(SUBSTR(f1.authored_at, 1, 19)) <= 3.0
   AND f1.hash != f2.hash
 ORDER BY f1.project, gcf1.path, f1.authored_at;
 
