@@ -26,6 +26,10 @@ Query arrives
     ├─ Corpus ≤ 200K tokens? ──→ CAG directly (skip embeddings entirely)
     │                             Use Gemini Flash-Lite for simple lookups
     │
+    ├─ Text corpus as files + agent has shell? ──→ Agent shell navigation
+    │   grep/rg/sed/Python, no index needed       Best above ~500K tokens
+    │   Don't add retrieval alongside              $0.11-0.83/query
+    │
     ├─ Simple factual / keyword? ──→ EMB hybrid search (BM25 + dense)
     │   "What is X's revenue?"        Fast, cheap, high precision
     │   "Find papers about Y"
@@ -90,6 +94,18 @@ Query arrives
 **API key available:** `GROQ_API_KEY` in env. Models accessible via OpenAI-compatible API at `https://api.groq.com/openai/v1`.
 
 ## Key Research Findings
+
+### Agent Shell Navigation (Cao et al. 2026)
+
+**Third path:** For text corpora navigable as files, coding agents with shell commands (grep, rg, sed, Python scripts) outperform both CAG and embedding retrieval above ~500K tokens.
+
+- **Paper:** Cao, Yin, Dhingra & Zhou (arXiv:2603.20432). Tested Codex v0.46.0 (GPT-5) and Claude Code (Sonnet 4.5).
+- **Key result:** 88.5% on BrowseComp-Plus (750M tokens) vs 80% prior SOTA. Scales to 3T tokens.
+- **Retrieval tool paradox:** Adding BM25 or embedding retrieval to agents that already have grep **reduces native search usage by 40.5%** and hurts overall accuracy. Agents default to the retriever and miss things grep would have found.
+- **Applicability condition:** Only applies when the corpus is navigable as text files via shell tools. Does NOT apply to: numpy embeddings, structured databases, cross-source personal data (e.g., selve's 74K embedded entries).
+- **Scale crossover:** Below ~500K tokens, direct context window is competitive. Above 750M, agent navigation dominates.
+- **Cost:** $0.11-0.83/query (10-100x more than RAG). Only justified for multi-hop over very large corpora.
+- **Implication for us:** Validates retiring meta-knowledge MCP (zero usage) and repo-tools MCP (zero usage). Don't add retrieval layers when native file navigation covers the same corpus.
 
 ### CAG vs Embedding Retrieval (Chan et al., arXiv:2412.15605)
 - CAG: 40x faster than naive RAG pipeline, +3% recall on HotPotQA/SQuAD
