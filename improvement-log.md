@@ -6,6 +6,18 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-03-30] SYSTEM_DESIGN: FTS5 pre-query on raw transcripts surfaces anti-patterns faster than Gemini-on-compressed
+- **Source:** Meta-Harness ablation (raw traces 50.0 vs summaries 34.9 median accuracy) + local pilot
+- **Evidence:** Pilot tested 3 known anti-patterns from improvement-log against FTS5 session search:
+  - Schema-probe (aa2981a8): found in 1 FTS5 query ("runlog schema sqlite")
+  - File-polling (a62b3f8f): found in 1 FTS5 query ("read domain-forcing")
+  - Parallel rate-limit: found in 2 FTS5 queries ("generate-overview")
+- **Failure mode:** session-analyst dispatches compressed transcripts to Gemini, losing diagnostic signal that raw traces preserve
+- **Proposed fix:** [architectural] Add FTS5 pre-query step to session-analyst: query raw transcripts for known anti-pattern signatures BEFORE compressing. Send targeted segments + compressed context to Gemini for analysis.
+- **Severity:** medium — affects quality of primary feedback mechanism
+- **Root cause:** system-design (compression destroys diagnostic signal per Meta-Harness ablation)
+- **Status:** [ ] proposed — pilot validated, implementation deferred to next session
+
 ### [2026-03-26] Session Analyst — Behavioral Anti-Patterns (meta, 4 sessions)
 - **Source:** Direct transcript analysis of sessions aa2981a8, 955b17d9, 7e3fdd99, a315e598 (2026-03-26)
 - **Full retro:** `artifacts/session-retro/2026-03-26-meta.md`
