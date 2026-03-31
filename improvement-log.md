@@ -98,7 +98,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [rule] When pgrep -c claude >= 2: commit after each individual edit OR use `isolation: "worktree"` at dispatch time.
 - **Severity:** high — mixed concerns in commit, hard to untangle
 - **Root cause:** system-design
-- **Status:** [~] fix applied to dispatch-research skill. Propose adding to invariants.md.
+- **Status:** [x] covered — rule deployed in global CLAUDE.md line 55 (`<git_rules>`) + dispatch-research skill. invariants.md not appropriate (operational rule, not hard limit).
 
 ### [2026-03-25] TOOL_MISUSE: bypassPermissions agents miss call-site renames during function dedup
 - **Evidence:** 3 of 4 dispatched dedup agents deleted function defs but left old-name call sites. Phase 3 (safe_float): 5 files with `_safe_float(` calls after def deleted. Phase 7 (trait_panel_core): 10 F401 over-imports. Required post-agent `ruff --fix` cleanup each time.
