@@ -5,7 +5,7 @@ date: 2026-02-27
 
 # Claude Code Architecture: Research Notes
 
-**Date:** 2026-02-27, **updated 2026-03-05** (Jan-Mar 2026 changelog sweep, v2.1.68–2.1.70)
+**Date:** 2026-02-27, **updated 2026-03-31** (source code analysis from clawd-code Python port)
 **Sources:** Anthropic engineering blog, claude-code-docs bundle, Trail of Bits config, incident.io blog, decodeclaude.com, community posts, 50+ GitHub repos (99%+ slop filtered out), official changelog (code.claude.com/docs/en/changelog), GitHub releases (anthropics/claude-code), Agent SDK Python changelog (anthropics/claude-agent-sdk-python)
 
 ---
@@ -425,6 +425,167 @@ Added 2026-03-03. 40+ releases in 8 weeks. Major themes below.
 - **Images preserved through compaction** (v2.1.70): previously dropped during auto/manual compaction.
 - **No preamble recap after compaction** (v2.1.69): post-compaction context is cleaner, no redundant restatement of what was discussed.
 - **Skill listing not re-injected on `--resume`** (v2.1.69): saves ~600 tokens per resume.
+
+---
+
+## Source Code Analysis (2026-03-31)
+
+Source: Python port by @instructkr (clawd-code), based on exposed TypeScript codebase. Port captures architecture and file inventory but not full implementation. The reference data snapshots (JSON inventories of all commands, tools, subsystems) are the primary evidence.
+
+**Scale:** 1,902 TypeScript files, 35 subsystems, 389 React/Ink components, 130 services, 104 hooks (React hooks, not user hooks), 207 commands, 184 tools (including internal modules per tool). The CLI is a React/Ink terminal application, not a traditional CLI.
+
+### Full Subsystem Inventory
+
+| Subsystem | Modules | Notes |
+|-----------|---------|-------|
+| components | 389 | React/Ink UI: AgentProgressLine, ContextVisualization, BridgeDialog, CoordinatorAgentStatus, CompactSummary, CostThresholdDialog, AutoUpdater, AwsAuthStatusBox, etc. |
+| services | 130 | AgentSummary, MagicDocs, PromptSuggestion ("speculation.ts"), SessionMemory, analytics (Datadog, GrowthBook), API layer (claude.ts, client.ts, dumpPrompts.ts) |
+| hooks | 104 | React hooks: 13 notification hooks (rate limit, MCP status, deprecation, plugin auto-update, teammate shutdown), 5 permission hooks (coordinator/interactive/swarm handlers), file suggestions, unified suggestions |
+| bridge | 31 | Largest subsystem. WebSocket session management, JWT auth, permission callbacks, message serialization, REPL bridge, capacity management. Foundation for remote execution. |
+| skills | 20 | 15 bundled: batch, claudeApi, claudeInChrome, debug, loop, loremIpsum, remember, scheduleRemoteAgents, simplify, skillify, stuck, updateConfig, verify, verifyContent. Plus: loadSkillsDir, mcpSkillBuilders, bundledSkills |
+| migrations | 11 | Model version transitions (see below), settings schema evolution, MCP integration, REPL bridge lifecycle |
+| memdir | 8 | Auto-memory: findRelevantMemories (semantic search), memoryAge (freshness decay), memoryScan, memoryTypes, paths, teamMemPaths, teamMemPrompts |
+| entrypoints | 8 | cli.tsx, init.ts, mcp.ts, agentSdkTypes.ts, sandboxTypes.ts, sdk/controlSchemas.ts, sdk/coreSchemas.ts, sdk/coreTypes.ts |
+| buddy | 6 | CompanionSprite.tsx, companion.ts, prompt.ts, sprites.ts, types.ts, useBuddyNotification.tsx |
+| native-ts | 4 | color-diff, file-index, yoga-layout (Ink layout engine) |
+| remote | 4 | RemoteSessionManager.ts, SessionsWebSocket.ts, remotePermissionBridge.ts, sdkMessageAdapter.ts |
+| server | 3 | createDirectConnectSession.ts, directConnectManager.ts, types.ts |
+| screens | 3 | Doctor.tsx, REPL.tsx, ResumeConversation.tsx |
+| plugins | 2 | builtinPlugins.ts, bundled/index.ts |
+| upstreamproxy | 2 | relay.ts, upstreamproxy.ts — HTTP proxy support for corporate environments |
+| coordinator | 1 | coordinatorMode.ts — surprisingly thin for multi-agent |
+| voice | 1 | voiceModeEnabled.ts |
+| assistant | 1 | sessionHistory.ts |
+| moreright | 1 | useMoreRight.tsx — UI panel expansion hook |
+
+### Model Codename History (from migrations)
+
+| Migration file | What it reveals |
+|----------------|-----------------|
+| `migrateFennecToOpus.ts` | "Fennec" was an internal codename for a pre-Opus model |
+| `migrateLegacyOpusToCurrent.ts` | Opus had versioning within the same name |
+| `migrateOpusToOpus1m.ts` | 1M context was an upgrade, not a separate model |
+| `migrateSonnet1mToSonnet45.ts` | "Sonnet 1M" was renamed to Sonnet 4.5 |
+| `migrateSonnet45ToSonnet46.ts` | Current model migration |
+| `resetProToOpusDefault.ts` | Tier upgrade: "Pro" tier defaults changed to Opus |
+| `resetAutoModeOptInForDefaultOffer.ts` | Auto-mode UX changed |
+
+### Tool Architecture (94 unique tools, 184 modules)
+
+Each tool is a directory with implementation + UI + prompt + permissions. Interesting internal tools not publicly documented:
+
+| Tool | Modules | What it likely does |
+|------|---------|---------------------|
+| **LSPTool** | 6 (symbolContext, formatters, schemas) | Language Server Protocol — call hierarchy, find references, go-to-definition. Structural code understanding beyond text search. |
+| **BriefTool** | 5 (attachments, upload) | Session briefing with file upload/attachments |
+| **SyntheticOutputTool** | 1 | Generate synthetic outputs (test data? mock responses?) |
+| **TeamCreate/DeleteTool** | 4 each | Multi-user team management |
+| **McpAuthTool** | 1 | MCP authentication management |
+| **TestingPermissionTool** | 1 | Permission testing harness |
+
+BashTool has 18 internal modules including `bashSecurity`, `destructiveCommandWarning`, `sedEditParser`, `sedValidation`, `commandSemantics`, `readOnlyValidation`. PowerShellTool mirrors this with 14 modules. Security is deeply architectural.
+
+The `shared/` tools directory contains `gitOperationTracking.ts` and `spawnMultiAgent.ts` — git safety and multi-agent spawning are cross-cutting.
+
+### Command Surface (141 unique commands)
+
+**Unreleased / in-development commands** (not in public docs or changelog):
+
+| Command | Modules | Assessment |
+|---------|---------|------------|
+| **plugin marketplace** | 16: AddMarketplace, BrowseMarketplace, DiscoverPlugins, ManageMarketplaces, ManagePlugins, PluginErrors, PluginOptionsDialog, PluginOptionsFlow, PluginSettings, PluginTrustWarning, UnifiedInstalledCell, ValidatePlugin, parseArgs, pluginDetailsHelpers, usePagination | Full marketplace ecosystem. OAuth flow, trust warnings, auto-update. Biggest upcoming feature by module count. |
+| **ultraplan** | 1 | Enhanced planning mode (premium?) |
+| **ultrareview** | 3: ultrareviewCommand, ultrareviewEnabled, UltrareviewOverageDialog | Enhanced code review with overage billing dialog |
+| **thinkback / thinkback-play** | 2+2 | Reasoning trace viewer and sequential replay. Shows extended thinking blocks normally hidden. NOT session analysis — single-session reasoning inspection. |
+| **install-github-app** | 13: full OAuth + repo setup flow (ApiKeyStep, CheckGitHubStep, ChooseRepoStep, CreatingStep, OAuthFlowStep, setupGitHubActions, etc.) | Deep GitHub integration beyond current `gh` usage |
+| **install-slack-app** | 1 | Slack integration |
+| **bughunter** | 1 | Automated bug detection |
+| **advisor** | 1 | Proactive advice system |
+| **security-review** | 1 | Built-in security auditing |
+| **good-claude** | 1 | Positive reinforcement signal (inverse of corrections) |
+| **btw** | 2 | "By the way" context-aware suggestions/interjections |
+| **buddy** | (in subsystems) | Animated companion sprite |
+| **stickers** | 1 | Decorative session elements |
+| **voice** | 1 | Voice input mode |
+| **mobile** | 1 | Mobile app variant |
+| **desktop** | 1 | Desktop app integration |
+| **ctx_viz** | 1 | Context window visualization |
+| **effort** | 1 | Effort/complexity estimation |
+| **insights** | 1 | Session-level insights |
+| **passes** | 2 | Multi-pass execution |
+| **rewind** | 2 | Undo/time-travel |
+| **brief** | 1 | Session briefing |
+| **ant-trace** | 1 | Internal tracing |
+
+### Permission System Internals
+
+Three pluggable permission handlers:
+1. **`interactiveHandler.ts`** — standard: prompts user for approval
+2. **`coordinatorHandler.ts`** — multi-agent: coordinator makes permission decisions
+3. **`swarmWorkerHandler.ts`** — swarm: workers get different (likely more restricted) permissions
+
+Permission denials are **first-class data objects**, not exceptions — they propagate through the system as structured `PermissionDenial` records with tool name and reason. This enables audit logging via `permissionLogging.ts`.
+
+### Auto-Memory (memdir) Internals
+
+8 modules reveal the architecture:
+- **`findRelevantMemories.ts`** — semantic search across stored memories (not just filename matching)
+- **`memoryAge.ts`** — freshness tracking; older memories deprioritized
+- **`memoryScan.ts`** — directory scanning for memory files
+- **`memoryTypes.ts`** — type classification (presumably user/project/feedback etc.)
+- **`teamMemPaths.ts`** / **`teamMemPrompts.ts`** — team-shared memory paths and prompts
+
+**Implication for our setup:** Our manual MEMORY.md + files approach works but CC's auto-memory has semantic search and age decay we don't replicate. Our durable edge is CLAUDE.md and rules files (always loaded, CC-native), not the memory directory system.
+
+### Bridge Architecture (31 modules)
+
+The most invested-in subsystem. This is the protocol layer for remote agent execution:
+
+- **Core:** bridgeApi, bridgeMain, bridgeCore, bridgeConfig, bridgeMessaging, bridgeDebug, bridgeEnabled, bridgePointer, bridgeStatusUtil
+- **Session:** createSession, codeSessionApi, initReplBridge
+- **Transport:** replBridge, replBridgeHandle, SessionsWebSocket
+- **Security:** bridgePermissionCallbacks, jwtUtils
+- **Control:** inboundMessages, inboundAttachments, flushGate, capacityWake, pollConfig
+- **UI:** bridgeUI, debugUtils, envLessBridgeConfig
+
+Six execution modes: local (default), remote, ssh, teleport, direct-connect, deep-link. Remote trigger (already shipped) is the thin end of this wedge.
+
+### Architecture Patterns
+
+1. **React/Ink TUI.** The CLI is a full React app rendered in the terminal via Ink. All UI is components (TSX). This explains the responsive layout, state management complexity, and why simple CLI features need so much code.
+
+2. **Frozen by default.** Dataclasses are `frozen=True` everywhere. Mutable state is explicitly opt-in and minimal (message history, usage counters). Prevents accidental mutation.
+
+3. **Trust-gated deferred initialization.** Plugins, skills, and MCP servers only load AFTER trust verification. Prevents untrusted code from auto-loading external tools.
+
+4. **Streaming event protocol.** Event dictionaries (`message_start`, `command_match`, `tool_match`, `permission_denial`, `message_delta`, `message_stop`) decouple I/O from logic. Clients receive events in real-time.
+
+5. **Snapshot-based tool registry.** Commands and tools loaded from JSON snapshots at startup, LRU-cached. No dynamic plugin loading at runtime in the core path.
+
+6. **Routing by tokenization.** Prompt routing is pure keyword matching — split prompt into tokens, score against tool/command names and descriptions. No ML/embeddings. Simple, deterministic, cacheable.
+
+### What This Means for Our Infrastructure
+
+**Safe (CC won't subsume):**
+- Cross-session measurement (calibration-canary, supervision-kpi, pushback-index, session-analyst)
+- Multi-model dispatch (model-review via llmx)
+- Hook telemetry (hook-roi, outcome-correlator)
+- Background orchestration (orchestrator.py, scheduled pipelines)
+- Research infrastructure (research-mcp, corpus management)
+
+**Will be subsumed eventually:**
+- Memory file management — memdir's semantic search + age decay > our manual MEMORY.md
+- Session insights — `insights` command overlaps with session-analyst for single sessions
+- Skill authoring — `skillify` (bundled) overlaps with our skill-authoring skill
+
+**Complementary (we build on what CC provides):**
+- Our skills ARE CC skills. Plugin marketplace would distribute them, not replace them.
+- Our hooks ARE CC hooks. We're native, not competing.
+- CLAUDE.md / rules / agents — this IS the extension API. No abstraction risk.
+
+### Blog Analysis Fact-Check (2026-03-31)
+
+A circulating blog post about the leak was evaluated against the actual codebase. Verdict: B-minus. The LSP tool claim is genuinely insightful. The structured session memory claim (with specific section names) is unverifiable and possibly hallucinated. The prompt caching claim misattributes an Anthropic API feature to Claude Code. The "model doesn't matter" conclusion is wrong. The post missed the plugin marketplace, bridge architecture, trust-gated initialization, thinkback, and the React/Ink TUI — all more interesting than what it covered.
 
 ---
 
