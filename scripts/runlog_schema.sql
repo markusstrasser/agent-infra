@@ -219,7 +219,7 @@ SELECT
     retired.hash AS retired_hash,
     retired.authored_at AS retired_date,
     retired.subject AS retired_subject,
-    ROUND(julianday(SUBSTR(retired.authored_at, 1, 19)) - julianday(SUBSTR(built.authored_at, 1, 19)), 1) AS lifespan_days
+    ROUND(julianday(retired.authored_at) - julianday(built.authored_at), 1) AS lifespan_days
 FROM (
     SELECT gc.project, gcf.path, gc.hash, gc.authored_at, gc.subject
     FROM git_commits gc
@@ -268,7 +268,7 @@ SELECT
     f2.authored_at AS fix2_date,
     f2.subject AS fix2_subject,
     f2.session_id AS fix2_session,
-    ROUND(julianday(SUBSTR(f2.authored_at, 1, 19)) - julianday(SUBSTR(f1.authored_at, 1, 19)), 1) AS gap_days
+    ROUND(julianday(f2.authored_at) - julianday(f1.authored_at), 1) AS gap_days
 FROM git_commits f1
 JOIN git_commit_files gcf1 ON f1.hash = gcf1.hash AND f1.project = gcf1.project
 JOIN git_commit_files gcf2 ON gcf1.path = gcf2.path AND gcf1.project = gcf2.project
@@ -276,7 +276,7 @@ JOIN git_commits f2 ON gcf2.hash = f2.hash AND gcf2.project = f2.project
 WHERE f1.commit_type IN ('fix', 'revert')
   AND f2.commit_type IN ('fix', 'fix-of-fix', 'revert')
   AND f2.authored_at > f1.authored_at
-  AND julianday(SUBSTR(f2.authored_at, 1, 19)) - julianday(SUBSTR(f1.authored_at, 1, 19)) <= 3.0
+  AND julianday(f2.authored_at) - julianday(f1.authored_at) <= 3.0
   AND f1.hash != f2.hash
 ORDER BY f1.project, gcf1.path, f1.authored_at;
 

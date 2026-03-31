@@ -43,6 +43,7 @@ def sha256_file(path: Path) -> str:
 def get_db(path: Path) -> sqlite3.Connection:
     from common.db import open_db
     db = open_db(path, foreign_keys=True, isolation_level=None)
+    db.execute("PRAGMA journal_mode=WAL")
     db.executescript(SCHEMA_PATH.read_text())
     return db
 
@@ -768,7 +769,7 @@ def _parse_git_log(project: str, project_dir: Path, days: int) -> list[dict]:
             current = {
                 "hash": parts[0],
                 "project": project,
-                "authored_at": parts[1] if len(parts) > 1 else "",
+                "authored_at": (parts[1][:19] if len(parts) > 1 else ""),  # strip tz offset for julianday
                 "author": parts[2] if len(parts) > 2 else "",
                 "subject": parts[3] if len(parts) > 3 else "",
                 "body": None,
