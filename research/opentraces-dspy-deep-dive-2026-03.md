@@ -1,3 +1,10 @@
+---
+title: "OpenTraces + DSPy Production Patterns"
+date: 2026-03-30
+tags: [agent-traces, dspy, cost-optimization, schemas]
+status: complete
+---
+
 ## OpenTraces + DSPy Production Patterns — Research Memo
 
 **Question:** Architecture details and reusable patterns from (1) opentraces.ai trace publishing tool, (2) DSPy at Shopify cost reduction case study
@@ -223,9 +230,12 @@ class SubTaskRouter(dspy.Module):
 | HF opentraces-test dataset | WebFetch | Timeout |
 
 <!-- knowledge-index
-generated: 2026-03-31T03:07:22Z
-hash: 3d041ac113a6
+generated: 2026-03-31T03:08:12Z
+hash: 4e0de83e2055
 
+title: OpenTraces + DSPy Production Patterns
+status: complete
+tags: agent-traces, dspy, cost-optimization, schemas
 table_claims: 10
 
 end-knowledge-index -->
