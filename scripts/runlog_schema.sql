@@ -193,6 +193,49 @@ CREATE TABLE IF NOT EXISTS git_commit_files (
 
 CREATE INDEX IF NOT EXISTS idx_git_commit_files_path ON git_commit_files(path);
 
+-- Churn hotspots: files with most commits in window
+CREATE VIEW IF NOT EXISTS v_churn_hotspots AS
+SELECT
+    gc.project,
+    gcf.path,
+    COUNT(DISTINCT gc.hash) AS commits,
+    SUM(CASE WHEN gc.commit_type IN ('fix', 'fix-of-fix') THEN 1 ELSE 0 END) AS fix_commits,
+    SUM(CASE WHEN gc.commit_type = 'revert' THEN 1 ELSE 0 END) AS reverts,
+    GROUP_CONCAT(DISTINCT gc.commit_type) AS types
+FROM git_commit_files gcf
+JOIN git_commits gc ON gc.hash = gcf.hash AND gc.project = gcf.project
+GROUP BY gc.project, gcf.path
+HAVING commits >= 5
+ORDER BY commits DESC;
+
+-- Build-then-retire: files that appear in both feature and revert commits
+CREATE VIEW IF NOT EXISTS v_build_then_retire AS
+SELECT
+    built.project,
+    built.path,
+    built.hash AS built_hash,
+    built.authored_at AS built_date,
+    built.subject AS built_subject,
+    retired.hash AS retired_hash,
+    retired.authored_at AS retired_date,
+    retired.subject AS retired_subject,
+    ROUND(julianday(SUBSTR(retired.authored_at, 1, 19)) - julianday(SUBSTR(built.authored_at, 1, 19)), 1) AS lifespan_days
+FROM (
+    SELECT gc.project, gcf.path, gc.hash, gc.authored_at, gc.subject
+    FROM git_commits gc
+    JOIN git_commit_files gcf ON gc.hash = gcf.hash AND gc.project = gcf.project
+    WHERE gc.commit_type = 'feature'
+) built
+JOIN (
+    SELECT gc.project, gcf.path, gc.hash, gc.authored_at, gc.subject
+    FROM git_commits gc
+    JOIN git_commit_files gcf ON gc.hash = gcf.hash AND gc.project = gcf.project
+    WHERE gc.commit_type = 'revert'
+) retired ON built.project = retired.project
+    AND built.path = retired.path
+    AND retired.authored_at > built.authored_at
+ORDER BY lifespan_days ASC;
+
 -- Session → commit → outcome join
 CREATE VIEW IF NOT EXISTS v_session_commits AS
 SELECT
