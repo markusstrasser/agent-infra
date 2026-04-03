@@ -27,7 +27,7 @@ uv run python3 scripts/sessions.py search <query>  # FTS5 session search
 - `AGENTS.md`, `GEMINI.md` — symlinks to CLAUDE.md (multi-editor compatibility)
 
 **MCP Server:**
-- `meta_mcp.py` — meta-knowledge MCP server (section-based search over all .md files)
+- `meta_mcp.py` — meta-knowledge MCP server (section-based search over meta, selve, and genomics research). Indexes meta root .md + research/, selve docs/research + docs/entities/genes, genomics docs/research. Whitelist-based cross-project inclusion (default-deny for privacy). Scopes: all, hooks, failures, research, architecture, improvement-log, health, genomics, genes.
 
 **Scripts** (61 Python files — see `.claude/rules/codebase-map.md` for full inventory with dependency arrows):
 - *Orchestration & Ops:* orchestrator, doctor, propose-work, runlog, code-review-scout/schedule, vendor-versions, best-sync, autoresearch
