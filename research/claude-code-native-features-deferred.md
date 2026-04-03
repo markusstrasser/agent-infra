@@ -1,7 +1,7 @@
 # Claude Code Native Features — Deferred Adoption Items
 
-**Date:** 2026-03-29 (updated)
-**Source:** Manual changelog/ecosystem sweep of Anthropic repos (v2.1.63–v2.1.87, Agent SDK v0.1.52)
+**Date:** 2026-04-03 (updated)
+**Source:** Manual changelog/ecosystem sweep of Anthropic repos (v2.1.63–v2.1.91, Agent SDK v0.1.55)
 **Status:** Tracking — items here are viable but deferred for specific reasons
 
 ## 1. API-Level MCP Connector (Anthropic SDK v0.50+)
@@ -85,13 +85,13 @@
 
 **Trigger to revisit:** When needing reactive environment management or external edit detection.
 
-## 8. Agent SDK `task_budget` / `get_context_usage()` (v0.1.51-52)
+## 8. Agent SDK `task_budget` / `get_context_usage()` (v0.1.51-52) — TRIGGER MET
 
 **What:** Release notes listed `task_budget` (token budget per task, API-side) and `get_context_usage()` (context window breakdown by category).
 
-**Why defer:** Neither parameter exists in the installed Python SDK v0.1.52. Grepping the package source returns zero matches. May be TS-only or in an unreleased version.
+**Status (2026-04-03):** `get_context_usage()` confirmed present in Python SDK v0.1.55 (`ClaudeSDKClient` method). `task_budget` not found in `dir()` output — may be a `query()` parameter or TS-only. **Action:** upgrade SDK 0.1.44→0.1.55, integrate `get_context_usage()` into dashboard/cockpit context tracking.
 
-**Trigger to revisit:** When `task_budget` or `get_context_usage` appears in `claude_agent_sdk` Python package.
+**Trigger to revisit:** Triggered — upgrade and integrate.
 
 ## Already Adopted (from this sweep)
 
@@ -106,6 +106,13 @@
 | `PostCompact` hook event | Done — postcompact-verify.sh | Pre-existing |
 | Hook `if` conditionals | Done — commit-check + ast-precommit narrowed to `Bash(git commit*)` | 2026-03-29 |
 | `--bare` orchestrator fallback | Done — gated on `ORCHESTRATOR_BARE_FALLBACK` env var | 2026-03-29 |
+| `maxResultSizeChars` MCP annotation | Available in CC 2.1.91 + SDK 0.1.55 — evaluate for research-mcp | 2026-04-03 |
+| `PermissionDenied` hook event | Available in CC 2.1.89 — evaluate for auto-mode recovery | 2026-04-03 |
+| `defer` PreToolUse permission | Available in CC 2.1.89 — evaluate for headless orchestrator | 2026-04-03 |
+| Hook output >50K to disk | Available in CC 2.1.89 — automatic, no config needed | 2026-04-03 |
+| `MCP_CONNECTION_NONBLOCKING` | Available in CC 2.1.89 — adopt for orchestrator `-p` calls | 2026-04-03 |
+| Autocompact thrash detection | Available in CC 2.1.89 — automatic, prevents cost spiral | 2026-04-03 |
+| Compound command `if` matching | Available in CC 2.1.89 — extends existing hook conditionals | 2026-04-03 |
 
 ## Not Applicable
 
@@ -116,8 +123,8 @@
 | Plugin system (marketplace, persistent state) | Using skills, not plugins |
 
 <!-- knowledge-index
-generated: 2026-03-29T16:04:30Z
-hash: 962189273a87
+generated: 2026-04-03T19:21:48Z
+hash: d56285ec7030
 
 
 end-knowledge-index -->
