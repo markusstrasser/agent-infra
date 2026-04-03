@@ -238,32 +238,30 @@ BioMCP's most interesting contribution is architectural, not database-level. The
 
 ## Recommendation
 
-**Option D (cherry-pick sources) + Option C (extract patterns).**
+**~~Option D (cherry-pick sources) + Option C (extract patterns).~~**
 
-### Priority sources to add to our biomedical-mcp
+**Revised (2026-04-03): Run both servers.** Added BioMCP to genomics + selve `.mcp.json`. See `biomcp-source-comparison-2026-04-03.md` for the full source code comparison that informed this decision.
 
-| Source | Domain | Why | Effort [ESTIMATED] |
-|--------|--------|-----|---------------------|
-| CPIC API | PGx | Critical gap. CPIC guidelines = gold standard for genotype-to-drug recommendations. Direct JSON API available. | Low — REST API, well-documented |
-| PharmGKB | PGx | Complements CPIC with clinical annotations, drug labels, variant-drug associations | Low — REST API |
-| CIViC | Oncology | Open-source clinical interpretation of cancer variants. Free API. | Low — GraphQL API |
-| PubTator3 | Literature | NER over PubMed for gene/variant/disease mentions. Free NCBI API. | Low — REST API |
-| DGIdb | Gene-drug | Drug-gene interaction database. Useful for composite queries. | Low — REST API |
+### Division of Labor
 
-### Sources to skip (not worth the integration)
+| Domain | Server | Rationale |
+|--------|--------|-----------|
+| Oncology (OncoKB, CIViC, cBioPortal, CGI) | BioMCP | Company-backed, domain experts, actively maintained |
+| PGx (CPIC, PharmGKB) | BioMCP | Complete genotype→drug recommendation pipeline |
+| Discovery/routing | BioMCP | `discover` command, OLS4/UMLS resolution |
+| Literature (PubTator3, Europe PMC, S2) | BioMCP | We have research-mcp for S2, but BioMCP's is biomedical-specific |
+| Germline/personal (ISBT, Orphanet, PharmVar, PanelApp) | biomedical-mcp | BioMCP has no equivalent |
+| ClinGen dosage sensitivity | biomedical-mcp | BioMCP has ClinGen validity but not dosage |
+| Evidence grading / provenance | biomedical-mcp | BioMCP tracks sources but doesn't grade evidence quality |
+| Gene panels by condition | biomedical-mcp | PanelApp integration |
 
-| Source | Why skip |
-|--------|----------|
-| OncoKB | Requires API key (academic license), oncology-specific, not our core use case |
-| cBioPortal | Somatic cancer genomics; our focus is germline |
-| AlphaGenome | Requires gRPC + protobuf; heavy integration for structural predictions we rarely need |
-| Cancer Genome Interpreter | Oncology-only, narrow use case |
+### Context overhead: ~800 tokens (BioMCP, 1 tool) + ~15K tokens (our 82 tools) = ~16K total. Acceptable on 1M context.
 
-### Patterns to extract
+### Patterns still worth extracting from BioMCP
 
-1. **Compact default output with progressive disclosure** — Add an optional `summary: bool = True` parameter to verbose tools. When True, return key fields only. Let agent request full detail.
-2. **Context overhead audit** — Measure our actual tool description token count. If >12K, consider consolidating rarely-used tools into composite endpoints.
-3. **Auto-generated INSTRUCTIONS** — Generate the server INSTRUCTIONS block from tool docstrings at server startup, so descriptions never drift from implementations.
+1. **Variant input normalization** — handle "BRAF V600E" notation (~100 lines)
+2. **Per-enrichment timeouts** — 8s cap per optional section in composite tools
+3. **Actionable error messages** — suggest the right tool call on failure
 
 ---
 
@@ -293,8 +291,8 @@ BioMCP's most interesting contribution is architectural, not database-level. The
 | Prior MCP landscape memo | Read | 1 | Yes — BioContextAI comparison context |
 
 <!-- knowledge-index
-generated: 2026-04-03T19:27:54Z
-hash: 7288fd584856
+generated: 2026-04-03T20:05:42Z
+hash: 1dfe7cf40524
 
 title: BioMCP (GenomOncology) — Technical Evaluation vs biomedical-mcp
 table_claims: 10
