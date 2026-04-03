@@ -1,4 +1,10 @@
-"""Meta Knowledge MCP — section-based search over meta, selve, and genomics research."""
+"""Meta Knowledge MCP — section-based search over meta, selve, and genomics research.
+
+NOTE: This server indexes files at startup. After editing this file (new scopes,
+new directories, scoring changes), the running MCP instance must be restarted
+for changes to take effect. New scopes/features will return errors against the
+old server.
+"""
 
 import logging
 import re
