@@ -462,9 +462,11 @@ def dispatch(
 
 
 EXTRACTION_PROMPT = (
-    "Extract every discrete recommendation, finding, or claim as a numbered list. "
+    "Extract every discrete recommendation, finding, or claimed bug as a numbered list. "
     "One item per line. Include the specific file/code/concept referenced. "
-    "Do not evaluate or filter — extract mechanically."
+    "SKIP confirmatory observations that merely describe existing correct behavior "
+    "(e.g. 'X correctly groups Y', 'Z is well-designed'). "
+    "Only extract items that propose a change, flag a problem, or claim something is wrong/missing."
 )
 
 
