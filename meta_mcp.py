@@ -1,4 +1,4 @@
-"""Meta Knowledge MCP — section-based search over meta project .md files."""
+"""Meta Knowledge MCP — section-based search over meta, selve, and genomics research."""
 
 import logging
 import re
@@ -12,10 +12,11 @@ log = logging.getLogger(__name__)
 
 META_ROOT = Path(__file__).parent
 
-# Files to index. Relative to META_ROOT.
+# Files to index within meta. Relative to META_ROOT.
 INCLUDE_GLOBS = [
     "*.md",
     "research/*.md",
+    "research/compiled/*.md",
     ".model-review/*/synthesis.md",
 ]
 
@@ -28,6 +29,17 @@ EXCLUDE_PREFIXES = [
     "downloads/",
 ]
 
+# Cross-project research directories. Whitelist (default-deny).
+# Only these directories are indexed — new dirs must be explicitly added.
+# Privacy: selve/docs/entities/ has self/ and companies/ subdirs with personal
+# data. Only genes/ is safe to share.
+_PROJECTS_ROOT = Path.home() / "Projects"
+CROSS_PROJECT_INCLUDE = [
+    (_PROJECTS_ROOT / "selve" / "docs" / "research", "selve"),
+    (_PROJECTS_ROOT / "selve" / "docs" / "entities" / "genes", "selve"),
+    (_PROJECTS_ROOT / "genomics" / "docs" / "research", "genomics"),
+]
+
 # Scope categories: scope_name -> list of path substrings or file names
 SCOPE_MAP = {
     "hooks": ["hook", "pretool", "posttool", "stop-", "session-init", "session-end",
@@ -36,19 +48,28 @@ SCOPE_MAP = {
     "research": ["research/", "frontier-agentic", "search-retrieval"],
     "architecture": ["architecture", "cockpit", "search-retrieval", "claude-code-architecture"],
     "improvement-log": ["improvement-log"],
+    "health": ["pots", "intervention", "supplement", "biomarker", "blood-test",
+               "differential", "symptom", "circadian", "sleep"],
+    "genomics": ["variant", "acmg", "pharmacogenomics", "pgx", "cyp", "hla",
+                 "noncoding", "prs", "carrier", "wgs"],
+    "genes": ["entities/genes/", "cyp2d6", "cyp2c19", "mthfr", "hla-", "slco",
+              "dpyd", "vkorc1", "tpmt"],
 }
 
 INSTRUCTIONS = """\
-Meta project knowledge base — hook designs, agent failure modes, prompting
-patterns, architecture decisions, and research findings across all projects.
+Cross-project knowledge base — searches research memos and entity files across
+meta, selve, and genomics projects.
 
 Use search_meta when you need:
 - Hook design patterns (how to write hooks, gotchas, event types)
 - Agent failure mode reference (22 documented modes with mitigations)
-- Prompting best practices (XML tags, model-specific tips)
 - Architecture decisions (search/retrieval, git workflow, cross-project)
+- Health/genomics research (interventions, genes, pharmacogenomics, phenotypes)
+- Gene entity pages (CYP2D6, HLA, MTHFR, etc.)
 - Session-analyst findings (improvement-log entries)
 - Research findings (self-modification, prompt structure, native features)
+
+Scopes: all, hooks, failures, research, architecture, improvement-log, health, genomics, genes.
 
 Do NOT use for: behavioral rules (already in CLAUDE.md), enforcement (use hooks).\
 """
@@ -56,34 +77,51 @@ Do NOT use for: behavioral rules (already in CLAUDE.md), enforcement (use hooks)
 
 # --- Section parsing ---
 
-def _collect_files() -> list[Path]:
-    """Collect .md files matching INCLUDE_GLOBS, minus EXCLUDE_PREFIXES."""
-    seen: set[Path] = set()
-    files: list[Path] = []
+def _collect_files() -> list[tuple[Path, str]]:
+    """Collect .md files from meta (via globs) and cross-project dirs (whitelist).
 
+    Returns (path, display_key) tuples. display_key is:
+    - relative path for meta files (e.g., "research/foo.md")
+    - project-prefixed path for cross-project files (e.g., "selve:docs/research/foo.md")
+    """
+    seen: set[Path] = set()
+    files: list[tuple[Path, str]] = []
+
+    # Meta-local files
     for pattern in INCLUDE_GLOBS:
         for p in META_ROOT.glob(pattern):
-            if not p.is_file():
+            if not p.is_file() or p.is_symlink():
                 continue
             rel = str(p.relative_to(META_ROOT))
-            # .model-review/*/synthesis.md is explicitly included via glob
-            # but other .model-review/ files are excluded
             if any(rel.startswith(ex) for ex in EXCLUDE_PREFIXES):
-                # Allow synthesis.md through
                 if not rel.endswith("synthesis.md"):
                     continue
             if p not in seen:
                 seen.add(p)
-                files.append(p)
+                files.append((p, rel))
 
-    # Also skip symlinks (AGENTS.md -> CLAUDE.md, GEMINI.md -> CLAUDE.md)
-    files = [f for f in files if not f.is_symlink()]
-    return sorted(files)
+    # Cross-project files (whitelist — default-deny)
+    for directory, project_name in CROSS_PROJECT_INCLUDE:
+        if not directory.is_dir():
+            log.warning("cross-project dir not found: %s", directory)
+            continue
+        for p in directory.rglob("*.md"):
+            if not p.is_file() or p.is_symlink():
+                continue
+            if p not in seen:
+                seen.add(p)
+                # Project-prefixed display key
+                try:
+                    rel = str(p.relative_to(_PROJECTS_ROOT / project_name))
+                except ValueError:
+                    rel = p.name
+                files.append((p, f"{project_name}:{rel}"))
+
+    return sorted(files, key=lambda x: x[1])
 
 
-def _parse_sections(path: Path) -> list[dict]:
+def _parse_sections(path: Path, display_key: str) -> list[dict]:
     """Split a markdown file into sections at ## and ### headers."""
-    rel = str(path.relative_to(META_ROOT))
     try:
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
@@ -92,7 +130,7 @@ def _parse_sections(path: Path) -> list[dict]:
 
     sections = []
     lines = text.split("\n")
-    current_heading = rel  # default: file name as heading
+    current_heading = display_key  # default: file name as heading
     current_level = 1
     current_lines: list[str] = []
 
@@ -101,7 +139,7 @@ def _parse_sections(path: Path) -> list[dict]:
             content = "\n".join(current_lines).strip()
             if content:
                 sections.append({
-                    "file": rel,
+                    "file": display_key,
                     "heading": current_heading,
                     "level": current_level,
                     "content": content,
@@ -220,8 +258,8 @@ def create_mcp() -> FastMCP:
     async def lifespan(server):
         files = _collect_files()
         sections = []
-        for f in files:
-            sections.extend(_parse_sections(f))
+        for path, display_key in files:
+            sections.extend(_parse_sections(path, display_key))
         log.info("meta-mcp: indexed %d sections from %d files", len(sections), len(files))
         yield {"sections": sections}
 
@@ -237,8 +275,9 @@ def create_mcp() -> FastMCP:
         max_tokens: int = 350,
         scope: str = "all",
     ) -> dict:
-        """Search meta project knowledge: hook designs, agent failure modes,
-        prompting patterns, architecture decisions, research findings.
+        """Search cross-project knowledge: hook designs, agent failure modes,
+        architecture decisions, research findings, health/genomics research,
+        gene entities. Indexes meta, selve, and genomics research directories.
 
         Returns matching sections ranked by relevance. When no results are found,
         returns a structured error with suggested alternative queries. Side effects: none.
@@ -247,7 +286,7 @@ def create_mcp() -> FastMCP:
             query: search terms (matched against section headers and content)
             max_tokens: max response size (default 350, max 1000)
             scope: filter by category - "all", "hooks", "failures", "research",
-                   "architecture", "improvement-log"
+                   "architecture", "improvement-log", "health", "genomics", "genes"
         """
         global _call_count
         _call_count += 1
