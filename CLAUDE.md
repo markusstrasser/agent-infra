@@ -195,7 +195,7 @@ Lightweight decision records for concept-level pivots — when an approach is ch
 | Gemini Pro | CLI (free) | none (no `--stream`) | $0 |
 | GPT-5.x | API (direct) | none | per-token |
 
-- **Gemini Pro on CLI works** — hang bug fixed in gemini-cli 0.32.1 (current: v0.34.0). No `--stream` needed.
+- **Gemini Pro on CLI works** — hang bug fixed in gemini-cli 0.32.1 (current: v0.36.0). No `--stream` needed.
 - **`--stream` forces API fallback** — only add if CLI hits rate limits.
 - **`--max-tokens` forces API fallback** — CLI caps at 8K, no override. Brainstorm still uses API.
 - **codex-cli re-enabled** — ~37K token overhead from 9 MCP servers (no disable flag). Viable for substantial tasks (audits, reviews). ChatGPT auth: only `gpt-5.4` and `gpt-5.3-codex` work; `o3`/`gpt-4.1` rejected. Don't use for trivial queries.
