@@ -1,35 +1,35 @@
 ---
 title: FastMCP 3 Integration Plan — All MCP Repos
-date: 2026-03-19
+date: 2026-04-03
 ---
 
 # FastMCP 3 Integration Plan — All MCP Repos
 
-**Date:** 2026-03-19
-**Current FastMCP:** 3.1.1 (installed), 3.0.0rc1+ available
-**Scope:** 7 MCP servers across 5 repos
+**Date:** 2026-04-03 (updated)
+**Current FastMCP:** 3.2.0 (installed across all 6 active projects, 2026-04-03)
+**Scope:** 6 MCP servers across 5 repos (repo-tools retired, knowledge-substrate retired)
 
 ---
 
 ## MCP Server Inventory
 
-| # | Server | Repo | Tools | FastMCP | Import | Status |
-|---|--------|------|-------|---------|--------|--------|
-| 1 | `meta-knowledge` | meta/meta_mcp.py | 1 | >=3.0 | `from fastmcp import FastMCP` | OK |
-| 2 | `repo-tools` | meta/scripts/repo_tools_mcp.py | 6 | >=3.0 | `from fastmcp import FastMCP` | OK |
-| 3 | `knowledge-substrate` | meta/substrate/mcp_server.py | 10 | mcp pkg | `from mcp.server.fastmcp import FastMCP` | **BROKEN IMPORT** |
-| 4 | `biomedical` | biomedical-mcp/ | 41 | >=3.0 | `from fastmcp import FastMCP` | OK but needs organization |
-| 5 | `research-mcp` (research) | research-mcp/ | ~12 | >=3.0 | `from fastmcp import FastMCP` | OK |
-| 6 | `selve-mcp` | selve/mcp/ | ~5 | >=3.0 | `from fastmcp import FastMCP` | OK |
-| 7 | `tournament-mcp` | tournament-mcp/ | ~8 | **>=2.0** | unknown | **NEEDS UPGRADE** |
+| # | Server | Repo | Tools | FastMCP | Status |
+|---|--------|------|-------|---------|--------|
+| 1 | `meta-knowledge` | meta/meta_mcp.py | 1 | 3.2.0 | OK |
+| 2 | `biomedical` | biomedical-mcp/ | ~81 | 3.2.0 | OK — Code Mode candidate |
+| 3 | `research-mcp` | research-mcp/ | ~12 | 3.2.0 | OK |
+| 4 | `selve-mcp` | selve/mcp/ | ~5 | 3.2.0 | OK |
+| 5 | `tournament-mcp` | tournament-mcp/ | ~8 | 3.2.0 | OK |
+| 6 | `genomics` | genomics/ | ~4 | 3.2.0 | OK |
 
-**Total:** ~83 tools across 7 servers, configured in 16 projects via `.mcp.json`.
+**Retired:** `repo-tools` (2026-03-20, zero usage), `knowledge-substrate` (2026-03-24, 4 reads/60 writes).
+**Total:** ~111 tools across 6 servers.
 
 ---
 
 ## FastMCP 3 Feature Assessment
 
-### What's new in v3 (vs v2)
+### What's new in v3.0–3.2
 
 | Feature | What it does | ROI for us |
 |---------|-------------|------------|
@@ -45,6 +45,13 @@ date: 2026-03-19
 | **FileSystemProvider** | Auto-discover `@tool`-decorated functions from a directory tree. | **LOW** — our servers are already well-organized |
 | **Tasks protocol** | MCP Tasks support (long-running operations with progress). SEP-1686. | **LOW now** — not yet widely adopted by clients |
 | **Concurrent sampling** | `context.sample()` for parallel LLM calls within tools. | **LOW** — we don't sample from within tools |
+| **Code Mode** (3.1) | LLM searches tools via BM25 meta-tools instead of loading full catalog. Sandboxed `call_tool()` chaining. | **HIGH** — biomedical-mcp (81 tools) is the primary candidate. Reduces context bloat from tool schemas. |
+| **Search Transforms** (3.1) | Standalone BM25 text search over tool names/descriptions. | **MEDIUM** — useful for dynamic tool catalogs, simpler than Code Mode |
+| **MultiAuth** (3.1) | Compose multiple token verification sources. | **LOW** — all servers are local stdio |
+| **Lazy imports** (3.1) | Heavy imports deferred to first use. | **FREE** — automatic startup improvement |
+| **FastMCPApp** (3.2) | Tools return interactive UIs (charts, forms, dashboards). `@app.ui()` + `@app.tool()` separation. | **WATCH** — needs MCP Apps client support in Claude Code |
+| **Built-in Providers** (3.2) | FileUpload, Approval, Choice, FormInput, GenerativeUI. | **WATCH** — Approval/Choice interesting for HITL gates, needs client support |
+| **Security hardening** (3.2) | SSRF/path traversal, JWT algorithm restrictions, OAuth scope, CSRF. | **FREE** — already applied via version bump |
 
 ### What NOT to adopt
 
@@ -415,8 +422,8 @@ mcp = FastMCP("server", providers=[FileSystemProvider(Path("./tools/"))])
 ```
 
 <!-- knowledge-index
-generated: 2026-03-22T00:15:43Z
-hash: b3b228b18d54
+generated: 2026-04-03T19:27:55Z
+hash: a5066b83bde0
 
 title: FastMCP 3 Integration Plan — All MCP Repos
 
