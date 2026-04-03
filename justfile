@@ -38,10 +38,67 @@ smoke:
     done
     echo "OK: all views pass"
 
+# Check all research MCP servers respond (<10s)
+[group('health')]
+mcp-health:
+    #!/usr/bin/env bash
+    set -uo pipefail
+    ok=0; fail=0
+    check() {
+        local name=$1 cmd=$2
+        if eval "$cmd" > /dev/null 2>&1; then
+            echo "  OK: $name"; ((ok++))
+        else
+            echo "  FAIL: $name"; ((fail++))
+        fi
+    }
+    echo "=== Research MCP health ==="
+    check "Exa (web_search)" "claude mcp call exa web_search_exa '{\"query\":\"test\",\"numResults\":1}' 2>/dev/null"
+    check "Semantic Scholar" "curl -sf 'https://api.semanticscholar.org/graph/v1/paper/search?query=test&limit=1' > /dev/null"
+    check "scite" "claude mcp call scite search_literature '{\"term\":\"test\",\"limit\":1}' 2>/dev/null"
+    check "Perplexity" "claude mcp call perplexity perplexity_search '{\"query\":\"test\"}' 2>/dev/null"
+    check "Brave" "claude mcp call brave-search brave_web_search '{\"query\":\"test\",\"count\":1}' 2>/dev/null"
+    echo "---"
+    echo "$ok OK, $fail FAIL"
+    [[ $fail -eq 0 ]]
+
 # Cross-project health check
 [group('health')]
 doctor:
     uv run python3 scripts/doctor.py
+
+# Analyze always-exposed instruction / skill / MCP surface
+[group('health')]
+context-health *args:
+    uv run python3 scripts/agent_surface.py {{args}}
+
+# Maintainability metrics for conservatively agent-attributed commits
+[group('health')]
+maintainability *args:
+    uv run python3 scripts/agent_maintainability.py {{args}}
+
+# Smoke test the new agent-infra tooling end-to-end
+[group('health')]
+agent-infra-smoke:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    tmpdir=$(mktemp -d)
+    trap 'rm -rf "$tmpdir"' EXIT
+    echo "=== Unit tests ==="
+    uv run python3 -m unittest tests.test_agent_surface tests.test_agent_maintainability tests.test_research_verifier
+    echo "=== Surface analyzer ==="
+    uv run python3 scripts/agent_surface.py --top 5 --write "$tmpdir/surface.txt" > /dev/null
+    grep -q "Agent Surface Report" "$tmpdir/surface.txt"
+    grep -q "MCP exposure" "$tmpdir/surface.txt"
+    echo "=== Maintainability analyzer ==="
+    uv run python3 scripts/agent_maintainability.py --repo meta --write "$tmpdir/maintainability.txt" > /dev/null
+    grep -q "Agent Maintainability Report" "$tmpdir/maintainability.txt"
+    grep -q "Repo: meta" "$tmpdir/maintainability.txt"
+    echo "=== Research verifier ==="
+    uv run python3 scripts/research_verifier.py research/weekly-agent-infra-sweep-2026-04-02.md --write-companion --artifact-dir "$tmpdir/research-verification" > /dev/null
+    test -s "$tmpdir/research-verification/weekly-agent-infra-sweep-2026-04-02.verification.md"
+    grep -q "Verification Artifact" "$tmpdir/research-verification/weekly-agent-infra-sweep-2026-04-02.verification.md"
+    echo "OK: agent-infra tooling smoke test passed"
 
 # Browse SQLite databases in web UI (runlogs, orchestrator)
 [group('dashboard')]
@@ -59,6 +116,11 @@ skill-health *args:
 [group('health')]
 skill-gen *args:
     uv run python3 scripts/gen-skill-docs.py {{args}}
+
+# Generate a verification artifact for a claim-heavy research memo
+[group('health')]
+research-verify memo *args:
+    uv run python3 scripts/research_verifier.py {{memo}} {{args}}
 
 # ── Epistemic Metrics ─────────────────────────────────────────────
 
