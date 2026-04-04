@@ -1019,7 +1019,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Missing pushback — known architectural ceiling not surfaced before compute-heavy exploration
 - **Proposed fix:** [rule] Before launching compute-heavy experimental runs (>10 minutes), explicitly state known architectural ceilings and let the user decide whether the ceiling is worth hitting. Already stated in session retro but not formalized.
 - **Severity:** high — ~40 minutes compute wasted, user had to intervene
-- **Status:** [ ] proposed — add to CLAUDE.md pre-build checks
+- **Status:** [x] implemented — added as pre-build check #6 in global CLAUDE.md — add to CLAUDE.md pre-build checks
 
 ### [2026-03-10] TOKEN WASTE: Subagent edits didn't persist — 10 agent calls for 5 file updates
 - **Session:** meta 218d5173
@@ -1101,7 +1101,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [rule] Genomics CLAUDE.md: add explicit benchmark gate rule — "Never promote a tool to active classification if it fails established AUPRC/AUROC thresholds in a benchmark run. Demote to research_only fields only." The benchmark memo is in the index but the gate isn't stated as a hard constraint.
 - **Severity:** high — 129 false positives in live variant classification before self-correction
 - **Root cause:** task-specification (benchmark gate existed in research but not enforced in code integration rules)
-- **Status:** [ ] proposed — add to genomics CLAUDE.md as hard constraint
+- **Status:** [x] covered — already in genomics CLAUDE.md line 97 (Common Pitfalls #10)
 
 **Cross-cutting patterns (2026-03-17, genomics):**
 1. **Subagent mid-flight abandonment (f462a5fb).** Agent dispatched 3 probe subagents, then duplicated their work manually before waiting for results. Same pattern as 2026-03-13 subagent exhaustion but inverse: instead of waiting too long, agent gave up too early. Two failure modes with same root — poor subagent lifecycle discipline. Staged in triage DB (first occurrence).
@@ -1169,7 +1169,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [architectural] `setup_duckdb.py` and `signal_scanner.py` should use `flock` on a shared lockfile before opening the DB for write. If lock is held, fail fast with a clear message instead of cryptic DuckDB errors. Also: scanner should open `read_only=True` exclusively (currently sometimes opens read-write for materialized tables). | [rule] CLAUDE.md gotcha: "For tables NOT in schema.md, run SELECT * FROM table LIMIT 1 BEFORE any filtered query."
 - **Root cause:** TBD
 - **Recurrences:** 3 (auto-promoted from staging)
-- **Status:** [ ] proposed
+- **Status:** [x] covered — DuckDBLock already deployed in intel (tools.lib.db)
 
 ### [2026-03-17] MISSING PHASE ARTIFACTS: Code review system designed without written alternatives
 - **Session:** meta 4d0ccc70
@@ -1322,7 +1322,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** CLAUDE.md rule: Never cite training cutoff as reason not to investigate. Always proactively use search tools for recent events.
 - **Root cause:** agent-capability
 - **Severity:** high
-- **Status:** [ ] proposed
+- **Status:** [x] implemented — added to ai_text_policy in global CLAUDE.md
 
 ### [2026-03-23] CAPABILITY ABANDONMENT: Burst hook forced training-data fallback
 - **Session:** selve 929ec8ac
