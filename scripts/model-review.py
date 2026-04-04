@@ -288,18 +288,77 @@ def find_constitution(project_dir: Path) -> tuple[str, str | None]:
     return constitution, goals_path
 
 
+def parse_file_spec(spec: str) -> str:
+    """Parse a file:start-end spec and return the content.
+
+    Formats:
+      path/file.py           — entire file
+      path/file.py:100-150   — lines 100-150 (1-based, inclusive)
+      path/file.py:100       — single line
+    """
+    if ":" in spec and not spec.startswith("/") or spec.count(":") == 1:
+        parts = spec.rsplit(":", 1)
+        file_path = parts[0]
+        range_spec = parts[1] if len(parts) > 1 else ""
+    else:
+        file_path = spec
+        range_spec = ""
+
+    path = Path(file_path).expanduser()
+    if not path.exists():
+        return f"# [FILE NOT FOUND: {file_path}]\n"
+
+    text = path.read_text()
+
+    if range_spec and "-" in range_spec:
+        try:
+            start, end = range_spec.split("-", 1)
+            start_line = int(start) - 1  # 0-based
+            end_line = int(end)
+            lines = text.splitlines()
+            text = "\n".join(lines[start_line:end_line])
+        except (ValueError, IndexError):
+            pass
+    elif range_spec:
+        try:
+            line_no = int(range_spec) - 1
+            lines = text.splitlines()
+            text = lines[line_no] if 0 <= line_no < len(lines) else text
+        except (ValueError, IndexError):
+            pass
+
+    return f"# {file_path}" + (f" (lines {range_spec})" if range_spec else "") + f"\n\n{text}\n\n"
+
+
+def assemble_context_files(specs: list[str]) -> str:
+    """Assemble content from multiple file:range specs into one context string."""
+    parts = []
+    for spec in specs:
+        parts.append(parse_file_spec(spec.strip()))
+    return "\n".join(parts)
+
+
 def build_context(
     review_dir: Path,
     project_dir: Path,
     context_file: Path | None,
     axis_names: list[str],
+    *,
+    context_file_specs: list[str] | None = None,
 ) -> dict[str, Path]:
-    """Assemble per-axis context files with constitutional preamble."""
+    """Assemble per-axis context files with constitutional preamble.
+
+    Context sources (in order of precedence):
+      1. --context FILE — single pre-assembled context file
+      2. --context-files spec1 spec2 ... — auto-assembled from file:range specs
+    """
     constitution, goals_path = find_constitution(project_dir)
 
     preamble = ""
     if constitution:
-        preamble += "# PROJECT CONSTITUTION\nReview against these principles, not your own priors.\n\n"
+        # Always include full constitution verbatim — summaries lose nuance
+        # that causes reviewers to over-apply or misapply principles
+        preamble += "# PROJECT CONSTITUTION (verbatim — review against these, not your priors)\n\n"
         preamble += constitution + "\n\n"
     if goals_path:
         preamble += "# PROJECT GOALS\n\n"
@@ -315,7 +374,13 @@ def build_context(
     preamble += "- Cost-benefit analysis should filter on: maintenance burden, supervision cost, complexity budget, blast radius — not creation effort\n"
     preamble += "- 'Effort to implement' is not a meaningful cost dimension — only ongoing drag matters\n\n"
 
-    content = context_file.read_text() if context_file else ""
+    # Assemble content from the right source
+    if context_file:
+        content = context_file.read_text()
+    elif context_file_specs:
+        content = assemble_context_files(context_file_specs)
+    else:
+        content = ""
 
     ctx_files = {}
     for axis in axis_names:
@@ -470,6 +535,40 @@ EXTRACTION_PROMPT = (
 )
 
 
+_UNCALIBRATED_RE = re.compile(
+    r"(?:"
+    r"(?:≥|>=|>|at least|minimum|must exceed)\s*(\d+(?:\.\d+)?)\s*"  # op NUMBER unit
+    r"(?:%|pp|percentage points?|AUPRC|AUROC|PPV|NPV|F1|AUC)"
+    r"|"
+    r"(?:AUPRC|AUROC|PPV|NPV|F1|AUC)\s*(?:≥|>=|>)\s*(\d+(?:\.\d+)?)"  # UNIT op NUMBER
+    r")",
+    re.IGNORECASE,
+)
+
+# Source indicators — if these appear near the number, it's probably calibrated
+_SOURCE_INDICATORS = re.compile(
+    r"(?:paper|study|benchmark|calibrat|empirical|measured|observed|from\s+\w+\s+\d{4}|"
+    r"doi|PMID|arXiv|Table\s+\d|Figure\s+\d|Supplementary)",
+    re.IGNORECASE,
+)
+
+
+def _flag_uncalibrated_thresholds(text: str) -> str:
+    """Flag numeric threshold claims that lack cited sources.
+
+    Adds [UNCALIBRATED] tag to lines with threshold operators (≥X%, PPV ≥0.8)
+    that don't mention a paper, benchmark, or empirical source nearby.
+    """
+    lines = text.split("\n")
+    flagged = []
+    for line in lines:
+        if _UNCALIBRATED_RE.search(line) and not _SOURCE_INDICATORS.search(line):
+            if "[UNCALIBRATED]" not in line:
+                line = line.rstrip() + " [UNCALIBRATED]"
+        flagged.append(line)
+    return "\n".join(flagged)
+
+
 def extract_claims(
     review_dir: Path,
     dispatch_result: dict,
@@ -539,8 +638,13 @@ def extract_claims(
         return None
 
     disposition = review_dir / "disposition.md"
+    merged = "\n\n---\n\n".join(extractions)
+
+    # Flag uncalibrated thresholds — numeric claims without cited sources
+    merged = _flag_uncalibrated_thresholds(merged)
+
     disposition.write_text(
-        f"# Extracted Claims — {date.today().isoformat()}\n\n" + "\n\n---\n\n".join(extractions) + "\n"
+        f"# Extracted Claims — {date.today().isoformat()}\n\n" + merged + "\n"
     )
     return str(disposition)
 
@@ -665,6 +769,10 @@ def main() -> int:
     )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--context", type=Path, help="Context file for narrow review")
+    group.add_argument(
+        "--context-files", nargs="+", metavar="FILE_SPEC",
+        help="Auto-assemble context from file:range specs (e.g., plan.md scripts/ir.py:86-110)",
+    )
     parser.add_argument("--topic", required=True, help="Short topic label (used in output dir name)")
     parser.add_argument("--project", type=Path, help="Project dir for constitution discovery (default: cwd)")
     parser.add_argument(
@@ -715,7 +823,10 @@ def main() -> int:
     review_dir.mkdir(parents=True, exist_ok=True)
 
     # Assemble context
-    ctx_files = build_context(review_dir, project_dir, args.context, axis_names)
+    ctx_files = build_context(
+        review_dir, project_dir, args.context, axis_names,
+        context_file_specs=args.context_files,
+    )
 
     constitution, _ = find_constitution(project_dir)
 
