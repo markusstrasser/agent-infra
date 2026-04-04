@@ -10,7 +10,9 @@ Per-hook outputs:
   - Outcome delta: avg cost/duration when hook fired vs not
   - Effectiveness score and promotion/demotion proposals
 
-Usage: uv run python3 scripts/hook-outcome-correlator.py [--days N] [--verbose]
+Usage:
+  uv run python3 scripts/hook-outcome-correlator.py [--days N] [--verbose]
+  uv run python3 scripts/hook-outcome-correlator.py --effectiveness [--days N]
 """
 
 import json
@@ -23,13 +25,140 @@ from common.paths import TRIGGERS_FILE, RECEIPTS_PATH as RECEIPTS_FILE
 from common.io import load_jsonl
 
 
+# Hook deployment dates — when each hook was first deployed.
+# Used for before/after effectiveness measurement.
+# Derived from: git -C ~/Projects/skills log --format="%ai %s" -- hooks/
+HOOK_DEPLOY_DATES: dict[str, str] = {
+    "commit-check": "2026-03-01",
+    "search-burst": "2026-03-01",
+    "subagent-gate": "2026-03-01",
+    "source-check": "2026-03-02",
+    "spinning": "2026-03-08",
+    "bash-failure-loop": "2026-03-17",
+    "dup-read": "2026-03-26",
+    "bash-poll": "2026-03-29",
+    "multiagent-commit": "2026-04-03",
+}
+
+
+def effectiveness_report(days: int):
+    """Before/after effectiveness analysis per hook deployment date.
+
+    For each hook with a known deploy date, compare trigger rates in sessions
+    before vs after deployment. A hook is effective if the target behavior
+    (measured by trigger rate per session) decreased after deployment.
+    """
+    cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+    triggers = load_jsonl(TRIGGERS_FILE, since=cutoff)
+    receipts = load_jsonl(RECEIPTS_FILE, since=cutoff)
+
+    if not triggers or not receipts:
+        print(f"Insufficient data in last {days} days.")
+        return
+
+    # Count sessions per day from receipts (normalization denominator)
+    sessions_per_day: dict[str, int] = defaultdict(int)
+    for r in receipts:
+        ts = r.get("ts", r.get("start", ""))
+        if ts:
+            sessions_per_day[ts[:10]] += 1
+
+    # Group triggers by hook and day
+    hook_day_triggers: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    for t in triggers:
+        hook = t.get("hook", "?")
+        ts = t.get("ts", "")
+        if ts:
+            hook_day_triggers[hook][ts[:10]] += 1
+
+    all_days = sorted(sessions_per_day.keys())
+
+    print(f"{'=' * 85}")
+    print(f"  Hook Effectiveness Analysis — last {days} days")
+    print(f"  Method: daily trigger rate (triggers/day) before vs after deployment")
+    print(f"{'=' * 85}")
+    print()
+    print(f"  {'HOOK':<25} {'DEPLOYED':>10} {'DAYS_PRE':>8} {'TRIG/DAY':>8} "
+          f"{'DAYS_POST':>9} {'TRIG/DAY':>8} {'CHANGE':>7} {'LABEL'}")
+    print(f"  {'-' * 85}")
+
+    for hook_name in sorted(HOOK_DEPLOY_DATES):
+        deploy_date = HOOK_DEPLOY_DATES[hook_name]
+        day_triggers = hook_day_triggers.get(hook_name, {})
+
+        # Split days into before/after deployment
+        days_before = [d for d in all_days if d < deploy_date]
+        days_after = [d for d in all_days if d >= deploy_date]
+
+        if not days_before and not days_after:
+            print(f"  {hook_name:<25} {deploy_date:>10} {'—':>8} {'—':>8} "
+                  f"{'—':>9} {'—':>8} {'—':>7} [NO DATA]")
+            continue
+
+        # Triggers per day in each period
+        total_before = sum(day_triggers.get(d, 0) for d in days_before)
+        total_after = sum(day_triggers.get(d, 0) for d in days_after)
+
+        n_before = max(len(days_before), 1)
+        n_after = max(len(days_after), 1)
+
+        rate_before = total_before / n_before
+        rate_after = total_after / n_after
+
+        # For hooks deployed before our window, "before" is empty — show post-only
+        if not days_before:
+            print(f"  {hook_name:<25} {deploy_date:>10} {'—':>8} {'—':>8} "
+                  f"{n_after:>9} {rate_after:>8.1f} {'—':>7} [PRE-WINDOW]")
+            continue
+
+        # Change ratio (negative = fewer triggers = hook working)
+        if rate_before > 0:
+            change = (rate_after - rate_before) / rate_before
+            change_str = f"{change:+.0%}"
+        elif rate_after > 0:
+            change_str = "+∞"
+            change = 1.0
+        else:
+            change_str = "0%"
+            change = 0.0
+
+        # Labels
+        min_days = min(n_before, n_after)
+        if min_days < 3:
+            label = "[UNDERPOWERED]"
+        elif change < -0.25:
+            label = "[EFFECTIVE]"
+        elif change < 0:
+            label = "[MARGINAL]"
+        elif change == 0:
+            label = "[NO CHANGE]"
+        else:
+            label = "[RISING]"  # triggers increased — hook not preventing
+
+        print(f"  {hook_name:<25} {deploy_date:>10} {n_before:>8} "
+              f"{rate_before:>8.1f} {n_after:>9} {rate_after:>8.1f} "
+              f"{change_str:>7} {label}")
+
+    print()
+    print("  NOTE: Observational, not causal. Session volume varies over time.")
+    print("  TRIG/DAY = average daily trigger count. Lower post-deploy = hook is working.")
+    print("  [RISING] = triggers increased post-deploy — hook may not be preventing behavior.")
+    print("  [UNDERPOWERED] = <3 days in either period — interpret with caution.")
+    print()
+
+
 def main():
     days = 7
     verbose = "--verbose" in sys.argv
+    effectiveness = "--effectiveness" in sys.argv
     if "--days" in sys.argv:
         idx = sys.argv.index("--days")
         if idx + 1 < len(sys.argv):
             days = int(sys.argv[idx + 1])
+
+    if effectiveness:
+        effectiveness_report(days if days != 7 else 30)
+        return
 
     cutoff = (datetime.now() - timedelta(days=days)).isoformat()
 
