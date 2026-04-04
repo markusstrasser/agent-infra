@@ -545,6 +545,118 @@ def extract_claims(
     return str(disposition)
 
 
+def verify_claims(
+    review_dir: Path,
+    disposition_path: str,
+    project_dir: Path,
+) -> str:
+    """Verify extracted claims against the actual codebase.
+
+    Checks if cited files and symbols exist. Grades each claim:
+    - CONFIRMED: all cited files/symbols found
+    - HALLUCINATED: cited file does not exist in project
+    - UNVERIFIABLE: no file references to check
+
+    Returns path to verified-disposition.md.
+    """
+    disposition_text = Path(disposition_path).read_text()
+
+    # Parse claims: numbered lines (e.g., "1. Function X in foo.py has bug")
+    claims: list[dict] = []
+    current_section = ""
+    for line in disposition_text.splitlines():
+        section_match = re.match(r"^##\s+(.+)", line)
+        if section_match:
+            current_section = section_match.group(1).strip()
+            continue
+        claim_match = re.match(r"^(\d+)\.\s+(.+)", line.strip())
+        if claim_match:
+            claims.append({
+                "num": int(claim_match.group(1)),
+                "text": claim_match.group(2),
+                "section": current_section,
+            })
+
+    if not claims:
+        print("No numbered claims found in disposition.", file=sys.stderr)
+        return disposition_path
+
+    # Verify each claim
+    verified: list[dict] = []
+    for claim in claims:
+        text = claim["text"]
+        verdict = "UNVERIFIABLE"
+        notes: list[str] = []
+
+        # Extract file references: path/file.ext or file.ext:line or `file.ext`
+        file_refs = re.findall(
+            r"`?([a-zA-Z_][\w/.-]*\.(?:py|js|ts|md|sh|json|yaml|yml|toml|cfg|sql|html|css|clj|cljc|edn))(?::(\d+))?`?",
+            text,
+        )
+
+        if not file_refs:
+            verified.append({**claim, "verdict": verdict, "notes": "no file references"})
+            continue
+
+        all_found = True
+        for filepath, line_str in file_refs:
+            candidates = list(project_dir.rglob(filepath))
+            if not candidates:
+                verdict = "HALLUCINATED"
+                notes.append(f"{filepath} not found")
+                all_found = False
+            else:
+                found_path = candidates[0]
+                if line_str:
+                    line_num = int(line_str)
+                    try:
+                        lines = found_path.read_text().splitlines()
+                        if line_num > len(lines):
+                            notes.append(f"{filepath}:{line_num} beyond EOF ({len(lines)} lines)")
+                        else:
+                            notes.append(f"{filepath} exists, L{line_num} readable")
+                    except Exception:
+                        notes.append(f"{filepath} exists but unreadable")
+                else:
+                    notes.append(f"{filepath} exists")
+
+        if all_found and verdict != "HALLUCINATED":
+            verdict = "CONFIRMED"
+
+        verified.append({**claim, "verdict": verdict, "notes": "; ".join(notes)})
+
+    # Stats
+    confirmed = sum(1 for v in verified if v["verdict"] == "CONFIRMED")
+    hallucinated = sum(1 for v in verified if v["verdict"] == "HALLUCINATED")
+    unverifiable = sum(1 for v in verified if v["verdict"] == "UNVERIFIABLE")
+
+    # Write verified disposition
+    out_path = review_dir / "verified-disposition.md"
+    lines_out = [
+        f"# Verified Disposition — {date.today().isoformat()}\n",
+        f"**Claims:** {len(verified)} total — "
+        f"{confirmed} CONFIRMED, {hallucinated} HALLUCINATED, {unverifiable} UNVERIFIABLE\n",
+    ]
+    if hallucinated > 0:
+        rate = round(hallucinated / len(verified) * 100)
+        lines_out.append(f"**Hallucination rate:** {rate}%\n")
+    lines_out.append("")
+    lines_out.append("| # | Verdict | Claim | Notes |")
+    lines_out.append("|---|---------|-------|-------|")
+    for v in verified:
+        claim_short = v["text"][:80] + ("..." if len(v["text"]) > 80 else "")
+        lines_out.append(f"| {v['num']} | {v['verdict']} | {claim_short} | {v.get('notes', '')} |")
+    lines_out.append("")
+
+    out_path.write_text("\n".join(lines_out) + "\n")
+    print(
+        f"Verification: {confirmed} confirmed, {hallucinated} hallucinated, "
+        f"{unverifiable} unverifiable ({len(verified)} total)",
+        file=sys.stderr,
+    )
+    return str(out_path)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Model-review dispatch: context assembly + parallel llmx + output collection",
@@ -562,6 +674,10 @@ def main() -> int:
     parser.add_argument(
         "--extract", action="store_true",
         help="After dispatch, auto-extract claims from each output into disposition.md",
+    )
+    parser.add_argument(
+        "--verify", action="store_true",
+        help="After extraction, verify cited files/symbols exist. Implies --extract.",
     )
     parser.add_argument(
         "question", nargs="?",
@@ -606,12 +722,21 @@ def main() -> int:
     # Dispatch and wait
     result = dispatch(review_dir, ctx_files, axis_names, args.question, bool(constitution))
 
+    # --verify implies --extract
+    do_extract = args.extract or args.verify
+
     # Optional extraction phase
-    if args.extract:
+    if do_extract:
         disposition_path = extract_claims(review_dir, result)
         if disposition_path:
             result["disposition"] = disposition_path
             print(f"Disposition written to {disposition_path}", file=sys.stderr)
+
+            # Optional verification phase
+            if args.verify:
+                verified_path = verify_claims(review_dir, disposition_path, project_dir)
+                result["verified_disposition"] = verified_path
+                print(f"Verified disposition written to {verified_path}", file=sys.stderr)
 
     print(json.dumps(result, indent=2))
     return 0
