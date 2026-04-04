@@ -431,7 +431,7 @@ def run_all_checks(project_filter: str | None = None) -> list[Check]:
     return all_checks
 
 
-SYMBOLS = {"pass": "\033[32m✓\033[0m", "warn": "\033[33m!\033[0m", "fail": "\033[31m✗\033[0m"}
+from common.console import con as _con
 
 
 def print_results(checks: list[Check], as_json: bool = False):
@@ -453,13 +453,12 @@ def print_results(checks: list[Check], as_json: bool = False):
 
     for scope in sorted(by_scope.keys()):
         scope_checks = by_scope[scope]
-        print(f"\n\033[1m[{scope}]\033[0m")
+        _con.header(scope)
         for c in scope_checks:
-            sym = SYMBOLS[c.status]
-            msg = f"  {c.message}" if c.message else ""
-            print(f"  {sym} {c.name}{msg}")
+            label = f"{c.name}  {c.message}" if c.message else c.name
+            getattr(_con, c.status, _con.ok)(label)
 
-    print(f"\n\033[1m{total} checks: {passes} pass, {warns} warn, {fails} fail\033[0m")
+    _con.summary(total, ok=passes, warn=warns, fail=fails)
 
 
 def main():

@@ -144,13 +144,8 @@ def main():
         phase_str = f"{len(completed) if isinstance(completed, list) else '?'}/{p['total_phases']}" if p["total_phases"] else "—"
         mod = p["modified"][:16].replace("T", " ")
         status = p["status"]
-        # Color coding for terminal
-        if status in ("partial", "running"):
-            status = f"\033[33m{status}\033[0m"
-        elif status == "done":
-            status = f"\033[32m{status}\033[0m"
-        elif status == "failed":
-            status = f"\033[31m{status}\033[0m"
+        from common.console import color_status
+        status = color_status(status)
         print(f"{p['project']:<10} {status:<20} {phase_str:<10} {mod:<22} {p['file']}")
 
 
