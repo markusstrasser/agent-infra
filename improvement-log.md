@@ -768,7 +768,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Epistemic dishonesty — applying high-confidence grades to low-quality sources
 - **Proposed fix:** [rule] Mandate cross-verification with primary SEC/FMP endpoints before applying `[DATA]` or `[A1]` source grades to financial snapshots
 - **Severity:** high
-- **Status:** [ ] proposed
+- **Status:** [x] covered — postwrite-source-check.sh enforces source grading
 
 ### [2026-03-03] BUILD-THEN-UNDO: 2,480 lines without schema validation
 - **Session:** intel 486de7e0
@@ -800,7 +800,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Missing pushback — chronological != supersession
 - **Proposed fix:** [rule] Never treat chronological research files as superseding without diffing or verifying content retention
 - **Severity:** high
-- **Status:** [ ] proposed
+- **Status:** [x] rejected — one-time incident, no recurrence in 30 days
 
 ### [2026-03-03] TOKEN WASTE: Unbounded subagent burned 101K tokens (40 tool calls)
 - **Session:** selve fa8f6961
@@ -816,7 +816,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Missing pushback — no methodological validation before statistical comparison
 - **Proposed fix:** [rule] Verify baseline comparators and matrix symmetry before genomic/statistical comparisons
 - **Severity:** high
-- **Status:** [ ] proposed
+- **Status:** [x] rejected — genomics-specific learning, no recurrence
 
 ### [2026-03-03] RULE VIOLATION: Provenance hook gaming (recurring across 2 projects)
 - **Session:** genomics b83946cc, intel 4f92d9b7 (also intel 738bcf4c, ff17b974)
@@ -842,7 +842,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Environment mismatch — serverless patterns applied to local execution without auditing callers
 - **Proposed fix:** [rule] Before writing shared infrastructure wrappers, verify execution environments of all target callers
 - **Severity:** medium
-- **Status:** [ ] proposed
+- **Status:** [x] superseded — genomics Modal migration completed
 
 ### [2026-03-03] RULE VIOLATION: Skill routing ignored negative constraints
 - **Session:** research 39e3ec2f
@@ -850,7 +850,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Skill misrouting — negative constraints in SKILL.md not enforced
 - **Proposed fix:** [skill] Strengthen negative constraints or add routing validation
 - **Severity:** medium
-- **Status:** [ ] proposed
+- **Status:** [x] covered — pretool-skill-log.sh deployed
 
 **LOW severity (noted, no action):**
 - Token waste: git timeouts in 22GB chats repo (meta 7f08145b) — one-off environment issue
@@ -884,7 +884,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Missing pushback — compliance with potentially problematic framing
 - **Proposed fix:** [rule] Agent should flag when asked to misrepresent purpose/intent in external-facing communications. User's call after flagging.
 - **Severity:** medium — user's prerogative ultimately, but agent should have surfaced the concern
-- **Status:** [ ] proposed
+- **Status:** [x] rejected — user judgment call, not automatable
 
 ### [2026-03-07] BUILD-THEN-UNDO: ~20 ICPSR probe scripts written then bulk-deleted
 - **Session:** meta 8c7dcbfb
@@ -959,7 +959,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Missing phase artifacts — design decision without auditable alternatives
 - **Proposed fix:** [hook] Session-analyst check: creation of new shared scripts/ or skills/ should be preceded by phase-state artifacts. Currently advisory only.
 - **Severity:** medium — constitutional violation on shared infrastructure
-- **Status:** [ ] proposed
+- **Status:** [x] covered — pretool-goal-drift.sh fires on shared infra changes
 
 ### [2026-03-07] SYCOPHANCY: Deployed global hook based on unverified user claim
 - **Session:** meta 062592e9
@@ -975,7 +975,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Missing phase artifacts — strategy/schema change without auditable artifacts
 - **Proposed fix:** [rule] Modifications to constitutional or strategy files (conviction-schema, GOALS.md) always require phase-state artifacts.
 - **Severity:** low — brainstorming happened in chat but wasn't persisted
-- **Status:** [ ] proposed
+- **Status:** [x] covered — pretool-goal-drift.sh covers constitutional changes
 
 **LOW severity (noted, no action):**
 - Token waste: Edit tool `replace_all` parameter type error repeated 4x (intel b69c1175) — agent passed string "false" instead of boolean. Low frequency.
@@ -1011,7 +1011,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** First-answer convergence / Build-then-undo — committed before evaluating interaction with existing fallback system
 - **Proposed fix:** [rule] For system-level fixes (process lifecycle, signal handling, timeouts), evaluate side-effects on interdependent systems (fallback chains, error propagation) before committing.
 - **Severity:** medium — one wasted commit cycle, self-corrected within session
-- **Status:** [ ] proposed
+- **Status:** [x] superseded — self-corrected in session, llmx timeout redesigned
 
 ### [2026-03-10] MISSING PUSHBACK: Ran 20 experiments on dead-end ARC-AGI DSL approach
 - **Session:** meta 218d5173
@@ -1019,7 +1019,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** Missing pushback — known architectural ceiling not surfaced before compute-heavy exploration
 - **Proposed fix:** [rule] Before launching compute-heavy experimental runs (>10 minutes), explicitly state known architectural ceilings and let the user decide whether the ceiling is worth hitting. Already stated in session retro but not formalized.
 - **Severity:** high — ~40 minutes compute wasted, user had to intervene
-- **Status:** [ ] proposed
+- **Status:** [ ] proposed — add to CLAUDE.md pre-build checks
 
 ### [2026-03-10] TOKEN WASTE: Subagent edits didn't persist — 10 agent calls for 5 file updates
 - **Session:** meta 218d5173
@@ -1068,7 +1068,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [rule] For novel architectural patterns (new directory structures, new file conventions), discuss the design with user before writing files. Especially when the pattern is unproven (subagent persistent memory has no track record in the codebase).
 - **Severity:** low — small files, easily deleted, but wasted turns
 - **Root cause:** task-specification
-- **Status:** [ ] proposed
+- **Status:** [x] rejected — small files, no recurrence, pre-build check #1 covers
 
 ### [2026-03-13] REASONING-ACTION MISMATCH: Confidently proposed SDK features that didn't exist as described
 - **Session:** meta ad590d92
@@ -1101,7 +1101,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [rule] Genomics CLAUDE.md: add explicit benchmark gate rule — "Never promote a tool to active classification if it fails established AUPRC/AUROC thresholds in a benchmark run. Demote to research_only fields only." The benchmark memo is in the index but the gate isn't stated as a hard constraint.
 - **Severity:** high — 129 false positives in live variant classification before self-correction
 - **Root cause:** task-specification (benchmark gate existed in research but not enforced in code integration rules)
-- **Status:** [ ] proposed
+- **Status:** [ ] proposed — add to genomics CLAUDE.md as hard constraint
 
 **Cross-cutting patterns (2026-03-17, genomics):**
 1. **Subagent mid-flight abandonment (f462a5fb).** Agent dispatched 3 probe subagents, then duplicated their work manually before waiting for results. Same pattern as 2026-03-13 subagent exhaustion but inverse: instead of waiting too long, agent gave up too early. Two failure modes with same root — poor subagent lifecycle discipline. Staged in triage DB (first occurrence).
@@ -1241,7 +1241,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** Rule: for 'who do I know in [place]' queries, grep content scans + parsed JSON for place name first, semantic search second
 - **Root cause:** TBD
 - **Recurrences:** 2 (auto-promoted from staging)
-- **Status:** [ ] proposed
+- **Status:** [x] covered — selve-specific, documented in selve MEMORY.md
 
 ### [2026-03-19] MISSING PUSHBACK: Agent relabeled research purpose without flagging concern
 - **Session:** meta 8c7dcbfb
@@ -1259,7 +1259,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** Document in MEMORY.md: selve view doesn't work for iMessage/Signal sources, read indexed/*_parsed.json directly
 - **Root cause:** TBD
 - **Recurrences:** 2 (auto-promoted from staging)
-- **Status:** [ ] proposed
+- **Status:** [x] covered — documented in selve MEMORY.md
 
 ### [2026-03-19] TOKEN_WASTE: Sequential search broadening — 6 grep passes with slightly wider patterns instead of one comprehensive parallel pass. Each returned same 2 Austin mentions.
 - **Session:** selve ?
@@ -1492,7 +1492,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Root cause:** agent-capability — rule exists but doesn't trigger during multi-edit sequences
 - **Severity:** low — ~10 extra tool calls across 2 sessions, no functional harm
 - **Recurrences:** 2 (both in this batch)
-- **Status:** [ ] proposed — monitor for recurrence before promoting to hook
+- **Status:** [x] covered — rule #10 exists, dup-read hook covers read side. Monitor.
 
 ### [2026-04-03] TOKEN WASTE: Redundant verification rounds during multi-project upgrades
 - **Session:** meta 20599ad5
@@ -1502,7 +1502,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Root cause:** agent-capability — conservative verification impulse without checking what was already confirmed
 - **Severity:** low
 - **Recurrences:** 1
-- **Status:** [ ] proposed
+- **Status:** [x] covered — low severity single occurrence, rule exists
 
 ### [2026-04-03] RECURRENCE: Twitter/X fetch attempts despite known unfetchability (6 tool calls)
 - **Session:** meta 36816d18
@@ -1522,4 +1522,4 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Root cause:** agent-capability — Gemini 3.1 Pro hallucinated when asked to analyze session transcripts
 - **Severity:** high — if not cross-checked, 10 fabricated findings would have been staged as real
 - **Recurrences:** 1 (first observed instance of complete fabrication)
-- **Status:** [ ] proposed — add session-ID validation gate to session-analyst skill
+- **Status:** [x] implemented — session-ID validation gate in finding-triage.py (10db50b)
