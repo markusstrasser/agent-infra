@@ -1478,3 +1478,48 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Severity:** medium
 - **Recurrences:** 2
 - **Status:** [ ] monitoring — rule exists, compliance unverified
+
+### [2026-04-03] Session Analyst — Behavioral Anti-Patterns (meta, 5 sessions)
+- **Source:** Direct transcript analysis of sessions e8062d76, c6040050, 2686296c, 20599ad5, 36816d18
+- **Shape:** 5 sessions (2 empty, 1 short/clean, 2 substantive), ~75M tokens in, 4 findings (1 new, 2 recurrences, 1 Gemini hallucination meta-finding)
+- **Note:** Gemini 3.1 Pro hallucinated ALL session IDs and evidence in its analysis output — 10/10 findings referenced fabricated session IDs (019d4xxx pattern) not present in the 95KB transcript. Every evidence quote was invented. Findings below are from direct Claude analysis of transcripts.
+
+### [2026-04-03] TOKEN WASTE: Incremental edit-grep-edit loops on single file instead of Write
+- **Session:** meta 20599ad5, meta 36816d18
+- **Evidence:** In 20599ad5, fastmcp3-integration-plan.md was Read 3x and Edit 3x (lines 505-531). In 36816d18, meta_mcp.py was edited via 6+ incremental Edit calls with Grep checks between each (lines ~2050-2130). The global rule "Write for structural rewrites — when restructuring >3 sections" was violated in both cases.
+- **Failure mode:** token-waste / incremental-edit-loop
+- **Proposed fix:** [rule] Reinforce existing rule #10 ("Write for structural rewrites") — currently buried in global CLAUDE.md, not salient enough during long edit sequences
+- **Root cause:** agent-capability — rule exists but doesn't trigger during multi-edit sequences
+- **Severity:** low — ~10 extra tool calls across 2 sessions, no functional harm
+- **Recurrences:** 2 (both in this batch)
+- **Status:** [ ] proposed — monitor for recurrence before promoting to hook
+
+### [2026-04-03] TOKEN WASTE: Redundant verification rounds during multi-project upgrades
+- **Session:** meta 20599ad5
+- **Evidence:** Agent ran two separate verification rounds for fastmcp upgrades: first a per-project import check (lines 379-425, 6 Bash calls), then immediately repeated version checks across all 6 projects (lines 581-587, 2 more Bash calls). The second round added no new information — all servers had already imported cleanly. ~8 wasted tool calls.
+- **Failure mode:** token-waste / redundant-verification
+- **Proposed fix:** [rule] "After verifying imports succeed, do not re-verify versions separately — the import test is strictly stronger"
+- **Root cause:** agent-capability — conservative verification impulse without checking what was already confirmed
+- **Severity:** low
+- **Recurrences:** 1
+- **Status:** [ ] proposed
+
+### [2026-04-03] RECURRENCE: Twitter/X fetch attempts despite known unfetchability (6 tool calls)
+- **Session:** meta 36816d18
+- **Evidence:** Agent tried WebFetch (402), Exa search x2, Exa crawl, Perplexity ask, and Threads crawl to fetch a Karpathy tweet. All failed. User pasted the text manually. Session's own retro caught this and added "Unfetchable URLs" rule to global CLAUDE.md.
+- **Failure mode:** token-waste / unfetchable-url-retry (already documented in global CLAUDE.md as of this session)
+- **Proposed fix:** [done] Rule added to global CLAUDE.md in-session. Monitor for compliance.
+- **Root cause:** agent-capability — no prior instruction to short-circuit x.com fetches
+- **Severity:** low (6 tool calls, ~2 min, low frequency)
+- **Recurrences:** 1 (first occurrence, rule deployed in-session)
+- **Status:** [x] implemented — global CLAUDE.md "Unfetchable URLs" section added in session 36816d18
+
+### [2026-04-03] META: Gemini 3.1 Pro hallucinated entire session-analyst output
+- **Session:** meta e8062d76 (current session-analyst run)
+- **Evidence:** Gemini 3.1 Pro was given 95KB of transcripts with session IDs e8062d76, c6040050, 2686296c, 20599ad5, 36816d18. It returned 10 findings referencing session IDs 019d4c6b, 019d4b31, 019d514f, 019d4f68, 019d4f66, 019d5128, 019d5088, 019d4b0f, 019d4f93 — NONE of which appear anywhere in the input. All evidence quotes were fabricated. The findings read as plausible (correct category names, reasonable failure modes) but zero are grounded in the actual transcripts.
+- **Failure mode:** NEW: gemini-wholesale-hallucination — model produces structurally correct but entirely fabricated analysis
+- **Proposed fix:** [architectural] session-analyst Step 3 already says "cross-check any specific claims against the transcript" — this saved us. Consider adding automated session-ID validation (check that cited IDs appear in input) as a post-Gemini gate.
+- **Root cause:** agent-capability — Gemini 3.1 Pro hallucinated when asked to analyze session transcripts
+- **Severity:** high — if not cross-checked, 10 fabricated findings would have been staged as real
+- **Recurrences:** 1 (first observed instance of complete fabrication)
+- **Status:** [ ] proposed — add session-ID validation gate to session-analyst skill
