@@ -540,7 +540,9 @@ _UNCALIBRATED_RE = re.compile(
     r"(?:≥|>=|>|at least|minimum|must exceed)\s*(\d+(?:\.\d+)?)\s*"  # op NUMBER unit
     r"(?:%|pp|percentage points?|AUPRC|AUROC|PPV|NPV|F1|AUC)"
     r"|"
-    r"(?:AUPRC|AUROC|PPV|NPV|F1|AUC)\s*(?:≥|>=|>)\s*(\d+(?:\.\d+)?)"  # UNIT op NUMBER
+    r"(?:AUPRC|AUROC|PPV|NPV|F1|AUC)\s*(?:\w+\s+)?(?:≥|>=|>)\s*(\d+(?:\.\d+)?)"  # UNIT [by] op NUMBER
+    r"|"
+    r"(?:≥|>=|>)\s*(\d+(?:\.\d+)?)\s*(?:%|pp)[/,]"  # ≥95%/ or ≥50%, (slash-separated thresholds)
     r")",
     re.IGNORECASE,
 )
