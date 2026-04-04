@@ -167,15 +167,37 @@ def cmd_ingest(args):
 
     total_ingested = 0
     total_deduped = 0
+    total_rejected = 0
 
     for fpath in files:
         findings = _parse_findings(fpath)
         if not findings:
             continue
 
+        # Extract known-valid session UUIDs from JSON metadata (hallucination gate)
+        valid_uuids = None
+        if fpath.suffix == ".json":
+            try:
+                raw = json.loads(fpath.read_text())
+                if isinstance(raw, dict):
+                    valid_uuids = raw.get("session_uuids")
+            except json.JSONDecodeError:
+                pass
+
         for f in findings:
             if not isinstance(f, dict) or "category" not in f or "summary" not in f:
                 continue  # Skip non-finding entries (e.g., shape-prefilter objects)
+            # Validate session_uuid against known transcript UUIDs
+            claimed_uuid = f.get("session_uuid")
+            if valid_uuids and claimed_uuid:
+                if not any(claimed_uuid.startswith(v[:8]) or v.startswith(claimed_uuid[:8])
+                           for v in valid_uuids):
+                    print(f"  REJECTED: hallucinated session_uuid '{claimed_uuid}' "
+                          f"not in known set {[u[:8] for u in valid_uuids]}",
+                          file=sys.stderr)
+                    total_rejected += 1
+                    continue
+
             fp = fingerprint(f["category"], f["summary"])
             concept = _match_concept(f["category"], f["summary"])
 
@@ -225,11 +247,14 @@ def cmd_ingest(args):
                 total_ingested += 1
 
     db.commit()
-    print(f"Ingested: {total_ingested} new, {total_deduped} recurrences updated")
+    msg = f"Ingested: {total_ingested} new, {total_deduped} recurrences updated"
+    if total_rejected:
+        msg += f", {total_rejected} rejected (hallucinated session UUID)"
+    print(msg)
 
     log_metric("finding_triage_ingest",
                new=total_ingested, deduped=total_deduped,
-               source=str(args.json_file))
+               rejected=total_rejected, source=str(args.json_file))
 
 
 def _parse_findings(fpath: Path) -> list[dict]:
