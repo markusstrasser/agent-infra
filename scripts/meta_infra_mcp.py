@@ -19,6 +19,12 @@ from pathlib import Path
 
 from claude_agent_sdk import create_sdk_mcp_server, tool
 
+
+def _text_result(text: str, max_result_chars: int = 16000) -> dict:
+    """Wrap text in MCP content block with _meta size hint."""
+    return {"content": [{"type": "text", "text": text,
+            "_meta": {"anthropic/maxResultSizeChars": max_result_chars}}]}
+
 from common.paths import SESSIONS_DB, TRIGGERS_FILE as HOOK_TRIGGERS
 IMPROVEMENT_LOG = Path(__file__).resolve().parent.parent / "improvement-log.md"
 
@@ -57,7 +63,7 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
 )
 async def search_sessions(args):
     if not SESSIONS_DB.exists():
-        return {"content": [{"type": "text", "text": "Sessions DB not found. Run: sessions.py index"}]}
+        return _text_result("Sessions DB not found. Run: sessions.py index")
 
     db = _get_sessions_db()
     q = _fts5_sanitize(args["query"])
@@ -83,12 +89,13 @@ async def search_sessions(args):
     try:
         rows = db.execute(sql, params).fetchall()
     except sqlite3.OperationalError:
-        return {"content": [{"type": "text", "text": "FTS index not built. Run: sessions.py index"}]}
+        return _text_result("FTS index not built. Run: sessions.py index")
     finally:
         db.close()
 
     results = [_row_to_dict(r) for r in rows]
-    return {"content": [{"type": "text", "text": json.dumps(results, indent=2, default=str)}]}
+    text = json.dumps(results, indent=2, default=str)
+    return _text_result(text, max_result_chars=max(len(text) * 2, 16000))
 
 
 @tool(
@@ -100,7 +107,7 @@ async def search_sessions(args):
 )
 async def get_session(args):
     if not SESSIONS_DB.exists():
-        return {"content": [{"type": "text", "text": "Sessions DB not found."}]}
+        return _text_result("Sessions DB not found.")
 
     db = _get_sessions_db()
     prefix = args["uuid_prefix"]
@@ -111,14 +118,15 @@ async def get_session(args):
     db.close()
 
     if not row:
-        return {"content": [{"type": "text", "text": f"No session found matching '{prefix}'"}]}
+        return _text_result(f"No session found matching '{prefix}'")
 
     d = _row_to_dict(row)
-    # Truncate large fields
+    # Truncate large fields (raised from 2000 → 8000 now that _meta allows larger results)
     for field in ("content_text", "files_touched_fts", "commits_fts"):
-        if d.get(field) and len(str(d[field])) > 2000:
-            d[field] = str(d[field])[:2000] + "..."
-    return {"content": [{"type": "text", "text": json.dumps(d, indent=2, default=str)}]}
+        if d.get(field) and len(str(d[field])) > 8000:
+            d[field] = str(d[field])[:8000] + "..."
+    text = json.dumps(d, indent=2, default=str)
+    return _text_result(text, max_result_chars=max(len(text) * 2, 32000))
 
 
 # ---------------------------------------------------------------------------
@@ -146,13 +154,14 @@ async def search_improvement_log(args):
     matches = []
     for section in sections:
         if query in section.lower():
-            matches.append(section.strip()[:1000])
+            matches.append(section.strip()[:2000])
             if len(matches) >= n:
                 break
 
     if not matches:
-        return {"content": [{"type": "text", "text": f"No matches for '{args['query']}'"}]}
-    return {"content": [{"type": "text", "text": "\n\n---\n\n".join(matches)}]}
+        return _text_result(f"No matches for '{args['query']}'")
+    text = "\n\n---\n\n".join(matches)
+    return _text_result(text, max_result_chars=max(len(text) * 2, 16000))
 
 
 @tool(
@@ -172,9 +181,10 @@ async def list_recent_findings(args):
 
     # Split by ## headings, take last N
     sections = re.split(r"(?=^## )", text, flags=re.MULTILINE)
-    recent = [s.strip()[:500] for s in sections[-n:] if s.strip()]
+    recent = [s.strip()[:1000] for s in sections[-n:] if s.strip()]
 
-    return {"content": [{"type": "text", "text": "\n\n---\n\n".join(recent)}]}
+    text = "\n\n---\n\n".join(recent)
+    return _text_result(text, max_result_chars=max(len(text) * 2, 16000))
 
 
 # ---------------------------------------------------------------------------
@@ -222,7 +232,7 @@ async def get_hook_metrics(args):
             elif action in ("block", "denied"):
                 counts[name]["block"] += 1
 
-    return {"content": [{"type": "text", "text": json.dumps(counts, indent=2)}]}
+    return _text_result(json.dumps(counts, indent=2))
 
 
 # ---------------------------------------------------------------------------

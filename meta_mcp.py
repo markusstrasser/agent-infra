@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastmcp import Context, FastMCP
+from mcp.types import TextContent
 
 log = logging.getLogger(__name__)
 
@@ -251,6 +252,7 @@ def _search(sections: list[dict], query: str, scope: str, max_tokens: int) -> di
         "results": results,
         "meta_commit": _get_git_sha(),
         "total_matches": len(scored),
+        "total_chars": total_chars,
     }
 
 
@@ -278,9 +280,9 @@ def create_mcp() -> FastMCP:
     def search_meta(
         ctx: Context,
         query: str,
-        max_tokens: int = 350,
+        max_tokens: int = 1000,
         scope: str = "all",
-    ) -> dict:
+    ) -> list[TextContent]:
         """Search cross-project knowledge: hook designs, agent failure modes,
         architecture decisions, research findings, health/genomics research,
         gene entities. Indexes meta, selve, and genomics research directories.
@@ -290,34 +292,44 @@ def create_mcp() -> FastMCP:
 
         Args:
             query: search terms (matched against section headers and content)
-            max_tokens: max response size (default 350, max 1000)
+            max_tokens: max response size (default 1000, max 4000)
             scope: filter by category - "all", "hooks", "failures", "research",
                    "architecture", "improvement-log", "health", "genomics", "genes"
         """
         global _call_count
         _call_count += 1
 
-        max_tokens = min(max(max_tokens, 50), 1000)
+        max_tokens = min(max(max_tokens, 50), 4000)
+
+        import json
+
+        def _wrap(data: dict) -> list[TextContent]:
+            text = json.dumps(data, indent=2, default=str)
+            size_hint = max(len(text) * 2, 16000)  # 2x headroom, min 16K
+            return [TextContent(
+                type="text", text=text,
+                _meta={"anthropic/maxResultSizeChars": size_hint},
+            )]
 
         if scope not in ("all", *SCOPE_MAP):
-            return {
+            return _wrap({
                 "error": True,
                 "error_type": "INVALID_SCOPE",
                 "message": f"Unknown scope '{scope}'",
                 "recoverable": True,
                 "suggested_action": f"use one of: all, {', '.join(SCOPE_MAP.keys())}",
                 "call_number": _call_count,
-            }
+            })
 
         if not query or not query.strip():
-            return {
+            return _wrap({
                 "error": True,
                 "error_type": "EMPTY_QUERY",
                 "message": "Query string is empty",
                 "recoverable": True,
                 "suggested_action": "provide search terms (2+ chars each)",
                 "call_number": _call_count,
-            }
+            })
 
         sections = ctx.lifespan_context["sections"]
         result = _search(sections, query, scope, max_tokens)
@@ -332,7 +344,7 @@ def create_mcp() -> FastMCP:
                 "in research/ files"
             )
 
-        return result
+        return _wrap(result)
 
     return mcp
 
