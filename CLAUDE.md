@@ -18,34 +18,11 @@ uv run python3 scripts/sessions.py search <query>  # FTS5 session search
 
 ## Key Files
 
-**Core (root):**
 - `GOALS.md` — what the system optimizes for (human-owned)
-- `justfile` — task runner (grouped). Root workspace justfile at `~/Projects/justfile` for cross-project dispatch
-- `maintenance-checklist.md` — pending improvements, monitoring list, sweep schedule
-- `improvement-log.md` — structured findings from session analysis (session-analyst appends here)
-- `agent-failure-modes.md` — documented failure modes from real sessions
-- `AGENTS.md`, `GEMINI.md` — symlinks to CLAUDE.md (multi-editor compatibility)
-
-**MCP Server:**
-- `meta_mcp.py` — meta-knowledge MCP server (section-based search over meta, selve, and genomics research). Indexes meta root .md + research/, selve docs/research + docs/entities/genes, genomics docs/research. Whitelist-based cross-project inclusion (default-deny for privacy). Scopes: all, hooks, failures, research, architecture, improvement-log, health, genomics, genes.
-
-**Scripts** (61 Python files — see `.claude/rules/codebase-map.md` for full inventory with dependency arrows):
-- *Orchestration & Ops:* orchestrator, doctor, propose-work, runlog, code-review-scout/schedule, vendor-versions, best-sync, autoresearch
-- *Self-Improvement Loop:* session-shape (zero-cost pre-filter), fix-verify (closed-loop validation), sessions (FTS5 search/dispatch)
-- *Epistemic Measurement:* supervision-kpi, calibration-canary, pushback-index, safe-lite-eval, epistemic-lint, trace-faithfulness, tool-trajectory, session-features, compaction-canary
-- *Hook Telemetry:* hook-outcome-correlator, hook-roi
-
-**Agents** (`.claude/agents/`):
-- `session-analyst.md` — persistent (memory: project). Behavioral anti-pattern detection, `--corrections` mode
-- `researcher.md` — persistent (memory: user). Deep research with source tracking across sessions
-
-**Reference:**
-- `schemas/calibration_canaries.json` — canary definitions with ground truth
-- `runlog.md` — runlog architecture, import/query usage, named queries
-- `cockpit.md` — human-agent interface: status line, notifications, receipts, dashboard
-- `human-instructions.md` — operator decision guide
-- `search-retrieval-architecture.md` — CAG vs embedding retrieval, routing framework
-- `.claude/overviews/` — auto-generated source + tooling overviews (Gemini via repomix)
+- `justfile` — task runner. `just --list` for all recipes.
+- `improvement-log.md` — session-analyst appends findings here
+- `meta_mcp.py` — cross-project research search (scopes: all, hooks, failures, research, architecture, health, genomics, genes)
+- Scripts: 61 Python files — see `.claude/rules/codebase-map.md` for full inventory
 
 ## Research Index
 
@@ -148,21 +125,9 @@ How to verify this constitution is working (check via session-analyst after 2 we
 
 **`/loop` + interactive sessions is primary.** The human runs Claude Code directly, uses `/loop` for recurring tasks (steward, research cycles, maintenance), and steers in real-time. Subagents handle fan-out within sessions.
 
-## Orchestrator (`scripts/orchestrator.py`) — Background Only
+## Orchestrator — Background Only
 
-Queue-backed task runner for unattended scheduled work. Not the primary execution model.
-
-```bash
-orchestrator.py status                               # show queue
-orchestrator.py submit <pipeline> [--project P]      # submit pipeline
-orchestrator.py tick                                  # run one pending task
-orchestrator.py log --today [--last N]               # event log
-orchestrator.py pipelines                            # cost/status rollup
-```
-
-**Used for:** session-retro, morning-brief, runlog-import, and other pipelines that run unattended. Pipelines defined in `pipelines/*.json`.
-
-**Key constraints:** `DAILY_COST_CAP = $25`, `fcntl.flock` prevents concurrent runs, `anyio.fail_after(600s)` stall detection, cross-project steps require approval.
+Queue-backed task runner for unattended scheduled work. Run `uv run python3 scripts/orchestrator.py --help` for commands. Daily cost cap: $25.
 
 ## Backlog
 
@@ -170,41 +135,11 @@ See `ideas.md` for backlog items and architectural ideas. Not loaded into contex
 
 ## Decision Journal (`decisions/`)
 
-Lightweight decision records for concept-level pivots — when an approach is chosen, dropped, or superseded. One file per decision, format: `YYYY-MM-DD-slug.md`. Template in `decisions/.template.md`. Records use YAML frontmatter for machine-readable metadata (concept grouping, typed relations, provenance).
-
-**When to write a decision record:**
-- Path-dependent: choosing this forecloses alternatives
-- Costly to reconstruct later (the reasoning, not just the outcome)
-- Based on evidence that changed belief
-- Likely to matter in publication or external explanation
-- Do NOT write for: parameter tweaks, routine implementation, local execution details
-
-**Convention for research memos:** When updating a memo with revised understanding, add a dated `## Revisions` entry at the bottom. Only for claim/interpretation/confidence changes — if wording or organization changed without changing the conclusion, don't add a revision entry. The git diff shows what changed; the revision note says *why*.
-
-**Decision records are for human archaeology** — agents should create them for genuinely path-dependent choices but are not expected to consult them before acting. The value is in the written reasoning, not in agent retrieval.
-
-**Cross-repo convention:** Cross-repo decisions live canonically in one repo (usually meta for infrastructure, or the repo where the evidence lives for research). Affected repos get a one-line stub: `See [repo]/decisions/YYYY-MM-DD-slug.md`.
-
-**Commit bodies for concept shifts:** Commits touching `research/` or `decisions/` should have a non-empty body naming the concept affected and what changed directionally. `git log --format='%s%n%b' -- decisions/` should read as a concept evolution timeline.
+Path-dependent decisions get a record. Write when: forecloses alternatives, costly to reconstruct reasoning, based on evidence that changed belief. Don't write for routine implementation. Format and conventions in `.claude/rules/decision-journal.md`.
 
 ## llmx Transport Routing
 
-| Model | Transport | Flag needed | Cost |
-|-------|-----------|-------------|------|
-| Gemini Flash/Lite | CLI (free) | none | $0 |
-| Gemini Pro | CLI (free) | none (no `--stream`) | $0 |
-| GPT-5.x | API (direct) | none | per-token |
-
-- **Gemini Pro on CLI works** — hang bug fixed in gemini-cli 0.32.1 (current: v0.36.0). No `--stream` needed.
-- **`--stream` forces API fallback** — only add if CLI hits rate limits.
-- **`--max-tokens` forces API fallback** — CLI caps at 8K, no override. Brainstorm still uses API.
-- **codex-cli re-enabled** — ~37K token overhead from 9 MCP servers (no disable flag). Viable for substantial tasks (audits, reviews). ChatGPT auth: only `gpt-5.4` and `gpt-5.3-codex` work; `o3`/`gpt-4.1` rejected. Don't use for trivial queries.
-- **Exit 6 = billing exhausted** (permanent). Exit 3 = rate limit (transient). Don't retry exit 6.
-- **Gemini 503/rate-limit = session-level fallback.** After first 503 from Gemini, switch to GPT or Flash for remaining calls in the session. Don't retry the same Gemini model — 4 confirmed incidents of 4-6 wasted retries before fallback.
-- **S2 403 = session-level fallback.** After first 403 from Semantic Scholar, switch to scite or PubMed for remaining paper searches. S2 rate-limits aggressively; retrying wastes turns. 7+ confirmed incidents in Codex sessions (Apr 2026).
-- **Exa recency enum:** Valid values are `24h`, `week`, `month`, `year`, `any` only. GPT-5.4 hallucinates `365d`/`90d`/`180d` — these fail with validation errors. Use `startPublishedDate`/`endPublishedDate` (ISO 8601) for precise date ranges.
-- **llmx is editable-installed** (`uv tool install --editable`). Source changes in `~/Projects/llmx/` propagate instantly.
-- **No `--fallback`** — model should be the model. Diagnose failures, don't mask with model downgrade.
+See `.claude/rules/llmx-routing.md` for model/transport table and gotchas.
 
 ## What This Repo Is NOT
 - Not a place to write more rules about rules.
@@ -233,26 +168,4 @@ Lightweight decision records for concept-level pivots — when an approach is ch
 - Hook inventory and event types documented in MEMORY.md `hooks.md`.
 </reference_data>
 
-<cockpit>
-## Cockpit (Human-Agent Interface)
-
-Status line, notifications, receipts, and dashboard. Full details in `cockpit.md`.
-
-| Component | Location | What |
-|-----------|----------|------|
-| Status line | `~/.claude/statusline.sh` | Model, branch, cost, context bar |
-| Config | `~/.claude/cockpit.conf` | `notifications=on\|off` |
-| Dashboard | `meta/scripts/dashboard.py` | `uv run python3 scripts/dashboard.py [--days N]` |
-</cockpit>
-
-<session_forensics>
-## Session Forensics
-- Chat histories: `~/.claude/projects/-Users-alien-Projects-*/UUID.jsonl`
-- Compaction log: `~/.claude/compact-log.jsonl`
-- Session receipts: `~/.claude/session-receipts.jsonl`
-- Runlog DB: `~/.claude/runlogs.db`
-- Runlog docs: `meta/runlog.md`
-- Runlog CLI: `uv run python3 scripts/runlog.py stats|import|query|recent`
-- Run `just hook-telemetry` for current error sources
-- Session search: `uv run python3 scripts/sessions.py search <query>` (FTS5, faster than bash/grep)
-</session_forensics>
+<!-- Cockpit: see cockpit.md. Session forensics: see .claude/rules/session-forensics.md -->
