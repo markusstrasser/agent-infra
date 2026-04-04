@@ -850,6 +850,12 @@ def cmd_dispatch(args):
               file=sys.stderr)
         sys.exit(1)
 
+    # FTS5 pre-query: scan raw transcript for anti-pattern signatures
+    # before compression loses diagnostic signal (improvement-log 2026-03-30)
+    anti_pattern_hits = _scan_anti_patterns(db, row["uuid"])
+    if anti_pattern_hits:
+        frontmatter += f"\n\n## FTS5 Pre-Scan Hits\n{anti_pattern_hits}"
+
     # Compose full prompt
     full_prompt = f"{config['prompt']}\n\n{frontmatter}\n\n{transcript_md}"
 
@@ -866,6 +872,45 @@ def cmd_dispatch(args):
     except FileNotFoundError:
         print("llmx not found. Install llmx or dispatch manually.", file=sys.stderr)
         sys.exit(1)
+
+
+
+# Anti-pattern signatures for FTS5 pre-scan before Gemini dispatch
+_ANTI_PATTERN_QUERIES = [
+    ("repeated-read", "Read.*Read.*Read"),
+    ("poll-loop", "sleep.*Read OR poll.*file"),
+    ("build-then-undo", "delete OR revert OR undo OR rollback"),
+    ("search-flood", "WebSearch.*WebSearch.*WebSearch"),
+    ("sycophancy", "great idea OR excellent point OR absolutely"),
+    ("capability-abandon", "training cutoff OR cannot verify"),
+]
+
+
+def _scan_anti_patterns(db, uuid: str) -> str:
+    """Run FTS5 pre-queries against session content for anti-pattern signatures.
+
+    Returns markdown summary of hits to prepend to Gemini dispatch context.
+    This preserves diagnostic signal that transcript compression destroys.
+    """
+    hits = []
+    for label, query in _ANTI_PATTERN_QUERIES:
+        try:
+            sanitized = _fts5_sanitize(query) if " OR " not in query else query
+            row = db.execute(
+                """SELECT snippet(sessions_fts, 2, '>>>', '<<<', '...', 20) as snip
+                   FROM sessions_fts
+                   WHERE uuid = ? AND content_text MATCH ?
+                   LIMIT 1""",
+                [uuid, sanitized],
+            ).fetchone()
+            if row and row["snip"]:
+                hits.append(f"- **{label}**: {row['snip'][:200]}")
+        except Exception:
+            continue  # FTS5 query syntax errors are non-fatal
+
+    if not hits:
+        return ""
+    return "Pre-scan found potential anti-patterns (verify against full transcript):\n" + "\n".join(hits)
 
 
 def _build_frontmatter(row: sqlite3.Row) -> str:

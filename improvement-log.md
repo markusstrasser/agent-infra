@@ -16,7 +16,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [architectural] Add FTS5 pre-query step to session-analyst: query raw transcripts for known anti-pattern signatures BEFORE compressing. Send targeted segments + compressed context to Gemini for analysis.
 - **Severity:** medium — affects quality of primary feedback mechanism
 - **Root cause:** system-design (compression destroys diagnostic signal per Meta-Harness ablation)
-- **Status:** [ ] proposed — pilot validated, implementation deferred to next session
+- **Status:** [x] implemented — _scan_anti_patterns() in sessions.py cmd_dispatch()
 
 ### [2026-03-26] Session Analyst — Behavioral Anti-Patterns (meta, 4 sessions)
 - **Source:** Direct transcript analysis of sessions aa2981a8, 955b17d9, 7e3fdd99, a315e598 (2026-03-26)
