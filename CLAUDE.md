@@ -139,7 +139,7 @@ Path-dependent decisions get a record. Write when: forecloses alternatives, cost
 
 ## llmx Transport Routing
 
-See `.claude/rules/llmx-routing.md` for model/transport table and gotchas.
+See `~/.claude/rules/llmx-routing.md` (global) for model/transport table and gotchas.
 
 ## What This Repo Is NOT
 - Not a place to write more rules about rules.
