@@ -1522,7 +1522,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Root cause:** agent-capability — Gemini 3.1 Pro hallucinated when asked to analyze session transcripts
 - **Severity:** high — if not cross-checked, 10 fabricated findings would have been staged as real
 - **Recurrences:** 1 (first observed instance of complete fabrication)
-- **Status:** [x] implemented — session-ID validation gate in finding-triage.py (10db50b)
+- **Status:** [x] implemented — originally in finding-triage.py (10db50b, retired 2026-03-21). Re-implemented 2026-04-05: UUID manifest in extract_transcript.py + prompt anchoring + validate_session_ids.py post-validation script (skills 2540962, 3a90887)
 
 ### [2026-04-05] Session Analyst — Behavioral Anti-Patterns (genomics + selve, 10 sessions)
 - **Source:** Direct transcript analysis of sessions bc667bb8, cc8aedbc, c1c41460, 49200449, 319d2ade, c8e0f61b, 2d35d09f, e82bfd51, a9d492d5, f0583790
@@ -1537,7 +1537,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Root cause:** agent-capability — Gemini 3.1 Pro consistently fabricates session references when analyzing transcripts
 - **Severity:** high — 100% fabrication rate across 2 runs
 - **Recurrences:** 2 (2026-04-03, 2026-04-05)
-- **Status:** [ ] proposed — UUID validation gate exists but the root fabrication continues. Consider prompt-level mitigation or model switch.
+- **Status:** [x] implemented — three-layer fix (skills 2540962, 3a90887): (1) UUID manifest table in extraction output, (2) SESSION ID ANCHORING instruction in Gemini prompt, (3) validate_session_ids.py structural post-validation (exit non-zero on fabrication, --strip mode). Tested: caught all 5 fabricated IDs from this run's artifacts.
 
 ### [2026-04-05] MISSING PUSHBACK: No cost probe before 25K Gemini Embedding 2 batch (EUR 94 surprise)
 - **Session:** selve f0583790
