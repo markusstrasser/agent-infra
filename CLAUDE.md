@@ -21,8 +21,8 @@ uv run python3 scripts/sessions.py search <query>  # FTS5 session search
 - `GOALS.md` — what the system optimizes for (human-owned)
 - `justfile` — task runner. `just --list` for all recipes.
 - `improvement-log.md` — session-analyst appends findings here
-- `meta_mcp.py` — cross-project research search (scopes: all, hooks, failures, research, architecture, health, genomics, genes)
-- Scripts: 61 Python files — see `.claude/rules/codebase-map.md` for full inventory
+- `meta_infra_mcp.py` — cross-project research search (scopes: all, hooks, failures, research, architecture, health, genomics, genes)
+- Scripts: see `.claude/rules/codebase-map.md` for full inventory
 
 ## Research Index
 

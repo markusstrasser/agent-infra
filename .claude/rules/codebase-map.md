@@ -2,7 +2,7 @@
 description: Auto-generated file map with cross-file relationships. Updated daily.
 ---
 # Codebase Map
-# 71 Python files — generated 2026-03-28
+# 76 Python files — generated 2026-04-05
 # Navigation: repo_callgraph(target="name") finds callers across files
 
 ## scripts/
