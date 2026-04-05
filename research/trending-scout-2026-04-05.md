@@ -116,8 +116,8 @@ status: complete
 
 ## Actionable Summary
 
-1. **Verify stop hook behavior under CC 2.1.92** — the `ok:false` fix may have been silently breaking our stop-verification hook. Test with a known case.
-2. **Update vendor-versions baseline** — Kimi CLI local 1.26.0 → 1.30.0 (4 versions behind, `uvx kimi-cli` or check install method).
+1. ~~**Verify stop hook behavior under CC 2.1.92**~~ — **DONE. Not affected.** The fix is for prompt-type Stop hooks only. All our Stop hooks (6 global: subagent-synthesis-gate, plan-gate, uncommitted-warn, verify-claims, debrief, notify) are command-type. The only prompt-type hook in the entire setup is a PreToolUse guard in Anki (unrelated).
+2. ~~**Update vendor-versions baseline**~~ — **DONE.** Kimi CLI 1.26.0 → 1.30.0 (`uv tool upgrade`). Agent SDK 0.1.55 → 0.1.56 (`uv pip install --upgrade`).
 3. **Read CORAL (2604.01658)** — shared persistent memory architecture, compare to our MEMORY.md approach.
 4. **Read Scale Agentic Rubrics** — evaluation methodology for session-analyst improvement.
 5. **Note MS Agent Framework 1.0 Claude Code SDK** — watch for preview → stable promotion.
@@ -138,8 +138,8 @@ status: complete
 | WebFetch | Kimi CLI changelog | Yes — full 1.30.0 details |
 
 <!-- knowledge-index
-generated: 2026-04-05T22:40:10Z
-hash: 79580da90b4c
+generated: 2026-04-05T22:59:11Z
+hash: bda3b253c7aa
 
 title: Trending Scout — April 5, 2026
 status: complete
