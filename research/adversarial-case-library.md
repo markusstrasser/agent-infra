@@ -231,6 +231,112 @@ What makes these critiques strong (and what separates them from noise):
 
 ---
 
+## Tier 6: Biomedical Hype Cycles
+
+Fields where enthusiasm systematically outran evidence.
+
+### The Serotonin Hypothesis Is Dead
+**Kirsch et al. (2008)** "Initial Severity and Antidepressant Benefits"
+*PLoS Medicine* | DOI: 10.1371/journal.pmed.0050045
+
+Meta-analysis of FDA-submitted data — including unpublished negative trials the companies buried. Drug-placebo difference clinically significant only for the most severely depressed (HDRS >= 28). ~82% of the antidepressant response is duplicated by placebo. Devastating because it uses the industry's own submission data, removing the "cherry-picked studies" objection. The Cipriani et al. 2018 *Lancet* mega-analysis (522 trials, 116,477 patients) — often cited as proving antidepressants "work" — actually found a standardized mean difference of ~0.30, below standard clinical significance thresholds. The framing ("all antidepressants more effective than placebo") obscures what the numbers show.
+
+Separately, Moncrieff et al. (2022) in *Molecular Psychiatry* showed the serotonin hypothesis of depression — the theoretical basis for SSRIs — has no consistent supporting evidence after 50 years of research. The most prescribed class of psychiatric medication was built on a hypothesis that was never confirmed.
+
+### The Microbiome Hyperbolome
+**Shanahan (2015)** "Separating the Microbiome from the Hyperbolome"
+*Genome Medicine* | https://ncbi.nlm.nih.gov/pmc/articles/PMC4337103/
+**Nature Microbiology (2023)** "Human microbiome myths and misconceptions"
+DOI: 10.1038/s41564-023-01426-7
+
+Shanahan's early and prescient warning coined "hyperbolome" as a term. The 2023 *Nature Microbiology* piece is the field's own flagship journal publishing a systematic myth-busting list — rare self-correction from within. The core pattern: small, confounded studies in mice producing headlines about human health, with the causal arrows unestablished. Nature itself published a 2014 editorial calling for skepticism toward claims it had helped amplify.
+
+### Stem Cells: The Delivery Problem
+**PMC (2018)** "Why Stem Cell Delivery Doesn't Work"
+https://ncbi.nlm.nih.gov/pmc/articles/PMC5947316/
+
+Challenges regenerative medicine at the mechanistic level: getting stem cells to survive, engraft, and differentiate at target sites remains fundamentally unsolved. Most therapeutic claims are premature because the delivery problem makes them structurally impossible. Meanwhile, thousands of DTC clinics sell "stem cell therapy" that may contain no viable stem cells at all (Medscape 2024 investigation). Thirteen years after Yamanaka's Nobel, Nature (2025) is still publishing editorials warning the field isn't ready for clinical translation.
+
+### Transgenerational Epigenetic Inheritance: Neo-Lamarckism Without Evidence
+**Nature Communications (2018)** "A critical view on transgenerational epigenetic inheritance in humans"
+DOI: 10.1038/s41467-018-05445-5
+**Cell (2014)** "Transgenerational Epigenetic Inheritance: Myths and Mechanisms"
+https://www.cell.com/fulltext/S0092-8674(14)00286-4
+
+The pop-science narrative — "your grandmother's trauma changes your genes" — collapses under scrutiny. Mammalian germline reprogramming specifically evolved to prevent transgenerational inheritance. The Dutch Hunger Winter and Holocaust survivor epigenetics studies have severe confounds (maternal behavior, shared environment, selection effects) consistently ignored in media coverage (Kevin Mitchell's detailed critique at wiringthebrain.com). eLife (2024) tested whether non-transmitted paternal alleles affect offspring phenotype in isogenic mice — null result. The distinction between intergenerational (direct exposure, well-established) and transgenerational (F3+, unproven in humans) is systematically blurred.
+
+---
+
+## Tier 7: Engineering & Technology
+
+### The Citicorp Center: Blowing the Whistle on Yourself
+**Morgenstern (1995)** "The Fifty-Nine-Story Crisis"
+*The New Yorker* | https://newyorker.com/magazine/1995/05/29/the-fifty-nine-story-crisis
+
+LeMessurier discovers his own skyscraper design is fatally flawed — quartering winds + bolted joints (changed from welded during construction) would cause collapse. An undergraduate's question exposed what the entire professional engineering establishment missed. The adversarial act: an engineer destroying his own reputation to prevent catastrophe, with hurricane season approaching.
+
+### Challenger: Deeper Than the O-Rings
+**challenger-o-ring.com** — "Understanding the Challenger Disaster"
+https://www.challenger-o-ring.com/understanding_the_challenger_disaster.php
+
+Challenges the consensus Rogers Commission narrative (cold O-rings) with primary-source evidence that the disaster resulted from a fundamental SRM joint design flaw known for years. Morton Thiokol and NASA engaged in collective denial — the temperature issue was real but was the proximate cause on top of a systemic design failure.
+
+### Autonomous Vehicles: Perpetually 5 Years Away
+**Rodney Brooks** — "AGI Has Been Delayed"
+http://rodneybrooks.com/agi-has-been-delayed/
+**Filip Piekniewski** — "AI Mid 2021: Self Driving Car Meets Reality"
+https://blog.piekniewski.info/2021/05/12/ai-mid-2021/
+
+Brooks (MIT robotics, co-founder iRobot) tracks Tesla's repeatedly missed autonomy deadlines systematically. Piekniewski (computer vision researcher) makes the "last 1% is 99% of the work" argument with specific technical examples — the gap between geofenced demos and real-world deployment. Connects to the broader pattern of confusing a demo with a deployable product, which recurs across fusion, gene therapy, and quantum computing.
+
+---
+
+## Tier 8: Humanities & Social Science Methodology
+
+### The Sokal Affair: Testing Unfalsifiability
+**Alan Sokal (1996)** "Transgressing the Boundaries: An Afterword"
+https://physics.nyu.edu/sokal/afterword_v1a/afterword_v1a_singlefile.html
+**Sokal & Bricmont** — *Fashionable Nonsense* (Chapter 1)
+http://cogweb.ucla.edu/Debate/SokalFNCh1.html
+
+Sokal submitted a paper of deliberate nonsense — "Transgressing the Boundaries: Toward a Transformative Hermeneutics of Quantum Gravity" — to *Social Text*, which published it. His afterword articulates the core argument: postmodern humanities systematically misappropriate scientific concepts without understanding them, and peer review in these fields failed to catch deliberate gibberish.
+
+*Fashionable Nonsense* extends this to specific philosophers (Lacan, Kristeva, Irigaray, Baudrillard, Deleuze), documenting precise instances of mathematical and scientific terminology used incorrectly.
+
+### The Grievance Studies Affair — And Its Critique
+**Boghossian, Lindsay, Pluckrose (2018)** — 20 papers submitted, 7 accepted
+**Cole (2021)** Critique in *Sociological Methods & Research* DOI: 10.1177/00491241211009949
+**Lagerspetz (2020)** in *Science, Technology & Human Values* DOI: 10.1177/0162243920923087
+
+The affair itself: 20 hoax papers submitted to gender studies, fat studies, and related journals. 7 accepted, 4 published. But the *critiques of the critique* are equally important: Cole showed there was no control condition (papers weren't submitted to non-grievance fields), making it impossible to conclude the problems are unique to these fields vs. endemic to peer review generally. Lagerspetz reconstructed the experimental design formally and found acceptance rates were actually modest and results selectively presented.
+
+This makes the affair a two-level case study: (1) some humanities fields publish unfalsifiable work, AND (2) the hoaxers' own methodology had the same rigor problems they were critiquing.
+
+---
+
+## Tier 9: AI Capability Claims
+
+### Erdosgate: GPT-5's "Solved" Problems
+**Gary Marcus (2025)** — "Erdosgate"
+https://garymarcus.substack.com/p/erdosgate
+
+Bubeck's claim that GPT-5 "solved" unsolved Erdos problems collapsed within hours — the system had crawled web solutions to already-solved problems. The math community's revolt is documented. Exposes the recurring pattern: AI labs announce breakthrough → community finds the benchmark was contaminated or the claim overcounted → labs quietly move on.
+
+### MLE-bench Data Contamination
+**Bordt (2024)** — "Data Contamination in MLE-bench"
+https://sbordt.substack.com/p/data-contamination-in-mle-bench
+
+OpenAI's MLE-bench (Kaggle competition benchmark for ML agents) suffers from data contamination — LLMs were trained on the competition solutions. The benchmark that shaped public perception of AI coding ability was measuring memorization, not capability.
+
+### The Scaling Wall
+**Multiple sources (2025-2026)**
+
+No major lab achieved the rumored "GPT-5 level" despite massive capex investment. Llama 4, GPT-4.5, Grok 3, Gemini — each fell short of projected scaling curves. The field-level claim: transformer scaling has hit diminishing returns for pre-training, and the shift to inference-time compute (o1/o3-style) is a pivot away from a stalled paradigm, not a planned evolution.
+
+Apple's "Illusion of Thinking" paper showed LLMs break on moderately complex Tower of Hanoi (8 discs, solved classically in 1957). The most popular rebuttal was, per Marcus, "literally a joke."
+
+---
+
 ## Sources & Internal Cross-References
 
 ### Genomics project adversarial self-audits (8 documents, 2,165 lines):
@@ -251,10 +357,12 @@ What makes these critiques strong (and what separates them from noise):
 ### Exa search artifacts:
 - `meta/artifacts/2026-04-04-exa-adversarial-finds.md` — batch 1 curation (16 pieces)
 - `meta/artifacts/2026-04-04-exa-adversarial-finds-batch2.md` — batch 2 curation (16 pieces)
+- `meta/artifacts/2026-04-04-exa-adversarial-batch3.md` — batch 3: AI capability, engineering, microbiome, stem cells (21 pieces)
+- `meta/artifacts/2026-04-04-exa-adversarial-batch4.md` — batch 4: humanities, epigenetics, tech hype, antidepressants (21 pieces)
 
 <!-- knowledge-index
-generated: 2026-04-05T04:07:33Z
-hash: fefdbc432cd6
+generated: 2026-04-05T04:24:26Z
+hash: 22779e47ca26
 
 cross_refs: docs/audit/adversarial-remediation/trait_replication_audit.md, docs/research/adversarial_complexity_vs_signal_2026-04-04.md, docs/research/adversarial_field_critique_2026-04-04.md, docs/research/adversarial_network_pathway_2026-04-04.md, docs/research/adversarial_noncoding_interpretation_2026-04-04.md, docs/research/adversarial_personal_value_2026-04-04.md, docs/research/adversarial_pgx_chain_2026-04-04.md, docs/research/adversarial_predictor_zoo_2026-04-04.md, research/agent-reliability-benchmarks.md, research/benchmarking-science-2026.md, research/cross-model-review-failure-modes.md
 
