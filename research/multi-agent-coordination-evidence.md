@@ -37,6 +37,8 @@ Our current architecture is validated: **orchestrator (Opus) + worker subagents 
 
 **NEW decision:** Route by task structure. Research tasks (multiple independent search axes) → multi-agent parallelization. Sequential analysis tasks (entity investigation, hypothesis testing) → single agent. We're already doing this implicitly with the researcher skill's parallel dispatch — make it explicit.
 
+**NEW finding (Anthropic engineering blog, April 2026):** Token usage explains 80% of quality variance on BrowseComp. Model upgrade (Sonnet 4→4.6) produced larger gains than doubling token budget on older models. Implication: our turn-budget heuristic (70% rule, 15-tool-call ceiling) is a proxy for token allocation. Worth tracking token usage per research subagent to calibrate — but the turn-budget proxy works well enough operationally given we can't read token usage from subagent internals. Also: their explicit "start broad, narrow later" search instruction counters agents' default toward overly-specific queries — adopted into researcher skill. `[SOURCE: anthropic.com/engineering/multi-agent-research-system]`
+
 **NEW risk:** The 45% threshold means for our best tasks (entity refresh, signal scanning), adding agents may already be past diminishing returns. Only parallelize when the single-agent success rate is below 45%.
 
 ### NEW — Orchestration-Level Verification (March 2026)
@@ -61,8 +63,8 @@ Key findings:
 **Combined implication for our orchestrator:** Add lightweight orchestration-level verification (VMAO), consider deliberation-before-tool-use (DOVA), but don't over-invest given both papers have small-N evaluations and our pipelines are 3-7 steps (VMAO shows most value at 8-12+ steps).
 
 <!-- knowledge-index
-generated: 2026-03-22T00:15:44Z
-hash: 5a90e0f8cb23
+generated: 2026-04-05T18:40:16Z
+hash: 2e9f0d19285b
 
 title: Multi-Agent Coordination — Now With Controlled Experiments
 
