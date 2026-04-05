@@ -1523,3 +1523,48 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Severity:** high — if not cross-checked, 10 fabricated findings would have been staged as real
 - **Recurrences:** 1 (first observed instance of complete fabrication)
 - **Status:** [x] implemented — session-ID validation gate in finding-triage.py (10db50b)
+
+### [2026-04-05] Session Analyst — Behavioral Anti-Patterns (genomics + selve, 10 sessions)
+- **Source:** Direct transcript analysis of sessions bc667bb8, cc8aedbc, c1c41460, 49200449, 319d2ade, c8e0f61b, 2d35d09f, e82bfd51, a9d492d5, f0583790
+- **Shape:** 10 sessions (2 trivial, 3 clean, 5 with findings), ~760KB transcripts, 8 findings (1 recurrence of Gemini hallucination, 2 recurrences of known patterns, 1 novel high-severity)
+- **Note:** Gemini 3.1 Pro hallucinated all session IDs again (2nd occurrence, same 019d4xxx pattern). All findings below from direct Claude analysis.
+
+### [2026-04-05] RECURRENCE: Gemini 3.1 Pro hallucinated entire session-analyst output (2nd occurrence)
+- **Session:** meta (session-analyst run targeting genomics/selve)
+- **Evidence:** Given 764KB transcripts with 10 valid session IDs. Gemini returned 7 findings citing IDs 019d4f66, 019d4c84, 019d5029, 019d454c, 019d4a28 — zero match input. Same 019d4xxx fabrication pattern as 2026-04-03. Finding categories were plausible but entirely invented.
+- **Failure mode:** gemini-wholesale-hallucination (2nd occurrence)
+- **Proposed fix:** [architectural] Either (a) prepend explicit "VALID SESSION IDS: ..." instruction to Gemini prompt to anchor outputs, or (b) switch primary analysis to Claude with Gemini as secondary check, or (c) add automated post-Gemini UUID validation gate (partially implemented in finding-triage.py)
+- **Root cause:** agent-capability — Gemini 3.1 Pro consistently fabricates session references when analyzing transcripts
+- **Severity:** high — 100% fabrication rate across 2 runs
+- **Recurrences:** 2 (2026-04-03, 2026-04-05)
+- **Status:** [ ] proposed — UUID validation gate exists but the root fabrication continues. Consider prompt-level mitigation or model switch.
+
+### [2026-04-05] MISSING PUSHBACK: No cost probe before 25K Gemini Embedding 2 batch (EUR 94 surprise)
+- **Session:** selve f0583790
+- **Evidence:** Agent ran generate_gemini_embeddings.py on 25,069 media items sending raw image bytes via Part.from_bytes(). Total cost EUR 93.68 for embedding alone (video SKU). Global CLAUDE.md rule #8 explicitly requires: "Before any batch job >1K items, run a 10-item probe. Check the billing SKU names (image vs video vs text pricing tiers differ by 10-100x)." A 10-item probe would have revealed the video SKU pricing and the agent could have proposed text-only embedding (~1/50th cost).
+- **Failure mode:** batch-cost-oversight (rule #8 violation)
+- **Proposed fix:** [hook] PreToolUse:Bash hook that detects batch-job invocations (patterns: embedding, generate, batch, --source all) and injects cost-probe reminder. Or add cost-aware mode to embedding script itself (--estimate flag).
+- **Root cause:** agent-capability — rule exists but wasn't triggered during pipeline execution
+- **Severity:** high — EUR 94 avoidable cost, exact scenario the rule was written to prevent
+- **Recurrences:** 1 (first occurrence with this specific rule, but rule was written from prior incident evidence)
+- **Status:** [ ] proposed
+
+### [2026-04-05] RECURRENCE: Subagent search-without-synthesis (2/5 researchers wrote scaffolds only)
+- **Session:** genomics c1c41460, genomics 319d2ade
+- **Evidence:** In c1c41460, 5 adversarial research agents dispatched. Multiverse stability and reference frame agents exhausted turns searching (14+ search calls, 6+ search calls respectively) and wrote placeholder-filled scaffolds ([SEARCHING], [TO BE WRITTEN]). Required dedicated recovery agents (~100K extra tokens each). In 319d2ade, personal value agent wrote 177-line file with 4 placeholder sections. Turn-budget rule ("stop searching at 70% of turns and synthesize") exists in dispatch prompts but failed for 3/8 researcher agents across 2 sessions.
+- **Failure mode:** subagent-search-exhaustion (3rd+ class occurrence: 2026-03-18 turn-budget rule added, 2026-03-26 recurrence, now 2026-04-05)
+- **Proposed fix:** [architectural] The turn-budget instruction in dispatch prompts is insufficient — 3/8 (37.5%) failure rate. Consider: (a) researcher skill itself should enforce a hard synthesis checkpoint at 70% turns (not just instruction), (b) post-agent hook checking output files for placeholder tokens, (c) reduce max search calls in researcher skill
+- **Root cause:** system-design — instruction-only enforcement for a recurring high-waste failure
+- **Severity:** medium — ~300K extra tokens for recovery agents across 2 sessions
+- **Recurrences:** 3+ (recurring despite turn-budget rule)
+- **Status:** [ ] proposed — instruction-level fix insufficient, needs architectural enforcement
+
+### [2026-04-05] TOKEN WASTE: 7x sequential Read of same file then sed fallback
+- **Session:** genomics bc667bb8
+- **Evidence:** system_burden_analysis.py (~920 lines) Read 7 times consecutively, then 5 sed -n range commands to read specific sections. The file was within Read's 2000-line limit, so a single Read would have sufficed. Total: ~12 wasted tool calls.
+- **Failure mode:** token-waste / dup-read (recurring pattern, posttool-dup-read hook exists)
+- **Proposed fix:** [monitor] Hook should catch this. Verify posttool-dup-read.sh is firing and producing actionable warnings.
+- **Root cause:** agent-capability
+- **Severity:** low — 12 extra tool calls, hook should already prevent this
+- **Recurrences:** recurring (hook deployed, compliance unclear)
+- **Status:** [ ] monitoring
