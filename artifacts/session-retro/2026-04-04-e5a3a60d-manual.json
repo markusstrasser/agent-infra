@@ -1,1 +1,45 @@
-{"findings": [{"category": "TOKEN_WASTE", "summary": "Researcher subagent rejected by user, died with zero output. Re-dispatch with incremental-write guard succeeded. ~65K tokens wasted on first attempt.", "severity": "medium", "evidence": "First arxiv-agent-knowledge agent returned error, no file written. Second arxiv-sweep-2 with write-after-2-searches instruction succeeded.", "project": "meta", "proposed_fix": "Enforce incremental-write in all researcher agent dispatches via agents/researcher.md hard requirement"}, {"category": "WRONG_ASSUMPTION", "summary": "Stop hook false positive: flagged 'aren't committed' as claiming commits exist. Regex doesn't handle negation.", "severity": "low", "evidence": "stop-verify-claims.sh blocked exit with false claim about unverified commits", "project": "meta", "proposed_fix": "Fix stop-verify-claims.sh regex to exclude negated commit references"}, {"category": "SCOPE_CREEP", "summary": "Produced 2 compiled articles before researching whether compilation helps agents. Research then showed pre-synthesis hurts. Correct sequence: evaluate first, produce after.", "severity": "medium", "evidence": "Dispatched compile-epistemic + compile-scaffolding (~210K tokens) before wiki-vs-flat research", "project": "meta", "proposed_fix": "Follow existing feedback_evaluative_questions.md — 'should we X?' gets assessment first, not production"}, {"category": "TOKEN_WASTE", "summary": "Sent recovery message to dead agent via SendMessage. Agent was already terminated, message had no effect, wasted 15s polling.", "severity": "low", "evidence": "SendMessage returned success but agent was dead. sleep 15 + ls found nothing.", "project": "meta", "proposed_fix": "After agent rejection/error, re-dispatch fresh. Don't attempt SendMessage recovery on terminated agents."}], "source": "manual-retro"}
+{
+  "findings": [
+    {
+      "category": "WRONG_ASSUMPTION",
+      "summary": "Assumed launch_failed = timeout for 3h. Never checked modal app logs. Real cause was ModuleNotFoundError visible in first failed app.",
+      "severity": "high",
+      "evidence": "8 spliceai apps crashed with same error. 63 orphan Modal apps from timeout kills. 3h wasted on timeout adjustments.",
+      "project": "genomics",
+      "proposed_fix": "Auto-fetch modal app logs on stage failure in orchestrator. Hook: _resolve_stage_status should print last 10 log lines on failure."
+    },
+    {
+      "category": "WRONG_ASSUMPTION",
+      "summary": "Increased subprocess timeout 3x (120→180→360s) when fix was removing it. modal run --detach always returns. Timeout kills process but Modal continues.",
+      "severity": "high",
+      "evidence": "4 commits adjusting timeout. 63 orphan apps. Root cause found on 5th attempt.",
+      "project": "genomics",
+      "proposed_fix": "Modal skill gotcha #32 added. Memory saved. Orchestrator patched."
+    },
+    {
+      "category": "TOKEN_WASTE",
+      "summary": "Manually launched stages 3 times instead of fixing orchestrator resource caps. Default GPU cap=1 was the throttle.",
+      "severity": "medium",
+      "evidence": "3 manual batch-launch scripts. One grep for DEFAULT_RESOURCE_CAPS would have found GPU:1.",
+      "project": "genomics",
+      "proposed_fix": "Debug the orchestrator first, not work around it. Raised defaults to GPU:4, poll:15s, max:20."
+    },
+    {
+      "category": "TOOL_MISUSE",
+      "summary": "nohup uv run > log produces empty files. uv buffers stdout. Tried 3 times before PYTHONUNBUFFERED=1.",
+      "severity": "medium",
+      "evidence": "/tmp/pipeline_rerun.log 0 bytes, v2.log 0 bytes.",
+      "project": "genomics",
+      "proposed_fix": "Added os.environ PYTHONUNBUFFERED to orchestrator. Rule: always PYTHONUNBUFFERED when redirecting Python."
+    },
+    {
+      "category": "BUILD_THEN_UNDO",
+      "summary": "Fixed spliceai config loading but missed ['spliceai_profile'] key on Modal path. Required immediate follow-up commit.",
+      "severity": "low",
+      "evidence": "Commits 657e377 then 1529865. Didn't test Modal path before committing.",
+      "project": "genomics",
+      "proposed_fix": "Probe Modal image or use modal shell before committing Modal script fixes."
+    }
+  ],
+  "source": "manual-retro"
+}
