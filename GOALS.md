@@ -52,7 +52,7 @@ The invariants: the Constitution section (in CLAUDE.md) and GOALS.md are human-o
 
 **`/loop` + interactive sessions is the primary workflow.** The human runs Claude Code directly, uses `/loop` for recurring tasks (steward, research cycles, maintenance), and steers in real-time. This provides visibility, steerability, and full agent context that batch orchestration can't match.
 
-The orchestrator (`scripts/orchestrator.py`) remains for truly unattended scheduled work — session-retro, morning-brief, runlog imports — but is not the autonomy engine. The autonomy engine is the interactive loop: human sets direction → agent executes with `/loop` or subagents → human reviews output in-session.
+The orchestrator was archived 2026-04-06 (ran 7/42 expected tasks in 14 days — unreliable and opaque). `/schedule` (Claude Code native cloud cron) replaces it for truly unattended work. The autonomy engine is the interactive loop: human sets direction → agent executes with `/loop` or subagents → human reviews output in-session.
 
 ## Research Cadence
 
