@@ -1,0 +1,45 @@
+{
+  "findings": [
+    {
+      "category": "WRONG_ASSUMPTION",
+      "summary": "I treated earlier scan passes as near-complete without a strict closure condition, then later passes still surfaced new high-impact contract failures.",
+      "severity": "high",
+      "evidence": "scripts/generate_dashboard.py:99-104 has fallback bypassing resolve_stage_file; scripts/pipeline_stages.py includes manta/alphamissense/gpn_msa/dl_merge registry entries while decorated functions expose sv_merged/dl_variant_scores. Earlier summaries had repeatedly moved to closure before these were all reported.",
+      "project": "genomics",
+      "proposed_fix": "Define a non-negotiable drift-close checklist: run lint_registry, validate alias-mapping coverage, and dashboard/bundle status-gate check before any 'done/no-more findings' response. Encode as a project-level checklist command."
+    },
+    {
+      "category": "SEARCH_WASTE",
+      "summary": "Late passes used broad full-repo regex sweeps after key signals were already in hand, producing high-noise outputs and low signal per minute.",
+      "severity": "medium",
+      "evidence": "`rg -n \"Paths\\(\\)\\.stage_dir\\(|analysis / \\\"|analysis_artifact\\(|data/wgs/analysis|...\" scripts --glob '!scripts/archive/**' --glob '!scripts/old/**'` returned large mixed-hit output (8k+ lines).",
+      "project": "genomics",
+      "proposed_fix": "Add a scripted scan order: (1) lint_registry.py, (2) known drift hotspots list, (3) constrained rg on specific files. Reject broad catches unless delta check explicitly requests a full sweep."
+    },
+    {
+      "category": "TOKEN_WASTE",
+      "summary": "Manual broad reads/sweeps were repeated in many turns without first updating a shared findings state, causing avoidable churn for the same problem class.",
+      "severity": "medium",
+      "evidence": "Across this session, multiple near-identical scan prompts yielded repeated `rg`/inspection passes, while unresolved classes remained (`analysis_bundle.py`, `analysis_loaders.py`, `generate_dashboard.py`).",
+      "project": "genomics",
+      "proposed_fix": "Persist scan state in a dated issue file and have follow-up scans execute only delta queries from that file (new/unconfirmed paths only)."
+    },
+    {
+      "category": "BUILD_THEN_UNDO",
+      "summary": "The session repeatedly revisited the same findings surface before completion without a clean handoff artifact, increasing cognitive reset cost each turn.",
+      "severity": "low",
+      "evidence": "User-requested re-runs of 'what else' followed multiple assistant closure statements; no unified artifact was updated after each pass in-session.",
+      "project": "genomics",
+      "proposed_fix": "After each sweep, append findings to `docs/audit/<date>-drift-scan.md` and mark confidence level; subsequent turns should consume only that file and then run a small deltascan."
+    },
+    {
+      "category": "TOOL_MISUSE",
+      "summary": "One validation step (`git log --grep` pre-audit claim) was not used before asserting current state during this run, increasing risk of rediscovering already-fixed findings.",
+      "severity": "low",
+      "evidence": "Retrospective check rule in AGENTS (`21. git log --grep before re-auditing dispatch findings`) was not explicitly executed in this session’s loop before re-scans.",
+      "project": "genomics",
+      "proposed_fix": "Integrate an automatic pre-scan check: parse recent git log for terms matching target files and skip unchanged findings from fixed commits."
+    }
+  ],
+  "source": "manual-retro"
+}

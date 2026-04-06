@@ -1,0 +1,45 @@
+{
+  "findings": [
+    {
+      "category": "WRONG_ASSUMPTION",
+      "summary": "ephemeral_disk=200_000 below Modal minimum (524,288 MiB) — plan value wrong, validate failed",
+      "severity": "medium",
+      "evidence": "Modal error: Function disk request out of bounds: 200000 MiB. Must be between 524288 and 3145728 MiB.",
+      "project": "genomics",
+      "proposed_fix": "Omit ephemeral_disk unless >500 GiB needed. Default disk handles BAM staging. Modal skill gotcha #12 already documents range."
+    },
+    {
+      "category": "ENVIRONMENT",
+      "summary": "scripts/data/ caught by data/ gitignore rule — had to move BED to config/",
+      "severity": "low",
+      "evidence": ".gitignore:17:data/ matching scripts/data/gene_entity_regions.bed",
+      "project": "genomics",
+      "proposed_fix": "Rule: never create subdirs named data/ under tracked directories. Use config/ for reference data files."
+    },
+    {
+      "category": "WRONG_ASSUMPTION",
+      "summary": "VCF GT comparison treated phased 0|1 as different from unphased 0/1 — inflated discordance 18x (542K vs 29K real)",
+      "severity": "high",
+      "evidence": "compare_callsets.py output: 11.7% discordance → 0.63% after phase normalization. 95% of gene-region discordance was phase notation only.",
+      "project": "genomics",
+      "proposed_fix": "Phase-normalize genotypes in any VCF comparison: gt.replace('|', '/') then sort alleles. Add to CLAUDE.md pitfalls."
+    },
+    {
+      "category": "ENVIRONMENT",
+      "summary": "Other active agent committed my new files into its own commit during canary gate debugging — git staging collision",
+      "severity": "low",
+      "evidence": "git show --stat dbd03fe shows compare_callsets.py and gene_entity_regions.bed in pid 76920's commit",
+      "project": "genomics",
+      "proposed_fix": "Known multi-agent git contention (3 prior improvement-log entries). No new fix — startup hook already warns."
+    },
+    {
+      "category": "TOKEN_WASTE",
+      "summary": "Spent ~8 tool calls investigating plan's '22 gene entities' count when script already had 74 ACMG SF genes",
+      "severity": "low",
+      "evidence": "Grep/Read calls on condition_registry.py, entity dirs, HGNC files — all unnecessary",
+      "project": "genomics",
+      "proposed_fix": "When plan references a count that doesn't match existing code, use existing code's list. Plan was written before implementation."
+    }
+  ],
+  "source": "manual-retro"
+}

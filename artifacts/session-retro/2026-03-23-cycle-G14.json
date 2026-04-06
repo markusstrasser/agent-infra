@@ -1,0 +1,24 @@
+{
+  "date": "2026-03-23",
+  "cycle": "G14-C9orf72",
+  "events": [
+    {
+      "category": "WRONG_ASSUMPTION",
+      "description": "Brainstorm I13 overclaimed: 'FMR1, HTT, C9orf72, ATXN1/2/3/7, DMPK all missing' \u2014 only C9orf72 was absent. 7/8 already in 78-locus catalog.",
+      "mitigation": "Probe-before-act (catalog JSON check) caught the error before writing a plan for 8 items"
+    }
+  ],
+  "what_worked": [
+    "Inline probe of catalog JSON confirmed I13 overclaim before any wasted planning",
+    "bio-verify by /maintain caught stale locus count in script concurrently \u2014 coordinated fix",
+    "G14 shipped in 3 ticks: gap-analyze \u2192 inline plan+execute \u2192 verify"
+  ],
+  "instrumentation": {
+    "orphan_rate": 0,
+    "duplicate_rate": 0,
+    "handoff_success": 1,
+    "review_catch_rate": "n/a (trivial change, no cross-model review)",
+    "verify_fail_rate": 0,
+    "cycle_latency": "3 ticks (gap-analyze \u2192 execute \u2192 verify)"
+  }
+}

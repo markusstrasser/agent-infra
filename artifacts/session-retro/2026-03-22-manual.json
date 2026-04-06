@@ -1,0 +1,45 @@
+{
+  "findings": [
+    {
+      "category": "ENVIRONMENT",
+      "summary": "zsh integer comparison breaks bash -c counting loops — 150+ error lines per scan",
+      "severity": "medium",
+      "evidence": "Every file-ranking Bash call produced ~150 'integer expression expected' errors because zsh [ ] doesn't handle grep -c output with newlines. Happened 3 times (rounds 1, 2, 3 file scans).",
+      "project": "genomics",
+      "proposed_fix": "Write file-ranking as python3 one-liner or use grep -c piped to sort without zsh [ ] comparison. Add to genomics MEMORY.md."
+    },
+    {
+      "category": "TOOL_MISUSE",
+      "summary": "First agent dispatch rejected by hook — missing turn-budget instruction despite being in CLAUDE.md",
+      "severity": "medium",
+      "evidence": "All 4 round-1 agents rejected by PreToolUse:Agent hook. Had to re-dispatch with 'CRITICAL: Stop all searching by your 18th tool call'. Known rule but not applied on first attempt.",
+      "project": "genomics",
+      "proposed_fix": "Hook IS the fix — catches the failure. No additional fix beyond existing hook."
+    },
+    {
+      "category": "SEARCH_WASTE",
+      "summary": "bio-verify skill Step 1 only scanned scripts/*.py, missing config/*.json where 80% of coordinate errors lived",
+      "severity": "high",
+      "evidence": "blood_type_panel.json had 4/5 critical errors (80%). Skill grep pattern only targeted scripts/*.py. Fixed in skill update.",
+      "project": "genomics",
+      "proposed_fix": "DONE — bio-verify SKILL.md updated to scan config/*.json."
+    },
+    {
+      "category": "TOKEN_WASTE",
+      "summary": "bugfixer agent applied edits but did not commit — had to verify and commit manually",
+      "severity": "low",
+      "evidence": "Bugfixer agent stopped after edits despite prompt saying 'commit with [curation] Fix...'. Parent checked diff and committed.",
+      "project": "genomics",
+      "proposed_fix": "When dispatching fix agents, add explicit 'After all edits, run git add + git commit' as final instruction."
+    },
+    {
+      "category": "WRONG_ASSUMPTION",
+      "summary": "Assumed MyVariant.info returns dbsnp.hg38 — it doesn't. Required Ensembl fallback.",
+      "severity": "low",
+      "evidence": "Probe showed no hg38 field in MyVariant response. Implemented Ensembl REST resolver. Probe-first rule (#7) caught it before building.",
+      "project": "biomedical-mcp",
+      "proposed_fix": "No fix needed — probe-first rule worked. Plan risk assessment correctly flagged as MEDIUM with fallback."
+    }
+  ],
+  "source": "manual-retro"
+}

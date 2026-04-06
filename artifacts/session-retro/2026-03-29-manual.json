@@ -1,0 +1,45 @@
+{
+  "findings": [
+    {
+      "category": "WRONG_ASSUMPTION",
+      "summary": "Assumed LFB blocked on UniRef50 download — DB already existed. CYCLE.md blocker was stale.",
+      "severity": "medium",
+      "evidence": "setup_uniref50_db returned 'already exists' immediately",
+      "project": "genomics",
+      "proposed_fix": "Rule: verify CYCLE.md blocker claims by running check command before planning around them"
+    },
+    {
+      "category": "ENVIRONMENT",
+      "summary": "PRS scoring 0/81 due to format spec on string — meta['n_variants']:, crashes on str type",
+      "severity": "high",
+      "evidence": "modal_prs_expanded.py line 322: Cannot specify ',' with 's' — every PGS entry crashed silently",
+      "project": "genomics",
+      "proposed_fix": "Coerce numeric PGS metadata fields to int in pgs_core.py parse function"
+    },
+    {
+      "category": "ENVIRONMENT",
+      "summary": "lfb package builds empty wheels — hatchling src-layout + uv produces zero .py files, required 5 image rebuilds to diagnose",
+      "severity": "medium",
+      "evidence": "pip show -f lfb listed only dist-info, zero .py files despite successful install",
+      "project": "genomics",
+      "proposed_fix": "CLAUDE.md pitfall: verify pip-from-git packages have .py files via pip show -f before wiring into pipeline"
+    },
+    {
+      "category": "WRONG_ASSUMPTION",
+      "summary": "Volume has dual result paths (/results/ legacy vs /data/results/ new) — looked in wrong location for LFB output",
+      "severity": "low",
+      "evidence": "modal volume ls /data/results/ showed nothing; /results/esm_lfb/ had the files",
+      "project": "genomics",
+      "proposed_fix": "Informational — dual paths are legacy. Not worth fixing."
+    },
+    {
+      "category": "TOKEN_WASTE",
+      "summary": "4 user status polls during 45-min PRS run because attached Modal runs get backgrounded by Claude Code with no output",
+      "severity": "low",
+      "evidence": "4 'check status?' messages, 8 tool calls reading output file",
+      "project": "genomics",
+      "proposed_fix": "Use --detach + modal app logs --follow for long runs instead of attached runs"
+    }
+  ],
+  "source": "manual-retro"
+}

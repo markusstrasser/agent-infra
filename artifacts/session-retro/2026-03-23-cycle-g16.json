@@ -1,0 +1,21 @@
+{
+  "date": "2026-03-23",
+  "cycle": "G16",
+  "project": "genomics",
+  "shipped": ["G16-DISCORDANT_VEP-priority-scorer"],
+  "blocked": ["G4-IGVF-MaveMD-API-HTML"],
+  "retro": {
+    "WRONG_ASSUMPTION": "G4: assumed IGVF had REST API — probe showed HTML. Same as G6. Rule: HTTP-probe new APIs before planning.",
+    "review_catch_rate": 1
+  },
+  "metrics": {
+    "orphan_rate": 0,
+    "duplicate_rate": 0,
+    "handoff_success": 0,
+    "review_catch_rate": 1,
+    "verify_fail_rate": 0,
+    "cycle_latency_ticks": 4
+  },
+  "cycle_line_count_before": 99,
+  "cycle_line_count_after": 68
+}

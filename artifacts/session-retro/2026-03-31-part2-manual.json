@@ -1,0 +1,3 @@
+{"findings": [
+  {"category": "TOKEN_WASTE", "summary": "Serial single-axis model reviews instead of multi-axis dispatch — user had to ask for GPT review", "severity": "low", "evidence": "User: 'what about gpt review?' after Gemini simple completed", "project": "genomics", "proposed_fix": "Memory: use multi-axis presets (simple/standard/deep) not sequential single-axis dispatches"}
+], "source": "manual-retro"}

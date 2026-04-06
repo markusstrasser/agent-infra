@@ -1,0 +1,21 @@
+{
+  "date": "2026-03-23",
+  "cycle": "G13",
+  "project": "genomics",
+  "shipped": ["G13-PCSK9-R46L", "G14-C9orf72-STR"],
+  "retro": {
+    "WRONG_ASSUMPTION": "Wrote G11 Active Plan without checking DECISIONS.md — prior agent had escalated G11. Fix: read DECISIONS.md before writing any plan.",
+    "TOOL_MISUSE": "subprocess python3 bcftools call returned NOT FOUND; direct bash bcftools found variant. Environment isolation bug.",
+    "BUILD_THEN_UNDO": "G11 plan written then overridden (2 wasted ticks)."
+  },
+  "metrics": {
+    "orphan_rate": 0,
+    "duplicate_rate": 1,
+    "handoff_success": 1,
+    "verify_fail_rate": 0,
+    "cycle_latency_ticks": 3
+  },
+  "memo_updates": ["completeness_gap_analysis RESOLVED", "completeness_gap_round2 RESOLVED", "completeness_gap_round3 RESOLVED"],
+  "cycle_line_count_before": 298,
+  "cycle_line_count_after": 73
+}

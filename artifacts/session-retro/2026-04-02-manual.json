@@ -1,0 +1,77 @@
+{
+  "findings": [
+    {
+      "category": "WRONG_ASSUMPTION",
+      "summary": "Assumed the named skill lived under the repo-local .agents path; the actual researcher skill for this session was in the shared skills directory.",
+      "severity": "medium",
+      "evidence": "`sed -n '1,220p' /Users/alien/Projects/intel/.agents/skills/researcher/SKILL.md` -> `No such file or directory`; corrected to `/Users/alien/Projects/skills/researcher/SKILL.md`.",
+      "project": "intel",
+      "proposed_fix": "Add a path-resolution fallback rule: if a provided skill path 404s, immediately try the exact path from the skills index and then `~/Projects/skills/<name>/SKILL.md` before doing anything else."
+    },
+    {
+      "category": "TOOL_MISUSE",
+      "summary": "Used raw `rg` against inline SEC HTML/XBRL, which produced huge low-signal output and poor extraction locality.",
+      "severity": "high",
+      "evidence": "`curl ... hims-20251231.htm | rg -n ...` and the follow-up returned giant single-line outputs with 262144-token truncation before switching to BeautifulSoup text extraction.",
+      "project": "intel",
+      "proposed_fix": "Create a small helper script or rule for SEC filings: normalize HTML to text with BeautifulSoup first, then search. Do not grep raw inline XBRL HTML."
+    },
+    {
+      "category": "SEARCH_WASTE",
+      "summary": "Spent time guessing newsroom slugs and broad-searching leadership pages even though the live IR executive-management page had the current roster cleanly.",
+      "severity": "medium",
+      "evidence": "Multiple 404s on guessed newsroom URLs for Dheerja Kaur / Janet Stevens / Jessica Shepherd before opening `https://investors.hims.com/governance/executive-management/default.aspx`, which contained the usable current roster.",
+      "project": "intel",
+      "proposed_fix": "Add a company-research routing rule: for public-company leadership work, go to IR `governance/executive-management` and proxy first; use newsroom posts only to fill post-proxy deltas."
+    },
+    {
+      "category": "TOOL_MISUSE",
+      "summary": "Complex shell one-liners caused quoting and parser failures before the task was simplified.",
+      "severity": "medium",
+      "evidence": "`jq` compile error on the SEC submissions query and `zsh: unmatched \"` on newsroom link extraction. Similar pattern already exists in improvement log entry `2026-02-28 TOKEN WASTE: Iterative regex parsing via repeated Bash one-liners`.",
+      "project": "intel",
+      "proposed_fix": "Recurring fix: when a shell command needs nested quotes, jq, and regex together, stop and write a short temp script instead of iterating one-liners."
+    },
+    {
+      "category": "WRONG_ASSUMPTION",
+      "summary": "Treated prose integration docs as current state even though counts and dataset states drifted during the same execution session.",
+      "severity": "high",
+      "evidence": "`uv run python3 scripts/audit_integration_docs.py` failed on `docs/pipeline-vs-industry.md`; regenerated truth in `docs/generated/integration_ground_truth.md` showed `458` scripts while the doc still said `453`. The integration memos also carried stale claims until patched.",
+      "project": "genomics",
+      "proposed_fix": "Add a doc gate: if a commit touches `docs/*integration*`, `docs/pipeline-vs-industry.md`, or `CYCLE.md`, run `scripts/refresh_integration_ground_truth.py` and `scripts/audit_integration_docs.py`; block commit on drift."
+    },
+    {
+      "category": "WRONG_ASSUMPTION",
+      "summary": "Assumed a display group's outputs live in one directory; `DL variant scores` actually spans multiple result directories, so the dashboard falsely reported finished stages as missing.",
+      "severity": "high",
+      "evidence": "`uv run python3 scripts/genomics_status.py --volume` showed `parm_scores.tsv` and `supremo_sv_scores.tsv` as missing while the `parm` stage had already succeeded. The fix in `scripts/genomics_status.py:174-189` adds `paths` instead of a single directory.",
+      "project": "genomics",
+      "proposed_fix": "Add a regression test for every `display_group`: assert the volume probe aggregates all output directories and summary files from every grouped stage."
+    },
+    {
+      "category": "WRONG_ASSUMPTION",
+      "summary": "Resource helper functions used `init_stage()` but could return before `finalize_stage()`, leaving completed helper jobs stuck in `RUNNING` state.",
+      "severity": "medium",
+      "evidence": "`scripts/modal_parm.py:70-101` and `scripts/modal_supremo_sv.py:92-113` originally returned early on already-present resources. The volume dashboard showed `parm_download` and `supremo_download` as running until those code paths were rewritten to always finalize.",
+      "project": "genomics",
+      "proposed_fix": "Add a lint or helper wrapper: any function that calls `init_stage()` must end in `finalize_stage()` or explicit failure logging on every return path. Fail CI on early returns after `init_stage()`."
+    },
+    {
+      "category": "ENVIRONMENT",
+      "summary": "New Modal sidecars were executed without a dedicated smoke harness, so missing image dependencies and tool contracts surfaced only during long-running jobs.",
+      "severity": "high",
+      "evidence": "`modal_parm.py::download_resources` failed with `/bin/sh: 1: curl: not found`; `modal_parm.py` then failed on 601-nt sequences for a 600-nt PARM model; `modal_supremo_sv.py` required `tf_keras` and `TF_USE_LEGACY_KERAS` before Basenji would load cleanly.",
+      "project": "genomics",
+      "proposed_fix": "Create `just modal-sidecar-smoke <script>` that runs `::download_resources`, `::validate`, and one tiny dry-run/parser check for every new research sidecar before full detached execution."
+    },
+    {
+      "category": "TOKEN_WASTE",
+      "summary": "Spent repeated polls on `splicevault_convert.py` with almost no signal because the converter has no cheap probe mode or progress output.",
+      "severity": "medium",
+      "evidence": "Session `94738` kept running while `databases/splicevault/derived/splicevault_hg38.duckdb` stayed at `12K` and `.wal` at `992B`; `scripts/splicevault_convert.py:106-196` performs a blind full scan with no progress logging or structure probe.",
+      "project": "genomics",
+      "proposed_fix": "Add `--probe` and periodic progress logs to `scripts/splicevault_convert.py`: first supported COPY block, byte offset, rows inserted, and final row counts before building the merged DuckDB."
+    }
+  ],
+  "source": "manual-retro"
+}

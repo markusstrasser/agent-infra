@@ -1,0 +1,20 @@
+{
+  "date": "2026-03-23",
+  "cycle": "G17",
+  "project": "genomics",
+  "shipped": ["G17-PharmGScore-lookup"],
+  "retro": {
+    "review_catch_rate": 1,
+    "note": "Review correctly identified wrong integration point (pgx_cross_reference.py is gene-level). Plan corrected to new script."
+  },
+  "metrics": {
+    "orphan_rate": 0,
+    "duplicate_rate": 0,
+    "handoff_success": 0,
+    "review_catch_rate": 1,
+    "verify_fail_rate": 0,
+    "cycle_latency_ticks": 5
+  },
+  "cycle_line_count_before": 110,
+  "cycle_line_count_after": 75
+}

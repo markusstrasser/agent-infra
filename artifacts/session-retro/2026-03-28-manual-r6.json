@@ -1,0 +1,5 @@
+{"findings": [
+  {"category": "TOKEN_WASTE", "summary": "Cherry-pick conflicts from parallel worktree agents editing same file (lr_combiner.py). 3/4 conflicted, manual resolution slower than sequential.", "severity": "medium", "evidence": "git cherry-pick c218e10 CONFLICT, git cherry-pick f3b1a98 CONFLICT", "project": "genomics", "proposed_fix": "Rule: parallel worktree agents must touch disjoint files. If overlap, run sequentially or consolidate into one agent."},
+  {"category": "ENVIRONMENT", "summary": "git stash pop failed because concurrent agent modified working tree (modal_prs_percentile.py).", "severity": "low", "evidence": "git stash pop error: local changes would be overwritten", "project": "genomics", "proposed_fix": "Awareness only. OTHER ACTIVE AGENTS can pollute working tree."},
+  {"category": "SEARCH_WASTE", "summary": "Read lr_combiner.py 7x triggering dup-read hook. Most reads were for targeted line ranges after context compaction.", "severity": "low", "evidence": "posttool-dup-read.sh BLOCKED", "project": "genomics", "proposed_fix": "Use Grep -n -C for targeted lookups after first full read of large files."}
+], "source": "manual-retro"}

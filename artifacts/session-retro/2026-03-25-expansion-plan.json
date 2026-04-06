@@ -1,0 +1,42 @@
+{"findings": [
+  {
+    "category": "TOOL_MISUSE",
+    "summary": "Codex CLI dispatched with -m o4-mini (unsupported) and --quiet (nonexistent flag). 3 agents wasted ~5 min each. Then redispatched with -m o4-mini again before being corrected.",
+    "severity": "medium",
+    "evidence": "All 6 Codex dispatches failed. Error: 'o4-mini model not supported when using Codex with ChatGPT account'. --quiet flag: 'unexpected argument'. User corrected: 'just use codex exec without -m, it uses config.toml defaults'",
+    "project": "genomics",
+    "proposed_fix": "Memory updated (feedback_codex_model_name.md). RECURRING: matches 2026-03-18 'guessed codex CLI flags instead of --help first'. Rule 7 (probe before build) continues to be violated for CLI tools despite 3+ recorded incidents."
+  },
+  {
+    "category": "WRONG_ASSUMPTION",
+    "summary": "Rank-normalized VEP scores WITHIN each variant (per-variant IQR) — produced constant 0.5 IQR for all variants. Uniform distribution of ranks within a set is always uniform.",
+    "severity": "medium",
+    "evidence": "First run: 173/173 variants scored as 'mixed' with IQR=0.5000. Root cause: ranking N scores within one variant gives ranks 0, 1/(N-1), ..., 1 — always uniform. Fix: rank each predictor across ALL variants (percentile transform), then compute per-variant IQR of percentiles.",
+    "project": "genomics",
+    "proposed_fix": "No rule needed — this was a statistics error caught in the same session. The fix (cross-variant percentile ranking) produced genuine signal: 83 low / 78 mixed / 12 high agreement."
+  },
+  {
+    "category": "WRONG_ASSUMPTION",
+    "summary": "Assumed echtvar gnomad_af_nfe was populated (field in schema + zips dated after config change). Actual: all values -1 (MISSING sentinel). The zips were encoded after the config was added, but from source gnomAD VCFs that may not have been re-downloaded with AF_nfe field.",
+    "severity": "high",
+    "evidence": "gnomad_af_nfe=0/244 populated. Direct echtvar test: all values returned -1. Root cause: echtvar zips were cached (skip condition: file exists + size > 1KB) so re-encode with new config fields didn't actually re-process. Committed fix (534861e) for multi-allelic decomposition + standard chrom filter, but underlying AF_nfe data still missing.",
+    "project": "genomics",
+    "proposed_fix": "[rule] After adding new fields to echtvar encoding config: (1) delete cached zip files, (2) verify field is populated with non-sentinel values in output, not just that it exists in schema. The 'field in header' != 'field has data' distinction."
+  },
+  {
+    "category": "TOKEN_WASTE",
+    "summary": "Researcher subagent used 25 tool calls over 4.5 min but returned 'let me verify the Zenodo DOI' — turn exhaustion without synthesis. File-first instruction omitted from prompt despite rule in subagent-output-discipline.md.",
+    "severity": "low",
+    "evidence": "Agent aee8a1c11ff5ade72 completed with minimal output. Recovered via 30-second Exa search. Rule exists in .claude/rules/subagent-output-discipline.md but wasn't followed in prompt construction.",
+    "project": "genomics",
+    "proposed_fix": "RECURRING: 5+ incidents in subagent-output-discipline.md. The rule exists but is in .claude/rules/ (auto-loaded) — still not followed. Consider a pretool hook that checks researcher agent prompts for 'Write your findings to' substring."
+  },
+  {
+    "category": "SEARCH_WASTE",
+    "summary": "Model-review domain axis (Gemini Flash) hallucinated PGS002772 for periodontitis. Spent a search round verifying this doesn't exist. Gemini also marked 4 verified claims as 'UNVERIFIABLE' despite being confirmed in-session.",
+    "severity": "low",
+    "evidence": "Domain review: 'Verdict: WRONG. The PGS Catalog does contain scores for periodontitis (e.g., PGS002772)'. Search found no such ID. Already documented in synthesis.md as model error.",
+    "project": "genomics",
+    "proposed_fix": "Known Gemini bias (confident fabrication of database IDs). Model-review skill already has fact-check step — this was caught. No additional fix needed."
+  }
+], "source": "manual-retro"}
