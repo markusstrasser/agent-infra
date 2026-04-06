@@ -1,3 +1,4 @@
+# ARCHIVED 2026-04-06: Not actively used. /schedule and /loop replace this.
 #!/usr/bin/env python3
 """Orchestrator: queue-backed task runner for Agent SDK and deterministic scripts.
 
