@@ -1,0 +1,16 @@
+{
+  "name": "strategic-zoom-out",
+  "schedule": "0 14 */14 * *",
+  "project": "meta",
+  "steps": [
+    {
+      "step": "zoom-out",
+      "prompt": "Strategic zoom-out: read the last 20 git commits across meta, selve, genomics, and intel (`git -C ~/Projects/{proj} log --oneline -20` for each). Read the last 5 session receipts from ~/.claude/session-receipts.jsonl. Then answer:\n\n1. What themes are recurring across projects? (patterns in commit scopes, repeated topics)\n2. What got started but abandoned? (commits that introduced something with no follow-up)\n3. What was built that has zero usage? (scripts, tools, features with no recent callers — check git log for references)\n4. What's the trajectory? (where is effort concentrating, where is it declining)\n\nWrite 3-7 bullet observations to the project's MAINTAIN.md under `## Strategic Notes` with today's date as a ### header. Be concrete — name files, commits, patterns. Don't pad with generic observations. If everything looks healthy and on-track, say so in one bullet.",
+      "max_turns": 12,
+      "max_budget_usd": 2.0,
+      "model": "sonnet",
+      "effort": "medium",
+      "cwd": "~/Projects/meta"
+    }
+  ]
+}

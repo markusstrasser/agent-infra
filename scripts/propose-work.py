@@ -253,8 +253,8 @@ def _rank_score(proposal: dict) -> float:
     metadata = proposal.get("metadata", {})
 
     base = {
-        "health": 80, "orchestrator": 70, "staleness": 40,
-        "improvement-log": 30, "hook-roi": 20,
+        "health": 80, "orchestrator": 70, "strategic": 50, "drift": 45,
+        "staleness": 40, "improvement-log": 30, "hook-roi": 20,
     }.get(category, 10)
 
     if "FAIL" in title:
@@ -335,6 +335,36 @@ def generate_proposals(data: dict) -> list[dict]:
                 "metadata": {"block_rate": 0, "total": hook["total"], "blocks": 0},
                 "command": None,
             })
+
+    # Strategic notes from maintain zoom-out
+    for note in data.get("strategic_notes", []):
+        if note["age_days"] <= 14:
+            proposals.append({
+                "category": "strategic",
+                "title": f"[zoom-out] {note['note'][:80]}",
+                "metadata": {"age_days": note["age_days"], "tags": ["autonomy"]},
+                "command": None,
+            })
+
+    # Drift alerts from cross-project detection
+    for alert in data.get("drift_alerts", []):
+        if alert["age_days"] <= 14:
+            proposals.append({
+                "category": "drift",
+                "title": f"[drift] {alert['id']}: {alert['description'][:80]}",
+                "metadata": {"age_days": alert["age_days"]},
+                "command": None,
+            })
+
+    # Maintenance error rate warning
+    maint_errors = data.get("maintenance_errors", {})
+    if maint_errors.get("error_rate", 0) > 0.2 and maint_errors.get("total", 0) > 5:
+        proposals.append({
+            "category": "health",
+            "title": f"WARN: maintain error rate {maint_errors['error_rate']:.0%} ({maint_errors['errors']}/{maint_errors['total']})",
+            "metadata": {},
+            "command": None,
+        })
 
     # Failed orchestrator tasks
     for task in data["orchestrator"].get("tasks", []):
@@ -428,6 +458,26 @@ def render_brief(data: dict, proposals: list[dict]) -> str:
             lines.append(f"- **{p['name']}** ({p['type']}, {p['count']}× across {p['projects']})")
         lines.append("")
 
+    # Strategic notes from maintain
+    strategic = data.get("strategic_notes", [])
+    if strategic:
+        recent = [n for n in strategic if n["age_days"] <= 14]
+        if recent:
+            lines.append(f"## Strategic Notes ({len(recent)} recent)")
+            for n in recent[:5]:
+                lines.append(f"- [{n['date']}] {n['note']}")
+            lines.append("")
+
+    # Drift alerts
+    drift = data.get("drift_alerts", [])
+    if drift:
+        recent_drift = [d for d in drift if d["age_days"] <= 14]
+        if recent_drift:
+            lines.append(f"## Drift Alerts ({len(recent_drift)})")
+            for d in recent_drift[:5]:
+                lines.append(f"- {d['id']}: {d['description']}")
+            lines.append("")
+
     # Stale projects
     if data["stale_projects"]:
         lines.append("## Stale Projects")
@@ -449,6 +499,90 @@ def render_brief(data: dict, proposals: list[dict]) -> str:
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
+def maintain_strategic_notes() -> list[dict]:
+    """Read MAINTAIN.md ## Strategic Notes for zoom-out observations."""
+    maintain_path = Path(__file__).resolve().parent.parent / "MAINTAIN.md"
+    if not maintain_path.exists():
+        return []
+
+    text = maintain_path.read_text()
+    # Find ## Strategic Notes section
+    match = re.search(r"## Strategic Notes\s*\n(.*?)(?=\n## |\Z)", text, re.DOTALL)
+    if not match:
+        return []
+
+    notes = []
+    current_date = None
+    for line in match.group(1).splitlines():
+        date_match = re.match(r"^###\s+(\d{4}-\d{2}-\d{2})", line)
+        if date_match:
+            current_date = date_match.group(1)
+            continue
+        if line.strip().startswith("- ") and current_date:
+            age = (datetime.now() - datetime.strptime(current_date, "%Y-%m-%d")).days
+            notes.append({
+                "date": current_date,
+                "note": line.strip()[2:],
+                "age_days": age,
+            })
+    return notes
+
+
+def maintain_drift_alerts() -> list[dict]:
+    """Read MAINTAIN.md ## Drift Alerts for cross-project divergences."""
+    maintain_path = Path(__file__).resolve().parent.parent / "MAINTAIN.md"
+    if not maintain_path.exists():
+        return []
+
+    text = maintain_path.read_text()
+    match = re.search(r"## Drift Alerts\s*\n(.*?)(?=\n## |\Z)", text, re.DOTALL)
+    if not match:
+        return []
+
+    alerts = []
+    for line in match.group(1).splitlines():
+        # Format: - **D001** [2026-04-06] description
+        m = re.match(r"^- \*\*D(\d+)\*\*\s+\[(\d{4}-\d{2}-\d{2})\]\s+(.*)", line)
+        if m:
+            age = (datetime.now() - datetime.strptime(m.group(2), "%Y-%m-%d")).days
+            alerts.append({
+                "id": f"D{m.group(1)}",
+                "date": m.group(2),
+                "description": m.group(3),
+                "age_days": age,
+            })
+    return alerts
+
+
+def maintenance_action_errors(days: int = 3) -> dict:
+    """Read maintenance-actions.jsonl for error rates."""
+    actions_file = Path(__file__).resolve().parent.parent / "maintenance-actions.jsonl"
+    if not actions_file.exists():
+        return {"total": 0, "errors": 0, "error_rate": 0.0}
+
+    cutoff = (datetime.now() - timedelta(days=days)).isoformat()[:19]
+    total = 0
+    errors = 0
+    for line in actions_file.read_text().splitlines():
+        if not line.strip():
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if entry.get("ts", "") < cutoff:
+            continue
+        total += 1
+        if entry.get("result") == "error":
+            errors += 1
+
+    return {
+        "total": total,
+        "errors": errors,
+        "error_rate": errors / total if total else 0.0,
+    }
+
 
 def design_review_proposals(days: int = 7) -> list[dict]:
     """Read design-review patterns.jsonl and find recurring patterns (3+)."""
@@ -664,6 +798,9 @@ def main():
         "design_review_proposals": design_review_proposals(days=7),
         "steering_patterns": steering_patterns(),
         "supervision_audit": supervision_audit_summary(),
+        "strategic_notes": maintain_strategic_notes(),
+        "drift_alerts": maintain_drift_alerts(),
+        "maintenance_errors": maintenance_action_errors(args.days),
     }
 
     proposals = generate_proposals(data)

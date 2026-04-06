@@ -1,0 +1,13 @@
+{
+  "name": "plan-staleness-audit",
+  "schedule": "0 10 * * 1",
+  "project": "meta",
+  "steps": [
+    {
+      "step": "scan-plans",
+      "type": "script",
+      "command": "uv run python3 scripts/plan-staleness.py --output artifacts/plan-staleness/$(date +%Y-%m-%d).json",
+      "cwd": "~/Projects/meta"
+    }
+  ]
+}

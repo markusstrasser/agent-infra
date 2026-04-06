@@ -1,0 +1,22 @@
+{
+  "name": "cross-project-drift",
+  "schedule": "0 11 */14 * *",
+  "project": "meta",
+  "steps": [
+    {
+      "step": "detect-drift",
+      "type": "script",
+      "command": "uv run python3 scripts/cross-project-drift.py --output artifacts/drift/$(date +%Y-%m-%d).json",
+      "cwd": "~/Projects/meta"
+    },
+    {
+      "step": "write-alerts",
+      "prompt": "Read the drift detection report at the most recent file in artifacts/drift/. For each divergence found, append a drift alert to MAINTAIN.md under `## Drift Alerts` with format: `- **D{NNN}** [{date}] {description}`. Only write alerts for genuine divergences that could cause problems — skip cosmetic differences. If no real divergences found, skip writing.",
+      "max_turns": 5,
+      "max_budget_usd": 0.50,
+      "model": "haiku",
+      "effort": "low",
+      "cwd": "~/Projects/meta"
+    }
+  ]
+}

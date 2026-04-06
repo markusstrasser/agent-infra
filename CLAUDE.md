@@ -123,7 +123,7 @@ How to verify this constitution is working (check via session-analyst after 2 we
 
 ## Execution Model
 
-**`/loop` + interactive sessions is primary.** The human runs Claude Code directly, uses `/loop` for recurring tasks (steward, research cycles, maintenance), and steers in real-time. Subagents handle fan-out within sessions.
+**`/loop` + interactive sessions is primary.** The human runs Claude Code directly, uses `/loop` for recurring tasks (maintain, research cycles), and steers in real-time. Subagents handle fan-out within sessions.
 
 ## Orchestrator — Background Only
 
