@@ -1,0 +1,217 @@
+[
+  {
+    "date": "2026-03-26",
+    "category": "TOKEN_WASTE",
+    "summary": "Schema-probe loop instead of reading available docs (2nd recurrence)",
+    "session": "aa2981a8",
+    "project": "meta",
+    "anti_patterns": [
+      4
+    ],
+    "implemented": true
+  },
+  {
+    "date": "2026-03-26",
+    "category": "SYSTEM_DESIGN",
+    "summary": "Silent hook failure undetected for 7 days \u2014 consumers treated zero output as \"quiet day\"",
+    "session": "aa2981a8",
+    "project": "meta",
+    "anti_patterns": [
+      5
+    ],
+    "implemented": true
+  },
+  {
+    "date": "2026-03-26",
+    "category": "SYSTEM_DESIGN",
+    "summary": "generate-overview.sh --auto fires 6 simultaneous Gemini CLI requests, causes rate-limit truncation",
+    "session": "aa2981a8",
+    "project": "meta",
+    "anti_patterns": [
+      5
+    ],
+    "implemented": true
+  },
+  {
+    "date": "2026-03-26",
+    "category": "ENVIRONMENT",
+    "summary": "Parallel Codex agent swept uncommitted edits into wrong commit",
+    "session": "dfc98f6c",
+    "project": "genomics",
+    "anti_patterns": [
+      5
+    ],
+    "implemented": true
+  },
+  {
+    "date": "2026-03-25",
+    "category": "WRONG_ASSUMPTION",
+    "summary": "Assumed duplicate functions had identical signatures \u2014 3 incompatible variants existed",
+    "session": "cf694f57",
+    "project": "meta",
+    "anti_patterns": [
+      8
+    ],
+    "implemented": true
+  },
+  {
+    "date": "2026-03-06",
+    "category": "BUILD_THEN_UNDO",
+    "summary": "Skill written at wrong scope, full rewrite required",
+    "session": "deb3fac6",
+    "project": "intel",
+    "anti_patterns": [
+      3
+    ],
+    "implemented": true
+  },
+  {
+    "date": "2026-02-28",
+    "category": "SYCOPHANCY",
+    "summary": "No pushback on \"ALWAYS BE DOWNLOADING\" bulk hoarding directive",
+    "session": "f32653c6",
+    "project": "intel",
+    "anti_patterns": [
+      1
+    ],
+    "implemented": true
+  },
+  {
+    "date": "2026-02-28",
+    "category": "SYCOPHANCY",
+    "summary": "Built heuristic auto-classification rules without epistemic challenge",
+    "session": "80c5d8c4",
+    "project": "meta",
+    "anti_patterns": [
+      1
+    ],
+    "implemented": true
+  },
+  {
+    "date": "2026-03-02",
+    "category": "SYCOPHANCY",
+    "summary": "Implemented premature multi-backend triangulation per plan",
+    "session": "fa8f6961",
+    "project": "selve",
+    "anti_patterns": [
+      1
+    ],
+    "implemented": true
+  },
+  {
+    "date": "2026-03-02",
+    "category": "RECURRING",
+    "summary": "Source grading reactive, not proactive \u2014 third occurrence across projects",
+    "session": "4f92d9b7",
+    "project": "intel",
+    "anti_patterns": [],
+    "implemented": true
+  },
+  {
+    "date": "2026-03-02",
+    "category": "INFRASTRUCTURE",
+    "summary": "FMP rate limit wastes entity-refresher agent tokens",
+    "session": "8183add2",
+    "project": "intel",
+    "anti_patterns": [],
+    "implemented": true
+  },
+  {
+    "date": "2026-03-03",
+    "category": "SYCOPHANCY",
+    "summary": "False source grades on unverified financial data",
+    "session": "80c5d8c4",
+    "project": "meta",
+    "anti_patterns": [
+      1
+    ],
+    "implemented": true
+  },
+  {
+    "date": "2026-03-03",
+    "category": "NEW",
+    "summary": "Context compaction hallucinated completed work",
+    "session": "4d0ccc70",
+    "project": "meta",
+    "anti_patterns": [],
+    "implemented": true
+  },
+  {
+    "date": "2026-03-07",
+    "category": "SYCOPHANCY",
+    "summary": "Deployed global hook based on unverified user claim",
+    "session": "3312688c",
+    "project": "selve",
+    "anti_patterns": [
+      1
+    ],
+    "implemented": true
+  },
+  {
+    "date": "2026-03-19",
+    "category": "SEARCH_WASTE",
+    "summary": "Used semantic search for location-based contact lookup \u2014 wrong tool. Semantic embeddings match topic similarity, not relational metadata like 'X lives in Y'. Should grep raw data first.",
+    "session": "8c7dcbfb",
+    "project": "meta",
+    "anti_patterns": [],
+    "implemented": true
+  },
+  {
+    "date": "2026-03-20",
+    "category": "TOKEN_WASTE",
+    "summary": "Large Exa result files (157K-759K chars) mostly noise from broad queries. Consumer marketing and LinkedIn posts dominated.",
+    "session": "c64b1dbe",
+    "project": "selve",
+    "anti_patterns": [
+      4
+    ],
+    "implemented": true
+  },
+  {
+    "date": "2026-03-26",
+    "category": "ENVIRONMENT",
+    "summary": "Parallel agent committed another agent's uncommitted edits",
+    "session": "d529d5b3",
+    "project": "meta",
+    "anti_patterns": [
+      5
+    ],
+    "implemented": true
+  },
+  {
+    "date": "2026-03-29",
+    "category": "RECURRENCE",
+    "summary": "Parallel agent committed current agent's working tree changes",
+    "session": "20599ad5",
+    "project": "meta",
+    "anti_patterns": [],
+    "implemented": true
+  },
+  {
+    "date": "2026-04-03",
+    "category": "RECURRENCE",
+    "summary": "Twitter/X fetch attempts despite known unfetchability (6 tool calls)",
+    "session": "36816d18",
+    "project": "meta",
+    "anti_patterns": [],
+    "implemented": true
+  },
+  {
+    "date": "2026-04-03",
+    "category": "META",
+    "summary": "Gemini 3.1 Pro hallucinated entire session-analyst output",
+    "session": "e8062d76",
+    "project": "meta",
+    "anti_patterns": [],
+    "implemented": true
+  },
+  {
+    "date": "2026-04-05",
+    "category": "RECURRENCE",
+    "summary": "Gemini 3.1 Pro hallucinated entire session-analyst output (2nd occurrence)",
+    "session": "f0583790",
+    "project": "selve",
+    "anti_patterns": [],
+    "implemented": true
+  }
+]
