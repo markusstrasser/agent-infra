@@ -1568,3 +1568,26 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Severity:** low — 12 extra tool calls, hook should already prevent this
 - **Recurrences:** recurring (hook deployed, compliance unclear)
 - **Status:** [ ] monitoring
+
+### [2026-04-05] PROMPT DESIGN: Compliance pressure taxonomy — convergent vs divergent evaluation modes
+- **Session:** meta (current session)
+- **Evidence:** Session-analyst Gemini prompt had 14 "look for X" items and one buried null sentence → Gemini fabricates findings. Thinking model introversion (arXiv:2602.07796) + sycophantic anchors (arXiv:2601.21183) explain mechanism. Perplexity search confirms no validated taxonomy in literature — research gap, our own synthesis.
+- **Failure mode:** prompt-induced compliance pressure (not user sycophancy)
+- **Taxonomy:**
+  - Convergent evaluation ("is there a problem?") → triage gates (YES/NO before elaboration)
+  - Divergent evaluation ("what could be better?") → downstream filtering (disposition tables, verify-findings)
+  - Exploratory ("what's missing?") → neither, divergent by design
+- **Implemented so far:**
+  - [x] session-analyst: Phase 0 triage gate (YES/NO/MINOR) in Gemini dispatch prompt
+  - [x] model-guide: "Compliance Pressure & Null Paths" section with convergent/divergent taxonomy
+- **Remaining (convergent — need triage gates):**
+  - [ ] retro — "extract failure modes" framing, no null path for clean sessions
+  - [ ] supervision-audit — "find wasted supervision" framing
+- **Remaining (divergent — audit downstream filtering adequacy):**
+  - [ ] project-upgrade — verify disposition table + verify-findings pipeline suffices
+  - [ ] design-review — verify Gemini dispatch has adequate quality filtering
+  - [ ] suggest-skill — has buried "don't fabricate" instruction (same anti-pattern as old session-analyst)
+- **Trigger for remaining:** after session-analyst triage gate shows measurable effect (next 2-3 runs)
+- **Root cause:** system-design — prompt templates create structural compliance pressure
+- **Severity:** medium — false positives waste implementation time and erode trust in automated findings
+- **Status:** [ ] partially implemented
