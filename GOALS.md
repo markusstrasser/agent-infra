@@ -23,8 +23,15 @@ The deeper dynamic: the better the agent gets, the faster the human must rethink
 
 The closer sessions get to "optimal run" (what would happen if the agent had perfect tooling and perfect instructions), the better meta is doing its job.
 
+## Operator Tax (Measured 2026-04-06)
+
+**34% of all sessions (135/397 over 14 days) are system maintenance** — the human operating the system instead of using it for actual work. ~11 hours of human attention per 2 weeks on: running /retro, /maintain, checking improvement-log, fixing hooks, tuning context, vendor sweeps, cross-project coordination.
+
+This is the concrete problem the generative principle should solve. Declining supervision means nothing if the human spends a third of their time on system ops. The target: **<15% maintenance sessions, no maintenance prompt needed for 5+ consecutive days.**
+
 ## Secondary Metrics
 
+- **Operator tax** — % of sessions that are system maintenance vs actual project work. Baseline 34% (2026-04-06). Target <15%.
 - **Wasted supervision rate** — % of human turns that are corrections, boilerplate, or rubber stamps. Baseline ~21% (2026-02-28). Measured weekly via session-analyst. Qualitative trend should be downward.
 - **Agent reliability** — % of tasks completed correctly without correction.
 - **Time-to-capability** — how fast a new project gets proper agent infrastructure.
@@ -32,9 +39,11 @@ The closer sessions get to "optimal run" (what would happen if the agent had per
 ## Self-Modification Boundaries
 
 **Full autonomy within invariants**, with a gradient:
-- **Clear improvement, one obvious path** → just do it, commit, move on
+- **Clear improvement, one obvious path** → just do it, commit, move on. Regular /loop checks git diffs for regressions, incidental complexity, and goal drift.
 - **Multiple valid solutions, could change a lot** → propose and wait for human review
 - **CLAUDE.md Constitution section / GOALS.md** → always human-approved
+
+Git is the safety net — can always revert. Compute cost risk handled via vendor-side spending limits.
 
 The invariants: the Constitution section (in CLAUDE.md) and GOALS.md are human-owned. Everything else (rest of CLAUDE.md, hooks, skills, maintenance checklists, rules, MEMORY.md) can be modified autonomously when the improvement is unambiguous.
 
@@ -99,6 +108,15 @@ Qualitative reports from session-analyst are the primary feedback mechanism. No 
 - Storage: SSK1TB external drive for large datasets
 - Multi-vendor subscriptions provide cheaper compute for sub-agent work
 
+## Goal-Drift Detection
+
+The system must actively detect when goals shift, not wait for the human to articulate them. Evidence: in the 2026-04-06 reviews session, the system built 17 artifacts optimizing for "architectural elegance" before the human stated the actual goal was "recursive self-improvement with minimal maintenance." The system should have asked.
+
+Mechanisms (to be implemented):
+- Periodic GOALS.md review in /loop or /schedule — check if recent work aligns with stated goals
+- Morning brief should flag when session patterns diverge from goals (e.g., maintenance sessions increasing despite "declining supervision" goal)
+- When the human gives direction that conflicts with or extends GOALS.md, surface that explicitly
+
 ## Open Questions
 
 - **Enforcement granularity** — which principles deserve hooks vs. which stay instructional? Hooks can be annoying. Need empirical data from meta sessions. Progressive approach for now.
@@ -123,4 +141,4 @@ This may never fully happen — meta encodes domain-specific and personal-idiosy
 
 ---
 
-*Created: 2026-02-28. Revised: 2026-03-25 (execution model: /loop + interactive sessions replaces orchestrator as primary workflow; orchestrator demoted to unattended scheduled tasks only).*
+*Created: 2026-02-28. Revised: 2026-03-25 (execution model). Revised: 2026-04-06 (operator tax baseline 34%, goal-drift detection, orchestrator archived, autonomy gradient with regression watching).*
