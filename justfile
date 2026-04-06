@@ -19,6 +19,11 @@ dashboard-days days:
 agent-receipts *args:
     uv run python3 scripts/agent_receipts.py {{args}}
 
+# Auto-loaded context token budget (current project or --compare all)
+[group('dashboard')]
+context-budget *args:
+    uv run python3 scripts/context-budget.py {{args}}
+
 # ── Health ─────────────────────────────────────────────────────────
 
 # Fast smoke test (<1m) — indexes, frontmatter, views
