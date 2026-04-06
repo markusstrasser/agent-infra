@@ -26,7 +26,7 @@ uv run python3 scripts/sessions.py search <query>  # FTS5 session search
 
 ## Research Index
 
-~100 research memos in `research/`. Full index with topics and "consult before" triggers: `.claude/rules/research-index.md` (auto-loaded).
+~100 research memos in `research/`. Full index with topics and "consult before" triggers: `.claude/rules/research-index.md` (path-scoped to `research/**`, `decisions/**`).
 
 <constitution>
 > **Human-protected.** Agent may propose changes but must not modify without explicit approval.

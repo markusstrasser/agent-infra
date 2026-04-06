@@ -125,6 +125,8 @@ def generate_map(project_root: Path, source_dirs: list[Path]) -> str:
     lines = [
         "---",
         "description: Auto-generated file map with cross-file relationships. Updated daily.",
+        "paths:",
+        '  - "scripts/**"',
         "---",
         "# Codebase Map",
         f"# {total_files} Python files — generated {date.today()}",

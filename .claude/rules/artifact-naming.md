@@ -1,3 +1,9 @@
+---
+paths:
+  - "artifacts/**"
+  - "**/artifacts/**"
+---
+
 # Artifact Naming Convention
 
 Artifacts are files written to `artifacts/` subdirectories by skills and scripts.

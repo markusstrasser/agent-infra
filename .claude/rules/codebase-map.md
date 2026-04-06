@@ -1,5 +1,7 @@
 ---
 description: Auto-generated file map with cross-file relationships. Updated daily.
+paths:
+  - "scripts/**"
 ---
 # Codebase Map
 # 76 Python files — generated 2026-04-05
