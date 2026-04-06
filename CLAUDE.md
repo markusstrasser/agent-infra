@@ -43,7 +43,7 @@ Error correction per session is the secondary constraint: autonomy only increase
 
 ### Principles
 
-**1. Architecture over instructions.** Instructions alone = 0% reliable (EoG). If it matters, enforce with hooks/tests/scaffolding. Text is a prototype; architecture is the product. Exception: simple format rules and semantic predicates that can't be expressed as deterministic checks.
+**1. Architecture over instructions.** Instructions alone = 0% reliable (EoG). If it matters, enforce with hooks/tests/scaffolding. Text is a prototype; architecture is the product. Exception: simple format rules and semantic predicates that can't be expressed as deterministic checks. *Evidence: SlopCodeBench (arXiv:2603.24755, Mar 2026) — quality-aware prompts improve initial code quality but do not reduce degradation rate across iterations. Instructions shift the intercept; architecture shifts the slope.*
 
 **2. Enforce by category.**
 
