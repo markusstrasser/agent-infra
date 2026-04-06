@@ -58,8 +58,15 @@ def parse_paths_scope(path: Path) -> list[str] | None:
         return None
     try:
         fm = yaml.safe_load(text[4:end])
-        if isinstance(fm, dict) and "paths" in fm:
-            return fm["paths"]
+        if isinstance(fm, dict):
+            if "paths" in fm:
+                return fm["paths"]
+            if "globs" in fm:
+                # globs: is the other CC scoping mechanism (comma-separated string or list)
+                globs = fm["globs"]
+                if isinstance(globs, str):
+                    return [g.strip() for g in globs.split(",")]
+                return globs
     except Exception:
         pass
     return None
