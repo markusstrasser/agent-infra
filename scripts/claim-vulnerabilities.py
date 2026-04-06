@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import argparse
 import re
-import sys
 from dataclasses import dataclass, field
 from datetime import datetime, date
 from pathlib import Path
