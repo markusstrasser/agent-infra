@@ -333,6 +333,38 @@ db-smoke:
     done
     echo "All views pass"
 
+# ── Code Quality ──────────────────────────────────────────────────
+
+# Cyclomatic complexity report (radon) — top offenders + average
+[group('health')]
+complexity *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "=== Cyclomatic Complexity (meta/scripts) ==="
+    uvx radon cc scripts/ -a -nc -s 2>&1 | tail -25
+    echo ""
+    echo "=== Functions with complexity > 10 ==="
+    uvx radon cc scripts/ -nc -n C 2>&1 | grep -E ' - [C-F]$' | sort -t'-' -k2 -r | head -15
+    echo ""
+    count=$(uvx radon cc scripts/ -nc -n C 2>&1 | grep -cE ' - [C-F]$' || true)
+    echo "Total high-complexity functions (C+): $count"
+
+# Cyclomatic complexity across meta + selve + genomics
+[group('health')]
+complexity-all:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for repo in meta selve genomics; do
+        dir="$HOME/Projects/$repo"
+        if [ -d "$dir/scripts" ]; then
+            echo "=== $repo ==="
+            uvx radon cc "$dir/scripts/" -a -nc -s 2>&1 | tail -5
+            count=$(uvx radon cc "$dir/scripts/" -nc -n C 2>&1 | grep -cE ' - [C-F]$' || true)
+            echo "High-complexity (C+): $count"
+            echo ""
+        fi
+    done
+
 # ── Lint ───────────────────────────────────────────────────────────
 
 # Check for raw sqlite3.connect or Path.home()/.claude outside common/

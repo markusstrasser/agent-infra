@@ -6,6 +6,15 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-04-05] EXTERNAL_VALIDATION: ERL paper confirms distilled heuristics > raw trajectories for agent self-improvement
+- **Source:** Research refresh — agent-behavior-refresh-2026-04.md
+- **Evidence:** ERL (arXiv:2603.24639, ICLR 2026 MemAgents Workshop) tested distilled heuristics vs raw experience trajectories on Gaia2 benchmark. Distilled heuristics: +7.8%. Raw trajectories: -1.9% (worse than no memory). Failure-derived heuristics best for search (+14.3%), success-derived for execution (+9.0%).
+- **Failure mode:** N/A — external validation of existing approach
+- **Proposed fix:** [status-quo] Continue improvement-log approach (distilled structured findings). Consider separating failure-derived vs success-derived entries if the log grows large enough to warrant it.
+- **Severity:** low — informational, validates existing approach
+- **Root cause:** N/A
+- **Status:** [x] implemented — improvement-log has been the approach since inception
+
 ### [2026-03-30] SYSTEM_DESIGN: FTS5 pre-query on raw transcripts surfaces anti-patterns faster than Gemini-on-compressed
 - **Source:** Meta-Harness ablation (raw traces 50.0 vs summaries 34.9 median accuracy) + local pilot
 - **Evidence:** Pilot tested 3 known anti-patterns from improvement-log against FTS5 session search:

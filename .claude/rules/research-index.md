@@ -117,3 +117,6 @@ tooling-feedback-2026-03-24.md | research, tooling, field, report, operational, 
 trending-scout-2026-03-19.md | 10, repos, evaluated, plugins-official, hermes-agent, chrome-devtools-mcp, superpowers, promptfoo, openviking, deepagents, cognee, hindsight
 trending-scout-2026-03-26.md | trending, scout, march, 26, weekly, vendor/ecosystem, developments, ecosystem, awareness, trend, monitoring
 trending-scout-2026-04-03.md | trending, scout, april, fastmcp, 3.2.0, apps/security, cc, 2.1.89-91, defer, permissiondenied, autocompact, thrash
+agent-behavior-refresh-2026-04.md | memory, self-modification, sycophancy, ERL, heuristics, stability, asymmetry, reward, hacking, MemMA, delta, refresh
+agent-engineering-refresh-2026-04.md | SlopCodeBench, structural, erosion, coding, agents, practitioner, usage, IBM, enterprise, Mem0, benchmarks, delta, refresh
+ecosystem-mcp-refresh-2026-04.md | MCP, SDK, 2.0, ecosystem, 10K, servers, deep, research, agent, skills, taxonomy, delta, refresh
