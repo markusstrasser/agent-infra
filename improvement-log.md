@@ -6,6 +6,69 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-04-07] Session Analyst — Behavioral Anti-Patterns (genomics, 5 sessions)
+- **Source:** Direct transcript analysis (Gemini 3.1 Pro failed 3rd time — empty output on 900KB input). Manual analysis of sessions 3d4a2d99, ff3a6961, 914c4e66, 12e92bcc, bac9a34b.
+- **Shape:** 5 sessions (2 YES, 2 MINOR, 1 massive at 860M tokens/$82), ~1.1B input tokens total, 5 findings (2 new, 3 recurrences)
+
+### [2026-04-07] MISSING PUSHBACK [W:5]: Agent dismissed pipeline stage failure as "likely needs upstream" instead of investigating
+- **Session:** genomics 12e92bcc
+- **Score:** Not Satisfied (0.0)
+- **Evidence:** User exploded: "why don't you stop EVERYTHING and fix this??!" and "pre-existing BUG IS A BUG." Agent had been iteratively patching symptoms (probe fallbacks, stage name resolvers) instead of fixing root causes (stage_name != output_dir, subprocess modal calls, stale pyc). 8 successive orchestrator failures during --force rerun, each from a different trust-predicate/probe/path bug that should have been caught earlier.
+- **Failure mode:** MISSING PUSHBACK — agent should have stopped and investigated failures as bugs, not patched around them
+- **Proposed fix:** [rule] "Any stage failure during a rerun is a bug until proven otherwise. Stop and diagnose, don't patch symptoms." Agent's own retro identified this.
+- **Severity:** high — led to ~$72 wasted Modal spend from duplicate launches, 8+ hours of symptom-chasing
+- **Root cause:** agent-capability
+- **Status:** [ ] proposed — agent's retro noted it but no architectural enforcement exists
+
+### [2026-04-07] RECURRENCE: BUILD-THEN-UNDO — Code committed without tests, 6 bugs caught by post-implementation GPT review
+- **Session:** genomics ff3a6961
+- **Score:** Partial (0.5) — agent caught the pattern itself and created /plan-close skill
+- **Evidence:** Committed suspense accounts implementation (bundle_audit.py, finding_policy.py, generate_clinician_summary.py, case_bundle_builder.py). GPT-5.4 review found 6 confirmed bugs: env var bypass, dedup key shadowing, wrong bucket assignment, misleading diagnostic, gate bypass, silent fallback. Fix commit 15 min after initial. Agent's own retro: "BUILD_THEN_UNDO — Committed new code without unit tests."
+- **Failure mode:** BUILD-THEN-UNDO (recurrence — 2026-03-24 Codex agents entry, plus pattern matches grounding example #3)
+- **Proposed fix:** /plan-close skill created in-session — tests before review, review before done. Skill exists but promotion to always-on workflow not yet validated.
+- **Severity:** medium — bugs caught within session, no production impact
+- **Root cause:** agent-capability
+- **Status:** [x] skill created (plan-close), pending validation
+
+### [2026-04-07] TOKEN WASTE: Sleep-poll patterns for orchestrator log and Modal status
+- **Session:** genomics 3d4a2d99
+- **Score:** Partial (0.5)
+- **Evidence:** Multiple `sleep 20 && tail ...`, `sleep 25 && wc -l ... && tail ...`, `sleep 30 && tail ...` sequences while waiting for orchestrator to start up. Agent self-corrected ("I'll stop polling and let it work") but not before 4-5 poll cycles. Also: multiple sequential reads of the same orchestrator journal file to check status (lines 97-127: 6 reads of the run journal within ~30 messages).
+- **Failure mode:** TOKEN_WASTE sleep-poll (matches 2026-03-29 entry on bash-based file polling)
+- **Proposed fix:** existing coverage — posttool-bash-poll hook now blocks excessive polling. The hook fired in this very session-analyst run, confirming it works.
+- **Severity:** low — agent self-corrected relatively quickly
+- **Root cause:** agent-capability
+- **Status:** [x] existing coverage (posttool-bash-poll hook)
+
+### [2026-04-07] RECURRENCE: Subagent search-without-synthesis — researcher agent exhausted turns on searches, wrote nothing
+- **Session:** genomics bac9a34b
+- **Score:** Partial (0.5)
+- **Evidence:** "Frontier research on GP map calibration" agent completed with 30 tool_uses, 311s, but summary was "This is very productive. I found the key Minikel et al. 2024 Nature paper... Now let me fetch the critical papers and do one final search round." Output file was never written — parent had to extract findings from agent transcript. Second researcher (causal inference calibration) performed similarly: 17 tool_uses, 383s, wrote 11KB but mostly raw search results without synthesis.
+- **Failure mode:** Subagent search-without-synthesis (3rd recurrence — 2026-04-05 "2/5 researchers wrote scaffolds only", 2026-03-19 "research subagents dispatched without inventory check")
+- **Proposed fix:** existing coverage — CORAL epoch pattern in subagent rules (parent controls epochs, max 12 turns). But the pattern keeps recurring, suggesting the instruction isn't enforced. Consider: researcher agent output file existence check as PostToolUse hook on Agent completion.
+- **Severity:** medium — parent successfully extracted findings but at significant token cost (~200K tokens for transcript parsing)
+- **Root cause:** skill-execution — researcher skill instructions say "write to output file" but model doesn't comply under search momentum
+- **Status:** [ ] proposed — recurring 3x, meets promotion threshold
+
+### [2026-04-07] RECURRENCE: Gemini 3.1 Pro produced empty/hallucinated session-analyst output (3rd occurrence)
+- **Session:** meta (this session-analyst run)
+- **Score:** Not Satisfied (0.0)
+- **Evidence:** `llmx -p google -m gemini-3.1-pro-preview -f input.md -f coverage-digest.txt` returned "No valid session IDs or transcripts were provided in the input" despite 898KB well-formed input with clear session ID table. Third occurrence (2026-04-03, 2026-04-05, now).
+- **Failure mode:** VENDOR_CONFOUND — Gemini 3.1 Pro consistently fails on large session-analyst inputs
+- **Proposed fix:** [architectural] Switch session-analyst to direct analysis (Claude has 1M context) or split input into per-session chunks for Gemini. The -f flag may not work reliably for files this large via llmx CLI transport.
+- **Severity:** high — session-analyst is blind without a working judge model; manual analysis costs ~10x more context
+- **Root cause:** system-design — llmx -f with google CLI transport may silently truncate or fail on large files
+- **Status:** [ ] proposed — 3 recurrences, clearly meets promotion threshold
+
+### Session Quality
+| Session | Mandatory failures | Optional issues | Quality score (S) |
+|---------|-------------------|-----------------|-------------------|
+| 3d4a2d99 | 0 | 1 (token waste) | 0.92 |
+| ff3a6961 | 1 (build-then-undo) | 0 | 0.87 |
+| 914c4e66 | 0 | 1 (worktree rate limit — ENVIRONMENT) | 0.95 |
+| 12e92bcc | 1 (missing pushback) | 0 | 0.82 |
+| bac9a34b | 0 | 1 (researcher search-without-synthesis) | 0.93 |
+
 ### [2026-04-07] Session Analyst — Behavioral Anti-Patterns (meta, 5 sessions)
 - **Source:** Direct transcript analysis of sessions a3aecf1d, 6330c173, 6313978f + 2 empty (eed13b48, 84bf4ac4). Gemini 3.1 Pro dispatch + manual validation.
 - **Shape:** 5 sessions (2 empty, 1 clean, 2 with findings), ~19M tokens in, 3 findings (1 new, 2 recurrences)
