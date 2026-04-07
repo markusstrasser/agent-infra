@@ -8,6 +8,7 @@ dependencies = [
     "claude-agent-sdk>=0.1.44",
     "exa-py>=2.6.1",
     "fastmcp>=3.0,<4.0",
+    "parallel-web>=0.4.0",
 ]
 
 [project.scripts]
