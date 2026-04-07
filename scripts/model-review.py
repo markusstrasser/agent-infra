@@ -403,6 +403,7 @@ def dispatch(
     axis_names: list[str],
     question: str,
     has_constitution: bool,
+    question_overrides: dict[str, str] | None = None,
 ) -> dict:
     """Fire N llmx processes in parallel (one per axis), wait, return results."""
     env = {
@@ -436,9 +437,10 @@ def dispatch(
         out_path = review_dir / f"{axis}-output.md"
         outputs[axis] = out_path
 
+        axis_question = (question_overrides or {}).get(axis, question)
         prompt = axis_def["prompt"].format(
             date=today,
-            question=question,
+            question=axis_question,
             constitution_instruction=const_instruction.get(axis, ""),
         )
         prompts[axis] = prompt
@@ -647,8 +649,16 @@ def extract_claims(
     # Flag uncalibrated thresholds — numeric claims without cited sources
     merged = _flag_uncalibrated_thresholds(merged)
 
+    response_template = (
+        "\n\n---\n\n"
+        "## Agent Response (fill before implementing)\n\n"
+        "### Where I disagree with the disposition:\n"
+        '<!-- "Nowhere" is valid. Don\'t invent disagreements. -->\n\n\n'
+        "### Context I had that the models didn't:\n"
+        "<!-- If context file was comprehensive, say so. -->\n\n"
+    )
     disposition.write_text(
-        f"# Extracted Claims — {date.today().isoformat()}\n\n" + merged + "\n"
+        f"# Extracted Claims — {date.today().isoformat()}\n\n" + merged + response_template
     )
     return str(disposition)
 
@@ -792,6 +802,10 @@ def main() -> int:
         help="After extraction, verify cited files/symbols exist. Implies --extract.",
     )
     parser.add_argument(
+        "--questions", type=Path,
+        help="JSON file mapping axis names to custom questions (overrides positional question per-axis)",
+    )
+    parser.add_argument(
         "question", nargs="?",
         default="Review this for logical gaps, missed edge cases, and constitutional alignment.",
         help="Review question for all models",
@@ -834,8 +848,16 @@ def main() -> int:
 
     constitution, _ = find_constitution(project_dir)
 
+    # Load per-axis question overrides
+    question_overrides = None
+    if args.questions:
+        if not args.questions.exists():
+            print(f"error: questions file {args.questions} not found", file=sys.stderr)
+            return 1
+        question_overrides = json.loads(args.questions.read_text())
+
     # Dispatch and wait
-    result = dispatch(review_dir, ctx_files, axis_names, args.question, bool(constitution))
+    result = dispatch(review_dir, ctx_files, axis_names, args.question, bool(constitution), question_overrides)
 
     # --verify implies --extract
     do_extract = args.extract or args.verify
