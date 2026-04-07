@@ -69,6 +69,37 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 | 12e92bcc | 1 (missing pushback) | 0 | 0.82 |
 | bac9a34b | 0 | 1 (researcher search-without-synthesis) | 0.93 |
 
+### [2026-04-07] Session Analyst — Behavioral Anti-Patterns (genomics, 3 sessions, last 60 min)
+- **Source:** Gemini 3.1 Pro dispatch (single combined -f, worked on 114KB input) + manual validation. Sessions e440dcc5, 3d4a2d99, 6a34e8f4.
+- **Shape:** 3 sessions (1 empty/NO, 2 YES), ~82M input tokens total, 2 findings (1 new, 1 recurrence). Gemini produced 3 findings; 1 rejected after validation (misidentified stop hook as pre-commit hook).
+
+### [2026-04-07] TOKEN WASTE [W:3]: Diagnosing known bug on stale daemon instance
+- **Session:** genomics 3d4a2d99
+- **Score:** Partial (0.5)
+- **Evidence:** Agent committed timeout fix for Modal AppGetTags RPC hang (commit ~12:52). Later (~14:00), spent 5-6 tool calls diagnosing why orchestrator was hung again, concluding "This instance doesn't have the timeout fix (launched at 12:25, fix committed at 12:52)." The diagnosis was correct but predictable — agent knew the instance was pre-fix. Mitigated: user had instructed to wait for VEP before restarting.
+- **Failure mode:** TOKEN_WASTE — predictable re-diagnosis of known stale state
+- **Proposed fix:** [rule] "After committing a fix for a running daemon/process, either restart it or note that the running instance is stale and skip re-diagnosis on next observation." Could be a skill instruction addition for pipeline work.
+- **Severity:** low — ~5 tool calls wasted, agent correctly identified the cause quickly
+- **Root cause:** agent-capability
+- **Status:** [ ] proposed
+
+### [2026-04-07] RECURRENCE: Task output polling (background task file)
+- **Session:** genomics e440dcc5
+- **Evidence:** 6+ polls of `/private/tmp/.../tasks/bx94mxczy.output` via cat/wc-l/Read while waiting for model-review background task. Agent self-corrected ("I should wait for the background task notification instead of polling") and did productive work between polls (ran tests, found a real bug). Matches existing coverage (2026-03-29 bash-based file polling, posttool-bash-poll hook).
+- **Status:** [x] existing coverage (posttool-bash-poll hook fired in this session)
+
+### [2026-04-07] REJECTED: Gemini claimed stop-research-gate blocked git commits
+- **Sessions:** genomics e440dcc5, 3d4a2d99
+- **Evidence:** Gemini flagged agent's dismissal of stop-research-gate hook as "ignoring fatal commit blocks." Validation: stop-research-gate.sh is a **Stop hook** (blocks conversation termination via exit 2), NOT a pre-commit hook. It does not block git operations. Agent's response ("Not my file, not blocking my work. Ignoring.") was correct. The hook was firing because another parallel agent's research file lacked source tags.
+- **Severity:** N/A — false positive from Gemini misidentifying hook type
+
+### Session Quality
+| Session | Mandatory failures | Optional issues | Quality score (S) |
+|---------|-------------------|-----------------|-------------------|
+| e440dcc5 | 0 | 1 (task polling — existing coverage) | 0.95 |
+| 3d4a2d99 | 0 | 1 (stale daemon diagnosis) | 0.95 |
+| 6a34e8f4 | N/A (3 messages, no agent activity) | N/A | N/A |
+
 ### [2026-04-07] Session Analyst — Behavioral Anti-Patterns (meta, 5 sessions)
 - **Source:** Direct transcript analysis of sessions a3aecf1d, 6330c173, 6313978f + 2 empty (eed13b48, 84bf4ac4). Gemini 3.1 Pro dispatch + manual validation.
 - **Shape:** 5 sessions (2 empty, 1 clean, 2 with findings), ~19M tokens in, 3 findings (1 new, 2 recurrences)
