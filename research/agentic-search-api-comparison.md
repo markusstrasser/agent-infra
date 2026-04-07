@@ -376,7 +376,68 @@ Our Exa MCP already exposes all of this:
 
 ---
 
-## 12. Recommendations for Our Setup
+## 12. Parallel Task API — DeepSearchQA Benchmark (2026-04-07)
+
+**Source:** https://parallel.ai/blog/deepsearchqa-task-api-benchmarks [D2 — vendor-published, self-interested]
+
+Parallel published benchmark results on Google's DeepSearchQA (900 questions, 17 fields of expertise). Each question requires multi-step causal chains — you can't answer part B without resolving part A via web search. "Fully correct" means semantically identical to ground truth with zero false positives.
+
+### Results
+
+| Provider | Model | CPM ($/1K) | Accuracy (%) |
+|----------|-------|-----------|-------------|
+| Parallel | Ultra 8x | $2,400 | 82 |
+| Parallel | Ultra 4x | $1,200 | 81 |
+| Parallel | Ultra 2x | $600 | 77 |
+| Parallel | Ultra | $300 | 70 |
+| OpenAI | GPT 5.4 + code execution | $701 | 63 |
+| Google | Gemini 3.1 Pro + code execution | $707 | 62 |
+| Anthropic | Opus 4-6 + PTC | $36,231* | 58 |
+| Perplexity | Sonar Pro | $883 | 28 |
+| Exa | Search Deep Reasoning | $15 | 18 |
+
+*Parallel claims Opus 4-6 cost is inflated due to "potential billing issue" where prompt caching savings for PTC are not passed to user. Take this with skepticism — it may reflect inefficient prompting rather than billing problems.
+
+### Architecture: Code Execution Sandbox (Task API Harness)
+
+Key differentiator vs standard agent loops:
+
+1. **Code execution instead of tool calling** — model generates Python that calls `search()` and `extract()` as ordinary functions in a sandboxed Rust interpreter. Only final output re-enters model context; intermediate data stays in interpreter variables.
+2. **Persistent variable state** — variables survive across code execution steps. The model's reasoning trajectory is in conversation history; raw data is in the interpreter. Conversation can be compacted without losing granular data.
+3. **Budget-aware execution** — tracks cumulative token spend, injects budget warnings at thresholds. Simple queries terminate in 2 iterations; complex ones run 15+. This is how processor tiers work: higher tier = larger budget.
+4. **Context compaction** — summarization pass when history approaches limits, but interpreter state is unaffected.
+
+**Architecture comparison (from their blog):**
+
+| Architecture | Cost eff. | Fine-grained control | Adaptability |
+|-------------|-----------|---------------------|-------------|
+| Naive agent loop (LLM→tool→result→LLM) | ❌ | ❌ | ✅ |
+| Agent loop + context compression | ✅ | ❌ | 🟠 |
+| Static plan + sub-agents | ✅ | 🟠 | ❌ |
+| Agent loop + sub-agents | ✅ | 🟠 | 🟠 |
+| Task API Harness (Parallel) | ✅ | ✅ | ✅ |
+
+### Credibility assessment
+
+- (+) DeepSearchQA is Google-designed, 900 questions, 17 fields — reputable eval
+- (+) They chose DeepSearchQA over BrowseComp explicitly because "some models have begun to memorize portions of the BrowseComp dataset" — honest methodology choice
+- (+) Multiple processor tiers show consistent scaling — not cherry-picked
+- (-) **Vendor-published** — they ran the benchmark, chose the eval, and report the results
+- (-) Exa scoring 18% looks suspiciously low vs its performance on other benchmarks. May reflect task mismatch (DeepSearchQA requires multi-step reasoning, not just search quality)
+- (-) Opus 4-6 cost asterisk suggests non-standard setup — unclear if they optimized prompting
+- (-) No independent replication
+- (-) No error bars or confidence intervals reported
+- **Overall: [D2]** — useful directional signal. The architecture (code execution sandbox) is genuinely novel and the scaling across processor tiers is internally consistent. But treat absolute accuracy numbers as upper bounds until independently replicated.
+
+### Relevance to our setup
+
+The code execution sandbox pattern is architecturally interesting for our CORAL epoch pattern. Our current approach: parent dispatches researcher subagent (12 turns) → reads output → re-dispatches with context. Parallel's approach: model writes Python that calls tools, intermediate data stays in interpreter. The key insight: **keeping intermediate data out of conversation context** is the primary scaling advantage.
+
+We integrated Parallel as an MCP server (2026-04-07). Routing: `parallel_task` for complex multi-step web research; `parallel_search` for quick lookups. See `research-api-routing.md` for full routing table.
+
+---
+
+## 13. Recommendations for Our Setup
 
 We currently use Exa as primary search. Based on this analysis:
 
@@ -449,11 +510,11 @@ We currently use Exa as primary search. Based on this analysis:
 | 21 | Perplexity Sonar latency | Exa | Artificial Analysis data |
 
 <!-- knowledge-index
-generated: 2026-03-22T00:15:42Z
-hash: f50b9b688b56
+generated: 2026-04-07T19:16:27Z
+hash: 870b8432c55c
 
 title: Agentic Search API Comparison — Brave, Exa, Tavily, Firecrawl, Perplexity Sonar, Parallel
-sources: 9
+sources: 10
   C2: — trade press, plausible but single-source
   D2: — self-interested source, but methodology is reasonably transparent
   D2: — vendor-published
@@ -463,6 +524,7 @@ sources: 9
   B2: — confirmed by multiple independent sources
   D2: — vendor claim only, newer company, less external verification
   F3: — cannot determine from available evidence
+  D2: — vendor-published, self-interested
 table_claims: 8
 
 end-knowledge-index -->

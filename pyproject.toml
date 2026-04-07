@@ -13,6 +13,7 @@ dependencies = [
 
 [project.scripts]
 meta-mcp = "meta_mcp:main"
+parallel-mcp = "scripts.parallel_mcp:main"
 
 [tool.pyright]
 typeCheckingMode = "basic"
