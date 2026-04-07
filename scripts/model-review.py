@@ -635,6 +635,8 @@ def extract_claims(
             continue
         if path.exists() and path.stat().st_size > 0:
             extractions.append(f"## {label}\n\n{path.read_text().strip()}")
+        elif path.exists() and path.stat().st_size == 0:
+            print(f"warning: extraction for {axis} produced 0-byte file (model errored before output)", file=sys.stderr)
 
     if not extractions:
         return None
