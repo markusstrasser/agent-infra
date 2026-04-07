@@ -6,6 +6,37 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-04-07] Session Analyst — Behavioral Anti-Patterns (meta, 5 sessions)
+- **Source:** Direct transcript analysis of sessions a3aecf1d, 6330c173, 6313978f + 2 empty (eed13b48, 84bf4ac4). Gemini 3.1 Pro dispatch + manual validation.
+- **Shape:** 5 sessions (2 empty, 1 clean, 2 with findings), ~19M tokens in, 3 findings (1 new, 2 recurrences)
+
+### [2026-04-07] BUILD-THEN-VALIDATE: Custom MCP server built before checking vendor offers official hosted version
+- **Session:** meta a3aecf1d
+- **Evidence:** Agent wrote `parallel_mcp.py` FastMCP wrapper and patched 16 `.mcp.json` files across all projects. User then shared a second blog post showing Parallel has official hosted MCP servers (`https://task-mcp.parallel.ai/mcp`). Agent compared and concluded custom version was better (direct SDK, no npx dep, all processor tiers) — so the work wasn't wasted, but the order was wrong. Agent's own retro caught this: "WRONG_ASSUMPTION - Built custom MCP server before checking if vendor has official hosted ones."
+- **Failure mode:** pre-build-check-failure — should search for official vendor integrations before building custom wrappers
+- **Proposed fix:** [rule] Extend pre-build check #1: "For API integrations, search for official MCP server / SDK before writing custom wrapper." Already partially covered by "does this already exist" but the vendor-hosted-MCP angle was missed.
+- **Severity:** medium — work wasn't wasted (custom was defensibly better) but order caused churn
+- **Root cause:** agent-capability
+- **Status:** [ ] proposed
+
+### [2026-04-07] RECURRENCE: TOKEN_WASTE — Repeated file reads (operator-loop-refactor.md read 5x in session 6313978f)
+- **Session:** meta 6313978f
+- **Evidence:** `operator-loop-refactor.md` read 5 times during plan editing (lines 909, 959-971, 1007-1013, 1103-1119, 1157). The file is large (~400 lines) and was being edited incrementally. Each re-read was to get context for the next edit, but agent could have retained more content from prior reads.
+- **Failure mode:** TOKEN_WASTE repeated-read (3rd recurrence — see 2026-03-26 entry)
+- **Proposed fix:** existing coverage — tool-tracker hook should be mitigating. May indicate compaction between reads.
+- **Severity:** low — file was large and being structurally edited, reads were arguably necessary
+- **Root cause:** agent-capability
+- **Status:** [x] existing coverage
+
+### [2026-04-07] RECURRENCE: PREMATURE_TERMINATION — Stop hook caught uncommitted work (session 6313978f)
+- **Session:** meta 6313978f
+- **Evidence:** Stop hook fired: "UNVERIFIED CLAIMS: Claims commits but no commits found in this session." Agent had edited plan file and created 4 prompt files but hadn't committed. Stop hook blocked, agent committed, session continued.
+- **Failure mode:** PREMATURE TERMINATION (recurrence — see 2026-03-24 entry). Hook `stop-uncommitted-warn.sh` working as designed.
+- **Proposed fix:** existing coverage — stop hook is catching these. No new fix needed.
+- **Severity:** low — hook caught it before any damage
+- **Root cause:** agent-capability
+- **Status:** [x] existing coverage (hook working)
+
 ### [2026-04-05] EXTERNAL_VALIDATION: ERL paper confirms distilled heuristics > raw trajectories for agent self-improvement
 - **Source:** Research refresh — agent-behavior-refresh-2026-04.md
 - **Evidence:** ERL (arXiv:2603.24639, ICLR 2026 MemAgents Workshop) tested distilled heuristics vs raw experience trajectories on Gaia2 benchmark. Distilled heuristics: +7.8%. Raw trajectories: -1.9% (worse than no memory). Failure-derived heuristics best for search (+14.3%), success-derived for execution (+9.0%).
