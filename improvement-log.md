@@ -100,6 +100,41 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Root cause:** agent-capability
 - **Status:** [x] existing coverage (hook working)
 
+### [2026-04-07] Session Analyst — Behavioral Anti-Patterns (genomics, 3 sessions, 60-min window)
+- **Source:** Gemini 3.1 Pro dispatch (single combined context file — multi-file -f bug confirmed, 4th occurrence) + manual transcript validation. Sessions e440dcc5, 6a34e8f4, 3d4a2d99.
+- **Shape:** 3 sessions (1 YES, 1 NO, 1 YES-but-already-analyzed), 1 new finding, 1 false positive rejected, 2 recurrences noted
+
+### [2026-04-07] RULE VIOLATIONS [W:3]: Subagents dispatched without turn budget or output file parameters
+- **Session:** genomics e440dcc5
+- **Score:** Not Satisfied (0.0)
+- **Evidence:** claude-md-improver skill dispatched 5 bare `Agent(...)` calls: "Research genomics CLAUDE.md sync", "Research selve project structure", "Research selve info/CLI output", "Research genomics sync implementation", "Research selve CLAUDE.md and rules". All used string-only prompts with no `maxTurns`, no output file path, violating global subagent rules requiring turn budgets and file destination instructions.
+- **Failure mode:** RULE VIOLATION — subagent dispatch conventions
+- **Proposed fix:** [skill-execution] The claude-md-improver skill (official plugin) dispatches subagents without budget/output params. Either: (a) the skill instructions should include subagent conventions, or (b) a PreToolUse hook on Agent calls could enforce budget/output params. Option (b) already exists as advisory — may need promotion to blocking.
+- **Severity:** medium — subagents completed successfully but without architectural guardrails (no turn cap, no persistent output)
+- **Root cause:** skill-execution — official plugin skill doesn't follow local subagent conventions
+- **Status:** [ ] proposed
+
+### [2026-04-07] FALSE POSITIVE REJECTED: Gemini flagged /loop → CronCreate as "wrong-tool drift"
+- **Session:** genomics 3d4a2d99
+- **Evidence:** Gemini reported agent used `Skill(loop)` instead of CronCreate. Transcript shows `/loop` IS the designed entry point — it loads skill instructions that parse the interval and call CronCreate. The multi-step flow worked correctly. Gemini misread the skill indirection as a tool error.
+- **Status:** [x] rejected — false positive
+
+### [2026-04-07] RECURRENCE: llmx multi-file -f flag silently drops first file (4th occurrence)
+- **Session:** meta (this session-analyst run)
+- **Evidence:** `llmx -p google -m gemini-3.1-pro-preview -f input.md -f coverage-digest.txt` sent only 13,096 chars to Gemini (coverage-digest 7964 + prompt 5194) — the 61KB transcript was silently dropped. Debug output confirmed: `prompt_length: 13096`. Workaround: concatenate files into single combined-context.md. This is the 4th time this has caused session-analyst to fail or produce empty output.
+- **Failure mode:** VENDOR_CONFOUND / system-design — llmx multi-file -f flag drops earlier files
+- **Proposed fix:** [architectural] Fix llmx to concatenate all -f files, or update session-analyst skill to always pre-concatenate. The workaround (single file) worked immediately.
+- **Severity:** high — root cause of recurring "Gemini produced empty output" finding from earlier today
+- **Root cause:** system-design — llmx CLI bug, not Gemini
+- **Status:** [ ] proposed — now diagnosed as llmx bug, not Gemini context issue
+
+### Session Quality (genomics, 60-min window)
+| Session | Mandatory failures | Optional issues | Quality score (S) |
+|---------|-------------------|-----------------|-------------------|
+| e440dcc5 | 1 (subagent rule violation) | 0 | 0.93 |
+| 6a34e8f4 | 0 | 0 | 1.00 |
+| 3d4a2d99 | 0 | 0 (already analyzed in prior batch) | 0.92 (prior) |
+
 ### [2026-04-05] EXTERNAL_VALIDATION: ERL paper confirms distilled heuristics > raw trajectories for agent self-improvement
 - **Source:** Research refresh — agent-behavior-refresh-2026-04.md
 - **Evidence:** ERL (arXiv:2603.24639, ICLR 2026 MemAgents Workshop) tested distilled heuristics vs raw experience trajectories on Gaia2 benchmark. Distilled heuristics: +7.8%. Raw trajectories: -1.9% (worse than no memory). Failure-derived heuristics best for search (+14.3%), success-derived for execution (+9.0%).
