@@ -166,6 +166,41 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 | 6a34e8f4 | 0 | 0 | 1.00 |
 | 3d4a2d99 | 0 | 0 (already analyzed in prior batch) | 0.92 (prior) |
 
+### [2026-04-07] Session Analyst — Additional findings (genomics 3d4a2d99, deeper pass)
+- **Source:** Gemini 3.1 Pro dispatch (combined context, 163KB) + manual transcript validation. Re-analysis of 3d4a2d99 caught 2 findings missed by prior 2 passes (which scored token waste + stale daemon only).
+
+### [2026-04-07] OVER-ENGINEERING [W:4]: Pipeline resilience plan included daemon thread and URL cache — both dropped after model-review
+- **Session:** genomics 3d4a2d99
+- **Score:** Not Satisfied (0.0)
+- **Evidence:** Agent wrote `.claude/plans/pipeline-resilience-2026-04-07.md` with 4 phases. Phase 3 proposed a daemon thread to move tag RPCs out of the main loop. Phase 4 proposed a URL reachability cache (HEAD-check download URLs before image builds). When `/model-review` ran, both Gemini and GPT flagged these: "Threaded async anti-pattern" and "Phase 4 URL checks at runtime is over-engineered." Agent agreed and dropped both phases. The correct fix (Phase 1-2: lint wiring + preflight gate) was sufficient alone.
+- **Failure mode:** OVER-ENGINEERING — reaching for daemon threads and caches when the core fix (sync preflight validation) was already identified
+- **Proposed fix:** [rule] Architecture heuristic: "Fix sync failure loops synchronously before reaching for async daemon threads or runtime caches." The model-review system worked as designed (caught the over-engineering), but ideally the agent wouldn't propose it.
+- **Severity:** medium — model-review caught it before implementation, so no wasted build effort. But the plan-review cycle consumed tokens.
+- **Root cause:** agent-capability — pattern of adding "nice-to-have" phases to plans that don't survive review
+- **Status:** [ ] proposed — 3rd+ over-engineering finding (see 2026-02-28 regex-vs-AST, 2026-03-02 no-multi-horizon flag)
+
+### [2026-04-07] FIRST-ANSWER CONVERGENCE [W:4]: Pipeline resilience plan written without exploring alternative approaches
+- **Session:** genomics 3d4a2d99
+- **Score:** Not Satisfied (0.0)
+- **Evidence:** Agent identified 5 failure classes in the pipeline, then immediately wrote a 4-phase plan. No alternative approaches were generated or compared. The plan went straight from "root cause is validation at runtime instead of locally" to a specific 4-phase implementation. Model-review was invoked AFTER the plan was written — as a critique, not as part of design exploration. Constitution Principle #6 requires auditable phase artifacts (divergent-options + selection-rationale) for design decisions.
+- **Failure mode:** FIRST-ANSWER CONVERGENCE — jumped to implementation plan without exploring alternatives (3rd+ recurrence: 2026-03-07 infrastructure factoring, 2026-03-07 orchestrator pipeline)
+- **Proposed fix:** [hook] PreToolUse on Write to `.claude/plans/` — check if a divergent-options section or alternatives list exists in the plan content. Advisory, not blocking. The `/model-review` invocation shows the agent has the right reflex (get external critique) but applies it post-convergence instead of pre-convergence.
+- **Severity:** medium — model-review partially mitigated by catching over-engineered phases, but the design space was never explored
+- **Root cause:** agent-capability — persistent pattern despite Constitution Principle #6 and prior improvement-log entries
+- **Status:** [ ] proposed — meets promotion threshold (3+ recurrences)
+
+### [2026-04-07] RECURRENCE: Token waste — 12 reads of pipeline_orchestrator.py in single session
+- **Session:** genomics 3d4a2d99
+- **Evidence:** `Read(pipeline_orchestrator.py)` called 12 times across the session. Some were justified (file was being edited between reads) but several clusters show 2-3 consecutive reads with no intervening edits. Matches existing repeated-read finding (4th+ documented session, see 2026-03-26 entry).
+- **Status:** [x] existing coverage — already at promotion threshold, posttool hook exists for file polling
+
+### Session Quality (3d4a2d99 deeper pass)
+| Session | Mandatory failures | Optional issues | Quality score (S) |
+|---------|-------------------|-----------------|-------------------|
+| 3d4a2d99 | 2 (over-engineering, first-answer convergence) | 1 (repeated-read recurrence) | 0.78 |
+
+Note: Prior analyses scored 3d4a2d99 at 0.92-0.95. The deeper pass reveals the plan-quality issues that surface analysis missed. The 0.78 score reflects that model-review caught the over-engineering before implementation — the agent's self-correction reflex partially mitigated both findings.
+
 ### [2026-04-05] EXTERNAL_VALIDATION: ERL paper confirms distilled heuristics > raw trajectories for agent self-improvement
 - **Source:** Research refresh — agent-behavior-refresh-2026-04.md
 - **Evidence:** ERL (arXiv:2603.24639, ICLR 2026 MemAgents Workshop) tested distilled heuristics vs raw experience trajectories on Gaia2 benchmark. Distilled heuristics: +7.8%. Raw trajectories: -1.9% (worse than no memory). Failure-derived heuristics best for search (+14.3%), success-derived for execution (+9.0%).
