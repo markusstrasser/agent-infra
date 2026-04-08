@@ -294,13 +294,53 @@ loop-compatible:
 3. **No named pipelines.** Any composition can be relevant at any time. Skills compose freely, not via hardcoded sequences.
 4. **Skill-creator plugin:** Unaffected — it creates new skills, doesn't modify existing ones.
 
+## Cross-Model Review Findings (2026-04-07)
+
+Reviewed by Gemini 3.1 Pro (arch) + GPT-5.4 (formal). Both models converged on critical issues.
+
+### Adopted
+
+1. **Decouple findings.jsonl from consolidation.** Both models flagged bundling naming/routing + schema/telemetry as the highest-risk sub-change. Constitution says "isolate harness changes." findings.jsonl is a separate initiative.
+
+2. **Archive the long tail FIRST.** 18 skills with ≤2 invocations = 42.9% count reduction touching ≤6.6% of traffic. Highest ROI, lowest risk. Do before workflow consolidation.
+
+3. **Honest count: 42→~18, not 42→13.** Exceptions (model-guide, llmx-guide invocable; modal, google-workspace, browse standalone) make the real post-state ~18. Still 57% reduction — state it honestly.
+
+4. **Mode-level telemetry as prerequisite.** Without it, we lose the 543-invocation baseline and can't measure whether consolidation helped. Add `{skill, mode, project, ts}` logging before any renames.
+
+5. **findings.jsonl schema additions.** Add `harness_hash`, `commit_hash`, `blast_radius` when that initiative starts.
+
+6. **Hook telemetry preservation.** Log both consolidated name AND mode to maintain historical comparability.
+
+7. **Auto-discovery subcommands.** Each consolidated skill lists modes when called without args.
+
+8. **Cross-project call site migration.** Explicit step: grep all CLAUDE.md, hooks, justfiles for old skill names across all projects.
+
+### Rejected
+
+- Named pipelines as cron jobs (user rejected pipelines entirely)
+- Pre-execution rewrite hook for backward compat (user wants clean break)
+- Selection-rationale as separate artifact (this brainstorm + review IS the artifact)
+
+### Revised Implementation Order
+
+| Phase | Scope | Traffic risk |
+|---|---|---|
+| **A** | Canonical post-state inventory + mode-level telemetry | 0% |
+| **B** | Archive 18 long-tail skills (≤2 uses) | ≤6.6% |
+| **C** | Consolidate `observe`, `research`, `analyze`, `upgrade` | ~25% |
+| **D** | Consolidate `review` (highest traffic — 22%) | ~22% |
+| **E** | Reassess actual count, verify narrative | 0% |
+| **F** | Separate proposal: findings.jsonl unified substrate | Independent |
+
 ## Revisions
 
 - **2026-04-07 v2:** Added empirical usage data (543 invocations). Resolved open questions per user feedback: no backward compat, keep model-guide/llmx-guide invocable, no named pipelines. Added unified findings.jsonl proposal.
+- **2026-04-07 v3:** Integrated cross-model review (Gemini arch + GPT-5.4 formal). Decoupled findings.jsonl. Revised count to ~18. Added phased implementation order starting with long-tail archive. Mode telemetry as prerequisite.
 
 <!-- knowledge-index
-generated: 2026-04-08T05:56:12Z
-hash: c4d62cbaa231
+generated: 2026-04-08T06:16:57Z
+hash: f546f7b7161d
 
 
 end-knowledge-index -->
