@@ -55,3 +55,4 @@ experiments/*/runs/
 .brainstorm/
 artifacts/prompt-archaeology/
 .gstack/
+docs/vendor/

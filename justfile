@@ -360,6 +360,13 @@ lint-dupes:
     fi
     $ok && echo "All checks pass" || echo "Some checks failed (advisory)"
 
+# ── Vendor Docs ──────────────────────────────────────────────────
+
+# Sync vendor API docs (scite, fastmcp, claude-code, etc.)
+[group('health')]
+vendor-docs *args:
+    ./scripts/sync-vendor-docs.sh {{args}}
+
 # ── Git ────────────────────────────────────────────────────────────
 
 # Search Rejected: trailers across all repos
