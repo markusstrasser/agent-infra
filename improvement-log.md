@@ -2359,3 +2359,39 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 | 7f0b60ba | 2 (rule violation, over-engineering) | 3 (recurrences) | 0.78 |
 | 10fe8b2a | 0 | 0 | N/A (empty) |
 
+
+### [2026-04-08] Sessions Analyst — Behavioral Anti-Patterns (genomics, 5 sessions, run 10)
+
+### [2026-04-08] REASONING-ACTION MISMATCH: Cleared volume status without updating journal, causing pipeline stall
+- **Session:** genomics 7f0b60ba
+- **Evidence:** Tick 10: "Journal still has pangenie and splice_transformer as 'running' — I cleared the volume but forgot to reset the journal." Agent cleared _STATUS.json on the volume but did not update the local orchestrator journal, leaving the pipeline in a confused state where the volume showed "cleared" but the journal still showed "running."
+- **Failure mode:** REASONING-ACTION MISMATCH — two-step operation executed as one step
+- **Proposed fix:** architectural: wrap volume status clearing + journal reset into a single atomic operation in the orchestrator. Currently these are two manual steps that can desync.
+- **Severity:** medium
+- **Root cause:** skill-execution
+- **Status:** [ ] proposed
+
+### [2026-04-08] TOKEN WASTE: Inline python3 -c with nested f-string quotes causing syntax errors
+- **Session:** genomics 7f0b60ba
+- **Evidence:** `print(f"Device: {torch.device(\"cuda\" if torch.cuda.is_available() else \"cpu\")}")` caused `SyntaxError: f-string: unmatched '('`. Agent used inline python3 -c with complex nested quotes instead of writing a .py file.
+- **Failure mode:** TOKEN WASTE — rule exists (CLAUDE.md: "Multi-line Python >10 lines: write a .py file") but also applies to complex single-line with nested quoting
+- **Proposed fix:** rule: extend the inline python3 -c guidance to explicitly cover nested f-strings and escaped quotes as triggers for .py file
+- **Severity:** low
+- **Root cause:** agent-capability
+- **Status:** [ ] proposed
+
+**Recurrences (7f0b60ba, already logged in prior runs):**
+- Blind fix deployment (3rd+)
+- Partial systemic fix (2nd+)
+- Manual stage launches bypassing orchestrator (3rd+)
+- Inline python3 -c journal queries (3rd+)
+- Premature investigation termination (2nd+)
+
+### Session Quality
+| Session | Mandatory failures | Optional issues | Quality score (S) |
+|---------|-------------------|-----------------|-------------------|
+| 68b67efa | 0 | 0 | 1.00 |
+| 22bf4952 | 0 | 0 | 1.00 |
+| b7fe7899 | 0 | 2 (recurrences) | 0.85 |
+| 7f0b60ba | 1 | 1 + 5 recurrences | 0.65 |
+| 10fe8b2a | 0 | 0 | N/A (empty) |
