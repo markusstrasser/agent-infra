@@ -101,6 +101,8 @@ A finding becomes a rule or fix only if: (1) recurs 2+ sessions, (2) not covered
 
 Primary feedback: session-analyst comparing actual runs vs optimal baseline. If a change doesn't improve things in 30 days, revert or reclassify as experimental.
 
+**Isolate harness changes.** When modifying rules, hooks, or CLAUDE.md: change ONE thing per commit. Bundled changes are the #1 cause of build-then-undo in harness optimization — when a bundle regresses, you can't tell which change caused it. Single-variable commits make diagnosis trivial. (Evidence: Lee et al. 2026, arXiv:2603.28052 TerminalBench ablation.)
+
 ### Session Architecture
 - Interactive sessions with `/loop` for recurring work
 - Subagent delegation for fan-out (>10 discrete operations)
