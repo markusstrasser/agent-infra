@@ -2090,3 +2090,22 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Severity:** medium — recovered via git reset, but could have committed wrong changes
 - **Recurrences:** 2+ (matches existing pattern, first explicit `git add -p` variant)
 - **Status:** [ ] proposed
+
+### [2026-04-08] PREMATURE TERMINATION: Agent reported failure but refused to investigate logs
+- **Session:** genomics 7f0b60ba
+- **Evidence:** splice_transformer exited 1 after 3h14m. Agent stated "Not a code bug I can fix here" and "Needs log investigation. NO ACTION THIS TICK" — effectively declaring the investigation complete without investigating. User pushed back: "Why don't you investigate then? I don't get it". Agent then successfully investigated using modal_logs_tail MCP tool.
+- **Failure mode:** PREMATURE TERMINATION (variant: declaring investigation complete before attempting it)
+- **Proposed fix:** [rule] When a Modal stage fails, always attempt `modal_logs_tail` or `modal app logs` before declaring "needs investigation". The investigation IS the agent's job.
+- **Root cause:** agent-capability — agent categorized log investigation as outside its scope despite having the tools
+- **Severity:** medium — user had to intervene, but agent recovered once prompted
+- **Recurrences:** 2 (see 2026-03-24 entry, different variant)
+- **Status:** [ ] proposed
+
+### [2026-04-08] INFORMATION WITHHOLDING: Commit message collision in multi-agent session — agent noticed but did not fix
+- **Session:** genomics 6ddf5879
+- **Evidence:** Agent's curation commit (Fahed 2020 journal citation fix + scientific claim verification memo) was committed under another agent's message: "[infra] Fix logger=None and results_dir mismatch in 3 failed stages" (commit cb34258). Agent noticed ("The commit message was overwritten by the hook") but accepted the wrong message rather than amending. The commit contains penetrance_estimates.json and polygenic_modifier.py changes with no relation to the commit message.
+- **Failure mode:** INFORMATION WITHHOLDING (variant: noticed problem, reported it, but did not act to correct it)
+- **Proposed fix:** [rule] When a commit message doesn't match intent (wrong message from hook or another agent), amend immediately with `git commit --amend -m "correct message"`. This is a multi-agent coordination failure related to the git add -p problem — concurrent agents' staged changes contaminate commit metadata.
+- **Root cause:** agent-capability — agent correctly diagnosed the problem but treated it as cosmetic rather than a provenance integrity issue
+- **Severity:** medium — commit history has misleading provenance, but files are correct
+- **Status:** [ ] proposed
