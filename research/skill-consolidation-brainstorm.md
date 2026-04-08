@@ -190,24 +190,13 @@
 | skill-authoring | Meta-skill — creates other skills |
 | trending-scout | Ecosystem monitoring — external-facing |
 
-## Result: 42 → 6 workflows + 7 standalone + references
+## Result: 42 → ~18 (6 workflows + 7 standalone + model-guide + llmx-guide + 3 standalone runtime)
 
 | Before | After | Reduction |
 |---|---|---|
-| 42 user-invocable skills | 13 (6 workflows + 7 standalone) | -69% |
+| 42 user-invocable skills | ~18 (honest count with exceptions) | ~57% |
 | 0 skills declaring loop compatibility | 4 modes with explicit loop intervals | — |
-| 0 pipeline compositions | 3 named pipelines (morning, evening, weekly) | — |
 | 6 reference-only skills cluttering the list | 0 (moved to references/) | -6 |
-
-## Named Pipelines (sugar, not separate skills)
-
-These are just sequences that could be aliases or documented patterns:
-
-| Pipeline | Sequence | When |
-|---|---|---|
-| `/morning` | `improve harvest` → show ranked items → propose top 3 | Daily, or `/schedule 05:00` |
-| `/evening` | `observe retro` → `observe sessions --today` | End of work day |
-| `/weekly` | `observe architecture` → `observe supervision` → `improve harvest` → `upgrade harness --deferred` | Weekly |
 
 ## Loop/Schedule Declarations
 
@@ -225,19 +214,19 @@ loop-compatible:
 
 ## Migration Strategy
 
+**Breaking refactor — no backward compatibility.** Old skill directories are deleted, not redirected. No wrappers, no aliases.
+
 1. **Phase 0:** Create the 6 new workflow skills with SKILL.md that routes to modes.
 2. **Phase 1:** Move existing references/ and scripts/ into the new structure.
 3. **Phase 2:** Each old SKILL.md becomes `references/{old-name}.md` in the new skill.
-4. **Phase 3:** Update cross-skill references (model-review → review --model, etc.)
-5. **Phase 4:** Archive old skill directories to `_archive/`.
+4. **Phase 3:** Grep all CLAUDE.md, hooks, justfiles, settings.json across ALL projects for old skill names. Update every call site.
+5. **Phase 4:** Delete old skill directories entirely (no `_archive/`).
 6. **Phase 5:** Update CLAUDE.md registered skills lists, hook matchers, etc.
-
-**Critical constraint:** Old skill names must keep working during transition. The SKILL.md for `session-analyst` can become a thin redirect: "This skill has been consolidated into `/observe --sessions`. Running that now."
 
 ## What We Gain
 
-1. **Discoverable:** 13 skills, not 42. Each name maps to a workflow, not a technique.
-2. **Composable:** Named pipelines for common sequences. `/morning` is one command.
+1. **Discoverable:** ~18 skills, not 42. Each name maps to a workflow, not a technique.
+2. **Composable:** Skills compose freely — any mode from any workflow at any time.
 3. **Loop-native:** `maintain` and `research cycle` declare their intervals. `/loop 15m /improve maintain` is the documented way to run them.
 4. **No lost nuance:** Every existing SKILL.md, prompt, grounding example, and anti-pattern taxonomy lives in `references/`. The consolidated skill ROUTES to them.
 5. **Shared plumbing:** Transcript extraction, Gemini dispatch, output format, disposition tables — written once, used by all modes.
@@ -247,7 +236,7 @@ loop-compatible:
 
 1. **Direct invocation simplicity:** `/session-analyst meta 5` → `/observe sessions meta 5` (slightly longer).
 2. **Independent evolution:** Changing the session-analyst prompt now means editing `observe/references/session-analyst-prompt.md` inside a larger skill.
-3. **Skill-level metrics:** Hook telemetry logs skill invocations. Consolidated skills need mode-level tracking.
+3. **Skill-level metrics:** Hook telemetry logs skill invocations. Mitigated: Phase A adds mode-level tracking (`{skill, mode, project, ts}`) as prerequisite before any renames.
 
 ## Empirical Usage Data (543 invocations, all projects, 30 days)
 
@@ -364,8 +353,8 @@ Reviewed by Gemini 3.1 Pro (arch) + GPT-5.4 (formal). Both models converged on c
 - **2026-04-07 v4:** Integrated Engine+Lens architecture from brainstorm. 6 engines (gemini-analysis, cross-model-dispatch, codex-parallel, local-analysis, loop-ticker, mcp-orchestrator) shared across workflows. Lenses are prompt files — new perspectives added without code changes. Empirically validated: extract_transcript.py already shared by 4 skills.
 
 <!-- knowledge-index
-generated: 2026-04-08T06:21:31Z
-hash: 2444f501e61c
+generated: 2026-04-08T06:26:36Z
+hash: a5bfbc749b9a
 
 
 end-knowledge-index -->
