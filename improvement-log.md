@@ -2512,3 +2512,30 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 2. **Private Modal tag RPCs** — Codex correctly identified these as dead complexity and proposed deletion. Prior sessions worked around them.
 3. **Stage target resolver bias** — Codex found that `resolve_modal_target()` preferred bare scripts over `@stage` functions, causing sbayesrc mislaunch. Novel finding.
 4. **_STATUS.json env propagation failure** — `PIPELINE_RUN_ID` and `PIPELINE_ATTEMPT_ID` written as empty strings to remote status files because `modal run --detach` env injection was unreliable. Novel finding that explains trust policy failures across restarts.
+
+### [2026-04-08] Sessions Analyst — Behavioral Anti-Patterns (genomics, Codex 019d6d86 continued, run 14)
+- **Source:** Gemini 3.1 Pro dispatch + manual validation. Full 9h Codex session (1544 messages, 311M input tokens). Incremental analysis of latter half (subagent dispatch, review pass, commit struggles, budget management).
+- **Shape:** 2 new findings, 4 positive patterns. Prior analysis (run 13) covered first half.
+
+### [2026-04-08] NEW: RESOURCE EXHAUSTION — Exec session leak via blocking CLI commands
+- **Session:** genomics 019d6d86 (Codex)
+- **Evidence:** System issued `"Warning: The maximum number of unified exec processes you can keep open is 60 and you currently have 64 processes open"` **239 times** across the session. Agent acknowledged the issue once but continued running blocking commands like `modal app logs --timestamps` and `uv run python3 -` heredocs that each consume an exec slot. 454 `write_stdin` calls to supervised Claude Code sessions also contributed to slot exhaustion.
+- **Failure mode:** NEW: Exec session leak — blocking commands accumulate without cleanup
+- **Proposed fix:** [architectural] Codex needs exec session lifecycle management — auto-close idle sessions, or cap-and-recycle. [rule] Wrap `modal app logs` and streaming commands in `timeout` or redirect to file.
+- **Severity:** high — 239 warnings means the session was operating in degraded mode for most of its runtime
+- **Root cause:** system-design (Codex exec pool has no auto-cleanup for blocking commands)
+- **Status:** [ ] proposed
+
+### [2026-04-08] NEW: HEREDOC PYTHON REPL — 247 inline Python scripts via Bash heredocs
+- **Session:** genomics 019d6d86 (Codex)
+- **Evidence:** Agent executed 247 `uv run python3 - <<'PY' ... PY` heredoc blocks for Modal Volume inspection, JSON parsing, and status queries. These are multi-line scripts (10-50 lines each) embedded in Bash, not one-liners. Each invocation imports Modal SDK, connects to Volume, and performs a single query — no reuse across invocations.
+- **Failure mode:** RECURRING variant of inline python3 journal queries (logged 3+ times for Claude Code). Codex variant uses heredocs instead of `-c` and at 10x the scale.
+- **Proposed fix:** [architectural] Pipeline CLI needs `status --stage X`, `inspect --volume`, `verify --outputs` commands that replace ad-hoc Volume inspection. [rule] Codex AGENTS.md: "Use pipeline_orchestrator.py status subcommands for inspection, not raw Modal SDK calls."
+- **Severity:** medium — each heredoc is a fresh Python+Modal SDK import, ~5-10s overhead per call, cumulative cost ~20-40 min of session time
+- **Root cause:** skill-coverage (no CLI tool exposes Volume state for quick queries)
+- **Status:** [ ] proposed
+
+### [2026-04-08] POSITIVE: Codex subagent delegation and cross-model review
+- **Session:** genomics 019d6d86 (Codex)
+- **Evidence:** (1) Dispatched 3 named research subagents (Anscombe, Halley, Ptolemy) for parallel architecture analysis while keeping main thread on live pipeline. (2) Ran `/review close` with GPT-5.4 + Gemini adversarial review, then stated "There were 0 cross-model agreements, so I treated the model output as prompts for verification, not truth" — manually fact-checked every claim before writing verified-summary.md. (3) Pushed back on budget upgrade: "Do not buy a higher plan just to finish this run" when user asked about upgrading Modal plan. (4) Proactively wrote state to disk anticipating compaction over 9h session.
+- **Notes:** These are behaviors the constitution explicitly calls for. GPT-5.4 on Codex demonstrated stronger cross-model skepticism than typical Claude Code sessions.
