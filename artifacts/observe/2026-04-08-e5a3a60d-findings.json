@@ -2,26 +2,25 @@
   "findings": [
     {
       "category": "TOKEN WASTE",
-      "summary": "Repeatedly hitting file size limits on large Exa JSON, tried incompatible GNU grep flags on macOS before writing Python parser",
+      "summary": "Premature documentation of root causes before fix verification",
       "severity": "low",
-      "evidence": "Session 0bf6a590: after mcp__exa returned 143k char JSON, agent tried Read twice (10k limit), tried GNU grep -oP (macOS incompatible), before writing a working Python script",
-      "root_cause": "skill-execution",
-      "proposed_fix": "skill — add jq or Python JSON processing guidance for large Exa payloads",
-      "session_uuid": "0bf6a590",
-      "project": "selve"
+      "evidence": "Agent wrote prs_dosage_ci failure as init_stage() bug in audit memo before verifying fix, then had to append corrections multiple times",
+      "root_cause": "agent-capability",
+      "proposed_fix": "rule: Do not write root causes into persistent audit memos until fix is deployed and verified",
+      "session_uuid": "019d6d86",
+      "project": "genomics"
     }
   ],
-  "session_uuids": [
-    "94b6bac4-671f-4eee-ac04-01f7680d4f2f",
-    "0bf6a590-a9f6-492b-9b3c-d116eeabe476",
-    "e9c71730-8577-4063-b558-8ec07f1787b3",
-    "019d6f52-f7cd-77c2-b95b-faf0a1f14ae3",
-    "019d6f53-128b-7612-be58-ddf701629acd",
-    "019d6f4e-8f93-7c21-888b-eb490ac6aee9",
-    "019d6f40-0d1e-7382-924c-5d898a78e018",
-    "019d6f3f-fda8-7eb1-b15c-22d3801c2770"
+  "recurrences": [
+    "Exec session leak via blocking CLI commands (019d6d86) — already logged run 14",
+    "Hook ownership guard incompatible with Codex CLI (019d6d86) — already logged run 13",
+    "Inline python3 -c journal queries (019d6d86) — already logged run 9",
+    "Manual journal/state surgery (019d6d86) — already logged run 13",
+    "Blind fix deployment (019d6d86) — already logged run 9"
   ],
-  "sessions_analyzed": 8,
+  "session_uuids": ["b8098df4-2aba-4f5e-b7dd-82231b787658", "019d6d86"],
+  "sessions_analyzed": 2,
   "actionable_count": 1,
-  "note": "Genomics CC sessions already analyzed 12+ times today (observe loop saturation). Codex subagent threads all clean. Selve sessions high quality."
+  "clean_sessions": ["b8098df4 — mostly clean, two self-correcting hook catches"],
+  "notes": "Codex session 019d6d86 already extensively covered in runs 13-14. CC session b8098df4 (Finding IR OSS) was a well-executed brainstorm+research+review workflow."
 }

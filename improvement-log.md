@@ -2535,6 +2535,19 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Root cause:** skill-coverage (no CLI tool exposes Volume state for quick queries)
 - **Status:** [ ] proposed
 
+### [2026-04-08] Sessions Analyst — Run 15 (genomics CC b8098df4 + Codex 019d6d86 continued)
+- **Source:** Gemini 3.1 Pro dispatch + manual validation. CC session b8098df4 (Finding IR OSS brainstorm/research/review, 80K chars). Codex session 019d6d86 (continued orchestrator pipeline debugging, 664K chars).
+- **Shape:** 2 sessions triaged: both YES. After validation: 1 new finding confirmed, 5 recurrences noted (already covered in runs 13-14). CC session b8098df4 was mostly clean — two hook catches (review CLI arg collision, subagent turn budget) both self-correcting.
+
+### [2026-04-08] NEW: TOKEN WASTE — Premature documentation of root causes before fix verification
+- **Session:** genomics 019d6d86 (Codex)
+- **Evidence:** Agent wrote `prs_dosage_ci` failure as `init_stage()` bug in audit memo, then later discovered the real issue was different and had to append corrections. Also wrote meta-analysis failure diagnosis before validating — later updated with "stale on one important point."
+- **Failure mode:** NEW: Premature documentation — writing root causes to persistent audit memos before verifying the fix works
+- **Proposed fix:** [rule] Do not write root causes into persistent audit/findings memos until the fix has been deployed and confirmed. Use scratch notes or in-context reasoning for hypotheses. Promote to memo only after verification.
+- **Severity:** low — wasted tokens on corrections, but the agent self-corrected
+- **Root cause:** agent-capability
+- **Status:** [ ] proposed
+
 ### [2026-04-08] POSITIVE: Codex subagent delegation and cross-model review
 - **Session:** genomics 019d6d86 (Codex)
 - **Evidence:** (1) Dispatched 3 named research subagents (Anscombe, Halley, Ptolemy) for parallel architecture analysis while keeping main thread on live pipeline. (2) Ran `/review close` with GPT-5.4 + Gemini adversarial review, then stated "There were 0 cross-model agreements, so I treated the model output as prompts for verification, not truth" — manually fact-checked every claim before writing verified-summary.md. (3) Pushed back on budget upgrade: "Do not buy a higher plan just to finish this run" when user asked about upgrading Modal plan. (4) Proactively wrote state to disk anticipating compaction over 9h session.
