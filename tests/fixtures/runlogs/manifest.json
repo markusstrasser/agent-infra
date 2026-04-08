@@ -33,23 +33,6 @@
       "notes": "mcp__meta-knowledge tool call with session_meta subagent.thread_spawn lineage"
     }
   ],
-  "kimi": [
-    {
-      "path": "kimi/sessions/0974304dbbea81115caf0cd667c3bdc1/bf1741c4-ef64-49fb-bc12-b96d2bcd4746.jsonl",
-      "kind": "flat_success",
-      "notes": "Flat transcript with tool call and tool result"
-    },
-    {
-      "path": "kimi/sessions/36ad69a40b1c9a2a637fa7600bfef65b/f72df7c5-f8bf-4b09-b0c2-3ae1dcf65cd8/context.jsonl",
-      "kind": "directory_context",
-      "notes": "Directory-form context transcript"
-    },
-    {
-      "path": "kimi/sessions/36ad69a40b1c9a2a637fa7600bfef65b/f72df7c5-f8bf-4b09-b0c2-3ae1dcf65cd8/wire.jsonl",
-      "kind": "directory_wire",
-      "notes": "Wire log with approval and tool lifecycle"
-    }
-  ],
   "gemini": [
     {
       "path": "gemini/tmp/fixture-rich/chats/session-2026-03-05T12-00-11111111.json",

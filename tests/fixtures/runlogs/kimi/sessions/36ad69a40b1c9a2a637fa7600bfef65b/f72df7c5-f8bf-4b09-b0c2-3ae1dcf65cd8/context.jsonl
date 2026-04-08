@@ -1,5 +1,0 @@
-{"role":"_checkpoint","id":0}
-{"role":"user","content":"open the runlog schema"}
-{"role":"assistant","content":[{"type":"text","text":"I will read the schema file."}],"tool_calls":[{"type":"function","id":"ReadFile:1","function":{"name":"ReadFile","arguments":"{\"path\":\"/Users/test/Projects/meta/scripts/runlog_schema.sql\"}"}}]}
-{"role":"tool","tool_call_id":"ReadFile:1","content":[{"type":"text","text":"<system>21 lines read from file starting from line 1. End of file reached.</system>"},{"type":"text","text":"CREATE TABLE sources (...)"},{"type":"text","text":"CREATE TABLE runs (...)"}]}
-{"role":"_usage","token_count":3456}

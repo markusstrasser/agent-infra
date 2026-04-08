@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cross-vendor local run store for Claude, Codex, Kimi, and Gemini CLIs."""
+"""Cross-vendor local run store for Claude, Codex, and Gemini CLIs."""
 
 from __future__ import annotations
 
@@ -50,12 +50,6 @@ def get_db(path: Path) -> sqlite3.Connection:
 
 def infer_source_kind(vendor: str, path: Path) -> str:
     name = path.name
-    if vendor == "kimi":
-        if name == "wire.jsonl":
-            return "wire_jsonl"
-        if name.startswith("context"):
-            return "context_jsonl"
-        return "transcript_jsonl"
     if vendor == "gemini":
         return "state_json" if name.endswith(".json") and "session-" in name else "log_json"
     return "transcript_jsonl"

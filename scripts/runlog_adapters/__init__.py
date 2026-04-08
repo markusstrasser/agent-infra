@@ -1,9 +1,8 @@
-from . import claude, codex, gemini, kimi
+from . import claude, codex, gemini
 
 ADAPTERS = {
     "claude": claude,
     "codex": codex,
-    "kimi": kimi,
     "gemini": gemini,
 }
 

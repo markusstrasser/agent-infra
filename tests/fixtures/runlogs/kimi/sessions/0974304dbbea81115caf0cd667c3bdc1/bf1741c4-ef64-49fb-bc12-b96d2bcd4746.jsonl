@@ -1,4 +1,0 @@
-{"role":"user","content":[{"type":"text","text":"summarize the fixture corpus"}]}
-{"role":"assistant","content":[{"type":"text","text":"I will inspect the fixture manifest."}],"tool_calls":[{"type":"function","id":"ReadFile:0","function":{"name":"ReadFile","arguments":"{\"path\":\"/Users/test/Projects/chats/tests/fixtures/runlogs/manifest.json\"}"}}]}
-{"role":"tool","tool_call_id":"ReadFile:0","content":[{"type":"text","text":"<system>Command executed successfully.</system>"},{"type":"text","text":"{\"claude\":3,\"codex\":3,\"kimi\":3,\"gemini\":2}"}]}
-{"role":"assistant","content":[{"type":"text","text":"The fixture corpus covers all four vendors."}]}

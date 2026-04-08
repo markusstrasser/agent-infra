@@ -36,13 +36,13 @@ class RunlogFixtureImportTest(unittest.TestCase):
         self.assertEqual(import_result.returncode, 0, import_result.stderr)
         summary = json.loads(import_result.stdout)
         self.assertEqual(summary["failed"], 0)
-        self.assertEqual(summary["imported"], 11)
+        self.assertEqual(summary["imported"], 8)
 
         rerun_result = self.run_cli("import", "--fixtures")
         self.assertEqual(rerun_result.returncode, 0, rerun_result.stderr)
         rerun_summary = json.loads(rerun_result.stdout)
         self.assertEqual(rerun_summary["failed"], 0)
-        self.assertEqual(rerun_summary["skipped"], 11)
+        self.assertEqual(rerun_summary["skipped"], 8)
 
     def test_named_queries_return_rows(self) -> None:
         self.run_cli("init-db")
@@ -51,7 +51,7 @@ class RunlogFixtureImportTest(unittest.TestCase):
         supervision = self.run_cli("query", "supervision_ratio_by_vendor_week", "--format", "json")
         self.assertEqual(supervision.returncode, 0, supervision.stderr)
         supervision_rows = json.loads(supervision.stdout)
-        self.assertTrue(any(row["vendor"] == "kimi" for row in supervision_rows))
+        self.assertTrue(any(row["vendor"] == "gemini" for row in supervision_rows))
 
         touches = self.run_cli(
             "query",
