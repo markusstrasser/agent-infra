@@ -2395,3 +2395,51 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 | b7fe7899 | 0 | 2 (recurrences) | 0.85 |
 | 7f0b60ba | 1 | 1 + 5 recurrences | 0.65 |
 | 10fe8b2a | 0 | 0 | N/A (empty) |
+[2026-04-08] Sessions Analyst — Behavioral Anti-Patterns (genomics, 5 sessions, run 11)
+- Sessions: 68b67efa (clean), 22bf4952 (clean), b7fe7899 (minor), 7f0b60ba (minor), 10fe8b2a (empty)
+- Quality scores: 1.00, 1.00, 0.85, 0.44, 1.00
+- New findings: 0
+- Recurrences: 11 (all previously known patterns)
+- Session 7f0b60ba concentrated 9 recurrences — long orchestrator debugging session with known failure modes
+- Session b7fe7899 had 2 recurrences — symlink-blind Write and subagent token overflow
+
+### [2026-04-08] Sessions Analyst — Behavioral Anti-Patterns (genomics, 5 sessions, run 12)
+- Model: GPT-5.4 (Gemini 2.5 Pro hallucinated entire fictional session instead of analyzing transcripts)
+- Sessions: 68b67efa (minor), 22bf4952 (yes), b7fe7899 (yes), 7f0b60ba (yes), 10fe8b2a (clean)
+- Quality scores: 0.95, 0.78, 0.58, 0.22, 1.00
+
+### [2026-04-08] NEW: TOKEN WASTE — Observe loop saturation on same session set
+- **Session:** genomics 22bf4952
+- **Evidence:** 10+ observe runs on the same 5 sessions produced diminishing returns. Later runs explicitly noted "0 new findings to promote" and "coverage is current." The skill has no saturation detection — it will re-analyze indefinitely.
+- **Failure mode:** NEW: skill-level saturation blindness — observe reruns same sessions without detecting coverage is complete
+- **Proposed fix:** skill — observe should check improvement-log for existing run headers on the same session set and refuse without --force or new sessions
+- **Severity:** medium
+- **Root cause:** system-design
+- **Status:** [ ] proposed
+
+### [2026-04-08] NEW: INFORMATION WITHHOLDING — capture_output=True hid subprocess diagnostics, agent didn't surface this
+- **Session:** genomics 7f0b60ba
+- **Evidence:** splice_transformer stage failed. Agent said "No action this tick" and "subprocess stderr not captured." Only after user pushback ("Why don't you investigate then?") did agent discover capture_output=True was swallowing the real error. The pattern: capture_output in subprocess.run() hides stderr from the caller, and the agent treated "no stderr" as "no diagnostic available" instead of checking why stderr was missing.
+- **Failure mode:** NEW: diagnostic pipeline blindness — agent accepts absence of evidence as evidence of absence when the diagnostic pipeline itself is broken
+- **Proposed fix:** rule — when subprocess output is empty/missing, check capture_output and stdout/stderr redirect flags before concluding "no diagnostic available"
+- **Severity:** high
+- **Root cause:** agent-capability
+- **Status:** [ ] proposed
+
+**Recurrences (already logged):**
+- Manual stage launches bypassing orchestrator (4th+, sessions b7fe7899 and 7f0b60ba)
+- Premature investigation termination / "not a code bug I can fix" (3rd+, session 7f0b60ba)
+- Destructive action on ambiguous instruction / CronDelete (3rd+, session 7f0b60ba)
+- Symlink-blind Write through AGENTS.md (2nd+, session b7fe7899)
+- Broad subagent dispatch hitting token limits (2nd+, session b7fe7899)
+
+### Session Quality (GPT-5.4)
+| Session | Mandatory failures | Optional issues | Quality score |
+|---------|-------------------|-----------------|---------------|
+| 68b67efa | 0 | 1 | 0.95 |
+| 22bf4952 | 1 | 2 | 0.78 |
+| b7fe7899 | 2 | 4 | 0.58 |
+| 7f0b60ba | 5 | 4 | 0.22 |
+| 10fe8b2a | 0 | 0 | 1.00 |
+- No new hooks, rules, or architectural fixes warranted this run
+- Gemini session ID validation: 5/5 clean (no fabrications)
