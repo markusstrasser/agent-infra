@@ -2148,3 +2148,55 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Proposed fix:** (1) Pretool guard: block `git checkout --` / `git restore` on files with dirty state from other agents. (2) Rule: in multi-agent sessions, never discard changes to files you didn't modify — stash or coordinate instead.
 - **Root cause:** agent-capability — agent prioritized its own commit over preserving concurrent work
 - **Status:** [ ] proposed
+
+### [2026-04-08] Sessions Analyst — Behavioral Anti-Patterns (genomics, 5 sessions)
+- **Source:** Gemini 3.1 Pro dispatch + manual validation. Sessions 22bf4952, 68b67efa, 7f0b60ba, 10fe8b2a, 31bb2400.
+- **Shape:** 5 sessions triaged: 1 YES (7f0b60ba), 3 NO (clean), 1 empty. After validation: 3 new findings confirmed, 3 recurrences noted. All session IDs verified against manifest.
+
+### [2026-04-08] NEW: Blind fix deployment — deployed fix then waited 4h timeout without verifying it worked
+- **Session:** genomics 7f0b60ba
+- **Score:** Not Satisfied (0.0)
+- **Evidence:** Agent fixed splice_transformer (conda pytorch-cuda -> pip install torch CUDA) but never verified the fix worked. First fix (conda) didn't actually install CUDA torch. Agent waited through a full 4h timeout before volume log revealed `torch device:cpu`. Then committed a v2 fix (pip install) but again didn't verify — a second 4h cycle ran on CPU. Agent self-diagnosed at line 9664 of transcript: "I wrote the stderr-to-volume diagnostic for splice_transformer, then didn't check `torch device:` on the very next run. The whole point of writing logs to volume was to verify the fix worked. I waited for a 4h timeout instead of checking 5 minutes in." ~8h GPU container time wasted on CPU compute.
+- **Failure mode:** NEW: Blind fix deployment — deployed fix without early verification checkpoint
+- **Proposed fix:** [rule] After deploying a fix to a Modal stage, verify it took effect within 5 minutes (check logs, stdout, or volume for the expected behavior change). Never wait for a full timeout cycle to learn if a fix worked.
+- **Root cause:** agent-capability — agent deployed the fix but didn't complete the verification loop
+- **Severity:** high — ~8h GPU container time wasted, two full timeout cycles with zero useful output
+- **Recurrences:** 1 (first observed, distinct from "refused to investigate logs" finding)
+- **Status:** [ ] proposed
+
+### [2026-04-08] NEW: Superficial health check — process existence ≠ process health
+- **Session:** genomics 7f0b60ba
+- **Score:** Not Satisfied (0.0)
+- **Evidence:** Agent ran `ps aux | grep pipeline_orchestrator | grep -v grep | wc -l` at least 7 times across health check ticks to confirm orchestrator was "alive". Each time it confirmed the process existed and reported "orchestrator alive, no action needed." However, the orchestrator had finished its dispatch loop and was idle — not dispatching the 3 fixed stages (pangenie, prs_percentile, splice_transformer) that were reset to pending. Hours of pipeline stall before agent finally checked orchestrator log output and discovered it was idle. Agent then had to restart the orchestrator.
+- **Failure mode:** NEW: Superficial health check — checking process existence instead of application-level health (log recency, dispatch activity, queue progress)
+- **Proposed fix:** [rule] Health checks for long-running daemons must verify recent log activity or progress metrics, not just process existence. For pipeline_orchestrator: check log timestamp or journal stage count delta, not `ps aux`.
+- **Root cause:** agent-capability — agent equated "process running" with "process healthy"
+- **Severity:** high — hours of pipeline stall, multiple health check ticks missed the idle state
+- **Recurrences:** 1 (first observed)
+- **Status:** [ ] proposed
+
+### [2026-04-08] NEW: Partial systemic fix — fixed one input for generic error, missed same issue on sibling input
+- **Session:** genomics 7f0b60ba
+- **Score:** Not Satisfied (0.0)
+- **Evidence:** PanGenie failed with "requires an uncompressed file." Agent decompressed only the VCF input and relaunched. Second run failed: FASTQ was also gzipped. Agent had to make a second fix and wait another 1.5h+ cycle. The error message was generic ("uncompressed file") — agent should have audited ALL inputs to PanGenie for the same condition before the first retry.
+- **Failure mode:** NEW: Partial systemic fix — when encountering a generic tool error, auditing only one input instead of all inputs sharing the same constraint
+- **Proposed fix:** [rule] When encountering a generic tool error (e.g., "uncompressed file required", "invalid format"), audit ALL inputs to the tool for the same condition before retrying. Don't fix one input and hope the others are fine.
+- **Root cause:** agent-capability — narrowed the fix scope to the first input that matched, didn't generalize
+- **Severity:** medium — 1.5h+ wasted on second cycle, plus engineering time for two commits instead of one
+- **Recurrences:** 1 (first observed)
+- **Status:** [ ] proposed
+
+### [2026-04-08] RECURRENCE: Manual stage launches bypassing orchestrator
+- **Session:** genomics 7f0b60ba
+- **Evidence:** Agent launched `modal run --detach` manually for stages that should have been dispatched by orchestrator. Later self-corrected: "I'll stop the manual launches and let it drive from here." This is a recurrence of the over-engineering pattern from prior sessions.
+- **Status:** noted (already covered)
+
+### [2026-04-08] RECURRENCE: Premature investigation termination
+- **Session:** genomics 7f0b60ba
+- **Evidence:** Already logged above (2026-04-08 entry, line 2094). Agent said "Not a code bug I can fix here... NO ACTION THIS TICK" for splice_transformer failure before investigating logs.
+- **Status:** noted (already covered)
+
+### [2026-04-08] RECURRENCE: Destructive action on ambiguous instruction (cron deletion)
+- **Session:** genomics 7f0b60ba
+- **Evidence:** Already logged above (2026-04-08 entry, line 2113). User said "don't change the plan" → agent deleted cron.
+- **Status:** noted (already covered)

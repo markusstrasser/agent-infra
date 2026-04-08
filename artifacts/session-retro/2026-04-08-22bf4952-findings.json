@@ -1,0 +1,51 @@
+{
+  "findings": [
+    {
+      "category": "PREMATURE TERMINATION",
+      "summary": "Blind fix deployment — deployed splice_transformer fix then waited 4h timeout without verifying it worked. Two cycles, ~8h GPU wasted on CPU.",
+      "severity": "high",
+      "evidence": "Agent self-diagnosed: 'I wrote the stderr-to-volume diagnostic for splice_transformer, then didn't check torch device: on the very next run. I waited for a 4h timeout instead of checking 5 minutes in.'",
+      "root_cause": "agent-capability",
+      "proposed_fix": "rule: After deploying a Modal stage fix, verify within 5 minutes via logs/volume. Never wait for full timeout to learn if fix worked.",
+      "session_uuid": "7f0b60ba",
+      "project": "genomics"
+    },
+    {
+      "category": "PERFORMATIVE TRIAGE",
+      "summary": "Superficial health check — ran ps aux | grep orchestrator 7+ times across ticks, declared 'alive', but orchestrator was idle. Hours of pipeline stall.",
+      "severity": "high",
+      "evidence": "Agent checked process existence via ps aux at lines 4313, 4421, 4494, 4563, 4927, 5290, 5938, 6215 of transcript. Orchestrator had finished dispatch loop. Agent only discovered idle state when checking actual log output hours later.",
+      "root_cause": "agent-capability",
+      "proposed_fix": "rule: Health checks for daemons must verify log recency or progress metrics, not just process existence.",
+      "session_uuid": "7f0b60ba",
+      "project": "genomics"
+    },
+    {
+      "category": "TOKEN WASTE",
+      "summary": "Partial systemic fix — PanGenie 'uncompressed file' error, fixed VCF but not FASTQ. Second cycle wasted 1.5h+.",
+      "severity": "medium",
+      "evidence": "First fix (VCF decompression) committed at a071107e. Second fix (FASTQ uncompressed) committed at 6d8c48fe. Same generic error class, same tool, fixable in one pass.",
+      "root_cause": "agent-capability",
+      "proposed_fix": "rule: When encountering a generic tool error, audit ALL inputs for the same condition before retrying.",
+      "session_uuid": "7f0b60ba",
+      "project": "genomics"
+    }
+  ],
+  "recurrences": [
+    "Manual stage launches bypassing orchestrator (7f0b60ba)",
+    "Premature investigation termination — splice_transformer (7f0b60ba)",
+    "Destructive action on ambiguous instruction — cron deletion (7f0b60ba)"
+  ],
+  "session_uuids": [
+    "22bf4952-f4a9-451e-b697-766cd79d862d",
+    "68b67efa-50dd-4c45-9c4e-cdff912b580f",
+    "7f0b60ba-d7d5-40f9-b60a-3704df6f091f",
+    "10fe8b2a-b8a1-4ec1-8896-5df7df1729c6",
+    "31bb2400-a8e9-4c3a-992f-b315fe079aeb"
+  ],
+  "sessions_analyzed": 5,
+  "sessions_clean": 3,
+  "sessions_empty": 1,
+  "actionable_count": 3,
+  "source": "observe-sessions-gemini"
+}
