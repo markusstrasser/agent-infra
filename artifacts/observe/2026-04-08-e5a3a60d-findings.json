@@ -1,0 +1,27 @@
+{
+  "findings": [
+    {
+      "category": "TOKEN WASTE",
+      "summary": "Repeatedly hitting file size limits on large Exa JSON, tried incompatible GNU grep flags on macOS before writing Python parser",
+      "severity": "low",
+      "evidence": "Session 0bf6a590: after mcp__exa returned 143k char JSON, agent tried Read twice (10k limit), tried GNU grep -oP (macOS incompatible), before writing a working Python script",
+      "root_cause": "skill-execution",
+      "proposed_fix": "skill — add jq or Python JSON processing guidance for large Exa payloads",
+      "session_uuid": "0bf6a590",
+      "project": "selve"
+    }
+  ],
+  "session_uuids": [
+    "94b6bac4-671f-4eee-ac04-01f7680d4f2f",
+    "0bf6a590-a9f6-492b-9b3c-d116eeabe476",
+    "e9c71730-8577-4063-b558-8ec07f1787b3",
+    "019d6f52-f7cd-77c2-b95b-faf0a1f14ae3",
+    "019d6f53-128b-7612-be58-ddf701629acd",
+    "019d6f4e-8f93-7c21-888b-eb490ac6aee9",
+    "019d6f40-0d1e-7382-924c-5d898a78e018",
+    "019d6f3f-fda8-7eb1-b15c-22d3801c2770"
+  ],
+  "sessions_analyzed": 8,
+  "actionable_count": 1,
+  "note": "Genomics CC sessions already analyzed 12+ times today (observe loop saturation). Codex subagent threads all clean. Selve sessions high quality."
+}
