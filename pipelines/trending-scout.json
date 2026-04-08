@@ -6,7 +6,7 @@
     {
       "step": "version-baseline",
       "type": "script",
-      "command": "uv run python3 scripts/vendor-versions.py > artifacts/trending-scout/versions-$(date +%Y-%m-%d).txt 2>/dev/null || true",
+      "command": "python3 ~/Projects/skills/trending-scout/scripts/vendor-versions.py > artifacts/trending-scout/versions-$(date +%Y-%m-%d).txt 2>/dev/null || true",
       "cwd": "~/Projects/meta"
     },
     {

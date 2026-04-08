@@ -6,7 +6,7 @@
     {
       "step": "shape-prefilter",
       "type": "script",
-      "command": "uv run python3 scripts/sessions.py index && uv run python3 scripts/session-shape.py --days 1 --json > artifacts/session-retro/shape-$(date +%Y-%m-%d).json 2>/dev/null || true",
+      "command": "uv run python3 scripts/sessions.py index && python3 ~/Projects/skills/design-review/scripts/session-shape.py --days 1 --json > artifacts/session-retro/shape-$(date +%Y-%m-%d).json 2>/dev/null || true",
       "cwd": "~/Projects/meta"
     },
     {

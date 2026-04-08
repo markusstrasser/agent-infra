@@ -37,7 +37,7 @@
       "step": "vendor-versions",
       "project": "meta",
       "engine": "script",
-      "prompt": "python3 scripts/vendor-versions.py --output artifacts/vendor-versions",
+      "prompt": "python3 ~/Projects/skills/trending-scout/scripts/vendor-versions.py --output artifacts/vendor-versions",
       "cwd": "~/Projects/meta"
     },
     {
