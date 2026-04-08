@@ -2308,3 +2308,54 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Severity:** high — manual restart loop across 8h session, bug persists for future sessions
 - **Recurrences:** 0 (novel finding, promoted immediately due to high severity and clear actionability)
 - **Status:** [ ] proposed
+
+### [2026-04-08] Sessions Analyst — Behavioral Anti-Patterns (genomics, 5 sessions, run 9)
+- **Source:** Gemini 3.1 Pro dispatch (truncated at 2.4KB due to 640KB input) + manual transcript analysis. Sessions: 68b67efa (/improve harvest), 22bf4952 (/loop observe), b7fe7899 (/loop pipeline-health-check 26min), 7f0b60ba (/loop pipeline-health-check 8.5h, 1561 msgs, 40+ commits), 10fe8b2a (empty).
+- **Triage:** 1 YES (7f0b60ba), 1 MINOR (b7fe7899), 3 NO (68b67efa clean, 22bf4952 clean, 10fe8b2a empty).
+
+### [2026-04-08] NEW: RULE VIOLATIONS — Background Python daemon launched without PYTHONUNBUFFERED=1
+- **Session:** genomics 7f0b60ba
+- **Score:** Not Satisfied (0.0)
+- **Evidence:** Agent launched orchestrator via `nohup uv run python scripts/pipeline_orchestrator.py ... > /tmp/orchestrator.log 2>&1 &`, then 8 minutes later found only 4 lines in the log. Agent diagnosed: "log is buffered." Had to kill and restart with PYTHONUNBUFFERED=1. This is already documented in CLAUDE.md console-output.md rules: "Always set PYTHONUNBUFFERED=1 — uv run does NOT unbuffer Python's stdout."
+- **Failure mode:** RULE VIOLATIONS — existing rule in .claude/rules/console-output.md not followed
+- **Proposed fix:** [hook] PreToolUse:Bash hook to warn when `nohup.*uv run python` or `nohup.*python3` appears without PYTHONUNBUFFERED=1 in the command
+- **Severity:** low — 8 min diagnostic delay + process restart, but the rule already exists
+- **Root cause:** agent-capability — rule existed but wasn't consulted before launching background process
+- **Recurrences:** 0 (novel finding)
+- **Status:** [ ] proposed
+
+### [2026-04-08] NEW: OVER-ENGINEERING — Regex-based Python refactoring introduced lint errors
+- **Session:** genomics 7f0b60ba
+- **Score:** Not Satisfied (0.0)
+- **Evidence:** Agent used `python3 -c` with `re.sub` to inject `logger = get_logger()` into 10 functions in modal_prs_percentile.py. Three functions didn't use logger, causing ruff F841 (unused variable) failures. Agent then spent 5+ tool calls reverting the over-injection with targeted edits. Total waste: ~10 tool calls for a task that targeted Edit would have handled correctly.
+- **Failure mode:** OVER-ENGINEERING — batch regex refactoring without semantic context
+- **Proposed fix:** [rule] Do not use regex to structurally refactor Python code. Use targeted Edit tool replacements or read each function first. Regex lacks semantic context (is the variable used?) and creates cleanup debt.
+- **Severity:** low — wasted ~10 tool calls, lint caught the error before commit
+- **Root cause:** agent-capability — chose speed over correctness for a code transformation
+- **Recurrences:** 0 (novel finding)
+- **Status:** [ ] proposed
+
+### [2026-04-08] RECURRENCE: Inline python3 -c journal queries instead of proper tooling
+- **Session:** genomics 7f0b60ba (30+ occurrences across session)
+- **Evidence:** Agent wrote 30+ inline `python3 -c "import json; j = json.load(open('$JOURNAL'))..."` blocks to query orchestrator journal state. Each block is 5-15 lines of unreadable inline Python. Coverage digest already has: "[2026-04-08] TOKEN WASTE: Journal queries via inline python3 -c instead of proper tooling"
+- **Recurrence count:** 3rd+ session with this pattern
+
+### [2026-04-08] RECURRENCE: Sequential modal volume get per-stage despite documented memory leak
+- **Session:** genomics 7f0b60ba (3 reconciliation loops, ~40 volume get calls total)
+- **Evidence:** Agent ran `for stage in ...; do uv run modal volume get genomics-data ... done` loops to reconcile stage status. Each call spawns ~300MB subprocess. This exact pattern is documented in MEMORY.md feedback_modal_sync_subprocess_leak.md as causing a 29GB crash. The agent itself wrote the operational knowledge doc in the same session documenting this leak — then continued using the pattern. Coverage digest: "[2026-04-08] NEW: REASONING-ACTION MISMATCH — documented modal volume get memory leak then continued using the pattern"
+- **Recurrence count:** 2nd occurrence (same session as original finding, but repeated within session after documenting the problem)
+
+### [2026-04-08] RECURRENCE: Blind fix deployment — deployed fixes then waited for timeout without verifying
+- **Session:** genomics 7f0b60ba
+- **Evidence:** Agent committed fixes for pangenie (decompress VCF), bphunter (reference FASTA path), prs_dosage_ci (out_dir mismatch), then cleared _STATUS.json and said "orchestrator will relaunch." Did not verify the fix worked before moving to next stage. Multiple fixes required 2-3 iterations because the first attempt was incomplete (e.g., pangenie: first wrote to /tmp, user said "why not volume?", agent rewrote). Coverage digest: "[2026-04-08] NEW: Blind fix deployment"
+- **Recurrence count:** 3rd+
+
+### Session Quality
+| Session | Mandatory failures | Optional issues | Quality score (S) |
+|---------|-------------------|-----------------|-------------------|
+| 68b67efa | 0 | 0 | 1.00 |
+| 22bf4952 | 0 | 0 | 1.00 |
+| b7fe7899 | 0 | 1 (minor recurrences) | 0.95 |
+| 7f0b60ba | 2 (rule violation, over-engineering) | 3 (recurrences) | 0.78 |
+| 10fe8b2a | 0 | 0 | N/A (empty) |
+
