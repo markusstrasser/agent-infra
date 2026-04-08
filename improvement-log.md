@@ -2200,3 +2200,29 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Session:** genomics 7f0b60ba
 - **Evidence:** Already logged above (2026-04-08 entry, line 2113). User said "don't change the plan" → agent deleted cron.
 - **Status:** noted (already covered)
+
+### [2026-04-08] Sessions Analyst — Behavioral Anti-Patterns (genomics, 5 sessions, run 7)
+- **Source:** Gemini 3.1 Pro dispatch + manual validation. Sessions 22bf4952 (cron loop), b7fe7899 (pipeline health loop), 7f0b60ba (pipeline health loop, 1561 msgs), 68b67efa (/improve harvest), 10fe8b2a (empty).
+- **Shape:** 5 sessions triaged: 1 YES (7f0b60ba), 1 MINOR (b7fe7899), 3 NO (22bf4952, 68b67efa, 10fe8b2a). After validation: 2 novel findings confirmed, 3 recurrences noted.
+
+### [2026-04-08] NEW: REASONING-ACTION MISMATCH — documented modal volume get memory leak then continued using the pattern
+- **Session:** genomics 7f0b60ba
+- **Score:** Not Satisfied (0.0)
+- **Evidence:** Agent wrote `modal-operations.md` documenting "Never iterate modal volume ls + modal volume get per-file via subprocess. Each subprocess loads ~300MB Modal SDK. 100+ calls = 29GB crash" — then in the same session executed 74 direct bash `modal volume get` calls for status polling across health check ticks. The knowledge was in context yet the behavior continued.
+- **Failure mode:** REASONING-ACTION MISMATCH — agent documents a rule then immediately violates it
+- **Proposed fix:** [hook] Block bash commands containing `modal volume get` or `modal volume ls` in loops (extend pretool-bash-loop-guard). [alternative] Upgrade pipeline health check prompt to mandate `modal_volume_inspect` MCP tool instead of bash volume commands.
+- **Severity:** high — 74 subprocess invocations at ~300MB each is a resource bomb
+- **Root cause:** agent-capability — documentation was for other agents (Codex), agent didn't internalize it for self
+- **Recurrences:** 0 (first observed — this is the self-contradiction variant, distinct from the known leak pattern)
+- **Status:** [ ] proposed
+
+### [2026-04-08] NEW: CAPABILITY ABANDONMENT — passively categorized 8 failing stages as "will fail again" without investigation
+- **Session:** genomics 7f0b60ba
+- **Score:** Not Satisfied (0.0)
+- **Evidence:** Agent declared "~8 will fail again on same root cause (evo2_40b, kir_t1k, bphunter, esm_lfb, sven_sv, xtea_mei, rexpert, locityper)" and planned to let the orchestrator retry them. User pushed back: "Fail again? You can;t fix them? /modal ? wtf?" — agent then investigated and produced 18 fix commits. The fixes were tractable; the agent had chosen passive monitoring over proactive debugging.
+- **Failure mode:** CAPABILITY ABANDONMENT — agent had fix capability but chose passive monitoring
+- **Proposed fix:** [rule] When a health check identifies failing stages with known root causes, the default action is to investigate and fix, not to report failure and wait for retry. Passive monitoring of fixable failures is not a valid health check response.
+- **Severity:** high — 8 stages sat broken for hours until user demanded investigation
+- **Root cause:** agent-capability — defaulted to "monitor and report" instead of "diagnose and fix"
+- **Recurrences:** 1 (related to PREMATURE TERMINATION on splice_transformer logs, same session, same behavioral pattern)
+- **Status:** [ ] proposed
