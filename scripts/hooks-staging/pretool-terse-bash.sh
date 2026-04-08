@@ -31,12 +31,12 @@ fi
 
 # pip list/freeze without piping
 if [ -z "$SUGGESTION" ] && echo "$CMD" | grep -qE '\bpip\s+(list|freeze)\b'; then
-    echo "$CMD" | grep -q '|' || SUGGESTION="Consider 'pip list --format=columns | head' to limit output"
+    echo "$CMD" | grep -qE '[|>]' || SUGGESTION="Consider 'pip list --format=columns | head' to limit output"
 fi
 
 # cat <file> without piping — suggest Read tool
 if [ -z "$SUGGESTION" ] && echo "$CMD" | grep -qE '^\s*cat\s+\S'; then
-    echo "$CMD" | grep -q '|' || SUGGESTION="Use the Read tool instead of cat — it has line numbers and pagination"
+    echo "$CMD" | grep -qE '[|>]' || SUGGESTION="Use the Read tool instead of cat — it has line numbers and pagination"
 fi
 
 # npm list without --depth

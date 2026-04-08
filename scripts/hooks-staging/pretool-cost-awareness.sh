@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # pretool-cost-awareness.sh — Advisory P95 cost threshold per project.
-# PreToolUse hook. Fires every ~50 tool calls, compares current session cost
-# against the project's historical P95. Never blocks (always exit 0).
+# PreToolUse hook. Fires every ~50 tool calls, checks if the COMPLETED session
+# receipt (if any) exceeds the project's historical P95. Note: session-receipts.jsonl
+# is written at SessionEnd, so this hook can only see costs from PRIOR sessions
+# of the same ID (e.g., after --resume). It cannot measure live cost mid-session.
+# Never blocks (always exit 0).
 
 trap 'exit 0' ERR
 
@@ -24,12 +27,13 @@ RECEIPTS="$HOME/.claude/session-receipts.jsonl"
 SESSION_ID="${CLAUDE_SESSION_ID:-$PPID}"
 
 # --- Compute P95, median, current session cost; emit advisory if over ---
-ADVISORY=$(python3 -c "
-import json, sys
+# Fix: pass values via env vars, not string interpolation (GPT-5.4 finding #12)
+ADVISORY=$(PROJECT="$PROJECT" SESSION_ID="$SESSION_ID" RECEIPTS="$RECEIPTS" python3 -c "
+import json, sys, os
 
-project = '$PROJECT'
-session_id = '$SESSION_ID'
-receipts = '$RECEIPTS'
+project = os.environ['PROJECT']
+session_id = os.environ['SESSION_ID']
+receipts = os.environ['RECEIPTS']
 
 costs = []
 current = 0.0
@@ -50,7 +54,7 @@ if len(costs) < 5:
 
 costs.sort()
 n = len(costs)
-p95 = costs[int(n * 0.95)]
+p95 = costs[min(int(n * 0.95), n - 1)]  # clamp index (off-by-one fix)
 median = costs[n // 2]
 
 if current <= p95:

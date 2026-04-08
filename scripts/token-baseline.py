@@ -53,6 +53,7 @@ def analyze_tool_output_sizes(conn, days):
         AND e.ts > date('now', ?)
         AND r_evt.text IS NOT NULL
         AND e.text IS NOT NULL
+        ORDER BY e.ts DESC
         LIMIT 50000
     """, (f"-{days} days",)).fetchall()
 
@@ -100,6 +101,7 @@ def analyze_full_file_reads(conn, days):
         WHERE e.kind = 'tool_call'
         AND e.text = 'Read'
         AND e.ts > date('now', ?)
+        ORDER BY e.ts DESC
         LIMIT 20000
     """, (f"-{days} days",)).fetchall()
 

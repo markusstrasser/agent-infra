@@ -26,7 +26,10 @@ SHADOW="$HOME/.claude/read-discipline-shadow.jsonl"
 # Tracker format: "filepath:offset:limit" per line; full reads have empty offset+limit
 PRIOR_FULL=0
 if [ -f "$READS_FILE" ]; then
-    PRIOR_FULL=$(grep -cF "${FPATH}::" "$READS_FILE" 2>/dev/null || echo 0)
+    # Fix: grep -c outputs 0 on no-match AND || echo 0 fires, giving "0\n0".
+    # Use subshell to capture cleanly. (GPT-5.4 review finding #6)
+    PRIOR_FULL=$(grep -cF "${FPATH}::" "$READS_FILE" 2>/dev/null)
+    PRIOR_FULL="${PRIOR_FULL:-0}"
 fi
 
 # Log telemetry (use python3 for safe JSON encoding of file path)
