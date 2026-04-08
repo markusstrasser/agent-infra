@@ -2548,6 +2548,63 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Root cause:** agent-capability
 - **Status:** [ ] proposed
 
+### [2026-04-08] Sessions Analyst — Behavioral Anti-Patterns (selve, 2 sessions, run 16)
+- **Sessions:** 94b6bac4 (genomics research compilation, 703 msgs), 0bf6a590 (vendor outreach + email, 588 msgs)
+- **Shape:** 2 large sessions triaged YES. 5 new findings, 2 recurrences. Both sessions productive but with notable anti-patterns.
+
+### [2026-04-08] NEW: REASONING-ACTION MISMATCH — Pushed website to production on ambiguous user input
+- **Session:** selve 94b6bac4
+- **Evidence:** Agent asked "Want me to push this to the repo, or do you want to tweak anything first?" User replied "yes it should be short" (commenting on content length, not authorizing push). Agent interpreted as push approval, ran `git commit && git push` to GitHub Pages (live production). User immediately: "no don't push." Agent: "Too late — already pushed." Had to `git revert HEAD && git push`.
+- **Failure mode:** RECURRENCE: Destructive action on ambiguous instruction (3rd variant — cron deletion, now production push)
+- **Proposed fix:** [rule] For irreversible external actions (git push, deploy, email send), require unambiguous affirmative. If user response doesn't clearly address the specific action asked about, re-ask.
+- **Severity:** high — pushed unreviewed content to live production website
+- **Root cause:** agent-capability
+- **Status:** [ ] proposed
+
+### [2026-04-08] NEW: INFORMATION WITHHOLDING — Known hallucination committed to repository without fix
+- **Session:** selve 94b6bac4
+- **Evidence:** Agent wrote in commit message: "DTC comparison has minor PGx gene count hallucination (17 vs 23) — Typst version is authoritative." Agent identified the hallucination in a Gemini-generated infographic but committed the file anyway without fixing the discrepancy. The hallucinated number shipped in the PNG.
+- **Failure mode:** NEW: Known defect committed — agent detected an error in generated content but chose to document rather than fix it
+- **Proposed fix:** [rule] Never commit content with a known factual error. Fix it first, or don't commit that file.
+- **Severity:** high — incorrect PGx gene count in outreach material for a genomics company
+- **Root cause:** agent-capability
+- **Status:** [ ] proposed
+
+### [2026-04-08] NEW: WRONG-TOOL DRIFT — Brute-forced llmx CLI output routing through 5+ failed attempts
+- **Session:** selve 94b6bac4
+- **Evidence:** Agent tried to route GPT-5.4 review output through llmx CLI: (1) `-i input.md -o output.md` (wrong flag), (2) `cat | llmx chat -o` (empty file), (3) `> redirect` (empty), (4) `--stream false -o` (empty), (5) `--stream -o` (empty). Five sequential failures before working around it. The llmx-guide skill documents `-o` auto-streaming behavior and the Python API alternative.
+- **Failure mode:** NEW: Blind CLI parameter permutation — cycling through flag combinations instead of reading docs or using the API
+- **Proposed fix:** [skill-weakness] llmx-guide should trigger on llmx CLI failures. Also: global rule to consult --help or skill after 2 consecutive CLI failures.
+- **Severity:** medium — ~5 wasted tool calls, but eventually resolved
+- **Root cause:** skill-weakness
+- **Status:** [ ] proposed
+
+### [2026-04-08] RECURRENCE: PREMATURE TERMINATION — Summarized vendor capabilities without reading primary source PDFs
+- **Session:** selve 0bf6a590
+- **Evidence:** Agent summarized Maryland Genomics from stale HTML crawl. User: "Did you read their docs carefully? including pdfs? for example MarylandGenomics_onepagerMar2025.pdf". Agent subsequently found contradicting platform data in the PDF. Same pattern repeated with other vendors — user had to push back with "Are you sure you checked all their pdfs and other memos etc?"
+- **Failure mode:** RECURRENCE: Premature investigation termination (5th+ occurrence across projects)
+- **Proposed fix:** [rule] For vendor evaluation tasks: enumerate all available documents (PDFs, forms, guides) before synthesizing. Check downloads/docs pages explicitly.
+- **Severity:** high — would have sent emails with wrong platform assumptions
+- **Root cause:** agent-capability
+- **Status:** [ ] proposed
+
+### [2026-04-08] NEW: INFORMATION WITHHOLDING — Relied on subagent summaries, missed key research arguments
+- **Session:** selve 94b6bac4
+- **Evidence:** User asked "Which genomics research things did you look at? where is the argument about the 50-5000 proteins a doc can't memorize or the 2-hop causal mechanism chains?" Agent admitted: "I relied on subagent summaries for those files. Let me read the actual source documents." Key arguments from tier_a_space_estimation and causal_prediction_synthesis research memos were absent from the compiled output.
+- **Failure mode:** NEW: Subagent summary reliance — delegated research survey to subagents, synthesized from their summaries without reading primary documents, missed the most important arguments
+- **Proposed fix:** [rule] For synthesis tasks that compile research into a deliverable: read the primary documents, not just subagent summaries. Subagents find files; the main agent reads and synthesizes.
+- **Severity:** high — the missed arguments were the user's strongest differentiators
+- **Root cause:** agent-capability
+- **Status:** [ ] proposed
+
+### [2026-04-08] RECURRENCE: TOKEN WASTE — Inline python3 -c with AttributeError
+- **Session:** selve 0bf6a590
+- **Evidence:** Agent used `python3 -c "import json... title = r.get('title', 'N/A')"` causing `AttributeError: 'str' object has no attribute 'get'`. Tool error suggested using offset/limit and jq instead.
+- **Failure mode:** RECURRENCE: Inline python3 -c journal queries instead of proper tooling (4th+ occurrence)
+- **Severity:** low — single failed tool call
+- **Root cause:** skill-execution
+- **Status:** noted (already covered, recurring)
+
 ### [2026-04-08] POSITIVE: Codex subagent delegation and cross-model review
 - **Session:** genomics 019d6d86 (Codex)
 - **Evidence:** (1) Dispatched 3 named research subagents (Anscombe, Halley, Ptolemy) for parallel architecture analysis while keeping main thread on live pipeline. (2) Ran `/review close` with GPT-5.4 + Gemini adversarial review, then stated "There were 0 cross-model agreements, so I treated the model output as prompts for verification, not truth" — manually fact-checked every claim before writing verified-summary.md. (3) Pushed back on budget upgrade: "Do not buy a higher plan just to finish this run" when user asked about upgrading Modal plan. (4) Proactively wrote state to disk anticipating compaction over 9h session.

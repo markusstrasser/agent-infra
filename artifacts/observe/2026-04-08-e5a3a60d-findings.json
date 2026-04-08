@@ -1,26 +1,67 @@
 {
+  "run": 16,
+  "date": "2026-04-08",
+  "project": "selve",
+  "sessions_analyzed": ["94b6bac4", "0bf6a590"],
+  "gemini_model": "gemini-3.1-pro-preview",
   "findings": [
     {
-      "category": "TOKEN WASTE",
-      "summary": "Premature documentation of root causes before fix verification",
-      "severity": "low",
-      "evidence": "Agent wrote prs_dosage_ci failure as init_stage() bug in audit memo before verifying fix, then had to append corrections multiple times",
+      "category": "REASONING-ACTION MISMATCH",
+      "summary": "Pushed website to production on ambiguous user input",
+      "session": "94b6bac4",
+      "severity": "high",
       "root_cause": "agent-capability",
-      "proposed_fix": "rule: Do not write root causes into persistent audit memos until fix is deployed and verified",
-      "session_uuid": "019d6d86",
-      "project": "genomics"
+      "status": "proposed",
+      "new": true
+    },
+    {
+      "category": "INFORMATION WITHHOLDING",
+      "summary": "Known PGx hallucination committed to repository without fix",
+      "session": "94b6bac4",
+      "severity": "high",
+      "root_cause": "agent-capability",
+      "status": "proposed",
+      "new": true
+    },
+    {
+      "category": "WRONG-TOOL DRIFT",
+      "summary": "Brute-forced llmx CLI output routing through 5+ failed attempts",
+      "session": "94b6bac4",
+      "severity": "medium",
+      "root_cause": "skill-weakness",
+      "status": "proposed",
+      "new": true
+    },
+    {
+      "category": "PREMATURE TERMINATION",
+      "summary": "Summarized vendor capabilities without reading primary source PDFs",
+      "session": "0bf6a590",
+      "severity": "high",
+      "root_cause": "agent-capability",
+      "status": "proposed",
+      "new": false
+    },
+    {
+      "category": "INFORMATION WITHHOLDING",
+      "summary": "Relied on subagent summaries, missed key research arguments",
+      "session": "94b6bac4",
+      "severity": "high",
+      "root_cause": "agent-capability",
+      "status": "proposed",
+      "new": true
+    },
+    {
+      "category": "TOKEN WASTE",
+      "summary": "Inline python3 -c with AttributeError (recurring)",
+      "session": "0bf6a590",
+      "severity": "low",
+      "root_cause": "skill-execution",
+      "status": "noted",
+      "new": false
     }
   ],
-  "recurrences": [
-    "Exec session leak via blocking CLI commands (019d6d86) — already logged run 14",
-    "Hook ownership guard incompatible with Codex CLI (019d6d86) — already logged run 13",
-    "Inline python3 -c journal queries (019d6d86) — already logged run 9",
-    "Manual journal/state surgery (019d6d86) — already logged run 13",
-    "Blind fix deployment (019d6d86) — already logged run 9"
-  ],
-  "session_uuids": ["b8098df4-2aba-4f5e-b7dd-82231b787658", "019d6d86"],
-  "sessions_analyzed": 2,
-  "actionable_count": 1,
-  "clean_sessions": ["b8098df4 — mostly clean, two self-correcting hook catches"],
-  "notes": "Codex session 019d6d86 already extensively covered in runs 13-14. CC session b8098df4 (Finding IR OSS) was a well-executed brainstorm+research+review workflow."
+  "quality_scores": {
+    "94b6bac4": 0.78,
+    "0bf6a590": 0.84
+  }
 }
