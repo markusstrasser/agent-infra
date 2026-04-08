@@ -33,11 +33,11 @@ PROJECTS = ["meta", "intel", "selve", "genomics", "skills", "research-mcp"]
 IMPROVEMENT_LOG = Path(__file__).resolve().parent.parent / "improvement-log.md"
 RETRO_DIR = Path(__file__).resolve().parent.parent / "artifacts" / "session-retro"
 HOOK_ROI_DIR = Path(__file__).resolve().parent.parent / "artifacts" / "hook-roi"
-DESIGN_REVIEW_DIR = Path(__file__).resolve().parent.parent / "artifacts" / "design-review"
+DESIGN_REVIEW_DIR = Path(__file__).resolve().parent.parent / "artifacts" / "observe"
 DEFAULT_OUTPUT = CLAUDE_DIR / "morning-brief.md"
 
-PATTERNS_JSONL = Path(__file__).resolve().parent.parent / "artifacts" / "design-review" / "patterns.jsonl"
-SUPERVISION_AUDIT_DIR = Path(__file__).resolve().parent.parent / "artifacts" / "supervision-audit"
+PATTERNS_JSONL = Path(__file__).resolve().parent.parent / "artifacts" / "observe" / "patterns.jsonl"
+SUPERVISION_AUDIT_DIR = Path(__file__).resolve().parent.parent / "artifacts" / "observe"
 STALE_DAYS = 3  # flag projects with no commits in this many days
 
 log = logging.getLogger("propose-work")

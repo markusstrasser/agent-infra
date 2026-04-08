@@ -10,7 +10,7 @@ Usage:
     sessions.py list [filters]
     sessions.py search <query> [--semantic] [filters]
     sessions.py show <uuid-prefix>
-    sessions.py dispatch <uuid-prefix> --to session-analyst|model-review|custom
+    sessions.py dispatch <uuid-prefix> --to observe|review|custom
 
 Shared filters: --project, --since, --until, --model, --min-cost, -n
 """
@@ -37,7 +37,7 @@ EMB_INDEX_PATH = CLAUDE_DIR / "sessions-emb-index.json"
 EMB_PROJECT = Path.home() / "Projects" / "emb"
 
 # Import extract_transcript for show/dispatch
-EXTRACT_SCRIPT = Path.home() / "Projects" / "skills" / "session-analyst" / "scripts"
+EXTRACT_SCRIPT = Path.home() / "Projects" / "skills" / "observe" / "scripts"
 
 # System-reminder pattern to skip when extracting first user message
 SYSTEM_REMINDER_RE = re.compile(r"<system-reminder>", re.IGNORECASE)
@@ -825,7 +825,7 @@ def cmd_show(args):
 # ---------------------------------------------------------------------------
 
 DISPATCH_TARGETS = {
-    "session-analyst": {
+    "observe": {
         "model": "gemini-3.1-pro-preview",
         "prompt": (
             "Analyze this Claude Code session transcript for behavioral anti-patterns. "
@@ -835,7 +835,7 @@ DISPATCH_TARGETS = {
             "Output structured findings with severity, evidence quotes, and suggested mitigations."
         ),
     },
-    "model-review": {
+    "review": {
         "model": "gemini-3.1-pro-preview",
         "prompt": (
             "Review this Claude Code session transcript. Identify: "
@@ -888,7 +888,7 @@ def cmd_dispatch(args):
     elif target in DISPATCH_TARGETS:
         config = DISPATCH_TARGETS[target]
     else:
-        print(f"Unknown target: {target}. Use: session-analyst, model-review, custom",
+        print(f"Unknown target: {target}. Use: observe, review, custom",
               file=sys.stderr)
         sys.exit(1)
 
@@ -1236,7 +1236,7 @@ def main():
     p_dispatch = sub.add_parser("dispatch", help="Dispatch session for analysis")
     p_dispatch.add_argument("uuid_prefix", help="UUID prefix to dispatch")
     p_dispatch.add_argument("--to", required=True,
-                            help="Target: session-analyst, model-review, custom")
+                            help="Target: observe, review, custom")
     p_dispatch.add_argument("--prompt", help="Custom prompt (required for --to custom)")
     p_dispatch.add_argument("--model", help="Override model")
 

@@ -115,8 +115,8 @@ agent-infra-smoke:
 # Canonical runner for standalone review-tool tests
 [group('health')]
 review-tool-tests:
-    python3 ~/Projects/skills/plan-close/scripts/test_build_plan_close_context.py
-    python3 ~/Projects/skills/model-review/scripts/test_model_review.py
+    python3 ~/Projects/skills/review/scripts/test_build_plan_close_context.py
+    python3 ~/Projects/skills/review/scripts/test_model_review.py
 
 # Browse SQLite database in web UI
 [group('dashboard')]
@@ -180,7 +180,7 @@ calibration-canary *args:
 # User #tag annotations from session transcripts
 [group('epistemic')]
 tags *args:
-    uv run python3 ~/Projects/skills/harvest/scripts/extract_user_tags.py {{args}}
+    uv run python3 ~/Projects/skills/improve/scripts/extract_user_tags.py {{args}}
 
 # Hook trigger telemetry (default: last 7 days)
 [group('epistemic')]
@@ -259,7 +259,7 @@ brief:
         tail -1 "$receipts" 2>/dev/null | python3 -c 'import json,sys,datetime as dt; d=json.load(sys.stdin); ts=d.get("ts",""); cost=d.get("cost_usd",0); model=d.get("model","?"); ctx=d.get("context_pct",0); delta=int((dt.datetime.now()-dt.datetime.fromisoformat(ts)).total_seconds()/60) if ts else 0; ago=(f"{delta}m" if delta<60 else (f"{delta//60}h" if delta<1440 else f"{delta//1440}d")); print(f"Receipt: {ago} ago, ${cost:.2f}, {model}, {ctx}% ctx")' 2>/dev/null
     fi
 
-# List unimplemented proposals (steward-proposals + design-review patterns)
+# List unimplemented proposals (steward-proposals + observe patterns)
 [group('dashboard')]
 proposals:
     #!/usr/bin/env bash
@@ -277,7 +277,7 @@ proposals:
     done
     echo ""
     echo "=== Design Review Patterns (actionable) ==="
-    pj="artifacts/design-review/patterns.jsonl"
+    pj="artifacts/observe/patterns.jsonl"
     if [ -f "$pj" ]; then
         python3 -c "
     import json
