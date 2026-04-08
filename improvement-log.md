@@ -2237,3 +2237,9 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Severity:** high — destroyed project config file, required git recovery
 - **Recurrences:** 1 (first observed)
 - **Status:** [ ] proposed
+
+### [2026-04-08] RECURRENCE BATCH: Sequential status polling + subagent token overflow
+- **Session:** genomics 7f0b60ba, b7fe7899
+- **Evidence:** (1) 7f0b60ba: 179 _STATUS.json references via sequential `modal volume get` downloads instead of `just pipeline-status` or `_batch_probe_modal_statuses()`. Matches existing Modal volume polling anti-pattern. (2) b7fe7899: subagent dispatched to read memory files hit token limits 4 times (48K, 58K, 16K, 10K) before adjusting scope. Both are capability-abandonment variants — tools existed, agent chose manual path.
+- **Severity:** medium
+- **Status:** [x] recurrence of existing findings — no new fix needed
