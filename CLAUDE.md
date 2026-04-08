@@ -20,7 +20,7 @@ uv run python3 scripts/sessions.py search <query>  # FTS5 session search
 
 - `GOALS.md` — what the system optimizes for (human-owned)
 - `justfile` — task runner. `just --list` for all recipes.
-- `improvement-log.md` — session-analyst appends findings here
+- `improvement-log.md` — `/observe sessions` appends findings here
 - `meta_infra_mcp.py` — cross-project research search (scopes: all, hooks, failures, research, architecture, health, genomics, genes)
 - Scripts: see `.claude/rules/codebase-map.md` for full inventory
 
@@ -79,7 +79,7 @@ These can be sections in a plan file, a research memo, or standalone. The point:
 
 **8. Filter by maintenance, not effort.** Dev creation cost ≈ 0 with agents. The "invisible governor" (effort kills ideas before testing) is gone. Decision tables in research memos use: Value | Maintenance | Prerequisites — not Effort | ROI. Gate on ongoing drag (maintenance burden, complexity budget, supervision cost, integration risk), not creation cost. Jevons Paradox applies: cheaper dev = more gets built, so guard against complexity sprawl, not under-building. See `research/agent-economics-decision-frameworks.md`.
 
-**9. Skills governance.** Meta owns skill quality: authoring, testing, propagation. Skills stay in `~/Projects/skills/` (separate). Meta governs through session-analyst (sees usage across projects) and improvement-log.
+**9. Skills governance.** Meta owns skill quality: authoring, testing, propagation. Skills stay in `~/Projects/skills/` (separate). Meta governs through `/observe` (sees usage across projects) and improvement-log.
 
 **10. Fail open, carve out exceptions.** Hooks fail open by default. Explicit fail-closed list: protected data writes, multiline bash, repeated failure loops (>5). List grows only with measured ROI data.
 
@@ -93,13 +93,13 @@ These can be sections in a plan file, a research memo, or standalone. The point:
 
 **Hard limits (never without human):** modify Constitution or GOALS.md; deploy shared hooks/skills affecting 3+ projects; delete architectural components.
 
-**Autonomous:** update meta's CLAUDE.md/MEMORY.md/improvement-log/checklist; add meta-only hooks; run session-analyst; conduct research sweeps; create new skills (propagation = propose).
+**Autonomous:** update meta's CLAUDE.md/MEMORY.md/improvement-log/checklist; add meta-only hooks; run `/observe`; conduct research sweeps; create new skills (propagation = propose).
 
 ### Self-Improvement Governance
 
 A finding becomes a rule or fix only if: (1) recurs 2+ sessions, (2) not covered by existing rule, (3) is a checkable predicate OR architectural change. Reject everything else.
 
-Primary feedback: session-analyst comparing actual runs vs optimal baseline. If a change doesn't improve things in 30 days, revert or reclassify as experimental.
+Primary feedback: `/observe sessions` comparing actual runs vs optimal baseline. If a change doesn't improve things in 30 days, revert or reclassify as experimental.
 
 **Isolate harness changes.** When modifying rules, hooks, or CLAUDE.md: change ONE thing per commit. Bundled changes are the #1 cause of build-then-undo in harness optimization — when a bundle regresses, you can't tell which change caused it. Single-variable commits make diagnosis trivial. (Evidence: Lee et al. 2026, arXiv:2603.28052 TerminalBench ablation.)
 
@@ -115,7 +115,7 @@ Primary feedback: session-analyst comparing actual runs vs optimal baseline. If 
 
 ### Pre-Registered Tests
 
-How to verify this constitution is working (check via session-analyst after 2 weeks):
+How to verify this constitution is working (check via `/observe sessions` after 2 weeks):
 
 1. **No build-then-undo on shared infrastructure changes.** The reversibility + blast radius boundary should prevent autonomous changes that get reverted. Test: zero reverts of meta-initiated shared changes in 14 days.
 2. **Hooks fire on high-frequency failures.** Deployed hooks (bash-loop-guard, spinning-detector, failure-loop) should reduce repeated tool failures. Test: ≥50% reduction in ≥5-bash-failure-streaks vs pre-deployment baseline.
@@ -125,7 +125,7 @@ How to verify this constitution is working (check via session-analyst after 2 we
 
 ## Execution Model
 
-**`/loop` + interactive sessions is primary.** The human runs Claude Code directly, uses `/loop` for recurring tasks (maintain, research cycles), and steers in real-time. Subagents handle fan-out within sessions.
+**`/loop` + interactive sessions is primary.** The human runs Claude Code directly, uses `/loop` for recurring tasks (`/improve maintain`, `/research cycle`), and steers in real-time. Subagents handle fan-out within sessions.
 
 ## Orchestrator — Background Only
 
