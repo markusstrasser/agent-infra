@@ -13,10 +13,10 @@
 
 ## Design Principles
 
-1. **One skill per WORKFLOW, not per TECHNIQUE.** Session-analyst and design-review are the same workflow (analyze sessions) with different lenses.
-2. **Modes, not multiplied skills.** `observe --sessions` vs `observe --architecture` vs `observe --retro`.
-3. **Loop-native.** Every skill declares if it's loop-compatible and what interval makes sense.
-4. **Pipeline composition.** `/morning` = harvest → rank → show. `/evening` = analyze → retro → harvest.
+1. **Engine + Lens separation.** Skills are composed of reusable ENGINES (transcript extraction, Gemini dispatch, cross-model dispatch, loop ticker) and swappable LENSES (behavioral anti-patterns, architectural patterns, adversarial review). Engines are shared infrastructure. Lenses are prompt files. This is already empirically true: `extract_transcript.py` is shared by 4 skills.
+2. **User-facing names are workflows, internal structure is engine+lens.** Users invoke `/observe sessions` (intuitive). Internally it's `gemini-analysis engine` + `behavioral-antipatterns lens`. The workflow name is the routing layer; engines and lenses are the implementation.
+3. **New perspectives = new lens files, not new skills.** Adding a new analysis type (e.g., "cost waste detection") = one prompt file in `lenses/`, not a new skill directory with SKILL.md + references/ + scripts/.
+4. **Loop-native.** Every skill declares if it's loop-compatible and what interval makes sense.
 5. **Reference docs are references/, not skills.** Loaded on demand by the skills that need them.
 6. **Preserve all nuance.** Each existing SKILL.md becomes a `references/` file in the consolidated skill. Nothing is deleted — it's reorganized.
 
@@ -38,17 +38,21 @@
 | `/observe supervision` | Wasted supervision patterns | Gemini 3.1 Pro | Weekly |
 | `/observe` (no args) | Smart default: retro if session ending, sessions if morning | Auto | — |
 
-**Shared plumbing:**
-- `scripts/extract_transcript.py` (already shared between session-analyst and design-review)
-- `scripts/coverage-digest.sh` (dedup against existing findings)
-- Output format: improvement-log.md entries (standardized across all modes)
-- `references/gemini-dispatch-*.md` (mode-specific prompts, loaded on demand)
-- `references/grounding-examples.md`, `references/findings-staging.md` (shared)
+**Engine:** `gemini-analysis` — transcript extraction → coverage digest → Gemini 3.1 Pro dispatch → finding staging. Shared across all modes except retro (which uses `local-analysis` engine).
 
-**What stays mode-specific:**
-- The Gemini prompt (each mode has its own taxonomy/lens)
-- The anti-pattern list (session-analyst's 20 items vs design-review's pattern types)
-- Output enrichment (design-review produces patterns.jsonl, session-analyst produces quality scores)
+**Lenses** (prompt files in `lenses/`):
+- `behavioral-antipatterns.md` — 20-item taxonomy from session-analyst (W:1-5, ternary scoring)
+- `architectural-patterns.md` — pattern extraction from design-review (TOOL_GAP, WORKFLOW_REPEAT, etc.)
+- `supervision-waste.md` — correction/boilerplate/rubber-stamp classification from supervision-audit
+- `retro-reflection.md` — end-of-session local analysis (no external dispatch)
+
+**Adding a new perspective** = write one lens file. No new skill, no SKILL.md changes, no scripts. Example: "cost waste detection" lens = prompt file that asks Gemini to identify unnecessary API calls, redundant model dispatches, over-provisioned compute.
+
+**Shared infrastructure:**
+- `scripts/extract_transcript.py` (already shared by 4 skills — empirically validated)
+- `scripts/coverage-digest.sh` (dedup against existing findings)
+- Output: unified findings schema (all lenses produce the same JSON)
+- `references/grounding-examples.md`, `references/findings-staging.md`
 
 ### Workflow 2: `improve` — Synthesis + Implementation
 
@@ -87,7 +91,14 @@
 | `/review close [plan]` | Post-implementation tests + review | Gemini Pro + GPT-5.4 |
 | `/review` (no args) | Auto-detect: recent plan → close, recent findings → verify | Auto |
 
-**Shared plumbing:**
+**Engine:** `cross-model-dispatch` — context assembly → parallel llmx dispatch (Gemini + GPT) → output capture → extraction → disposition table. Shared across `model` and `close` modes. `verify` mode uses `local-analysis` engine (grep/read against code, no external dispatch).
+
+**Lenses:**
+- `adversarial-review.md` — find what's wrong (convergent, standard model-review)
+- `plan-close-review.md` — post-implementation correctness + coverage gaps
+- `verification.md` — fact-check claims against actual code (local, no dispatch)
+
+**Shared infrastructure:**
 - `scripts/model-review.py` (dispatch to llmx)
 - `scripts/build_plan_close_context.py` (context assembly)
 - Disposition format: CONFIRMED / HALLUCINATED / CORRECTED / DEFERRED
@@ -153,6 +164,19 @@
 | google-workspace | Stays standalone | — |
 | browse | Stays standalone | — |
 | debug-mcp-servers | `references/debug-mcp/` | On demand |
+
+### Engine Inventory (shared infrastructure, maintained once)
+
+| Engine | What it does | Used by | Key scripts |
+|---|---|---|---|
+| `gemini-analysis` | Transcript extraction → coverage digest → Gemini dispatch → finding staging | observe (sessions, architecture, supervision) | `extract_transcript.py`, `coverage-digest.sh` |
+| `cross-model-dispatch` | Context assembly → parallel llmx (Gemini+GPT) → extraction → disposition | review (model, close), upgrade (audit, harness) | `model-review.py`, `build_plan_close_context.py` |
+| `codex-parallel` | Parallel Codex CLI dispatch → output extraction → verification | research (dispatch) | `codex_dispatch.py` |
+| `local-analysis` | No external dispatch — grep, read, git log, pattern matching | observe (retro), review (verify), improve (harvest), analyze (all) | — |
+| `loop-ticker` | State file management, incremental work, timeout awareness | improve (maintain, tick), research (cycle) | — |
+| `mcp-orchestrator` | MCP tool orchestration (S2, Exa, Brave, Perplexity) with source grading | research (query, cycle, compile) | — |
+
+**Adding a new lens to any engine** = one prompt file. No code changes. The engine handles extraction, dispatch, output capture, and finding staging. The lens defines what to look for and how to interpret results.
 
 ### Standalone Skills (distinct enough to keep separate)
 
@@ -337,10 +361,11 @@ Reviewed by Gemini 3.1 Pro (arch) + GPT-5.4 (formal). Both models converged on c
 
 - **2026-04-07 v2:** Added empirical usage data (543 invocations). Resolved open questions per user feedback: no backward compat, keep model-guide/llmx-guide invocable, no named pipelines. Added unified findings.jsonl proposal.
 - **2026-04-07 v3:** Integrated cross-model review (Gemini arch + GPT-5.4 formal). Decoupled findings.jsonl. Revised count to ~18. Added phased implementation order starting with long-tail archive. Mode telemetry as prerequisite.
+- **2026-04-07 v4:** Integrated Engine+Lens architecture from brainstorm. 6 engines (gemini-analysis, cross-model-dispatch, codex-parallel, local-analysis, loop-ticker, mcp-orchestrator) shared across workflows. Lenses are prompt files — new perspectives added without code changes. Empirically validated: extract_transcript.py already shared by 4 skills.
 
 <!-- knowledge-index
-generated: 2026-04-08T06:16:57Z
-hash: f546f7b7161d
+generated: 2026-04-08T06:21:31Z
+hash: 2444f501e61c
 
 
 end-knowledge-index -->
