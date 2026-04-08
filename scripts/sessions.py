@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     subagent_count INTEGER,
     transcript_lines INTEGER,
     has_receipt INTEGER DEFAULT 0,
+    harness_hash TEXT,
     indexed_at TEXT,
     file_mtime REAL
 );
@@ -114,12 +115,29 @@ END;
 CONTENT_TEXT_MAX = 8000
 
 
+SCHEMA_VIEWS = """
+CREATE VIEW IF NOT EXISTS v_harness_versions AS
+SELECT
+    harness_hash,
+    MIN(start_ts) AS first_seen,
+    MAX(start_ts) AS last_seen,
+    COUNT(*) AS session_count,
+    ROUND(AVG(cost_usd), 2) AS avg_cost,
+    ROUND(AVG(duration_min), 1) AS avg_duration
+FROM sessions
+WHERE harness_hash IS NOT NULL
+GROUP BY harness_hash
+ORDER BY last_seen DESC;
+"""
+
+
 def get_db() -> sqlite3.Connection:
     from common.db import open_db
     db = open_db(DB_PATH)
     db.executescript(SCHEMA_SESSIONS)
     _migrate_schema(db)
     db.executescript(SCHEMA_FTS)
+    db.executescript(SCHEMA_VIEWS)
     return db
 
 
@@ -134,6 +152,10 @@ def _migrate_schema(db: sqlite3.Connection):
         db.execute("DROP TABLE IF EXISTS sessions_fts")
         db.commit()
         print("Migrated: added content_text, rebuilt FTS index", file=sys.stderr)
+    if "harness_hash" not in cols:
+        db.execute("ALTER TABLE sessions ADD COLUMN harness_hash TEXT")
+        db.commit()
+        print("Migrated: added harness_hash column", file=sys.stderr)
 
 
 # ---------------------------------------------------------------------------
@@ -457,6 +479,7 @@ def cmd_index(args):
             "subagent_count": len(parsed["subagents"]),
             "transcript_lines": parsed["transcript_lines"],
             "has_receipt": has_receipt,
+            "harness_hash": receipt.get("harness_hash"),
             "indexed_at": datetime.now(timezone.utc).isoformat(),
             "file_mtime": mtime,
         }
@@ -513,6 +536,7 @@ def _update_receipt(db: sqlite3.Connection, uuid: str, receipt: dict):
             commits = ?,
             commits_fts = ?,
             has_receipt = 1,
+            harness_hash = COALESCE(?, harness_hash),
             indexed_at = ?
         WHERE uuid = ?
     """, [
@@ -523,6 +547,7 @@ def _update_receipt(db: sqlite3.Connection, uuid: str, receipt: dict):
         receipt.get("lines_removed"),
         json.dumps(commits) if commits else None,
         "\n".join(commits) if commits else None,
+        receipt.get("harness_hash"),
         datetime.now(timezone.utc).isoformat(),
         uuid,
     ])
