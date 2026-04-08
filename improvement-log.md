@@ -1941,3 +1941,45 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 ### [2026-04-07] META: Gemini session-analyst ID anchoring validated — 0 fabricated IDs (3rd run)
 - **Evidence:** After 2 prior runs with 100% ID fabrication (2026-04-03, 2026-04-05), the UUID manifest + SESSION ID ANCHORING instruction + validate_session_ids.py pipeline produced 0 fabricated IDs on 3rd run. Gemini did misattribute one finding to the wrong valid session (b2f3014b instead of 3d4a2d99) — caught by line-number cross-check. Gemini also missed a reasoning-action mismatch (--no-verify self-contradiction). Overall: anchoring fix works for ID fabrication; content-level validation still required.
 - **Status:** [x] validated — anchoring pipeline effective, content cross-check remains necessary
+
+### [2026-04-07] Session Analyst — Behavioral Anti-Patterns (genomics, 3 sessions, run 2)
+- **Source:** Gemini 3.1 Pro analysis + Claude cross-validation of sessions 3d4a2d99, 92e08e7b, d74db8c2
+- **Shape:** 3 sessions (~403KB transcripts), 4 new findings + 5 recurrences of prior findings. 0 fabricated IDs. Sessions 3d4a2d99 and 92e08e7b overlap with run 1 — only novel findings staged.
+- **Overlap:** 3d4a2d99 and 92e08e7b already analyzed in run 1 today. d74db8c2 is new.
+
+### [2026-04-07] RECURRENCE: Subagent dispatch without turn budget or output params (3rd+ occurrence)
+- **Sessions:** genomics 3d4a2d99 (3 bare Agent() calls: kir_t1k, cyrius, evo2_40b), genomics 92e08e7b (2 bare Agent() calls: psychiatric prevalence, SBayesRC LD)
+- **Prior:** 2026-04-07 line 192 (claude-md-improver, 5 bare dispatches)
+- **Promotion:** 3+ recurrences across 3 different sessions/contexts. Advisory PreToolUse hook exists but is insufficient. **Recommend promotion to blocking hook** on Agent tool calls that lack maxTurns or output file instruction.
+- **Root cause:** agent-capability — instruction not enforced architecturally
+- **Status:** [ ] proposed for promotion
+
+### [2026-04-07] OVER-ENGINEERING: Dispatched subagent to fix upstream llmx bug during genomics pipeline task
+- **Session:** genomics 92e08e7b
+- **Evidence:** After encountering `-o` flag 0-byte bug in llmx, agent dispatched `Agent(Fix llmx -o 0-byte bug)` (line 8571) into the llmx repo — mid-genomics-pipeline-task. The agent had already found a working shell redirect workaround (line 8410: "Let me not debug this further in this session"). It then contradicted itself by dispatching the fix subagent anyway.
+- **Failure mode:** goal-drift + reasoning-action-mismatch — said "don't debug further" then dispatched a fix agent
+- **Proposed fix:** [rule] When a workaround exists and the bug is in a different repo, file it (git note, TODO) but don't dispatch a fix subagent mid-task. Cross-repo fixes are a separate session concern.
+- **Root cause:** agent-capability
+- **Severity:** medium — subagent consumed tokens on a tangential fix during active pipeline work
+- **Recurrences:** 1 (first observed — but the llmx debugging was already noted at line 1931)
+- **Status:** [ ] proposed
+
+### [2026-04-07] TOKEN WASTE: 31 tool calls blind-guessing markdown structure for conceptctl sync
+- **Session:** genomics 92e08e7b
+- **Evidence:** Agent struggled to register a concept via `conceptctl sync` on `docs/concepts/discovery-ledger.md`. Made 31 tool calls switching between append, direct markdown edits, and JSON payloads, testing different `###`/`####` header combinations to reverse-engineer the required AST structure — instead of reading the parser source code first.
+- **Failure mode:** environment-thrashing — iterative trial-and-error on a parseable system
+- **Proposed fix:** [rule] Before iterating on format compliance, read the parser/validator source to understand expected input structure. "Read the spec before guessing" heuristic.
+- **Root cause:** agent-capability
+- **Severity:** medium — 31 wasted tool calls, significant context burn
+- **Recurrences:** 1 (first observed with conceptctl, but pattern of blind format-guessing is recurring)
+- **Status:** [ ] proposed
+
+### [2026-04-07] TOKEN WASTE: 9+ sequential TaskCreate calls before starting execution
+- **Session:** genomics d74db8c2
+- **Evidence:** User approved plan execution ("Execute the entire plan"). Agent made 9-10 sequential `TaskCreate` calls to populate a task tracker before touching any code. The task tracker added overhead without value — the plan was already documented.
+- **Failure mode:** NEW: sequential-api-planning — using task API as a planning tool instead of executing directly
+- **Proposed fix:** [rule] After plan approval, begin implementation immediately. TaskCreate is for tracking parallel/async work, not for re-encoding an already-approved plan.
+- **Root cause:** agent-capability
+- **Severity:** low — ~10 wasted tool calls, minor delay
+- **Recurrences:** 1 (first observed)
+- **Status:** [ ] proposed
