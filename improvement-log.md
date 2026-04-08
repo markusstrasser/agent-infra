@@ -230,6 +230,40 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 
 Note: Prior analyses scored 3d4a2d99 at 0.92-0.95. The deeper pass reveals the plan-quality issues that surface analysis missed. The 0.78 score reflects that model-review caught the over-engineering before implementation — the agent's self-correction reflex partially mitigated both findings.
 
+### [2026-04-07] Session Analyst — Behavioral Anti-Patterns (genomics, 5 sessions, last 60 min)
+- **Source:** Gemini 3.1 Pro dispatch (single -f combined, 310KB) + manual transcript validation. Sessions 3d4a2d99, e440dcc5, 6a34e8f4, ff3a6961, 914c4e66.
+- **Shape:** 5 sessions (3d4a2d99 already analyzed 4x today, e440dcc5 analyzed 2x). 1 genuinely new finding, 1 recurrence. Gemini output was sparse and had inverted quality scores — manual analysis was primary.
+
+### [2026-04-07] NEW: SYSTEM-DESIGN — SKIPPED+force reconciliation creates stale-output bypass
+- **Session:** genomics 3d4a2d99
+- **Score:** Not Satisfied (0.0)
+- **Evidence:** Agent fixed SKIPPED→completed reconciliation (commit 15e2550) so orchestrator treats SKIPPED-with-output-exists as completed. Combined with --force --retry-failed, this created an unintended bypass: gwas_harmonize had stale output (literal `{trait_id}` template string in output dirs), got SKIPPED on relaunch, reconciled to completed, and meta_analysis consumed the malformed output. The fix was correct in isolation but created a semantic bypass — SKIPPED-with-existing-output does NOT mean the output is correct, only that it exists.
+- **Failure mode:** NEW: Reconciliation semantic gap — status reconciliation based on file existence doesn't verify output correctness
+- **Proposed fix:** [architectural] SKIPPED→completed reconciliation should require _STATUS.json with exit_code=0, not just file existence. Or: --force should invalidate SKIPPED status and force re-execution. The current code checks `_STATUS.json` content but the `output_exists` skip path in `@stage` doesn't write a proper _STATUS.json.
+- **Severity:** medium — stale output consumed by downstream stage, caught within session
+- **Root cause:** system-design — reconciliation logic has a semantic gap between "output exists" and "output is valid"
+- **Status:** [ ] proposed — novel, immediately promotable
+
+### [2026-04-07] RECURRENCE: MISSING PUSHBACK on cost — $247 Modal spend not probed
+- **Session:** genomics 3d4a2d99
+- **Evidence:** Agent saw "$247.62 Live Usage" in Modal dashboard paste, asked "is that the all-time total or today's spend?" but did not proactively check or raise concern. Given earlier discovery of $124.75 wasted in the same session and the 2026-04-05 EUR 94 embedding batch (where Rule #8 cost probe was violated), the pattern recurs: agent notices large spend but doesn't trigger cost investigation.
+- **Failure mode:** MISSING PUSHBACK cost probe (2nd recurrence — 2026-04-05 Gemini Embedding batch)
+- **Proposed fix:** existing — Rule #8 covers batch jobs >1K items. But pipeline monitoring doesn't have an equivalent cost-check heuristic. Consider: [rule] "When total spend is mentioned and exceeds $100/session, proactively investigate per-app breakdown before continuing."
+- **Severity:** low — user provided the number, agent asked about it but didn't investigate
+- **Root cause:** agent-capability
+- **Status:** [ ] proposed — 2nd recurrence, meets promotion consideration
+
+### Session Quality (genomics, 5 sessions, last 60 min)
+| Session | Mandatory failures | Optional issues | Quality score (S) |
+|---------|-------------------|-----------------|-------------------|
+| 3d4a2d99 | 1 (SKIPPED bypass — system-design) | 1 (cost probe recurrence) | 0.80 |
+| e440dcc5 | 0 | 0 (already analyzed) | 0.93 (prior) |
+| 6a34e8f4 | 0 | 0 | 1.00 |
+| ff3a6961 | 0 | 0 (already analyzed) | 0.87 (prior) |
+| 914c4e66 | 0 | 0 (already analyzed) | 0.95 (prior) |
+
+Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst runs. Aggregate quality across all passes: 0.78 (deepest pass score). The diminishing returns on repeated analysis of the same session suggest focusing future runs on fresh sessions.
+
 ### [2026-04-05] EXTERNAL_VALIDATION: ERL paper confirms distilled heuristics > raw trajectories for agent self-improvement
 - **Source:** Research refresh — agent-behavior-refresh-2026-04.md
 - **Evidence:** ERL (arXiv:2603.24639, ICLR 2026 MemAgents Workshop) tested distilled heuristics vs raw experience trajectories on Gaia2 benchmark. Distilled heuristics: +7.8%. Raw trajectories: -1.9% (worse than no memory). Failure-derived heuristics best for search (+14.3%), success-derived for execution (+9.0%).
