@@ -2226,3 +2226,14 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Root cause:** agent-capability — defaulted to "monitor and report" instead of "diagnose and fix"
 - **Recurrences:** 1 (related to PREMATURE TERMINATION on splice_transformer logs, same session, same behavioral pattern)
 - **Status:** [ ] proposed
+
+### [2026-04-08] NEW: Symlink-blind Write destroyed CLAUDE.md via AGENTS.md symlink
+- **Session:** genomics b7fe7899
+- **Score:** Not Satisfied (0.0)
+- **Evidence:** Agent wrote 4764 chars to AGENTS.md without checking if it was a symlink. AGENTS.md -> CLAUDE.md, so the Write tool followed the symlink and overwrote the project's critical CLAUDE.md config. Agent discovered via `ls -la`, recovered via `git checkout CLAUDE.md`. User had to intervene to restore the symlink.
+- **Failure mode:** NEW: Symlink-blind file write — Write tool follows symlinks silently
+- **Proposed fix:** [hook] PreToolUse Write check — warn if target is a symlink. [rule] Always `ls -la` target before Write to detect symlinks on governance/config files.
+- **Root cause:** system-design — no symlink guard in Write tooling
+- **Severity:** high — destroyed project config file, required git recovery
+- **Recurrences:** 1 (first observed)
+- **Status:** [ ] proposed
