@@ -2243,3 +2243,47 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Evidence:** (1) 7f0b60ba: 179 _STATUS.json references via sequential `modal volume get` downloads instead of `just pipeline-status` or `_batch_probe_modal_statuses()`. Matches existing Modal volume polling anti-pattern. (2) b7fe7899: subagent dispatched to read memory files hit token limits 4 times (48K, 58K, 16K, 10K) before adjusting scope. Both are capability-abandonment variants — tools existed, agent chose manual path.
 - **Severity:** medium
 - **Status:** [x] recurrence of existing findings — no new fix needed
+
+### [2026-04-08] BUILD-THEN-UNDO: Modal intermediates written to /tmp instead of persistent volume
+- **Session:** genomics 7f0b60ba
+- **Evidence:** Agent wrote expensive intermediates (PanGenie pangenome VCF decompression, BAM-to-FASTQ conversion) to `/tmp/pangenie_pangenome.vcf` and `/tmp/pangenie_fastq/`. User corrected: "why not to modal storage /modal .. instead of tmp". These are multi-hour compute artifacts that would be lost on container preemption. Agent rewrote to use `DATA_DIR` + `vol.commit()`.
+- **Failure mode:** BUILD-THEN-UNDO — /tmp is ephemeral on Modal containers
+- **Proposed fix:** [rule] Modal scripts with expensive intermediates (>10min compute) must write to persistent volume, not /tmp, to survive preemption and avoid redundant re-execution on retries. Add to modal-script-checklist.md.
+- **Root cause:** agent-capability — Modal volume persistence pattern is documented in CLAUDE.md pitfall #3
+- **Severity:** medium
+- **Status:** [ ] proposed
+
+### [2026-04-08] TOKEN WASTE: Journal queries via inline python3 -c instead of proper tooling
+- **Session:** genomics 7f0b60ba
+- **Evidence:** 10+ python3 -c invocations for JSON journal reads/mutations during pipeline health check session. Each one was a multi-line inline script parsing the orchestrator journal. Could use pipeline_cli.py, genomics MCP query_json tool, or a dedicated just recipe.
+- **Failure mode:** WRONG-TOOL DRIFT — inline Python for structured data that has dedicated query tools
+- **Proposed fix:** [skill/tool] Expose orchestrator journal queries via `just journal-status` recipe or extend genomics MCP `query_json` to cover journal files. Reduces boilerplate and error-prone escaping.
+- **Root cause:** skill-coverage — no ergonomic journal query tool exists
+- **Severity:** low
+- **Status:** [ ] proposed
+
+### [2026-04-08] [REASONING-ACTION MISMATCH]: Assumed infrastructure error before auditing input data format
+- **Session:** genomics 7f0b60ba
+- **Evidence:** sven_sv's prepare_data.py exited 0 with empty output. Agent hypothesized NFS filesystem error and moved workdir to /tmp. Actual cause: <DEL> symbolic alleles in input VCF that the tool silently rejected. Multiple hours wasted on wrong hypothesis.
+- **Failure mode:** NEW: Infrastructure-first diagnosis bias — when a bioinformatics tool fails silently, agent defaults to infrastructure explanations (NFS, permissions, memory) instead of auditing the input data format.
+- **Proposed fix:** rule — When a bioinformatics tool exits 0 with empty/no output, audit input format constraints (file format, field values, symbolic alleles, header compatibility) BEFORE making infrastructure assumptions. The tool's exit code being 0 means it ran successfully — it just had nothing to process.
+- **Root cause:** agent-capability
+- **Status:** [ ] proposed
+
+### [2026-04-08] Sessions Analyst — Behavioral Anti-Patterns (genomics, 5 sessions, run 8)
+- **Sessions analyzed:** 5 (68b67efa, 22bf4952, b7fe7899, 7f0b60ba, 10fe8b2a)
+- **Shape anomalies:** 0
+- **Clean sessions:** 3 (68b67efa harvest loop, 22bf4952 observe scheduling, 10fe8b2a empty)
+- **Quality scores:** 68b67efa=1.00, 22bf4952=1.00, b7fe7899=0.85, 7f0b60ba=0.35, 10fe8b2a=1.00
+- **New findings:** 1
+- **Recurrences:** 7 (symlink-blind Write, subagent capability abandonment, manual stage launches, blind fix deployment, premature termination, capability abandonment of failing stages, superficial health check)
+- **Gemini ID anchoring:** 0 fabricated IDs (4th consecutive clean run)
+
+### [2026-04-08] NEW: MISSING PUSHBACK — Killed expensive GPU jobs without verifying volume progress
+- **Session:** genomics 7f0b60ba
+- **Evidence:** Agent stopped regulomedb, pangenie, mosaicforecast and other long-running Modal apps because orchestrator journal showed them as stale/orphaned. regulomedb was 15min into a 3.3h GPU run. Agent did not check Modal volume for actual output progress before issuing kill commands. Journal confusion (concurrency-blind mutation) cascaded into destroying active compute.
+- **Failure mode:** NEW: Destructive compute kill without volume verification — orchestrator journal state diverged from actual Modal app state; agent trusted journal over volume evidence.
+- **Proposed fix:** rule — Before killing any Modal app that has been running >5 minutes, check `modal volume ls genomics-data samples/<id>/results/<stage>/` for recent file writes. If files are being written, the job is making progress regardless of journal state. Only kill if volume shows zero output AND Modal app shows no active tasks.
+- **Root cause:** system-design (journal is single point of truth but not concurrency-safe; agent had no verification step in kill workflow)
+- **Severity:** high (GPU compute dollars wasted, 3+ hours of progress destroyed)
+- **Status:** [ ] proposed
