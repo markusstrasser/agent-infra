@@ -369,6 +369,49 @@ vendor-docs *args:
 
 # ── Git ────────────────────────────────────────────────────────────
 
+# Top 20 most-changed files per repo (churn hotspots)
+[group('git')]
+churn-hotspots since="1 year ago":
+    #!/usr/bin/env bash
+    for repo in meta intel genomics selve skills; do
+      results=$(git -C "$HOME/Projects/$repo" log --format=format: --name-only --since="{{since}}" \
+        | sed '/^$/d' | sort | uniq -c | sort -nr | head -20 2>/dev/null)
+      if [ -n "$results" ]; then
+        echo "=== $repo ==="
+        echo "$results"
+        echo
+      fi
+    done
+
+# Files most associated with fix/bug commits
+[group('git')]
+bug-hotspots since="1 year ago":
+    #!/usr/bin/env bash
+    for repo in meta intel genomics selve skills; do
+      results=$(git -C "$HOME/Projects/$repo" log -i -E --grep="fix|bug|broken" \
+        --name-only --format='' --since="{{since}}" \
+        | sed '/^$/d' | sort | uniq -c | sort -nr | head -20 2>/dev/null)
+      if [ -n "$results" ]; then
+        echo "=== $repo ==="
+        echo "$results"
+        echo
+      fi
+    done
+
+# Commit count by month per repo (velocity shape)
+[group('git')]
+velocity:
+    #!/usr/bin/env bash
+    for repo in meta intel genomics selve skills; do
+      results=$(git -C "$HOME/Projects/$repo" log --format='%ad' --date=format:'%Y-%m' \
+        | sort | uniq -c 2>/dev/null)
+      if [ -n "$results" ]; then
+        echo "=== $repo ==="
+        echo "$results"
+        echo
+      fi
+    done
+
 # Search Rejected: trailers across all repos
 [group('git')]
 discarded:
