@@ -1,6 +1,6 @@
 # Skill Consolidation: From 42 Skills to Synergistic Architecture
 
-**Source data:** Full inventory (48 dirs, 42 active), diagnostic output analysis, model-guide routing, loop/schedule infrastructure review.
+**Source data:** Full inventory (48 dirs, 42 active), diagnostic output analysis, model-guide routing, loop/schedule infrastructure review, **empirical usage data (543 skill invocations across all projects).**
 
 ## The Problem
 
@@ -225,20 +225,82 @@ loop-compatible:
 2. **Independent evolution:** Changing the session-analyst prompt now means editing `observe/references/session-analyst-prompt.md` inside a larger skill.
 3. **Skill-level metrics:** Hook telemetry logs skill invocations. Consolidated skills need mode-level tracking.
 
-## Open Questions
+## Empirical Usage Data (543 invocations, all projects, 30 days)
 
-1. **Redirect period:** How long do old skill names keep working as thin redirects?
-2. **Reference skills:** Should llmx-guide and model-guide stay user-invocable (they're useful for ad-hoc lookup) even though they're conceptually references?
-3. **Pipeline syntax:** Is `/morning` a skill, a just recipe, or a `/loop` pattern?
-4. **Skill-creator plugin:** The official plugin creates skills — does consolidation break its assumptions?
+| Skill | Invocations | Category |
+|---|---|---|
+| model-review | 121 | → `review` |
+| researcher | 56 | → `research` |
+| model-guide | 32 | Reference (keep invocable) |
+| modal | 31 | Standalone |
+| llmx-guide | 31 | Reference (keep invocable) |
+| brainstorm | 26 | Standalone |
+| causal-check | 23 | → `analyze` |
+| retro | 21 | → `observe` |
+| bio-verify | 16 | Domain-specific (genomics) |
+| design-review | 14 | → `observe` |
+| session-analyst | 10 | → `observe` |
+| data-acquisition | 10 | Standalone |
+| dispatch-research | 8 | → `research` |
+| research-cycle | 6 | → `research` |
+| plan-close | 5 | → `review` |
+| agent-pliability | 5 | → `upgrade` |
+| skill-authoring | 4 | Standalone |
+| maintain | 3 | → `improve` |
+| project-upgrade | 3 | → `upgrade` |
+| de-slop | 3 | Standalone |
+| All others | ≤2 each | Low usage |
+
+**Key insights:**
+- model-review is 22% of ALL skill invocations — the review workflow is the most important
+- model-guide and llmx-guide get 63 lookups combined — they're genuinely used as references, keep invocable
+- The diagnostic cluster (retro + design-review + session-analyst) = 45 calls — distinct enough in frequency to be separate modes
+- 18 skills have ≤2 invocations — candidates for absorption or archive
+- maintain has only 3 invocations despite being loop-designed — loop adoption is low
+
+## Unified Findings Log (Cross-Skill)
+
+**Idea:** All diagnostic modes (`observe`, `improve`, `review`, `upgrade`) append to the same append-only log per project. Currently session-analyst → improvement-log.md, design-review → patterns.jsonl, retro → session-retro/*.json. Three different formats, three different locations.
+
+**Proposal:** Single `findings.jsonl` per project (append-only, hook-guarded). Every diagnostic skill appends structured findings in the same schema:
+
+```json
+{
+  "ts": "2026-04-07T10:30:00Z",
+  "source": "observe/sessions",
+  "session_uuid": "abc12345",
+  "project": "meta",
+  "category": "TOKEN_WASTE",
+  "severity": "medium",
+  "summary": "13 sequential WebFetch calls instead of API script",
+  "evidence": "...",
+  "proposed_fix": "hook | rule | script",
+  "status": "proposed"
+}
+```
+
+**Benefits:**
+- `harvest` becomes a simple `jq` query over one file, not multi-source artifact scanning
+- Quality scores can join findings to harness versions automatically
+- Session-analyst, design-review, retro, supervision-audit all produce the same format
+- Cross-project queries: `cat ~/Projects/*/findings.jsonl | jq ...`
+
+**improvement-log.md stays** as the human-readable narrative. findings.jsonl is the machine-readable substrate. The log is derived from the JSONL, not the other way around.
+
+## Resolved Questions (from user feedback)
+
+1. **No backward compatibility.** Breaking refactor — delete old skills, no redirects, no wrappers.
+2. **model-guide and llmx-guide stay user-invocable** — 63 combined invocations proves they're used for ad-hoc lookup. They're both reference docs AND quick-lookup skills.
+3. **No named pipelines.** Any composition can be relevant at any time. Skills compose freely, not via hardcoded sequences.
+4. **Skill-creator plugin:** Unaffected — it creates new skills, doesn't modify existing ones.
 
 ## Revisions
 
-(None yet — initial brainstorm)
+- **2026-04-07 v2:** Added empirical usage data (543 invocations). Resolved open questions per user feedback: no backward compat, keep model-guide/llmx-guide invocable, no named pipelines. Added unified findings.jsonl proposal.
 
 <!-- knowledge-index
-generated: 2026-04-08T05:43:35Z
-hash: a017a5b9c95c
+generated: 2026-04-08T05:56:12Z
+hash: c4d62cbaa231
 
 
 end-knowledge-index -->
