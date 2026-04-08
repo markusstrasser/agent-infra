@@ -8,6 +8,7 @@ Usage: uv run python3 scripts/dashboard.py [--days N]
 """
 
 import json
+import statistics
 import sys
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -152,6 +153,84 @@ def main():
     # --- Epistemic metrics panel ---
     print_epistemic_panel(cutoff)
 
+    # --- Top-decile cost drivers ---
+    print_top_decile(recent)
+
+
+def print_top_decile(recent: list[dict]):
+    """Show top 10% sessions by cost, broken down by project."""
+    from common.console import con
+
+    if len(recent) < 10:
+        return
+
+    costs = sorted((float(r.get("cost_usd", 0)) for r in recent), reverse=True)
+    n_top = max(1, len(recent) // 10)
+    cost_threshold = costs[n_top - 1]
+    total_all = sum(costs)
+
+    top_sessions = [r for r in recent if float(r.get("cost_usd", 0)) >= cost_threshold]
+    # Trim to exact decile count (handles ties at boundary)
+    top_sessions = sorted(top_sessions, key=lambda r: float(r.get("cost_usd", 0)), reverse=True)[:n_top]
+    top_total = sum(float(r.get("cost_usd", 0)) for r in top_sessions)
+
+    # Per-project aggregation within top decile
+    by_project: dict[str, list[dict]] = defaultdict(list)
+    for r in top_sessions:
+        by_project[r.get("project", "?")].append(r)
+
+    # Per-project P90/P95 from ALL sessions (not just top decile)
+    all_by_project: dict[str, list[float]] = defaultdict(list)
+    for r in recent:
+        all_by_project[r.get("project", "?")].append(float(r.get("cost_usd", 0)))
+
+    print()
+    print(f"{'=' * 50}")
+    print("  Top-Decile Cost Drivers")
+    print(f"{'=' * 50}")
+    print()
+
+    pct_of_total = (top_total / total_all * 100) if total_all > 0 else 0
+    print(f"  Top {n_top} sessions (10%) = ${top_total:.2f} = {pct_of_total:.0f}% of total spend")
+    print()
+
+    rows = []
+    proj_costs = {p: sum(float(r.get("cost_usd", 0)) for r in s) for p, s in by_project.items()}
+    for proj, sessions in sorted(by_project.items(), key=lambda x: proj_costs[x[0]], reverse=True):
+        proj_cost = proj_costs[proj]
+        proj_pct = (proj_cost / top_total * 100) if top_total > 0 else 0
+        avg_dur = statistics.mean(float(r.get("duration_min", 0)) for r in sessions)
+        avg_ctx = statistics.mean(int(r.get("context_pct", 0)) for r in sessions)
+
+        all_costs = all_by_project.get(proj, [])
+        if len(all_costs) >= 10:
+            sorted_all = sorted(all_costs)
+            p90 = sorted_all[int(len(sorted_all) * 0.9)]
+            p95 = sorted_all[int(len(sorted_all) * 0.95)]
+        elif len(all_costs) >= 2:
+            p90 = statistics.quantiles(all_costs, n=10)[-1]
+            p95 = statistics.quantiles(all_costs, n=20)[-1]
+        else:
+            p90 = all_costs[0] if all_costs else 0
+            p95 = p90
+
+        rows.append([
+            proj,
+            str(len(sessions)),
+            f"${proj_cost:.2f}",
+            f"{proj_pct:.0f}%",
+            f"{avg_dur:.0f}m",
+            f"{avg_ctx:.0f}%",
+            f"${p90:.2f}",
+            f"${p95:.2f}",
+        ])
+
+    con.table(
+        ["Project", "#", "Cost", "Share", "Avg dur", "Avg ctx", "P90", "P95"],
+        rows,
+    )
+    print()
+
 
 def print_openai_panel(cutoff: datetime):
     """Print Codex/OpenAI usage from normalized receipts."""
@@ -233,11 +312,15 @@ def print_orchestrator_panel(cutoff: datetime):
     db = open_db(db_path)
 
     cutoff_str = cutoff.strftime("%Y-%m-%d %H:%M:%S")
-    tasks = db.execute("""
-        SELECT * FROM tasks
-        WHERE created_at >= ? OR finished_at >= ?
-        ORDER BY created_at DESC
-    """, (cutoff_str, cutoff_str)).fetchall()
+    try:
+        tasks = db.execute("""
+            SELECT * FROM tasks
+            WHERE created_at >= ? OR finished_at >= ?
+            ORDER BY created_at DESC
+        """, (cutoff_str, cutoff_str)).fetchall()
+    except Exception:
+        db.close()
+        return
 
     if not tasks:
         db.close()
