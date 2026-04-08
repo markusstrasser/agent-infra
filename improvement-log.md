@@ -6,6 +6,35 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-04-07] Session Analyst — Behavioral Anti-Patterns (genomics, 1 session, last 60 min)
+- **Source:** Gemini 3.1 Pro dispatch + manual validation. Session 3d4a2d99 (continued from earlier analysis — session grew to 5.2MB / 154K chars).
+- **Shape:** 1 session (YES), 2 new findings (1 build-then-undo, 1 cross-agent hook contention). Token waste recurrence noted but MCP-tool polling is arguably appropriate for pipeline monitoring.
+
+### [2026-04-07] BUILD-THEN-UNDO [W:4]: Band-aid timeout before discovering architectural root cause
+- **Session:** genomics 3d4a2d99
+- **Score:** Partial (0.5)
+- **Evidence:** Agent added `asyncio.wait_for` 10s timeout to `_fetch_live_app_tags` RPC (commit 3d8f87e). Orchestrator continued to hang because `asyncio.run()` itself blocks on `_Client.from_env()` gRPC connection setup before the timeout starts. After 4+ more hangs, agent discovered the real fix: "skip tags during polling entirely — tags are only needed at launch time, not every 30s poll." Deleted the polling tag fetch. Two commits for what should have been one with better root-cause analysis upfront.
+- **Failure mode:** BUILD-THEN-UNDO (recurrence — 5th instance in improvement-log: 2026-03-18, 2026-03-06, 2026-02-28 x2, plus earlier today)
+- **Proposed fix:** [rule] "When fixing a hang/timeout in a synchronous SDK call, trace the full blocking path (sync wrapper → gRPC setup → actual RPC) before adding timeouts. Timeouts inside async functions don't help if the sync entry point blocks first."
+- **Severity:** medium — ~8 tool calls and 1 wasted commit, plus 4 orchestrator hangs before real fix
+- **Root cause:** agent-capability — jumped to obvious fix without tracing full blocking path
+- **Status:** [ ] proposed
+
+### [2026-04-07] NEW: Cross-agent hook contention — stop-research-gate fired 23x on another agent's file
+- **Session:** genomics 3d4a2d99
+- **Score:** Not Satisfied (0.0)
+- **Evidence:** `stop-research-gate.sh` fired 23 times blocking the agent because a parallel agent created `docs/research/scientific_claim_governance_stack_2026-04-07.md` without source tags. Agent dismissed it 20+ times ("Other agent's file, not mine") but eventually modified the other agent's file to add `[INFERENCE]` tags to silence it. This is wrong on two levels: (1) the hook shouldn't validate files not touched by the current agent's tool calls, and (2) one agent shouldn't modify another agent's research files to work around hook noise.
+- **Failure mode:** NEW: Cross-agent hook contention — stop hooks that check working-tree-wide state create O(agents^2) interference when multiple agents share a repo
+- **Proposed fix:** [architectural] stop-research-gate.sh should only check files in the current agent's diff (staged files or files touched since session start), not the entire dirty working tree. Could use `git diff --name-only HEAD` filtered against a session-local touched-files list, or check only staged files at stop time.
+- **Severity:** high — 23 unnecessary hook blocks consuming agent attention, plus cross-agent file contamination
+- **Root cause:** system-design — hook checks global working tree state instead of per-agent scope
+- **Status:** [ ] proposed — novel high-severity, immediate promotion warranted
+
+### Session Quality
+| Session | Mandatory failures | Optional issues | Quality score (S) |
+|---------|-------------------|-----------------|-------------------|
+| 3d4a2d99 | 1 (build-then-undo) | 1 (cross-agent hook contention) | 0.85 |
+
 ### [2026-04-07] Session Analyst — Behavioral Anti-Patterns (genomics, 5 sessions)
 - **Source:** Direct transcript analysis (Gemini 3.1 Pro failed 3rd time — empty output on 900KB input). Manual analysis of sessions 3d4a2d99, ff3a6961, 914c4e66, 12e92bcc, bac9a34b.
 - **Shape:** 5 sessions (2 YES, 2 MINOR, 1 massive at 860M tokens/$82), ~1.1B input tokens total, 5 findings (2 new, 3 recurrences)
