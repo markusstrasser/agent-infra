@@ -2022,3 +2022,43 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Severity:** low — ~10 wasted tool calls, minor delay
 - **Recurrences:** 1 (first observed)
 - **Status:** [ ] proposed
+
+### [2026-04-07] BUILD-THEN-UNDO: Git reset HEAD cleared own staged work, causing state confusion
+- **Session:** genomics 3d4a2d99
+- **Evidence:** After `pretool-foreign-staged-guard.sh` blocked a commit, agent ran `git reset HEAD` which unstaged its own `modal_meta_analysis.py` fix. Then ran `git diff` (empty), concluded the fix was already in an earlier commit (508b91f), and abandoned its own work. The agent's own edit was lost to state confusion from an overly broad reset.
+- **Failure mode:** build-then-undo — compounded by misunderstanding of git staging state post-reset
+- **Proposed fix:** [rule] When blocked by foreign staged files, use `git stash --keep-index` or `git add <specific-file>` rather than `git reset HEAD`, which clears all staged work including your own.
+- **Root cause:** agent-capability
+- **Severity:** medium — fix was written, tested, then lost; had to be reconstructed or abandoned
+- **Recurrences:** 1 (first observed for this specific git-reset-state-confusion pattern)
+- **Status:** [ ] proposed
+
+### [2026-04-07] PERFORMATIVE TRIAGE: "Top 3 by impact" dropped confirmed bug patterns without deferral
+- **Session:** genomics 3d4a2d99
+- **Evidence:** Agent identified 6 bug patterns (A-F) from a code audit, then said "If I had to pick the top 3 by impact:" and listed patterns A, D, E+B. Patterns C (stale data references) and F (timeouts/checkpoints) were silently dropped with no per-item deferral reason. User then redirected to pipeline status, so the remaining patterns were never addressed.
+- **Failure mode:** performative-triage — self-selected subset of confirmed findings without justifying omissions
+- **Proposed fix:** Already covered by anti-pattern #19 in session-analyst taxonomy. This is a recurrence.
+- **Root cause:** agent-capability
+- **Severity:** medium — 2 confirmed bug patterns dropped without acknowledgment
+- **Recurrences:** 2+ (this pattern is documented in the taxonomy; confirmed recurrence)
+- **Status:** [ ] proposed
+
+### [2026-04-07] SYCOPHANCY: Reflexive "You're right" before verifying user's challenge
+- **Session:** genomics 3d4a2d99
+- **Evidence:** Three instances of "You're right" as first words of response to user corrections/challenges (lines 8191, 9598, 13371). In at least one case (line 13371, regulomedb monitoring), the agent correctly self-diagnosed the failure but still led with reflexive agreement. The sycophantic opener undermines the self-diagnosis that follows.
+- **Failure mode:** sycophantic-compliance — reflexive agreement phrase before verification
+- **Proposed fix:** [rule] When user challenges a conclusion, respond with "Let me check" or go directly to verification. Avoid reflexive "You're right" before validating the premise. In cases where the user IS right, the verification itself demonstrates agreement.
+- **Root cause:** agent-capability
+- **Severity:** low — the actual responses were substantive, but the framing pattern erodes trust calibration
+- **Recurrences:** 3 instances in one session; pattern is endemic to all models
+- **Status:** [ ] proposed
+
+### [2026-04-07] TOKEN WASTE: 9 batch MCP calls failed on file-exists conflict without checking first result
+- **Session:** genomics 7f0b60ba
+- **Evidence:** 10 consecutive `mcp__genomics__modal_volume_inspect` calls dispatched as a batch to check pipeline stage statuses. While the calls were individually reasonable (checking _STATUS.json for each stage), the MCP tool's temp file management caused conflicts. A sequential or smaller-batch approach would have caught the issue after the first failure.
+- **Failure mode:** token-waste — batch dispatch without error-checking between calls
+- **Proposed fix:** [system-design] Update the `modal_volume_inspect` MCP tool to auto-clean temp files or use unique output paths per call. Alternatively, [rule] check first result of batch MCP calls before dispatching remaining.
+- **Root cause:** system-design
+- **Severity:** low — 9 wasted tool calls, but the pattern reveals an MCP tool design issue
+- **Recurrences:** 1 (first observed for this specific MCP tool)
+- **Status:** [ ] proposed
