@@ -2287,3 +2287,14 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Root cause:** system-design (journal is single point of truth but not concurrency-safe; agent had no verification step in kill workflow)
 - **Severity:** high (GPU compute dollars wasted, 3+ hours of progress destroyed)
 - **Status:** [ ] proposed
+
+### [2026-04-08] MISSING PUSHBACK: Agent noticed data-loss bug but accepted "not ideal but functional"
+- **Session:** genomics 7f0b60ba
+- **Score:** Not Satisfied (0.0)
+- **Evidence:** RegulomeDB script opens output TSV in `"w"` mode, truncating 2,145 variants scored over 86 minutes of API querying. Agent explicitly noticed: "looking at the code it opens the file with 'w' mode (truncates). It'll redo all 5000 variants. Not ideal but functional." Agent did not fix the append/resume logic — accepted ~90 min of wasted compute.
+- **Failure mode:** MISSING PUSHBACK — variant: "noticed waste, accepted it"
+- **Proposed fix:** [rule] When an agent identifies a data-loss or waste pattern during debugging, fix it in the same pass. Accepting "not ideal but functional" for a one-line fix (open mode "w" → "a") is not acceptable when the waste is >10 min of compute.
+- **Root cause:** agent-capability — agent correctly diagnosed the problem but treated the fix as optional
+- **Severity:** medium — 86 min of API time wasted, but the stage eventually completed on retry
+- **Recurrences:** 1 (first observed as distinct pattern; related to but distinct from premature termination)
+- **Status:** [ ] proposed
