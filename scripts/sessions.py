@@ -1093,6 +1093,117 @@ def add_shared_filters(parser: argparse.ArgumentParser):
     parser.add_argument("-n", type=int, default=20, help="Max results (default: 20)")
 
 
+SCHEMA_TRACE_INDEX = """
+CREATE TABLE IF NOT EXISTS trace_index (
+    finding_id TEXT NOT NULL,
+    session_uuid TEXT NOT NULL,
+    jsonl_path TEXT,
+    byte_start INTEGER,
+    byte_end INTEGER,
+    finding_category TEXT,
+    severity TEXT,
+    summary TEXT,
+    indexed_at TEXT NOT NULL,
+    PRIMARY KEY (finding_id, session_uuid)
+);
+CREATE INDEX IF NOT EXISTS idx_trace_index_category ON trace_index(finding_category);
+"""
+
+
+def cmd_trace_index(args):
+    """Build trace index from improvement-log.md — links findings to raw JSONL."""
+    import re as _re
+    ilog_path = Path("improvement-log.md")
+    if not ilog_path.exists():
+        print("No improvement-log.md found in current directory.", file=sys.stderr)
+        sys.exit(1)
+
+    db = get_db()
+    db.executescript(SCHEMA_TRACE_INDEX)
+
+    # Parse improvement-log entries
+    content = ilog_path.read_text()
+    # Pattern: ### [YYYY-MM-DD] [CATEGORY]: summary\n- **Session:** project session-id-prefix
+    entry_pattern = _re.compile(
+        r"### \[(\d{4}-\d{2}-\d{2})\] (\w[\w\s]*?):\s*(.+?)$\s*"
+        r"- \*\*Session:\*\*\s*(\S+)\s+(\w+)",
+        _re.MULTILINE,
+    )
+
+    # Build session UUID lookup
+    session_map = {}
+    for row in db.execute("SELECT uuid, project FROM sessions").fetchall():
+        session_map[row["uuid"][:8]] = row["uuid"]
+
+    indexed = 0
+    for match in entry_pattern.finditer(content):
+        date, category, summary, project, session_prefix = match.groups()
+        category = category.strip()
+
+        # Resolve session UUID from prefix
+        full_uuid = session_map.get(session_prefix)
+        if not full_uuid:
+            continue
+
+        # Get JSONL path
+        session_row = db.execute(
+            "SELECT jsonl_path FROM sessions WHERE uuid = ?", [full_uuid]
+        ).fetchone()
+        if not session_row or not session_row["jsonl_path"]:
+            continue
+
+        finding_id = f"{date}-{category.lower().replace(' ', '-')}-{session_prefix}"
+
+        db.execute("""
+            INSERT OR REPLACE INTO trace_index
+            (finding_id, session_uuid, jsonl_path, finding_category, severity, summary, indexed_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, [
+            finding_id, full_uuid, session_row["jsonl_path"],
+            category, "medium", summary.strip(),
+            datetime.now(timezone.utc).isoformat(),
+        ])
+        indexed += 1
+
+    db.commit()
+    total = db.execute("SELECT COUNT(*) as c FROM trace_index").fetchone()["c"]
+    print(f"Indexed {indexed} findings. Total in trace_index: {total}", file=sys.stderr)
+
+    # Show category breakdown
+    for row in db.execute(
+        "SELECT finding_category, COUNT(*) as n FROM trace_index GROUP BY finding_category ORDER BY n DESC"
+    ).fetchall():
+        print(f"  {row['finding_category']}: {row['n']}", file=sys.stderr)
+
+
+def cmd_trace_query(args):
+    """Query trace index for failure patterns, show raw JSONL excerpts."""
+    db = get_db()
+    db.executescript(SCHEMA_TRACE_INDEX)
+
+    query = args.pattern.lower()
+    rows = db.execute("""
+        SELECT ti.finding_id, ti.session_uuid, ti.jsonl_path, ti.finding_category,
+               ti.summary, s.project, s.start_ts
+        FROM trace_index ti
+        JOIN sessions s ON ti.session_uuid = s.uuid
+        WHERE LOWER(ti.finding_category) LIKE ? OR LOWER(ti.summary) LIKE ?
+        ORDER BY s.start_ts DESC
+        LIMIT ?
+    """, [f"%{query}%", f"%{query}%", args.limit]).fetchall()
+
+    if not rows:
+        print(f"No trace entries matching '{args.pattern}'", file=sys.stderr)
+        return
+
+    print(f"Found {len(rows)} trace entries for '{args.pattern}':\n")
+    for row in rows:
+        print(f"### {row['finding_category']}: {row['summary']}")
+        print(f"  Session: {row['session_uuid'][:8]} ({row['project']}, {row['start_ts'][:10]})")
+        print(f"  JSONL: {row['jsonl_path']}")
+        print()
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Session search & dispatch for Claude Code",
@@ -1129,6 +1240,14 @@ def main():
     p_dispatch.add_argument("--prompt", help="Custom prompt (required for --to custom)")
     p_dispatch.add_argument("--model", help="Override model")
 
+    # trace-index
+    sub.add_parser("trace-index", help="Build trace index from improvement-log.md")
+
+    # trace-query
+    p_tq = sub.add_parser("trace-query", help="Query trace index for failure patterns")
+    p_tq.add_argument("pattern", help="Category or keyword to search for")
+    p_tq.add_argument("--limit", "-n", type=int, default=20, help="Max results")
+
     args = parser.parse_args()
 
     commands = {
@@ -1137,6 +1256,8 @@ def main():
         "search": cmd_search,
         "show": cmd_show,
         "dispatch": cmd_dispatch,
+        "trace-index": cmd_trace_index,
+        "trace-query": cmd_trace_query,
     }
     commands[args.command](args)
 
