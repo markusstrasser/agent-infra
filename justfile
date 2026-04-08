@@ -24,6 +24,16 @@ agent-receipts *args:
 context-budget *args:
     uv run python3 scripts/context-budget.py {{args}}
 
+# Harness changelog — tracked changes to rules/hooks with quality scores
+[group('dashboard')]
+harness-changelog *args:
+    uv run python3 scripts/harness-changelog.py {{args}}
+
+# Enrich sessions.db with quality scores
+[group('dashboard')]
+enrich-quality:
+    uv run python3 scripts/session-features.py --enrich-db
+
 # ── Health ─────────────────────────────────────────────────────────
 
 # Fast smoke test (<1m) — indexes, frontmatter, views
