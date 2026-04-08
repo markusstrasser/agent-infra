@@ -6,6 +6,31 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-04-07] Session Analyst — Behavioral Anti-Patterns (genomics, 2 sessions, last 60 min)
+- **Source:** Gemini 3.1 Pro dispatch + manual validation. Sessions 92e08e7b (PGC GWAS integration research + plan), b2f3014b (structural pipeline hardening plan + execution).
+- **Shape:** 2 sessions triaged YES by Gemini. After validation: 1 finding confirmed (subagent overuse), 1 minor recurrence (duplicate reads), 1 rejected (model-review triage is by-design). Both sessions were high-quality overall.
+
+### [2026-04-07] OVER-ENGINEERING [W:4]: Subagents dispatched for simple file reads
+- **Session:** genomics b2f3014b
+- **Score:** Partial (0.5)
+- **Evidence:** Agent dispatched 4 parallel `Agent(Read pipeline_stages StageSpec)`, `Agent(Read @stage decorator)`, `Agent(Read orchestrator dispatch)`, `Agent(Read lint infrastructure)` subagents purely for reading/summarizing local Python files. Each subagent has context overhead (~5-10K tokens). Direct `Read()` + `Grep()` calls would have achieved the same result at lower cost.
+- **Failure mode:** OVER-ENGINEERING — subagent context overhead for simple file ingestion
+- **Proposed fix:** rule — "Use Read/Grep for file ingestion; reserve Agent for tasks requiring synthesis, multi-step exploration, or execution isolation"
+- **Root cause:** agent-capability
+- **Recurrence:** 2nd occurrence. Prior: [2026-03-26] "dispatched 3 MORE Explore agents to re-read the same codebase" (line 444 in improvement-log).
+- **Status:** [ ] proposed — meets promotion criteria (2+ recurrences, checkable predicate)
+
+### [2026-04-07] RECURRENCE: Token waste — duplicate file reads without intermediate edits
+- **Session:** genomics 92e08e7b
+- **Evidence:** `modal_sbayesrc.py` read twice (consecutive calls, no edit between), `pgs_catalog.json` read twice (no edit between). Minor instance of the well-documented repeated-read pattern (9+ prior occurrences across projects).
+- **Status:** [x] already covered by existing repeated-read findings
+
+### [2026-04-07] Session Quality (genomics, last 60 min)
+| Session | Mandatory failures | Optional issues | Quality score (S) |
+|---------|-------------------|-----------------|-------------------|
+| 92e08e7b | None | Minor token waste (dup reads) | 0.95 |
+| b2f3014b | Over-engineering (subagents for reads) | None | 0.88 |
+
 ### [2026-04-07] Session Analyst — Behavioral Anti-Patterns (genomics, 1 session, last 60 min)
 - **Source:** Gemini 3.1 Pro dispatch + manual validation. Session 3d4a2d99 (continued from earlier analysis — session grew to 5.2MB / 154K chars).
 - **Shape:** 1 session (YES), 2 new findings (1 build-then-undo, 1 cross-agent hook contention). Token waste recurrence noted but MCP-tool polling is arguably appropriate for pipeline monitoring.
