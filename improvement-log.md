@@ -2443,3 +2443,72 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 | 10fe8b2a | 0 | 0 | 1.00 |
 - No new hooks, rules, or architectural fixes warranted this run
 - Gemini session ID validation: 5/5 clean (no fabrications)
+
+### [2026-04-08] Sessions Analyst — Codex Session 019d6d86 (genomics, Codex/GPT-5.4, 8h marathon)
+- Model under review: GPT-5.4 via Codex CLI
+- Duration: ~8 hours (14:38 UTC - 22:48 UTC)
+- Messages: 1,452 | Input tokens: 297M | Output tokens: 831K
+- Commits produced: ~40+ across genomics repo
+- Analyzed by: Claude Opus 4.6 (manual retro, transcript review)
+
+### [2026-04-08] NEW: HOOK OWNERSHIP GUARD INCOMPATIBLE WITH CODEX CLI
+- **Session:** genomics 019d6d86 (Codex)
+- **Evidence:** Codex agent spent 6+ turns fighting the session-touch-log ownership guard across 3 separate commit attempts. The guard keys off `/tmp/claude-session-touched-<session>.txt` which is populated by Claude Code's posttool hooks. Codex CLI uses `apply_patch` which never triggers those hooks. Agent had to manually backfill the tracker file each time.
+- **Failure mode:** NEW: cross-agent hook incompatibility — hooks designed for one agent runtime silently break another
+- **Proposed fix:** architectural: the ownership guard should either (a) detect Codex sessions and skip, or (b) the touch-log hook should fire on Codex's `apply_patch` tool too, or (c) use git-native blame/diff to verify session ownership instead of a separate tracker
+- **Severity:** high
+- **Root cause:** system-design
+- **Status:** [ ] proposed
+
+### [2026-04-08] NEW: ORCHESTRATOR RESTART CHURN — 5 kill/restart cycles in one session
+- **Session:** genomics 019d6d86 (Codex)
+- **Evidence:** Agent killed and restarted the orchestrator process 5 times (PIDs 9423, 21933, 28276, 32754, final). Each restart was caused by discovering another code defect during the live run. The pattern: fix code -> restart orchestrator -> discover new bug during reconciliation -> fix -> restart again. Each restart burned 5-15 minutes in cold reconciliation.
+- **Failure mode:** NEW: fix-restart-discover loop — incremental fixes interleaved with process restarts instead of batching fixes first
+- **Proposed fix:** rule: when debugging a live control loop, batch all code fixes and validate offline before restarting the process. Don't restart after every individual fix.
+- **Severity:** medium
+- **Root cause:** agent-capability
+- **Status:** [ ] proposed
+
+### [2026-04-08] NEW: CODEX BRUTE-FORCE FILESYSTEM SEARCH
+- **Session:** genomics 019d6d86 (Codex)
+- **Evidence:** Early in the session, agent ran `rg -n --hidden --follow --glob '!**/.git/**' "The journal is a mess" /Users/alien /Users/alien/.claude /Users/alien/.con...` — searching the entire home directory for a quoted string. This is a multi-minute operation that could have been scoped to `~/.claude/projects/-Users-alien-Projects-genomics/` immediately.
+- **Failure mode:** TOKEN WASTE — over-broad search scope
+- **Proposed fix:** rule (Codex AGENTS.md): Claude session transcripts live in `~/.claude/projects/-Users-alien-Projects-{project}/`. Search there first, not `/Users/alien`.
+- **Severity:** low
+- **Root cause:** agent-capability
+- **Status:** [ ] proposed
+
+### [2026-04-08] RECURRING: BLIND FIX DEPLOYMENT (5th+)
+- **Session:** genomics 019d6d86 (Codex)
+- **Evidence:** Multiple stage fixes deployed without running the stage to verify (meta_analysis, pgx_regenotype_missing, pgs_core parser). Agent compiled and linted but did not test actual execution before committing.
+- **Failure mode:** BLIND FIX — compile-passes != works. Already logged 4+ times.
+- **Severity:** medium
+- **Root cause:** agent-capability
+
+### [2026-04-08] RECURRING: MANUAL JOURNAL/STATE SURGERY (5th+)
+- **Session:** genomics 019d6d86 (Codex)
+- **Evidence:** Agent acknowledged that prior sessions manually edited `runs/20260407-145317.json` and deleted `_STATUS.json` files while the orchestrator was running. The Codex agent itself later backfilled launch_registry.json entries manually. The pattern persists despite being logged 4+ times.
+- **Failure mode:** Manual state mutation bypassing orchestrator — already documented
+- **Severity:** high
+- **Root cause:** system-design (orchestrator lacks self-repair)
+
+### [2026-04-08] POSITIVE: Codex demonstrated strong diagnostic rigor
+- **Session:** genomics 019d6d86 (Codex)
+- **Evidence:** Agent correctly separated stale-container ghosts from current-code bugs (lines 140-146 of transcript). Identified that giab_happy, pangenie, rasp_ddg were already fixed before the destructive session. Correctly traced init_stage() positional argument bug. Correctly identified that orchestrator already owned zombie _STATUS.json clearing. Correctly challenged other agent's diagnostic claims (lines 262-277).
+- **Notes:** GPT-5.4 showed strong forensic capability when given enough context and time. The multi-hour investment produced a genuine root-cause audit that shorter sessions had missed.
+
+### Session Quality (Codex 019d6d86)
+| Criterion | Score | Notes |
+|-----------|-------|-------|
+| Root cause accuracy | 0.90 | Correctly identified init_stage bug, trust policy gap, env propagation failure, stage target resolver bug |
+| Fix quality | 0.70 | Good architectural fixes (heartbeat, launch registry, bounded probes) but deployed without integration testing |
+| Operational efficiency | 0.30 | 5 restart cycles, 8 hours for work that could have been batched into 2-3 focused fixes |
+| Cross-agent coordination | 0.40 | Identified parallel work split but hook incompatibility caused friction |
+| Diagnostic separation | 0.85 | Strong: separated stale-app artifacts from current bugs, challenged other agent claims |
+| Overall | 0.55 | High diagnostic quality undermined by operational inefficiency |
+
+### Architectural Observations (Codex session)
+1. **uv.lock not tracked in git** — discovered by Codex agent. `.gitignore` excluded it, causing invisible Modal version drift (1.3.4 vs 1.4.1). This is a real infrastructure finding that prior Claude Code sessions missed.
+2. **Private Modal tag RPCs** — Codex correctly identified these as dead complexity and proposed deletion. Prior sessions worked around them.
+3. **Stage target resolver bias** — Codex found that `resolve_modal_target()` preferred bare scripts over `@stage` functions, causing sbayesrc mislaunch. Novel finding.
+4. **_STATUS.json env propagation failure** — `PIPELINE_RUN_ID` and `PIPELINE_ATTEMPT_ID` written as empty strings to remote status files because `modal run --detach` env injection was unreliable. Novel finding that explains trust policy failures across restarts.
