@@ -2062,3 +2062,31 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Severity:** low — 9 wasted tool calls, but the pattern reveals an MCP tool design issue
 - **Recurrences:** 1 (first observed for this specific MCP tool)
 - **Status:** [ ] proposed
+
+### [2026-04-08] REASONING-ACTION MISMATCH: Destructive action on ambiguous instruction — deleted active cron job instead of asking for clarification
+- **Session:** genomics 7f0b60ba
+- **Evidence:** User said "don't change the plan in the futeur .. because it causes a user confirm gate and i'm sleeping soon." Agent interpreted this as "stop the cron loop" and immediately ran CronDelete(5b583057), killing the active pipeline health check. User corrected: "No i meant don't edit the plan doc ... keep the loop going for the night." Agent had to re-create the cron job.
+- **Failure mode:** REASONING-ACTION MISMATCH — "plan" was ambiguous (plan doc vs. execution plan). Agent chose the destructive interpretation without confirming. Correct behavior: ask "Do you mean stop the cron loop, or just don't edit the plan document?"
+- **Proposed fix:** [rule] When user instruction is ambiguous AND the available action is destructive/irreversible (delete, stop, cancel), ask for clarification instead of acting. This is an agent-capability issue — ambiguity detection is hard to hook.
+- **Root cause:** agent-capability
+- **Severity:** high — destroyed active automation the user wanted to keep running overnight
+- **Recurrences:** 1 (first observed)
+- **Status:** [ ] proposed
+
+### [2026-04-08] OVER-ENGINEERING: Manually launched pipeline stages instead of using orchestrator
+- **Session:** genomics 7f0b60ba
+- **Evidence:** Agent ran `modal run --detach` for 6 individual stages during a health check loop. User corrected: "Wait why are you running the scripts one by one? Should the orchestrator do that stuff?" Agent was bypassing the orchestrator's DAG-driven execution, dependency tracking, and reconciliation.
+- **Proposed fix:** [rule] When running multiple pipeline stages (>2), use `pipeline_orchestrator.py` unless explicitly debugging a single isolated stage. Manual `modal run --detach` is for single-stage debugging only.
+- **Root cause:** task-specification
+- **Severity:** medium — no data loss but wasted ~10 min and bypassed dependency ordering
+- **Recurrences:** 1 (first observed)
+- **Status:** [ ] proposed
+
+### [2026-04-08] RECURRENCE: git add -p in multi-agent session staged other agents' dirty changes
+- **Session:** genomics 6ddf5879
+- **Evidence:** Agent used `git add -p`, which staged hunks from 8+ files modified by other agents. Had to `git reset HEAD` and re-add specific files. Agent self-identified the issue in its own retro section. Rule exists in CLAUDE.md ("Never use git add -A or git add .") but `git add -p` is a gap — it's technically allowed but equally dangerous with concurrent agents.
+- **Proposed fix:** [rule] Extend CLAUDE.md: "When `pgrep -c claude` >= 2, use only `git add <specific files>`, never `git add -p` or `git add -A`."
+- **Root cause:** agent-capability
+- **Severity:** medium — recovered via git reset, but could have committed wrong changes
+- **Recurrences:** 2+ (matches existing pattern, first explicit `git add -p` variant)
+- **Status:** [ ] proposed
