@@ -128,6 +128,23 @@ FROM sessions
 WHERE harness_hash IS NOT NULL
 GROUP BY harness_hash
 ORDER BY last_seen DESC;
+
+CREATE VIEW IF NOT EXISTS v_harness_correlation AS
+SELECT
+    s.harness_hash,
+    COUNT(*) AS sessions,
+    ROUND(AVG(sq.quality_score), 3) AS avg_quality,
+    ROUND(MIN(sq.quality_score), 3) AS min_quality,
+    ROUND(MAX(sq.quality_score), 3) AS max_quality,
+    ROUND(AVG(s.cost_usd), 2) AS avg_cost,
+    MIN(s.start_ts) AS first_seen,
+    MAX(s.start_ts) AS last_seen
+FROM sessions s
+JOIN session_quality sq ON s.uuid = sq.uuid
+WHERE s.harness_hash IS NOT NULL
+GROUP BY s.harness_hash
+HAVING sessions >= 3
+ORDER BY avg_quality DESC;
 """
 
 

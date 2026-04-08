@@ -344,6 +344,106 @@ def find_sessions_by_date(since: datetime, until: datetime | None = None) -> lis
 
 
 # ---------------------------------------------------------------------------
+# Quality Score — composite from features
+# ---------------------------------------------------------------------------
+
+def compute_quality_score(features: dict) -> float:
+    """Compute a 0-1 quality score from session features.
+
+    Higher = better session. Penalizes tool failures, backtracks, and
+    reformulations relative to session size. Weights aligned with
+    session-analyst anti-pattern severity.
+    """
+    tc = max(features.get("tool_call_count", 1), 1)
+    failure_rate = features.get("tool_failure_rate", 0.0)
+    backtrack_rate = features.get("backtrack_count", 0) / tc
+    reformulation_rate = features.get("query_reformulation_count", 0) / tc
+
+    # Penalty components (each 0-1, higher = worse)
+    penalties = (
+        0.30 * min(failure_rate * 2, 1.0) +        # tool failures (W:3-4)
+        0.25 * min(backtrack_rate * 5, 1.0) +       # backtracks/undo (W:4)
+        0.20 * min(reformulation_rate * 5, 1.0) +   # search churn (W:3)
+        0.15 * (1.0 if tc > 200 else 0.0) +         # excessive tool calls (W:3)
+        0.10 * (1.0 if features.get("session_duration_minutes", 0) > 120 else 0.0)  # marathon sessions
+    )
+    return round(max(0.0, 1.0 - penalties), 3)
+
+
+def enrich_sessions_db():
+    """Compute quality scores for sessions.db entries that don't have them."""
+    import sqlite3
+    from common.paths import SESSIONS_DB
+
+    db = sqlite3.connect(SESSIONS_DB)
+    db.row_factory = sqlite3.Row
+
+    # Ensure session_quality table exists
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS session_quality (
+            uuid TEXT PRIMARY KEY REFERENCES sessions(uuid),
+            quality_score REAL NOT NULL,
+            features_json TEXT,
+            computed_at TEXT NOT NULL
+        )
+    """)
+    db.commit()
+
+    # Find sessions without quality scores that have JSONL paths
+    rows = db.execute("""
+        SELECT uuid, jsonl_path FROM sessions
+        WHERE jsonl_path IS NOT NULL
+        AND (uuid NOT IN (SELECT uuid FROM session_quality))
+        ORDER BY start_ts DESC
+        LIMIT 100
+    """).fetchall()
+
+    if not rows:
+        print("All sessions already have quality scores.", file=sys.stderr)
+        db.close()
+        return
+
+    enriched = 0
+    for row in rows:
+        jsonl_path = Path(row["jsonl_path"])
+        if not jsonl_path.exists():
+            continue
+        try:
+            features = extract_features(jsonl_path)
+            score = compute_quality_score(features)
+            db.execute("""
+                INSERT OR REPLACE INTO session_quality (uuid, quality_score, features_json, computed_at)
+                VALUES (?, ?, ?, ?)
+            """, [
+                row["uuid"],
+                score,
+                json.dumps(features),
+                datetime.now(timezone.utc).isoformat(),
+            ])
+            enriched += 1
+        except Exception as e:
+            print(f"  WARN: {row['uuid'][:8]}: {e}", file=sys.stderr)
+
+    db.commit()
+    print(f"Enriched {enriched} sessions with quality scores.", file=sys.stderr)
+
+    # Show summary
+    stats = db.execute("""
+        SELECT
+            COUNT(*) as total,
+            ROUND(AVG(quality_score), 3) as avg_score,
+            ROUND(MIN(quality_score), 3) as min_score,
+            ROUND(MAX(quality_score), 3) as max_score
+        FROM session_quality
+    """).fetchone()
+    print(f"Quality scores: {stats['total']} sessions, "
+          f"avg={stats['avg_score']}, range=[{stats['min_score']}, {stats['max_score']}]",
+          file=sys.stderr)
+
+    db.close()
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -361,11 +461,17 @@ def main():
     group.add_argument("--session", help="UUID or UUID prefix of a specific session")
     group.add_argument("--today", action="store_true", help="Process today's sessions")
     group.add_argument("--days", type=int, help="Process sessions from last N days")
+    group.add_argument("--enrich-db", action="store_true",
+                       help="Compute quality scores for sessions.db entries missing them")
 
     parser.add_argument("--output", "-o", help="Append JSONL output to this file")
     parser.add_argument("--project", "-p", help="Filter by project name")
 
     args = parser.parse_args()
+
+    if args.enrich_db:
+        enrich_sessions_db()
+        return
 
     # Resolve sessions
     sessions: list[Path] = []
