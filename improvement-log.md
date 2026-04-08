@@ -2298,3 +2298,13 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Severity:** medium — 86 min of API time wasted, but the stage eventually completed on retry
 - **Recurrences:** 1 (first observed as distinct pattern; related to but distinct from premature termination)
 - **Status:** [ ] proposed
+
+### [2026-04-08] [CAPABILITY ABANDONMENT]: Agent diagnosed orchestrator loop bug but applied manual restart workaround instead of fixing code
+- **Session:** genomics 7f0b60ba
+- **Evidence:** Agent explicitly diagnosed the logic bug in its own retro analysis: orchestrator builds `pending_modal` set at loop start from journal, loop exits when all tracked stages complete/fail. Despite successfully modifying 12+ other Python scripts to fix stage bugs in the same 8-hour session, the agent repeatedly ran `kill $(pgrep -f pipeline_orchestrator)` to restart the daemon manually instead of editing `pipeline_orchestrator.py` to fix the loop exit condition.
+- **Failure mode:** CAPABILITY ABANDONMENT — agent had the diagnosis, the skill, and the authority to fix the code, but defaulted to an operational workaround
+- **Proposed fix:** [rule] When an agent definitively traces a bug to specific source code lines in an active component, it must implement a code fix rather than settling for an operational manual workaround. Manual restarts are acceptable as a temporary measure only if the code fix is also committed in the same session.
+- **Root cause:** agent-capability — the agent treated the orchestrator as infrastructure it shouldn't touch, despite having full authority and having edited other infrastructure scripts
+- **Severity:** high — manual restart loop across 8h session, bug persists for future sessions
+- **Recurrences:** 0 (novel finding, promoted immediately due to high severity and clear actionability)
+- **Status:** [ ] proposed
