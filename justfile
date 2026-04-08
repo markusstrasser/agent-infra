@@ -36,12 +36,9 @@ smoke:
     echo "=== Research index frontmatter ==="
     head -1 .claude/rules/research-index.md | grep -q '^---$' || { echo "FAIL: research-index.md missing YAML frontmatter"; exit 1; }
     echo "OK: frontmatter intact"
-    echo "=== DB views ==="
-    DB="$HOME/.claude/orchestrator.db"
-    for v in v_queue v_daily_cost v_stalled v_failures v_pipeline_health v_proposals; do
-        sqlite3 "$DB" "SELECT * FROM $v LIMIT 1" > /dev/null 2>&1 || { echo "FAIL: $v"; exit 1; }
-    done
-    echo "OK: all views pass"
+    echo "=== Runlogs DB ==="
+    sqlite3 "$HOME/.claude/runlogs.db" "SELECT COUNT(*) FROM sessions" > /dev/null 2>&1 || { echo "FAIL: runlogs sessions"; exit 1; }
+    echo "OK: runlogs readable"
 
 # Check all research MCP servers respond (<10s)
 [group('health')]
@@ -105,10 +102,16 @@ agent-infra-smoke:
     grep -q "Verification Artifact" "$tmpdir/research-verification/weekly-agent-infra-sweep-2026-04-02.verification.md"
     echo "OK: agent-infra tooling smoke test passed"
 
-# Browse SQLite databases in web UI (runlogs, orchestrator)
+# Canonical runner for standalone review-tool tests
+[group('health')]
+review-tool-tests:
+    python3 ~/Projects/skills/plan-close/scripts/test_build_plan_close_context.py
+    python3 ~/Projects/skills/model-review/scripts/test_model_review.py
+
+# Browse SQLite database in web UI
 [group('dashboard')]
 datasette *args:
-    uvx datasette ~/.claude/runlogs.db ~/.claude/orchestrator.db {{args}}
+    uvx datasette ~/.claude/runlogs.db {{args}}
 
 # ── Skills ───────────────────────────────────────────────────────
 
@@ -167,46 +170,19 @@ calibration-canary *args:
 # User #tag annotations from session transcripts
 [group('epistemic')]
 tags *args:
-    uv run python3 scripts/extract_user_tags.py {{args}}
+    uv run python3 ~/Projects/skills/harvest/scripts/extract_user_tags.py {{args}}
 
 # Hook trigger telemetry (default: last 7 days)
 [group('epistemic')]
 hook-telemetry *args:
     uv run python3 scripts/hook-telemetry-report.py {{args}}
 
-# ── Orchestrator ─────────────────────────────────────────────────
-
-# Submit + run pipeline synchronously (interactive mode)
-[group('orchestrator')]
-run-pipeline pipeline *args:
-    uv run python3 scripts/orchestrator.py run-pipeline {{pipeline}} {{args}}
-
-# Show orchestrator task queue
-[group('orchestrator')]
-orch-status:
-    uv run python3 scripts/orchestrator.py status
-
-# Show pipeline cost/status rollup
-[group('orchestrator')]
-orch-pipelines:
-    uv run python3 scripts/orchestrator.py pipelines
-
-# Run one queued task (manual tick)
-[group('orchestrator')]
-orch-tick:
-    uv run python3 scripts/orchestrator.py tick
-
-# Show orchestrator event log
-[group('orchestrator')]
-orch-log *args:
-    uv run python3 scripts/orchestrator.py log {{args}}
-
 # ── Governance ──────────────────────────────────────────────────
 
-# Audit gotchas across all projects (monthly via pipeline, or ad-hoc)
+# Audit gotchas across all projects (manual prompt / ad-hoc research)
 [group('governance')]
 gotcha-audit:
-    uv run python3 scripts/orchestrator.py submit gotcha-audit
+    @echo "Use .claude/prompts/nightly-retro.md or a dedicated review prompt; no orchestrator path remains."
 
 # ── Plans ────────────────────────────────────────────────────────
 
@@ -261,15 +237,8 @@ brief:
     fi
     echo "Recent:"
     git log --oneline --since="midnight" -5 2>/dev/null | sed 's/^/  /' || echo "  (none)"
-    DB="$HOME/.claude/orchestrator.db"
-    if [ -f "$DB" ]; then
-        echo -n "Orch: "
-        sqlite3 "$DB" "SELECT GROUP_CONCAT(status || ':' || n, ' ') FROM v_queue" 2>/dev/null || echo "(no views — run just orch-views)"
-        stalled=$(sqlite3 "$DB" "SELECT COUNT(*) FROM v_stalled" 2>/dev/null || echo "0")
-        [ "${stalled:-0}" -gt 0 ] && echo "  stalled: $stalled (>30min)"
-        proposals=$(sqlite3 "$DB" "SELECT COUNT(*) FROM v_proposals" 2>/dev/null || echo "0")
-        [ "${proposals:-0}" -gt 0 ] && echo "  proposals: $proposals actionable"
-    fi
+    echo "Prompts:"
+    ls .claude/prompts/*.md 2>/dev/null | xargs -I{} basename {} | sed 's/^/  /' || echo "  (none)"
     plans=$(find .claude/plans -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
     if [ "$plans" -gt 0 ]; then
         echo "Plans: $plans active"
@@ -312,26 +281,6 @@ proposals:
     else
         echo "  (no patterns.jsonl)"
     fi
-
-# Apply SQLite views to orchestrator DB
-[group('orchestrator')]
-orch-views:
-    #!/usr/bin/env bash
-    sqlite3 "$HOME/.claude/orchestrator.db" < scripts/views.sql
-    echo "Views applied"
-
-# Smoke test: all views return without error
-[group('orchestrator')]
-db-smoke:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    DB="$HOME/.claude/orchestrator.db"
-    views="v_queue v_daily_cost v_stalled v_failures v_pipeline_health v_proposals"
-    for v in $views; do
-        sqlite3 "$DB" "SELECT * FROM $v LIMIT 1" > /dev/null 2>&1 || { echo "FAIL: $v"; exit 1; }
-        echo "OK: $v"
-    done
-    echo "All views pass"
 
 # ── Code Quality ──────────────────────────────────────────────────
 
