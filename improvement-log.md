@@ -6,6 +6,43 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-04-09] Retro — Codex 019d6d86 pipeline marathon + CC b7fe7899 loop (20h, 442M tokens)
+- **Sessions:** Codex 019d6d86 (GPT-5.4, 442M in, 1.2M out, 2536 msgs, 20h), CC b7fe7899 (Opus 4.6, 15min health-check loop), CC 68b67efa (Opus 4.6, pipeline orchestrator), CC b8098df4 (Opus 4.6, OSS extractability review)
+- **Scope:** genomics pipeline orchestrator debugging, control-loop hardening, Modal upgrade, multi-agent coordination
+
+#### Findings
+
+1. **RECURRING: ORCHESTRATOR RESTART CHURN (6th+)**
+   - Codex killed and restarted orchestrator process 5+ times in one session. Each restart required re-reconciliation (~100+ messages on trust/state logic). Sleep-poll cycles (120s, 300s, 600s between status checks) consumed massive context.
+   - **Root cause:** No turn budget for poll loops. No architectural separation between "wait for result" and "diagnose failure."
+   - **Status:** [x] proposed — hard turn budget for poll loops, force approach change after 3 no-change checks
+
+2. **NEW: INVISIBLE DEPENDENCY DRIFT — uv.lock in .gitignore**
+   - Modal frozen at 1.3.4 while 1.4.1 was available. `.gitignore` excluded `uv.lock`, making drift invisible across machines. Missing 1.4.x log filters contributed directly to debugging blind spots.
+   - **Fix applied:** Codex raised minimum to `modal>=1.4.1`, removed `uv.lock` from `.gitignore`
+   - **Status:** [x] implemented
+   - **Proposed systemic fix:** just recipe to validate lockfile tracked + key deps within N versions of latest
+
+3. **RECURRING: FOUR COMPETING TRUTH SOURCES (5th+)**
+   - Journal, `_STATUS.json`, `modal app list`, local cache all disagreed about stage completion. Agents kept switching between them without ordering. Manual `_STATUS.json` deletion duplicated orchestrator-owned cleanup logic.
+   - **Fix applied:** Codex added durable launch receipts, heartbeat file, atomic journal writes. Hardening plan exists at `docs/ops/plans/2026-04-08-orchestrator-control-loop-hardening.md`.
+   - **Status:** [ ] partially implemented — execution incomplete
+
+4. **NEW: PRIVATE MODAL gRPC TAG RPCs — dead code on hot path**
+   - `AppSetTags` warnings in orchestrator log. Tags not returned by `modal app list --json`, making them useless for polling. Fixed by removing private tag RPC path.
+   - **Status:** [x] implemented
+
+5. **RECURRING: HOOK OWNERSHIP GUARD INCOMPATIBLE WITH CODEX (2nd+)**
+   - Session-touch-log guard rejected Codex commits because `apply_patch` never fires posttool hooks. Agent manually backfilled tracker files across 3+ commit attempts each time.
+   - **Proposed fix:** Replace tracker-file approach with git-native diff to verify session ownership
+   - **Status:** [ ] proposed
+
+#### Positive Behaviors
+- Codex demonstrated strong diagnostic rigor: separated stale-container ghosts from current-code bugs, correctly identified that giab_happy/pangenie/rasp_ddg were already fixed before the destructive session
+- Codex correctly pushed back on floating deps ("always newest") — argued for exact lockfile with aggressive refresh, not runtime float
+- Codex correctly identified and fixed the `init_stage()` footgun (bare stage name masquerading as path) and extended lint to catch the pattern class
+- CC b8098df4 session was clean: OSS extractability review with proper subagent delegation, no anti-patterns
+
 ### [2026-04-09] Run 22 — Codex 019d4f68 supplemental (dispatch-research session)
 - **Sessions:** Codex 019d4f68 (GPT-5.4, 15.3B in, 107K out, 81 msgs, dispatch-research + paper reading)
 - **Findings staged:** 1 new, 2 recurrences
