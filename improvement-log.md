@@ -6,6 +6,36 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-04-09] Session Analyst Run 20 — meta CC + Codex, 6 sessions, 3 findings
+- **Source:** Gemini 3.1 Pro dispatch (281K chars, 58s) + manual validation. CC: 07231221 (meta, skill refactor + model-review rewrite, marathon), 762ff770 (meta, vendor docs sync), 622457c8 (meta, git forensics recipes). Codex: 019d6e98 (tax Q&A), 019d640f (operator-loop refactor), 019d4f68 (dispatch-research sweep).
+- **Shape:** 3/6 clean. 2 CC sessions clean, 1 CC + 1 Codex with findings. 1 Codex research session exemplary.
+
+**New findings: 0. All are recurrences.**
+
+1. **RECURRENCE: BUILD-THEN-UNDO — Built multi-LLM extraction round then dropped on user feedback (CC 07231221)**
+   - Agent built complex structured extraction pipeline for model-review.py (~20 tool calls, schema transforms, `_add_additional_properties` toggles). User pointed out reviewing models already structure their output. Agent agreed and dropped it entirely.
+   - Failure mode: BUILD-THEN-UNDO (7th+ instance — 2026-03-18, 2026-03-06, 2026-02-28 x2, 2026-04-07 x2)
+   - Root cause: agent-capability — not validating necessity of transformation layers before building them
+   - Status: [x] recurring pattern, no new fix proposed (existing coverage adequate)
+
+2. **RECURRENCE: REASONING-ACTION MISMATCH — Proposed deleting Gemini dispatch instead of fixing transport layer (CC 07231221)**
+   - Agent correctly diagnosed 5 CLI subprocess failure modes but then proposed removing Gemini dispatch entirely (TaskCreate: "Remove Gemini dispatch from observe skill"). User intervened: "No -- gemini dispatch is important! Just use the gemini api directly". Agent acknowledged: "I went too far."
+   - Failure mode: REASONING-ACTION MISMATCH (recurrence — 2026-03-16 documented feature without implementing). Specific variant: confusing transport failures with capability failures.
+   - Root cause: agent-capability — conflating the delivery mechanism (CLI subprocess) with the capability (cross-model dispatch)
+   - Proposed fix: rule — "Separate transport layer failures from capability utility when proposing architectural deletions"
+   - Status: [ ] proposed — worth adding as a rule since this is a distinct failure mode (transport/capability conflation)
+
+3. **RECURRENCE: PREMATURE TERMINATION — Declared operator-loop migration complete while missing Phase 3 metrics (Codex 019d640f)**
+   - Agent finished runlogs.db data migration, stated work was done. User had to ask "Have you executed the rest of the plan?" Agent admitted Phase 3 metrics and drift checks were still only in the plan, not in code.
+   - Failure mode: PREMATURE TERMINATION (recurrence — 2026-03-24, 2026-04-07 stop hook entry)
+   - Root cause: agent-capability — declaration of completion without plan-checklist verification
+   - Status: [x] recurring pattern, stop hook already catches uncommitted work; multi-phase plan verification is the gap
+
+**Positive behaviors observed:**
+- Codex dispatch-research session (019d4f68): exemplary research workflow — sources verified, model-review applied, plan written with options/rationale, executed with tests and baselines
+- CC 762ff770: clean vendor docs sync, efficient scite MCP usage
+- CC 622457c8: fast translation of blog post to just recipes, no wasted effort
+
 ### [2026-04-09] Session Analyst — Behavioral Anti-Patterns (Codex + CC, ~10 sessions across genomics/intel/selve/meta)
 - **Source:** Gemini 3.1 Pro dispatch (884K chars input, 121s) + manual validation. Codex: 019d6d86 (genomics, GPT-5.4, continued marathon). CC: b8098df4 (genomics, open-source extraction), 5b873723 (intel, repo triage), 050903e4 (intel, ROIC analysis), 94b6bac4 (selve, WGS guide), 07231221 (meta, skill refactor audit — ongoing). Plus 4 Codex subagent threads (019d6f3f/40/4e/52/53/85).
 - **Shape:** Gemini triaged 3 sessions: 2 NO (5b873723, 050903e4 — both clean), 1 YES (019d6d86 — marathon Codex session). Remaining sessions covered by earlier today's runs (18). 3 findings: 1 new, 2 recurrences. 2 positive behaviors noted.
