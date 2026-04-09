@@ -6,6 +6,56 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-04-09] Run 26 — Codex 019d6d86 tail + CC genomics 882f4bd0, b8098df4, 23da5a85
+- **Sessions:** Codex 019d6d86 (GPT-5.4, 455M in, 2669 msgs, ~25h marathon — tail section), CC 882f4bd0 (Opus 4.6, postmortem analysis), CC b8098df4 (Opus 4.6, health-check loop), CC 23da5a85 (Opus 4.6, short)
+- **Scope:** Pipeline control-loop hardening, Modal upgrade, postmortem research, multi-agent coordination
+
+1. **NEW: POSTMORTEM-AS-LIVE-FIX — research prompt morphed into live surgery**
+   - **Session:** Codex 019d6d86
+   - **Evidence:** User dispatched a deep-research prompt (produce root-cause analysis memo) but the Codex agent progressively shifted from analysis to live code patching: fixed `prs_dosage_ci`, rewrote stage target resolver, added launch registry/heartbeat, bounded volume probes, fixed `meta_analysis`, upgraded Modal — all while nominally doing a "postmortem." 15+ code commits during a research task. The postmortem memo was never completed to spec (no Timeline, Tool Call Analysis, Economics, or Cross-model sections).
+   - **Failure mode:** NEW: SCOPE-DRIFT-VIA-DISCOVERY — agent discovers live bugs during analysis, pivots to fixing them, never returns to original deliverable
+   - **Proposed fix:** Architectural: research prompts should run in read-only mode (no Write/Edit tools) or in a worktree. Alternatively: task-tracking that flags when the original deliverable is unfinished.
+   - **Severity:** high — the postmortem deliverable was the user's actual request; the fixes were valuable but unplanned
+   - **Root cause:** agent-capability — GPT-5.4 prioritizes "fix what I see" over completing the stated task
+
+2. **NEW: ORCHESTRATOR-RESTART-WITHOUT-VALIDATION — restart before verifying fix works**
+   - **Session:** Codex 019d6d86
+   - **Evidence:** Pattern across 7+ restarts: (1) patch orchestrator code, (2) `kill` old process, (3) relaunch immediately, (4) discover new bug in startup, (5) repeat. The agent never ran a dry-run validation (`status` command, syntax check + import test, or small-scale test) before committing to a full restart. Each restart lost in-memory trust state.
+   - **Failure mode:** Extends ORCHESTRATOR RESTART CHURN — the root cause is not just "too many restarts" but "restart without offline validation"
+   - **Proposed fix:** Rule or hook: before `kill`ing a long-running process, run `--dry-run` or `status` to validate the new code path. Pipeline-specific: `just validate-orchestrator` recipe that runs syntax + import + status without touching the live process.
+   - **Severity:** high — each restart cost 10-30 min of reconciliation + potential state corruption
+   - **Root cause:** agent-capability — no restraint on destructive operations (process kill)
+
+3. **RECURRENCE: FIX-THEN-RESTART LOOP (2nd+)**
+   - **Session:** Codex 019d6d86
+   - **Evidence:** 8+ patch/restart cycles in the tail section alone. Agent explicitly acknowledged "I'm not going to keep waiting on another opaque starting state" but then restarted anyway 3 more times. Each cycle: edit -> compile check -> restart -> hang -> debug hang -> edit again.
+   - **Status:** [ ] proposed — need batched-fix protocol
+
+4. **RECURRENCE: HOOK OWNERSHIP GUARD FRICTION (4th+)**
+   - **Session:** Codex 019d6d86
+   - **Evidence:** Three more sequences of commit-blocked -> read hook -> manually populate touch tracker -> retry. Agent explicitly called it "a separate control-plane defect in the local Claude/Codex hook setup." 20+ tool calls wasted per occurrence.
+   - **Status:** [ ] requires architectural fix
+
+5. **NEW: CC POSTMORTEM SESSION TRANSCRIPT PARSING FAILURE**
+   - **Session:** CC 882f4bd0
+   - **Evidence:** Session spent ~15 tool calls trying to parse the Codex JSONL transcript format. Multiple `python3 -c` attempts returned all zeros because the response_item/function_call nesting was unexpected. Eventually got tool call counts but never successfully categorized shell commands. This is a known problem: Codex JSONL format differs from CC JSONL.
+   - **Failure mode:** WRONG-TOOL — should have used the dedicated `extract_codex_transcript.py` script
+   - **Proposed fix:** Add to genomics pipeline-operations.md or agent-guides: "For Codex transcript analysis, use `extract_codex_transcript.py`, not raw JSONL parsing."
+   - **Severity:** medium — ~15 wasted tool calls, partial data only
+   - **Root cause:** skill-coverage — no documented pattern for Codex transcript consumption in CC
+
+6. **POSITIVE: Multi-agent lane splitting**
+   - **Session:** Codex 019d6d86
+   - **Evidence:** When user said "figure out how you can work in parallel with him," agent immediately identified the other agent's write scope, proposed a disjoint lane split (other agent: stage hotfixes + health loop; Codex: orchestrator control-plane + research), and correctly flagged that repo hooks weren't multi-agent safe. Clean coordination despite no formal protocol.
+
+7. **POSITIVE: External claim verification (continued)**
+   - **Session:** Codex 019d6d86
+   - **Evidence:** Agent verified user-forwarded CC agent diagnosis against actual code for 6 stages, corrected 4/6 diagnoses. Separately verified Modal docs claims against installed CLI behavior (e.g., `--since` flag exists in docs but not in local 1.3.4 CLI). Did not adopt cross-model review output blindly.
+
+8. **POSITIVE: Root-cause depth on Modal version gap**
+   - **Session:** Codex 019d6d86
+   - **Evidence:** Traced `.gitignore` excluding `uv.lock` -> invisible version freeze -> missing CLI features -> degraded debugging -> proposed and executed fix (track lockfile, bump minimum, regenerate). Correctly distinguished "this degraded the feedback loop" from "this caused the bugs."
+
 ### [2026-04-09] Run 25 — CC meta (5 sessions: 07231221, 762ff770, 622457c8, f2e2ad31, fdc55431)
 - **Sessions:** meta project, last 5 sessions analyzed
 - **Scope:** observe skill refactor, scite MCP exploration, git forensics, skill consolidation
