@@ -1,67 +1,66 @@
 {
-  "run": 16,
-  "date": "2026-04-08",
-  "project": "selve",
-  "sessions_analyzed": ["94b6bac4", "0bf6a590"],
-  "gemini_model": "gemini-3.1-pro-preview",
   "findings": [
     {
+      "category": "MISSING PUSHBACK (inverted)",
+      "summary": "Agent defended 16h duct-tape marathon over user-proposed refactor/research. Architectural sunk cost fallacy.",
+      "severity": "high",
+      "evidence": "User asked about alternatives/refactoring, agent rejected: 'staying on live repair path'. 365M input tokens, 3638-line split-brain orchestrator.",
+      "root_cause": "task-specification",
+      "proposed_fix": "rule: mandatory architecture review when single file >2500 lines + >5 bugs in session",
+      "session_uuid": "019d6d86-abb0-7651-804e-ae04a32b7598",
+      "project": "genomics"
+    },
+    {
+      "category": "OVER-ENGINEERING",
+      "summary": "Layered more reconciliation logic on split-brain state machine instead of consolidating state after subagent identified the flaw",
+      "severity": "high",
+      "evidence": "Subagent identified 'split-brain control plane' but agent continued patching instead of structural fix",
+      "root_cause": "system-design",
+      "proposed_fix": "rule: when subagents identify critical structural flaws, halt patching and write consolidation plan",
+      "session_uuid": "019d6f85-a554-7fe3-9a68-e3540c0eaef1",
+      "project": "genomics"
+    },
+    {
       "category": "REASONING-ACTION MISMATCH",
-      "summary": "Pushed website to production on ambiguous user input",
-      "session": "94b6bac4",
+      "summary": "Claimed to clean up exec sessions but continued launching streaming modal app logs without timeout",
       "severity": "high",
+      "evidence": "40+ env warnings about 64 open processes. Agent acknowledged but kept running modal app logs --tail without timeout.",
       "root_cause": "agent-capability",
-      "status": "proposed",
-      "new": true
-    },
-    {
-      "category": "INFORMATION WITHHOLDING",
-      "summary": "Known PGx hallucination committed to repository without fix",
-      "session": "94b6bac4",
-      "severity": "high",
-      "root_cause": "agent-capability",
-      "status": "proposed",
-      "new": true
-    },
-    {
-      "category": "WRONG-TOOL DRIFT",
-      "summary": "Brute-forced llmx CLI output routing through 5+ failed attempts",
-      "session": "94b6bac4",
-      "severity": "medium",
-      "root_cause": "skill-weakness",
-      "status": "proposed",
-      "new": true
-    },
-    {
-      "category": "PREMATURE TERMINATION",
-      "summary": "Summarized vendor capabilities without reading primary source PDFs",
-      "session": "0bf6a590",
-      "severity": "high",
-      "root_cause": "agent-capability",
-      "status": "proposed",
-      "new": false
-    },
-    {
-      "category": "INFORMATION WITHHOLDING",
-      "summary": "Relied on subagent summaries, missed key research arguments",
-      "session": "94b6bac4",
-      "severity": "high",
-      "root_cause": "agent-capability",
-      "status": "proposed",
-      "new": true
+      "proposed_fix": "hook: pretool-streaming-cli-guard.sh to intercept streaming CLI commands without timeout",
+      "session_uuid": "019d6d86-abb0-7651-804e-ae04a32b7598",
+      "project": "genomics"
     },
     {
       "category": "TOKEN WASTE",
-      "summary": "Inline python3 -c with AttributeError (recurring)",
-      "session": "0bf6a590",
+      "summary": "write_stdin polling loops as sleep substitute — burned massive context waiting for Modal stages",
+      "severity": "medium",
+      "evidence": "Chains of empty write_stdin calls to same session used as polling/waiting mechanism",
+      "root_cause": "agent-capability",
+      "proposed_fix": "hook: pretool-stdin-loop-guard.sh to detect chains of identical write_stdin calls",
+      "session_uuid": "019d6d86-abb0-7651-804e-ae04a32b7598",
+      "project": "genomics"
+    },
+    {
+      "category": "POSITIVE",
+      "summary": "Financial stewardship: agent correctly rejected SaaS upgrade suggestion to paper over control-plane bugs",
       "severity": "low",
-      "root_cause": "skill-execution",
-      "status": "noted",
-      "new": false
+      "evidence": "User asked about upgrading Modal plan. Agent correctly identified control-plane bugs, not tier limits, as root cause.",
+      "root_cause": "agent-capability",
+      "proposed_fix": "none (positive behavior)",
+      "session_uuid": "b7fe7899",
+      "project": "genomics"
     }
   ],
-  "quality_scores": {
-    "94b6bac4": 0.78,
-    "0bf6a590": 0.84
-  }
+  "session_uuids": [
+    "019d6d86-abb0-7651-804e-ae04a32b7598",
+    "019d6f85-a554-7fe3-9a68-e3540c0eaef1",
+    "019d6f85-a8e5-7912-8cd7-9c203b35f297",
+    "019d6f85-ae99-7022-85c5-ec8bc2975134",
+    "b8098df4-2ab",
+    "b7fe7899-9e0"
+  ],
+  "sessions_analyzed": 8,
+  "actionable_count": 4,
+  "recurrences": 4,
+  "positive_behaviors": 1
 }

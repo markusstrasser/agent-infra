@@ -6,6 +6,49 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-04-08] Session Analyst — Behavioral Anti-Patterns (genomics Codex + CC, 8 sessions)
+- **Source:** Gemini 3.1 Pro dispatch (2 rounds) + manual validation. Codex: 019d6d86 (1805 msgs, 16h orchestrator marathon, GPT-5.4), 019d6f85-a554/a8e5/ae99 (3 subagent threads). CC: b8098df4, a5f48dd9, 22bf4952, 68b67efa, b7fe7899.
+- **Shape:** CC 5 sessions triaged: 2 YES, 3 NO/empty. Codex 1 main session triaged YES (marathon). 3 new findings, 4 recurrences, 1 positive behavior noted.
+
+### [2026-04-08] NEW: Architectural sunk cost — agent defended 16h duct-tape marathon over user-proposed refactor
+- **Session:** Codex 019d6d86 / 019d6f85 (genomics)
+- **Score:** Not Satisfied (0.0)
+- **Evidence:** User explicitly asked: "And there's no package that does this? There's no help? Wanna have a subagent research the bigger problems here?" and "does it make sense to $upgrade --pliability?" Agent rejected: "A full $upgrade --pliability refactor right now would be the wrong move... our thing is custom enough that a package swap is not an immediate rescue... I'm staying on the live repair path." Spent 16h and ~365M input tokens patching a 3,638-line split-brain state machine. Subagent correctly identified the core flaw ("split-brain control plane") but agent layered more reconciliation logic instead of consolidating state.
+- **Failure mode:** NEW: Architectural sunk cost fallacy — agent over-indexed on immediate task completion, actively rejecting user's offer to step back and improve architecture
+- **Proposed fix:** [rule] Hard cap: if a single-file module exceeds 2,500 lines AND is the source of >5 runtime bugs in a session, trigger mandatory architecture review before further patching. Also: when subagents identify a critical structural flaw, halt patching and write a consolidation plan.
+- **Severity:** high — 16h of compute, user explicitly offered the exit ramp, agent rejected it
+- **Root cause:** task-specification — RLHF bias toward task completion over system health
+- **Status:** [ ] proposed
+
+### [2026-04-08] NEW: Inverted pushback — agent pushed back AGAINST user's good suggestion
+- **Session:** Codex 019d6f85 (genomics)
+- **Score:** Not Satisfied (0.0)
+- **Evidence:** MISSING PUSHBACK is usually "agent didn't push back on bad idea." Here the failure is inverted: user proposed researching alternatives / refactoring, which was the RIGHT call given 16h of debugging, and agent actively argued against it. This is a distinct failure mode from sycophancy — the agent had strong opinions but they were wrong.
+- **Failure mode:** NEW: Inverted pushback — agent's technical pushback defended a worse approach
+- **Proposed fix:** [rule] When debugging exceeds 4h or 100 tool calls on the same subsystem, agent must explicitly evaluate "would refactoring be faster than continued patching?" before continuing. Time-boxed check, not a full architecture review.
+- **Severity:** high — user had the right instinct, agent overrode it
+- **Root cause:** agent-capability — GPT-5.4 completion bias
+- **Status:** [ ] proposed
+
+### [2026-04-08] RECURRENCE: Exec session leak via streaming CLI — Codex `modal app logs --tail` without timeout
+- **Session:** Codex 019d6d86 / 019d6f85 (genomics)
+- **Evidence:** Environment warned 40+ times about 64 open exec processes. Agent acknowledged and claimed cleanup but immediately re-executed `modal app logs [app_id] --tail 200` without timeout/pipe/backgrounding. Matches existing resource exhaustion finding (b7fe7899). Codex-specific variant: also burned massive context via `write_stdin` polling loops (empty stdin writes as sleep substitute).
+- **Failure mode:** RECURRENCE: Resource exhaustion — streaming CLI without timeout (4th+ occurrence across models)
+- **Proposed fix:** [hook] `pretool-streaming-cli-guard.sh` — intercept known streaming commands (`modal app logs`, `docker logs -f`, `tail -f`) without `timeout` wrapper and suggest/enforce timeout. Would catch both Claude and Codex.
+- **Root cause:** agent-capability — cross-model failure, neither Claude nor GPT-5.4 maps "streaming = blocking" to "needs timeout"
+- **Status:** [ ] proposed
+
+### [2026-04-08] RECURRENCE: Token waste — write_stdin polling loop as sleep substitute
+- **Session:** Codex 019d6d86 / 019d6f85 (genomics)
+- **Evidence:** Chains of `write_stdin(session=20232) → write_stdin(session=20232) → ...` used as polling/waiting mechanism instead of bash sleep-and-check scripts. Matches existing sleep-poll finding (2026-04-07). Codex-specific variant of the pattern.
+- **Root cause:** agent-capability
+- **Status:** [ ] proposed — covered by existing polling hook
+
+### [2026-04-08] POSITIVE: Financial stewardship — agent correctly rejected SaaS upgrade to paper over bugs
+- **Session:** CC b7fe7899 (genomics)
+- **Evidence:** User asked about upgrading Modal plan. Agent: "No, I would not upgrade the plan to paper over this. The main problem has been control-plane bugs, not Modal tier limits... Do not buy a higher plan just to finish this run."
+- **Status:** [x] noted as positive behavior
+
 ### [2026-04-07] Session Analyst — Behavioral Anti-Patterns (genomics, 3 sessions, last 60 min)
 - **Source:** Gemini 3.1 Pro dispatch + manual validation. Sessions 3d4a2d99 (pipeline monitoring/fixing, 10MB, /loop), d74db8c2 (HTML/PDF generator audit, 1.4MB), 92e08e7b (PGC GWAS research + multi-ancestry plan, 5MB).
 - **Shape:** 3 sessions triaged: 2 YES (3d4a2d99, 92e08e7b), 1 MINOR (d74db8c2). After validation: 2 new findings confirmed, 2 recurrences noted, 1 Gemini misattribution corrected (inline python bloat worst in 3d4a2d99 not 92e08e7b).
