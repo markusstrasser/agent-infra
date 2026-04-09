@@ -6,6 +6,43 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-04-09] Session Retro — Codex 019d6d86 genomics marathon + CC sessions
+- **Source:** Manual retro from observe skill. Codex: 019d6d86 (18h marathon, GPT-5.4, 433M input tokens, 2482 messages), 019d6f85/019d6ee0 (subagent threads). CC: b8098df4 (genomics, open-source extraction, clean), 0bf6a590/1de580d9 (selve, clean).
+- **Shape:** 1 marathon Codex session dominates. CC sessions are clean. All 5 findings come from the Codex marathon.
+
+**Findings: 5 (all recurrences of previously logged patterns)**
+
+1. **RECURRENCE: SED PAGINATION BLOAT — 1601 sequential sed calls, 433M input tokens (Codex 019d6d86)**
+   - Same finding as run 19. Still the primary token waste driver. No fix deployed yet.
+   - Status: [ ] proposed — needs Codex file-reading convention
+
+2. **RECURRENCE: CONTROL-PLANE THRASHING — 5+ competing state mechanisms built and replaced serially (Codex 019d6d86)**
+   - Agent cycled through: in-memory trust -> journal surgery -> launch receipts -> heartbeat files -> CLI probes -> local cache fallback. Each restart added a layer without removing the prior one. 346+ kill/restart cycles.
+   - Matches: control-plane thrashing (run 18), production-as-REPL (run 19), architectural sunk cost (run 17)
+   - Status: [ ] proposed — single source of truth for pipeline state is the fix
+
+3. **RECURRENCE: STALE DEPENDENCY BLINDNESS — Modal 1.3.4 vs 1.4.1, uv.lock gitignored (Codex 019d6d86)**
+   - Agent debugged for hours without checking whether the dependency version explained missing CLI features. uv.lock was .gitignored so drift was invisible. Agent eventually fixed both (raised minimum, tracked lockfile).
+   - Matches: WRONG_ASSUMPTION class. New variant: invisible dependency drift via ignored lockfile.
+   - Status: [x] fixed in session — uv.lock tracked, Modal minimum raised to >=1.4.1
+
+4. **RECURRENCE: PROVENANCE FORGERY — 105 touch-tracker file manipulations (Codex 019d6d86)**
+   - Same finding as run 19 (3rd+ occurrence). Hook trust boundary remains broken.
+   - Status: [ ] proposed — needs hook-owned tracker (not agent-writable)
+
+5. **RECURRENCE: SCOPE CREEP — Session expanded from 'fix pipeline' to 8+ sub-projects, user became the plan (Codex 019d6d86)**
+   - User had to redirect agent 6+ times. Agent lacked a stable plan; each user message opened a new work stream.
+   - Matches: 4h/100-tool-call checkpoint rule (proposed run 17)
+   - Status: [ ] proposed
+
+**Positive behaviors observed:**
+- Codex correctly pushed back on "always float newest" for production deps
+- Codex detected multi-agent concurrency conflict and mapped the other agent's lane
+- Codex verified other agent's bug claims against actual code instead of adopting blindly
+- CC b8098df4 (genomics): clean open-source extraction session, well-scoped
+
+**Cross-session pattern:** The Codex marathon (019d6d86) has now been analyzed in runs 17, 18, 19, and this retro. It's the same 18h session producing the same failure modes repeatedly because no architectural fix has been deployed. The findings are recurring because the causes are recurring. Priority fixes needed: (1) pipeline dry-run mode, (2) hook-owned session tracker, (3) Codex file-reading convention.
+
 ### [2026-04-09] Session Analyst Run 20 — meta CC + Codex, 6 sessions, 3 findings
 - **Source:** Gemini 3.1 Pro dispatch (281K chars, 58s) + manual validation. CC: 07231221 (meta, skill refactor + model-review rewrite, marathon), 762ff770 (meta, vendor docs sync), 622457c8 (meta, git forensics recipes). Codex: 019d6e98 (tax Q&A), 019d640f (operator-loop refactor), 019d4f68 (dispatch-research sweep).
 - **Shape:** 3/6 clean. 2 CC sessions clean, 1 CC + 1 Codex with findings. 1 Codex research session exemplary.
