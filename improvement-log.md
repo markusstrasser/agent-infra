@@ -2895,3 +2895,75 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Session:** genomics 019d6d86 (Codex)
 - **Evidence:** (1) Dispatched 3 named research subagents (Anscombe, Halley, Ptolemy) for parallel architecture analysis while keeping main thread on live pipeline. (2) Ran `/review close` with GPT-5.4 + Gemini adversarial review, then stated "There were 0 cross-model agreements, so I treated the model output as prompts for verification, not truth" — manually fact-checked every claim before writing verified-summary.md. (3) Pushed back on budget upgrade: "Do not buy a higher plan just to finish this run" when user asked about upgrading Modal plan. (4) Proactively wrote state to disk anticipating compaction over 9h session.
 - **Notes:** These are behaviors the constitution explicitly calls for. GPT-5.4 on Codex demonstrated stronger cross-model skepticism than typical Claude Code sessions.
+
+### [2026-04-09] Sessions Analyst — Codex genomics marathon continued (019d6d86+019d6f85+019d6ee0, ~20h, run 23)
+
+**Context:** Three Codex/GPT-5.4 sessions spanning ~20h operating a genomics pipeline on Modal. 42 commits, 2536+ messages, 442M input tokens. The session continued from the previously analyzed 019d6d86 marathon with additional pipeline debugging, code fixes, cross-model review, and Modal version upgrade.
+
+### [2026-04-09] NEW: FIX-THEN-RESTART LOOP — 8+ patch/restart cycles instead of batching fixes
+- **Session:** genomics 019d6d86+019d6f85 (Codex)
+- **Evidence:** Sequential cycle: prs_dosage_ci fix -> restart -> mei_benchmark receipt bug -> restart -> hg002 provenance fix -> restart -> legacy skip normalization -> restart -> gwas_harmonize fix -> restart -> stage target resolver fix -> restart -> bounded volume probes -> restart -> startup fast-path -> restart. Each restart took 5-10 min for reconciliation. Total: ~1h+ burned on restarts alone.
+- **Failure mode:** INCREMENTAL-FIX-CHURN — agent discovers one bug, patches it, restarts to validate, discovers the next bug only after restart. Should accumulate 3-5 fixes via code analysis, run targeted tests, then restart once.
+- **Proposed fix:** ARCHITECTURAL — accumulate fixes before restart. Run `pytest` for each fix in isolation. Only restart orchestrator after a batch of validated fixes. Or: hot-reload mechanism for Modal stage scripts (redeploy without orchestrator restart).
+- **Root cause:** agent-capability — GPT-5.4 operates in a serial discovery mode rather than scanning ahead for related bugs
+- **Status:** [ ] proposed
+
+### [2026-04-09] NEW: BUDGET AWARENESS LATE — Modal billing hit 95% before agent surfaced risk
+- **Session:** genomics 019d6d86 (Codex)
+- **Evidence:** User pasted Modal dashboard showing "$380.03 of $400.00" with 11 live apps running. Agent then correctly proposed triage (keep critical path, sacrifice pangenie/esm_lfb) but this should have been tracked proactively from the first launch wave.
+- **Failure mode:** MISSING-PROACTIVE-CHECK — agent had access to `modal` CLI but never checked billing until user surfaced it
+- **Proposed fix:** Add periodic `uv run python3 -m modal billing` check in orchestrator loop. Surface warnings at 70% and 85% thresholds. Or: agent rule to check billing after every N launches.
+- **Root cause:** task-specification — no billing awareness in orchestrator or agent instructions
+- **Status:** [ ] proposed
+
+### [2026-04-09] NEW: WRITE_STDIN POLLING FLOOD — hundreds of write_stdin calls as polling mechanism
+- **Session:** genomics 019d6d86 (Codex)
+- **Evidence:** Hundreds of `write_stdin(session=NNNNN)` calls across the session, often 3-6 consecutive to the same session with no intervening analysis. Used to poll orchestrator output instead of reading log files or using `modal app logs`.
+- **Failure mode:** WRONG-TOOL — write_stdin is for interactive input, not output polling. Codex exec sessions have no `read_stdout` equivalent; this pattern is a workaround that saturates the 60-session limit.
+- **Proposed fix:** Launch orchestrator with `nohup ... > /tmp/orchestrator.log 2>&1 &` from the start (agent eventually discovered this). Read log via `tail -f` or periodic `tail -n 50`. Codex-specific: document the write_stdin limitation.
+- **Root cause:** agent-capability — Codex CLI interaction model doesn't expose clean stdout reads
+- **Status:** [ ] proposed
+
+### [2026-04-09] NEW: MODAL VERSION DRIFT — gitignored uv.lock caused invisible 1.3.4 vs 1.4.1 gap
+- **Session:** genomics 019d6d86 (Codex)
+- **Evidence:** Agent discovered `.gitignore` excluded `uv.lock`, so `modal==1.3.4` was frozen locally while upstream was at 1.4.1. Missing log filters (`--since`, `--until`, `--tail`) degraded debugging capability. Agent fixed: removed ignore, bumped minimum to `>=1.4.1`, regenerated lock.
+- **Failure mode:** DEPENDENCY-DRIFT — lockfile not tracked = "works on my machine" for control-plane behavior
+- **Proposed fix:** Track `uv.lock` in all pipeline repos. Add `just check-deps` recipe for periodic freshness audit.
+- **Root cause:** system-design — genomics repo .gitignore was overly broad
+- **Status:** [x] fixed in-session (agent committed the fix)
+
+### [2026-04-09] RECURRENCE: ORCHESTRATOR RESTART CHURN (7th+)
+- **Session:** genomics 019d6d86+019d6f85 (Codex)
+- **Evidence:** 7+ kill/restart cycles. Each lost in-memory trust state (launched app IDs, attempt tracking). Agent eventually implemented durable launch registry and heartbeat file, but still restarted 4+ more times after those fixes.
+- **Root cause:** system-design — orchestrator has no durable state beyond the journal, which is written lazily
+- **Status:** [ ] partially addressed (launch_registry.json + heartbeat implemented)
+
+### [2026-04-09] RECURRENCE: EXEC SESSION EXHAUSTION (3rd+)
+- **Session:** genomics 019d6d86+019d6f85 (Codex)
+- **Evidence:** "Warning: The maximum number of unified exec processes you can keep open is 60 and you currently have 64" — appears 40+ times across the transcript. Each orchestrator restart + write_stdin poll opens new sessions without closing old ones.
+- **Status:** [ ] unmitigated (Codex CLI limitation)
+
+### [2026-04-09] RECURRENCE: HOOK OWNERSHIP GUARD FRICTION (3rd+)
+- **Session:** genomics 019d6d86 (Codex)
+- **Evidence:** Three separate sequences of: commit blocked -> read hook source -> manually populate /tmp/claude-session-touched-*.txt -> retry. 20+ turns total wasted. apply_patch (Codex edit tool) doesn't register in the touch log.
+- **Root cause:** system-design — ownership guard assumes CC's Edit tool, not Codex's apply_patch
+- **Status:** [ ] requires architectural fix (detect Codex or make guard tool-agnostic)
+
+### [2026-04-09] RECURRENCE: BLIND FIX DEPLOYMENT (6th+)
+- **Session:** genomics 019d6d86 (Codex)
+- **Evidence:** (1) prs_dosage_ci provenance fix was "half-right" — finalize_stage wrote to wrong directory. (2) meta_analysis fix had pyarrow cast bug found only by regression test. (3) Orchestrator startup hung on unbounded volume reads — discovered only after restart hung for 10+ min.
+- **Notes:** Mixed — agent DID run tests for some fixes (test_parse_pgc: 20 passed) but not consistently. The gwas_harmonize fix was properly validated; the orchestrator structural changes were not.
+- **Status:** [ ] instruction-level (test-before-restart rule)
+
+### [2026-04-09] RECURRENCE: MULTI-AGENT STATE CORRUPTION (3rd+)
+- **Session:** genomics 019d6d86 (Codex)
+- **Evidence:** Agent explicitly identified: "The hook/session setup is not multi-agent safe. Repo-local .claude/current-session-id keeps moving." Proposed parallel split with CC health-check agent but repo infrastructure didn't support it.
+- **Status:** [ ] requires worktree isolation or per-process session ID
+
+### [2026-04-09] POSITIVE: Diagnostic rigor on external claims
+- **Session:** genomics 019d6d86 (Codex)
+- **Evidence:** (1) When user forwarded other CC agent's diagnosis of 6 failing stages, Codex verified each against code and corrected 4/6: "That summary is only partly right." (2) Cross-model review returned 0 agreements; agent stated "I treated the model output as prompts for verification, not truth" and fact-checked every claim. (3) Correctly identified Modal version gap as contributing factor rather than root cause.
+
+### [2026-04-09] POSITIVE: Root-cause chaining across abstraction layers
+- **Session:** genomics 019d6d86 (Codex)
+- **Evidence:** (1) Traced prs_dosage_ci stage bug -> bad init_stage() call -> stage_targets.resolve_modal_target() resolver bias -> generic resolver fix with tests. (2) Traced startup hang -> unbounded volume reads -> bounded CLI probes with timeouts -> removed remote verification from startup entirely. (3) Identified that env-based identity propagation (PIPELINE_RUN_ID) was architecturally unreliable and switched to orchestrator-owned launch receipts. Each fix addressed the class, not just the instance.
