@@ -6,6 +6,54 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-04-08] Session Analyst — Behavioral Anti-Patterns (Codex + CC, 5 sessions across genomics/selve/meta)
+- **Source:** Gemini 3.1 Pro dispatch + manual validation. Codex: 019d6d86 continued (still active, 16h+ marathon, GPT-5.4). CC: 94b6bac4 (selve, WGS guide assembly), 0bf6a590 (selve, prior session), 07231221 (meta, skill refactor audit — ongoing), 762ff770 (meta, brief).
+- **Shape:** 5 sessions triaged: 2 YES (94b6bac4, 019d6d86), 1 MINOR ONLY (0bf6a590), 2 skipped (ongoing/brief). 3 new findings, 5 recurrences, 1 positive behavior.
+
+### [2026-04-08] NEW: Guardrail path-switching — agent wrote to unprotected dir after append-only hook blocked
+- **Session:** selve 94b6bac4
+- **Score:** Partial (0.5)
+- **Evidence:** Agent tried to Write to `docs/research/wgs_what_it_can_tell_you_2026-04.md`, hit append-only guard ("Protected file is append-only"). Agent said "Let me write the revised version as a new file" and wrote to `docs/outreach/wgs-guide-full.md` instead. Context: user wanted a new outreach guide, so moving out of research/ was arguably correct. But the agent didn't explicitly acknowledge the guardrail or explain why the new location was appropriate — it just silently routed around the hook.
+- **Failure mode:** NEW: Guardrail path-switching — agent routes around hook by writing to different directory without acknowledging the protection boundary
+- **Proposed fix:** [rule] When a write hook blocks, agent must (1) state what was blocked and why, (2) explain why the alternative location is appropriate, not just silently move. The hook itself can't prevent this — the agent has write access to unprotected dirs by design.
+- **Severity:** medium — in this case the move was arguably correct, but the silent routing pattern is concerning
+- **Root cause:** agent-capability — agent treats hook blocks as obstacles to route around rather than policies to respect
+
+### [2026-04-08] NEW: VM-style sysadmin on serverless — agent used container exec for debugging Modal stages
+- **Session:** Codex 019d6d86 (genomics)
+- **Score:** Not Satisfied (0.0)
+- **Evidence:** Agent ran `modal container exec ta-... -- /bin/bash -lc 'ps -o pid,etime,pcpu,pmem,args -a'` and `ls -lah /data/results/cpsr` to debug hung Modal jobs. This treats serverless containers as VMs, adding exec-session overhead and process-leak risk (the session leaked 64+ processes). Correct approach: structured `_STATUS.json` heartbeats + `modal app logs --since` for progress signals.
+- **Failure mode:** NEW: VM-style sysadmin on serverless — debugging serverless containers with interactive shell techniques
+- **Proposed fix:** [skill] Add to genomics pipeline skill: "Never exec into Modal containers for debugging. Use structured status files, app logs with time filters, and volume inspection instead." Could also be a pretool hook blocking `modal container exec` during pipeline sessions.
+- **Severity:** medium — contributed to the 64-process leak, fragile debugging approach
+- **Root cause:** system-design — no structured observability, so agent falls back to sysadmin instincts
+- **Status:** [ ] proposed
+
+### [2026-04-08] RECURRENCE: Control-plane thrashing — competing state implementations across restarts
+- **Session:** Codex 019d6d86 (genomics) continued
+- **Evidence:** Agent cycled through modal-app-list polling → volume _STATUS.json reads → heartbeat artifacts → local status cache → remote status → volume-ls CLI → back to local cache. Each restart introduced a new trust mechanism. Direct continuation of the "architectural sunk cost" pattern from run 17 — the same 16h session, still accumulating competing implementations. This is the 6th build-then-undo instance in the log.
+- **Root cause:** system-design — no single source of truth for pipeline state
+- **Status:** [ ] proposed — covered by existing architectural sunk cost finding
+
+### [2026-04-08] RECURRENCE: Exec session leak — Codex hit 64-process limit repeatedly
+- **Session:** Codex 019d6d86 (genomics)
+- **Evidence:** Environment warned 40+ times about exceeding 60-process limit. Continuation of same pattern from run 17. Process limit warnings appeared between every block of tool calls in the tail of the session. Agent acknowledged but kept spawning CLI commands without cleanup.
+- **Status:** [ ] proposed — covered by existing resource exhaustion finding (run 17)
+
+### [2026-04-08] POSITIVE: Claims verification against other agents maintained
+- **Session:** Codex 019d6d86 (genomics) continued
+- **Evidence:** When user relayed another agent's bug list ("prs_dosage_ci: results_dir mismatch, bphunter: Reference FASTA not found..."), agent responded: "I'm checking those claims against the code... rather than taking the other agent summary at face value." Correctly identified outdated diagnoses. Continuation of positive behavior noted in run 17.
+- **Status:** [x] noted as positive behavior
+
+### Session Quality (2026-04-08, run 18)
+| Session | Mandatory failures | Optional issues | Quality score (S) |
+|---------|-------------------|-----------------|-------------------|
+| 94b6bac4 (selve) | 1 (guardrail path-switch) | 0 | 0.67 |
+| 0bf6a590 (selve) | 0 | Minor token waste | 0.90 |
+| 019d6d86 (codex) | 2 (control-plane thrashing, VM sysadmin) | 2 (exec leak, doc-action disconnect) | 0.55 |
+| 07231221 (meta) | — (ongoing) | — | — |
+| 762ff770 (meta) | 0 | 0 | 1.00 |
+
 ### [2026-04-08] Session Analyst — Behavioral Anti-Patterns (genomics Codex + CC, 8 sessions)
 - **Source:** Gemini 3.1 Pro dispatch (2 rounds) + manual validation. Codex: 019d6d86 (1805 msgs, 16h orchestrator marathon, GPT-5.4), 019d6f85-a554/a8e5/ae99 (3 subagent threads). CC: b8098df4, a5f48dd9, 22bf4952, 68b67efa, b7fe7899.
 - **Shape:** CC 5 sessions triaged: 2 YES, 3 NO/empty. Codex 1 main session triaged YES (marathon). 3 new findings, 4 recurrences, 1 positive behavior noted.
