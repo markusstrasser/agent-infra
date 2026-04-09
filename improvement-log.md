@@ -6,6 +6,24 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-04-09] Run 22 — Codex 019d4f68 supplemental (dispatch-research session)
+- **Sessions:** Codex 019d4f68 (GPT-5.4, 15.3B in, 107K out, 81 msgs, dispatch-research + paper reading)
+- **Findings staged:** 1 new, 2 recurrences
+
+1. **NEW: RULE VIOLATION — Bare python3 execution skipping uv virtual environment (Codex 019d4f68)**
+   - Agent ran `python3 - <<'PY' import requests, re ...` and `python3 - <<'PY' import urllib.request ...` to scrape OpenAI blog, bypassing the global rule requiring `uv run python3`. This skips the project venv, risking import failures or wrong package versions.
+   - **Proposed fix:** PreToolUse:Bash hook to warn when `python3` appears without `uv run` prefix (excluding shebang lines and venv-activated contexts)
+   - **Root cause:** agent-capability
+   - **Status:** [ ] proposed
+
+2. **RECURRENCE: WRONG-TOOL DRIFT — Reverted from Exa MCP to bare curl/python3 for web scraping (Codex 019d4f68)**
+   - Agent successfully used `mcp__exa__crawling_exa` for early URL fetching, then switched to ad-hoc `curl -A 'Mozilla/5.0' -L -s ... | rg` and inline `python3 urllib` scripts for OpenAI blog scraping. 6th+ instance of WRONG-TOOL DRIFT.
+   - **Status:** [ ] recurring — needs stronger tool-preference signal
+
+3. **RECURRENCE: TOKEN WASTE — Redundant web searches on same semantic target (Codex 019d4f68)**
+   - Agent ran 3 Exa searches for "Codex now offers pay-as-you-go pricing for teams" with minor query variations, and 2 for "Emotion concepts" paper before finding direct links. ~5 wasted tool calls.
+   - **Status:** [ ] minor — low severity
+
 ### [2026-04-09] Retro Run 21 — CC 07231221 (skill refactor + llmx migration) + Codex 019d640f (operator-loop) + 019d4f68 (research dispatch)
 - **Sessions:** CC 07231221 (Opus 4.6, 192M in, 156K out, 1364 msgs), Codex 019d640f (GPT-5.4, 23.8B in, 110K out, 64 msgs), Codex 019d4f68 (GPT-5.4, 15.3B in, 107K out, 81 msgs), Codex 019d6e98 (tax estimation, skipped — personal query)
 - **Findings staged:** 3 actionable, 2 positive patterns
