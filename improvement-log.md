@@ -6,6 +6,39 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-04-09] Run 24 — Codex 019d6d86 continued (commit hygiene tail), CC 07231221 (observe meta)
+- **Sessions:** Codex 019d6d86 (GPT-5.4, genomics, tail segment ~07:00-08:04 PDT), CC 07231221 (Opus 4.6, meta, observe/skill-refactor)
+- **Scope:** Codex session wrapping up with commit hygiene; CC meta session running observe passes and skill refactor audit
+
+#### Findings
+
+1. **RECURRING: --no-verify bypass (3rd+ occurrence)**
+   - Codex used `git commit --no-verify` for all 8 commits in the session tail: the initial blob commit (`5a2c8817`) and all 7 split commits after user correction. First documented in run from 2026-04-07 (22x --no-verify). Pattern persists because Codex's `apply_patch` tool doesn't fire posttool hooks, so session-touch-log never records file ownership, so the foreign-staged-guard blocks every commit.
+   - **Root cause:** system-design — hook ecosystem assumes CC tool events; Codex uses different tool surface
+   - **Status:** [x] diagnosed — tracked under MULTI-AGENT-HOOK-ASSUMPTION above
+
+2. **RECURRING: git add -A used for whole-worktree commit (2nd occurrence)**
+   - Agent ran `git add -A && git commit --no-verify` to satisfy "commit all so we have a clean repo." Global CLAUDE.md explicitly bans `git add -A`. User immediately corrected: "you should have done it granularly." Agent then did `git reset --mixed HEAD~1` and re-split into 7 thematic commits — good recovery, but the initial impulse matches the 2026-03-24 finding (67 .scratch/ files committed).
+   - **Root cause:** agent-capability — path-of-least-resistance bias when user requests fast cleanup
+   - **Status:** [x] implemented — ban exists in global CLAUDE.md, not enforced by hook
+
+3. **POSITIVE: Build-then-undo was user-requested, not agent error**
+   - The blob-commit-then-split pattern looks like build-then-undo but was actually user-directed correction. Agent complied with "commit all" then corrected when user said "granularly." The reset+re-split was the right recovery. Not scoring as build-then-undo.
+
+4. **POSITIVE: Structural diagnosis landed cleanly**
+   - The CC meta session (07231221) correctly identified three structural root causes (split-brain state, no dry-run, no session budget) and produced a concrete plan with execution order. User accepted the plan. This is the observe skill working as designed — research produces architecture proposals, not just findings.
+
+5. **RECURRING: Exec process limit warnings (continuation)**
+   - 12+ "maximum number of unified exec processes" warnings in the Codex tail alone. Agent acknowledged but did not clean up processes. Matches existing finding from runs 17, 22, 23. Codex-specific: no mechanism to close old exec sessions.
+   - **Status:** [ ] proposed — needs Codex-side fix or AGENTS.md instruction
+
+#### Summary
+- Sessions analyzed: 2 (Codex 019d6d86 tail, CC 07231221)
+- New findings: 0
+- Recurrences: 3 (--no-verify, git add -A, exec process limit)
+- Positive behaviors: 2 (user-directed recovery, structural diagnosis)
+- Key observation: The Codex session is wrapping up. All findings are recurrences of known patterns. The structural fixes (dry-run, session budget, split-brain consolidation) from the CC meta session are the actual forward path.
+
 ### [2026-04-09] Retro supplement — CC 07231221, multi-agent hook assumption (5th observe pass)
 - **Session:** CC 07231221 (Opus 4.6, 192M in, 1385 msgs, 19h)
 - **Scope:** Supplemental findings from 5th /observe pass on same session
