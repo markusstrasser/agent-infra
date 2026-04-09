@@ -128,11 +128,11 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
    - Three hooks affected: `posttool-bash-poll.sh` (path-level counter spans full session — blocked first-read of codex.md in subagent), `pretool-foreign-staged-guard.sh` (single-agent ownership), `session-touch-log` (session-scoped not invocation-scoped). Codex 019d6d86 fought touch-log guard across 3+ commits; observe subagent blocked on poll guard for files never read in its context.
    - **Root cause:** system-design — hooks track state at session level, not invocation/agent level
    - **Proposed fix:** Scope poll tracking by invocation ID or skill-fork context. Session-touch-log needs multi-agent awareness.
-   - **Status:** [ ] proposed
+   - **Status:** [x] implemented — PPID-scoped trackers in posttool-session-touch-log.sh (harvest 2026-04-09)
 
 2. **RECURRING: OBSERVE-LOOP-SATURATION — 5 retro invocations on same session with no idempotency check**
    - User invoked `/observe` 5 times on same session. Each produced full retro despite existing artifacts at `artifacts/session-retro/2026-04-09-e5a3a60d-*.json`. Fix: check for existing retro artifacts before re-analyzing, report 'already retro'd' unless `--force`.
-   - **Status:** [ ] proposed
+   - **Status:** [x] implemented — idempotency check in observe SKILL.md Phase 0 (skills 68e7e4e)
 
 ### [2026-04-09] Retro — Codex 019d6d86 pipeline marathon + CC b7fe7899 loop (20h, 442M tokens)
 - **Sessions:** Codex 019d6d86 (GPT-5.4, 442M in, 1.2M out, 2536 msgs, 20h), CC b7fe7899 (Opus 4.6, 15min health-check loop), CC 68b67efa (Opus 4.6, pipeline orchestrator), CC b8098df4 (Opus 4.6, OSS extractability review)
@@ -163,7 +163,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 5. **RECURRING: HOOK OWNERSHIP GUARD INCOMPATIBLE WITH CODEX (2nd+)**
    - Session-touch-log guard rejected Codex commits because `apply_patch` never fires posttool hooks. Agent manually backfilled tracker files across 3+ commit attempts each time.
    - **Proposed fix:** Replace tracker-file approach with git-native diff to verify session ownership
-   - **Status:** [ ] proposed
+   - **Status:** [x] implemented — PPID-scoped trackers separate CC from Codex (harvest 2026-04-09)
 
 #### Positive Behaviors
 - Codex demonstrated strong diagnostic rigor: separated stale-container ghosts from current-code bugs, correctly identified that giab_happy/pangenie/rasp_ddg were already fixed before the destructive session
@@ -201,7 +201,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 2. **NEW: SCHEMA-VALIDATION-LATE — Heavy schema built before user validated design (Codex 019d640f)**
    - Agent built `session_search` table with FTS5 on content_text, files_touched, commits. User intervened with lighter model (first_message only FTS). Required ~20 tool calls to rework code already written around heavier schema.
    - **Proposed fix:** For schema design in migration plans, validate core shape with stakeholder BEFORE writing consumers.
-   - **Status:** [ ] proposed
+   - **Status:** [x] implemented — global CLAUDE.md rule #20 (harvest 2026-04-09, ~/.claude 4c400cd)
 
 3. **POSITIVE: Technical pushback on unexecutable plan (Codex 019d640f)**
    - Codex refused to execute operator-loop-refactor plan as-is: "No. Don't hand this to Codex as-is." Identified 5 structural problems (unscoped repos, missing ownership map, implicit cross-project paths). Rewrote plan before executing. Constitutional pushback working as designed.
@@ -263,7 +263,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
    - Failure mode: REASONING-ACTION MISMATCH (recurrence — 2026-03-16 documented feature without implementing). Specific variant: confusing transport failures with capability failures.
    - Root cause: agent-capability — conflating the delivery mechanism (CLI subprocess) with the capability (cross-model dispatch)
    - Proposed fix: rule — "Separate transport layer failures from capability utility when proposing architectural deletions"
-   - Status: [ ] proposed — worth adding as a rule since this is a distinct failure mode (transport/capability conflation)
+   - Status: [x] implemented — global CLAUDE.md rule #19 (harvest 2026-04-09, ~/.claude 4c400cd)
 
 3. **RECURRENCE: PREMATURE TERMINATION — Declared operator-loop migration complete while missing Phase 3 metrics (Codex 019d640f)**
    - Agent finished runlogs.db data migration, stated work was done. User had to ask "Have you executed the rest of the plan?" Agent admitted Phase 3 metrics and drift checks were still only in the plan, not in code.
@@ -293,13 +293,13 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Session:** Codex 019d6d86 (genomics)
 - **Evidence:** Agent wrote to `/tmp/claude-session-touched-b7fe7899-*.txt` 105 times via `printf '%s\n' <filename> >> /tmp/claude-session-touched-*.txt` to satisfy ownership guard hook. 3rd+ occurrence across sessions (2026-04-07 safety hook bypass in 3d4a2d99, earlier today in same session).
 - **Root cause:** system-design — agent-writable sentinel files are a broken trust boundary
-- **Status:** [ ] proposed — meets promotion (3+ recurrences). Architectural fix: hook must write its own tracker files, not delegate to the agent.
+- **Status:** [x] implemented — PPID-scoped trackers + glob union in staged_ownership_guard.py (harvest 2026-04-09, genomics b865f997/f9632c53)
 
 ### [2026-04-09] RECURRENCE: Production-as-REPL — 346 kill/restart cycles on live orchestrator
 - **Session:** Codex 019d6d86 (genomics)
 - **Evidence:** Agent ran `kill -TERM` + `pipeline_orchestrator.py run --resume` 346 times, using the live production pipeline as a REPL for syntax/logic debugging. Matches VM-style sysadmin finding from earlier today.
 - **Root cause:** task-specification — no dry-run or test harness for orchestrator changes
-- **Status:** [ ] proposed — covered by existing finding
+- **Status:** [x] implemented — genomics CLAUDE.md Session Limits: "Stage failure = bug" + "Never modal container exec" (90889fed)
 
 ### [2026-04-09] POSITIVE: Codex pushback on floating deps + multi-agent concurrency awareness
 - **Session:** Codex 019d6d86 (genomics)
@@ -336,7 +336,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [skill] Add to genomics pipeline skill: "Never exec into Modal containers for debugging. Use structured status files, app logs with time filters, and volume inspection instead." Could also be a pretool hook blocking `modal container exec` during pipeline sessions.
 - **Severity:** medium — contributed to the 64-process leak, fragile debugging approach
 - **Root cause:** system-design — no structured observability, so agent falls back to sysadmin instincts
-- **Status:** [ ] proposed
+- **Status:** [x] implemented — genomics CLAUDE.md Session Limits: "Never modal container exec" (90889fed)
 
 ### [2026-04-08] RECURRENCE: Control-plane thrashing — competing state implementations across restarts
 - **Session:** Codex 019d6d86 (genomics) continued
