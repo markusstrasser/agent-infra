@@ -6,6 +6,20 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-04-09] Retro supplement — CC 07231221, multi-agent hook assumption (5th observe pass)
+- **Session:** CC 07231221 (Opus 4.6, 192M in, 1385 msgs, 19h)
+- **Scope:** Supplemental findings from 5th /observe pass on same session
+
+1. **NEW: MULTI-AGENT-HOOK-ASSUMPTION — hooks assume single agent per session, break under concurrency**
+   - Three hooks affected: `posttool-bash-poll.sh` (path-level counter spans full session — blocked first-read of codex.md in subagent), `pretool-foreign-staged-guard.sh` (single-agent ownership), `session-touch-log` (session-scoped not invocation-scoped). Codex 019d6d86 fought touch-log guard across 3+ commits; observe subagent blocked on poll guard for files never read in its context.
+   - **Root cause:** system-design — hooks track state at session level, not invocation/agent level
+   - **Proposed fix:** Scope poll tracking by invocation ID or skill-fork context. Session-touch-log needs multi-agent awareness.
+   - **Status:** [ ] proposed
+
+2. **RECURRING: OBSERVE-LOOP-SATURATION — 5 retro invocations on same session with no idempotency check**
+   - User invoked `/observe` 5 times on same session. Each produced full retro despite existing artifacts at `artifacts/session-retro/2026-04-09-e5a3a60d-*.json`. Fix: check for existing retro artifacts before re-analyzing, report 'already retro'd' unless `--force`.
+   - **Status:** [ ] proposed
+
 ### [2026-04-09] Retro — Codex 019d6d86 pipeline marathon + CC b7fe7899 loop (20h, 442M tokens)
 - **Sessions:** Codex 019d6d86 (GPT-5.4, 442M in, 1.2M out, 2536 msgs, 20h), CC b7fe7899 (Opus 4.6, 15min health-check loop), CC 68b67efa (Opus 4.6, pipeline orchestrator), CC b8098df4 (Opus 4.6, OSS extractability review)
 - **Scope:** genomics pipeline orchestrator debugging, control-loop hardening, Modal upgrade, multi-agent coordination
