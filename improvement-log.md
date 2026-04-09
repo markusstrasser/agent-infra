@@ -6,6 +6,37 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-04-09] Run 25 — CC meta (5 sessions: 07231221, 762ff770, 622457c8, f2e2ad31, fdc55431)
+- **Sessions:** meta project, last 5 sessions analyzed
+- **Scope:** observe skill refactor, scite MCP exploration, git forensics, skill consolidation
+
+#### Findings
+
+1. **RECURRENCE: BUILD-THEN-UNDO — Built extract_claims pipeline then dropped (CC 07231221)**
+   - Already logged in Run 24. 8th+ instance of build-then-undo pattern.
+   - Status: [x] logged
+
+2. **RECURRENCE: REASONING-ACTION MISMATCH — Removed Gemini dispatch instead of fixing transport (CC 07231221)**
+   - Already logged in Run 24. Confusing transport failures with capability failures.
+   - Status: [x] logged
+
+3. **RECURRENCE: TOKEN WASTE — SYNTHESIS BUDGET REQUIRED errors from subagent-gate (CC fdc55431)**
+   - 6 consecutive agent dispatches blocked by missing file-output instruction string. Agent did not fix and retry — fell back to parent-context work. Already logged with proposed auto-fix (upgrade gate from WARN to AUTO-FIX).
+   - Status: [x] logged — proposed fix still pending implementation
+
+4. **NEW: TOKEN WASTE — SendMessage tool errors from missing 'summary' argument (CC fdc55431)**
+   - **Evidence:** 4 consecutive `summary is required when message is a string` errors when pinging audit agents via SendMessage.
+   - **Failure mode:** TOOL-API-MISMATCH (agent didn't know required API signature)
+   - **Proposed fix:** [rule] Add SendMessage gotcha to subagent usage rules: `SendMessage(session_id, message, summary="brief context")` — summary is required.
+   - **Root cause:** skill-execution — model doesn't know the SendMessage API contract
+   - **Severity:** low (4 wasted tool calls, self-corrected)
+   - **Status:** [ ] proposed
+
+#### Shape
+- 5 sessions analyzed, 2 with findings (07231221, fdc55431), 3 clean
+- Clean sessions: 762ff770 (scite MCP exploration), 622457c8 (git forensics), f2e2ad31 (MCP tool check)
+- Quality scores: 07231221=0.85, 762ff770=1.00, 622457c8=1.00, f2e2ad31=1.00, fdc55431=0.89
+
 ### [2026-04-09] Run 24 — Codex 019d6d86 continued (commit hygiene tail), CC 07231221 (observe meta)
 - **Sessions:** Codex 019d6d86 (GPT-5.4, genomics, tail segment ~07:00-08:04 PDT), CC 07231221 (Opus 4.6, meta, observe/skill-refactor)
 - **Scope:** Codex session wrapping up with commit hygiene; CC meta session running observe passes and skill refactor audit
