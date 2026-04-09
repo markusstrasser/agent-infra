@@ -6,6 +6,26 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-04-09] Retro Run 21 — CC 07231221 (skill refactor + llmx migration) + Codex 019d640f (operator-loop) + 019d4f68 (research dispatch)
+- **Sessions:** CC 07231221 (Opus 4.6, 192M in, 156K out, 1364 msgs), Codex 019d640f (GPT-5.4, 23.8B in, 110K out, 64 msgs), Codex 019d4f68 (GPT-5.4, 15.3B in, 107K out, 81 msgs), Codex 019d6e98 (tax estimation, skipped — personal query)
+- **Findings staged:** 3 actionable, 2 positive patterns
+
+1. **RECURRENCE: BUILD-THEN-UNDO — Removed Gemini dispatch instead of fixing CLI transport (CC 07231221)**
+   - Failure mode: BUILD-THEN-UNDO (8th+ instance — 2026-03-18, 2026-03-06, 2026-02-28 x2, 2026-04-07 x2, now)
+   - Agent correctly diagnosed 5 CLI subprocess failure modes but then proposed removing Gemini dispatch entirely (TaskCreate: "Remove Gemini dispatch from observe skill"). User intervened: "No -- gemini dispatch is important! Just use the gemini api directly". Agent acknowledged: "I went too far." Root pattern: correct diagnosis, wrong fix scope — removing the feature instead of fixing the transport layer.
+   - **Status:** [x] corrected in-session (rewrote to use llmx Python API)
+
+2. **NEW: SCHEMA-VALIDATION-LATE — Heavy schema built before user validated design (Codex 019d640f)**
+   - Agent built `session_search` table with FTS5 on content_text, files_touched, commits. User intervened with lighter model (first_message only FTS). Required ~20 tool calls to rework code already written around heavier schema.
+   - **Proposed fix:** For schema design in migration plans, validate core shape with stakeholder BEFORE writing consumers.
+   - **Status:** [ ] proposed
+
+3. **POSITIVE: Technical pushback on unexecutable plan (Codex 019d640f)**
+   - Codex refused to execute operator-loop-refactor plan as-is: "No. Don't hand this to Codex as-is." Identified 5 structural problems (unscoped repos, missing ownership map, implicit cross-project paths). Rewrote plan before executing. Constitutional pushback working as designed.
+
+4. **POSITIVE: Subagent output verification caught false positives (CC 07231221)**
+   - Skill refactor audit subagent reported lost content that actually existed in current files. Agent verified against actual line numbers before acting. Narrowed from ~8 reported losses to 3 genuine ones.
+
 ### [2026-04-09] Session Retro — Codex 019d6d86 genomics marathon + CC sessions
 - **Source:** Manual retro from observe skill. Codex: 019d6d86 (18h marathon, GPT-5.4, 433M input tokens, 2482 messages), 019d6f85/019d6ee0 (subagent threads). CC: b8098df4 (genomics, open-source extraction, clean), 0bf6a590/1de580d9 (selve, clean).
 - **Shape:** 1 marathon Codex session dominates. CC sessions are clean. All 5 findings come from the Codex marathon.
