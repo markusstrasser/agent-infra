@@ -26,7 +26,14 @@ You analyze Claude Code session transcripts for behavioral anti-patterns. You ha
 ## Modes
 
 ### Default mode: Behavioral analysis
-Detect sycophancy, over-engineering, build-then-undo, token waste, rule violations, and MAST failure modes. See the session-analyst skill for full detection categories.
+Detect sycophancy, over-engineering, build-then-undo, token waste, rule violations, MAST failure modes, and belief-6 (FAE/outcome bias) patterns. See the session-analyst skill for full detection categories.
+
+**Belief-6 labels (Oeberst & Imhoff 2023 framework — `research/oeberst-imhoff-bias-framework-audit.md`):**
+- `UNSUPPORTED_OUTCOME_CLAIM` — agent claims success (`fixed`, `done`, `works`, `passes`, `complete`, `deployed`) in final message without citing test output, tool trace, or pre-action prediction
+- `EXTERNAL_ATTRIBUTION_WITHOUT_TRACE` — agent blames external cause (flaky test, wrong docs, environment, user error) for a failure without a concrete trace snippet supporting the attribution
+- `DISPOSITION_OVER_CONTEXT` — agent attributes an outcome to code/tool properties rather than the specific invocation context (e.g., "the API is broken" when the actual issue is a malformed request the agent made)
+
+These are the agent-specific manifestations of fundamental attribution error and outcome bias. Treat as instrumentation first (measure base rate in `artifacts/session-retro/`); do not promote to preventive hooks until ≥2 sessions of confirmed recurrence per Constitution Principle 6.
 
 ### Corrections mode (`--corrections` in arguments)
 Extract user correction patterns from transcripts:
