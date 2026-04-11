@@ -268,21 +268,41 @@ def derive_adequacy_card(log: Any) -> dict[str, Any]:
     per_scorer: dict[str, dict[str, Any]] = {}
     for sn in sorted(scorer_names):
         values: list[float] = []
+        excluded_not_applicable = 0
         for s in samples:
             scores_dict = getattr(s, "scores", None) or {}
-            v = _safe_value(scores_dict.get(sn))
-            if v is not None:
-                values.append(v)
+            score_obj = scores_dict.get(sn)
+            v = _safe_value(score_obj)
+            if v is None:
+                continue
+            # Bug fix (plan-close F1): atomic_claim_scorer returns value=1.0
+            # with answer='not_applicable' for samples lacking gold claims
+            # (e.g. not_verifiable cases). inspect_ai's raw mean() includes
+            # these in the denominator, inflating the atomic_claim mean.
+            # cards.py is the headline path — exclude not_applicable here.
+            # Other scorers (currency, calibration) have similar semantics
+            # but lower mean-inflation risk; exclude for atomic_claim only
+            # to keep the fix narrow and avoid changing currency/calibration
+            # semantics.
+            if sn == "atomic_claim_scorer" and score_obj is not None:
+                meta = score_obj.metadata or {}
+                if meta.get("atomic_status") == "not_applicable":
+                    excluded_not_applicable += 1
+                    continue
+            values.append(v)
         if not values:
             continue
         mean_v, ci_lo, ci_hi = _ci95_from_values(values)
-        per_scorer[sn] = {
+        scorer_entry: dict[str, Any] = {
             "n": len(values),
             "mean": round(mean_v, 4),
             "ci95_low": round(ci_lo, 4),
             "ci95_high": round(ci_hi, 4),
             "ci95_width": round(ci_hi - ci_lo, 4),
         }
+        if excluded_not_applicable > 0:
+            scorer_entry["excluded_not_applicable"] = excluded_not_applicable
+        per_scorer[sn] = scorer_entry
 
     # ─── Consistency per case (across epochs) ───
     consistency_per_case: dict[str, float | None] = {}

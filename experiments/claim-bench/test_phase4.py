@@ -409,6 +409,139 @@ def test_adequacy_gold_distribution() -> None:
     assert card["gold_distribution"]["mixed"] == 1
 
 
+def test_adequacy_atomic_claim_excludes_not_applicable() -> None:
+    """Regression for plan-close finding F1.
+
+    atomic_claim_scorer returns value=1.0 with answer='not_applicable' for
+    samples lacking gold claims (e.g. case 007 GWAS not_verifiable). inspect_ai's
+    raw mean() includes these in the denominator, inflating the atomic_claim
+    mean. cards.py is the headline path — must filter them out.
+
+    Setup: 3 samples.
+      - sample_a: atomic_claim=0.2, status=scored       → included
+      - sample_b: atomic_claim=1.0, status=not_applicable → EXCLUDED
+      - sample_c: atomic_claim=0.4, status=scored       → included
+
+    Raw mean (wrong): (0.2 + 1.0 + 0.4) / 3 = 0.533
+    Effective mean (correct): (0.2 + 0.4) / 2 = 0.300
+    """
+    samples = [
+        _make_sample(
+            "sample_a",
+            "supported",
+            {},
+            {
+                "atomic_claim_scorer": _make_score(
+                    0.2, metadata={"atomic_status": "scored"}
+                )
+            },
+        ),
+        _make_sample(
+            "sample_b",
+            "not_verifiable",
+            {},
+            {
+                "atomic_claim_scorer": _make_score(
+                    1.0, metadata={"atomic_status": "not_applicable"}
+                )
+            },
+        ),
+        _make_sample(
+            "sample_c",
+            "contradicted",
+            {},
+            {
+                "atomic_claim_scorer": _make_score(
+                    0.4, metadata={"atomic_status": "scored"}
+                )
+            },
+        ),
+    ]
+    log = _make_log(samples)
+    card = derive_adequacy_card(log)
+    ac = card["per_scorer"]["atomic_claim_scorer"]
+    # n excludes the not_applicable sample
+    assert ac["n"] == 2
+    # mean is over scored samples only
+    assert ac["mean"] == pytest.approx(0.3, abs=0.0001)
+    # excluded count surfaced in metadata
+    assert ac["excluded_not_applicable"] == 1
+
+
+def test_adequacy_atomic_claim_only_not_applicable_samples() -> None:
+    """Edge case: if ALL atomic_claim samples are not_applicable, the scorer
+    should not appear in per_scorer at all (no valid values).
+    """
+    samples = [
+        _make_sample(
+            "a",
+            "not_verifiable",
+            {},
+            {
+                "atomic_claim_scorer": _make_score(
+                    1.0, metadata={"atomic_status": "not_applicable"}
+                )
+            },
+        ),
+        _make_sample(
+            "b",
+            "not_verifiable",
+            {},
+            {
+                "atomic_claim_scorer": _make_score(
+                    1.0, metadata={"atomic_status": "not_applicable"}
+                )
+            },
+        ),
+    ]
+    log = _make_log(samples)
+    card = derive_adequacy_card(log)
+    # Either the scorer is entirely absent OR it has n=0 (neither is reported
+    # as a valid mean). Current implementation drops it entirely.
+    assert "atomic_claim_scorer" not in card["per_scorer"]
+
+
+def test_adequacy_other_scorers_not_affected_by_atomic_filter() -> None:
+    """The F1 fix is narrowly scoped to atomic_claim_scorer. currency_scorer
+    and calibration_scorer have their own 'N/A' semantics but the fix does
+    NOT filter them — verify they still include all samples in their mean.
+    """
+    samples = [
+        _make_sample(
+            "a",
+            "supported",
+            {},
+            {
+                "currency_scorer": _make_score(
+                    1.0, metadata={"currency_status": "not_applicable"}
+                ),
+                "calibration_scorer": _make_score(
+                    1.0, metadata={"calibration_label": "abstention_consistent"}
+                ),
+            },
+        ),
+        _make_sample(
+            "b",
+            "supported",
+            {},
+            {
+                "currency_scorer": _make_score(
+                    0.5, metadata={"currency_status": "partial"}
+                ),
+                "calibration_scorer": _make_score(
+                    0.5, metadata={"calibration_label": "neutral"}
+                ),
+            },
+        ),
+    ]
+    log = _make_log(samples)
+    card = derive_adequacy_card(log)
+    assert card["per_scorer"]["currency_scorer"]["n"] == 2
+    assert card["per_scorer"]["currency_scorer"]["mean"] == 0.75
+    assert card["per_scorer"]["calibration_scorer"]["n"] == 2
+    assert card["per_scorer"]["calibration_scorer"]["mean"] == 0.75
+
+
 # ─── Markdown rendering smoke tests ──────────────────────────────────────────
 
 
