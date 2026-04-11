@@ -323,9 +323,18 @@ THEN agent claims success without pre-action prediction language (outcome bias),
 - `DISPOSITION_OVER_CONTEXT` — "the API is broken" when the agent's own request was malformed
 
 **Mitigation:**
-- Instrumentation first: session-analyst detects these labels (added 2026-04-11) and emits findings to `artifacts/session-retro/`. Measure base rate for ≥2 sessions before promoting to preventive hook.
+- Instrumentation first: session-analyst detects all three labels (added 2026-04-11) and emits findings to `artifacts/session-retro/`. Measure base rate for ≥2 sessions before promoting to preventive hook.
 - Structural: `decisions/.template.md` now requires a `## Counterevidence sought` section — converts belief-2 "consider the opposite" from instruction to required document field.
 - Do NOT enforce at commit-message surface. Commit messages are pre-hoc authorial documentation, not post-hoc reasoning. Belief 6 manifests at Stop/retro/analyst surfaces.
+
+**Enforcement scope (narrower than the label set):**
+| Manifestation | Detected by |
+|---|---|
+| `UNSUPPORTED_OUTCOME_CLAIM` | `stop-unsupported-completion.sh` (shadow mode, skills@e3b89c0) AND session-analyst |
+| `EXTERNAL_ATTRIBUTION_WITHOUT_TRACE` | session-analyst ONLY — no preventive hook |
+| `DISPOSITION_OVER_CONTEXT` | session-analyst ONLY — no preventive hook |
+
+The `stop-unsupported-completion.sh` hook is lexical-only over the final assistant message. It does NOT inspect tool trace history, and it only covers the single-claim branch of the failure mode. The other two labels are analytical categories for post-hoc session analysis, not enforced predicates. Per plan-close review finding 13.
 
 ---
 
