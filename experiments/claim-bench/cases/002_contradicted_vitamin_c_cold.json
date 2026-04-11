@@ -1,0 +1,23 @@
+{
+  "task_id": "002_contradicted_vitamin_c_cold",
+  "claim_text": "Daily vitamin C supplementation at doses above 1 gram per day prevents the common cold in the general adult population.",
+  "domain": "clinical_nutrition",
+  "claim_type": "causal",
+  "verifiability": "verifiable",
+  "gold_verdict": "contradicted",
+  "gold_sources": [],
+  "gold_contradict_sources": [
+    {
+      "doi": "10.1002/14651858.CD000980.pub4",
+      "citation": "Hemilä H, Chalker E. Vitamin C for preventing and treating the common cold. Cochrane Database of Systematic Reviews 2013, Issue 1. Art. No.: CD000980.",
+      "contradicts": "Cochrane meta-analysis of 29 trials (11,306 participants) finds vitamin C does not prevent the common cold in the general adult population. Effect on incidence in general population: RR 0.97 (95% CI 0.94 to 1.00) — null."
+    }
+  ],
+  "distractor_sources": [
+    {
+      "note": "Vitamin C does modestly reduce cold DURATION (~8% in adults) and prevents colds in extreme physical stress (marathon runners, soldiers). Distinguish 'prevent in general population' from 'reduce duration' or 'prevent in stressed subgroup.'"
+    }
+  ],
+  "difficulty": "medium",
+  "notes": "Tests claim-vs-evidence distinction. The well-known Cochrane review directly contradicts the prevention claim for general population. Agent must (a) find the meta-analysis, (b) read the population specification, (c) avoid being misled by the duration-reduction finding."
+}

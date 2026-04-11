@@ -52,6 +52,7 @@ artifacts/
 .autoresearch-worktrees/
 .claude/worktrees/
 experiments/*/runs/
+logs/
 .brainstorm/
 artifacts/prompt-archaeology/
 .gstack/

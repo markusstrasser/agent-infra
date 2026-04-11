@@ -1,0 +1,23 @@
+{
+  "task_id": "001_supported_crispr_2015",
+  "claim_text": "CRISPR-Cas9 was first used to edit human embryos in 2015 by a Chinese research group led by Junjiu Huang at Sun Yat-sen University, who reported the work in the journal Protein & Cell.",
+  "domain": "molecular_biology",
+  "claim_type": "descriptive",
+  "verifiability": "verifiable",
+  "gold_verdict": "supported",
+  "gold_sources": [
+    {
+      "doi": "10.1007/s13238-015-0153-5",
+      "citation": "Liang, P., Xu, Y., Zhang, X. et al. CRISPR/Cas9-mediated gene editing in human tripronuclear zygotes. Protein Cell 6, 363–372 (2015).",
+      "supports": "Primary report. Confirms Sun Yat-sen, Junjiu Huang lead author, Protein & Cell, 2015, human (tripronuclear) zygotes."
+    }
+  ],
+  "gold_contradict_sources": [],
+  "distractor_sources": [
+    {
+      "note": "Many CRISPR papers from 2013-2014 about non-human targets exist; agent should not cite these as the 'first human embryo' claim."
+    }
+  ],
+  "difficulty": "easy",
+  "notes": "Smoke test case. Claim is well-attested and verifiable from a single primary source. An LLM with web search should hit this near-perfectly. Used to confirm the harness shape works end-to-end before harder cases."
+}

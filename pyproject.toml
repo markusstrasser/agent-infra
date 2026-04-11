@@ -1,5 +1,5 @@
 [project]
-name = "meta-mcp"
+name = "agent-infra"
 version = "0.1.0"
 description = "Meta project knowledge base — hook designs, failure modes, architecture decisions"
 requires-python = ">=3.11"
@@ -8,11 +8,13 @@ dependencies = [
     "claude-agent-sdk>=0.1.44",
     "exa-py>=2.6.1",
     "fastmcp>=3.0,<4.0",
+    "inspect-ai>=0.3.0",
+    "openai>=2.26.0",
     "parallel-web>=0.4.0",
 ]
 
 [project.scripts]
-meta-mcp = "meta_mcp:main"
+agent-infra-mcp = "agent_infra_mcp:main"
 parallel-mcp = "scripts.parallel_mcp:main"
 
 [tool.pyright]
@@ -28,3 +30,6 @@ dev = [
     "pytest>=9.0.3",
     "pytest-timeout>=2.4.0",
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
