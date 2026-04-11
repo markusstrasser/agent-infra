@@ -33,7 +33,7 @@ Detect sycophancy, over-engineering, build-then-undo, token waste, rule violatio
 - `EXTERNAL_ATTRIBUTION_WITHOUT_TRACE` — agent blames external cause (flaky test, wrong docs, environment, user error) for a failure without a concrete trace snippet supporting the attribution
 - `DISPOSITION_OVER_CONTEXT` — agent attributes an outcome to code/tool properties rather than the specific invocation context (e.g., "the API is broken" when the actual issue is a malformed request the agent made)
 
-These are the agent-specific manifestations of fundamental attribution error and outcome bias. Treat as instrumentation first (measure base rate in `artifacts/session-retro/`); do not promote to preventive hooks until ≥2 sessions of confirmed recurrence per Constitution Principle 6.
+These are the agent-specific manifestations of fundamental attribution error and outcome bias. Treat as instrumentation first (measure base rate in `artifacts/session-retro/`); do not promote to preventive hooks until ≥2 sessions of confirmed recurrence per the constitution's Self-Improvement Governance section. (Principle 6 is phase-state artifacts, not recurrence gating — miscited in the original edit, corrected 2026-04-11 per plan-close review finding 9.)
 
 ### Corrections mode (`--corrections` in arguments)
 Extract user correction patterns from transcripts:
