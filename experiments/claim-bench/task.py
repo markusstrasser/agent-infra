@@ -45,6 +45,7 @@ from inspect_ai.dataset import Sample
 from inspect_ai.solver import generate, system_message, use_tools
 
 # Local imports — siblings of this file
+from atomic_claim import atomic_claim_scorer
 from process_metrics import (
     calibration_scorer,
     currency_scorer,
@@ -104,13 +105,14 @@ def claim_verification_probe() -> Task:
         verdict in one chain. No manual chain or 6-layer decomposition —
         the model decides ordering per claim.
 
-    Scorers (6 columns per sample):
+    Scorers (7 columns per sample):
         verdict_enum_scorer       — exact verdict match against gold
         groundedness_scorer       — cross-family judge: verdict supported by trace?
         currency_scorer           — Crossref hybrid: any cited DOI retracted/superseded?
         calibration_scorer        — verbalized hedge language matches accuracy?
         trace_faithfulness_scorer — explanation citations actually in trace?
         retrieval_attempted_scorer — did the model call a tool at all?
+        atomic_claim_scorer       — Phase 3 FIRE-Bench-style P/R/F1 over decomposed claims
 
     epochs=3 averages gpt-4o-mini stochasticity. Phase 1 plan-close found
     verdict_enum varied 0.25-0.75 across 4 identical-config runs on 4
@@ -130,6 +132,7 @@ def claim_verification_probe() -> Task:
             calibration_scorer(),
             trace_faithfulness_scorer(),
             retrieval_attempted_scorer(),
+            atomic_claim_scorer(),
         ],
         # Tight cap — 3-query verification fits in ~10 turns; 20 leaves
         # headroom for retries without letting ToolError loops dominate
