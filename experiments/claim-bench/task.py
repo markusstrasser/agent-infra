@@ -13,9 +13,11 @@ Run:
     cd ~/Projects/agent-infra
     uv run inspect eval experiments/claim-bench/task.py --model openai/gpt-4o-mini
 
-The groundedness_scorer uses a cross-family judge model (anthropic/
-claude-sonnet-4-5 by default; override with CLAIM_BENCH_JUDGE_MODEL env
-var). Never same-family with the SUT per FINCH-ZK.
+The groundedness_scorer uses a cross-family judge model (google/
+gemini-2.5-flash by default; override with CLAIM_BENCH_JUDGE_MODEL env
+var). Never same-family with the SUT per FINCH-ZK. The scorer bridges
+GEMINI_API_KEY to GOOGLE_API_KEY at module load so operators don't need
+to manually export.
 """
 
 from __future__ import annotations
@@ -90,5 +92,8 @@ def claim_verification_probe() -> Task:
             generate(),
         ],
         scorer=[verdict_enum_scorer(), groundedness_scorer()],
-        message_limit=40,  # caps tool-call loops — adjudication fits in <20 turns
+        # Tight cap — 3-query verification fits in ~10 turns; 20 leaves
+        # headroom for retries without letting ToolError loops dominate
+        # the trace and mislead the groundedness judge.
+        message_limit=20,
     )

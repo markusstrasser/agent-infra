@@ -1,6 +1,6 @@
 # Claim-Bench Build Plan — 2026-04-11
 
-**Status:** Phase 0 complete (probe successful 2/2 mean=1.000) → Phase 1 active
+**Status:** Phase 1 complete (commits 90cb7d8 build + plan-close fixes) → Phase 2 **BLOCKED on user review** of architectural decisions (AutoVerifier 6-layer vs flat, currency scorer design, joint success metric).
 **Owner:** agent-infra
 **Location:** `experiments/claim-bench/PLAN.md` (tracked; `.claude/plans/` is gitignored in this repo)
 **Replaces:** two orphan plans formerly in `genomics/docs/ops/plans/` (2026-04-10-scientific-agent-benchmark-integration-plan.md, 2026-04-10-claim-verification-benchmark-plan.md), neither registered in planctl, both removed during the Apr 11 relocation

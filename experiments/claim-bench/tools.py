@@ -24,8 +24,17 @@ from typing import Any
 
 from inspect_ai.tool import Tool, ToolError, tool
 
-# Hard budget per process. Phase 1 dev runs should never exceed this.
+# Hard budget per process. Phase 1 dev runs at 4 samples × ~3 queries = 12
+# never approach this. Raise when the corpus grows; a per-sample limit
+# should replace this once parallel eval is real (tracked in LEARNINGS.md
+# as a Phase 2 concern — process-global state is not concurrency-safe).
 MAX_EXA_CALLS_PER_PROCESS = 50
+
+# Bounds on caller-provided num_results to cap context blowup. A confused
+# model could otherwise request 100 results per query. 10 is still very
+# generous for claim-verification.
+MAX_NUM_RESULTS = 10
+MIN_NUM_RESULTS = 1
 
 _exa_call_count = 0
 
@@ -100,6 +109,9 @@ def exa_search() -> Tool:
                 "EXA_API_KEY not set in environment — cannot call Exa search."
             )
 
+        # Clamp num_results to a safe range before the call.
+        num_results = max(MIN_NUM_RESULTS, min(MAX_NUM_RESULTS, int(num_results)))
+
         _check_budget()
 
         # Import lazily so module import doesn't require exa_py at parse time.
@@ -116,7 +128,15 @@ def exa_search() -> Tool:
                 text={"max_characters": 1500},
             )
         except Exception as exc:
-            raise ToolError(f"Exa search failed: {type(exc).__name__}: {exc}") from exc
+            # Sanitize: do not leak provider stack traces or auth tokens to
+            # the model. The raw exception class name is enough signal for
+            # retry decisions without encouraging the model to loop on the
+            # specific error message.
+            exc_name = type(exc).__name__
+            raise ToolError(
+                f"Exa search failed ({exc_name}) — retry with a different "
+                f"query or give up on retrieval for this claim."
+            ) from exc
 
         results = [
             _format_result(r, max_chars=1500) for r in (response.results or [])
