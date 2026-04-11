@@ -121,15 +121,47 @@ Ran `/review model` on the initial plan (`.model-review/2026-04-11-bias-tooling-
 8. **Multi-agent commit hygiene failure.** During execution, commit `bc51cb5` swept up an unrelated `meta → agent-infra` path rename from another active agent-infra session's uncommitted working tree. Amended with disclosure. Lesson: `git diff --staged` before committing when `pgrep -c claude >= 2`, not just `git status`.
 
 Execution artifacts:
-- `e23bd1c` decisions template counterevidence section
-- `097553e` session-analyst belief-6 detection labels
-- `e5a53d3` agent-failure-modes FM25 (belief-6)
-- `bc51cb5` meta settings.json Stop chain wiring
-- `~/Projects/skills/hooks@c0b3f71` the shadow hook itself
+- `e23bd1c` decisions template counterevidence section (wording fixed in `3bdc82e`)
+- `097553e` session-analyst belief-6 detection labels (citation fixed in `de4dbfc`)
+- `e5a53d3` agent-failure-modes FM25 (scope clarified in `3bdc82e`)
+- `bc51cb5` meta settings.json Stop chain wiring (bundled rename disclosed, not split)
+- `2d66999` first revisions round
+- `53bbd99` deferred governance-drift verifier + 14-day review watch item (updated in `3bdc82e`)
+- `~/Projects/skills/hooks@e3b89c0` shadow hook (post plan-close fix; initial buggy commit c0b3f71)
+- `~/Projects/skills/hooks@4525d2c` 12-case pytest harness
+
+### Plan-close caught-red-handed loop (2026-04-11, findings at `.model-review/2026-04-11-bias-plan-close-89878c/`)
+
+Second cross-model review pass, this time on the implementation as committed. 19 findings, 3 with cross-model agreement at HIGH severity. Caught-red-handed outcomes:
+
+1. **Predicate construct bug:** initial hook used `success_hits >= 2` AND `len(msg) < 20` exclusion — blocked the dominant form (single-verb terse claims like "Fixed."). Both reviewers caught it. Fixed in skills@e3b89c0. Caught-red-handed validation: the 12-case pytest harness fails 6/12 against HEAD~1 and passes 12/12 post-fix.
+
+2. **Evidence/prediction pattern list was mixing three different things:** evidence markers, pre-action prediction, and weak hedging. `should`/`would`/`likely`/`\bran\b`/`\bjust test\b` were all wrong. `\bran\b` false-matched "I ran out of time"; `\bjust test\b` was overfit to local workflow; `should`/`would`/`likely` are not evidence at all. Split into `EVIDENCE_PATTERNS` (pytest/stdout/stderr/exit code/trace/numeric results/etc.) and `PREDICTION_PATTERNS` (expected/hypothesiz/predict/before/previously) with weak suppressors deleted.
+
+3. **Silent failure mode:** `2>/dev/null` hid all Python errors during the shadow period, corrupting precision measurement. Now redirected to `~/.claude/unsupported-completion-errors.jsonl` with structured error records. Shadow log reliability now measurable.
+
+4. **Documentation-implementation gap:** header comment claimed "without recent tool-trace evidence" but the implementation is lexical-only over `last_msg`. Header rewritten with explicit `LEXICAL-ONLY` banner. Hook scope narrowed in documentation to cover only `UNSUPPORTED_OUTCOME_CLAIM` (manifestation 1 of FM25).
+
+5. **Wrong constitution citation.** I cited "Principle 6" for the "≥2 sessions" recurrence rule. Principle 6 is phase-state artifacts; the recurrence rule lives in the "Self-Improvement Governance" section. Fixed in session-analyst.md at `de4dbfc`. Commit messages for e5a53d3 and 53bbd99 retain the miscitation because splitting/rewriting history would conflict with another active session's work.
+
+6. **Template wording was temporally post-hoc.** Original `## Counterevidence sought` said "what would falsify the chosen option" — implying the decision was already made. Fixed to "the *leading candidate* option" with explicit "fill before writing the Decision section" instruction. Pre-decision by construction.
+
+7. **Promotion criterion ignored recall entirely.** Original criterion was ≥60% precision + <10% trigger rate — but a narrow detector can hit that while missing most real cases. Added ≥50% recall floor (sampled from skipped sessions), zero-error-log requirement, and raised trigger rate headroom to 15% since lowering `success_hits` threshold will raise base rate.
+
+**Explicit disagreement with reviewers:** both models prescribed splitting `bc51cb5` via interactive rebase to isolate the swept-up rename. I kept the bundled commit. Rationale: (a) local-only, never pushed; (b) the rename hunk is the correct state — reverting would restore broken `meta/` paths; (c) rebasing would conflict with another active agent-infra session that still has uncommitted rename work across many files. The disclosure in the commit message documents the taint; history surgery would cost more than the tainted audit trail saves. Noted as accepted-disclosure/rejected-surgery.
+
+**Deferred findings (not fixed this pass, recorded for later):**
+- Tool-only stop flows where the final assistant message is empty — hook currently skips these because lexical scope is `last_msg` only. Would need transcript tool-output fallback. Defer until shadow data shows how many real cases this branch would catch. (Finding 16)
+
+Fix commit artifacts:
+- `~/Projects/skills/hooks@e3b89c0` predicate/pattern/error-logging fixes
+- `~/Projects/skills/hooks@4525d2c` 12-case pytest harness (7/12 would fail against HEAD~1)
+- `de4dbfc` session-analyst citation
+- `3bdc82e` FM25 scope table + template wording + ideas.md recall floor
 
 <!-- knowledge-index
-generated: 2026-04-11T19:34:51Z
-hash: 6302fb93ce78
+generated: 2026-04-11T19:47:16Z
+hash: 90210c290e96
 
 title: Oeberst & Imhoff Bias Framework — Coverage Audit of Agent Tooling
 cross_refs: decisions/.template.md, research/compiled/agent-scaffolding-safety.md, research/domain-specific-agent-biases.md
