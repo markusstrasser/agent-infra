@@ -8,6 +8,7 @@ dependencies = [
     "claude-agent-sdk>=0.1.44",
     "exa-py>=2.6.1",
     "fastmcp>=3.0,<4.0",
+    "google-genai>=1.72.0",
     "inspect-ai>=0.3.0",
     "openai>=2.26.0",
     "parallel-web>=0.4.0",

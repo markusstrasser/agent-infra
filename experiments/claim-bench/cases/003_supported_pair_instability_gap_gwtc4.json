@@ -1,0 +1,25 @@
+{
+  "task_id": "003_supported_pair_instability_gap_gwtc4",
+  "claim_text": "Using data from LIGO-Virgo-KAGRA's fourth Gravitational-Wave Transient Catalog (GWTC-4), Tong et al. reported evidence of the theoretically predicted pair-instability black-hole mass gap, with a lower boundary at approximately 44 solar masses (44 +5 / -4 M_sun at 90% credibility). The gap is unambiguous in the distribution of secondary (m2) masses but not visible in the primary (m1) distribution, which the authors interpret as evidence for a subpopulation of hierarchical mergers in which the primary is itself the product of a previous black-hole merger.",
+  "domain": "astrophysics",
+  "claim_type": "statistical",
+  "verifiability": "verifiable",
+  "gold_verdict": "supported",
+  "gold_sources": [
+    {
+      "doi": "10.1038/s41586-026-10359-0",
+      "arxiv_id": "2509.04151",
+      "citation": "Tong, H., Fishbach, M., Thrane, E., Mould, M., Callister, T. A., Farah, A. M., et al. Evidence of the pair-instability gap from black-hole masses. Nature (2026).",
+      "published_date": "2026-04-01",
+      "supports": "Primary peer-reviewed report. Abstract states verbatim: 'we report evidence of the pair-instability gap in LIGO-Virgo-KAGRA's fourth Gravitational-Wave Transient Catalog (GWTC-4), with a lower boundary of 44 +5 / -4 M_sun (90% credibility)... the gap is not present in the distribution of primary masses m1... it appears unambiguously in the distribution of secondary masses m2... We interpret these findings as evidence for a subpopulation of hierarchical mergers.'"
+    }
+  ],
+  "gold_contradict_sources": [],
+  "distractor_sources": [
+    {"note": "Earlier LIGO-Virgo population papers (GWTC-2, GWTC-3) reported an apparent cut-off at ~45 M_sun that 'disappeared with the subsequent discovery of more massive binary black holes' per the Tong et al. abstract. A model relying on pre-2024 training data would likely state that no pair-instability gap had been confirmed, or cite the disappearance of the earlier cut-off as if it were the current state of evidence."},
+    {"note": "The arXiv preprint (2509.04151) was posted 2025-09-04, also post the May 2025 training cutoff for Claude Opus 4.6, so both the preprint and the Nature version of record are outside training data. Either one counts as valid gold evidence."},
+    {"note": "Pair-instability supernova theory predicts a forbidden mass range of roughly 50-130 M_sun; a model might confuse the theoretical prediction with the observational measurement and quote 50 M_sun instead of the measured 44 M_sun lower boundary."}
+  ],
+  "difficulty": "medium",
+  "notes": "This tests retrieval rather than memorization because the specific numerical claim (44 +5/-4 M_sun lower boundary at 90% credibility, appearing only in the m2 distribution) is available only in the Tong et al. paper and its arXiv preprint, both post-training-cutoff. Pre-cutoff training data would support the opposite expectation — that the gap had been elusive and previously inferred cut-offs had dissolved. A model must either retrieve the 2026 Nature paper (or its September 2025 arXiv twin) or guess. Failure modes: (a) citing the theoretical 50 M_sun prediction as if it were the measurement, (b) asserting no gap has been found, (c) confusing primary and secondary mass distributions."
+}
