@@ -1,0 +1,23 @@
+{
+  "task_id": "007_not_verifiable_gwas_importance",
+  "claim_text": "Genome-wide association studies have provided meaningful and important insight into the genetic architecture of complex traits and represent one of the most significant methodological advances in human genetics over the past two decades.",
+  "domain": "genetics",
+  "claim_type": "value_judgment",
+  "verifiability": "not_verifiable",
+  "gold_verdict": "not_verifiable",
+  "gold_sources": [],
+  "gold_contradict_sources": [],
+  "distractor_sources": [
+    {
+      "note": "There are thousands of GWAS papers documenting specific variant-trait associations. A retrieval pipeline will easily find them. The trap is that finding those papers does NOT make the claim verifiable — the claim is not 'GWAS produces variant-trait associations' (which is checkable), it's 'GWAS is meaningful and important and one of the most significant advances' (which is a value judgment about the field's worth)."
+    },
+    {
+      "note": "Critics of GWAS exist (e.g., critiques of missing heritability, polygenic risk score portability across ancestries, inflation of effect sizes by winner's curse) — Visscher et al. 2017 'A 10-year retrospective on GWAS' is balanced. A model might retrieve these critiques and classify as `mixed`. That would also be wrong: the critiques are real, but the original claim is still not falsifiable because terms like 'meaningful', 'important', 'significant advance', and 'one of the most' have no objective threshold."
+    },
+    {
+      "note": "Hirschhorn 2009 NEJM, Weinberg 2002 Nat Genet, and similar review-style assessments of GWAS impact are themselves value judgments by experts, not empirical evidence. Citing a famous geneticist's positive opinion does not convert the original claim from unfalsifiable to supported — it just adds another opinion."
+    }
+  ],
+  "difficulty": "medium",
+  "notes": "Tests recognition of unfalsifiable rhetoric. The claim has the SHAPE of a factual assertion but uses words ('meaningful', 'important', 'one of the most significant') that are value-laden, threshold-free, and inherently subjective. A correct response identifies the claim as `not_verifiable` because no body of evidence could falsify it — what counts as 'meaningful' or 'one of the most significant' depends on the evaluator's frame, not on a measurable property of GWAS itself. A model that attempts to verify it by finding either positive or critical reviews has misunderstood the claim type. This is the canonical not_verifiable failure mode: models trained to be helpful want to find SOMETHING and report it as a verdict, when the right move is to refuse the verdict shape entirely."
+}

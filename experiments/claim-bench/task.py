@@ -1,23 +1,38 @@
-"""Phase 1 Task for claim-verification benchmark.
+"""Phase 2 Task for claim-verification benchmark.
 
 Phase 0 confirmed inspect_ai's Task / Sample / Solver / Scorer types
 cleanly represent a 5-class verdict enum on a placeholder solver with
-memorizable cases. Phase 1 replaces the placeholder with a real chain:
+memorizable cases. Phase 1 replaced the placeholder with a real chain:
     system_message(verdict_prompt) → use_tools(exa_search) → generate()
-and adds a groundedness_scorer alongside verdict_enum_scorer.
+and added a groundedness_scorer alongside verdict_enum_scorer.
 
-Two new post-cutoff cases (003 pair-instability gap, 004 Kotz retraction)
-test whether retrieval actually fires rather than measuring memorization.
+Phase 2 adds:
+- 4 cross-domain cases (mixed, insufficient_evidence, not_verifiable,
+  non-currency contradicted) — corpus is now 8 cases total
+- 4 process-level scorers in process_metrics.py:
+    currency_scorer (deterministic Crossref + judge for residual)
+    calibration_scorer (verbalized hedge classifier)
+    trace_faithfulness_scorer (deterministic citation check)
+    retrieval_attempted_scorer (top-level promotion of tool_calls_seen)
+- epochs=3 to average gpt-4o-mini stochasticity per Phase 1's variance
+  finding (verdict_enum_scorer ranged 0.25-0.75 across 4 identical-config
+  runs)
+
+The joint_success metric is NOT a scorer — it's derived from the EvalLog
+in cards.py (Phase 4). inspect_ai's Scorer API doesn't expose peer scorer
+outputs in-band, and faking it via duplicated logic is worse than
+computing it post-eval. The headline metric for Phase 2 reports is the
+joint mean from cards.py; per-scorer columns stay live for debugging.
 
 Run:
     cd ~/Projects/agent-infra
     uv run inspect eval experiments/claim-bench/task.py --model openai/gpt-4o-mini
 
-The groundedness_scorer uses a cross-family judge model (google/
-gemini-2.5-flash by default; override with CLAIM_BENCH_JUDGE_MODEL env
-var). Never same-family with the SUT per FINCH-ZK. The scorer bridges
-GEMINI_API_KEY to GOOGLE_API_KEY at module load so operators don't need
-to manually export.
+The groundedness_scorer and currency_scorer use a cross-family judge
+(google/gemini-2.5-flash by default; override with CLAIM_BENCH_JUDGE_MODEL
+or CLAIM_BENCH_CURRENCY_JUDGE_MODEL env vars). Never same-family with
+the SUT per FINCH-ZK. scorer.py bridges GEMINI_API_KEY → GOOGLE_API_KEY
+at module load so operators don't need to manually export.
 """
 
 from __future__ import annotations
@@ -30,6 +45,12 @@ from inspect_ai.dataset import Sample
 from inspect_ai.solver import generate, system_message, use_tools
 
 # Local imports — siblings of this file
+from process_metrics import (
+    calibration_scorer,
+    currency_scorer,
+    retrieval_attempted_scorer,
+    trace_faithfulness_scorer,
+)
 from scorer import groundedness_scorer, verdict_enum_scorer
 from tools import exa_search
 
@@ -75,14 +96,25 @@ def _load_cases() -> list[Sample]:
 
 @task
 def claim_verification_probe() -> Task:
-    """Phase 1 claim-verification task with retrieval and groundedness.
+    """Phase 2 claim-verification task: retrieval + 6 scorers + 3 epochs.
 
     Solver: system_message → use_tools(exa_search) → generate()
-    Scorers: verdict_enum_scorer + groundedness_scorer (cross-family judge)
+        generate() auto-loops on tool calls while tools are in state, so
+        the model retrieves evidence, adjudicates, and returns a final
+        verdict in one chain. No manual chain or 6-layer decomposition —
+        the model decides ordering per claim.
 
-    generate() auto-loops on tool calls while tools are in state, so the
-    model retrieves evidence, adjudicates, and returns a final verdict in
-    one chain. No manual loop needed.
+    Scorers (6 columns per sample):
+        verdict_enum_scorer       — exact verdict match against gold
+        groundedness_scorer       — cross-family judge: verdict supported by trace?
+        currency_scorer           — Crossref hybrid: any cited DOI retracted/superseded?
+        calibration_scorer        — verbalized hedge language matches accuracy?
+        trace_faithfulness_scorer — explanation citations actually in trace?
+        retrieval_attempted_scorer — did the model call a tool at all?
+
+    epochs=3 averages gpt-4o-mini stochasticity. Phase 1 plan-close found
+    verdict_enum varied 0.25-0.75 across 4 identical-config runs on 4
+    cases — 8 cases × 3 epochs = 24 sample-runs gives a tighter CI.
     """
     return Task(
         dataset=_load_cases(),
@@ -91,9 +123,18 @@ def claim_verification_probe() -> Task:
             use_tools(exa_search()),
             generate(),
         ],
-        scorer=[verdict_enum_scorer(), groundedness_scorer()],
+        scorer=[
+            verdict_enum_scorer(),
+            groundedness_scorer(),
+            currency_scorer(),
+            calibration_scorer(),
+            trace_faithfulness_scorer(),
+            retrieval_attempted_scorer(),
+        ],
         # Tight cap — 3-query verification fits in ~10 turns; 20 leaves
         # headroom for retries without letting ToolError loops dominate
         # the trace and mislead the groundedness judge.
         message_limit=20,
+        # Average out gpt-4o-mini variance per Phase 1 plan-close finding.
+        epochs=3,
     )

@@ -157,3 +157,87 @@ Range of 0.50 on verdict_enum across runs with identical config. This is **gpt-4
 - 1 finding disputed (API contract tests — was already addressed during plan-close itself)
 - 4 eval runs reproduce case-003 retrieval-wins and case-004 currency-failure directionally, but verdict_enum mean is noisy on 4-case runs
 - **Phase 2 architectural decisions still awaiting user review** (AutoVerifier 6-layer vs flat chain, currency scorer design, joint success metric as the primary headline vs per-scorer reporting)
+
+## 2026-04-11 — Phase 2 complete (4 cases + 4 scorers + epochs=3 + currency hybrid)
+
+User answered "go" on the architectural decisions. Phase 2 shipped with:
+
+### Architectural decisions (locked in commit)
+
+1. **Corpus expanded 4 → 8 cases.** Added 005 (mixed: red wine J-curve vs MR), 006 (insufficient_evidence: sub-2 Å proteasome cryo-EM), 007 (not_verifiable: GWAS value judgment), 008 (contradicted non-currency: VITAL trial vitamin D). Each case targets a previously-uncovered verdict class.
+
+2. **`epochs=3` in `task.py`** — averages gpt-4o-mini stochasticity per Phase 1's 0.25-0.75 verdict_enum variance finding. 8 × 3 = 24 sample-runs per eval. ~60 seconds, ~$0.05-0.10 per run.
+
+3. **Flat solver chain kept.** Did NOT build AutoVerifier's 6-layer Solver decomposition. The current `system_message → use_tools(exa_search) → generate()` already lets the model run all 6 of AutoVerifier's layers internally as part of `generate()`'s tool-call loop. Building 6 explicit Solver steps would force a single fixed path, 6× the tokens, lose adaptivity. Phase 3's atomic-claim P/R/F1 scorer will give EMPIRICAL evidence about whether the flat chain is conflating layers.
+
+4. **Currency scorer is hybrid (Crossref + judge), NOT pure judge.** Per memory `feedback_currency_failure_in_claim_verification.md` and `epistemic-quality-evals.md` finding that LLM judges have >90% unexplained variance, the deterministic part (Crossref API + URL classifier) does the falsifiable work. The judge only runs on the residual: "given retraction X exists, did the model address it?"
+
+5. **Joint success is a derived helper, not a scorer.** inspect_ai's Scorer API doesn't expose peer scorer outputs in-band. `joint_success_per_sample()` lives in `process_metrics.py` for `cards.py` (Phase 4) to consume.
+
+### What shipped
+
+- `process_metrics.py` (~750 lines) with 4 new scorers + helper:
+  - `currency_scorer` — Crossref API + title-prefix retraction detection + URL fragment stripping + publisher URL → DOI extraction + judge for residual
+  - `calibration_scorer` — verbalized hedge classifier (HEDGE_PATTERNS vs CONFIDENCE_PATTERNS, abstention free pass)
+  - `trace_faithfulness_scorer` — pure-deterministic citation-vs-trace check (no LLM judge — fabrication is a string-match problem at this layer)
+  - `retrieval_attempted_scorer` — top-level promotion of `tool_calls_seen` per Phase 1 plan-close finding #5
+  - `joint_success_per_sample()` — canonical headline definition (verdict_match AND grounded ≥ 0.5 AND (currency_pass OR currency_NA))
+- 4 new cases in `cases/` (005-008)
+- `task.py` updated: 6 scorers in scorer list, epochs=3
+- `test_phase2.py` (~440 lines, 73 unit tests)
+- Total tests passing: 97 (33 Phase 1 + 64 Phase 2)
+
+### Two critical bugs caught during integration testing (regression tests added)
+
+1. **DOI regex over-extraction.** First Phase 2 eval revealed `dois_checked: ['10.1007/s13238-015-0153-5/fulltext.html']` — the URL path `/fulltext.html` was being captured as part of the DOI suffix. Crossref then 404'd silently. Same issue on `/pdf`, `/full`, `/abstract`, `/epdf`. **Fix:** added `DOI_URL_FRAGMENT_PATTERN` post-processing to strip these. **Regression test:** parametrized over 5 observed cases.
+
+2. **DOI under-extraction on publisher landing pages.** Case 004 `currency_status` was `not_applicable` on all 3 epochs because the Kotz paper DOI was past Exa's 1500-char text excerpt cap and only appeared in the URL itself. **Fix:** added `PUBLISHER_URL_DOI_PATTERNS` for Nature, NEJM, Science, doi.org resolver, and Oxford Academic — extracts the DOI directly from URL paths even when the text excerpt doesn't contain it. **Regression test:** parametrized over 6 publisher URL formats.
+
+### The MAJOR finding: Crossref retraction signals are unreliable; title prefix is the only consistent cross-publisher signal
+
+Direct query of `https://api.crossref.org/works/10.1038/s41586-024-07219-0` (the retracted Kotz climate paper) on 2026-04-11 returned:
+- `subtype`: None ← NOT "retraction"
+- `update-to`: null ← NOT populated
+- `relation`: only `has-preprint`, NO `is-retracted-by`
+- `title`: `["RETRACTED ARTICLE: The economic commitment of climate change"]` ← THE ONLY SIGNAL
+
+Nature's convention is to prepend `"RETRACTED ARTICLE:"` to the title; other publishers use `"Retracted:"`, `"Retraction Note:"`, `"WITHDRAWN:"`. None of them consistently populate the structured Crossref fields.
+
+**Fix:** `_interpret_crossref_message` now checks the title FIRST (most reliable), then falls back to subtype / update-to / relation. The returned dict has a new `retraction_signal` field recording which signal fired.
+
+**Regression test:** parametrized over 5 title prefixes + signal-priority test + string-vs-list defensive test.
+
+**Generalization:** this is the same shape of failure mode as case 004 itself — relying on structured "current state" signals when the actual ground truth is in unstructured text. Recorded in memory as `feedback_currency_failure_in_claim_verification.md` (which already covered the failure pattern; this finding confirms the deterministic-fix design is right but the deterministic source needs to be the title, not the structured fields).
+
+### Phase 2 eval results (final, after both bug fixes)
+
+| Scorer | Mean | Notes |
+|---|---|---|
+| `verdict_enum_scorer` | **0.708** | 17/24 sample-runs correct. Up from Phase 1's 0.250-0.750 variance. epochs=3 working. |
+| `groundedness_scorer` | **0.812** | 19.5/24. Up from Phase 1 0.750. |
+| `currency_scorer` | **1.000** | All checked DOIs current OR (case 004) flagged as retracted AND model addressed it (`aware` on all 3 epochs this run). |
+| `calibration_scorer` | **0.562** | Mostly neutral language — model doesn't strongly hedge or assert. Not a bug, signals room for explicit confidence calibration in Phase 4. |
+| `trace_faithfulness_scorer` | **1.000** | All cited URLs/DOIs in explanation appear in retrieval trace. Zero fabrication on this run. |
+| `retrieval_attempted_scorer` | **1.000** | Every sample-run made at least one tool call. |
+
+Total cost: ~$0.10/run (176K SUT tokens + 100K judge tokens).
+
+### Per-case observations (3 epochs each)
+
+- **001 CRISPR 2015** — verdict 3/3, gpt-4o-mini gets it from training memory + retrieval
+- **002 Vitamin C cold** — verdict 3/3, clean
+- **003 Pair-instability gap** — verdict 2/3 (one epoch hedged to "mixed"), groundedness mostly partial
+- **004 Kotz climate retraction** — verdict 3/3 contradicted (this run!), currency 3/3 aware. **The case 004 failure mode is now correctly caught: the bench detects the retraction AND the judge confirms the model addressed it.**
+- **005 Red wine mortality** — verdict 2/3 mixed (one epoch said "supported")
+- **006 Proteasome cryo-EM** — verdict 2/3 insufficient_evidence (one epoch said "contradicted")
+- **007 GWAS value judgment** — verdict 0/3 — gpt-4o-mini consistently says "supported" instead of recognizing the not_verifiable shape. **This is a real model failure, not a bench bug.** The not_verifiable verdict requires recognizing that the prompt is rhetorical, which gpt-4o-mini doesn't do well. Larger models may handle it.
+- **008 Vitamin D mortality** — verdict 2/3 contradicted, one epoch said "mixed"
+
+The 0.708 verdict_enum mean is now an honest signal of gpt-4o-mini's actual claim-verification capability on this corpus, not a noise artifact.
+
+### What's deferred to Phase 3+
+
+- **Atomic-claim P/R/F1 scorer (FIRE-Bench pattern).** Phase 3.
+- **Cards (independence + adequacy).** Phase 4.
+- **Confidence calibration via answer-frequency consistency** (the right way per Nakkiran et al.). Phase 4 cards.py — operates on the EvalLog's epoch dimension, not as a scorer.
+- **Genomics adapter.** Phase 5 shell only — full corpus authoring needs user input on which incidents to canonicalize.

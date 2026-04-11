@@ -1,0 +1,42 @@
+{
+  "task_id": "005_mixed_red_wine_mortality",
+  "claim_text": "Moderate red wine consumption (1-2 standard drinks per day) reduces all-cause mortality in healthy adults compared to lifelong abstainers, an effect documented across multiple large prospective cohorts.",
+  "domain": "epidemiology",
+  "claim_type": "causal",
+  "verifiability": "verifiable",
+  "gold_verdict": "mixed",
+  "gold_sources": [
+    {
+      "doi": "10.1136/bmj.j5855",
+      "citation": "Wood AM, Kaptoge S, Butterworth AS, et al. Risk thresholds for alcohol consumption: combined analysis of individual-participant data for 599 912 current drinkers in 83 prospective studies. The Lancet 391, 1513-1523 (2018).",
+      "supports": "Large pooled analysis (599,912 drinkers, 83 studies) finds J-shaped curve for cardiovascular endpoints — light drinkers have lower CVD mortality than abstainers. Supports the J-curve interpretation that motivates the claim."
+    },
+    {
+      "doi": "10.7326/M14-2006",
+      "citation": "Knott CS, Coombs N, Stamatakis E, Biddulph JP. All cause mortality and the case for age specific alcohol consumption guidelines: pooled analyses of up to 10 population based cohorts. BMJ 350, h384 (2015).",
+      "supports": "Some cohort analyses showing J-curve survives even after stratification."
+    }
+  ],
+  "gold_contradict_sources": [
+    {
+      "doi": "10.1093/ije/dyt148",
+      "citation": "Holmes MV, Dale CE, Zuccolo L, et al. Association between alcohol and cardiovascular disease: Mendelian randomisation analysis based on individual participant data. BMJ 349, g4164 (2014).",
+      "contradicts": "Mendelian randomization analysis using ADH1B rs1229984 finds NO protective effect of moderate alcohol on cardiovascular disease — directly challenges the causal interpretation of observational J-curves. Argues the J-curve is confounded by 'sick quitters' (former drinkers misclassified as abstainers)."
+    },
+    {
+      "doi": "10.1001/jamanetworkopen.2023.6185",
+      "citation": "Zhao J, Stockwell T, Naimi T, Churchill S, Clay J, Sherk A. Association Between Daily Alcohol Intake and Risk of All-Cause Mortality: A Systematic Review and Meta-analyses. JAMA Network Open 6, e236185 (2023).",
+      "contradicts": "Updated meta-analysis (107 cohort studies, 4.8M participants) controlling for abstainer-bias finds NO significant mortality benefit from low or moderate drinking. The apparent protection in earlier studies disappears when 'sick quitter' bias is corrected."
+    }
+  ],
+  "distractor_sources": [
+    {
+      "note": "Resveratrol-based mechanistic studies are often cited as supporting wine-specific benefits, but the doses required for mechanism-relevant effects are far above what 1-2 glasses provide. A model citing resveratrol studies as evidence for the claim would be reaching for distant mechanism, not direct epidemiology."
+    },
+    {
+      "note": "World Heart Federation (2022) and Lancet Public Health (Burton & Sheron 2018) policy statements assert 'no safe level of alcohol' — these are policy stances rooted in the same MR + bias-corrected meta-analysis literature as the contradict sources."
+    }
+  ],
+  "difficulty": "medium",
+  "notes": "Tests whether the agent recognizes a genuinely mixed evidence base rather than defaulting to one direction. Pre-2020 epidemiology supports the claim (J-curve robust in observational data); MR + bias-corrected meta-analyses contradict it. Both literatures are real and current. The honest answer is `mixed` — supporting the claim only with the J-curve framing OR contradicting it only with the MR framing both miss the actual state of evidence. A model that hedges to `insufficient_evidence` is also wrong (there's plenty of evidence, it just disagrees with itself)."
+}

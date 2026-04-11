@@ -1,0 +1,39 @@
+{
+  "task_id": "008_contradicted_vitamin_d_mortality_vital",
+  "claim_text": "Daily supplementation with 2000 IU of vitamin D3 has been definitively shown by large randomized controlled trials to reduce all-cause mortality in healthy adults by at least 15%, an effect that appears within five years of starting supplementation.",
+  "domain": "clinical_nutrition",
+  "claim_type": "causal",
+  "verifiability": "verifiable",
+  "gold_verdict": "contradicted",
+  "gold_sources": [],
+  "gold_contradict_sources": [
+    {
+      "doi": "10.1056/NEJMoa1809944",
+      "citation": "Manson JE, Cook NR, Lee IM, et al. (VITAL Research Group). Vitamin D Supplements and Prevention of Cancer and Cardiovascular Disease. New England Journal of Medicine 380, 33-44 (2019).",
+      "contradicts": "VITAL trial: 25,871 healthy adults randomized to 2000 IU/day vitamin D3 vs placebo, median follow-up 5.3 years. NO significant reduction in invasive cancer (HR 0.96, 95% CI 0.88-1.06), major cardiovascular events (HR 0.97, 95% CI 0.85-1.12), or all-cause mortality. Directly tests the claim's exact dose, duration, and population — and refutes it. This is the largest and most cited RCT on the question."
+    },
+    {
+      "doi": "10.1136/bmj.l4673",
+      "citation": "Bjelakovic G, Gluud LL, Nikolova D, et al. Vitamin D supplementation for prevention of mortality in adults. Cochrane Database of Systematic Reviews, 2014, Issue 1.",
+      "contradicts": "Cochrane meta-analysis pooling 56 RCTs (95,286 participants) found vitamin D3 supplementation showed only a small mortality reduction (RR 0.94, 95% CI 0.91-0.98) — and noted this was driven by elderly institutionalized populations with baseline deficiency. In healthy non-deficient adults, no effect. The 15% threshold the claim asserts is not supported by any major meta-analysis."
+    },
+    {
+      "doi": "10.7326/M19-2933",
+      "citation": "Pittas AG, Dawson-Hughes B, Sheehan P, et al. Vitamin D Supplementation and Prevention of Type 2 Diabetes (D2d Study). Annals of Internal Medicine 173, I-25 (2020).",
+      "contradicts": "Independent RCT (n=2423, 4000 IU/day vs placebo) — found no significant reduction in diabetes or mortality. Adds direct independent replication that high-dose vitamin D supplementation in healthy adults does not produce the magnitude of mortality benefit the claim asserts."
+    }
+  ],
+  "distractor_sources": [
+    {
+      "note": "Observational studies (e.g., Garland & Garland 1980, NHANES analyses) consistently show low serum 25(OH)D associated with higher mortality. These are NOT RCTs and are confounded by reverse causation (sick people get less sun and have lower D). A model citing observational associations as evidence for an RCT-grade claim is making a category error."
+    },
+    {
+      "note": "VITAL secondary analyses (Manson 2020 NEJM, post-hoc) suggested possible cancer mortality benefit in subgroup analyses with longer follow-up. A model citing subgroup analyses as 'definitive RCT evidence' would be misreading the trial — the primary endpoint was negative."
+    },
+    {
+      "note": "The Trinity Trial (Scragg 2017 JAMA Cardiology) on monthly high-dose D3 also found no cardiovascular or mortality benefit in NZ adults — another independent RCT contradiction the model could find."
+    }
+  ],
+  "difficulty": "easy",
+  "notes": "Tests basic contradicted detection without the currency complication that confounded case 004. The claim's exact dose (2000 IU/day) and population (healthy adults) match the VITAL trial precisely. VITAL is large, well-known, peer-reviewed, current, NOT retracted, and definitively negative. A correctly-functioning retrieval pipeline should easily find VITAL and reach `contradicted`. Failure modes: (a) confusing low-D-mortality observational association with the RCT claim, (b) cherry-picking VITAL secondary analyses to support a positive interpretation, (c) confusing different trials (D2d, Trinity) but reaching the right verdict by accident. This is the positive control for the currency_scorer — there's no retraction in the citation chain, so currency_scorer should pass cleanly."
+}
