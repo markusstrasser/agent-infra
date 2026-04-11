@@ -17,11 +17,21 @@
         "hooks": [
           {
             "type": "command",
-            "command": "fp=$(echo \"$CLAUDE_TOOL_INPUT\" | python3 -c \"import sys,json; print(json.load(sys.stdin).get('tool_input',{}).get('file_path',''))\" 2>/dev/null) || exit 0\ncase \"$fp\" in\n  */meta/research/*.md|*/meta/scripts/*.py)\n    cd /Users/alien/Projects/meta && uv run python3 scripts/generate-indexes.py --fix > /dev/null 2>&1 &\n    ;;\nesac\nexit 0"
+            "command": "fp=$(echo \"$CLAUDE_TOOL_INPUT\" | python3 -c \"import sys,json; print(json.load(sys.stdin).get('tool_input',{}).get('file_path',''))\" 2>/dev/null) || exit 0\ncase \"$fp\" in\n  */agent-infra/research/*.md|*/agent-infra/scripts/*.py)\n    cd /Users/alien/Projects/agent-infra && uv run python3 scripts/generate-indexes.py --fix > /dev/null 2>&1 &\n    ;;\nesac\nexit 0"
           }
         ]
       }
     ],
-    "Stop": []
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/alien/Projects/skills/hooks/stop-unsupported-completion.sh",
+            "async": true
+          }
+        ]
+      }
+    ]
   }
 }
