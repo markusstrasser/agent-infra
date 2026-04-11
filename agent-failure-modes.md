@@ -306,6 +306,29 @@ The list is not wrong — all those factors are real. But it's not analysis. Ana
 
 ---
 
+### Failure Mode 25: Belief-6 Attribution Errors (FAE / Outcome Bias)
+```
+IF agent reports on task outcome or investigates a failure
+THEN agent claims success without pre-action prediction language (outcome bias),
+     OR attributes failure to external cause without tool-trace evidence (FAE),
+     OR explains outcome via fixed tool/code attributes instead of specific invocation context
+```
+**Source:** Oeberst & Imhoff 2023, *Toward Parsimony in Bias Research* (doi:10.1177/17456916221148147) — belief 6 of the Belief-Consistent Information Processing framework. Cross-model review 2026-04-11 flagged commit-message detection as wrong surface; moved to session-analyst instrumentation. See `research/oeberst-imhoff-bias-framework-audit.md`.
+
+**Why it persists:** Agents have no natural access to their own pre-action expected outcome. When a task "works," the agent lacks a counterfactual ("I expected X, got Y, they agree"). The narrative reconstruction in retros and final summaries defaults to present-tense outcome framing without the temporal structure needed to separate prediction from result. For external attribution: blaming tools/docs/environment is a face-saving move that RLHF-trained models favor because it preserves the "I am helpful" identity.
+
+**Manifestations:**
+- `UNSUPPORTED_OUTCOME_CLAIM` — "fixed", "done", "works", "passes", "deployed" in final message with no cited test/trace/prior-state
+- `EXTERNAL_ATTRIBUTION_WITHOUT_TRACE` — "the test was flaky", "docs are wrong", "environment issue" without snippet evidence
+- `DISPOSITION_OVER_CONTEXT` — "the API is broken" when the agent's own request was malformed
+
+**Mitigation:**
+- Instrumentation first: session-analyst detects these labels (added 2026-04-11) and emits findings to `artifacts/session-retro/`. Measure base rate for ≥2 sessions before promoting to preventive hook.
+- Structural: `decisions/.template.md` now requires a `## Counterevidence sought` section — converts belief-2 "consider the opposite" from instruction to required document field.
+- Do NOT enforce at commit-message surface. Commit messages are pre-hoc authorial documentation, not post-hoc reasoning. Belief 6 manifests at Stop/retro/analyst surfaces.
+
+---
+
 ### Failure Mode 24: Tool Retry Without Diagnosis
 ```
 IF external tool/API call fails
