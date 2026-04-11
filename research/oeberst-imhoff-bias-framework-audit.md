@@ -100,13 +100,38 @@ Gaps that are NOT worth building:
 
 ## Revisions
 
-*None yet.*
+### 2026-04-11 — Cross-model review + execution
+
+Ran `/review model` on the initial plan (`.model-review/2026-04-11-bias-tooling-plan-4ba85d/`). Gemini 3.1 Pro + GPT-5.4 high converged on several sharp critiques that forced a plan rewrite before any code was written. Core lessons:
+
+1. **Original Tier 1.1 (outcome-bias check in `commit-check-parse.py`) was construct-invalid.** Cross-model agreement: commit messages are pre-hoc authorial documentation; FAE and outcome bias are post-hoc reasoning errors. The regex would detect short commit style, not bias. GPT-5.4 quantified plausible PPV at 8–45%. Rejected before implementation.
+
+2. **Original Tier 1.2 (`/consider-opposite` as standalone skill) had a skill-recursion failure.** Invocation depended on the agent noticing it should consider the opposite — the exact meta-cognition the skill was supposed to supply. Converted to required `## Counterevidence sought` section in `decisions/.template.md` (committed e23bd1c) — a deterministic caller (the template) replaces the self-referential vibes.
+
+3. **Correct surface for belief-6 is Stop/retro/session-analyst, not commit-message parsing.** Both reviewers agreed. Plan rewritten to: (a) session-analyst taxonomy labels (commit 097553e), (b) `FM25: Belief-6 Attribution Errors` added to `agent-failure-modes.md` (e5a53d3), (c) `stop-unsupported-completion.sh` shadow-mode hook at the Stop surface (skills@c0b3f71 + meta settings bc51cb5).
+
+4. **Tier 1 didn't touch primary failure modes.** My initial framing optimized for "where coverage is thinnest" (belief 6) when the right objective is "where marginal hook dollars reduce measured recurring failures" (belief 3 territory, despite already being the strongest-covered). Framing error on my part — the Stop-surface hook is closer to the 11.8% premature-termination recurrence than any commit hook would have been.
+
+5. **Self-invented probe gate ("3 real cases in 90 days") contradicted Constitution Principle 6's "2+ sessions" rule.** Dropped — use the constitutional rule consistently.
+
+6. **`selection-rationale.md` was vaporware.** Both review models referenced it as if it existed. Neither verified. I didn't verify either until execution probe. The constitution names it as a pattern but there is no template file — `decisions/.template.md` is the real artifact. Lesson: cross-model review can converge on a hallucinated target if the source text exists. Verify existence of named files before adopting recommendations.
+
+7. **Deferred: cross-model drift verifier on governance-file edits.** Both reviewers endorsed this, but my `improvement-log.md` grep for "agent edited CLAUDE.md/GOALS.md in ways that drifted from intent" found zero incidents. Rule 1 (does this already exist / has this problem occurred) says: no incident history → hypothetical → don't build. Added to `ideas.md` as a watch item — build if ≥2 sessions of confirmed governance drift recur.
+
+8. **Multi-agent commit hygiene failure.** During execution, commit `bc51cb5` swept up an unrelated `meta → agent-infra` path rename from another active agent-infra session's uncommitted working tree. Amended with disclosure. Lesson: `git diff --staged` before committing when `pgrep -c claude >= 2`, not just `git status`.
+
+Execution artifacts:
+- `e23bd1c` decisions template counterevidence section
+- `097553e` session-analyst belief-6 detection labels
+- `e5a53d3` agent-failure-modes FM25 (belief-6)
+- `bc51cb5` meta settings.json Stop chain wiring
+- `~/Projects/skills/hooks@c0b3f71` the shadow hook itself
 
 <!-- knowledge-index
-generated: 2026-04-11T19:07:52Z
-hash: f2e58b6c6f94
+generated: 2026-04-11T19:34:51Z
+hash: 6302fb93ce78
 
 title: Oeberst & Imhoff Bias Framework — Coverage Audit of Agent Tooling
-cross_refs: research/compiled/agent-scaffolding-safety.md, research/domain-specific-agent-biases.md
+cross_refs: decisions/.template.md, research/compiled/agent-scaffolding-safety.md, research/domain-specific-agent-biases.md
 
 end-knowledge-index -->
