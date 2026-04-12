@@ -39,12 +39,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
-# Make sibling imports resolve the same way inspect_ai's task loader does.
-THIS_DIR = str(Path(__file__).resolve().parent)
-if THIS_DIR not in sys.path:
-    sys.path.insert(0, THIS_DIR)
-
-from process_metrics import joint_success_per_sample  # noqa: E402
+from claim_bench.process_metrics import joint_success_per_sample
 
 # Decision grade thresholds. These are deliberately conservative —
 # bench-grade conclusions need ≥30 cases per gold class with consistent

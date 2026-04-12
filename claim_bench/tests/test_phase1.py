@@ -17,27 +17,19 @@ Run:
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 
-# Add this directory to sys.path so sibling imports (scorer, tools) resolve
-# the same way inspect_ai's task loader does.
-THIS_DIR = str(Path(__file__).resolve().parent)
-if THIS_DIR not in sys.path:
-    sys.path.insert(0, THIS_DIR)
-
-import tools  # noqa: E402
-from scorer import (  # noqa: E402
+import claim_bench.tools as tools
+from claim_bench.scorer import (
     _extract_verdict,
     _format_tool_trace,
     _normalize,
     _parse_groundedness_verdict,
 )
-from tools import _check_budget, _format_result, exa_call_count  # noqa: E402
+from claim_bench.tools import _check_budget, _format_result, exa_call_count
 
 
 # ---------- _normalize ----------
@@ -284,7 +276,7 @@ def test_gemini_to_google_key_bridge_in_scorer_module() -> None:
     try:
         _os.environ.pop("GOOGLE_API_KEY", None)
         _os.environ["GEMINI_API_KEY"] = "test-sentinel-value"
-        import scorer as scorer_mod  # noqa: F401
+        import claim_bench.scorer as scorer_mod  # noqa: F401
 
         importlib.reload(scorer_mod)
         assert _os.environ.get("GOOGLE_API_KEY") == "test-sentinel-value"

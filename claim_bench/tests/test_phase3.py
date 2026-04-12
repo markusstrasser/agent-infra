@@ -16,16 +16,9 @@ Run:
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import pytest
 
-THIS_DIR = str(Path(__file__).resolve().parent)
-if THIS_DIR not in sys.path:
-    sys.path.insert(0, THIS_DIR)
-
-from atomic_claim import (  # noqa: E402
+from claim_bench.atomic_claim import (
     _compute_p_r_f1,
     _gold_text_from_metadata,
     _parse_claim_list,

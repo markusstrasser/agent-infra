@@ -44,18 +44,17 @@ from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
 from inspect_ai.solver import generate, system_message, use_tools
 
-# Local imports — siblings of this file
-from atomic_claim import atomic_claim_scorer
-from process_metrics import (
+from claim_bench.atomic_claim import atomic_claim_scorer
+from claim_bench.process_metrics import (
     calibration_scorer,
     currency_scorer,
     retrieval_attempted_scorer,
     trace_faithfulness_scorer,
 )
-from scorer import groundedness_scorer, verdict_enum_scorer
-from tools import exa_search
+from claim_bench.scorer import groundedness_scorer, verdict_enum_scorer
+from claim_bench.tools import exa_search
 
-CASES_DIR = Path(__file__).resolve().parent / "cases"
+CASES_DIR = Path(__file__).resolve().parent.parent.parent / "cases"
 
 VERDICT_PROMPT = """You are a claim verification system. Your job is to classify a factual claim into exactly one of these five verdicts:
 

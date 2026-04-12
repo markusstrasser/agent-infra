@@ -43,7 +43,7 @@ from inspect_ai.solver import TaskState
 # Reuse Phase 1 helpers from scorer.py rather than duplicating them. This
 # keeps the verdict-extraction surface in one place — if scorer.py grows a
 # new format handler, calibration_scorer picks it up automatically.
-from scorer import _extract_verdict, _normalize
+from claim_bench.scorer import _extract_verdict, _normalize
 
 
 # ─── DOI / URL extraction helpers ────────────────────────────────────────────

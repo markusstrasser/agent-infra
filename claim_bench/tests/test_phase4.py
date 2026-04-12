@@ -16,17 +16,11 @@ Run:
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-THIS_DIR = str(Path(__file__).resolve().parent)
-if THIS_DIR not in sys.path:
-    sys.path.insert(0, THIS_DIR)
-
-from cards import (  # noqa: E402
+from claim_bench.cards import (
     _ci95_from_values,
     _safe_value,
     derive_adequacy_card,

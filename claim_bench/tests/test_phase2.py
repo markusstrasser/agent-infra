@@ -20,16 +20,9 @@ Run:
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import pytest
 
-THIS_DIR = str(Path(__file__).resolve().parent)
-if THIS_DIR not in sys.path:
-    sys.path.insert(0, THIS_DIR)
-
-from process_metrics import (  # noqa: E402
+from claim_bench.process_metrics import (
     _classify_hedge,
     _classify_url,
     _extract_dois_from_text,

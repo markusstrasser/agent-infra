@@ -1,0 +1,19 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "claim-bench"
+version = "0.1.0"
+description = "Cross-project claim verification core"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2",
+    "inspect-ai",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/claim_bench"]
