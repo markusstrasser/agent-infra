@@ -297,6 +297,47 @@ def test_gold_text_empty_for_missing_metadata() -> None:
     assert _gold_text_from_metadata({"gold_sources": []}) == ""
 
 
+# ─── importance-weighted recall (G.6, v2.2) ─────────────────────────────────
+
+
+def test_importance_weighted_recall_uniform() -> None:
+    """Uniform weights should produce the same result as unweighted."""
+    set_a = ["SUPPORTED", "NEW"]
+    set_b = ["FOUND", "MISSED", "FOUND"]
+    p1, r1, f1_1 = _compute_p_r_f1(set_a, set_b, 2, 3)
+    p2, r2, f1_2 = _compute_p_r_f1(set_a, set_b, 2, 3, importance_weights=[1.0, 1.0, 1.0])
+    assert p1 == p2
+    assert abs(r1 - r2) < 1e-9
+    assert abs(f1_1 - f1_2) < 1e-9
+
+
+def test_importance_weighted_recall_heavy_found() -> None:
+    """When found claims have high weight, recall increases."""
+    set_b = ["FOUND", "MISSED"]
+    # Unweighted: 1/2 = 0.5
+    _, r_unweighted, _ = _compute_p_r_f1(["SUPPORTED"], set_b, 1, 2)
+    assert abs(r_unweighted - 0.5) < 1e-9
+    # Weighted: FOUND has weight 0.9, MISSED has weight 0.1 → 0.9/1.0 = 0.9
+    _, r_weighted, _ = _compute_p_r_f1(["SUPPORTED"], set_b, 1, 2, importance_weights=[0.9, 0.1])
+    assert abs(r_weighted - 0.9) < 1e-9
+
+
+def test_importance_weighted_recall_heavy_missed() -> None:
+    """When missed claims have high weight, recall decreases."""
+    set_b = ["FOUND", "MISSED"]
+    # Weighted: FOUND has weight 0.1, MISSED has weight 0.9 → 0.1/1.0 = 0.1
+    _, r_weighted, _ = _compute_p_r_f1(["SUPPORTED"], set_b, 1, 2, importance_weights=[0.1, 0.9])
+    assert abs(r_weighted - 0.1) < 1e-9
+
+
+def test_importance_weighted_none_means_uniform() -> None:
+    """importance_weights=None falls back to uniform."""
+    set_b = ["FOUND", "MISSED"]
+    _, r1, _ = _compute_p_r_f1(["SUPPORTED"], set_b, 1, 2)
+    _, r2, _ = _compute_p_r_f1(["SUPPORTED"], set_b, 1, 2, importance_weights=None)
+    assert r1 == r2
+
+
 def test_gold_text_skips_non_dict_entries() -> None:
     """Defensive: case JSON might have a string in the sources array."""
     metadata = {"gold_sources": ["not a dict", {"supports": "real claim"}]}

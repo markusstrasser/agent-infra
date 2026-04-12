@@ -167,7 +167,11 @@ def _parse_match_result(
 
 
 def _compute_p_r_f1(
-    set_a: list[str], set_b: list[str], n_a: int, n_b: int
+    set_a: list[str],
+    set_b: list[str],
+    n_a: int,
+    n_b: int,
+    importance_weights: list[float] | None = None,
 ) -> tuple[float, float, float]:
     """Compute Precision, Recall, F1 from match labels.
 
@@ -177,13 +181,28 @@ def _compute_p_r_f1(
                                                  model recovered)
     F1        = harmonic mean
 
+    If importance_weights is provided (per gold claim), recall uses weighted
+    formula: Rec_w = Σ w_k · 1[y_k=FOUND] / Σ w_k (per Jafari et al.
+    arXiv:2604.03141 §3.4). Precision stays uniform.
+
     Edge cases: 0 model claims → P=0; 0 gold claims → R=undefined,
     treated as 0 to avoid division noise.
     """
     n_supported = sum(1 for x in set_a if x == "SUPPORTED")
     n_found = sum(1 for x in set_b if x == "FOUND")
     precision = n_supported / n_a if n_a > 0 else 0.0
-    recall = n_found / n_b if n_b > 0 else 0.0
+
+    if importance_weights and len(importance_weights) == len(set_b):
+        total_w = sum(importance_weights)
+        if total_w > 0:
+            recall = sum(
+                w for w, label in zip(importance_weights, set_b) if label == "FOUND"
+            ) / total_w
+        else:
+            recall = 0.0
+    else:
+        recall = n_found / n_b if n_b > 0 else 0.0
+
     if precision + recall <= 0:
         f1 = 0.0
     else:
