@@ -1,0 +1,46 @@
+{
+  "domain": "causal",
+  "tier_criteria": {
+    "0": {
+      "name": "Not assessed",
+      "description": "Claimed but no evidence evaluation performed"
+    },
+    "1": {
+      "name": "Low evidence",
+      "description": "Single observational study or mechanistic reasoning only",
+      "upgrade_from_0": "At least one peer-reviewed study found",
+      "downgrade_from_2": "Key study retracted, or major replication failure"
+    },
+    "2": {
+      "name": "Moderate evidence",
+      "description": "Multiple concordant studies or single well-conducted RCT",
+      "upgrade_from_1": "Second independent study confirms, or RCT published",
+      "downgrade_from_3": "New meta-analysis shows inconsistency"
+    },
+    "3": {
+      "name": "Strong evidence",
+      "description": "Meta-analysis of RCTs or consistent cross-type evidence",
+      "upgrade_from_2": "Systematic review or meta-analysis with consistent results"
+    }
+  },
+  "grade_upgrade_criteria": [
+    "large_effect_size",
+    "dose_response",
+    "confounders_reduce_effect"
+  ],
+  "grade_downgrade_criteria": [
+    "risk_of_bias",
+    "inconsistency",
+    "indirectness",
+    "imprecision"
+  ],
+  "staleness_signals": [
+    "new_meta_analysis",
+    "landmark_rct_contradicts",
+    "cochrane_review_updated"
+  ],
+  "verification_mechanism": "literature_search",
+  "cadence": {
+    "literature_scan": 90
+  }
+}
