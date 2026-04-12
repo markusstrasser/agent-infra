@@ -13,7 +13,7 @@ They cannot be overridden by task context, user shortcuts, or implicit authoriza
 
 ## Pipeline Approval Gates
 
-- Cross-project execute steps auto-require approval
+- Cross-project execute steps auto-require approval when not already explicitly approved by the user for the current task
 - Any step with `requires_approval: true` must be approved before execution
 - Daily cost cap: $25. Do not circumvent.
 

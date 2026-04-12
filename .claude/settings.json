@@ -13,6 +13,15 @@
     ],
     "PostToolUse": [
       {
+        "matcher": "mcp__research__fetch_paper|mcp__research__get_paper",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /Users/alien/Projects/agent-infra && uv run python3 scripts/posttool-paper-quality.py"
+          }
+        ]
+      },
+      {
         "matcher": "Write|Edit",
         "hooks": [
           {

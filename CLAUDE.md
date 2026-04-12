@@ -21,7 +21,7 @@ uv run python3 scripts/sessions.py search <query>  # FTS5 session search
 - `GOALS.md` — what the system optimizes for (human-owned)
 - `justfile` — task runner. `just --list` for all recipes.
 - `improvement-log.md` — `/observe sessions` appends findings here
-- `meta_infra_mcp.py` — cross-project research search (scopes: all, hooks, failures, research, architecture, health, genomics, genes)
+- `agent_infra_mcp.py` — cross-project knowledge search (scopes: all, hooks, failures, research, architecture, health, genomics, genes)
 - Scripts: see `.claude/rules/codebase-map.md` for full inventory
 
 ## Research Index
@@ -60,6 +60,7 @@ Error correction per session is the secondary constraint: autonomy only increase
 - **Autonomous:** affects only meta's files, easily reversible, one clear approach, no other project changes
 - **Propose and wait:** touches shared infrastructure, multiple viable approaches, affects other projects, deletes/restructures architecture
 - **Always human-approved:** this Constitution section, GOALS.md
+These are autonomy boundaries for self-directed changes. They do not restrict explicit user-directed work across projects once the user has approved it.
 
 **5. Divergence budget by uncertainty × irreversibility.** Not every task needs exploration. Routine implementation, bug fixes, and tasks with one correct answer should converge fast. But when both uncertainty (unclear right approach) AND irreversibility (costly wrong move) are high, extend the divergent phase:
 - **low uncertainty, low irreversibility** → converge fast, no exploration needed
@@ -88,6 +89,8 @@ These can be sections in a plan file, a research memo, or standalone. The point:
 **12. Cross-model review for non-trivial decisions.** Same-model review is a martingale. Cross-model provides real adversarial pressure. Required for multi-project or shared infrastructure changes. **Dispatch on proposals, not open questions** — critique is sharper than brainstorming. When model review disagrees with user's expressed preference, surface the disagreement and let the user decide.
 
 **13. The git log is the learning.** Every correction is a commit. The error-correction ledger is the moat. Commits touching governance files (CLAUDE.md, MEMORY.md, improvement-log, hooks) require evidence trailers.
+
+**14. Breaking refactors by default.** For architecture, review, and improvement work, assume the target state is a full migration unless the user explicitly names a compatibility boundary that must stay live. Prefer delete-and-replace over adapters, wrappers, dual reads/writes, fallback paths, and transitional shims. If compatibility is truly required, name the live boundary, why it still exists, and the removal condition; otherwise treat compatibility scaffolding as design noise.
 
 ### Autonomy Boundaries
 
@@ -121,6 +124,7 @@ How to verify this constitution is working (check via `/observe sessions` after 
 2. **Hooks fire on high-frequency failures.** Deployed hooks (bash-loop-guard, spinning-detector, failure-loop) should reduce repeated tool failures. Test: ≥50% reduction in ≥5-bash-failure-streaks vs pre-deployment baseline.
 3. **Research produces architecture, not documents.** Research sessions should result in hooks, skills, or code — not just memos. Test: ≥50% of research findings in improvement-log have "implemented" status within 30 days.
 4. **Model review surfaces disagreements.** When cross-model review disagrees with a stated preference, the synthesis explicitly flags it. Test: zero instances of silently overriding user preference in review artifacts.
+5. **Architecture work stops inventing compatibility cruft.** Review packets and plans should not recommend wrappers, dual paths, or fallback layers unless they name a specific live external boundary. Test: zero accepted architecture/review artifacts in 14 days with unnamed compatibility scaffolding.
 </constitution>
 
 ## Execution Model
