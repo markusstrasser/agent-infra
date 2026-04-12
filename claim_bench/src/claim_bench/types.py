@@ -66,8 +66,14 @@ def _compute_event_id(
     source_refs: tuple[str, ...],
     parent_event_ids: tuple[str, ...],
     payload: dict[str, Any],
+    observed_date: str = "",
 ) -> str:
-    """Content-hash event identity — NO timestamp, retry-safe."""
+    """Content-hash event identity — date-granular, retry-safe.
+
+    Includes observed_at.date() so within-day retries dedup but later
+    re-verifications (different day) create new events. Without this,
+    successful periodic renewals get silently dropped by dedup.
+    """
     parts = [
         claim_id,
         verifier_name,
@@ -78,6 +84,7 @@ def _compute_event_id(
         json.dumps(sorted(source_refs), separators=(",", ":")),
         json.dumps(sorted(parent_event_ids), separators=(",", ":")),
         json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str),
+        observed_date,
     ]
     return hashlib.sha256("|".join(parts).encode()).hexdigest()
 
@@ -134,11 +141,12 @@ class VerificationEvent(BaseModel):
         payload: dict[str, Any] | None = None,
         ttl_days: int | None = None,
     ) -> VerificationEvent:
-        """Factory that computes event_id from content hash."""
+        """Factory that computes event_id from content hash (date-granular)."""
         _payload = payload or {}
         eid = _compute_event_id(
             claim_id, verifier_name, event_type, evidence_modality,
             authority_class, level, source_refs, parent_event_ids, _payload,
+            observed_date=observed_at.date().isoformat(),
         )
         return cls(
             event_id=eid,

@@ -122,11 +122,18 @@ class TestVerificationEvent:
                 observed_at=NOW, unknown_field="oops",
             )
 
-    def test_event_id_determinism(self):
-        """Same semantic event at two different observed_at times produces same event_id."""
+    def test_event_id_determinism_same_day(self):
+        """Same semantic event at different times SAME DAY produces same event_id (retry-safe)."""
         evt1 = _make_event(observed_at=NOW)
-        evt2 = _make_event(observed_at=LATER)
+        evt2 = _make_event(observed_at=LATER)  # same day, different hour
         assert evt1.event_id == evt2.event_id
+
+    def test_event_id_differs_on_different_day(self):
+        """Same semantic event on DIFFERENT DAYS produces different event_ids (renewal tracking)."""
+        evt1 = _make_event(observed_at=NOW)
+        next_day = datetime(2026, 4, 12, 12, 0, 0, tzinfo=timezone.utc)
+        evt2 = _make_event(observed_at=next_day)
+        assert evt1.event_id != evt2.event_id
 
     def test_event_id_differs_on_content(self):
         evt1 = _make_event(claim_id="a")
