@@ -242,3 +242,14 @@ class TestComputeEventId:
         id1 = _compute_event_id(payload={"a": 1, "b": 2}, **args)
         id2 = _compute_event_id(payload={"b": 2, "a": 1}, **args)
         assert id1 == id2
+
+    def test_sorted_nested_payload(self):
+        """Nested dict key order doesn't affect event_id (Gemini review finding)."""
+        args = dict(
+            claim_id="c", verifier_name="v", event_type=EventType.VERIFIED,
+            evidence_modality="db", authority_class="tool", level=1,
+            source_refs=(), parent_event_ids=(),
+        )
+        id1 = _compute_event_id(payload={"outer": {"z": 1, "a": 2}, "top": "v"}, **args)
+        id2 = _compute_event_id(payload={"top": "v", "outer": {"a": 2, "z": 1}}, **args)
+        assert id1 == id2

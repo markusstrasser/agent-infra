@@ -77,7 +77,7 @@ def _compute_event_id(
         str(level),
         json.dumps(sorted(source_refs), separators=(",", ":")),
         json.dumps(sorted(parent_event_ids), separators=(",", ":")),
-        json.dumps(sorted(payload.items()), separators=(",", ":"), default=str),
+        json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str),
     ]
     return hashlib.sha256("|".join(parts).encode()).hexdigest()
 
