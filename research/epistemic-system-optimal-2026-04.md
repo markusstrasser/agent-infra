@@ -124,22 +124,53 @@ verified yet. [SOURCE: knowledge-accrual-architecture.md]
 
 ---
 
-## 3. The Universal Framework: Three Concepts
+## 3. The Universal Framework: Four Concepts
 
-### Concept 1: Confidence Tier
+### Concept 1: Status + Confidence Tier (two orthogonal dimensions)
 
-Every claim carries a single confidence tier (0-3). The tier is UNIVERSAL — all domains use
-the same scale. The CRITERIA for reaching each tier are domain-specific.
+Every claim carries TWO fields: a **status** (what epistemic state is this claim in?) and a
+**confidence tier** (how strong is the evidence?). These are orthogonal — a claim can be
+`verified` at tier 1 or tier 3; a claim can be `refuted` regardless of its prior tier.
+
+**Status** (lifecycle state):
+
+| Status | Meaning | Agent behavior |
+|--------|---------|----------------|
+| `unknown` | Not yet assessed — no verification attempted | Treat as untrusted |
+| `asserted` | Claimed but without supporting evidence | Treat as hypothesis |
+| `verified` | Evidence supports the claim | Trust per tier level |
+| `refuted` | Evidence actively contradicts the claim | Do not use; flag for removal |
+| `no_guideline` | No authoritative guidance exists (pharmacy domain) | Note gap; do not invent |
+
+**Confidence tier** (evidence strength, meaningful only when status=`verified`):
 
 | Tier | Name | Universal meaning | What changes agent behavior |
 |------|------|-------------------|---------------------------|
-| **0** | **Unverified** | No evidence beyond initial assertion | Warn on every use |
+| **0** | **Unverified** | Verified but no independent check yet | Warn on every use |
 | **1** | **Single-source** | One verifier confirmed | Warn if stale (past TTL) |
 | **2** | **Corroborated** | Multiple independent sources agree | Warn only if source reports new data |
 | **3** | **Grounded** | Authoritative reference or expert consensus | Warn only on major upstream event |
 
+**Why two fields:** The v1 memo's T0 conflated "never checked," "evidence of absence,"
+"no guideline exists," and "actively refuted" — four distinct states that require different
+agent behavior. Splitting status from tier resolves this without adding tier levels.
+[SOURCE: GPT-5.4 + Gemini cross-model review, 2026-04-12]
+
+### Concept 1b: Conflict Flag
+
+A boolean `conflict` flag indicates contradictory evidence exists. When `conflict: true`:
+- Promotion to tier 2 or 3 is blocked (can't claim "sources agree" when they disagree)
+- The hook advisory shows the conflict explicitly
+- Resolution requires human review or cross-model verification
+
+**Example:** bio-verify queries gnomAD and ClinVar for a variant's pathogenicity. gnomAD
+classifies as benign (high population frequency), ClinVar has a pathogenic assertion from a
+single submitter. The claim is `status: verified, tier: 1, conflict: true` — not promoted
+to tier 2 despite two sources responding.
+
 Direction matters: the system should track whether confidence is growing or shrinking over
-time. Git history of tier changes IS this trajectory — no separate tracking needed.
+time. Git history of status/tier/conflict changes IS this trajectory — no separate tracking
+needed.
 
 ### Concept 2: Domain Adapter
 
@@ -148,11 +179,16 @@ Each domain defines how claims move between tiers. An adapter specifies:
 ```
 adapter:
   name: string
+  status_transitions:
+    unknown → asserted: [what triggers]
+    asserted → verified: [what triggers]
+    verified → refuted: [what triggers]
+    any → conflict: [what triggers conflict flag]
   tier_criteria:
     0: {description, examples}
     1: {description, upgrade_from_0, downgrade_from_2}
-    2: {description, upgrade_from_1, downgrade_from_3}
-    3: {description, upgrade_from_2}
+    2: {description, upgrade_from_1, downgrade_from_3}  # blocked when conflict=true
+    3: {description, upgrade_from_2}                     # blocked when conflict=true
   staleness_signals: [what triggers re-evaluation]
   verification_mechanism: how claims are checked
   cadence: how often to run scheduled verification
@@ -182,14 +218,16 @@ The agent must encounter claim confidence at point of use. Three delivery mechan
 **Claim shape:** Empirical fact verifiable against authoritative databases.
 **Example:** "rs8176719 has ref allele 'C' at chr9:133257521 (GRCh38)"
 
-**Tier criteria:**
+**Status + tier criteria:**
 
-| Tier | Criteria | Existing data mapping |
-|------|----------|---------------------|
-| 0 | Asserted in config, never verified | Claims with no entry in verification_ledger |
-| 1 | bio-verify confirmed against one API (e.g., myvariant) | `verification_ledger.json` facets with single `method` |
-| 2 | Multiple independent APIs agree (gnomAD + ClinVar + Ensembl) | Multiple facets per rsID with concordant results |
-| 3 | From stable reference (ISBT blood group tables, ACMG SF gene list) or `recency_requirement_days: 0` | Claims already marked as "inherited" verification |
+| Status | Tier | Criteria | Existing data mapping |
+|--------|------|----------|---------------------|
+| `unknown` | — | In config, never checked | Claims with no entry in verification_ledger |
+| `asserted` | 0 | Asserted by agent or config, no verification | Claims with `verification_method: null` |
+| `verified` | 1 | bio-verify confirmed against one API | Facets with single `method` |
+| `verified` | 2 | Multiple independent APIs agree | Multiple concordant facets per rsID |
+| `verified` | 3 | Stable reference or `recency_requirement_days: 0` | "inherited" verification claims |
+| `refuted` | — | bio-verify found contradiction with source | API returns different value than config |
 
 **Staleness signals:** ClinVar monthly release, gnomAD major release, CPIC guideline update.
 
@@ -207,14 +245,16 @@ freshness hook, pgx_evidence_tiers.json (for the PGx subdomain). This domain is 
 wearables, or lab tests.
 **Example:** "User reports chronic fatigue, severity 7/10, onset 2024-06"
 
-**Tier criteria:**
+**Status + tier criteria:**
 
-| Tier | Criteria | Authority mapping |
-|------|----------|------------------|
-| 0 | Unstructured mention in conversation or notes | No authority class |
-| 1 | Structured self-report (logged in phenome system) | `self_reported` |
-| 2 | Corroborated by wearable data or repeated measurements | `wearable` + `self_reported` agree |
-| 3 | Lab test or medical record confirms | `medical_record` or `lab_test` |
+| Status | Tier | Criteria | Authority mapping |
+|--------|------|----------|------------------|
+| `unknown` | — | Unstructured mention, no authority | No authority class |
+| `asserted` | 0 | Structured self-report, not yet corroborated | `self_reported` |
+| `verified` | 1 | Structured self-report logged in system | `self_reported` |
+| `verified` | 2 | Corroborated by wearable or repeated measurements | `wearable` + `self_reported` agree |
+| `verified` | 3 | Lab test or medical record confirms | `medical_record` or `lab_test` |
+| `refuted` | — | New measurement directly contradicts | Any authority class |
 
 **Staleness signals:** New measurement contradicts prior (e.g., fatigue severity dropped from
 7 to 2). Time since last measurement (chronic conditions need periodic re-assessment).
@@ -238,14 +278,16 @@ certain than a self-report alone, regardless of when it was last checked.
 accumulated from studies.
 **Example:** "Mediterranean diet reduces CRP by ~30% (effect size from meta-analysis)"
 
-**Tier criteria (GRADE-aligned):**
+**Status + tier criteria (GRADE-aligned):**
 
-| Tier | GRADE equivalent | Criteria |
-|------|-----------------|----------|
-| 0 | Not assessed | Claimed but no evidence evaluation performed |
-| 1 | Very Low / Low | Single observational study, or mechanistic reasoning only |
-| 2 | Moderate | Multiple studies agree, or single well-conducted RCT |
-| 3 | High | Meta-analysis of RCTs, or consistent evidence across study types |
+| Status | Tier | GRADE equivalent | Criteria |
+|--------|------|-----------------|----------|
+| `unknown` | — | Not assessed | Claimed but no evidence evaluation performed |
+| `asserted` | 0 | — | Agent asserted from training data, no literature check |
+| `verified` | 1 | Very Low / Low | Single observational study or mechanistic reasoning |
+| `verified` | 2 | Moderate | Multiple studies agree, or single well-conducted RCT |
+| `verified` | 3 | High | Meta-analysis of RCTs, consistent cross-type evidence |
+| `refuted` | — | — | Landmark RCT or meta-analysis contradicts prior evidence |
 
 **Upgrade criteria (from GRADE):**
 - Large effect size (>2x risk ratio) → upgrade one level
@@ -279,14 +321,15 @@ reviews, not ClinVar release checking.
 **Claim shape:** Actionable recommendation derived from evidence + expert consensus.
 **Example:** "CYP2D6 PM: avoid codeine, use non-codeine analgesics (CPIC Level A)"
 
-**Tier criteria:**
+**Status + tier criteria:**
 
-| Tier | Criteria | PGx evidence tier mapping |
-|------|----------|--------------------------|
-| 0 | Claimed drug-gene interaction, no guideline | Not in pgx_evidence_tiers.json |
-| 1 | PharmGKB clinical annotation exists | Tier C (mechanistic/PK only) |
-| 2 | CPIC guideline published | Tier B (meta-analysis/observational) |
-| 3 | CPIC guideline + FDA label agreement | Tier A (RCT-proven) |
+| Status | Tier | Criteria | PGx evidence tier mapping |
+|--------|------|----------|--------------------------|
+| `no_guideline` | — | Claimed interaction, no published guideline | Not in pgx_evidence_tiers.json |
+| `verified` | 1 | PharmGKB clinical annotation exists | Tier C (mechanistic/PK only) |
+| `verified` | 2 | CPIC guideline published | Tier B (meta-analysis/observational) |
+| `verified` | 3 | CPIC guideline + FDA label agreement | Tier A (RCT-proven) |
+| `refuted` | — | Guideline withdrawn or FDA label reversed | Removed from CPIC/PharmGKB |
 
 **Staleness signals:** CPIC publishes new or updated guideline. FDA label change. New RCT
 testing PGx-guided prescribing.
@@ -307,29 +350,44 @@ underlying evidence (though it should know the evidence tier for context).
 
 ## 5. The Evidence Accumulation Model
 
-The four domains share a common evidence flow, just with different instantiations:
+The four domains are NOT a linear pipeline. They form a **convergence DAG** — genomics and
+phenome are parallel data streams that converge at the causal and pharmacy layers.
+[SOURCE: Gemini + GPT-5.4 cross-model review independently flagged the v1 linear hierarchy
+as "topologically incorrect" and "genomics-biased"]
 
 ```
-Observation/Data → Fact → Association → Mechanism → Guideline
-     ↑                                                  ↑
-  (phenome)                                      (pharmacy)
-                    ↑              ↑
-                (genomics)     (causal)
+  Genomics ──────┐
+  (facts)        ├──→ Causal ──────→ Pharmacy/PGx
+  Phenome ───────┘    (associations)  (guidelines)
+  (observations)
 ```
 
-Each domain primarily operates at one level of this hierarchy, but they're connected:
-- Genomic FACTS (variant frequencies, gene coordinates) feed into...
-- CAUSAL claims (CYP2D6 status affects codeine metabolism) which feed into...
-- GUIDELINES (avoid codeine for PMs) which feed into...
-- PHENOME observations (user reports pain relief failure on codeine)
+**Typed dependency relations** between domains:
 
-**Confidence propagation is NOT continuous** — it flows through this hierarchy as discrete tier
-assignments. When a genomic fact is downgraded (gnomAD revises an allele frequency), the
-downstream causal claim and guideline don't automatically change tier. They get flagged for
-re-evaluation. The human/agent decides whether the upstream change affects the downstream claim.
+| Relation | Example |
+|----------|---------|
+| `derived_from` | PGx guideline derived_from causal claim about CYP2D6 |
+| `supports` | Phenome observation (pain relief failure) supports causal claim |
+| `contradicts` | New phenome data contradicts expected drug response |
+| `conditions` | Genomic genotype conditions which pharmacy guideline applies |
+| `reevaluate_if_changed` | If gnomAD allele frequency changes, reevaluate causal claim |
 
-This is the common law pattern: a lower court ruling being overturned doesn't automatically
-overturn all cases that cited it — it flags them for reconsideration.
+**Each domain adapter declares** what it consumes and produces:
+
+| Domain | Consumes | Produces |
+|--------|----------|----------|
+| Genomics | External databases (ClinVar, gnomAD, Ensembl) | Genotypes, variant facts |
+| Phenome | Self-reports, wearables, lab tests | Phenotype observations |
+| Causal | Genotypes + Phenotypes + literature | Associations, mechanisms |
+| Pharmacy/PGx | Genotypes + Associations + guidelines | Actionable recommendations |
+
+**Cross-domain propagation is flag-based, not automatic.** When an upstream claim changes
+status or tier, downstream claims that declare a `reevaluate_if_changed` dependency get
+flagged for re-evaluation. The human/agent decides whether the upstream change affects the
+downstream claim. Downstream tiers do NOT automatically change.
+
+This is the common law stare decisis pattern: a lower court ruling being overturned doesn't
+automatically overturn all cases that cited it — it flags them for reconsideration.
 [SOURCE: knowledge-accrual-architecture.md, stare decisis analysis]
 
 ---
@@ -441,13 +499,18 @@ overturn all cases that cited it — it flags them for reconsideration.
   domain adapter concept (§3), four domain instantiations (§4). Core recommendation unchanged
   (discrete tiers over event sourcing) but framing shifted from "data freshness" to "evidence
   accumulation."
+- **2026-04-12 v3:** Applied 3 findings from Gemini + GPT-5.4 cross-model review:
+  (1) Separated `status` from `confidence_tier` — resolves T0 overloading of 4 distinct
+  epistemic states. (2) Added `conflict` flag that blocks tier promotion when sources disagree.
+  (3) Replaced linear evidence hierarchy with convergence DAG — genomics and phenome are
+  parallel inputs, not sequential stages. All four domain tables updated with status column.
 
 <!-- knowledge-index
-generated: 2026-04-12T21:13:20Z
-hash: aab36f7277d7
+generated: 2026-04-12T21:29:52Z
+hash: 5e0ca26df5df
 
 title: Evidence-Tiered Epistemic Framework for Scientific Agents
 status: complete
-table_claims: 4
+table_claims: 10
 
 end-knowledge-index -->
