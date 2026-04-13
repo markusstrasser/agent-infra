@@ -119,10 +119,10 @@ launchd (every 15 min)
 **Pipeline templates** (`pipelines/*.json`): Define multi-step workflows with variable substitution, approval gates, and scheduling.
 
 **Scheduling agents** (launchd):
-- `com.meta.orchestrator.plist` — tick every 15 min
-- `com.meta.session-retro-daily.plist` — session-retro at 22:00
-- `com.meta.hook-roi-daily.plist` — hook ROI report at 22:30
-- `com.meta.propose-work-daily.plist` — morning brief at 05:00
+- `com.agent-infra.orchestrator.plist` — tick every 15 min
+- `com.agent-infra.session-retro-daily.plist` — session-retro at 22:00
+- `com.agent-infra.hook-roi-daily.plist` — hook ROI report at 22:30
+- `com.agent-infra.propose-work-daily.plist` — morning brief at 05:00
 
 **Constraints**: $25/day cost cap, `fcntl.flock` prevents concurrent ticks, 600s stall timeout, max 3 concurrent tasks per pipeline.
 
@@ -137,7 +137,7 @@ External tool access. Configured per-project in `.mcp.json` (project-scope) and 
 - `perplexity` — Grounded LLM search/reasoning
 - `firecrawl` — Web scraping and extraction
 - `context7` — Library documentation lookup
-- `meta-knowledge` — Section-based search over meta's .md files
+- `agent-infra` — Section-based search over meta, selve, and genomics .md files
 - `repo-tools` — Tiered code navigation (summary, outline, callgraph, imports, deps, changes)
 - `claude-in-chrome` — Browser automation
 - `paper-search` — arXiv/PubMed/bioRxiv search

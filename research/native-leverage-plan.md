@@ -5,7 +5,7 @@ date: 2026-03-21
 
 # Native Leverage Plan: Claude Code Features → Project Infrastructure
 
-> Created: 2026-03-01. Based on claude-code-native-vs-meta-infra.md assessment.
+> Created: 2026-03-01. Based on claude-code-native-vs-agent-infra.md assessment.
 > Scope: intel (primary), selve, genomics, shared skills/hooks.
 
 ## Guiding Principle
@@ -388,7 +388,7 @@ Measure via: session-analyst runs comparing pre/post deployment, manual review o
 
 ---
 
-*Companion doc: `claude-code-native-vs-meta-infra.md` (same directory)*
+*Companion doc: `claude-code-native-vs-agent-infra.md` (same directory)*
 
 <!-- knowledge-index
 generated: 2026-03-22T00:15:44Z

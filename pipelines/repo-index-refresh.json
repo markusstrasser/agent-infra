@@ -1,67 +1,67 @@
 {
   "name": "repo-index-refresh",
   "schedule": "0 6 * * *",
-  "project": "meta",
+  "project": "agent-infra",
   "steps": [
     {
-      "step": "summary-meta",
+      "step": "summary-agent-infra",
       "type": "script",
-      "command": "uv run python3 scripts/repo-summary.py ~/Projects/meta/scripts --refresh --no-llm",
-      "cwd": "~/Projects/meta"
+      "command": "uv run python3 scripts/repo-summary.py ~/Projects/agent-infra/scripts --refresh --no-llm",
+      "cwd": "~/Projects/agent-infra"
     },
     {
       "step": "summary-intel",
       "type": "script",
       "command": "uv run python3 scripts/repo-summary.py ~/Projects/intel/tools --refresh --no-llm --compact",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     },
     {
       "step": "summary-research-mcp",
       "type": "script",
       "command": "uv run python3 scripts/repo-summary.py ~/Projects/research-mcp/src --refresh --no-llm",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     },
     {
       "step": "summary-genomics",
       "type": "script",
       "command": "uv run python3 scripts/repo-summary.py ~/Projects/genomics --refresh --no-llm --compact",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     },
     {
-      "step": "summary-selve",
+      "step": "summary-phenome",
       "type": "script",
-      "command": "uv run python3 scripts/repo-summary.py ~/Projects/selve/scripts --refresh --no-llm && uv run python3 scripts/repo-summary.py ~/Projects/selve/src --refresh --no-llm",
-      "cwd": "~/Projects/meta"
+      "command": "uv run python3 scripts/repo-summary.py ~/Projects/phenome/scripts --refresh --no-llm && uv run python3 scripts/repo-summary.py ~/Projects/phenome/src --refresh --no-llm",
+      "cwd": "~/Projects/agent-infra"
     },
     {
-      "step": "map-meta",
+      "step": "map-agent-infra",
       "type": "script",
-      "command": "uv run python3 scripts/codebase-map.py ~/Projects/meta --source-dirs scripts",
-      "cwd": "~/Projects/meta"
+      "command": "uv run python3 scripts/codebase-map.py ~/Projects/agent-infra --source-dirs scripts",
+      "cwd": "~/Projects/agent-infra"
     },
     {
       "step": "map-intel",
       "type": "script",
       "command": "uv run python3 scripts/codebase-map.py ~/Projects/intel --source-dirs tools,analysis",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     },
     {
       "step": "map-research-mcp",
       "type": "script",
       "command": "uv run python3 scripts/codebase-map.py ~/Projects/research-mcp --source-dirs src",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     },
     {
       "step": "map-genomics",
       "type": "script",
       "command": "uv run python3 scripts/codebase-map.py ~/Projects/genomics --source-dirs scripts",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     },
     {
-      "step": "map-selve",
+      "step": "map-phenome",
       "type": "script",
-      "command": "uv run python3 scripts/codebase-map.py ~/Projects/selve --source-dirs scripts,src",
-      "cwd": "~/Projects/meta"
+      "command": "uv run python3 scripts/codebase-map.py ~/Projects/phenome --source-dirs scripts,src",
+      "cwd": "~/Projects/agent-infra"
     }
   ]
 }

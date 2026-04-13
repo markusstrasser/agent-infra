@@ -1,13 +1,13 @@
 {
   "name": "cross-project-drift",
   "schedule": "0 11 */14 * *",
-  "project": "meta",
+  "project": "agent-infra",
   "steps": [
     {
       "step": "detect-drift",
       "type": "script",
       "command": "uv run python3 scripts/cross-project-drift.py --output artifacts/drift/$(date +%Y-%m-%d).json",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     },
     {
       "step": "write-alerts",
@@ -16,7 +16,7 @@
       "max_budget_usd": 0.50,
       "model": "haiku",
       "effort": "low",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     }
   ]
 }

@@ -83,7 +83,7 @@ This confirms what we see in long sessions: compaction loss, context rot, growin
 
 arXiv:2603.23013 ("Knowledge Access Beats Model Size") and MemMA (Microsoft) both argue that how an agent accesses and manages knowledge matters more than the underlying model's raw capability. SkillRouter (arXiv:2603.22455) addresses the practical problem of routing to the right knowledge/skill as the library grows.
 
-**Implication for meta:** Our investment in structured knowledge access (research-mcp, meta-knowledge MCP, rules files, research index) is directionally correct. The next bottleneck is routing — as skill/rule count grows, the agent needs better selection, not just more knowledge.
+**Implication for meta:** Our investment in structured knowledge access (research-mcp, agent-infra MCP, rules files, research index) is directionally correct. The next bottleneck is routing — as skill/rule count grows, the agent needs better selection, not just more knowledge.
 
 **5. Tool Correctness Is Underinvestigated**
 

@@ -36,7 +36,7 @@ paths:
   hook-telemetry-report.py      Hook telemetry report — reads ~/.claude/hook…  → common
   knowledge-balance-check.py      → config
   mcp_middleware.py             Shared MCP telemetry middleware for meta pro…  → common
-  meta_infra_mcp.py             In-process MCP server exposing meta infrastr…  → common
+  agent_infra_mcp.py             In-process MCP server exposing agent infra…  → common
   model-review.py               Model-review dispatch — context assembly + parallel llm
   orchestrator.py               Orchestrator: cron-driven task runner for Ag…  → common
   overview-trigger-analysis.py  Analyze overview trigger logs across project…  → config

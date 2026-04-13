@@ -1,43 +1,43 @@
 {
   "name": "epistemic-baseline",
   "schedule": "0 9 * * 1",
-  "project": "meta",
+  "project": "agent-infra",
   "steps": [
     {
       "step": "claims-reader",
       "type": "script",
       "command": "uv run python3 scripts/claims-reader.py",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     },
     {
       "step": "pushback-index",
       "type": "script",
       "command": "uv run python3 scripts/pushback-index.py --days 7",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     },
     {
       "step": "trace-faithfulness",
       "type": "script",
       "command": "uv run python3 scripts/trace-faithfulness.py --days 7",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     },
     {
       "step": "compaction-nuance",
       "type": "script",
       "command": "uv run python3 scripts/compaction-nuance.py --days 30",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     },
     {
       "step": "calibration-canary",
       "type": "script",
       "command": "uv run python3 scripts/calibration-canary.py --runs 10",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     },
     {
       "step": "dashboard",
       "type": "script",
       "command": "uv run python3 scripts/dashboard.py --days 7",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     }
   ]
 }

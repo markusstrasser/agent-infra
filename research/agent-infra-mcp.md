@@ -7,7 +7,7 @@ date: 2026-03-01
 
 **Date:** 2026-03-01
 **Status:** Proceed with minimal Option B (measurement gate)
-**Cross-model review:** `.model-review/2026-03-01-meta-knowledge-mcp/`
+**Cross-model review:** `.model-review/2026-03-01-agent-infra-mcp/`
 
 ## Problem
 
@@ -60,20 +60,20 @@ Two distribution mechanisms exist today:
 
 **Build minimal MCP (Option B) with measurement gate.**
 
-- One tool: `search_meta(query, max_tokens=350)`
+- One tool: `search(query, max_tokens=350)`
 - Backed by meta .md files (improvement-log, agent-failure-modes, research/, MEMORY.md sections)
 - Added to each project's .mcp.json
 - Global CLAUDE.md: NO changes (stays ~1,712 tokens)
 - No content migration — purely additive
 - `instructions=` tells agent what meta knows
 
-**Gate:** 4 weeks. If search_meta called <5 times/week across all projects → kill it, the pull pattern has no demand. If called regularly → expand.
+**Gate:** 4 weeks. If search called <5 times/week across all projects → kill it, the pull pattern has no demand. If called regularly → expand.
 
 **Success criteria (from GPT P13-P18, calibrated):**
-1. search_meta called in ≥5 sessions/week (proves demand)
+1. search called in ≥5 sessions/week (proves demand)
 2. p90 response size ≤350 tokens (proves token discipline)
 3. No increase in correction rate (proves no harm)
-4. Median time-to-guidance for meta-knowledge tasks decreases (proves value)
+4. Median time-to-guidance for agent-infra tasks decreases (proves value)
 
 ## What This Does NOT Replace
 

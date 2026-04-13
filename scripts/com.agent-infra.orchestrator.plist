@@ -3,15 +3,15 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.meta.orchestrator</string>
+    <string>com.agent-infra.orchestrator</string>
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
         <string>-c</string>
-        <string>cd /Users/alien/Projects/meta &amp;&amp; uv run python3 scripts/orchestrator.py tick</string>
+        <string>cd /Users/alien/Projects/agent-infra &amp;&amp; uv run python3 scripts/orchestrator.py tick</string>
     </array>
     <key>WorkingDirectory</key>
-    <string>/Users/alien/Projects/meta</string>
+    <string>/Users/alien/Projects/agent-infra</string>
     <key>StartInterval</key>
     <integer>900</integer>
     <key>StandardOutPath</key>

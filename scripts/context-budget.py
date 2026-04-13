@@ -8,7 +8,7 @@ Distinguishes always-loaded vs path-scoped vs on-demand.
 
 Usage:
     uv run python3 scripts/context-budget.py                # current project
-    uv run python3 scripts/context-budget.py ~/Projects/selve
+    uv run python3 scripts/context-budget.py ~/Projects/phenome
     uv run python3 scripts/context-budget.py --compare       # all 3 projects
 """
 
@@ -25,7 +25,7 @@ import yaml
 from common import con
 
 PROJECTS_ROOT = Path.home() / "Projects"
-DEFAULT_PROJECTS = ["meta", "selve", "genomics"]
+DEFAULT_PROJECTS = ["agent-infra", "phenome", "genomics"]
 GLOBAL_CLAUDE_MD = Path.home() / ".claude" / "CLAUDE.md"
 GLOBAL_RULES_DIR = Path.home() / ".claude" / "rules"
 SKILLS_DIR = PROJECTS_ROOT / "skills"
@@ -398,7 +398,7 @@ def print_comparison(projects: list[dict]) -> None:
 def main():
     parser = argparse.ArgumentParser(description="Context budget analyzer")
     parser.add_argument("project", nargs="?", default=".", help="Project path (default: cwd)")
-    parser.add_argument("--compare", action="store_true", help="Compare meta/selve/genomics")
+    parser.add_argument("--compare", action="store_true", help="Compare agent-infra/phenome/genomics")
     args = parser.parse_args()
 
     if args.compare:

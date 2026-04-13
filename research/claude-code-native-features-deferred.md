@@ -10,7 +10,7 @@
 
 **Our current approach:** All 6 MCP servers are local subprocesses spawned via `.mcp.json`. For orchestrator SDK `query()` calls, this means the orchestrator process manages subprocess lifecycles.
 
-**Why defer:** Our MCP servers are all local (research, meta-knowledge, context7, firecrawl, exa, brave-search). The API-level connector is designed for *remote* MCP servers. No benefit until we have a remote server to connect to. If we moved any MCP server to a remote deployment (e.g., research-mcp as a shared service), this would become relevant.
+**Why defer:** Our MCP servers are all local (research, agent-infra, context7, firecrawl, exa, brave-search). The API-level connector is designed for *remote* MCP servers. No benefit until we have a remote server to connect to. If we moved any MCP server to a remote deployment (e.g., research-mcp as a shared service), this would become relevant.
 
 **Trigger to revisit:** When any MCP server needs to be shared across machines or deployed remotely.
 
@@ -23,7 +23,7 @@
 **Why partially defer:** `updatedMCPToolOutput` works NOW for MCP tools. Built-in tool compression (Bash, Read, Grep results) is the bigger win but isn't shipped yet.
 
 **What we could do now:**
-- Build MCP-side result compression for our custom servers (meta-knowledge, research). These return markdown blobs that could be summarized.
+- Build MCP-side result compression for our custom servers (agent-infra, research). These return markdown blobs that could be summarized.
 - Write a PostToolUse hook that uses `updatedMCPToolOutput` to trim verbose MCP results.
 
 **What requires the feature (#32105):**

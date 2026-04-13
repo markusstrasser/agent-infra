@@ -42,7 +42,7 @@ calibration-measurement-practical.md | practical, calibration, min, samples, hed
 causal-reasoning-evidence.md | llm, causal/abductive, reasoning, gaps, rung, collapse, architectural, limits, prompt, fixes, constrained, output
 claude-code-internals.md | claude, code, architecture, docs, community, source, analysis, 2026-03-31, clawd-code, port, 902, ts
 claude-code-native-features-deferred.md | deferred, adoption, items, api, mcp, tool, compression, scoped, tools, agent, teams, --bare
-claude-code-native-vs-meta-infra.md | native, claude, code, features, custom, infrastructure, building, new, hooks/skills, duplicate
+claude-code-native-vs-agent-infra.md | native, claude, code, features, custom, infrastructure, building, new, hooks/skills, duplicate
 code-structure-for-agents.md | repo, formatting, agents, bitter, lesson, test, graph, tools, codexgraph/rig/, one, tool, enough
 coding-agents-long-context-2026-03.md | coding, agents, as, long-context, processors, directory, tree, navigation, via, shell, commands., 88.5
 wiki-vs-flat-for-agents.md | three, independent, findings, retrieval, paradox, cao, agents.md, distraction, effect, gloaguen/eth, -0.5-3, success
@@ -80,7 +80,7 @@ knowledge-representation-paradigms.md | deep-dive, wolfram, cyc, post-mortem, ow
 leverage-survey-2026-03-19.md | datasette, adopt, duckdb, python, lib, polars, scan_ndjson, selectively, ruptures, changepoint, defer, 60
 mcp-protocol-evolution.md | mcp, spec, wg, tracking, tasks, sep-1686, amazon-authored, skills, over, multi, round-trip, task
 meta-harness-deep-dive-2026-03.md | meta-harness, stanford, iris, lab, evolutionary, harness, optimization, via, coding, agent, proposer., diagnosis.
-meta-knowledge-mcp.md | design, memo, meta-knowledge, mcp, server, development
+agent-infra-mcp.md | design, memo, agent-infra, mcp, server, development
 multi-agent-coordination-evidence.md | multi-agent, helps/hurts, 45, threshold, error, amplification, deciding, single, parallelization
 native-leverage-plan.md | implementation, plan, adopting, native, features, hook/skill, work
 negative-space-and-meta-epistemics.md | deep-dive, smithson, taxonomy, presupposition, analysis, pertinent, negatives, replication, crisis, numbers, weather, calibration

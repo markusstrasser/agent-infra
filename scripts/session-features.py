@@ -51,7 +51,7 @@ SEARCH_TOOLS = {
     "mcp__research__search_papers",
     "mcp__research__ask_papers",
     "mcp__research__verify_claim",
-    "mcp__meta-knowledge__search_meta",
+    "mcp__agent-infra__search",
     "mcp__context7__resolve-library-id",
     "mcp__context7__query-docs",
 }

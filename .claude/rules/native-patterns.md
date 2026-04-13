@@ -10,7 +10,7 @@ This table is the default — deviate with a `Native-First:` commit trailer expl
 | Queryable operational state | SQLite views (`scripts/views.sql`) | Python CLI wrappers |
 | Event trigger | launchd WatchPaths, git hooks | Python file watchers |
 | Scheduled execution | launchd plist | Python cron loops |
-| Cross-repo search | `git grep` / `rg` / meta-knowledge MCP | custom search scripts |
+| Cross-repo search | `git grep` / `rg` / agent-infra MCP | custom search scripts |
 | Artifact staging | filesystem path conventions | routing registries |
 | Task orchestration | justfile recipes / orchestrator.py | one-off shell scripts |
 | Process supervision | launchd KeepAlive + TimeOut | Python stall detection |

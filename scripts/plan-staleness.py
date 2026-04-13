@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 PROJECTS_DIR = Path.home() / "Projects"
-PROJECTS = ["meta", "intel", "selve", "genomics", "skills", "research-mcp"]
+PROJECTS = ["agent-infra", "intel", "phenome", "genomics", "skills", "research-mcp"]
 STALE_THRESHOLD = 14  # days
 ARCHIVE_THRESHOLD = 30  # days
 
@@ -62,7 +62,7 @@ def scan_plans() -> list[dict]:
 
 def append_to_maintain(findings: list[dict]) -> None:
     """Append stale plan findings to MAINTAIN.md if it exists."""
-    maintain_path = PROJECTS_DIR / "meta" / "MAINTAIN.md"
+    maintain_path = PROJECTS_DIR / "agent-infra" / "MAINTAIN.md"
     if not maintain_path.exists():
         return
 

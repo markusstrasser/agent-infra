@@ -1,7 +1,7 @@
 {
   "name": "vendor-google",
   "schedule": "0 9 * * 3",
-  "project": "meta",
+  "project": "agent-infra",
   "steps": [
     {
       "step": "scan",
@@ -12,7 +12,7 @@
     },
     {
       "step": "triage",
-      "prompt": "Read .claude/plans/vendor-google-delta.md — focus on ## Handoff.\n\nAssess relevance to our infrastructure: (1) model-review and model-guide skills use Gemini — any capability changes? (2) llmx routes to Gemini — any API changes? (3) code-review-scout uses Gemini free tier — still available? (4) any new features that affect multi-model routing?\n\nIf significant findings, create or update meta/research/google-ai-landscape.md.\nWrite actionable items to .claude/plans/vendor-google-actions.md.\nCommit any research docs with [vendor-scan] prefix.",
+      "prompt": "Read .claude/plans/vendor-google-delta.md — focus on ## Handoff.\n\nAssess relevance to our infrastructure: (1) model-review and model-guide skills use Gemini — any capability changes? (2) llmx routes to Gemini — any API changes? (3) code-review-scout uses Gemini free tier — still available? (4) any new features that affect multi-model routing?\n\nIf significant findings, create or update agent-infra/research/google-ai-landscape.md.\nWrite actionable items to .claude/plans/vendor-google-actions.md.\nCommit any research docs with [vendor-scan] prefix.",
       "max_turns": 10,
       "max_budget_usd": 2.0,
       "model": "sonnet"

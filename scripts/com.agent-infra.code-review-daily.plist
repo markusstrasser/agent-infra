@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.meta.code-review-daily</string>
+    <string>com.agent-infra.code-review-daily</string>
     <key>ProgramArguments</key>
     <array>
         <string>/Users/alien/.local/bin/uv</string>
@@ -12,7 +12,7 @@
         <string>scripts/code-review-schedule.py</string>
     </array>
     <key>WorkingDirectory</key>
-    <string>/Users/alien/Projects/meta</string>
+    <string>/Users/alien/Projects/agent-infra</string>
     <key>StartCalendarInterval</key>
     <dict>
         <key>Hour</key>

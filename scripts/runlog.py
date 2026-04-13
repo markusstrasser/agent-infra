@@ -710,7 +710,7 @@ def _print_rows(rows) -> None:
         print("  ".join(row[column].ljust(widths[column]) for column in columns))
 
 
-DEFAULT_PROJECTS = ["meta", "intel", "selve", "genomics", "skills"]
+DEFAULT_PROJECTS = ["agent-infra", "intel", "phenome", "genomics", "skills"]
 PROJECTS_ROOT = Path.home() / "Projects"
 
 FIX_PATTERNS = re.compile(r"\b(fix|repair|correct|patch|resolve|handle)\b", re.I)

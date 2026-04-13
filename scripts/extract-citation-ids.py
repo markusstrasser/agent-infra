@@ -7,7 +7,7 @@ Useful for auditing "does this claim have a resolvable ID?"
 
 Usage:
     uv run python3 scripts/extract-citation-ids.py
-    uv run python3 scripts/extract-citation-ids.py --target ~/Projects/selve/docs/research
+    uv run python3 scripts/extract-citation-ids.py --target ~/Projects/phenome/docs/research
     uv run python3 scripts/extract-citation-ids.py --target ~/Projects/genomics/docs --output-md artifacts/citations.md
 
 Source: selve/scripts/extract_citation_ids.py

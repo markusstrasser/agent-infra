@@ -30,7 +30,7 @@
     {
       "path": "codex/2026/03/05/rollout-2026-03-05T13-00-00-33333333-3333-3333-3333-333333333333.jsonl",
       "kind": "subagent_mcp",
-      "notes": "mcp__meta-knowledge tool call with session_meta subagent.thread_spawn lineage"
+      "notes": "mcp__agent-infra__search tool call with session_meta subagent.thread_spawn lineage"
     }
   ],
   "gemini": [

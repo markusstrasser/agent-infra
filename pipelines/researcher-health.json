@@ -1,19 +1,19 @@
 {
   "name": "researcher-health",
   "schedule": "weekly",
-  "project": "meta",
+  "project": "agent-infra",
   "steps": [
     {
       "step": "postmortem",
       "type": "script",
       "command": "uv run python3 scripts/researcher-postmortem.py --days 7",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     },
     {
       "step": "analysis",
       "type": "script",
       "command": "uv run python3 scripts/subagent-analysis.py --days 7 --verbose",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     }
   ]
 }

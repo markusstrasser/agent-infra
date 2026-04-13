@@ -13,7 +13,7 @@ Metrics:
 
 Usage:
     uv run python3 scripts/agent_maintainability.py
-    uv run python3 scripts/agent_maintainability.py --repo meta --repo skills
+    uv run python3 scripts/agent_maintainability.py --repo agent-infra --repo skills
     uv run python3 scripts/agent_maintainability.py --format json
 """
 
@@ -42,7 +42,7 @@ AGENT_TRAILER_RE = re.compile(
     re.I | re.M,
 )
 DEFAULT_REPOS = {
-    "meta": Path.home() / "Projects" / "meta",
+    "agent-infra": Path.home() / "Projects" / "agent-infra",
 }
 
 
@@ -84,7 +84,7 @@ class CommitRecord:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--repo", action="append", help="Repo name or absolute path (default: meta)")
+    parser.add_argument("--repo", action="append", help="Repo name or absolute path (default: agent-infra)")
     parser.add_argument("--days", type=int, default=120, help="Lookback window for source commits")
     parser.add_argument(
         "--windows",

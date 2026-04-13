@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Push all relevant repos (selve, genomics, intel, sean, meta, skills)
+# Push all relevant repos (phenome, genomics, intel, sean, agent-infra, skills)
 #
 # Usage: ./scripts/git-push-all.sh [--dry-run|--status]
 
 set -euo pipefail
 
 REPOS=(
-    "$HOME/Projects/selve"
+    "$HOME/Projects/phenome"
     "$HOME/Projects/genomics"
     "$HOME/Projects/intel"
     "$HOME/Projects/sean"
-    "$HOME/Projects/meta"
+    "$HOME/Projects/agent-infra"
     "$HOME/Projects/skills"
 )
 

@@ -13,7 +13,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-SELVE_ROOT = Path.home() / "Projects" / "selve"
+SELVE_ROOT = Path.home() / "Projects" / "phenome"
 RESEARCH_DIR = SELVE_ROOT / "docs" / "research"
 
 
@@ -167,7 +167,7 @@ def main():
 
     if not args.dry_run and missing:
         print(f"\nDone. Added frontmatter to {len(missing)} files.")
-        print("Run: cd ~/Projects/selve && git add -A && git commit -m '[docs] Backfill frontmatter on research memos'")
+        print("Run: cd ~/Projects/phenome && git add -A && git commit -m '[docs] Backfill frontmatter on research memos'")
 
 
 if __name__ == "__main__":

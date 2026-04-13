@@ -45,7 +45,7 @@ hooks, .mcp.json, launchd plists, Python cross-file imports, git log --since=30.
 | skill-validator.py | 2 | 1 | justfile(1), pipelines(1), hooks |
 | repo-imports.py | 1 | 2 | rules(1) |
 | repo-changes.py | 1 | 2 | rules(1) |
-| meta_infra_mcp.py | 1 | 2 | rules(1), imports mcp_middleware |
+| agent_infra_mcp.py | 1 | 2 | rules(1), imports mcp_middleware |
 | prompt-archaeology.py | 1 | 2 | rules(1) |
 | overview-trigger-analysis.py | 1 | 4 | rules(1) |
 | compaction-canary.py | 1 | 1 | CLAUDE.md(1) |
@@ -57,7 +57,7 @@ hooks, .mcp.json, launchd plists, Python cross-file imports, git log --since=30.
 | supervision-kpi.py | 1 | 1 | CLAUDE.md(1) |
 | thesis-challenge.py | 1 | 1 | CLAUDE.md(1) |
 | tool-trajectory.py | 1 | 1 | CLAUDE.md(1) |
-| mcp_middleware.py | 0 | 4 | **imported by** meta_mcp.py + repo_tools_mcp.py (missed by text search) |
+| mcp_middleware.py | 0 | 4 | **imported by** repo_tools_mcp.py + agent_infra_mcp (missed by text search) |
 | codex_dispatch.py | 0 | 1 | recently created, being wired |
 | generate-indexes.py | 0 | 1 | run manually for index generation |
 | overview-usage.py | 0 | 1 | run manually for overview analysis |
@@ -76,7 +76,7 @@ Every 0-ref script has at least 1 commit in the last 30 days:
 
 Plan proposed merging `hook-outcome-correlator.py` (219 lines) + `hook-roi.py` (179 lines)
 → `hook-telemetry-report.py` (132 lines). **Not recommended:**
-- `hook-roi.py` is called by launchd plist `com.meta.hook-roi-daily.plist`
+- `hook-roi.py` is called by launchd plist `com.agent-infra.hook-roi-daily.plist`
 - Combined size is 530 lines, not "tiny" as plan assumed
 - Each script has distinct purpose and callers
 - Merge would require updating launchd plist + testing daily job

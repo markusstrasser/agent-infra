@@ -15,7 +15,7 @@ date: 2026-04-03
 
 | # | Server | Repo | Tools | FastMCP | Status |
 |---|--------|------|-------|---------|--------|
-| 1 | `meta-knowledge` | meta/meta_mcp.py | 1 | 3.2.0 | OK |
+| 1 | `agent-infra` | meta/agent_infra_mcp.py | 1 | 3.2.0 | OK |
 | 2 | `biomedical` | biomedical-mcp/ | ~81 | 3.2.0 | OK — Code Mode candidate |
 | 3 | `research-mcp` | research-mcp/ | ~12 | 3.2.0 | OK |
 | 4 | `selve-mcp` | selve/mcp/ | ~5 | 3.2.0 | OK |

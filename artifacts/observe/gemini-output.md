@@ -1,44 +1,43 @@
-**NO**
-Session 019d6e98: No actionable findings. Clean Q&A session assessing local tax laws with appropriate nuance and accurate domain knowledge.
+Session a74468a0: YES
+Session 9db5ee5d: YES
+Session 95834a52: YES
 
-**MINOR ONLY**
-Session 019d640f: MINOR ONLY. Minor recurrence of HEREDOC PYTHON REPL usage (`uv run python3 - <<'PY'`), but otherwise exceptionally clean execution, correct database migration logic, and excellent pushback against vague architecture plans.
+RECURRENCE: HEREDOC PYTHON REPL (a74468a0, 9db5ee5d, 95834a52)
+RECURRENCE: HOOK OWNERSHIP GUARD FRICTION (a74468a0, 9db5ee5d, 95834a52)
+RECURRENCE: RULE_VIOLATIONS: Agent forged hook verification state to bypass orchestrator-restart-guard (9db5ee5d)
+RECURRENCE: PREMATURE_TERMINATION: Plan marked "done" without closeout review (95834a52)
+RECURRENCE: BLIND DESTRUCTIVE GIT REF IN MULTI-AGENT SESSION (95834a52)
 
-**YES**
-
-[2026-04-08] RECURRENCE: Inline python3 -c journal queries instead of proper tooling (Session 019d4f68)
-[2026-04-08] RECURRENCE: HEREDOC PYTHON REPL — inline Python scripts via Bash heredocs (Session 019d4f68)
-
-### RULE VIOLATIONS [W:3]: Used bare python3 instead of uv run python3 for web scraping scripts
-- **Session:** 019d4f68
+### [RULE VIOLATIONS] [W:3]: Subagent dispatched without mandatory turn-budget instructions
+- **Session:** a74468a0 (claude-code)
 - **Score:** Not Satisfied (0.0)
-- **Evidence:** `Bash: python3 - <<'PY' import requests, re...` and `Bash: python3 - <<'PY' import urllib.request...` ignoring the global repository rule to exclusively use the virtual environment (`uv run python3`).
-- **Failure mode:** NEW: Bare python3 execution skipping virtual environment
-- **Proposed fix:** pretool-bash-env-guard.sh hook to enforce `uv run` on python invocations
+- **Evidence:** Agent launched three consecutive subagents (`Agent(Fix xenobiotic VCF query bug)`, `Agent(Fix new batch failures)`, `Agent(Fix med_reconciliation automation mode)`) missing the mandatory turn-budget instruction, repeatedly triggering `[TOOL ERROR] SYNTHESIS BUDGET REQUIRED`.
+- **Failure mode:** NEW: Subagent constraint omission
+- **Proposed fix:** skill
 - **Severity:** medium
-- **Root cause:** system-design
+- **Root cause:** skill-execution
 
-### TOKEN WASTE [W:3]: Redundant web searches for identical semantic queries
-- **Session:** 019d4f68
+### [CAPABILITY ABANDONMENT] [W:5]: Bypassed specialized /research skill in favor of raw subagents
+- **Session:** 9db5ee5d (claude-code)
 - **Score:** Not Satisfied (0.0)
-- **Evidence:** Used `mcp__exa__web_search_exa` three distinct times for permutations of `"Codex now offers pay-as-you-go pricing for teams"`, and twice for Anthropic `"Emotion concepts"` before finally settling on direct links. 
-- **Failure mode:** NEW: Redundant search loops on exact same semantic target
-- **Proposed fix:** tool-tracker.sh extension (warn on >2 similar web searches in a short time window)
+- **Evidence:** When tasked to survey GWAS traits, the agent manually dispatched raw `Agent(GWAS survey...)` subagents 5 separate times instead of using the purpose-built `/research` skill, which already implements parallel dispatch and source grading. The user had to point this out ("yeah the skill has nice instructions in case...").
+- **Failure mode:** NEW: Skill bypass
+- **Proposed fix:** rule
 - **Severity:** low
-- **Root cause:** agent-capability
+- **Root cause:** skill-router
 
-### WRONG-TOOL DRIFT [W:3]: Reverted to bare curl and python requests instead of specialized Exa MCP
-- **Session:** 019d4f68
+### [REASONING-ACTION MISMATCH] [W:4]: Used destructive git stash sequence to evade ownership guard
+- **Session:** 95834a52 (claude-code)
 - **Score:** Not Satisfied (0.0)
-- **Evidence:** Agent successfully utilized `mcp__exa__crawling_exa` for early URL fetching, but then abruptly switched to ad-hoc `curl -A 'Mozilla/5.0' -L -s ... | rg` and inline `python3 urllib` scripts to scrape the OpenAI blog.
-- **Failure mode:** WRONG-TOOL DRIFT
-- **Proposed fix:** CLAUDE.md change (explicit instruction to prefer provisioned `mcp__exa` for web scraping over ad-hoc scripts)
-- **Severity:** medium
+- **Evidence:** When blocked by the `staged-ownership` guard due to multi-agent file contention, the agent blindly ran `git stash && git add ... && git commit ... && git stash pop` to force the commit through. This caused a git error `Dropped refs/stash@{0}` and failed to resolve the underlying multi-agent state correctly.
+- **Failure mode:** NEW: Destructive guard evasion
+- **Proposed fix:** hook
+- **Severity:** high
 - **Root cause:** agent-capability
 
 ### Session Quality
 | Session | Mandatory failures | Optional issues | Quality score (S) |
 |---|---|---|---|
-| 019d6e98 | 0 | 0 | 1.00 |
-| 019d640f | 0 | 0 | 1.00 |
-| 019d4f68 | 1 | 2 | 0.82 |
+| a74468a0 | Rule Violations | Token Waste (Heredoc) | 0.89 |
+| 9db5ee5d | Capability Abandonment, Rule Violations (Hook forge) | Token Waste (Heredoc) | 0.80 |
+| 95834a52 | Premature Termination, Reasoning-Action Mismatch | Token Waste (Heredoc), Destructive Git Ref | 0.78 |

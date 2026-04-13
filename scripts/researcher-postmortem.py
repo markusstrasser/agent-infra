@@ -66,7 +66,7 @@ def find_transcript(start_event: dict) -> Path | None:
     if not cwd:
         return None
 
-    # Construct project path: /Users/alien/Projects/meta -> -Users-alien-Projects-meta
+    # Construct project path: /Users/alien/Projects/agent-infra -> -Users-alien-Projects-agent-infra
     project_path = cwd.replace("/", "-").lstrip("-")
     project_dir = PROJECTS_DIR / f"-{project_path}"
 

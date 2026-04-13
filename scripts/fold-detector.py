@@ -8,7 +8,7 @@ pressure without new evidence (no tool calls between pressure and response).
 Usage:
     uv run python3 scripts/fold-detector.py <session.jsonl>
     uv run python3 scripts/fold-detector.py --recent [N]     # last N sessions
-    uv run python3 scripts/fold-detector.py --project meta    # all sessions for project
+    uv run python3 scripts/fold-detector.py --project agent-infra    # all sessions for project
 """
 
 import json
@@ -328,7 +328,7 @@ def main():
         n = int(args[1]) if len(args) > 1 else 5
         sessions = find_sessions(recent=n)
     elif args[0] == "--project":
-        project = args[1] if len(args) > 1 else "meta"
+        project = args[1] if len(args) > 1 else "agent-infra"
         n = int(args[2]) if len(args) > 2 else 5
         sessions = find_sessions(project=project, recent=n)
     else:

@@ -7,9 +7,9 @@
 set -euo pipefail
 
 PROJECTS=(
-    "$HOME/Projects/meta"
+    "$HOME/Projects/agent-infra"
     "$HOME/Projects/intel"
-    "$HOME/Projects/selve"
+    "$HOME/Projects/phenome"
     "$HOME/Projects/genomics"
     "$HOME/Projects/skills"
     "$HOME/Projects/anki"

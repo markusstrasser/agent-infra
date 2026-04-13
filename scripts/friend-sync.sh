@@ -32,7 +32,7 @@ echo "--- $(date '+%Y-%m-%d %H:%M:%S') ---" >> "$LOG_FILE"
 
 step "Repos"
 
-REPOS=(meta skills research-mcp biomedical-mcp llmx emb parsers)
+REPOS=(agent-infra skills research-mcp biomedical-mcp llmx emb parsers)
 pulled=0
 failed=0
 
@@ -102,7 +102,7 @@ done
 
 step "MCP deps"
 
-for mcp_dir in research-mcp meta biomedical-mcp; do
+for mcp_dir in research-mcp agent-infra biomedical-mcp; do
     dir="$PROJECTS/$mcp_dir"
     if [ -d "$dir/pyproject.toml" ] || [ -d "$dir" ]; then
         (cd "$dir" && uv sync --quiet 2>/dev/null) && ok "$mcp_dir" || warn "$mcp_dir sync failed"

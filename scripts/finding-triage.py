@@ -26,8 +26,8 @@ from pathlib import Path
 from config import log_metric
 
 from common.paths import FINDINGS_DB as DB_PATH
-IMPROVEMENT_LOG = Path.home() / "Projects" / "meta" / "improvement-log.md"
-RETRO_ARTIFACTS = Path.home() / "Projects" / "meta" / "artifacts" / "session-retro"
+IMPROVEMENT_LOG = Path.home() / "Projects" / "agent-infra" / "improvement-log.md"
+RETRO_ARTIFACTS = Path.home() / "Projects" / "agent-infra" / "artifacts" / "session-retro"
 
 # Concept patterns: (regex, concept_tag). Matched against "category summary" text.
 # When matched, fingerprint uses concept_tag instead of full summary text,

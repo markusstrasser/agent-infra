@@ -3,24 +3,24 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.meta.session-retro-daily</string>
+    <string>com.agent-infra.hook-roi-daily</string>
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
         <string>-c</string>
-        <string>cd /Users/alien/Projects/meta &amp;&amp; uv run python3 scripts/orchestrator.py submit session-retro</string>
+        <string>cd /Users/alien/Projects/agent-infra &amp;&amp; uv run python3 scripts/hook-roi.py --days 1 > "artifacts/hook-roi/$(date +%Y-%m-%d).md" 2>&amp;1</string>
     </array>
     <key>StartCalendarInterval</key>
     <dict>
         <key>Hour</key>
         <integer>22</integer>
         <key>Minute</key>
-        <integer>0</integer>
+        <integer>30</integer>
     </dict>
     <key>StandardOutPath</key>
-    <string>/Users/alien/.claude/session-retro-daily-stdout.log</string>
+    <string>/Users/alien/.claude/hook-roi-daily-stdout.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/alien/.claude/session-retro-daily-stderr.log</string>
+    <string>/Users/alien/.claude/hook-roi-daily-stderr.log</string>
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>

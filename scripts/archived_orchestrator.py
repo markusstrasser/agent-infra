@@ -357,13 +357,13 @@ async def _run_claude_task_async(task, cwd, progress_file=None):
     metrics_path = OUTPUT_DIR / f"{task['id']}.metrics.jsonl"
     sdk_kwargs["hooks"] = _build_telemetry_hooks(metrics_path)
 
-    # Meta-infra MCP — inject for meta-project tasks by default, override via step_options
-    inject_meta = step_options.get("inject_meta_infra")
+    # Agent-infra MCP — inject for meta-project tasks by default, override via step_options
+    inject_meta = step_options.get("inject_agent_infra")
     if inject_meta is None:
         inject_meta = (task["project"] == "meta")
     if inject_meta:
-        from scripts.meta_infra_mcp import meta_infra_server
-        sdk_kwargs["mcp_servers"] = {"meta-infra": meta_infra_server}
+        from agent_infra_mcp import agent_infra_server
+        sdk_kwargs["mcp_servers"] = {"agent-infra": agent_infra_server}
 
     options = ClaudeAgentOptions(
         model=task["model"],
@@ -974,7 +974,7 @@ def cmd_submit(args):
             needs_approval = 1
 
         # Build step_options from step-level config keys
-        step_options_keys = ("output_format", "inject_meta_infra", "verify", "disallowed_tools", "timeout_s")
+        step_options_keys = ("output_format", "inject_agent_infra", "verify", "disallowed_tools", "timeout_s")
         step_options = {k: step_def[k] for k in step_options_keys if k in step_def}
         step_options_json = json.dumps(step_options) if step_options else None
 
@@ -1561,7 +1561,7 @@ def _check_scheduled_pipelines(db):
             if step_project != "meta" and step_name == "execute":
                 needs_approval = 1
 
-            step_options_keys = ("output_format", "inject_meta_infra", "disallowed_tools", "timeout_s")
+            step_options_keys = ("output_format", "inject_agent_infra", "disallowed_tools", "timeout_s")
             step_options = {k: step_def[k] for k in step_options_keys if k in step_def}
             step_options_json = json.dumps(step_options) if step_options else None
 

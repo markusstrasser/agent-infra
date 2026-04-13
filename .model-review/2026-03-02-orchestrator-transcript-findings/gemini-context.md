@@ -740,13 +740,13 @@ python3 orchestrator.py summary
 ### 9. Scheduling (launchd on macOS)
 
 ```xml
-<!-- ~/Library/LaunchAgents/com.meta.orchestrator.plist -->
+<!-- ~/Library/LaunchAgents/com.agent-infra.orchestrator.plist -->
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.meta.orchestrator</string>
+    <string>com.agent-infra.orchestrator</string>
     <key>ProgramArguments</key>
     <array>
         <string>/usr/local/bin/python3</string>

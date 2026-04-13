@@ -15,7 +15,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-PROJECTS = ["intel", "genomics", "meta", "selve", "skills"]
+PROJECTS = ["intel", "genomics", "agent-infra", "phenome", "skills"]
 FOCUSES = ["refactoring", "dead-code", "optimization", "patterns", "security"]
 
 # Each day picks a (project, focus) pair. 5 projects × 5 focuses = 25 day cycle.

@@ -2,13 +2,13 @@
   "name": "fix-verify-weekly",
   "description": "Weekly fix verification — run detection queries against recent sessions, verify which fixes are holding",
   "schedule": "0 21 * * 0",
-  "project": "meta",
+  "project": "agent-infra",
   "steps": [
     {
       "step": "verify",
       "type": "script",
       "command": "uv run python3 scripts/sessions.py index && uv run python3 scripts/fix-verify.py run --days 14 && uv run python3 scripts/fix-verify.py report",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     }
   ]
 }

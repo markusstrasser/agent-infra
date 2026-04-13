@@ -1,13 +1,13 @@
 {
   "name": "skills-drift",
-  "project": "meta",
+  "project": "agent-infra",
   "schedule": "0 4 * * *",
   "steps": [
     {
       "step": "check",
       "engine": "script",
-      "prompt": "diff -rq ~/Projects/skills/ ~/.claude/skills/ 2>/dev/null | head -50; echo '---'; for proj in intel selve genomics meta; do echo \"$proj:\"; diff -rq ~/Projects/skills/ ~/Projects/$proj/.claude/skills/ 2>/dev/null | head -20; done",
-      "project": "meta"
+      "prompt": "diff -rq ~/Projects/skills/ ~/.claude/skills/ 2>/dev/null | head -50; echo '---'; for proj in intel phenome genomics agent-infra; do echo \"$proj:\"; diff -rq ~/Projects/skills/ ~/Projects/$proj/.claude/skills/ 2>/dev/null | head -20; done",
+      "project": "agent-infra"
     }
   ]
 }

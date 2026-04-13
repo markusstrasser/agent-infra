@@ -634,13 +634,13 @@ python3 orchestrator.py summary
 ### 9. Scheduling (launchd on macOS)
 
 ```xml
-<!-- ~/Library/LaunchAgents/com.meta.orchestrator.plist -->
+<!-- ~/Library/LaunchAgents/com.agent-infra.orchestrator.plist -->
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.meta.orchestrator</string>
+    <string>com.agent-infra.orchestrator</string>
     <key>ProgramArguments</key>
     <array>
         <string>/usr/local/bin/python3</string>
@@ -1056,10 +1056,10 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Session Receipts (recent, for context on volume)
 
 {"ts":"2026-03-01T08:43:02","session":"04f94b15-7dd6-4e25-97af-05953d28546a","project":"meta","model":"Opus 4.6","branch":"main","reason":"clear","duration_min":30.9,"cost_usd":7.2659740500000005,"context_pct":60,"lines_added":470,"lines_removed":0,"transcript_lines":899}
-{"ts":"2026-03-01T08:52:34","session":"0cdad11b-2e70-4428-89c1-385212efa053","project":"meta","model":"Opus 4.6","branch":"main","reason":"prompt_input_exit","duration_min":54.2,"cost_usd":8.938919149999997,"context_pct":36,"lines_added":796,"lines_removed":22,"transcript_lines":288,"commits":["6680085 [meta-mcp] Add meta knowledge MCP server"]}
-{"ts":"2026-03-01T08:52:36","session":"ce64b616-2909-4bed-ba1d-f1f21f63a64c","project":"meta","model":"Opus 4.6","branch":"main","reason":"prompt_input_exit","duration_min":419.6,"cost_usd":21.094819100000006,"context_pct":73,"lines_added":3941,"lines_removed":58,"transcript_lines":1948,"commits":["6680085 [meta-mcp] Add meta knowledge MCP server"]}
+{"ts":"2026-03-01T08:52:34","session":"0cdad11b-2e70-4428-89c1-385212efa053","project":"meta","model":"Opus 4.6","branch":"main","reason":"prompt_input_exit","duration_min":54.2,"cost_usd":8.938919149999997,"context_pct":36,"lines_added":796,"lines_removed":22,"transcript_lines":288,"commits":["6680085 [agent-infra-mcp] Add agent knowledge MCP server"]}
+{"ts":"2026-03-01T08:52:36","session":"ce64b616-2909-4bed-ba1d-f1f21f63a64c","project":"meta","model":"Opus 4.6","branch":"main","reason":"prompt_input_exit","duration_min":419.6,"cost_usd":21.094819100000006,"context_pct":73,"lines_added":3941,"lines_removed":58,"transcript_lines":1948,"commits":["6680085 [agent-infra-mcp] Add agent knowledge MCP server"]}
 {"ts":"2026-03-01T08:52:42","session":"9144c768-3ec4-498b-81b3-c9a45da82b5d","project":"genomics","model":"Opus 4.6","branch":"main","reason":"prompt_input_exit","duration_min":565.0,"cost_usd":13.869425699999999,"context_pct":32,"lines_added":221,"lines_removed":226,"transcript_lines":2222,"commits":["211457c [project-upgrade] feat: add preflight import validator for modal scripts"]}
-{"ts":"2026-03-01T08:52:44","session":"fd820f62-c5fe-460c-8a56-ed5fde42afde","project":"meta","model":"Opus 4.6","branch":"main","reason":"prompt_input_exit","duration_min":399.9,"cost_usd":7.3189989,"context_pct":59,"lines_added":1323,"lines_removed":98,"transcript_lines":686,"commits":["6680085 [meta-mcp] Add meta knowledge MCP server"]}
+{"ts":"2026-03-01T08:52:44","session":"fd820f62-c5fe-460c-8a56-ed5fde42afde","project":"meta","model":"Opus 4.6","branch":"main","reason":"prompt_input_exit","duration_min":399.9,"cost_usd":7.3189989,"context_pct":59,"lines_added":1323,"lines_removed":98,"transcript_lines":686,"commits":["6680085 [agent-infra-mcp] Add agent knowledge MCP server"]}
 {"ts":"2026-03-01T09:22:35","session":"24e3746a-26b2-4c42-bfa6-989af7c220f4","project":"intel","model":"Opus 4.6","branch":"main","reason":"prompt_input_exit","duration_min":0.3,"cost_usd":0.48021575,"context_pct":43,"lines_added":0,"lines_removed":0,"transcript_lines":1663}
 {"ts":"2026-03-01T09:22:56","session":"4dcf4bb6-d763-4681-a0c4-b74d6d8f4683","project":"intel","model":"Opus 4.6","branch":"main","reason":"prompt_input_exit","duration_min":30.0,"cost_usd":1.9947073,"context_pct":46,"lines_added":9,"lines_removed":3,"transcript_lines":455}
 {"ts":"2026-03-01T09:44:01","session":"c6041d33-7ae9-41e2-994e-fdf89f0cca65","project":"intel","model":"Opus 4.6","branch":"main","reason":"prompt_input_exit","duration_min":11.1,"cost_usd":3.6022155,"context_pct":59,"lines_added":709,"lines_removed":56,"transcript_lines":662,"commits":["44dd838 [data-infra] Add auto_view.py \u2014 auto-detect dataset formats + generate view SQL"]}

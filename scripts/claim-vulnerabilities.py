@@ -8,7 +8,7 @@ Has a curated DISCREDITED_PARADIGMS registry.
 
 Usage:
     uv run python3 scripts/claim-vulnerabilities.py
-    uv run python3 scripts/claim-vulnerabilities.py --target ~/Projects/selve/docs/research
+    uv run python3 scripts/claim-vulnerabilities.py --target ~/Projects/phenome/docs/research
     uv run python3 scripts/claim-vulnerabilities.py --memo research/specific.md
 
 Source: selve/scripts/test_claim_vulnerabilities.py

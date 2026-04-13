@@ -13,7 +13,7 @@ import json
 from pathlib import Path
 
 PROJECTS_DIR = Path.home() / "Projects"
-PROJECTS = ["meta", "intel", "selve", "genomics", "skills"]
+PROJECTS = ["agent-infra", "intel", "phenome", "genomics", "skills"]
 
 
 def check_hook_drift() -> list[dict]:
@@ -80,8 +80,8 @@ def check_mcp_drift() -> list[dict]:
             pass
 
     # Core MCPs that should be everywhere (research-heavy projects)
-    core_mcps = {"brave-search", "exa", "research", "meta-knowledge"}
-    research_projects = {"meta", "intel", "selve", "genomics"}
+    core_mcps = {"brave-search", "exa", "research", "agent-infra"}
+    research_projects = {"agent-infra", "intel", "phenome", "genomics"}
 
     for mcp in core_mcps:
         present = [p for p in research_projects if mcp in project_mcps.get(p, set())]

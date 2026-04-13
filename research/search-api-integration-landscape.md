@@ -17,7 +17,7 @@ All three APIs configured as of 2026-03-02:
 - **Perplexity** → user scope (global, all projects). MCP: `@perplexity-ai/mcp-server`. 4 tools.
 - **Firecrawl** → intel only. MCP: `firecrawl-mcp`. 14 tools.
 - **Exa** → user scope (global, migrated from per-project duplication). 8+ tools.
-- **Shared MCPs also migrated to user scope:** research, meta-knowledge, paper-search, context7.
+- **Shared MCPs also migrated to user scope:** research, agent-infra, paper-search, context7.
 
 ---
 

@@ -11,9 +11,9 @@ DATE="${1:-$(date +%Y-%m-%d)}"
 NEXT_DATE=$(date -j -v+1d -f "%Y-%m-%d" "$DATE" "+%Y-%m-%d" 2>/dev/null || date -d "$DATE + 1 day" "+%Y-%m-%d")
 
 PROJECTS=(
-  ~/Projects/meta
+  ~/Projects/agent-infra
   ~/Projects/intel
-  ~/Projects/selve
+  ~/Projects/phenome
   ~/Projects/genomics
   ~/Projects/skills
   ~/Projects/research-mcp
@@ -51,7 +51,7 @@ print(f'\${total:.2f}')
 fi
 
 # 3. Daily memory log (if exists)
-DAILY_LOG=~/.claude/projects/-Users-alien-Projects-meta/memory/$DATE.md
+DAILY_LOG=~/.claude/projects/-Users-alien-Projects-agent-infra/memory/$DATE.md
 if [ -f "$DAILY_LOG" ]; then
   echo
   echo "Daily log exists: $DAILY_LOG"

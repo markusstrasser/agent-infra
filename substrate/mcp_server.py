@@ -7,7 +7,7 @@ Each project gets its own DB at ~/.claude/knowledge/{project}.db.
 Configure in .mcp.json:
     "knowledge-substrate": {
         "command": "uv",
-        "args": ["run", "--directory", "/Users/alien/Projects/meta",
+        "args": ["run", "--directory", "/Users/alien/Projects/agent-infra",
                  "python3", "substrate/mcp_server.py", "--project", "intel"]
     }
 """

@@ -7,7 +7,16 @@
       "mcp__exa__web_search_advanced_exa",
       "Bash(zsh -c 'source ~/.zsh_agent_utils && echo OK && agent-sync')",
       "Bash(chmod:*)",
-      "Bash(~/Projects/skills/hooks/generate-overview.sh --type source --project-root ~/Projects/arc-agi 2>&1)"
+      "Bash(~/Projects/skills/hooks/generate-overview.sh --type source --project-root ~/Projects/arc-agi 2>&1)",
+      "Bash(mkdir -p ~/Projects/selve/.claude/skills)",
+      "Bash(ln -s ~/Projects/skills/scientific-drawing ~/Projects/selve/.claude/skills/scientific-drawing)",
+      "Read(//Users/alien/Projects/selve/.claude/skills/**)",
+      "Bash(rm -rf /tmp/bias-hook-test)",
+      "Bash(mkdir -p /tmp/bias-hook-test/.claude)",
+      "Bash(HOME=/tmp/bias-hook-test /Users/alien/Projects/skills/hooks/stop-unsupported-completion.sh)",
+      "Bash(HOME=/tmp/bias-hook-test /Users/alien/Projects/skills/hooks/stop-unsupported-completion.sh echo \"--- shadow log ---\" cat /tmp/bias-hook-test/.claude/unsupported-completion-shadow.jsonl)",
+      "Bash(mv /Users/alien/Projects/agent-infra/.claude/plans/e5a3a60d-epistemology-event-log-foundation.md /Users/alien/Projects/genomics/docs/ops/plans/2026-04-11-epistemology-genomics-adapter-draft.md)",
+      "Read(//Users/alien/Projects/genomics/docs/ops/plans/**)"
     ]
   }
 }

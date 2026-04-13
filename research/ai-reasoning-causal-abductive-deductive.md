@@ -306,7 +306,7 @@ For AI agents, this suggests:
 
 3. **Add calibration to confidence estimates.** The 0.72, 0.65, 0.60 numbers in the causal tree are unchecked intuitions. At minimum: track whether past confidence assignments were accurate. Better: use Brier scoring on closed claims.
 
-### For meta-infrastructure
+### For agent-infrastructure
 
 1. **Build a `causal-dag` skill** that forces DAG construction + DoWhy validation before regression specification. This is the highest-ROI item — it would have caught the bad-control problem automatically.
 

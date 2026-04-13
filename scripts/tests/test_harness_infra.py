@@ -1,4 +1,4 @@
-"""Tests for Meta-Harness infrastructure — quality scoring, trace index parsing.
+"""Tests for agent-infra harness infrastructure — quality scoring, trace index parsing.
 
 Covers the new code from the Meta-Harness leverage plan (arXiv:2603.28052).
 Focus: contract tests for pure functions and regex parsers.
@@ -119,7 +119,7 @@ class TestTraceIndexParsing:
     def test_standard_entry(self):
         """Parse a standard improvement-log entry."""
         text = """### [2026-04-07] TOKEN WASTE: 13 sequential WebFetch calls
-- **Session:** meta abc12345
+- **Session:** agent-infra abc12345
 - **Evidence:** blah blah"""
         m = self.pattern.search(text)
         assert m is not None
@@ -127,7 +127,7 @@ class TestTraceIndexParsing:
         assert date == "2026-04-07"
         assert category == "TOKEN WASTE"
         assert "13 sequential" in summary
-        assert project == "meta"
+        assert project == "agent-infra"
         assert session == "abc12345"
 
     def test_multi_word_category(self):
@@ -141,7 +141,7 @@ class TestTraceIndexParsing:
     def test_single_word_category(self):
         """Single-word categories like RECURRENCE should work."""
         text = """### [2026-04-05] RECURRENCE: Token waste pattern repeats
-- **Session:** selve aaa11111"""
+- **Session:** phenome aaa11111"""
         m = self.pattern.search(text)
         assert m is not None
         assert m.group(2) == "RECURRENCE"

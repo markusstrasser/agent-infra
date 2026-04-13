@@ -10,7 +10,7 @@ Produces thin format (8-12 word merged trigger):
 Usage:
     uv run python3 scripts/compress-research-index.py             # dry-run meta
     uv run python3 scripts/compress-research-index.py --write      # overwrite meta
-    uv run python3 scripts/compress-research-index.py --project ~/Projects/selve
+    uv run python3 scripts/compress-research-index.py --project ~/Projects/phenome
     uv run python3 scripts/compress-research-index.py --project ~/Projects/genomics
 """
 

@@ -1,13 +1,13 @@
 {
   "name": "gotcha-audit",
   "schedule": "0 9 1 * *",
-  "project": "meta",
+  "project": "agent-infra",
   "steps": [
     {
       "step": "inventory",
       "type": "script",
-      "command": "echo '# Gotcha Inventory' > artifacts/gotcha-review/inventory-$(date +%Y-%m-%d).md && for dir in ~/.claude/rules ~/Projects/meta/.claude/rules ~/Projects/intel/.claude/rules ~/Projects/selve/.claude/rules ~/Projects/genomics/.claude/rules; do [ -d \"$dir\" ] && echo \"## $dir\" >> artifacts/gotcha-review/inventory-$(date +%Y-%m-%d).md && grep -l -i 'gotcha\\|workaround\\|bug\\|don.t\\|never\\|blocked\\|broken\\|CAPTCHA\\|fails\\|doesn.t work' \"$dir\"/*.md 2>/dev/null >> artifacts/gotcha-review/inventory-$(date +%Y-%m-%d).md; done && for dir in ~/.claude/projects/*/memory; do [ -d \"$dir\" ] && echo \"## $dir\" >> artifacts/gotcha-review/inventory-$(date +%Y-%m-%d).md && grep -rl 'gotcha\\|workaround\\|bug\\|broken' \"$dir\"/*.md 2>/dev/null >> artifacts/gotcha-review/inventory-$(date +%Y-%m-%d).md; done && mkdir -p artifacts/gotcha-review",
-      "cwd": "~/Projects/meta"
+      "command": "echo '# Gotcha Inventory' > artifacts/gotcha-review/inventory-$(date +%Y-%m-%d).md && for dir in ~/.claude/rules ~/Projects/agent-infra/.claude/rules ~/Projects/intel/.claude/rules ~/Projects/phenome/.claude/rules ~/Projects/genomics/.claude/rules; do [ -d \"$dir\" ] && echo \"## $dir\" >> artifacts/gotcha-review/inventory-$(date +%Y-%m-%d).md && grep -l -i 'gotcha\\|workaround\\|bug\\|don.t\\|never\\|blocked\\|broken\\|CAPTCHA\\|fails\\|doesn.t work' \"$dir\"/*.md 2>/dev/null >> artifacts/gotcha-review/inventory-$(date +%Y-%m-%d).md; done && for dir in ~/.claude/projects/*/memory; do [ -d \"$dir\" ] && echo \"## $dir\" >> artifacts/gotcha-review/inventory-$(date +%Y-%m-%d).md && grep -rl 'gotcha\\|workaround\\|bug\\|broken' \"$dir\"/*.md 2>/dev/null >> artifacts/gotcha-review/inventory-$(date +%Y-%m-%d).md; done && mkdir -p artifacts/gotcha-review",
+      "cwd": "~/Projects/agent-infra"
     },
     {
       "step": "classify",
@@ -16,7 +16,7 @@
       "max_budget_usd": 1.5,
       "model": "sonnet",
       "effort": "medium",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     }
   ]
 }

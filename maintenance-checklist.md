@@ -195,7 +195,7 @@ Consumption-based metrics, not write volume. Check bi-weekly.
 
 ## Key Architecture Docs
 - `search-retrieval-architecture.md` — CAG vs embedding retrieval decision framework, Groq/Gemini/Kimi assessment (2026-02-28)
-- `research/claude-code-native-vs-meta-infra.md` — What Claude Code native features can/cannot replace (2026-03-01)
+- `research/claude-code-native-vs-agent-infra.md` — What Claude Code native features can/cannot replace (2026-03-01)
 - `research/native-leverage-plan.md` — 5-phase plan for leveraging native features (2026-03-01)
 
 ## Ideas / Future Work

@@ -202,7 +202,7 @@ Not demolished — embeddings still have valid uses. But the "embed everything, 
 | 5 | Exa | "arxiv 2026 GraphRAG limitations critique" | 8 | HIGH — UnWeaver + GraphRAG-Bench + "When to use Graphs" |
 | 6 | Exa crawl | 5 arxiv abstracts | 5 | Verified all claims |
 | 7 | Exa crawl | 3 arxiv abstracts | 3 | Verified remaining claims |
-| 8 | meta-knowledge | "embedding search quality" + "search retrieval accuracy" | 30 | Confirmed prior findings (Cao, Anthropic contextual retrieval) |
+| 8 | agent-infra | "embedding search quality" + "search retrieval accuracy" | 30 | Confirmed prior findings (Cao, Anthropic contextual retrieval) |
 
 **Total tool calls:** 11 (within Standard budget of 10-20). No paper pipeline needed — all claims are from abstracts of retrieved papers, which are primary sources for the claims being made (the papers' own findings).
 

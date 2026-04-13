@@ -7,7 +7,7 @@ Tools:
   get_hook_metrics — hook trigger stats from hook-roi.py data
   list_recent_findings — recent improvement-log entries
 
-Injected via step_options.inject_meta_infra in orchestrator.py.
+Injected via step_options.inject_agent_infra in orchestrator.py.
 Runs in-process (McpSdkServerConfig), no subprocess/stdio overhead.
 """
 
@@ -239,8 +239,8 @@ async def get_hook_metrics(args):
 # Server
 # ---------------------------------------------------------------------------
 
-meta_infra_server = create_sdk_mcp_server(
-    "meta-infra",
+agent_infra_server = create_sdk_mcp_server(
+    "agent-infra",
     tools=[search_sessions, get_session, search_improvement_log,
            list_recent_findings, get_hook_metrics],
 )

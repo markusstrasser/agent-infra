@@ -11,9 +11,9 @@ Tools (tiered context loading):
       repo_changes   — recent git changes grouped by area or hotspots
 
 Configure in .mcp.json:
-  "repo-tools": {
+    "repo-tools": {
     "command": "uv",
-    "args": ["run", "--directory", "/Users/alien/Projects/meta", "python3", "scripts/repo_tools_mcp.py"]
+    "args": ["run", "--directory", "/Users/alien/Projects/agent-infra", "python3", "scripts/repo_tools_mcp.py"]
   }
 """
 import re

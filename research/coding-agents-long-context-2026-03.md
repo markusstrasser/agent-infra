@@ -143,7 +143,7 @@ Coding agents are 10-100x more expensive than RAG per query but deliver dramatic
 **For codebases of 50-100 files (our use case):**
 - This paper validates what we already do. Claude Code navigating via Read/Grep/Glob IS the technique described here, just at smaller scale.
 - At 50-100 files (~500K-2M tokens), the advantage over RAG is probably smaller. The paper shows coding agents slightly underperform on LongBench (188K tokens). The sweet spot is >500K tokens where attention mechanisms degrade.
-- The "no retriever is better" finding is directly actionable: don't add embedding search to coding agent workflows. Let the agent use native grep/ripgrep. This matches our experience — the meta-knowledge MCP (section-search) was retired because grep was faster.
+- The "no retriever is better" finding is directly actionable: don't add embedding search to coding agent workflows. Let the agent use native grep/ripgrep. This matches our experience — the agent-infra MCP (section-search) was retired because grep was faster.
 - The programmatic aggregation strategy (writing Python scripts to process files) is something we already do via agent subagent delegation. The paper shows this emerges naturally.
 
 **For massive corpora (>100M tokens):**
@@ -174,7 +174,7 @@ Our `search-retrieval-architecture.md` memo documents the CAG vs embedding retri
 |---|---|---|---|
 | File organization | Per-project directories, individual files | Per-document txt files in folders | Same |
 | Search | grep/ripgrep via agent tools | grep/ripgrep via shell | Same |
-| Retrieval augmentation | Retired (meta-knowledge MCP, zero usage) | Shown to hurt performance | Validated |
+| Retrieval augmentation | Retired (agent-infra MCP, zero usage) | Shown to hurt performance | Validated |
 | Programmatic processing | Subagent delegation for analysis | Agent writes Python scripts | Same |
 | Scale | 50-100 files per project | 100K+ documents, up to 3T tokens | Different scale |
 

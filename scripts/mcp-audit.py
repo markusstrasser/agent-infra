@@ -13,7 +13,7 @@ from common.console import con, dim
 
 PROJECTS_DIR = Path.home() / "Projects"
 
-PROJECTS = ["meta", "selve", "genomics", "intel"]
+PROJECTS = ["agent-infra", "phenome", "genomics", "intel"]
 
 # Rough estimates — calibrated against observed tool counts in system reminders
 TOKENS_PER_TOOL = 200

@@ -2,7 +2,7 @@
   "name": "design-review",
   "description": "Weekly architectural pattern review across projects",
   "schedule": "0 10 * * 6",
-  "project": "meta",
+  "project": "agent-infra",
   "steps": [
     {
       "step": "review",
@@ -12,7 +12,7 @@
       "model": "sonnet",
       "effort": "medium",
       "timeout_s": 1200,
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     }
   ]
 }

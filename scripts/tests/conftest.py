@@ -1,4 +1,4 @@
-"""Shared test fixtures for meta scripts.
+"""Shared test fixtures for agent-infra scripts.
 
 Handles the two recurring import issues:
 1. scripts/ isn't a package — needs sys.path

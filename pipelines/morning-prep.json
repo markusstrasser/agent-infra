@@ -28,24 +28,24 @@
     },
     {
       "step": "best-sync",
-      "project": "meta",
+      "project": "agent-infra",
       "engine": "script",
       "prompt": "python3 scripts/best-sync.py --output artifacts/vendor-versions",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     },
     {
       "step": "vendor-versions",
-      "project": "meta",
+      "project": "agent-infra",
       "engine": "script",
       "prompt": "python3 ~/Projects/skills/trending-scout/scripts/vendor-versions.py --output artifacts/vendor-versions",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     },
     {
-      "step": "meta-health",
-      "project": "meta",
+      "step": "agent-infra-health",
+      "project": "agent-infra",
       "engine": "script",
       "prompt": "python3 scripts/dashboard.py --json > .claude/STATE.md",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     }
   ]
 }

@@ -53,7 +53,7 @@ The invariants: the Constitution section (in CLAUDE.md) and GOALS.md are human-o
 2. **Hook engineering** — deterministic guards that prevent known failure modes (instructions alone = 0% reliable)
 3. **Observability** — cockpit components keep the human informed without requiring them to ask
 4. **Research** — stay current on agent behavior research, absorb what's applicable, ignore what's not. Research has intrinsic value — it changes how agents think and prompt, even when it doesn't produce a hook or script. No enforcement quota on research-to-implementation conversion.
-5. **Cross-project propagation** — organic, pull-based. The human runs sessions from meta that touch other repos. Sub-projects query meta-knowledge via MCP when relevant. Projects don't need meta's full knowledge pushed to them — the MCP is the bridge.
+5. **Cross-project propagation** — organic, pull-based. The human runs sessions from meta that touch other repos. Sub-projects query agent-infra via MCP when relevant. Projects don't need meta's full knowledge pushed to them — the MCP is the bridge.
 6. **Multi-vendor agent ops** — strategic. Claude Code is primary, but Codex/Gemini/Kimi CLIs serve as sub-agents and alternative interfaces. Subscriptions are often cheaper than API. Runlog, dashboard, and receipts cover all vendors. CLAUDE.md symlinks (AGENTS.md, GEMINI.md) ensure instruction parity where possible.
 7. **Self-improvement** — meta improves its own tooling using the same methods it applies to sub-projects
 
@@ -84,7 +84,7 @@ The warning stands: meta is not a place to write more rules about rules. If know
 
 ## Projects Served
 
-All projects: intel, selve, genomics, skills, research-mcp, and any future repos. Cross-project work happens organically — the human runs Claude Code from meta and touches other repos as needed. The meta-knowledge MCP provides a query interface so sub-projects can access meta's knowledge without carrying it.
+All projects: intel, selve, genomics, skills, research-mcp, and any future repos. Cross-project work happens organically — the human runs Claude Code from meta and touches other repos as needed. The agent-infra MCP provides a query interface so sub-projects can access meta's knowledge without carrying it.
 
 Meta provides: shared skills, hooks, MCP servers, maintenance checklists, session analysis, observability, and the research pipeline.
 

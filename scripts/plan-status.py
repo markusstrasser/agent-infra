@@ -26,7 +26,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 PROJECTS_DIR = Path.home() / "Projects"
-PROJECT_NAMES = ["meta", "intel", "selve", "genomics", "arc-agi", "skills"]
+PROJECT_NAMES = ["agent-infra", "intel", "phenome", "genomics", "arc-agi", "skills"]
 
 
 def parse_frontmatter(text: str) -> dict:

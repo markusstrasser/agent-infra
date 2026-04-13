@@ -19,7 +19,7 @@ from common.paths import CLAUDE_DIR as GLOBAL_CLAUDE
 
 # Core projects (skip throwaway/demo dirs)
 CORE_PROJECTS = [
-    "meta", "intel", "selve", "genomics", "skills",
+    "agent-infra", "intel", "phenome", "genomics", "skills",
     "arc-agi", "evo", "research", "people", "trading",
     "anki", "phys-1", "sean", "scripting", "clipper",
 ]

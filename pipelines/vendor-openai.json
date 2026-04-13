@@ -1,7 +1,7 @@
 {
   "name": "vendor-openai",
   "schedule": "0 9 * * 5",
-  "project": "meta",
+  "project": "agent-infra",
   "steps": [
     {
       "step": "scan",
@@ -12,7 +12,7 @@
     },
     {
       "step": "triage",
-      "prompt": "Read .claude/plans/vendor-openai-delta.md — focus on ## Handoff.\n\nAssess relevance: (1) model-review and model-guide skills route to GPT — any capability or API changes? (2) llmx routes to OpenAI — any breaking changes? (3) Codex CLI used in code-review — new features or breaking changes? (4) Agents SDK patterns we should adopt?\n\nIf significant findings, create or update meta/research/openai-landscape.md.\nWrite actionable items to .claude/plans/vendor-openai-actions.md.\nCommit any research docs with [vendor-scan] prefix.",
+      "prompt": "Read .claude/plans/vendor-openai-delta.md — focus on ## Handoff.\n\nAssess relevance: (1) model-review and model-guide skills route to GPT — any capability or API changes? (2) llmx routes to OpenAI — any breaking changes? (3) Codex CLI used in code-review — new features or breaking changes? (4) Agents SDK patterns we should adopt?\n\nIf significant findings, create or update agent-infra/research/openai-landscape.md.\nWrite actionable items to .claude/plans/vendor-openai-actions.md.\nCommit any research docs with [vendor-scan] prefix.",
       "max_turns": 10,
       "max_budget_usd": 2.0,
       "model": "sonnet"

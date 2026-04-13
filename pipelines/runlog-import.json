@@ -1,13 +1,13 @@
 {
   "name": "runlog-import",
   "schedule": "0 6 * * *",
-  "project": "meta",
+  "project": "agent-infra",
   "steps": [
     {
       "step": "import",
       "type": "script",
       "command": "uv run python3 scripts/runlog.py import",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     }
   ]
 }

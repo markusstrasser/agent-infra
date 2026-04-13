@@ -8,7 +8,7 @@ lightweight — checks structure, not scientific correctness.
 
 Usage:
     uv run python3 scripts/audit-research-memo.py
-    uv run python3 scripts/audit-research-memo.py --target ~/Projects/selve/docs/research
+    uv run python3 scripts/audit-research-memo.py --target ~/Projects/phenome/docs/research
     uv run python3 scripts/audit-research-memo.py --target ~/Projects/genomics/docs --fail
     uv run python3 scripts/audit-research-memo.py --required "Decision Claims,Search Log"
 

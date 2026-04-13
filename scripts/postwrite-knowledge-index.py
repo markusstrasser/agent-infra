@@ -320,7 +320,7 @@ def main():
             output = {
                 "additionalContext": (
                     f"CORRECTION detected in {file_path}. "
-                    f"Run: uv run python3 /Users/alien/Projects/meta/scripts/propagate-correction.py --from {file_path}"
+                    f"Run: uv run python3 /Users/alien/Projects/agent-infra/scripts/propagate-correction.py --from {file_path}"
                 )
             }
             print(json.dumps(output))

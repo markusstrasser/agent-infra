@@ -2,7 +2,7 @@
   "name": "correction-sweep",
   "description": "Daily correction propagation scan + balance check — replaces substrate-sync",
   "schedule": 6,
-  "project": "meta",
+  "project": "agent-infra",
   "steps": [
     {
       "step": "scan-corrections",

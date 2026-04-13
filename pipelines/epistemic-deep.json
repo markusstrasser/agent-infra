@@ -1,25 +1,25 @@
 {
   "name": "epistemic-deep",
   "schedule": "0 10 1 * *",
-  "project": "meta",
+  "project": "agent-infra",
   "steps": [
     {
       "step": "calibration-canary-deep",
       "type": "script",
       "command": "uv run python3 scripts/calibration-canary.py --runs 20 --model claude-sonnet-4-6",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     },
     {
       "step": "calibration-canary-haiku",
       "type": "script",
       "command": "uv run python3 scripts/calibration-canary.py --runs 20 --model claude-haiku-4-5-20251001",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     },
     {
       "step": "dashboard",
       "type": "script",
       "command": "uv run python3 scripts/dashboard.py --days 30",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     }
   ]
 }

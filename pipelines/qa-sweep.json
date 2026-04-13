@@ -2,7 +2,7 @@
   "name": "qa-sweep",
   "variables": {
     "url": {"required": true},
-    "project": {"default": "meta"}
+    "project": {"default": "agent-infra"}
   },
   "steps": [
     {

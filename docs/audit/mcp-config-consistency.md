@@ -17,14 +17,14 @@ Note: `/Users/alien/Projects/skills/.mcp.json` does not exist.
 - `repo-tools` is documented as "Configured in all projects' `.mcp.json`." Evidence: `/Users/alien/Projects/meta/CLAUDE.md:18`.
 - `knowledge-substrate` is documented as configured in `intel`, `selve`, and `genomics`. Evidence: `/Users/alien/Projects/meta/CLAUDE.md:217`.
 - `research` is documented as "Configured in `.mcp.json` per project." Evidence: `/Users/alien/Projects/meta/CLAUDE.md:280`.
-- `meta-knowledge` is documented as an MCP server, but no per-project rollout claim is stated. Evidence: `/Users/alien/Projects/meta/CLAUDE.md:17`.
+- `agent-infra` is documented as an MCP server, but no per-project rollout claim is stated. Evidence: `/Users/alien/Projects/meta/CLAUDE.md:17`.
 
 ## Shared Server Comparison
 
 | Server | Normalized command / args / env | intel | selve | genomics | meta | skills | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `repo-tools` | `uv run --directory /Users/alien/Projects/meta python3 scripts/repo_tools_mcp.py`; no `env` | yes | yes | yes | yes | no `.mcp.json` | `/Users/alien/Projects/intel/.mcp.json:94-102`, `/Users/alien/Projects/selve/.mcp.json:65-73`, `/Users/alien/Projects/genomics/.mcp.json:54-62`, `/Users/alien/Projects/meta/.mcp.json:55-63` |
-| `meta-knowledge` | `uv run --directory /Users/alien/Projects/meta meta-mcp`; no `env` | yes | yes | yes | yes | no `.mcp.json` | `/Users/alien/Projects/intel/.mcp.json:68-75`, `/Users/alien/Projects/selve/.mcp.json:39-46`, `/Users/alien/Projects/genomics/.mcp.json:28-35`, `/Users/alien/Projects/meta/.mcp.json:19-26` |
+| `agent-infra` | `uv run --directory /Users/alien/Projects/meta agent-infra-mcp`; no `env` | yes | yes | yes | yes | no `.mcp.json` | `/Users/alien/Projects/intel/.mcp.json:68-75`, `/Users/alien/Projects/selve/.mcp.json:39-46`, `/Users/alien/Projects/genomics/.mcp.json:28-35`, `/Users/alien/Projects/meta/.mcp.json:19-26` |
 | `research` | `uv run --directory /Users/alien/Projects/research-mcp research-mcp`; `S2_API_KEY=${S2_API_KEY}` | yes | yes | yes | yes | no `.mcp.json` | `/Users/alien/Projects/intel/.mcp.json:56-66`, `/Users/alien/Projects/selve/.mcp.json:27-37`, `/Users/alien/Projects/genomics/.mcp.json:16-26`, `/Users/alien/Projects/meta/.mcp.json:7-17` |
 | `knowledge-substrate` | `uv run --directory /Users/alien/Projects/meta python3 substrate/mcp_server.py --project <project>`; no `env` | `--project intel` | `--project selve` | `--project genomics` | absent | no `.mcp.json` | `/Users/alien/Projects/intel/.mcp.json:107-117`, `/Users/alien/Projects/selve/.mcp.json:75-85`, `/Users/alien/Projects/genomics/.mcp.json:64-74`, `/Users/alien/Projects/meta/CLAUDE.md:217` |
 | `selve` | `uv run --directory /Users/alien/Projects/selve/mcp selve-mcp`; no `env` | yes | yes | yes | absent | no `.mcp.json` | `/Users/alien/Projects/intel/.mcp.json:23-30`, `/Users/alien/Projects/selve/.mcp.json:14-21`, `/Users/alien/Projects/genomics/.mcp.json:3-10` |
@@ -46,7 +46,7 @@ Project-specific one-offs with no cross-project comparison target in this audit:
 
 ### DRIFT
 
-- None. Across the audited repos that actually have `.mcp.json` files, the shared launch definitions for `repo-tools`, `meta-knowledge`, `research`, `selve`, `exa`, `context7`, `brave-search`, and `firecrawl` match exactly where they are shared. `knowledge-substrate` is the only server with argument variation, and the differing `--project` values match the documented deployment scope rather than representing drift. Evidence: `/Users/alien/Projects/intel/.mcp.json:68-75`, `/Users/alien/Projects/selve/.mcp.json:39-46`, `/Users/alien/Projects/genomics/.mcp.json:28-35`, `/Users/alien/Projects/meta/.mcp.json:19-26`, `/Users/alien/Projects/intel/.mcp.json:107-117`, `/Users/alien/Projects/selve/.mcp.json:75-85`, `/Users/alien/Projects/genomics/.mcp.json:64-74`, `/Users/alien/Projects/meta/CLAUDE.md:217`.
+- None. Across the audited repos that actually have `.mcp.json` files, the shared launch definitions for `repo-tools`, `agent-infra`, `research`, `selve`, `exa`, `context7`, `brave-search`, and `firecrawl` match exactly where they are shared. `knowledge-substrate` is the only server with argument variation, and the differing `--project` values match the documented deployment scope rather than representing drift. Evidence: `/Users/alien/Projects/intel/.mcp.json:68-75`, `/Users/alien/Projects/selve/.mcp.json:39-46`, `/Users/alien/Projects/genomics/.mcp.json:28-35`, `/Users/alien/Projects/meta/.mcp.json:19-26`, `/Users/alien/Projects/intel/.mcp.json:107-117`, `/Users/alien/Projects/selve/.mcp.json:75-85`, `/Users/alien/Projects/genomics/.mcp.json:64-74`, `/Users/alien/Projects/meta/CLAUDE.md:217`.
 
 ### STALE_DOC
 

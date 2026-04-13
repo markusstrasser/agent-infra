@@ -1,4 +1,4 @@
-"""Meta Knowledge MCP — section-based search over meta, selve, and genomics research.
+"""Agent Infra MCP — section-based search over agent-infra, phenome, and genomics research.
 
 NOTE: This server indexes files at startup. After editing this file (new scopes,
 new directories, scoring changes), the running MCP instance must be restarted
@@ -19,7 +19,7 @@ log = logging.getLogger(__name__)
 
 META_ROOT = Path(__file__).parent
 
-# Files to index within meta. Relative to META_ROOT.
+# Files to index within agent-infra. Relative to META_ROOT.
 INCLUDE_GLOBS = [
     "*.md",
     "research/*.md",
@@ -38,12 +38,12 @@ EXCLUDE_PREFIXES = [
 
 # Cross-project research directories. Whitelist (default-deny).
 # Only these directories are indexed — new dirs must be explicitly added.
-# Privacy: selve/docs/entities/ has self/ and companies/ subdirs with personal
+# Privacy: phenome/docs/entities/ has self/ and companies/ subdirs with personal
 # data. Only genes/ is safe to share.
 _PROJECTS_ROOT = Path.home() / "Projects"
 CROSS_PROJECT_INCLUDE = [
-    (_PROJECTS_ROOT / "selve" / "docs" / "research", "selve"),
-    (_PROJECTS_ROOT / "selve" / "docs" / "entities" / "genes", "selve"),
+    (_PROJECTS_ROOT / "phenome" / "docs" / "research", "phenome"),
+    (_PROJECTS_ROOT / "phenome" / "docs" / "entities" / "genes", "phenome"),
     (_PROJECTS_ROOT / "genomics" / "docs" / "research", "genomics"),
 ]
 
@@ -65,9 +65,9 @@ SCOPE_MAP = {
 
 INSTRUCTIONS = """\
 Cross-project knowledge base — searches research memos and entity files across
-meta, selve, and genomics projects.
+agent-infra, phenome, and genomics projects.
 
-Use search_meta when you need:
+Use search when you need:
 - Hook design patterns (how to write hooks, gotchas, event types)
 - Agent failure mode reference (22 documented modes with mitigations)
 - Architecture decisions (search/retrieval, git workflow, cross-project)
@@ -85,16 +85,16 @@ Do NOT use for: behavioral rules (already in CLAUDE.md), enforcement (use hooks)
 # --- Section parsing ---
 
 def _collect_files() -> list[tuple[Path, str]]:
-    """Collect .md files from meta (via globs) and cross-project dirs (whitelist).
+    """Collect .md files from agent-infra (via globs) and cross-project dirs (whitelist).
 
     Returns (path, display_key) tuples. display_key is:
-    - relative path for meta files (e.g., "research/foo.md")
-    - project-prefixed path for cross-project files (e.g., "selve:docs/research/foo.md")
+    - relative path for agent-infra files (e.g., "research/foo.md")
+    - project-prefixed path for cross-project files (e.g., "phenome:docs/research/foo.md")
     """
     seen: set[Path] = set()
     files: list[tuple[Path, str]] = []
 
-    # Meta-local files
+    # Repo-local files
     for pattern in INCLUDE_GLOBS:
         for p in META_ROOT.glob(pattern):
             if not p.is_file() or p.is_symlink():
@@ -268,16 +268,16 @@ def create_mcp() -> FastMCP:
         sections = []
         for path, display_key in files:
             sections.extend(_parse_sections(path, display_key))
-        log.info("meta-mcp: indexed %d sections from %d files", len(sections), len(files))
+        log.info("agent-infra: indexed %d sections from %d files", len(sections), len(files))
         yield {"sections": sections}
 
     from scripts.mcp_middleware import TelemetryMiddleware
 
-    mcp = FastMCP("meta-knowledge", instructions=INSTRUCTIONS, lifespan=lifespan,
+    mcp = FastMCP("agent-infra", instructions=INSTRUCTIONS, lifespan=lifespan,
                   middleware=[TelemetryMiddleware()])
 
     @mcp.tool()
-    def search_meta(
+    def search(
         ctx: Context,
         query: str,
         max_tokens: int = 1000,
@@ -285,7 +285,7 @@ def create_mcp() -> FastMCP:
     ) -> list[TextContent]:
         """Search cross-project knowledge: hook designs, agent failure modes,
         architecture decisions, research findings, health/genomics research,
-        gene entities. Indexes meta, selve, and genomics research directories.
+        gene entities. Indexes agent-infra, phenome, and genomics research directories.
 
         Returns matching sections ranked by relevance. When no results are found,
         returns a structured error with suggested alternative queries. Side effects: none.

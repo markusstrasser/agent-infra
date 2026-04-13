@@ -73,7 +73,7 @@ See execution plan: `.claude/plans/65730c3c-shared-lib.md` (web scraping infrast
 | **Health check accumulation** (collect errors, report at end) | meta doctor.py (Check class), genomics preflight.py (279 lines), genomics pipeline_qc_gates.py | meta, genomics |
 | **Config file discovery** (try multiple candidate paths) | genomics variant_evidence_core.py:13-26 `resolve_threshold_config` | genomics (but universal problem) |
 | **Content-addressable hashing** | genomics modal_utils.py:273-375 StageSignature, meta runlog_adapters/common.py:157-170 stable_id | meta, genomics |
-| **MCP server lifespan** (FastMCP + async context + shared clients) | research-mcp server.py:27-70, meta meta_mcp.py | meta, research-mcp |
+| **MCP server lifespan** (FastMCP + async context + shared clients) | research-mcp server.py:27-70, meta agent_infra_mcp.py | meta, research-mcp |
 
 ### Tier C: Within-project duplication worth noting
 

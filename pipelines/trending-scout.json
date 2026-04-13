@@ -1,13 +1,13 @@
 {
   "name": "trending-scout",
   "schedule": "0 6 * 0",
-  "project": "meta",
+  "project": "agent-infra",
   "steps": [
     {
       "step": "version-baseline",
       "type": "script",
       "command": "python3 ~/Projects/skills/trending-scout/scripts/vendor-versions.py > artifacts/trending-scout/versions-$(date +%Y-%m-%d).txt 2>/dev/null || true",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     },
     {
       "step": "scout",
@@ -16,7 +16,7 @@
       "max_budget_usd": 4.0,
       "model": "sonnet",
       "effort": "medium",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     }
   ]
 }

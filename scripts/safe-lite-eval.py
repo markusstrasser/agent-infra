@@ -5,7 +5,7 @@ Implements a simplified version of the SAFE (Search-Augmented Factual Evaluation
 methodology from Google DeepMind (NeurIPS 2024). Decomposes research outputs into
 atomic claims, verifies each via Exa /answer, and judges support.
 
-Usage: uv run python3 scripts/safe-lite-eval.py [--project meta] [--n 5]
+Usage: uv run python3 scripts/safe-lite-eval.py [--project agent-infra] [--n 5]
                                                  [--recent-days 7] [--verbose]
                                                  [--dry-run] [--legacy]
 """
@@ -172,7 +172,7 @@ def _get_exa_client():
     api_key = os.environ.get("EXA_API_KEY", "")
     if not api_key:
         for mcp_path in [
-            Path.home() / "Projects" / "meta" / ".mcp.json",
+            Path.home() / "Projects" / "agent-infra" / ".mcp.json",
             Path.home() / ".mcp.json",
             Path.home() / ".claude.json",
         ]:
@@ -491,7 +491,7 @@ def eval_file(
 
 
 def main():
-    project = "meta"
+    project = "agent-infra"
     n = 5
     verbose = False
     dry_run = False

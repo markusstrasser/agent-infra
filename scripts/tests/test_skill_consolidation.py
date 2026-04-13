@@ -10,7 +10,7 @@ def test_mode_extraction_from_args():
     """The pretool-skill-log hook extracts first word of args as mode."""
     # Simulate what the hook does: MODE=$(echo "$ARGS" | awk '{print $1}')
     test_cases = [
-        ("sessions meta 5", "sessions"),
+        ("sessions agent-infra 5", "sessions"),
         ("model target.md", "model"),
         ("", ""),
         ("maintain", "maintain"),

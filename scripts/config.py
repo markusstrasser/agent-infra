@@ -14,8 +14,8 @@ METRICS_FILE = CLAUDE_DIR / "epistemic-metrics.jsonl"
 PROJECT_ROOTS = {
     "intel": Path.home() / "Projects" / "intel",
     "genomics": Path.home() / "Projects" / "genomics",
-    "selve": Path.home() / "Projects" / "selve",
-    "meta": Path.home() / "Projects" / "meta",
+    "phenome": Path.home() / "Projects" / "phenome",
+    "agent-infra": Path.home() / "Projects" / "agent-infra",
     "anki": Path.home() / "Projects" / "anki",
 }
 
@@ -78,9 +78,9 @@ def extract_frontmatter(path: Path) -> dict | None:
 # Knowledge-eligible path patterns (per project)
 KNOWLEDGE_ELIGIBLE_PATTERNS = {
     "intel": ["analysis/entities/*.md"],
-    "selve": ["docs/research/*.md", "docs/entities/*.md"],
+    "phenome": ["docs/research/*.md", "docs/entities/*.md"],
     "genomics": ["docs/research/*.md"],  # was empty (A6) but hook already indexes 22 files here
-    "meta": ["research/*.md", "decisions/*.md"],
+    "agent-infra": ["research/*.md", "decisions/*.md"],
 }
 
 
@@ -98,5 +98,4 @@ def is_knowledge_eligible(file_path: Path) -> bool:
                     if path_str.endswith(".md"):
                         return True
     return False
-
 

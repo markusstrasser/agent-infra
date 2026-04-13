@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 
 SKILLS_DIR = Path.home() / "Projects" / "skills"
-META_DIR = Path.home() / "Projects" / "meta"
+META_DIR = Path.home() / "Projects" / "agent-infra"
 HOOKS_DIR = SKILLS_DIR / "hooks"
 
 
@@ -57,7 +57,7 @@ def resolve_mcp_tools() -> str:
 
 
 def resolve_meta_scripts() -> str:
-    """Generate meta scripts table from docstrings."""
+    """Generate agent-infra scripts table from docstrings."""
     scripts_dir = META_DIR / "scripts"
     if not scripts_dir.exists():
         return "(no scripts found)"

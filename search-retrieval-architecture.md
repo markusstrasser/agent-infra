@@ -105,7 +105,7 @@ Query arrives
 - **Applicability condition:** Only applies when the corpus is navigable as text files via shell tools. Does NOT apply to: numpy embeddings, structured databases, cross-source personal data (e.g., selve's 74K embedded entries).
 - **Scale crossover:** Below ~500K tokens, direct context window is competitive. Above 750M, agent navigation dominates.
 - **Cost:** $0.11-0.83/query (10-100x more than RAG). Only justified for multi-hop over very large corpora.
-- **Implication for us:** Validates retiring meta-knowledge MCP (zero usage) and repo-tools MCP (zero usage). Don't add retrieval layers when native file navigation covers the same corpus.
+- **Implication for us:** Validates retiring agent-infra MCP (zero usage) and repo-tools MCP (zero usage). Don't add retrieval layers when native file navigation covers the same corpus.
 
 ### CAG vs Embedding Retrieval (Chan et al., arXiv:2412.15605)
 - CAG: 40x faster than naive RAG pipeline, +3% recall on HotPotQA/SQuAD

@@ -1,7 +1,7 @@
 {
   "name": "code-review-sweep",
   "schedule": "0 3 * * *",
-  "project": "meta",
+  "project": "agent-infra",
   "steps": [
     {
       "step": "scout",

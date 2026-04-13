@@ -1,13 +1,13 @@
 {
   "name": "finding-decay",
   "schedule": "0 12 */14 * *",
-  "project": "meta",
+  "project": "agent-infra",
   "steps": [
     {
       "step": "decay-check",
       "type": "script",
       "command": "python3 -c \"import re, datetime; lines=open('improvement-log.md').read(); dates=re.findall(r'###\\s+\\[(\\d{4}-\\d{2}-\\d{2})\\]', lines); proposed=[d for d in dates if '[ ] proposed' in lines[lines.index(d):lines.index(d)+500]]; stale=[d for d in proposed if (datetime.datetime.now()-datetime.datetime.strptime(d,'%Y-%m-%d')).days>30]; print(f'{len(stale)} findings >30d without recurrence')\"",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     }
   ]
 }

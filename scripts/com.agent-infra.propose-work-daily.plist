@@ -3,12 +3,12 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.meta.propose-work-daily</string>
+    <string>com.agent-infra.propose-work-daily</string>
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
         <string>-c</string>
-        <string>cd /Users/alien/Projects/meta &amp;&amp; uv run python3 scripts/propose-work.py --days 1 2>&amp;1 | tee /Users/alien/.claude/propose-work.log</string>
+        <string>cd /Users/alien/Projects/agent-infra &amp;&amp; uv run python3 scripts/propose-work.py --days 1 2>&amp;1 | tee /Users/alien/.claude/propose-work.log</string>
     </array>
     <key>StartCalendarInterval</key>
     <dict>

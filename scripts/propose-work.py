@@ -29,7 +29,7 @@ from common.paths import (
     TRIGGERS_FILE,
 )
 PROJECTS_DIR = Path.home() / "Projects"
-PROJECTS = ["meta", "intel", "selve", "genomics", "skills", "research-mcp"]
+PROJECTS = ["agent-infra", "intel", "phenome", "genomics", "skills", "research-mcp"]
 IMPROVEMENT_LOG = Path(__file__).resolve().parent.parent / "improvement-log.md"
 RETRO_DIR = Path(__file__).resolve().parent.parent / "artifacts" / "session-retro"
 HOOK_ROI_DIR = Path(__file__).resolve().parent.parent / "artifacts" / "hook-roi"

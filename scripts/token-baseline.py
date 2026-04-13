@@ -235,7 +235,7 @@ def analyze_token_usage_by_project(conn, days):
         JOIN sessions s ON r.session_pk = s.session_pk
         WHERE e.kind = 'token_usage'
         AND e.ts > date('now', ?)
-        AND s.project_slug IN ('meta', 'genomics', 'selve', 'intel', 'arc-agi')
+        AND s.project_slug IN ('agent-infra', 'genomics', 'phenome', 'intel', 'arc-agi')
     """, (f"-{days} days",)).fetchall()
 
     if not rows:

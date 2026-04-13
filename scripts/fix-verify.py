@@ -23,7 +23,7 @@ from pathlib import Path
 from config import log_metric
 
 from common.paths import FINDINGS_DB, SESSIONS_DB
-SESSIONS_SCRIPT = Path.home() / "Projects" / "meta" / "scripts" / "sessions.py"
+SESSIONS_SCRIPT = Path.home() / "Projects" / "agent-infra" / "scripts" / "sessions.py"
 
 # Built-in detection queries for common categories.
 # These search session content_text in the sessions FTS index.
@@ -266,7 +266,7 @@ def _get_metric_snapshot(metric_name: str, days: int) -> str | None:
             capture_output=True,
             text=True,
             timeout=30,
-            cwd=Path.home() / "Projects" / "meta" / "scripts",
+            cwd=Path.home() / "Projects" / "agent-infra" / "scripts",
         )
         if result.returncode == 0 and result.stdout.strip():
             # Return first 3 non-empty lines as summary

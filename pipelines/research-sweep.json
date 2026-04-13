@@ -1,7 +1,7 @@
 {
   "name": "research-sweep",
   "schedule": "0 8 * * 1",
-  "project": "meta",
+  "project": "agent-infra",
   "stop_conditions": {
     "max_pipeline_cost": 10.0,
     "max_iterations": 4
@@ -16,7 +16,7 @@
     },
     {
       "step": "triage",
-      "prompt": "Read .claude/plans/research-sweep.md. For each finding: does it change our hooks, skills, routing, or architecture? If yes, write a proposal to .claude/plans/research-sweep-proposals.md. Commit to meta with [research-sweep] prefix.",
+      "prompt": "Read .claude/plans/research-sweep.md. For each finding: does it change our hooks, skills, routing, or architecture? If yes, write a proposal to .claude/plans/research-sweep-proposals.md. Commit to agent-infra with [research-sweep] prefix.",
       "max_turns": 15,
       "max_budget_usd": 2.0,
       "model": "sonnet",

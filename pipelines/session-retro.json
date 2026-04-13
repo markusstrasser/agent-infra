@@ -1,13 +1,13 @@
 {
   "name": "session-retro",
   "schedule": "0 22 * * *",
-  "project": "meta",
+  "project": "agent-infra",
   "steps": [
     {
       "step": "shape-prefilter",
       "type": "script",
       "command": "uv run python3 scripts/sessions.py index && python3 ~/Projects/skills/design-review/scripts/session-shape.py --days 1 --json > artifacts/session-retro/shape-$(date +%Y-%m-%d).json 2>/dev/null || true",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     },
     {
       "step": "analyze",
@@ -16,13 +16,13 @@
       "max_budget_usd": 3.0,
       "model": "sonnet",
       "effort": "medium",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     },
     {
       "step": "verify-fixes",
       "type": "script",
       "command": "uv run python3 scripts/fix-verify.py run --days 3 2>&1 | head -50 || true",
-      "cwd": "~/Projects/meta"
+      "cwd": "~/Projects/agent-infra"
     }
   ]
 }
