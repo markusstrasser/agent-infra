@@ -115,8 +115,8 @@ agent-infra-smoke:
 # Canonical runner for standalone review-tool tests
 [group('health')]
 review-tool-tests:
-    python3 ~/Projects/skills/review/scripts/test_build_plan_close_context.py
-    python3 ~/Projects/skills/review/scripts/test_model_review.py
+    cd ~/Projects/skills && PYTHONPATH=. python3 critique/scripts/test_build_plan_close_context.py
+    cd ~/Projects/skills && PYTHONPATH=. python3 critique/scripts/test_model_review.py
 
 # Browse SQLite database in web UI
 [group('dashboard')]
