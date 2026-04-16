@@ -240,10 +240,6 @@ Question:
 {canary["question"]}
 """
             try:
-                # NOTE: temperature=0.8 returns a 400 on Opus 4.7+ (sampling
-                # parameters removed). This canary defaults to Haiku 4.5 and
-                # is fine; if you pass --model claude-opus-4-7, drop the
-                # temperature kwarg or the request will fail.
                 response = client.messages.create(
                     model=model,
                     max_tokens=80,
