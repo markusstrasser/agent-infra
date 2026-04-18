@@ -13,11 +13,22 @@
 
 ## Fixed
 <!-- Format: - **M001** [fixed] description (commit, YYYY-MM-DD) -->
-- (none yet)
+- **M001** [fixed-advisory] worktree CWD guard hook deployed advisory-first (skills@e430f2b, settings@5e65ff5, 2026-04-17)
+- **M003** [fixed] subagent manifest convention added to global CLAUDE.md (~/.claude@5e65ff5, 2026-04-17)
+- **P-D** [fixed-advisory] destructive-git-ref hook (skills@e430f2b, settings@5e65ff5, 2026-04-17) — improvement-log [2026-04-11 genomics 82777db1]
+- **P-E** [fixed] ownership-guard circuit-breaker telemetry (genomics@118f15ad, 2026-04-17) — improvement-log [2026-04-12 genomics 95834a52]
+- **P-F** [fixed-advisory] plan-completion pre-commit guard (skills@e430f2b, settings@5e65ff5, 2026-04-17) — improvement-log [2026-04-11 codex 019d7aab]
 
 ## Deferred
 <!-- Items with revisit dates -->
-- (none)
+- **M002** [deferred] contract-QC binding lint — proposal assumed YAML stages config; lint_modal_scripts.py is AST-based, contract format different than expected. Needs schema audit before implementation. revisit: 2026-04-24.
+- **P-A/B** [deferred] genomics pre-commit probe + repair — needs deeper transcript dive into 5 --no-verify commits (2dea0a22, 973c46f1, 559ce86a, f68a749d, e5f9f378) to identify which check failed. revisit: when transcripts accessible.
+- **P-C** [deferred] stateless revalidation — proposal cited `doctor.py orchestrator --offline` which doesn't exist. Actual cmds (`just validate-orchestrator`, `just pipeline-status`) need investigation to map onto inline replacement. revisit: 2026-04-24.
+- **P-K0/K** [deferred] truth-seam migration + lint — 34 _STATUS.json references in genomics/scripts/, mostly read paths consuming legacy artifacts. Cannot blind-migrate without writer-vs-reader audit. The proposal underestimated scope by ~10x. revisit: requires audit.
+- **P-J** [skipped per plan] no-verify mirror — only ship if Phase B (precommit repair) proves insufficient.
+
+## New Findings (this tick)
+- **M004** [new] [HOOK-ARCH] Genomics ownership guard correctly blocks legitimate cross-repo work from external-session agents (e.g., agent-infra session editing genomics hook). Currently resolved by --no-verify with documented rationale; long-term needs cross-session ownership protocol. (source: this session, 2026-04-17 commit 118f15ad)
 
 ## Open Steward Proposals (10)
 Status of `~/.claude/steward-proposals/` after 2026-04-17 archive sweep (4 implemented moved to `implemented/`):
