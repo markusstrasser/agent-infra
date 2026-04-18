@@ -3199,3 +3199,27 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Proposed fix:** [hook] Add `git stash` to pretool blocklist when staged-ownership guard has fired in the session. Error message: "Use Write tool to create the file (establishes session ownership), or unstage foreign files with `git restore --staged <file>`." This converts a soft recommendation into hard enforcement.
 - **Root cause:** agent-capability — agent treats hooks as obstacles to route around rather than policy boundaries to respect
 - **Status:** [ ] proposed
+
+### [2026-04-17] CONTRACT_BUG: 22 stages passing QC while producing 0 bytes of declared outputs
+- **Session:** genomics 54b4a4fe, b9e6a5b1 (claude-code)
+- **Evidence:** Pipeline stages declared primary outputs (file paths in stage contract) but qc_checks were too narrow — only validated existence of secondary artifacts or used pattern matches that accepted empty files. 22 stages passed QC with 0-byte primary outputs across two sessions. Discovered during contract audit; resolved by migrating CONTRACT_BUG → REAL_MISSING classification to force visible re-runs. Corrective work was substantial; the silent-pass mode is the architectural lesson.
+- **Failure mode:** NEW — contract enforcement asymmetry (declared outputs not gated by qc_checks)
+- **Proposed fix:** [architecture] qc_checks should auto-gate every path in `outputs:` of the stage contract — minimum size > 0, schema match for known formats. Manual qc_check blocks override, never narrow. Add a lint to `lint_modal_scripts.py`: any stage whose qc_checks set is a strict subset of declared outputs requires an explicit `# qc_partial: <reason>` annotation.
+- **Root cause:** system-design — qc_checks are advisory rather than contractually bound to outputs declaration
+- **Status:** [ ] proposed
+
+### [2026-04-17] SUBAGENT WORKTREE CWD ESCAPE — modal run executed against main repo instead of refactor
+- **Session:** genomics 54b4a4fe (claude-code), subagent ab485960
+- **Evidence:** Subagent refactored alphagenome inside an isolated worktree, then issued `uv run modal run …` calls without chaining `cd <worktree-path>` into the same Bash invocation. Bash sessions in subagents do not persist working directory across calls — the modal run executed from the main repo CWD, probing the pre-refactor code while the subagent reported success against the refactored version.
+- **Failure mode:** NEW — silent CWD reset between subagent bash calls when not chained
+- **Proposed fix:** [hook] PreToolUse:Bash in subagents with `WORKTREE_PATH` env set: warn when command starts with `uv run`, `python3`, `pytest`, or `modal run` and does not chain `cd $WORKTREE_PATH &&` first. Alternative architectural fix: subagent dispatcher should set the working directory at process spawn (not rely on chained cd) when `isolation: "worktree"` is used.
+- **Root cause:** system-design — worktree isolation does not bind CWD for downstream Bash calls
+- **Status:** [ ] proposed
+
+### [2026-04-17] SUBAGENT SILENT-DROP — cherry-pick coordinator merged code without test files
+- **Session:** phenome 9ab45210 (claude-code)
+- **Evidence:** Subagent dispatched to cherry-pick dev-infra items landed source code successfully but silently omitted accompanying new test files from the final merge commit. Coordinator believed test files were lost in the cherry-pick; recovery required digging out the original commit hashes and re-extracting the test additions manually.
+- **Failure mode:** NEW — subagent reports success on partial merge without enumerating dropped files
+- **Proposed fix:** [convention] Cherry-pick / merge subagents must return a manifest of files-included AND files-skipped (with reason). Coordinator should diff the manifest against the source commit's `git show --stat` before accepting the result.
+- **Root cause:** agent-capability — subagent success criteria do not include change-set completeness verification
+- **Status:** [ ] proposed
