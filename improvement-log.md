@@ -6,6 +6,15 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-04-18] SKILL EXECUTION FAILURE: brainstorm skill bypassed by 8/8 codex sessions (genomics)
+- **Sessions:** 019da210, 019da1d8, 019da1a1, 019da08d, 019da165, 019da0d4, 019da11b, 019d9ff9 (genomics, all codex/GPT-5.4)
+- **Evidence:** Skill explicitly requires "Divergent Ideation via Perturbation" with denial cascades, domain forcing, constraint inversion. All 8 sessions instead executed deterministic loops using `rg` and `sed` to grep caller code for missing implementation gaps and appended single survivors. Direct quotes: "I'm keeping the run on the narrowest viable seam" / "I've got a single survivor". Constitution Rule 6 (5+ alternatives) violated in all 8 sessions.
+- **Failure mode:** NEW — Skill definition ignored in favor of deterministic bash heuristics
+- **Root cause:** skill-execution — codex/GPT-5.4 systematically misinterpreting brainstorm SKILL.md as a filtering task instead of a generative one
+- **Proposed fix:** (a) Audit `brainstorm` SKILL.md for codex compatibility; (b) Add Stop hook check that brainstorm output contains divergent markers (denial round, domain pool, ≥5 alternatives); (c) Possibly route `brainstorm` exclusively to claude-code if codex can't execute it correctly
+- **Status:** [ ] proposed
+- **Source:** `artifacts/observe/2026-04-18-1237-genomics/digest.md`
+
 ### [2026-04-11] WRONG_TOOL_DRIFT: Both harnesses ignore purpose-built genomics MCP tools — 0 calls vs 260 bash workarounds
 - **Session:** genomics 019d7aab (codex), 019d7e1c (codex), 019d7dff (codex) — all 3 Codex sessions in window
 - **Evidence:** grep of 1.88 MB transcripts (5 Claude Code + 5 Codex sessions) for `mcp__genomics__(active_apps|modal_volume_inspect|attempt_receipt|modal_logs_tail|debug_run_state|pipeline_status)` returns **zero matches**. Meanwhile `modal app list --json` appears 154 times and `modal volume get` appears 106 times — 260 bash invocations across 3 sessions. The MCP tools exist, are loaded (visible in `.mcp.json`), and the MCP server's `instructions` field explicitly names them as replacements ("Use query_json to read and filter pipeline JSON artifacts instead of writing inline Python scripts", "Use modal_logs_tail to safely monitor detached Modal apps"). Both harnesses read the instructions and both ignore them.
@@ -3223,3 +3232,15 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Proposed fix:** [convention] Cherry-pick / merge subagents must return a manifest of files-included AND files-skipped (with reason). Coordinator should diff the manifest against the source commit's `git show --stat` before accepting the result.
 - **Root cause:** agent-capability — subagent success criteria do not include change-set completeness verification
 - **Status:** [ ] proposed
+
+### [2026-04-18] SHIPPED — duckdb + modal-triage MCPs, verify-before skill
+- **Session:** agent-infra e5a3a60d (claude-code)
+- **Evidence:** `/improve suggest` across 8 phenome + 8 genomics transcripts (Gemini 3.1 Pro) identified two MCP candidates (~20+ DuckDB one-liner invocations, ~30+ raw `modal app list | grep` patterns) and one skill candidate (6+ ad-hoc pre-run probes, 3+ hallucinated Modal status claims corrected by user). User additionally flagged ground-truth-before-diagnosis as an unmet architectural need.
+- **Failure mode addressed:** PRE-FRONTIER — ad-hoc bash boilerplate (escaping bugs, token waste) + STATUS_HALLUCINATION (agents paraphrasing raw Modal logs, citing made-up uptimes).
+- **Implemented:**
+  - `agent-infra@b3d1ea8` — `duckdb_mcp.py` (tools: tables, describe, query; read-only enforced at SQL level). `modal_triage_mcp.py` (tools: list_apps, status, triage, grep_logs; every response carries `verified_at`, `is_running`, `uptime_seconds` as typed fields).
+  - `skills@e0fc313` — `verify-before/SKILL.md` (probe mode + status mode; anti-pattern table for paraphrased logs; target → tool → fields-to-cite table for Modal, DuckDB, bash, launchd, cron, git, HTTP).
+  - `phenome@a8e6030` — registered both servers in `.mcp.json`.
+  - genomics `.mcp.json` edited but commit blocked by staged-ownership guard (two active genomics sessions own the working tree); edit unstaged, awaits pickup from a genomics session.
+- **Root cause (of original pattern):** architecture-over-instructions — rule #8 "Probe before build" was instruction-only; Modal status discipline was nowhere. Now three layers: tool returns structured fields → skill tells agent when to reach → rule remains as principle.
+- **Status:** [x] implemented — monitor for adoption. Decommission criterion: if `verify-before status` is never invoked and the MCP tools aren't called across 30 days of phenome+genomics sessions, reclassify as unused.
