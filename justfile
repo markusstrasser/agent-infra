@@ -228,6 +228,18 @@ git-import days="30":
 sessions *args:
     uv run python3 scripts/sessions.py {{args}}
 
+# ── Common Crawl ──────────────────────────────────────────────────
+
+# One-time per release: download CC domain-ranks (~2.4GB) + convert to parquet
+[group('cc')]
+cc-ranks-refresh:
+    scripts/cc-domain-ranks.sh refresh
+
+# Look up harmonic centrality + pagerank for a domain (uses cached parquet)
+[group('cc')]
+cc-rank domain:
+    scripts/cc-domain-ranks.sh lookup {{domain}}
+
 # ── Native Tools ───────────────────────────────────────────────────
 
 # Quick operational state snapshot (branch, queue, plans, last receipt)
