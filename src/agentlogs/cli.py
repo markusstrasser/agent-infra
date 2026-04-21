@@ -34,7 +34,7 @@ def _make_parser() -> argparse.ArgumentParser:
 
     # index
     s_index = sub.add_parser("index", help="Ingest new sessions from all vendors")
-    s_index.add_argument("--vendor", action="append", choices=["claude", "codex", "gemini"],
+    s_index.add_argument("--vendor", action="append", choices=["claude", "codex", "gemini", "kimi"],
                          help="Limit to one or more vendors (default: all)")
     s_index.add_argument("--limit-sources", type=int, default=None,
                          help="Cap sources per vendor (useful for smoke tests)")
@@ -129,7 +129,7 @@ def cmd_index(args) -> int:
     from .locks import IndexerLockBusy, indexer_lock
     from .paths import AGENTLOGS_LOCK
 
-    vendors = args.vendor or ["claude", "codex", "gemini"]
+    vendors = args.vendor or ["claude", "codex", "gemini", "kimi"]
 
     def _run_all() -> int:
         db = connect(_resolve_db_path(args))
