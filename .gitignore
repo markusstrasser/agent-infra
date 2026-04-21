@@ -44,6 +44,12 @@ downloads/
 .claude/overview.conf
 .claude/overview-marker
 .claude/overview-trigger.log
+
+# Local run/log DB leftovers (superseded 2026-04-20 by ~/.claude/agentlogs.db)
+runlog.db
+runlogs.db
+sessions.db
+
 .project-upgrade/
 .model-review/
 bundles/*
