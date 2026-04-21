@@ -737,6 +737,15 @@ def _refresh_session_denorm(db: sqlite3.Connection, session_pks: list[int]) -> N
                 JOIN runs r ON r.run_id = e.run_id
                 WHERE r.session_pk = s.session_pk
             ),
+            -- subagent_count: events emitted by a subagent are marked with
+            -- kind 'subagent_*' or role 'subagent' by the adapters (Claude's
+            -- Agent tool produces these). Cheap to derive here.
+            subagent_count = (
+                SELECT COUNT(DISTINCT tc.tool_call_id) FROM tool_calls tc
+                JOIN runs r ON r.run_id = tc.run_id
+                WHERE r.session_pk = s.session_pk
+                  AND tc.tool_name IN ('Agent', 'Task', 'spawn_agent')
+            ),
             indexed_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
         WHERE s.session_pk IN ({placeholders})
         """,
