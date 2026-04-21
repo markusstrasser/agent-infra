@@ -111,6 +111,30 @@ Both vendors shipped genuinely consequential changes in the window, not just pat
 
 ---
 
+## Addendum: Codex Skills & Plugins — Are They Compatible With Ours?
+
+**Verdict: yes, already compatible. No fork needed.**
+
+- Codex adopted the same `SKILL.md` + YAML-frontmatter contract as Claude Code (agentskills.io "open agent skills standard"). Same auto-invocation via `description`.
+- Discovery roots (from `codex-rs/core-skills/src/loader.rs`): `$REPO/.agents/skills/`, `$HOME/.agents/skills/`, `/etc/codex/skills`, embedded system skills.
+- **`~/.agents/skills` → `~/Projects/skills` symlink already exists** (set up 2026-03-04). Our corpus is already available to Codex sessions.
+- Codex's marketplace loader (`codex-rs/core-plugins/src/marketplace.rs`) reads **both** `.agents/plugins/marketplace.json` AND `.claude-plugin/marketplace.json` — explicitly targets Claude-compatible layouts.
+- Plugin format (`.codex-plugin/plugin.json`) is the *distribution wrapper*: `{manifest + skills/ + .mcp.json + .app.json + interface metadata}`. Skills do the work; plugin is for marketplace + install UX.
+
+**Feature-parity deltas:**
+
+| Axis | Claude Code | Codex | Impact |
+|------|-------------|-------|--------|
+| Slash-invocation | `/skill-name` auto | `$skill-name` or `/skills` picker | cosmetic |
+| Hooks | PreToolUse, PostToolUse, Stop, SessionStart, UserPromptSubmit | SessionStart, UserPromptSubmit, PreToolUse, **PermissionRequest** (new v0.121), Stop | **no PostToolUse** in Codex — our unsourced-claim hook won't run in Codex sessions |
+| Custom slash commands | every skill auto-registers as `/name` | built-ins only | Codex UX regression for explicit invocation |
+| Plugin manifest | `.claude-plugin/plugin.json` | `.codex-plugin/plugin.json` | similar shape, not drop-in identical |
+| Marketplace | `.claude-plugin/marketplace.json` | reads both paths | Codex is strictly more permissive |
+
+**Action:** Test one skill in a Codex session to confirm end-to-end loading from the existing symlink. Wrap as `.codex-plugin/plugin.json` only if we publish externally. Track whether Codex adds custom-slash-command authoring — would close the last UX gap. Accept the PostToolUse gap in Codex sessions or replicate logic as a `Stop` hook.
+
+---
+
 ## Search Log
 
 - WebFetch code.claude.com/docs/en/changelog ✓
@@ -120,12 +144,13 @@ Both vendors shipped genuinely consequential changes in the window, not just pat
 - Not searched: alphaXiv, arxiv (scoped to vendor sweep).
 
 <!-- knowledge-index
-generated: 2026-04-21T16:17:14Z
-hash: 00debbb9571c
+generated: 2026-04-21T16:23:41Z
+hash: 822aec226191
 
 title: Trending Scout — Claude Code + Codex CLI (2026-04-21)
 status: complete
 tags: trending-scout, vendor-updates, claude-code, codex-cli
 cross_refs: analysis/agent-entities/claude-code.md
+table_claims: 3
 
 end-knowledge-index -->
