@@ -16,9 +16,3 @@ TRIGGERS_FILE = CLAUDE_DIR / "hook-triggers.jsonl"
 ORCHESTRATOR_DB = CLAUDE_DIR / "orchestrator.db"
 AGENTLOGS_DB = Path(os.environ.get("AGENTLOGS_DB", str(CLAUDE_DIR / "agentlogs.db")))
 FINDINGS_DB = CLAUDE_DIR / "findings.db"
-
-# Legacy DB paths — archived in Phase 4. Scripts should use AGENTLOGS_DB.
-# Kept here transiently so grep can find remaining callers; will be removed
-# in the Phase 4 cutover commit once all consumers are migrated.
-SESSIONS_DB = CLAUDE_DIR / "sessions.db"
-RUNLOGS_DB = CLAUDE_DIR / "runlogs.db"

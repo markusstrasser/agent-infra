@@ -116,7 +116,7 @@ class AgentSurfaceTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            module.RUNLOGS_DB = tmp_path / "missing-runlogs.db"
+            module.AGENTLOGS_DB = tmp_path / "missing-agentlogs.db"
             report = module.build_report(project_root, skills_dir, days=30, top=5)
 
             self.assertEqual(len(report["root_files"]), 1)  # AGENTS symlink deduped
