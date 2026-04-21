@@ -34,27 +34,59 @@ def _read_migration(filename: str) -> str:
     return resources.files(__name__).joinpath(filename).read_text(encoding="utf-8")
 
 
+def _split_sql(text: str) -> list[str]:
+    """Split a SQL script on `;` boundaries.
+
+    `Connection.executescript()` issues an implicit COMMIT before executing,
+    so it cannot provide atomicity. We split statements ourselves using
+    `sqlite3.complete_statement` for correctness — it understands BEGIN/END
+    trigger bodies and quoted strings.
+    """
+    import sqlite3 as _sqlite3
+
+    statements: list[str] = []
+    buf: list[str] = []
+    for line in text.splitlines(keepends=True):
+        buf.append(line)
+        candidate = "".join(buf)
+        # complete_statement returns True when the buffer ends with a
+        # statement terminator and BEGIN/END nesting balances.
+        if _sqlite3.complete_statement(candidate):
+            stmt = candidate.strip()
+            if stmt:
+                statements.append(stmt)
+            buf = []
+    tail = "".join(buf).strip()
+    if tail:
+        statements.append(tail)
+    return statements
+
+
 def apply_migrations(db: sqlite3.Connection) -> list[int]:
     """Apply any migrations whose version exceeds PRAGMA user_version.
 
-    Returns the list of versions applied. Idempotent — safe to call on every
-    connection (fast path: one PRAGMA read when already current).
+    Each migration runs as a single transaction (BEGIN ... COMMIT) with
+    statements split out manually because `Connection.executescript()` issues
+    an implicit COMMIT before executing, defeating atomicity. On any failure
+    we ROLLBACK and leave user_version unchanged.
+
+    Idempotent — safe to call on every connection (fast path: one PRAGMA
+    read when already current).
     """
     current = int(db.execute("PRAGMA user_version").fetchone()[0])
     applied: list[int] = []
     for version, filename in _migration_files():
         if version <= current:
             continue
-        sql = _read_migration(filename)
+        statements = _split_sql(_read_migration(filename))
         db.execute("BEGIN")
         try:
-            db.executescript(sql)
+            for stmt in statements:
+                db.execute(stmt)
         except Exception:
             db.execute("ROLLBACK")
             raise
-        # executescript committed via the migration's own PRAGMA bump; ensure
-        # a clean transaction state regardless.
-        db.execute("COMMIT") if db.in_transaction else None
+        db.execute("COMMIT")
         new_version = int(db.execute("PRAGMA user_version").fetchone()[0])
         if new_version != version:
             raise RuntimeError(

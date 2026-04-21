@@ -207,11 +207,23 @@ def _successful_import_exists(db, *, source_id, sha, parser_name, parser_version
 
 
 def _write_import(db, *, source_id, sha, parser_name, parser_version, success, error) -> int:
+    """Record an import attempt. UPSERT on the UNIQUE 5-tuple — re-imports
+    (force=True or repeat-failure) overwrite the prior row.
+
+    Without UPSERT, --force re-import or repeat parse-failure trips the
+    UNIQUE(source_id, source_sha256, parser_name, parser_version,
+    schema_version) constraint defined in 001_initial.sql.
+    """
     db.execute(
         """
         INSERT INTO imports (source_id, source_sha256, parser_name, parser_version,
                              schema_version, imported_at, success, error_json)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(source_id, source_sha256, parser_name, parser_version, schema_version)
+        DO UPDATE SET
+            imported_at = excluded.imported_at,
+            success = excluded.success,
+            error_json = excluded.error_json
         """,
         (source_id, sha, parser_name, parser_version, SCHEMA_VERSION,
          _utc_now(), 1 if success else 0, json_dumps(error) if error else None),
@@ -221,29 +233,54 @@ def _write_import(db, *, source_id, sha, parser_name, parser_version, success, e
         SELECT import_id FROM imports
         WHERE source_id = ? AND source_sha256 = ?
           AND parser_name = ? AND parser_version = ? AND schema_version = ?
-        ORDER BY import_id DESC LIMIT 1
         """,
         (source_id, sha, parser_name, parser_version, SCHEMA_VERSION),
     ).fetchone()
     return int(row[0])
 
 
-def _cleanup_source_data(db: sqlite3.Connection, source_id: int) -> None:
-    """Delete any rows from prior imports of this source, scoped via import_id.
+def _cleanup_source_data(
+    db: sqlite3.Connection,
+    source_id: int,
+    *,
+    parser_name: str,
+    parser_version: str,
+    force: bool,
+) -> None:
+    """Delete prior-import rows that should be replaced.
 
-    Fixes Gemini review finding #1: parser-version re-imports now scoped-delete
-    instead of colliding on PK.
+    Three cases:
+      - Parser version differs from prior import → wipe prior version's rows
+        (schema may have changed; old rows are stale).
+      - force=True → wipe ALL prior rows for this source (user-requested clean
+        re-import).
+      - Same parser version, no force (the WatchPaths case: source SHA changed
+        because the JSONL got appended-to) → DO NOT wipe. UPSERT on
+        events.event_id / tool_calls.tool_call_id / file_touches unique-index
+        handles append cleanly without O(N) churn per fire.
     """
-    import_ids = [row[0] for row in db.execute(
-        "SELECT import_id FROM imports WHERE source_id = ?", (source_id,)
-    )]
+    if force:
+        import_ids = [row[0] for row in db.execute(
+            "SELECT import_id FROM imports WHERE source_id = ?", (source_id,)
+        )]
+    else:
+        import_ids = [row[0] for row in db.execute(
+            """
+            SELECT import_id FROM imports
+            WHERE source_id = ?
+              AND NOT (parser_name = ? AND parser_version = ? AND schema_version = ?)
+            """,
+            (source_id, parser_name, parser_version, SCHEMA_VERSION),
+        )]
     if not import_ids:
         return
     placeholders = ", ".join("?" for _ in import_ids)
     db.execute(f"DELETE FROM file_touches WHERE import_id IN ({placeholders})", import_ids)
     db.execute(f"DELETE FROM tool_calls WHERE import_id IN ({placeholders})", import_ids)
     db.execute(f"DELETE FROM events WHERE import_id IN ({placeholders})", import_ids)
-    db.execute("DELETE FROM record_refs WHERE source_id = ?", (source_id,))
+    db.execute(
+        f"DELETE FROM record_refs WHERE import_id IN ({placeholders})", import_ids,
+    )
 
 
 def _ensure_session_pk(db: sqlite3.Connection, sr) -> int:
@@ -268,7 +305,12 @@ def _ensure_session_pk(db: sqlite3.Connection, sr) -> int:
         if row:
             return int(row[0])
 
-    session_uuid = sr.vendor_session_id or sr.synthetic_session_key
+    # Namespace by vendor so cross-vendor ID collisions can't trip the
+    # UNIQUE(session_uuid) constraint. UUID-shaped IDs are 128-bit and
+    # collisions are astronomical, but Gemini's path-derived synthetic keys
+    # could theoretically collide with another vendor's vendor_session_id.
+    raw_id = sr.vendor_session_id or sr.synthetic_session_key
+    session_uuid = f"{sr.vendor}:{raw_id}" if raw_id else None
     cursor = db.execute(
         """
         INSERT INTO sessions (vendor, client, vendor_session_id, synthetic_session_key,
@@ -572,7 +614,11 @@ def index_vendor(
 
             db.execute("BEGIN IMMEDIATE")
             try:
-                _cleanup_source_data(db, source_id)
+                _cleanup_source_data(
+                    db, source_id,
+                    parser_name=parser_name, parser_version=parser_version,
+                    force=force,
+                )
                 import_id = _write_import(
                     db, source_id=source_id, sha=sha,
                     parser_name=parser_name, parser_version=parser_version,
