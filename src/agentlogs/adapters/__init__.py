@@ -9,12 +9,13 @@ Each adapter module exports:
 
 from __future__ import annotations
 
-from . import claude, codex, gemini
+from . import claude, codex, gemini, kimi
 
 ADAPTERS = {
     "claude": claude,
     "codex": codex,
     "gemini": gemini,
+    "kimi": kimi,
 }
 
-__all__ = ["ADAPTERS", "claude", "codex", "gemini"]
+__all__ = ["ADAPTERS", "claude", "codex", "gemini", "kimi"]
