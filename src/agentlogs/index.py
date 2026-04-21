@@ -650,3 +650,49 @@ def _write_parsed(db, parsed, source_id: int, import_id: int, stats: IndexerStat
     # Run edges
     for re in parsed.run_edges:
         _upsert_run_edge(db, re)
+
+    # Session denorm refresh — populate list-view / filter fields
+    _refresh_session_denorm(db, [pk for pk in session_pks.values()])
+
+
+def _refresh_session_denorm(db: sqlite3.Connection, session_pks: list[int]) -> None:
+    """Recompute sessions.start_ts / end_ts / duration / model / first_message
+    etc. from the runs/events we just wrote. Idempotent per-session."""
+    if not session_pks:
+        return
+    placeholders = ", ".join("?" for _ in session_pks)
+    db.execute(
+        f"""
+        UPDATE sessions AS s SET
+            start_ts = (
+                SELECT MIN(r.started_at) FROM runs r WHERE r.session_pk = s.session_pk
+            ),
+            end_ts = (
+                SELECT MAX(r.ended_at) FROM runs r WHERE r.session_pk = s.session_pk
+            ),
+            duration_min = (
+                SELECT ROUND(
+                    (julianday(MAX(r.ended_at)) - julianday(MIN(r.started_at))) * 24 * 60, 1
+                ) FROM runs r WHERE r.session_pk = s.session_pk
+            ),
+            model = (
+                SELECT r.model_resolved FROM runs r
+                WHERE r.session_pk = s.session_pk AND r.model_resolved IS NOT NULL
+                ORDER BY r.started_at LIMIT 1
+            ),
+            first_message = (
+                SELECT substr(e.text, 1, 200) FROM events e
+                JOIN runs r ON r.run_id = e.run_id
+                WHERE r.session_pk = s.session_pk AND e.kind = 'user_message'
+                ORDER BY r.started_at, e.seq LIMIT 1
+            ),
+            transcript_lines = (
+                SELECT COUNT(*) FROM events e
+                JOIN runs r ON r.run_id = e.run_id
+                WHERE r.session_pk = s.session_pk
+            ),
+            indexed_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+        WHERE s.session_pk IN ({placeholders})
+        """,
+        session_pks,
+    )
