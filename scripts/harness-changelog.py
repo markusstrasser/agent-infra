@@ -20,7 +20,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from common.paths import SESSIONS_DB
+from common.paths import AGENTLOGS_DB
 
 
 # Harness files — commits touching these are harness changes
@@ -115,7 +115,7 @@ def main():
         print("No harness commits found.", file=sys.stderr)
         return
 
-    db = sqlite3.connect(SESSIONS_DB)
+    db = sqlite3.connect(AGENTLOGS_DB)
     db.row_factory = sqlite3.Row
 
     # Check if session_quality table exists

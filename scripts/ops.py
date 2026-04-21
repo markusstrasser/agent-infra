@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from common.event_log import load_events
-from common.paths import EVENT_LOG, RUNLOGS_DB
+from common.paths import EVENT_LOG, AGENTLOGS_DB
 from session_store import open_session_store
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -44,7 +44,7 @@ def utc_now() -> str:
 
 
 def get_db() -> sqlite3.Connection:
-    return open_session_store(RUNLOGS_DB)
+    return open_session_store(AGENTLOGS_DB)
 
 
 def render_views(db: sqlite3.Connection) -> dict[str, Path]:
@@ -482,8 +482,8 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     item_count = db.execute("SELECT COUNT(*) AS c FROM items").fetchone()["c"]
     prompts = sorted(p.name for p in PROMPTS_DIR.glob("*.md")) if PROMPTS_DIR.exists() else []
     report = {
-        "runlogs_db": str(RUNLOGS_DB),
-        "runlogs_exists": RUNLOGS_DB.exists(),
+        "runlogs_db": str(AGENTLOGS_DB),
+        "runlogs_exists": AGENTLOGS_DB.exists(),
         "session_rows": session_count,
         "item_rows": item_count,
         "event_log_exists": EVENT_LOG.exists(),

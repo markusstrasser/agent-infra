@@ -373,9 +373,9 @@ def compute_quality_score(features: dict) -> float:
 def enrich_sessions_db():
     """Compute quality scores for sessions.db entries that don't have them."""
     import sqlite3
-    from common.paths import SESSIONS_DB
+    from common.paths import AGENTLOGS_DB
 
-    db = sqlite3.connect(SESSIONS_DB)
+    db = sqlite3.connect(AGENTLOGS_DB)
     db.row_factory = sqlite3.Row
 
     # Ensure session_quality table exists

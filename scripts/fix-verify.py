@@ -22,7 +22,7 @@ from pathlib import Path
 
 from config import log_metric
 
-from common.paths import FINDINGS_DB, SESSIONS_DB
+from common.paths import FINDINGS_DB, AGENTLOGS_DB
 SESSIONS_SCRIPT = Path.home() / "Projects" / "agent-infra" / "scripts" / "sessions.py"
 
 # Built-in detection queries for common categories.
@@ -80,12 +80,12 @@ def _ensure_columns(db: sqlite3.Connection):
 
 
 def get_sessions_db() -> sqlite3.Connection:
-    if not SESSIONS_DB.exists():
+    if not AGENTLOGS_DB.exists():
         print("Sessions DB not found. Run: uv run python3 scripts/sessions.py index",
               file=sys.stderr)
         sys.exit(1)
     from common.db import open_db
-    return open_db(SESSIONS_DB)
+    return open_db(AGENTLOGS_DB)
 
 
 def run_detection_query(sessions_db: sqlite3.Connection, query: str, since: str) -> list[dict]:

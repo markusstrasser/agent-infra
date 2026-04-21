@@ -33,7 +33,7 @@ from urllib.parse import parse_qs, urlparse
 
 import yaml
 
-from common.paths import RUNLOGS_DB
+from common.paths import AGENTLOGS_DB
 
 SKILLS_DIR = Path.home() / "Projects" / "skills"
 DEFAULT_MCP_FILE = ".mcp.json"
@@ -343,9 +343,9 @@ def mcp_server_surface(name: str, config: dict[str, Any]) -> MCPServerSurface:
 
 
 def load_mcp_telemetry(project_root: Path, days: int) -> dict[str, dict[str, int]]:
-    if not RUNLOGS_DB.exists():
+    if not AGENTLOGS_DB.exists():
         return {}
-    db = sqlite3.connect(RUNLOGS_DB)
+    db = sqlite3.connect(AGENTLOGS_DB)
     db.row_factory = sqlite3.Row
     prefix = f"{project_root}%"
     rows = db.execute(
