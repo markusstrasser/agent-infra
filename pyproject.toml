@@ -16,6 +16,7 @@ dependencies = [
 ]
 
 [project.scripts]
+agentlogs = "agentlogs.cli:main"
 agent-infra-mcp = "agent_infra_mcp:main"
 duckdb-mcp = "duckdb_mcp:main"
 modal-triage-mcp = "modal_triage_mcp:main"
