@@ -12,8 +12,9 @@ just smoke                               # minimal functional test (<1m)
 just health                              # full validation suite (<5m)
 uv run python3 scripts/doctor.py         # cross-project health check
 uv run python3 scripts/dashboard.py      # agent ops dashboard
-uv run python3 scripts/runlog.py recent  # recent runs across vendors
-uv run python3 scripts/sessions.py search <query>  # FTS5 session search
+uv run agentlogs recent                  # recent runs across vendors (Claude+Codex+Gemini)
+uv run agentlogs search <query>          # FTS5 search across all vendors
+uv run agentlogs stats                   # DB size, per-vendor counts, indexer health
 ```
 
 ## Key Files
