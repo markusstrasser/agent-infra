@@ -126,19 +126,31 @@ def cmd_index(args) -> int:
         db = connect(_resolve_db_path(args))
         try:
             total_imported = total_skipped = total_failed = 0
+            vendor_errors = 0
             for v in vendors:
                 stats = ix.index_vendor(
                     db, v, limit_sources=args.limit_sources, force=args.force,
                 )
+                # index_vendor catches outer exceptions and writes
+                # indexer_runs.status='error'; check for those vendor-level
+                # fatals so the CLI exits non-zero.
+                latest = db.execute(
+                    "SELECT status FROM indexer_runs "
+                    "WHERE vendor = ? ORDER BY run_id DESC LIMIT 1",
+                    (v,),
+                ).fetchone()
+                if latest and latest["status"] == "error":
+                    vendor_errors += 1
                 print(
                     f"{v}: discovered={stats.sources_discovered} "
                     f"imported={stats.sources_imported} skipped={stats.sources_skipped} "
                     f"failed={stats.sources_failed} events={stats.events_written}"
+                    + (" [VENDOR ERROR]" if (latest and latest["status"] == "error") else "")
                 )
                 total_imported += stats.sources_imported
                 total_skipped += stats.sources_skipped
                 total_failed += stats.sources_failed
-            return 1 if total_failed else 0
+            return 1 if (total_failed or vendor_errors) else 0
         finally:
             db.close()
 
@@ -247,13 +259,20 @@ def cmd_query(args) -> int:
 
     db = connect(_resolve_db_path(args))
     try:
-        params = {}
+        params: dict[str, object] = {}
         for kv in args.param:
             if "=" not in kv:
                 print(f"bad --param {kv!r} (expected key=value)", file=sys.stderr)
                 return 2
             k, _, v = kv.partition("=")
-            params[k] = v
+            # Coerce numeric-looking values so :limit / :offset bind as INTEGER.
+            try:
+                params[k] = int(v)
+            except ValueError:
+                try:
+                    params[k] = float(v)
+                except ValueError:
+                    params[k] = v
         rows = q.run_query(db, args.name, **params)
         if args.format == "json":
             print(json.dumps([dict(r) for r in rows], indent=2, default=str))

@@ -371,30 +371,32 @@ def compute_quality_score(features: dict) -> float:
 
 
 def enrich_sessions_db():
-    """Compute quality scores for sessions.db entries that don't have them."""
+    """Compute quality scores for agentlogs sessions that don't have them.
+
+    Reads JSONL paths via sources joined on runs.primary_source_id (no
+    `jsonl_path` column on the agentlogs sessions table). Writes into the
+    session_quality table created by 001_initial.sql (session_pk PK).
+    """
     import sqlite3
     from common.paths import AGENTLOGS_DB
 
     db = sqlite3.connect(AGENTLOGS_DB)
     db.row_factory = sqlite3.Row
 
-    # Ensure session_quality table exists
-    db.execute("""
-        CREATE TABLE IF NOT EXISTS session_quality (
-            uuid TEXT PRIMARY KEY REFERENCES sessions(uuid),
-            quality_score REAL NOT NULL,
-            features_json TEXT,
-            computed_at TEXT NOT NULL
-        )
-    """)
-    db.commit()
-
-    # Find sessions without quality scores that have JSONL paths
+    # Sessions without a quality score, with at least one run pointing at a
+    # source we can re-parse for feature extraction.
     rows = db.execute("""
-        SELECT uuid, jsonl_path FROM sessions
-        WHERE jsonl_path IS NOT NULL
-        AND (uuid NOT IN (SELECT uuid FROM session_quality))
-        ORDER BY start_ts DESC
+        SELECT
+            s.session_pk,
+            s.session_uuid,
+            (SELECT src.path FROM sources src
+             JOIN runs r2 ON r2.primary_source_id = src.source_id
+             WHERE r2.session_pk = s.session_pk
+             LIMIT 1) AS jsonl_path
+        FROM sessions s
+        WHERE s.session_pk NOT IN (SELECT session_pk FROM session_quality)
+          AND s.start_ts IS NOT NULL
+        ORDER BY s.start_ts DESC
         LIMIT 100
     """).fetchall()
 
@@ -405,29 +407,37 @@ def enrich_sessions_db():
 
     enriched = 0
     for row in rows:
-        jsonl_path = Path(row["jsonl_path"])
-        if not jsonl_path.exists():
+        jsonl = row["jsonl_path"]
+        if not jsonl:
+            continue
+        path = Path(jsonl)
+        if not path.exists():
             continue
         try:
-            features = extract_features(jsonl_path)
+            features = extract_features(path)
             score = compute_quality_score(features)
             db.execute("""
-                INSERT OR REPLACE INTO session_quality (uuid, quality_score, features_json, computed_at)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO session_quality
+                  (session_pk, quality_score, quality_notes, scored_at, scorer)
+                VALUES (?, ?, ?, ?, 'session-features.py')
+                ON CONFLICT(session_pk) DO UPDATE SET
+                  quality_score = excluded.quality_score,
+                  quality_notes = excluded.quality_notes,
+                  scored_at = excluded.scored_at
             """, [
-                row["uuid"],
+                row["session_pk"],
                 score,
                 json.dumps(features),
                 datetime.now(timezone.utc).isoformat(),
             ])
             enriched += 1
         except Exception as e:
-            print(f"  WARN: {row['uuid'][:8]}: {e}", file=sys.stderr)
+            uuid = (row["session_uuid"] or "")[:8]
+            print(f"  WARN: {uuid}: {e}", file=sys.stderr)
 
     db.commit()
     print(f"Enriched {enriched} sessions with quality scores.", file=sys.stderr)
 
-    # Show summary
     stats = db.execute("""
         SELECT
             COUNT(*) as total,

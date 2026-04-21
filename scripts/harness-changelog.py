@@ -81,7 +81,7 @@ def get_quality_around(db: sqlite3.Connection, date_str: str, window: int = 10) 
     before = db.execute("""
         SELECT ROUND(AVG(sq.quality_score), 3) as avg_q, COUNT(*) as n
         FROM sessions s
-        JOIN session_quality sq ON s.uuid = sq.uuid
+        JOIN session_quality sq ON s.session_pk = sq.session_pk
         WHERE s.start_ts < ?
         ORDER BY s.start_ts DESC
         LIMIT ?
@@ -90,7 +90,7 @@ def get_quality_around(db: sqlite3.Connection, date_str: str, window: int = 10) 
     after = db.execute("""
         SELECT ROUND(AVG(sq.quality_score), 3) as avg_q, COUNT(*) as n
         FROM sessions s
-        JOIN session_quality sq ON s.uuid = sq.uuid
+        JOIN session_quality sq ON s.session_pk = sq.session_pk
         WHERE s.start_ts > ?
         ORDER BY s.start_ts ASC
         LIMIT ?

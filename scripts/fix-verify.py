@@ -81,22 +81,36 @@ def _ensure_columns(db: sqlite3.Connection):
 
 def get_sessions_db() -> sqlite3.Connection:
     if not AGENTLOGS_DB.exists():
-        print("Sessions DB not found. Run: uv run python3 scripts/sessions.py index",
-              file=sys.stderr)
+        print("agentlogs DB not found. Run: uv run agentlogs index", file=sys.stderr)
         sys.exit(1)
     from common.db import open_db
     return open_db(AGENTLOGS_DB)
 
 
 def run_detection_query(sessions_db: sqlite3.Connection, query: str, since: str) -> list[dict]:
-    """Run a detection query against recent sessions via FTS5."""
+    """Run a detection query against recent sessions via the agentlogs events_fts.
+
+    Sessions whose events match the FTS query are aggregated and returned
+    with a representative snippet (matches the agentlogs.search_sessions
+    surface).
+    """
     try:
         rows = sessions_db.execute(
             """
-            SELECT s.uuid, s.project, s.start_ts, s.first_message
-            FROM sessions_fts f
-            JOIN sessions s ON s.rowid = f.rowid
-            WHERE sessions_fts MATCH ? AND s.start_ts >= ?
+            SELECT
+                s.session_uuid AS uuid,
+                s.project_slug AS project,
+                s.start_ts,
+                s.first_message,
+                COUNT(*) AS matching_events
+            FROM events_fts
+            JOIN events e   ON e.rowid = events_fts.rowid
+            JOIN runs r     ON r.run_id = e.run_id
+            JOIN sessions s ON s.session_pk = r.session_pk
+            WHERE events_fts MATCH ?
+              AND s.start_ts IS NOT NULL
+              AND s.start_ts >= ?
+            GROUP BY s.session_pk
             ORDER BY s.start_ts DESC
             LIMIT 20
             """,

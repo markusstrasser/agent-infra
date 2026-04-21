@@ -49,7 +49,8 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
 @tool(
     "search_sessions",
     "FTS5 keyword search across Claude Code + Codex + Gemini sessions. "
-    "Returns session_uuid, project, start_ts, model, first_message, matching_events.",
+    "Returns session_uuid, vendor, project_slug, start_ts, first_message, "
+    "matching_events, snippet.",
     {"type": "object", "properties": {
         "query": {"type": "string", "description": "Search keywords (FTS5 syntax)"},
         "n": {"type": "integer", "description": "Max results (default 5)", "default": 5},
