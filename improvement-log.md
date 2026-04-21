@@ -3244,3 +3244,13 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
   - genomics `.mcp.json` edited but commit blocked by staged-ownership guard (two active genomics sessions own the working tree); edit unstaged, awaits pickup from a genomics session.
 - **Root cause (of original pattern):** architecture-over-instructions — rule #8 "Probe before build" was instruction-only; Modal status discipline was nowhere. Now three layers: tool returns structured fields → skill tells agent when to reach → rule remains as principle.
 - **Status:** [x] implemented — monitor for adoption. Decommission criterion: if `verify-before status` is never invoked and the MCP tools aren't called across 30 days of phenome+genomics sessions, reclassify as unused.
+
+### [2026-04-21] SHIPPED — subagent output-file existence check (closes 2026-04-07 #604)
+- **Session:** agent-infra (claude-code)
+- **Evidence:** 2026-04-07 finding "RECURRENCE: Subagent search-without-synthesis" (3rd occurrence) proposed a PostToolUse hook that verifies researcher agents actually wrote to their promised output files. Companion 2026-04-07 #701 ("RULE VIOLATIONS: Subagents dispatched without turn budget or output file params") proposed "promote subagent-gate to blocking" — that half was already done 2026-04-05 (pretool-subagent-gate.sh Check 7, promoted on "657 advisory fires, 0 compliance"). The post-completion verification half was the open gap.
+- **Implemented:**
+  - `skills@posttool-subagent-output-check.sh` — extracts promised output path from dispatch prompt (mirrors pretool Check 8 regex), verifies file exists and is non-empty after Agent returns. Advisory only (additionalContext), starts measuring false-positive rate before any escalation.
+  - `~/.claude/settings.json` — wired as new PostToolUse matcher for `Agent`.
+- **Also shipped this session (separate commit):** `agent-infra@eae9440` — `just hook-decay` report with auto-derived deploy dates. Coverage went from 9 to 33 hooks; first finding was `multiagent-commit [DECAYED]` (slope +1.2/wk). The decay report is how we'll see whether this new output-check hook is working over time.
+- **Root cause (of original pattern):** architecture-over-instructions — "researcher skill says write to output file but model doesn't comply under search momentum." Pre-dispatch rule alone can't enforce post-completion behavior; needed the PostToolUse half.
+- **Status:** [x] implemented — review trigger counts after 2 weeks via `just hook-decay`. If trigger rate is high AND stays high (pesticide paradox), tighten the regex or promote to blocking. If trigger rate is zero, the regex may be too narrow or the problem self-solved after the 04-05 pre-dispatch promotion.
