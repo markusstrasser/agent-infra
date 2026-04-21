@@ -14,6 +14,7 @@ Runs in-process (McpSdkServerConfig), no subprocess/stdio overhead.
 import json
 import re
 import sqlite3
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -25,7 +26,15 @@ def _text_result(text: str, max_result_chars: int = 16000) -> dict:
     return {"content": [{"type": "text", "text": text,
             "_meta": {"anthropic/maxResultSizeChars": max_result_chars}}]}
 
-from common.paths import SESSIONS_DB, TRIGGERS_FILE as HOOK_TRIGGERS
+from common.paths import TRIGGERS_FILE as HOOK_TRIGGERS
+
+# agentlogs package lives in src/ — add to path so the MCP can import it.
+_SRC = Path(__file__).resolve().parent.parent / "src"
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
+
+import agentlogs  # noqa: E402
+
 IMPROVEMENT_LOG = Path(__file__).resolve().parent.parent / "improvement-log.md"
 
 
@@ -33,100 +42,85 @@ IMPROVEMENT_LOG = Path(__file__).resolve().parent.parent / "improvement-log.md"
 # Sessions
 # ---------------------------------------------------------------------------
 
-def _get_sessions_db() -> sqlite3.Connection:
-    from common.db import open_db
-    return open_db(SESSIONS_DB)
-
-
-def _fts5_sanitize(query: str) -> str:
-    tokens = query.split()
-    if not tokens:
-        return query
-    special = re.compile(r'["\-\+\*\(\)\{\}\[\]\^~:]')
-    if any(special.search(t) for t in tokens):
-        return " ".join(f'"{t}"' for t in tokens)
-    return query
-
-
 def _row_to_dict(row: sqlite3.Row) -> dict:
     return {k: row[k] for k in row.keys()}
 
 
 @tool(
     "search_sessions",
-    "FTS5 keyword search over past Claude Code sessions. Returns uuid, project, date, model, cost, first_message.",
+    "FTS5 keyword search across Claude Code + Codex + Gemini sessions. "
+    "Returns session_uuid, project, start_ts, model, first_message, matching_events.",
     {"type": "object", "properties": {
-        "query": {"type": "string", "description": "Search keywords"},
+        "query": {"type": "string", "description": "Search keywords (FTS5 syntax)"},
         "n": {"type": "integer", "description": "Max results (default 5)", "default": 5},
-        "project": {"type": "string", "description": "Filter by project name"},
+        "project": {"type": "string", "description": "Filter by project slug"},
+        "vendor": {"type": "string", "description": "Filter by vendor (claude/codex/gemini)"},
     }, "required": ["query"]},
 )
 async def search_sessions(args):
-    if not SESSIONS_DB.exists():
-        return _text_result("Sessions DB not found. Run: sessions.py index")
+    if not agentlogs.DEFAULT_DB_PATH.exists():
+        return _text_result("agentlogs DB not found. Run: agentlogs index")
 
-    db = _get_sessions_db()
-    q = _fts5_sanitize(args["query"])
-    n = args.get("n", 5)
-
-    where_extra = ""
-    params = [q]
-    if args.get("project"):
-        where_extra = "AND s.project = ?"
-        params.append(args["project"])
-    params.append(n)
-
-    sql = f"""
-        WITH matched AS (
-            SELECT rowid, rank FROM sessions_fts WHERE sessions_fts MATCH ?
-        )
-        SELECT s.uuid, s.project, s.start_ts, s.model, s.cost_usd,
-               s.duration_min, s.first_message, s.files_touched, s.commits
-        FROM matched m JOIN sessions s ON s.rowid = m.rowid
-        {where_extra}
-        ORDER BY m.rank LIMIT ?
-    """
+    db = agentlogs.connect()
     try:
-        rows = db.execute(sql, params).fetchall()
-    except sqlite3.OperationalError:
-        return _text_result("FTS index not built. Run: sessions.py index")
+        hits = agentlogs.search_sessions(
+            db,
+            args["query"],
+            vendor=args.get("vendor"),
+            project=args.get("project"),
+            limit=args.get("n", 5),
+        )
+    except sqlite3.OperationalError as exc:
+        return _text_result(f"agentlogs query error: {exc}")
     finally:
         db.close()
 
-    results = [_row_to_dict(r) for r in rows]
+    results = [
+        {
+            "session_uuid": h.session_uuid,
+            "vendor": h.vendor,
+            "project_slug": h.project_slug,
+            "start_ts": h.start_ts,
+            "first_message": h.first_message,
+            "matching_events": h.matching_events,
+            "snippet": h.snippet,
+        }
+        for h in hits
+    ]
     text = json.dumps(results, indent=2, default=str)
     return _text_result(text, max_result_chars=max(len(text) * 2, 16000))
 
 
 @tool(
     "get_session",
-    "Get full metadata for a session by UUID prefix (first 8 chars).",
+    "Get session metadata by session_uuid or uuid-prefix. "
+    "Returns vendor, project, start/end ts, duration, model, first_message.",
     {"type": "object", "properties": {
-        "uuid_prefix": {"type": "string", "description": "First 8+ characters of session UUID"},
+        "uuid_prefix": {"type": "string", "description": "Full UUID or first 8+ chars"},
     }, "required": ["uuid_prefix"]},
 )
 async def get_session(args):
-    if not SESSIONS_DB.exists():
-        return _text_result("Sessions DB not found.")
+    if not agentlogs.DEFAULT_DB_PATH.exists():
+        return _text_result("agentlogs DB not found.")
 
-    db = _get_sessions_db()
-    prefix = args["uuid_prefix"]
-    row = db.execute(
-        "SELECT * FROM sessions WHERE uuid LIKE ? LIMIT 1",
-        (f"{prefix}%",),
-    ).fetchone()
-    db.close()
+    db = agentlogs.connect()
+    try:
+        prefix = args["uuid_prefix"]
+        row = agentlogs.get_session(db, prefix)
+        if not row:
+            # Try LIKE prefix match on session_uuid
+            row = db.execute(
+                "SELECT * FROM sessions WHERE session_uuid LIKE ? LIMIT 1",
+                (f"{prefix}%",),
+            ).fetchone()
+    finally:
+        db.close()
 
     if not row:
-        return _text_result(f"No session found matching '{prefix}'")
+        return _text_result(f"No session found matching '{args['uuid_prefix']}'")
 
-    d = _row_to_dict(row)
-    # Truncate large fields (raised from 2000 → 8000 now that _meta allows larger results)
-    for field in ("content_text", "files_touched_fts", "commits_fts"):
-        if d.get(field) and len(str(d[field])) > 8000:
-            d[field] = str(d[field])[:8000] + "..."
-    text = json.dumps(d, indent=2, default=str)
-    return _text_result(text, max_result_chars=max(len(text) * 2, 32000))
+    text = json.dumps(_row_to_dict(row), indent=2, default=str)
+    return _text_result(text, max_result_chars=max(len(text) * 2, 16000))
 
 
 # ---------------------------------------------------------------------------

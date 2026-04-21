@@ -46,9 +46,9 @@ smoke:
     echo "=== Research index frontmatter ==="
     head -1 .claude/rules/research-index.md | grep -q '^---$' || { echo "FAIL: research-index.md missing YAML frontmatter"; exit 1; }
     echo "OK: frontmatter intact"
-    echo "=== Runlogs DB ==="
-    sqlite3 "$HOME/.claude/runlogs.db" "SELECT COUNT(*) FROM sessions" > /dev/null 2>&1 || { echo "FAIL: runlogs sessions"; exit 1; }
-    echo "OK: runlogs readable"
+    echo "=== agentlogs DB ==="
+    sqlite3 "$HOME/.claude/agentlogs.db" "SELECT COUNT(*) FROM sessions" > /dev/null 2>&1 || { echo "FAIL: agentlogs sessions"; exit 1; }
+    echo "OK: agentlogs readable"
 
 # Check all research MCP servers respond (<10s)
 [group('health')]
@@ -211,22 +211,32 @@ plans-active:
 plans-json:
     uv run python3 scripts/plan-status.py --json
 
-# ── Sessions ─────────────────────────────────────────────────────
+# ── Sessions (agentlogs) ─────────────────────────────────────────
 
-# Import vendor logs into runlogs.db
+# Ingest new sessions from all vendors (Claude, Codex, Gemini) into agentlogs.db
 [group('sessions')]
-runlog-import:
-    uv run python3 scripts/runlog.py import
+agentlogs-index *args:
+    uv run agentlogs index {{args}}
 
-# Import git commits with session attribution into runlogs.db
+# Search FTS across all vendors' sessions
 [group('sessions')]
-git-import days="30":
-    uv run python3 scripts/runlog.py git-import --days {{days}}
+agentlogs-search *args:
+    uv run agentlogs search {{args}}
 
-# Session search & dispatch (index, list, search, show, dispatch)
+# DB size + per-vendor counts + indexer health
 [group('sessions')]
-sessions *args:
-    uv run python3 scripts/sessions.py {{args}}
+agentlogs-stats:
+    uv run agentlogs stats
+
+# Run a named analytical query (omit name to list available)
+[group('sessions')]
+agentlogs-query *args:
+    uv run agentlogs query {{args}}
+
+# Generic passthrough: agentlogs <any-subcommand>
+[group('sessions')]
+agentlogs *args:
+    uv run agentlogs {{args}}
 
 # ── Common Crawl ──────────────────────────────────────────────────
 
