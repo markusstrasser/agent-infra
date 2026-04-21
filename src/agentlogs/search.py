@@ -206,7 +206,7 @@ def recent_sessions(
     sql = """
         SELECT
             session_pk, session_uuid, vendor, project_slug,
-            start_ts, duration_min, cost_usd, model, first_message
+            start_ts, duration_min, model, first_message
         FROM sessions
         WHERE 1=1
     """

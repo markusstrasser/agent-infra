@@ -77,6 +77,15 @@ def _make_parser() -> argparse.ArgumentParser:
     # stats
     sub.add_parser("stats", help="Per-vendor counts + indexer health + DB size")
 
+    # git-import
+    s_git = sub.add_parser("git-import",
+                           help="Import git commits with Session-ID attribution")
+    s_git.add_argument("--days", type=int, default=30,
+                       help="Lookback window (default: 30)")
+    s_git.add_argument("--project", action="append",
+                       help="Project(s) to import (default: agent-infra, intel, "
+                            "phenome, genomics, skills)")
+
     # dispatch
     s_disp = sub.add_parser("dispatch", help="Analyze a session via llmx")
     s_disp.add_argument("session", help="session_uuid or session_pk")
@@ -240,7 +249,7 @@ def cmd_recent(args) -> int:
             _print_table(
                 rows,
                 ["session_uuid", "vendor", "project_slug", "start_ts",
-                 "duration_min", "cost_usd", "model", "first_message"],
+                 "duration_min", "model", "first_message"],
             )
         return 0
     finally:
@@ -330,6 +339,29 @@ def cmd_dispatch(args) -> int:
         db.close()
 
 
+def cmd_git_import(args) -> int:
+    from .git_import import import_git_commits
+
+    db = connect(_resolve_db_path(args))
+    try:
+        count = import_git_commits(
+            db, projects=args.project, days=args.days,
+        )
+        print(f"Imported {count} commits across "
+              f"{len(args.project) if args.project else 5} projects "
+              f"({args.days}d window)")
+        # Summary of newly-visible fix-of-fix chains
+        rows = db.execute(
+            "SELECT COUNT(*) FROM v_fix_chains WHERE fix1_date >= "
+            "date('now', ?)", (f"-{args.days} days",),
+        ).fetchone()
+        if rows and rows[0]:
+            print(f"Fix-of-fix chains in window: {rows[0]}")
+        return 0
+    finally:
+        db.close()
+
+
 _COMMANDS = {
     "index": cmd_index,
     "search": cmd_search,
@@ -338,6 +370,7 @@ _COMMANDS = {
     "query": cmd_query,
     "stats": cmd_stats,
     "dispatch": cmd_dispatch,
+    "git-import": cmd_git_import,
 }
 
 

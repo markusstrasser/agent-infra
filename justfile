@@ -233,6 +233,11 @@ agentlogs-stats:
 agentlogs-query *args:
     uv run agentlogs query {{args}}
 
+# Import git commits with Session-ID attribution (populates v_session_commits etc.)
+[group('sessions')]
+agentlogs-git-import days="30":
+    uv run agentlogs git-import --days {{days}}
+
 # Generic passthrough: agentlogs <any-subcommand>
 [group('sessions')]
 agentlogs *args:
