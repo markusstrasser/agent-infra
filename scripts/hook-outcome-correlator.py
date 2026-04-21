@@ -15,7 +15,7 @@ Usage:
   uv run python3 scripts/hook-outcome-correlator.py --effectiveness [--days N]
 """
 
-import json
+import subprocess
 import sys
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -25,20 +25,72 @@ from common.paths import TRIGGERS_FILE, RECEIPTS_PATH as RECEIPTS_FILE
 from common.io import load_jsonl
 
 
-# Hook deployment dates — when each hook was first deployed.
-# Used for before/after effectiveness measurement.
-# Derived from: git -C ~/Projects/skills log --format="%ai %s" -- hooks/
-HOOK_DEPLOY_DATES: dict[str, str] = {
+# Manual overrides for hook deploy dates. Auto-derivation from git log covers
+# the common case (filename contains hook name); overrides are only needed
+# when a hook predates its current filename or was renamed.
+HOOK_DEPLOY_OVERRIDES: dict[str, str] = {
     "commit-check": "2026-03-01",
     "search-burst": "2026-03-01",
     "subagent-gate": "2026-03-01",
     "source-check": "2026-03-02",
     "spinning": "2026-03-08",
-    "bash-failure-loop": "2026-03-17",
-    "dup-read": "2026-03-26",
-    "bash-poll": "2026-03-29",
-    "multiagent-commit": "2026-04-03",
 }
+
+
+def _git_first_commit_dates(repo: Path, subdir: str) -> dict[str, str]:
+    """Map basename -> ISO date of first commit adding that file under subdir."""
+    if not (repo / ".git").exists():
+        return {}
+    try:
+        out = subprocess.check_output(
+            ["git", "-C", str(repo), "log", "--reverse", "--diff-filter=A",
+             "--format=%ai", "--name-only", "--", subdir],
+            text=True, stderr=subprocess.DEVNULL,
+        )
+    except subprocess.CalledProcessError:
+        return {}
+    date: str | None = None
+    result: dict[str, str] = {}
+    for line in out.splitlines():
+        if not line.strip():
+            continue
+        if len(line) >= 10 and line[0].isdigit() and line[4] == "-":
+            date = line[:10]
+        elif date:
+            fname = line.rsplit("/", 1)[-1]
+            result.setdefault(fname, date)
+    return result
+
+
+def derive_hook_deploy_dates(hook_names: set[str]) -> dict[str, str]:
+    """Best-effort: match trigger-log hook names to hook filenames by token substring."""
+    file_dates: dict[str, str] = {}
+    for repo, sub in [(Path.home() / "Projects" / "skills", "hooks/"),
+                      (Path.home() / ".claude", "hooks/")]:
+        for fname, date in _git_first_commit_dates(repo, sub).items():
+            # earliest wins if a hook file appears in both repos
+            if fname not in file_dates or date < file_dates[fname]:
+                file_dates[fname] = date
+
+    result: dict[str, str] = {}
+    for hook in hook_names:
+        if not hook or hook == "?":
+            continue
+        hook_parts = hook.split("-")
+        matches: list[tuple[str, str]] = []
+        for fname, date in file_dates.items():
+            stem = fname.rsplit(".", 1)[0].replace("_", "-")
+            parts = stem.split("-")
+            # Contiguous subsequence match: "dup-read" ⊂ "posttool-dup-read"
+            for i in range(len(parts) - len(hook_parts) + 1):
+                if parts[i:i + len(hook_parts)] == hook_parts:
+                    matches.append((date, fname))
+                    break
+        if matches:
+            matches.sort()
+            result[hook] = matches[0][0]
+    result.update(HOOK_DEPLOY_OVERRIDES)
+    return result
 
 
 def effectiveness_report(days: int):
@@ -71,6 +123,7 @@ def effectiveness_report(days: int):
         if ts:
             hook_day_triggers[hook][ts[:10]] += 1
 
+    deploy_dates = derive_hook_deploy_dates(set(hook_day_triggers))
     all_days = sorted(sessions_per_day.keys())
 
     print(f"{'=' * 85}")
@@ -82,8 +135,8 @@ def effectiveness_report(days: int):
           f"{'DAYS_POST':>9} {'TRIG/DAY':>8} {'CHANGE':>7} {'LABEL'}")
     print(f"  {'-' * 85}")
 
-    for hook_name in sorted(HOOK_DEPLOY_DATES):
-        deploy_date = HOOK_DEPLOY_DATES[hook_name]
+    for hook_name in sorted(deploy_dates):
+        deploy_date = deploy_dates[hook_name]
         day_triggers = hook_day_triggers.get(hook_name, {})
 
         # Split days into before/after deployment
@@ -147,15 +200,125 @@ def effectiveness_report(days: int):
     print()
 
 
+def decay_report(days: int):
+    """Pesticide-paradox check: weekly post-deploy trigger rate per hook.
+
+    A hook can look [EFFECTIVE] in the before/after average while silently
+    decaying — trigger rate drops in week 1, drifts back to baseline by week 6.
+    This splits the post-deploy window into ISO-week buckets and fits a slope
+    over the last 4 weeks to flag plateaued or rising hooks.
+    """
+    cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+    triggers = load_jsonl(TRIGGERS_FILE, since=cutoff)
+    if not triggers:
+        print(f"No triggers in last {days} days.")
+        return
+
+    # Bucket triggers by hook × ISO week
+    hook_week_counts: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    all_weeks: set[str] = set()
+    for t in triggers:
+        hook = t.get("hook", "?")
+        ts = t.get("ts", "")
+        if not ts:
+            continue
+        try:
+            d = datetime.strptime(ts[:10], "%Y-%m-%d")
+        except ValueError:
+            continue
+        y, w, _ = d.isocalendar()
+        key = f"{y}-W{w:02d}"
+        hook_week_counts[hook][key] += 1
+        all_weeks.add(key)
+
+    weeks_sorted = sorted(all_weeks)
+    if len(weeks_sorted) < 3:
+        print(f"Need ≥3 ISO weeks of data; have {len(weeks_sorted)}.")
+        return
+
+    deploy_dates = derive_hook_deploy_dates(set(hook_week_counts))
+
+    print(f"{'=' * 95}")
+    print(f"  Hook Decay Analysis — last {days} days ({len(weeks_sorted)} ISO weeks)")
+    print(f"  Method: post-deploy weekly trigger rate, slope over last min(4, N) weeks")
+    print(f"{'=' * 95}")
+    print()
+    header = f"  {'HOOK':<25} {'DEPLOYED':>10} {'W1':>6} {'W-latest':>9} " \
+             f"{'PEAK':>6} {'SLOPE/wk':>9} {'LABEL'}"
+    print(header)
+    print(f"  {'-' * 93}")
+
+    for hook_name in sorted(deploy_dates):
+        deploy_date = deploy_dates[hook_name]
+        try:
+            dd = datetime.strptime(deploy_date, "%Y-%m-%d")
+        except ValueError:
+            continue
+        dy, dw, _ = dd.isocalendar()
+        deploy_week = f"{dy}-W{dw:02d}"
+
+        # Post-deploy weeks only (inclusive of deploy week)
+        post_weeks = [w for w in weeks_sorted if w >= deploy_week]
+        counts = [hook_week_counts[hook_name].get(w, 0) for w in post_weeks]
+
+        if len(counts) < 2:
+            print(f"  {hook_name:<25} {deploy_date:>10} {'—':>6} {'—':>9} "
+                  f"{'—':>6} {'—':>9} [UNDERPOWERED]")
+            continue
+
+        w1 = counts[0]
+        latest = counts[-1]
+        peak = max(counts)
+
+        # Linear slope over last min(4, N) weeks; units = triggers/week
+        tail = counts[-min(4, len(counts)):]
+        n = len(tail)
+        xs = list(range(n))
+        mx = sum(xs) / n
+        my = sum(tail) / n
+        num = sum((x - mx) * (y - my) for x, y in zip(xs, tail))
+        den = sum((x - mx) ** 2 for x in xs) or 1
+        slope = num / den
+
+        # Classification: does the hook still produce signal?
+        if peak == 0:
+            label = "[SILENT]"
+        elif latest >= 0.8 * peak and slope >= 0:
+            label = "[DECAYED]"   # drifted back to near-peak
+        elif abs(slope) < 0.1 * max(my, 1) and latest < peak:
+            label = "[PLATEAU]"   # flat, below peak — taught what it can
+        elif slope < 0:
+            label = "[LEARNING]"  # still declining — hook working
+        elif slope > 0:
+            label = "[RISING]"    # getting worse
+        else:
+            label = "[STABLE]"
+
+        print(f"  {hook_name:<25} {deploy_date:>10} {w1:>6} {latest:>9} "
+              f"{peak:>6} {slope:>+9.1f} {label}")
+
+    print()
+    print("  [LEARNING] = trigger rate still declining — hook teaching behavior.")
+    print("  [PLATEAU]  = flat below peak — hook taught what it can; fires now are noise or necessary friction.")
+    print("  [DECAYED]  = drifted back near peak — hook no longer changes behavior (pesticide paradox).")
+    print("  [RISING]   = getting worse over time — investigate.")
+    print("  [SILENT]   = no triggers in window — candidate for retirement.")
+    print()
+
+
 def main():
     days = 7
     verbose = "--verbose" in sys.argv
     effectiveness = "--effectiveness" in sys.argv
+    decay = "--decay" in sys.argv
     if "--days" in sys.argv:
         idx = sys.argv.index("--days")
         if idx + 1 < len(sys.argv):
             days = int(sys.argv[idx + 1])
 
+    if decay:
+        decay_report(days if days != 7 else 60)
+        return
     if effectiveness:
         effectiveness_report(days if days != 7 else 30)
         return

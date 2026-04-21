@@ -187,6 +187,11 @@ tags *args:
 hook-telemetry *args:
     uv run python3 scripts/hook-telemetry-report.py {{args}}
 
+# Hook pesticide-paradox check — per-week trigger slope, flags decayed/plateaued hooks
+[group('epistemic')]
+hook-decay *args:
+    uv run python3 scripts/hook-outcome-correlator.py --decay {{args}}
+
 # ── Governance ──────────────────────────────────────────────────
 
 # Audit gotchas across all projects (manual prompt / ad-hoc research)
