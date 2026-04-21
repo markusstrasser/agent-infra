@@ -24,6 +24,7 @@ parallel-mcp = "scripts.parallel_mcp:main"
 [tool.pyright]
 typeCheckingMode = "basic"
 exclude = ["artifacts/", "downloads/", "bundles/", ".claude/worktrees/"]
+extraPaths = ["src"]
 
 [build-system]
 requires = ["hatchling"]
@@ -37,4 +38,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["."]
+packages = [".", "src/agentlogs"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/agentlogs" = "agentlogs"
