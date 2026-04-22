@@ -59,6 +59,7 @@ cross-project-infra-factoring.md | architectural, assessment, 7-project, overlap
 divergent-convergent-thinking-llms.md | llm, divergent, convergent, thinking, asymmetry, denial, prompting, persona-based, mode, switching, liveideabench/aut/neogauge, benchmarks
 domain-specific-agent-biases.md | domain-specific, cognitive, biases, trading, bias, echo, product, disposition, mirroring, scientific, review, citation
 design-md-format.md | DESIGN.md, google-labs, visual, identity, spec, YAML, tokens, coding, agents, lint, diff, frontend, adopt-when-stable
+frontend-polish-techniques.md | CSS, micro-interactions, text-wrap, balance, pretty, concentric, radius, tabular-nums, interruptible, transitions, optical, alignment, shadows
 epistemic-architecture-v3.md | domain-branched, epistemic, layers, layer, universal, domain-specific, meta-monitoring, first-principles, 13-item, phased, implementation, plan.
 epistemic-causal-bayesian-sweep-2026-03-12.md | do-calculus, three-framework, comparison, pearl/robins-swigs/dawid, bayesian, uq, conformal, prediction, winning, e-values, rising, prm
 epistemic-measurement-concepts.md | concepts, reference, canary, queries, fold, detection, trace, faithfulness, spc, goodhart, mitigation, brier
