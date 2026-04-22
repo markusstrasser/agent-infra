@@ -58,6 +58,7 @@ cross-model-review-failure-modes.md | cross-model, llm, review, failure, modes, 
 cross-project-infra-factoring.md | architectural, assessment, 7-project, overlap, why, embeddings, extracted, dataset/dag/telemetry/mcp/caching, don, designing, shared, libraries
 divergent-convergent-thinking-llms.md | llm, divergent, convergent, thinking, asymmetry, denial, prompting, persona-based, mode, switching, liveideabench/aut/neogauge, benchmarks
 domain-specific-agent-biases.md | domain-specific, cognitive, biases, trading, bias, echo, product, disposition, mirroring, scientific, review, citation
+design-md-format.md | DESIGN.md, google-labs, visual, identity, spec, YAML, tokens, coding, agents, lint, diff, frontend, adopt-when-stable
 epistemic-architecture-v3.md | domain-branched, epistemic, layers, layer, universal, domain-specific, meta-monitoring, first-principles, 13-item, phased, implementation, plan.
 epistemic-causal-bayesian-sweep-2026-03-12.md | do-calculus, three-framework, comparison, pearl/robins-swigs/dawid, bayesian, uq, conformal, prediction, winning, e-values, rising, prm
 epistemic-measurement-concepts.md | concepts, reference, canary, queries, fold, detection, trace, faithfulness, spc, goodhart, mitigation, brier
