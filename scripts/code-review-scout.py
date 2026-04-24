@@ -81,7 +81,7 @@ PROVIDERS = {
         "name": "gemini",
     },
     "openai": {
-        "model_flag": "-p openai -m gpt-5.4",
+        "model_flag": "-p openai -m gpt-5.5",
         # No --stream (forces API fallback). reasoning-effort may be ignored by CLI but
         # doesn't trigger fallback.
         "extra": "--reasoning-effort medium --timeout 180",
