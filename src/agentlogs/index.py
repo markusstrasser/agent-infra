@@ -386,6 +386,11 @@ def _upsert_run(db, run_row, session_pk: int, source_id: int, token_totals: dict
 
 
 def _upsert_event(db, row, record_ref_id, import_id):
+    # (run_id, seq) is the stable identity within a run — event_id is derived
+    # from stable_id(raw_key, ...) which can shift between re-parses (e.g., if a
+    # line_no-based raw_key changes). Conflict target is the composite index, not
+    # the PK, so re-indexing updates the event_id in place instead of failing the
+    # whole vendor's transaction.
     trimmed = trim_payload(row.payload)
     db.execute(
         """
@@ -394,9 +399,9 @@ def _upsert_event(db, row, record_ref_id, import_id):
             role, text, payload_json, record_ref_id, parent_event_id, correlation_id, tool_call_id
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(event_id) DO UPDATE SET
+        ON CONFLICT(run_id, seq) DO UPDATE SET
+            event_id = excluded.event_id,
             import_id = excluded.import_id,
-            seq = excluded.seq,
             ts = COALESCE(excluded.ts, events.ts),
             kind = excluded.kind,
             vendor_kind = COALESCE(excluded.vendor_kind, events.vendor_kind),
