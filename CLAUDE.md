@@ -110,7 +110,7 @@ Primary feedback: `/observe sessions` comparing actual runs vs optimal baseline.
 ### Session Architecture
 - Interactive sessions with `/loop` for recurring work
 - Subagent delegation for fan-out (>10 discrete operations)
-- Orchestrator for unattended scheduled tasks only (session-retro, morning-brief)
+- Orchestrator for manual invocation of queued Agent SDK tasks (not currently scheduled)
 
 ### Known Limitations
 - **Sycophancy:** instruction-mitigated only. Session-analyst detects post-hoc.
@@ -132,9 +132,11 @@ How to verify this constitution is working (check via `/observe sessions` after 
 
 **`/loop` + interactive sessions is primary.** The human runs Claude Code directly, uses `/loop` for recurring tasks (`/improve maintain`, `/research cycle`), and steers in real-time. Subagents handle fan-out within sessions.
 
-## Orchestrator — Background Only
+## Orchestrator — Manual Invocation
 
-Queue-backed task runner for unattended scheduled work. Run `uv run python3 scripts/orchestrator.py --help` for commands. Daily cost cap: $25.
+Queue-backed task runner. Previously scheduled via `com.agent-infra.orchestrator` launchd plist; removed 2026-04-24 together with the other API-burning daily jobs (`code-review-daily`, `propose-work-daily`, `session-retro-daily`, `hook-roi-daily`). Run manually: `uv run python3 scripts/orchestrator.py --help`. Daily cost cap (when invoked): $25.
+
+The only active launchd jobs now are local, zero-API: `com.agent-infra.agentlogs-backup` (daily 04:00 sqlite backup) and `com.agent-infra.agentlogs-index` (every 2h session-dir indexing).
 
 ## Backlog
 
