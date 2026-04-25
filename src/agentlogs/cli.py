@@ -42,6 +42,11 @@ def _make_parser() -> argparse.ArgumentParser:
                          help="Re-import even if source sha+parser_version already succeeded")
     s_index.add_argument("--no-lock", action="store_true",
                          help="Skip single-writer lock (debug only)")
+    s_index.add_argument("--bulk", action="store_true",
+                         help="Drop FTS triggers during indexing and rebuild the FTS index at the "
+                              "end. Major speedup for large first-pass / catch-up runs (FTS triggers "
+                              "fire per-event-row and dominate write time on big batches). Safe: "
+                              "FTS5 'rebuild' regenerates from the events table content.")
 
     # search
     s_search = sub.add_parser("search", help="FTS search across events/sessions")
@@ -133,6 +138,12 @@ def cmd_index(args) -> int:
 
     def _run_all() -> int:
         db = connect(_resolve_db_path(args))
+        bulk = bool(getattr(args, "bulk", False))
+        if bulk:
+            # Drop FTS triggers — bulk-load mode rebuilds at the end.
+            for trig in ("events_ai", "events_ad", "events_au"):
+                db.execute(f"DROP TRIGGER IF EXISTS {trig}")
+            print("[bulk] dropped FTS triggers — will rebuild after indexing")
         try:
             total_imported = total_skipped = total_failed = 0
             vendor_errors = 0
@@ -161,6 +172,28 @@ def cmd_index(args) -> int:
                 total_failed += stats.sources_failed
             return 1 if (total_failed or vendor_errors) else 0
         finally:
+            if bulk:
+                # Rebuild FTS index from events table content, then recreate
+                # triggers so subsequent (non-bulk) indexing keeps FTS in sync.
+                print("[bulk] rebuilding events_fts...")
+                db.execute("INSERT INTO events_fts(events_fts) VALUES('rebuild')")
+                db.execute("""
+                    CREATE TRIGGER IF NOT EXISTS events_ai AFTER INSERT ON events BEGIN
+                        INSERT INTO events_fts(rowid, text) VALUES (new.rowid, new.text);
+                    END
+                """)
+                db.execute("""
+                    CREATE TRIGGER IF NOT EXISTS events_ad AFTER DELETE ON events BEGIN
+                        INSERT INTO events_fts(events_fts, rowid, text) VALUES('delete', old.rowid, old.text);
+                    END
+                """)
+                db.execute("""
+                    CREATE TRIGGER IF NOT EXISTS events_au AFTER UPDATE ON events BEGIN
+                        INSERT INTO events_fts(events_fts, rowid, text) VALUES('delete', old.rowid, old.text);
+                        INSERT INTO events_fts(rowid, text) VALUES (new.rowid, new.text);
+                    END
+                """)
+                print("[bulk] FTS rebuilt + triggers restored")
             db.close()
 
     if args.no_lock:
