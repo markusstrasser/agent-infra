@@ -632,10 +632,26 @@ def index_vendor(
                 _write_parsed(db, parsed, source_id, import_id, stats)
                 db.execute("COMMIT")
                 stats.sources_imported += 1
-            except Exception:
+            except Exception as src_exc:
+                # Per-source failure: roll back this source's transaction, record
+                # it as failed, and continue with the next source. Previously this
+                # re-raised, which killed the entire vendor's pass on any single
+                # bad source — turned one corrupt jsonl into a multi-day cascade
+                # (see 2026-04-24 cleanup session, agentlogs.db.indexlock orphan).
                 db.execute("ROLLBACK")
-                raise
+                _write_import(
+                    db, source_id=source_id, sha=sha,
+                    parser_name=parser_name, parser_version=parser_version,
+                    success=False,
+                    error={"error": type(src_exc).__name__, "message": str(src_exc),
+                           "path": str(source.path)},
+                )
+                stats.sources_failed += 1
+                traceback.print_exc()
     except Exception as exc:
+        # Outer try catches errors from discovery / SHA / per-source setup —
+        # i.e., things that happen BEFORE we entered the inner try. These still
+        # fully abort the vendor since they're not source-local.
         error = exc
         traceback.print_exc()
     finally:
@@ -645,19 +661,32 @@ def index_vendor(
 
 def _write_parsed(db, parsed, source_id: int, import_id: int, stats: IndexerStats) -> None:
     """Write a ParsedSource bundle under a single import_id."""
-    # Record refs first — events reference them
+    # Record refs first — events reference them.
+    # Batched: one executemany + one SELECT to recover ids by natural key.
     ref_map: dict[str, int] = {}
-    for record in parsed.records:
-        cursor = db.execute(
+    if parsed.records:
+        record_rows = [
+            (source_id, import_id, r.raw_record_hash, r.raw_record_key,
+             r.line_no, r.byte_start, r.byte_end, _db_text(r.ts_raw))
+            for r in parsed.records
+        ]
+        db.executemany(
             """
             INSERT INTO record_refs (source_id, import_id, raw_record_hash, raw_record_key,
                                      line_no, byte_start, byte_end, ts_raw)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (source_id, import_id, record.raw_record_hash, record.raw_record_key,
-             record.line_no, record.byte_start, record.byte_end, _db_text(record.ts_raw)),
+            record_rows,
         )
-        ref_map[record.raw_record_key] = int(cursor.lastrowid)  # type: ignore[arg-type]
+        # Fetch back by (source_id, import_id) — the import is fresh so the rows
+        # we just inserted are the only ones matching this pair.
+        ref_map = dict(
+            db.execute(
+                "SELECT raw_record_key, record_ref_id FROM record_refs "
+                "WHERE source_id = ? AND import_id = ?",
+                (source_id, import_id),
+            )
+        )
 
     # Sessions
     session_pks: dict[tuple[str, str, str], int] = {}
@@ -681,11 +710,49 @@ def _write_parsed(db, parsed, source_id: int, import_id: int, stats: IndexerStat
     for rc in parsed.run_configs:
         _upsert_run_config(db, rc)
 
-    # Events
-    for ev in parsed.events:
-        record_ref_id = ref_map.get(ev.record_key) if ev.record_key else None
-        _upsert_event(db, ev, record_ref_id, import_id)
-        stats.events_written += 1
+    # Events — batched executemany. Same SQL as _upsert_event but applied to N
+    # rows in one round-trip. Saves the per-event Python↔SQLite overhead, which
+    # dominates write time on sources with thousands of events.
+    if parsed.events:
+        event_rows = []
+        for ev in parsed.events:
+            record_ref_id = ref_map.get(ev.record_key) if ev.record_key else None
+            trimmed = trim_payload(ev.payload)
+            event_rows.append((
+                _db_text(ev.event_id), _db_text(ev.run_id), import_id, ev.seq,
+                _db_text(ev.ts), _db_text(ev.kind),
+                _db_text(ev.vendor_kind), _db_text(ev.vendor_event_id),
+                _db_text(ev.role), _db_text(ev.text),
+                _db_text(json_dumps(trimmed)) if trimmed is not None else None,
+                record_ref_id,
+                _db_text(ev.parent_event_id), _db_text(ev.correlation_id),
+                _db_text(ev.tool_call_id),
+            ))
+        db.executemany(
+            """
+            INSERT INTO events (
+                event_id, run_id, import_id, seq, ts, kind, vendor_kind, vendor_event_id,
+                role, text, payload_json, record_ref_id, parent_event_id, correlation_id, tool_call_id
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(run_id, seq) DO UPDATE SET
+                event_id = excluded.event_id,
+                import_id = excluded.import_id,
+                ts = COALESCE(excluded.ts, events.ts),
+                kind = excluded.kind,
+                vendor_kind = COALESCE(excluded.vendor_kind, events.vendor_kind),
+                vendor_event_id = COALESCE(excluded.vendor_event_id, events.vendor_event_id),
+                role = COALESCE(excluded.role, events.role),
+                text = COALESCE(excluded.text, events.text),
+                payload_json = excluded.payload_json,
+                record_ref_id = COALESCE(excluded.record_ref_id, events.record_ref_id),
+                parent_event_id = COALESCE(excluded.parent_event_id, events.parent_event_id),
+                correlation_id = COALESCE(excluded.correlation_id, events.correlation_id),
+                tool_call_id = COALESCE(excluded.tool_call_id, events.tool_call_id)
+            """,
+            event_rows,
+        )
+        stats.events_written += len(event_rows)
 
     # Tool calls
     for tc in parsed.tool_calls:
