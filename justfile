@@ -260,6 +260,27 @@ cc-ranks-refresh:
 cc-rank domain:
     scripts/cc-domain-ranks.sh lookup {{domain}}
 
+# Cloud-hosted multi-agent review of current branch (CC 2.1.120+, billed)
+[group('cc')]
+review-branch *target:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    branch=$(git branch --show-current 2>/dev/null || echo HEAD)
+    out="artifacts/ultrareview-${branch//\//-}-$(date +%Y%m%d-%H%M).json"
+    mkdir -p artifacts
+    echo "Running claude ultrareview ${1:-} → $out (timeout 30m)"
+    claude ultrareview --json --timeout 30 {{target}} > "$out"
+    echo "Findings: $(jq '.bugs | length' "$out" 2>/dev/null || echo unknown)"
+    echo "Output:   $out"
+
+# Delete all Claude Code state for a project (transcripts, tasks, history)
+[group('cc')]
+project-purge target:
+    @echo "Dry-run first:"
+    claude project purge {{target}} --dry-run
+    @echo
+    @echo "To confirm: claude project purge {{target}} --yes"
+
 # ── Native Tools ───────────────────────────────────────────────────
 
 # Quick operational state snapshot (branch, queue, plans, last receipt)
