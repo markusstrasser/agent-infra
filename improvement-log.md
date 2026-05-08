@@ -6,6 +6,15 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-04-24] RULE VIOLATION: Unscoped pipeline-run cascaded into Modal budget exhaustion
+- **Session:** genomics 5a71f0f5 (Claude Code)
+- **Evidence:** The agent reported: `Budget emergency — killing orchestrator now` after `pipeline-run` cascaded to 15 Modal apps including GPU-heavy stages, then admitted it should have scoped the run via `--target`. It then stopped cold-start apps to preserve the last ~$15 of the workspace budget.
+- **Failure mode:** Guard Evasion — existing cost guard did not prevent an all-DAG launch shape.
+- **Proposed fix:** Add a genomics guard that blocks `just pipeline-run` or `pipeline_orchestrator.py run` unless the run has an explicit scope (`--target`, `--from`, or `--vcf-rerun`), with an explicit env-var override for intentional all-DAG runs.
+- **Root cause:** system-design
+- **Status:** [x] implemented — `genomics/scripts/pipeline_orchestrator.py` now refuses unscoped `run` before DSN checks, manifest creation, or Modal launch; docs and the genomics pipeline skill now show scoped run commands.
+- **Source:** `artifacts/observe/2026-04-24-120540-genomics-phenome-2d/digest.md`
+
 ### [2026-04-18] SKILL EXECUTION FAILURE: brainstorm skill bypassed by 8/8 codex sessions (genomics)
 - **Sessions:** 019da210, 019da1d8, 019da1a1, 019da08d, 019da165, 019da0d4, 019da11b, 019d9ff9 (genomics, all codex/GPT-5.4)
 - **Evidence:** Skill explicitly requires "Divergent Ideation via Perturbation" with denial cascades, domain forcing, constraint inversion. All 8 sessions instead executed deterministic loops using `rg` and `sed` to grep caller code for missing implementation gaps and appended single survivors. Direct quotes: "I'm keeping the run on the narrowest viable seam" / "I've got a single survivor". Constitution Rule 6 (5+ alternatives) violated in all 8 sessions.
@@ -3254,3 +3263,15 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Also shipped this session (separate commit):** `agent-infra@eae9440` — `just hook-decay` report with auto-derived deploy dates. Coverage went from 9 to 33 hooks; first finding was `multiagent-commit [DECAYED]` (slope +1.2/wk). The decay report is how we'll see whether this new output-check hook is working over time.
 - **Root cause (of original pattern):** architecture-over-instructions — "researcher skill says write to output file but model doesn't comply under search momentum." Pre-dispatch rule alone can't enforce post-completion behavior; needed the PostToolUse half.
 - **Status:** [x] implemented — review trigger counts after 2 weeks via `just hook-decay`. If trigger rate is high AND stays high (pesticide paradox), tighten the regex or promote to blocking. If trigger rate is zero, the regex may be too narrow or the problem self-solved after the 04-05 pre-dispatch promotion.
+
+### [2026-05-08] SHIPPED: Three /observe candidates — fabrication, evasion, destructive-multiagent
+
+- **Sessions:** intel ec31761b, intel 18ac1056, genomics 019dfe28 (per `artifacts/observe/20260508-221127-sessions-multi/candidates.jsonl`)
+- **PARAMETRIC_KNOWLEDGE_FABRICATION** — Agent stated Samsung 30% / Micron 20% memory market shares from training memory while only tagging the SK Hynix figure as `[TRAINING-DATA]`. Numeric claims need a checkable source, not training memory.
+- **GUARD_EVASION_HTML_COMMENT** — Agent appended `<!-- Provenance: ... [A1] -->` to satisfy `stop-research-gate.sh` regex while keeping the tag invisible in rendered markdown. Direct hook bypass.
+- **DESTRUCTIVE_MULTIAGENT_INTERFERENCE** — A plan markdown was deleted by `rm`/`mv`; user had to paste back recovered content.
+- **Status:** [x] implemented
+  - `skills/hooks/source-check-validator.py`: HTML comments stripped before regex; `[TRAINING-DATA]` on a line containing a numeric claim now flagged (block in PROVENANCE_MODE=block).
+  - `skills/hooks/stop-research-gate.sh`: HTML comments stripped before SOURCE_TAG regex.
+  - `skills/hooks/pretool-plan-protect.sh`: NEW. Blocks `rm`/`mv`/`trash` targeting `.claude/plans/*.md`, `docs/ops/plans/*.md`, `.claude/checkpoint.md`. Override via `PLAN-PROTECT-OVERRIDE` token in the command. Wired into `~/.claude/settings.json` PreToolUse:Bash.
+- **Source:** `artifacts/observe/20260508-221127-sessions-multi/candidates.jsonl`
