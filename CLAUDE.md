@@ -1,7 +1,7 @@
 # Meta — Agent Infrastructure
 
 ## Purpose
-This repo plans and tracks improvements to agent infrastructure across projects (intel, selve, genomics, skills, research-mcp). It's the "thinking about thinking" repo.
+This repo plans and tracks improvements to agent infrastructure across projects (intel, phenome, genomics, skills, research-mcp). It's the "thinking about thinking" repo.
 
 ## Quick Start
 
