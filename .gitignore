@@ -63,3 +63,6 @@ logs/
 artifacts/prompt-archaeology/
 .gstack/
 docs/vendor/
+
+# Session scratch dirs (capture real configs — never commit)
+.scratch/
