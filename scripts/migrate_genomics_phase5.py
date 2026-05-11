@@ -258,7 +258,8 @@ def main() -> int:
     print("=== Phase 5 complete ===")
     print(f"  source_observations.canonical_source_id populated: {n_populated}")
     print(f"  corpus annotations backfilled: {backfilled}")
-    return 0
+    # Non-zero exit code on partial failure — "complete" must mean complete.
+    return 1 if errors or skipped_no_binding else 0
 
 
 if __name__ == "__main__":
