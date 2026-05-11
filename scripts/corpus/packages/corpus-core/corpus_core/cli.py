@@ -3,6 +3,7 @@
 Subcommands:
     corpus ingest --pdf <path> [--doi ... | --pmid ...]
     corpus ingest --revise --pdf <new> --paper-id <id>
+    corpus ingest-batch --dir <path> [--parser marker-modal] [--max-parallel 10]
     corpus annotate --source-id <id> --repo <r> --actor-type <t> --actor-id <urn> --scope <s>
     corpus resolve-references --paper-id <id> [--online]
     corpus extract-citances --paper-id <id> [--enrich-cito]
@@ -18,6 +19,7 @@ import argparse
 import sys
 
 from . import annotate_cli as _annotate
+from . import batch as _batch
 from . import ingest as _ingest
 from . import resolve_references as _refs
 from . import extract_citances as _cites
@@ -30,6 +32,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="corpus", description="Canonical corpus store CLI")
     subs = parser.add_subparsers(dest="cmd", required=True)
     _ingest.add_cli(subs)
+    _batch.add_cli(subs)
     _annotate.add_cli(subs)
     _refs.add_cli(subs)
     _cites.add_cli(subs)

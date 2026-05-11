@@ -42,6 +42,7 @@ _DEFAULT_CONFIG = {
     "extract_images": True,
     "chunk_pages": 3,
     "llm_service": "marker.services.gemini.GoogleGeminiService",
+    "gemini_model_name": "gemini-3.1-flash-lite",
 }
 
 
@@ -182,6 +183,7 @@ def extract(
     # Build the config Marker actually consumes
     marker_cfg = {k: v for k, v in cfg.items() if k in {
         "use_llm", "extract_images", "llm_service",
+        "gemini_model_name",
         "force_ocr", "format_lines", "redo_inline_math",
     }}
 

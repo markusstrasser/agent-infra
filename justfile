@@ -499,3 +499,14 @@ migrate-phenome *args:
 [group('corpus')]
 extract-intel-citations *args:
     uv run python3 scripts/extract_intel_entity_citations.py {{args}}
+
+# Deploy corpus-marker Modal app (Marker on T4 GPU + Gemini cleanup).
+# Pre-req: `modal secret create gemini-api-key GEMINI_API_KEY=$GEMINI_API_KEY`.
+[group('corpus')]
+modal-deploy-marker:
+    uv run modal deploy scripts/corpus_marker_modal.py
+
+# Smoke-test the deployed corpus-marker app on a PDF.
+[group('corpus')]
+modal-smoke-marker pdf:
+    uv run modal run scripts/corpus_marker_modal.py --pdf {{pdf}}
