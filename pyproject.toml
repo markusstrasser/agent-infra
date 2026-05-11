@@ -6,6 +6,7 @@ requires-python = ">=3.11"
 dependencies = [
     "anthropic>=0.84.0",
     "claude-agent-sdk>=0.1.44",
+    "corpus-core",
     "duckdb>=1.1",
     "exa-py>=2.6.1",
     "fastmcp>=3.0,<4.0",
@@ -15,9 +16,13 @@ dependencies = [
     "parallel-web>=0.4.0",
 ]
 
+[tool.uv.sources]
+corpus-core = { path = "scripts/corpus/packages/corpus-core", editable = true }
+
 [project.scripts]
 agentlogs = "agentlogs.cli:main"
 agent-infra-mcp = "agent_infra_mcp:main"
+corpus-mcp = "scripts.corpus_mcp:main"
 duckdb-mcp = "duckdb_mcp:main"
 modal-triage-mcp = "modal_triage_mcp:main"
 parallel-mcp = "scripts.parallel_mcp:main"
