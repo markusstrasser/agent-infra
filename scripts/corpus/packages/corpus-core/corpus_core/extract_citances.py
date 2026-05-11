@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from . import paper_store as ps
+from . import store as ps
 
 
 CITO_BASE = "http://purl.org/spar/cito/"

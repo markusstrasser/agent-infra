@@ -1,5 +1,5 @@
 -- DuckDB schema for the canonical paper graph index.
--- Rebuilt by `papers maintain --rebuild-graph` from per-paper JSONL files.
+-- Rebuilt by `corpus maintain --rebuild-graph` from per-paper JSONL files.
 
 CREATE TABLE IF NOT EXISTS edges (
   citing_paper_id  TEXT NOT NULL,

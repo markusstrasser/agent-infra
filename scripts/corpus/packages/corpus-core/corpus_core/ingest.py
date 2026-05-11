@@ -1,7 +1,7 @@
 """Ingest a PDF into the canonical store.
 
-Single CLI: `papers ingest --pdf <path> [--doi ... --pmid ...]`
-            `papers ingest --revise --pdf <new> --paper-id <id>`
+Single CLI: `corpus ingest --pdf <path> [--doi ... --pmid ...]`
+            `corpus ingest --revise --pdf <new> --paper-id <id>`
 
 Marker is run as a subprocess (the installed CLI), chunked at 3 pages to work
 around the surya MPS bug (datalab-to/marker#993). A pre-patched venv at
@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import Optional
 
 from . import SCHEMA_VERSION
-from . import paper_store as ps
+from . import store as ps
 
 
 CHUNK_PAGES = 3  # surya MPS workaround
@@ -45,7 +45,7 @@ DEFAULT_MARKER_BIN = "/tmp/pdf-bench/.venv/bin/marker_single"
 
 def _find_marker_bin() -> str:
     candidates = [
-        os.environ.get("PAPERS_MARKER_BIN", ""),
+        os.environ.get("CORPUS_MARKER_BIN", ""),
         DEFAULT_MARKER_BIN,
         shutil.which("marker_single") or "",
     ]
@@ -53,7 +53,7 @@ def _find_marker_bin() -> str:
         if c and Path(c).exists():
             return c
     raise RuntimeError(
-        "marker_single not found. Set PAPERS_MARKER_BIN, install marker, or "
+        "marker_single not found. Set CORPUS_MARKER_BIN, install marker, or "
         "use /tmp/pdf-bench/.venv/bin/marker_single."
     )
 
@@ -190,7 +190,7 @@ def _run_marker_chunked(
     bin_path = _find_marker_bin()
     npages = _pdf_page_count(pdf_path)
     pdf_stem = pdf_path.stem
-    with tempfile.TemporaryDirectory(prefix="papers-marker-") as td:
+    with tempfile.TemporaryDirectory(prefix="corpus-marker-") as td:
         td_path = Path(td)
         chunk_outputs: list[Path] = []
         for start in range(0, npages, chunk_pages):
@@ -259,7 +259,7 @@ def ingest_pdf(
             raise ps.PaperStoreError(
                 f"{paper_id} already has a different pdf_sha256 "
                 f"({existing_pdf_sha[:16]} vs new {pdf_sha[:16]}). "
-                "Use `papers ingest --revise` to record a revision."
+                "Use `corpus ingest --revise` to record a revision."
             )
 
     # Copy PDF into store

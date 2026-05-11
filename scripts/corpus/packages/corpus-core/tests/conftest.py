@@ -1,4 +1,4 @@
-"""Test fixtures — every test gets a fresh PAPERS_ROOT."""
+"""Test fixtures — every test gets a fresh CORPUS_ROOT."""
 from __future__ import annotations
 
 import os
@@ -9,10 +9,10 @@ import pytest
 
 
 @pytest.fixture
-def papers_root(monkeypatch, tmp_path) -> Path:
-    root = tmp_path / "papers"
+def corpus_root(monkeypatch, tmp_path) -> Path:
+    root = tmp_path / "corpus"
     root.mkdir()
-    monkeypatch.setenv("PAPERS_ROOT", str(root))
+    monkeypatch.setenv("CORPUS_ROOT", str(root))
     # Force module-level rebind by re-importing
     return root
 

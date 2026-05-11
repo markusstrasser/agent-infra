@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.local/corpus/verdict/v1.0.0",
+  "title": "verdict (per-repo MCP return contract)",
+  "description": "Shape per-repo MCPs return from verdicts_for_claim(claim_id) and record_verdict(...). Bridges domain verdict state to the corpus annotation layer.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "verdict_id", "claim_id", "support_state", "asserted_at"],
+  "properties": {
+    "schema_version": {"type": "string", "const": "1-0-0"},
+    "verdict_id": {"type": "string", "minLength": 1},
+    "claim_id": {"type": "string", "minLength": 1},
+    "support_state": {
+      "type": "string",
+      "enum": ["supported", "contradicted", "insufficient", "mixed", "unsupported", "retracted"]
+    },
+    "model_version": {"type": ["string", "null"]},
+    "prompt_template_hash": {"type": ["string", "null"]},
+    "evidence_observation_ids": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "verdict_projection_hash": {"type": ["string", "null"]},
+    "asserted_at": {"type": "string", "format": "date-time"},
+    "status": {
+      "type": "string",
+      "enum": ["active", "superseded", "retracted"],
+      "default": "active"
+    },
+    "review_status": {"type": ["string", "null"]}
+  }
+}

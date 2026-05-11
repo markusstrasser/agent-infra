@@ -7,6 +7,7 @@ requires-python = ">=3.11"
 dependencies = [
     "duckdb>=1.0",
     "pypdf>=4.0",
+    "jsonschema>=4.20",
 ]
 
 [project.scripts]
@@ -21,6 +22,10 @@ packages = ["corpus_core"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "corpus_core/graph_schema.sql" = "corpus_core/graph_schema.sql"
+"../../schemas/v1/annotation.v1.json" = "corpus_core/schemas/v1/annotation.v1.json"
+"../../schemas/v1/source_record.v1.json" = "corpus_core/schemas/v1/source_record.v1.json"
+"../../schemas/v1/claim.v1.json" = "corpus_core/schemas/v1/claim.v1.json"
+"../../schemas/v1/verdict.v1.json" = "corpus_core/schemas/v1/verdict.v1.json"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -28,4 +33,5 @@ testpaths = ["tests"]
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",
+    "rfc8785>=0.1.4",
 ]
