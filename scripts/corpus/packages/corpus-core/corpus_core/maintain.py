@@ -317,6 +317,8 @@ def add_cli(subparsers: argparse._SubParsersAction) -> None:
     p.add_argument("--rebuild-indexes", action="store_true")
     p.add_argument("--rebuild-citances", action="store_true")
     p.add_argument("--rebuild-graph", action="store_true")
+    p.add_argument("--rebuild-annotations-index", action="store_true",
+                   help="Project annotations.jsonl files into graph.duckdb annotations table")
     p.add_argument("--gc", action="store_true")
     p.add_argument("--after-rebuild", action="store_true",
                    help="Required for --gc (model-review #11)")
@@ -326,11 +328,20 @@ def add_cli(subparsers: argparse._SubParsersAction) -> None:
     p.set_defaults(func=_cmd_maintain)
 
 
+def cmd_rebuild_annotations_index(args) -> int:
+    from .index import rebuild_annotations_index
+    stats = rebuild_annotations_index()
+    print(f"rebuilt annotations index  "
+          f"sources={stats['sources_scanned']}  rows={stats['rows_written']}")
+    return 0
+
+
 def _cmd_maintain(args) -> int:
     args._rebuild_ran_this_invocation = False
     if not any([args.verify, args.rebuild_indexes, args.rebuild_citances,
-                args.rebuild_graph, args.gc]):
-        print("specify one of --verify --rebuild-indexes --rebuild-citances --rebuild-graph --gc",
+                args.rebuild_graph, args.rebuild_annotations_index, args.gc]):
+        print("specify one of --verify --rebuild-indexes --rebuild-citances "
+              "--rebuild-graph --rebuild-annotations-index --gc",
               file=sys.stderr)
         return 2
     rc = 0
@@ -343,6 +354,8 @@ def _cmd_maintain(args) -> int:
         rc = max(rc, cmd_rebuild_citances(args))
     if args.rebuild_graph:
         rc = max(rc, cmd_rebuild_graph(args))
+    if args.rebuild_annotations_index:
+        rc = max(rc, cmd_rebuild_annotations_index(args))
     if args.gc:
         rc = max(rc, cmd_gc(args))
     return rc
