@@ -63,7 +63,7 @@ All three scientific repos independently evolved an "attestation" pattern — re
 ### intel — theses graph + closure FSM (predicates + entry-readiness gate)
 
 - Code: `tools/theses/` — `predicates.py` (33 predicates × 9 families), `slot_vocab.py` (18 slots), `closure/` (12-axis entry FSM + 6-axis monitoring), `schema.sql`, `rebuild.py`, `extract_frontmatter.py`, `upstream_daemon.py`.
-- DB: `intel/indexed/theses.duckdb` — derived from markdown frontmatter (`analysis/entities/{TICKER}.md`, `analysis/themes/*.md`). Markdown canonical, DB rebuildable.
+- DB: `intel/intel/indexed/theses.duckdb` — note the nested `intel/intel/` path. Derived from markdown frontmatter (`analysis/entities/{TICKER}.md`, `analysis/themes/*.md`). Markdown canonical, DB rebuildable.
 - MCP: `intel-theses` (`scripts/theses_mcp.py`). Replaces legacy `knowledge-substrate` MCP.
 - Source grading lives in the markdown body itself (`[A1]`–`[F6]` NATO Admiralty + `[DATA]` for own-DuckDB). Not in a separate table.
 - The closure FSM is the analog of genomics' `claim_verdicts.review_status` enum — it gates whether an entity is "entry-ready" against a `ProspectiveState = DB ∪ proposed_delta`.
@@ -195,8 +195,8 @@ This memo synthesizes:
 Read those for primary detail. This memo is the index.
 
 <!-- knowledge-index
-generated: 2026-05-11T04:16:23Z
-hash: 8b31798bae50
+generated: 2026-05-11T06:22:05Z
+hash: 34bb04055835
 
 title: Cross-Project Architecture Overview — phenome × genomics × intel × agent-infra
 status: active
