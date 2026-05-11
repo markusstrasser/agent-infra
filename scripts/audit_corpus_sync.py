@@ -131,23 +131,33 @@ def _verdict_id_from_uri(uri: str | None) -> tuple[str | None, str | None]:
 
 
 def audit() -> dict[str, Any]:
+    """Audit verdict-level attestation coverage.
+
+    Primary check: each local verdict_id must appear as the verdict_id
+    component of some annotation's output_uri (`<repo>://verdicts/<vid>`).
+    The annotation stable_tuple now includes output_uri (substrate fix
+    2026-05-11), so each verdict gets its own annotation row — no
+    projection-collapse, no need for the secondary (source_id, output_hash)
+    coverage join that was a workaround before the stable_tuple fix.
+
+    Secondary signal: report projection coverage (`(source_id, output_hash)`
+    pairs that have any annotation) alongside the strict count so
+    operators can distinguish "no verdicts attested" from "some verdicts
+    re-emitted a known projection." Advisory only — does NOT affect drift.
+    """
     annotations = _read_corpus_annotations()
 
-    # Coverage index: per repo, set of (source_id, output_hash) pairs that
-    # have an annotation. Verdicts collapse onto a (source_id, vp_hash) pair
-    # because corpus_annotate is idempotent on the stable_tuple
-    # — multiple verdicts sharing a projection share an annotation by design.
-    coverage_by_repo: dict[str, set[tuple[str, str]]] = {}
     annotated_uris_by_repo: dict[str, set[str]] = {}
+    projection_cover_by_repo: dict[str, set[tuple[str, str]]] = {}
     for ann in annotations:
         repo = ann["repo"]
-        if ann["source_id"] and ann["output_hash"]:
-            coverage_by_repo.setdefault(repo, set()).add(
-                (ann["source_id"], ann["output_hash"])
-            )
         uri_repo, vid = _verdict_id_from_uri(ann["output_uri"])
         if uri_repo and vid:
             annotated_uris_by_repo.setdefault(uri_repo, set()).add(vid)
+        if ann["source_id"] and ann["output_hash"]:
+            projection_cover_by_repo.setdefault(repo, set()).add(
+                (ann["source_id"], ann["output_hash"])
+            )
 
     drift_missing_annotations: list[dict[str, Any]] = []
     drift_orphan_annotations: list[dict[str, Any]] = []
@@ -156,25 +166,19 @@ def audit() -> dict[str, Any]:
     for src in VERDICTS_SOURCES:
         repo = src["repo"]
         local_verdicts = _read_verdicts(repo, src["db_path"], src["sql"])
-        cover = coverage_by_repo.get(repo, set())
-
         local_vid_set = {vid for vid, _sid, _h in local_verdicts}
         annotated_vid_set = annotated_uris_by_repo.get(repo, set())
+        proj_cover = projection_cover_by_repo.get(repo, set())
 
-        missing: list[str] = []
-        for vid, sid, ohash in local_verdicts:
-            if sid and ohash:
-                # Covered if (sid, ohash) appears in any annotation
-                if (sid, ohash) not in cover:
-                    missing.append(vid)
-            else:
-                # No verdict-side join keys — fall back to URI matching for
-                # repos that haven't joined the substrate-v1 interface yet.
-                if vid not in annotated_vid_set:
-                    missing.append(vid)
-
-        # Orphans: annotation URIs naming verdict_ids not in the local DB.
+        missing = sorted(local_vid_set - annotated_vid_set)
         orphans = sorted(annotated_vid_set - local_vid_set) if local_vid_set else []
+
+        # Secondary advisory: how many local (source_id, output_hash)
+        # projections are represented in the corpus at all.
+        projection_hits = 0
+        for _vid, sid, ohash in local_verdicts:
+            if sid and ohash and (sid, ohash) in proj_cover:
+                projection_hits += 1
 
         for vid in missing:
             drift_missing_annotations.append({"repo": repo, "verdict_id": vid})
@@ -185,9 +189,10 @@ def audit() -> dict[str, Any]:
             "repo": repo,
             "db_path": str(src["db_path"]),
             "verdicts_local": len(local_vid_set),
-            "verdicts_annotated": len(local_vid_set) - len(missing),
+            "verdicts_annotated": len(annotated_vid_set & local_vid_set),
             "missing_annotations": len(missing),
             "orphan_annotations": len(orphans),
+            "projection_hits": projection_hits,  # advisory
         })
 
     return {
@@ -222,7 +227,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {row['repo']:10s}  verdicts={row['verdicts_local']:5d}  "
                   f"annotated={row['verdicts_annotated']:5d}  "
                   f"missing_ann={row['missing_annotations']:4d}  "
-                  f"orphans={row['orphan_annotations']:4d}")
+                  f"orphans={row['orphan_annotations']:4d}  "
+                  f"projection_hits={row.get('projection_hits', 0):4d}")
         print()
         if report["drift_total"] == 0:
             print("OK: 0 drift")
