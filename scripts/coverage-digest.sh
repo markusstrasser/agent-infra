@@ -65,6 +65,29 @@ for path in sys.argv[1:]:
 " "$GLOBAL_SETTINGS" "$META_SETTINGS" 2>/dev/null
 
 echo ""
+echo "## PROJECT MEMORY (already sanctioned/documented — do NOT promote duplicates):"
+# Memory dir is keyed by encoded cwd. The agent-infra/genomics/phenome/etc projects
+# each have their own ~/.claude/projects/-Users-alien-Projects-<NAME>/memory/ tree.
+# Scan all project memory dirs the operator has — surfacing sanctioned bypasses
+# and existing feedback prevents /observe from promoting known-resolved patterns.
+# Evidence: genomics/docs/audit/observe-gaps-2026-05-11/findings.md F3.
+MEMORY_ROOT="${HOME}/.claude/projects"
+if [ -d "$MEMORY_ROOT" ]; then
+  for memdir in "$MEMORY_ROOT"/*/memory; do
+    [ -d "$memdir" ] || continue
+    # Derive project name from path: -Users-alien-Projects-X/memory -> X
+    proj=$(basename "$(dirname "$memdir")" | sed 's|^-Users-alien-Projects-||' | tr - ' ')
+    # Extract name + description from frontmatter of each memory file.
+    # Skip daily logs (YYYY-MM-DD.md) — those aren't sanctioned patterns.
+    find "$memdir" -maxdepth 1 -name "feedback_*.md" -o -name "reference_*.md" -o -name "project_*.md" 2>/dev/null | sort | while read -r f; do
+      name=$(awk '/^name:/ {sub(/^name:[[:space:]]*/,""); print; exit}' "$f")
+      desc=$(awk '/^description:/ {sub(/^description:[[:space:]]*/,""); print; exit}' "$f")
+      [ -n "$name" ] && echo "[$proj] $name — $desc"
+    done
+  done | head -200
+fi
+
+echo ""
 echo "## KEY RULES (already in global CLAUDE.md — do NOT re-propose these):"
 echo "- Rule 6: explore before converging (brainstorm 5+ alternatives for design tasks)"
 echo "- Rule 7: probe before build (validate core assumption before wiring infrastructure)"
