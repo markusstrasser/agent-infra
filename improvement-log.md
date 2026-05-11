@@ -6,6 +6,33 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-05-11] HOOK WEAKNESS: subagent-gate write-stub advisory ignored across all 36 dispatches (intel)
+- **Sessions:** intel `4ef78841` (14+ dispatches), `1792c708` (multiple dispatches)
+- **Evidence:** `pretool-subagent-gate.sh` Check 10 fires advisory `additionalContext` on every Agent() dispatch where `output_file:` is specified but no write-stub-first instruction is present: `"SUBAGENT WRITE-FIRST: Prompt specifies file output but doesn't instruct write-stub-first. Add: 'Your FIRST tool call MUST be Write with a PROBE IN PROGRESS stub at the output path.'"` In session `4ef78841` this fired ~14 times consecutively; the parent agent read the advisory in tool_result each turn and dispatched the next agent unchanged. Pattern verified independently in `1792c708`. The `spinning:528` counter partially reflects this advisory inflation — every advisory logs to `hook-trigger-log.sh` without producing any behavioral change.
+- **Failure mode:** HOOK-WEAKNESS — advisory-without-enforcement on subagent dispatch. Same class as the 2026-05-11 sequential-error-blindness finding (Check 7) but on a different dimension (write-stub-first instead of turn-budget).
+- **Proposed fix:** Escalate Check 10 to BLOCK (exit 2) when `HAS_FILE_OUTPUT > 0`, `HAS_EARLY_WRITE == 0`, prompt is substantial (`PROMPT_LEN > 200`), no worktree isolation, and `subagent_type` is not in the advisory-only set (Explore, observe, claude-code-guide, statusline-setup, researcher). Mirror the case logic already in Check 7. Block message embeds the literal fix text.
+- **Root cause:** system-design — advisory hooks lose enforcement value after first occurrence; agents treat repeated identical advisories as noise.
+- **Status:** [x] implemented — `~/Projects/skills/hooks/pretool-subagent-gate.sh` Check 10 promoted to BLOCK with same case logic as Check 7.
+- **Source:** `artifacts/observe/2026-05-11-intel-48h-sessions/deeper-pass.md` Finding 1
+
+### [2026-05-11] HOOK DESIGN PRINCIPLE: BLOCK messages must embed the literal one-line fix text (intel)
+- **Sessions:** intel `4ef78841` (4× DVN.md, 3× NTLA.md, 3× pretool-deployment-evidence-gate.py), `f78866c8` (4× ALAB.md, 4× POET.md, 3× AAOI.md), `48d3fdd1` (6× healthcheck.py, 5× setup_duckdb.py, 4× employer_match.py), `d695fc07` (4× download_form4_bulk.py, 4× download_labor_signals.py)
+- **Evidence:** Every session with a hook BLOCK followed the same dup-read pattern: agent reads file → hook blocks Write → agent re-reads file to diagnose → edits → re-reads to verify → re-edits. 13 file-triplets across 4 sessions, all driven by hook-block-then-diagnose workflows. The intel `read-discipline:232` counter is this exact loop. The `tool-tracker.sh` 3×-read advisory adds noise to the cycle without breaking it. Root cause: block messages say what's wrong but not what to type. Example: `pretool-adversarial-review-gate.py` says `"'## Adversarial pass' section claimed but no .model-review/<topic>/disposition.md link found in body."` — correct diagnosis, but the agent then re-reads the file to figure out the exact link format to add.
+- **Failure mode:** HOOK-DESIGN — block messages diagnose without prescribing. Forces 2-3 extra Read calls per block.
+- **Proposed fix:** Cross-hook design principle. Every blocking hook's reason text must include a one-line concrete fix the agent can paste. Example for adversarial-review-gate: `"BLOCKED: missing disposition link. Add this line to your '## Adversarial pass' section: '- [disposition](.model-review/<topic>/disposition.md)' (substitute the actual topic slug)."` Apply to: `pretool-adversarial-review-gate.py`, `pretool-deployment-evidence-gate.py`, `pretool-falsifier-disposition-gate.py`, and any future hook with a structural-validation block. Treat as a hook-authoring rubric, not a single patch.
+- **Root cause:** system-design — hooks document the violation but not the remediation, costing 2-3 dup-reads per fire.
+- **Status:** [ ] proposed — applies cross-hook; needs systematic pass over intel + skills hooks
+- **Source:** `artifacts/observe/2026-05-11-intel-48h-sessions/deeper-pass.md` Finding 4
+
+### [2026-05-11] HOOK FALSE-POSITIVE: rule-link-validator blocks legitimate `_archived/` references (intel)
+- **Session:** intel `4ef78841`
+- **Evidence:** `pretool-rule-link-validator.py` BLOCKED a Write/Edit to `conviction-template.md` with `"BLOCKED: conviction-template.md references rule file(s) that do not exist: ref: conviction-schema.md line: under _archived/2026-05-10-full-strip/c..."`. The reference is intentional — `_archived/INDEX.md` deliberately preserves recovery pointers to archived rules per the 2026-05-11 archive-strip design (`.claude/rules/_archived/INDEX.md`).
+- **Failure mode:** HOOK-FALSE-POSITIVE — validator does not exempt recovery-pointer references to archived rules.
+- **Proposed fix:** In `pretool-rule-link-validator.py`, after the active-rules check, also check `_archived/**/<ref>` before declaring the link missing. One-line glob.
+- **Root cause:** task-specification — hook was written before the 2026-05-11 archive-strip design that introduced recovery pointers.
+- **Status:** [x] implemented — `intel/.claude/hooks/pretool-rule-link-validator.py` now also searches `rules_dir/_archived/**/<ref>` before reporting missing.
+- **Source:** `artifacts/observe/2026-05-11-intel-48h-sessions/deeper-pass.md` Finding 2
+
 ### [2026-04-24] RULE VIOLATION: Unscoped pipeline-run cascaded into Modal budget exhaustion
 - **Session:** genomics 5a71f0f5 (Claude Code)
 - **Evidence:** The agent reported: `Budget emergency — killing orchestrator now` after `pipeline-run` cascaded to 15 Modal apps including GPU-heavy stages, then admitted it should have scoped the run via `--target`. It then stopped cold-start apps to preserve the last ~$15 of the workspace budget.
