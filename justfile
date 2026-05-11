@@ -489,3 +489,13 @@ discarded:
         echo
       fi
     done
+
+# Phase 6 phenome migration (substrate-v1)
+[group('corpus')]
+migrate-phenome *args:
+    uv run python3 scripts/migrate_phenome_source_records.py {{args}}
+
+# Phase 6.5 intel entity citation extraction (substrate-v1)
+[group('corpus')]
+extract-intel-citations *args:
+    uv run python3 scripts/extract_intel_entity_citations.py {{args}}
