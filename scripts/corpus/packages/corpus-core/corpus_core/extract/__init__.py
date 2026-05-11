@@ -20,7 +20,11 @@ Tool picks (per research/prior-art-2026-05-11/01-pdf-html-extractors.md):
 * AGPL is OK for local-only personal use (per SCHEMA.md license invariant).
   Must NOT be deployed behind a public network endpoint.
 
-Fallback: gemini-flash-lite for PDFs the local parsers can't handle.
+Opt-in parsers (NOT in DEFAULT_PARSER; pass via `--parser <name>`):
+  - `marker`             GPL-3.0; LLM-enhanced + figure crops. Mac MPS bugs
+                         (#993/#967/#960). Chunked-by-default workaround.
+                         Install: `uv tool install marker-pdf`.
+  - `gemini-flash-lite`  Cloud LLM fallback for PDFs the local parsers fail.
 """
 from __future__ import annotations
 
@@ -53,11 +57,12 @@ DEFAULT_PARSER: dict[str, str] = {
 
 def _registry() -> dict[str, Callable[..., ExtractResult]]:
     """Lazy import — keeps optional deps optional."""
-    from . import pdf_lightweight, pdf_mineru, html_trafilatura, pdf_llm
+    from . import pdf_lightweight, pdf_marker, pdf_mineru, html_trafilatura, pdf_llm
     return {
         "mineru":            pdf_mineru.extract,
         "pymupdf4llm":       pdf_lightweight.extract,
         "trafilatura":       html_trafilatura.extract_from_bytes,
+        "marker":            pdf_marker.extract,  # opt-in; GPL-3.0
         "gemini-flash-lite": pdf_llm.extract,
     }
 

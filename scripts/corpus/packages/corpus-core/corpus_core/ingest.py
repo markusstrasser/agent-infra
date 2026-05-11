@@ -240,12 +240,22 @@ def _write_parsed(p_path: Path, result: ExtractResult, *, source: str) -> Path:
     parsed_dir = p_path / f"parsed.{result.parser_id}"
     parsed_dir.mkdir(parents=True, exist_ok=True)
     (parsed_dir / "page.md").write_text(result.parsed_markdown, encoding="utf-8")
+
+    # Copy any staged image crops (Marker emits _page_*.jpeg / .png in extras).
+    extras = result.extras or {}
+    for img_path_str in extras.get("image_paths") or []:
+        img = Path(img_path_str)
+        if img.exists():
+            shutil.copy2(str(img), str(parsed_dir / img.name))
+
+    # Persist extras without the image_paths field (paths reference temp dirs).
+    extras_for_meta = {k: v for k, v in extras.items() if k != "image_paths"}
     parser_json = {
         "parser_id": result.parser_id,
         "parser_config_md5": result.parser_config_md5,
         "char_count": result.char_count,
         "page_count": result.page_count,
-        "extras": result.extras,
+        "extras": extras_for_meta or None,
         "source": source,
         "ts": ps._now(),
     }
@@ -342,7 +352,9 @@ def add_cli(subparsers: argparse._SubParsersAction) -> None:
                    help="paper|preprint|database_release|regulatory_filing|tool_output|"
                         "webpage|blog_post|news|other  (default depends on input)")
     p.add_argument("--parser", default=None,
-                   help="mineru|pymupdf4llm|trafilatura|gemini-flash-lite (override default)")
+                   help="mineru|pymupdf4llm|trafilatura|marker|gemini-flash-lite "
+                        "(override default). 'marker' is GPL-3.0 + Mac-MPS-buggy; "
+                        "opt-in only.")
     p.add_argument("--revise", action="store_true",
                    help="Treat this as a revision; --paper-id required (PDF only)")
     p.add_argument("--paper-id", default=None, help="Required with --revise")
