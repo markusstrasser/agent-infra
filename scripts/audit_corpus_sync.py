@@ -39,28 +39,39 @@ CORPUS_GRAPH_DB = CORPUS_ROOT / "graph.duckdb"
 # Each per-repo verdicts source is a (repo_name, db_path, sql) triple.
 # The SQL must yield (verdict_id, source_id) rows. Phase 5/6 will normalize
 # source_id forms across all three repos.
+# Each per-repo verdicts source yields (verdict_id, source_id, output_hash)
+# triples. The audit covers a verdict if the corpus carries an annotation
+# whose (source_id, output_hash) matches the verdict's pair — idempotent
+# annotations collapse when multiple verdicts share a projection, so 1:1
+# verdict_id ↔ output_uri matching undercounts coverage.
 VERDICTS_SOURCES: list[dict[str, Any]] = [
     {
         "repo": "genomics",
         "db_path": PROJECTS_ROOT / "genomics" / "data" / "knowledge" / "knowledge.duckdb",
-        # claim_verdicts has no top-level source_id pre-Phase-5; source_id is
-        # in source_record_json. For audit, verdict_id is the join key —
-        # source_id is informational and will be present post-Phase-5
-        # (canonical_source_id column added then).
-        "sql": "SELECT verdict_id, '' AS source_id FROM claim_verdicts WHERE review_status = 'current'",
+        "sql": """
+            SELECT cv.verdict_id,
+                   (SELECT so.canonical_source_id
+                    FROM evidence_bindings eb
+                    JOIN source_observations so ON eb.observation_id = so.observation_id
+                    WHERE eb.verdict_id = cv.verdict_id
+                    ORDER BY eb.binding_id LIMIT 1) AS source_id,
+                   cv.verdict_projection_hash AS output_hash
+            FROM claim_verdicts cv
+            WHERE cv.review_status = 'current'
+        """,
     },
     {
         "repo": "phenome",
         "db_path": PROJECTS_ROOT / "phenome" / "indexed" / "claims.duckdb",
-        # Phenome's verdict surface is the cert stack. Until Phase 6 stands up
-        # phenome-mcp's record_verdict tool, this query is a placeholder —
-        # missing-table is tolerated by the audit.
-        "sql": "SELECT cert_id AS verdict_id, '' AS source_id FROM cert_attestations",
+        # Phenome's verdict surface is the cert stack. Until phenome-mcp
+        # stands up record_verdict, this query is a placeholder — missing-
+        # table is tolerated by the audit.
+        "sql": "SELECT cert_id AS verdict_id, '' AS source_id, '' AS output_hash FROM cert_attestations",
     },
     {
         "repo": "intel",
         "db_path": PROJECTS_ROOT / "intel" / "intel" / "indexed" / "theses.duckdb",
-        "sql": "SELECT verdict_id, '' AS source_id FROM claim_verdicts",
+        "sql": "SELECT verdict_id, '' AS source_id, '' AS output_hash FROM claim_verdicts",
     },
 ]
 
@@ -68,7 +79,8 @@ VERDICTS_SOURCES: list[dict[str, Any]] = [
 _URI_RE = re.compile(r"^([a-z-]+)://verdicts/(.+)$")
 
 
-def _read_verdicts(repo: str, db_path: Path, sql: str) -> list[tuple[str, str]]:
+def _read_verdicts(repo: str, db_path: Path, sql: str) -> list[tuple[str, str, str]]:
+    """Return [(verdict_id, source_id, output_hash), ...]."""
     if not db_path.exists():
         return []
     try:
@@ -79,7 +91,8 @@ def _read_verdicts(repo: str, db_path: Path, sql: str) -> list[tuple[str, str]]:
         return []
     try:
         try:
-            return [(str(r[0]), str(r[1])) for r in con.execute(sql).fetchall()]
+            rows = con.execute(sql).fetchall()
+            return [(str(r[0]), str(r[1] or ""), str(r[2] or "")) for r in rows]
         except (duckdb.BinderException, duckdb.CatalogException):
             # Schema not present — common for repos that haven't migrated to
             # the shared interface yet (Phase 5/6).
@@ -95,14 +108,14 @@ def _read_corpus_annotations() -> list[dict[str, Any]]:
     con = duckdb.connect(str(CORPUS_GRAPH_DB), read_only=True)
     try:
         rows = con.execute(
-            "SELECT annotation_id, source_id, repo, output_uri, recorded_at "
+            "SELECT annotation_id, source_id, repo, output_uri, output_hash, recorded_at "
             "FROM annotations WHERE scope = 'verdict'"
         ).fetchall()
     finally:
         con.close()
     return [
         {"annotation_id": r[0], "source_id": r[1], "repo": r[2],
-         "output_uri": r[3], "recorded_at": r[4]}
+         "output_uri": r[3], "output_hash": r[4] or "", "recorded_at": r[5]}
         for r in rows
     ]
 
@@ -119,11 +132,22 @@ def _verdict_id_from_uri(uri: str | None) -> tuple[str | None, str | None]:
 
 def audit() -> dict[str, Any]:
     annotations = _read_corpus_annotations()
-    verdict_ids_by_repo: dict[str, set[str]] = {}
+
+    # Coverage index: per repo, set of (source_id, output_hash) pairs that
+    # have an annotation. Verdicts collapse onto a (source_id, vp_hash) pair
+    # because corpus_annotate is idempotent on the stable_tuple
+    # — multiple verdicts sharing a projection share an annotation by design.
+    coverage_by_repo: dict[str, set[tuple[str, str]]] = {}
+    annotated_uris_by_repo: dict[str, set[str]] = {}
     for ann in annotations:
-        repo, vid = _verdict_id_from_uri(ann["output_uri"])
-        if repo and vid:
-            verdict_ids_by_repo.setdefault(repo, set()).add(vid)
+        repo = ann["repo"]
+        if ann["source_id"] and ann["output_hash"]:
+            coverage_by_repo.setdefault(repo, set()).add(
+                (ann["source_id"], ann["output_hash"])
+            )
+        uri_repo, vid = _verdict_id_from_uri(ann["output_uri"])
+        if uri_repo and vid:
+            annotated_uris_by_repo.setdefault(uri_repo, set()).add(vid)
 
     drift_missing_annotations: list[dict[str, Any]] = []
     drift_orphan_annotations: list[dict[str, Any]] = []
@@ -132,11 +156,25 @@ def audit() -> dict[str, Any]:
     for src in VERDICTS_SOURCES:
         repo = src["repo"]
         local_verdicts = _read_verdicts(repo, src["db_path"], src["sql"])
-        annotated_vids = verdict_ids_by_repo.get(repo, set())
-        local_vid_set = {vid for vid, _ in local_verdicts}
+        cover = coverage_by_repo.get(repo, set())
 
-        missing = [vid for vid, _ in local_verdicts if vid not in annotated_vids]
-        orphans = sorted(annotated_vids - local_vid_set)
+        local_vid_set = {vid for vid, _sid, _h in local_verdicts}
+        annotated_vid_set = annotated_uris_by_repo.get(repo, set())
+
+        missing: list[str] = []
+        for vid, sid, ohash in local_verdicts:
+            if sid and ohash:
+                # Covered if (sid, ohash) appears in any annotation
+                if (sid, ohash) not in cover:
+                    missing.append(vid)
+            else:
+                # No verdict-side join keys — fall back to URI matching for
+                # repos that haven't joined the substrate-v1 interface yet.
+                if vid not in annotated_vid_set:
+                    missing.append(vid)
+
+        # Orphans: annotation URIs naming verdict_ids not in the local DB.
+        orphans = sorted(annotated_vid_set - local_vid_set) if local_vid_set else []
 
         for vid in missing:
             drift_missing_annotations.append({"repo": repo, "verdict_id": vid})
@@ -147,7 +185,7 @@ def audit() -> dict[str, Any]:
             "repo": repo,
             "db_path": str(src["db_path"]),
             "verdicts_local": len(local_vid_set),
-            "verdicts_annotated": len(annotated_vids),
+            "verdicts_annotated": len(local_vid_set) - len(missing),
             "missing_annotations": len(missing),
             "orphan_annotations": len(orphans),
         })
