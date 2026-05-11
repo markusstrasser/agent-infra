@@ -180,14 +180,16 @@ def build_knowledge_index(text: str) -> str:
     lines.append(f"hash: {h}")
     lines.append("")
 
-    # Frontmatter summary
+    # Frontmatter summary — namespaced under "index:" prefix so the hook's
+    # copies don't collide with the user-edited frontmatter when Edit/replace_all=false
+    # targets the frontmatter field. Bit downstream agents 3x in 2026-05-11 session.
     if fm.get("title") or fm.get("ticker"):
         title = fm.get("title") or fm.get("ticker", "")
-        lines.append(f"title: {title}")
+        lines.append(f"index:title: {title}")
     if fm.get("status") or fm.get("conviction"):
-        lines.append(f"status: {fm.get('status') or fm.get('conviction', '')}")
+        lines.append(f"index:status: {fm.get('status') or fm.get('conviction', '')}")
     if fm.get("tags"):
-        lines.append(f"tags: {', '.join(fm['tags'])}")
+        lines.append(f"index:tags: {', '.join(fm['tags'])}")
 
     # Cross-references
     if crossrefs:
