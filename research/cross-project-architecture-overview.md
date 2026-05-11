@@ -100,7 +100,7 @@ The unification target is **not** to merge these into one — each fits its repo
             ┌───────────────┼───────────┼────────────┘         │
             │               │           │                      │
             ▼               ▼           ▼                      ▼
-    research-mcc         biomedical-mcp                  research/
+    research-mcp         biomedical-mcp                  research/
    (papers, sources)    (ClinVar, gnomAD,                improvement-log
                         PharmGKB, dbSNP,                 decisions/
                         Ensembl, PanelApp,
@@ -195,8 +195,8 @@ This memo synthesizes:
 Read those for primary detail. This memo is the index.
 
 <!-- knowledge-index
-generated: 2026-05-11T06:22:05Z
-hash: 34bb04055835
+generated: 2026-05-11T06:44:00Z
+hash: 4fd7c64c7cf0
 
 title: Cross-Project Architecture Overview — phenome × genomics × intel × agent-infra
 status: active
