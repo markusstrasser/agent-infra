@@ -274,7 +274,7 @@ Each phase ends with explicit "Phase N complete — gate to N+1?" before continu
 - Add `claims_for_source`, `verdicts_for_claim`, `attest` to genomics-mcp (genomics_mcp.py)
 - Add same to a new phenome-mcp (currently consumed via genomics-consumer)
 - Add same to intel-theses MCP
-- Each `attest()` writes BOTH the repo's local claim/verdict row AND the corpus annotations.jsonl entry
+- Each `attest()` writes BOTH the repo's local claim/verdict row AND the corpus annotations.jsonl entry — **⚠ 2026-05-11 final-critique update: SUPERSEDED. See §J. Per-repo MCPs do not have `attest()`. Agent explicitly orchestrates two calls (per-repo `record_verdict` + `corpus_mcp.corpus_attest`).**
 - Smoke test: from agent-infra-mcp call corpus_lookup → see annotations from all three repos → call per-repo MCP via the shared interface
 - Gate
 
@@ -295,7 +295,7 @@ Each phase ends with explicit "Phase N complete — gate to N+1?" before continu
 
 **Phase 5 — Cleanup**
 - Delete `cross_attestation_lookup` from agent_infra_mcp.py
-- Move `papers_lookup` + `papers_graph_query` from agent_infra_mcp.py → research-mcp/server.py (renamed `corpus_lookup`, `corpus_graph_query`)
+- Move `papers_lookup` + `papers_graph_query` from agent_infra_mcp.py → **⚠ 2026-05-11 final-critique update:** corpus-mcp (the new standalone process from Phase 3), NOT research-mcp. research-mcp stays as third-party discovery; corpus-mcp owns L1 lookup tools.
 - Drop the `fetch_log` table from research-mcp (questions now answered via corpus annotations)
 - Update CLAUDE.md fact-tags + architecture overview
 - Final gate; declare migration complete
@@ -823,9 +823,102 @@ These are profile-driven, not research-driven. The plan ships with the defaults;
 | Add Phase 8 (deferred): repo extraction + PyPI publish + Claude plugin bundle | 8 | Low (future) |
 | GROBID as optional citation lane | future | Low |
 
+---
+
+## §J — Final critique reconciliation (2026-05-11)
+
+Third and final `/critique model --axes deep` returned 9 findings. Artifacts: `.model-review/2026-05-11-substrate-arch-final-b0329b/`. One CRITICAL flagged for verification (#3 — verified safe; phenome's `assertion_id` does NOT include `primary_source.id`; canonical tuple is `{v, predicate, entities, slots}`).
+
+Substantive findings applied:
+
+### J.1 — Per-repo MCP interface: NO `attest()` (high)
+
+Earlier text said per-repo MCPs implement `claims_for_source`, `verdicts_for_claim`, **`attest()`**. The hybrid contradicts the explicit "agent calls two MCPs separately, no MCP-to-MCP" pattern. Final interface:
+
+```
+Per-repo MCPs (genomics-mcp, phenome-mcp, intel-mcp):
+  claims_for_source(source_id)  → list[Claim]      # READ
+  verdicts_for_claim(claim_id)  → list[Verdict]    # READ
+  record_verdict(...)           → verdict_id       # WRITE to local claim_verdicts DB only
+
+corpus-mcp (SOLE annotation writer):
+  corpus_attest(source_id, repo, agent.id, scope, ...) → annotation_id
+  corpus_lookup, corpus_graph_query, corpus_annotations_query, corpus_ingest, corpus_dashboard
+```
+
+Agent flow:
+```
+1. agent calls genomics_mcp.record_verdict(...) → verdict_id
+2. agent calls corpus_mcp.corpus_attest(source_id=..., repo="genomics",
+       scope="verdict", output_uri=f"genomics://verdicts/{verdict_id}", ...)
+```
+
+Two explicit calls. **No `attest()` on per-repo MCPs.** No MCP-to-MCP. `audit_corpus_sync.py` (Phase 4) catches the case where step 2 is skipped.
+
+### J.2 — corpus-mcp owns L1 lookup tools (medium)
+
+Earlier text in Phase 5 said move `papers_lookup` and `papers_graph_query` to `research-mcp/server.py`. This contradicts the §D Phase 3 decision that corpus-mcp is the standalone owner. **Final:** corpus-mcp owns all L1 corpus tools. research-mcp stays third-party discovery (`search_papers`, `fetch_paper`, `audit_citations`, `verify_claim`, `prepare_evidence`, etc).
+
+### J.3 — Phase 5 backfill: 492 verdicts → 492 annotations (high)
+
+Phase 5 SourceRecord migration UPDATEs 492 verdicts in-place. After Phase 4 ships `audit_corpus_sync.py`, those 492 verdicts would immediately appear as "missing annotation" drift. **Add to Phase 5:** as part of `migrate_source_record_paths`, write a corresponding `corpus_attest` annotation for each verdict (`agent.id = "urn:agent:service:phase-5-migration"`, `scope = "verdict"`, `output_uri = "genomics://verdicts/<verdict_id>"`, `asserted_at = original verdict's asserted_at`, `recorded_at = migration time`).
+
+### J.4 — Split corpus_core.testing → separate `corpus-testing` package (medium)
+
+Earlier text put FastMCP test fixtures inside `corpus_core.testing`. Reviewer correctly flags: testing utilities are NOT the storage contract — they're utility helpers, which the veto applies to.
+
+**Final:** add `packages/corpus-testing/` to the workspace alongside corpus-core. Contains FastMCP Client fixtures, conftest.py templates, sample annotation factories. Downstream MCPs declare `corpus-testing` as a `dev` dependency. `corpus-core` itself imports ZERO testing frameworks — pure contract.
+
+This sidesteps the veto without losing the highest-leverage DX gift.
+
+### J.5 — Defer RO-Crate JSON-LD generation to export time (medium)
+
+Earlier text said stamp `metadata.json` with the 11-field RO-Crate JSON-LD shell at ingest time. Reviewer correctly flags: ORCID lookups + license URI resolution + `hasPart[]` per-file sha256 are EXPORT concerns, not INGEST concerns. Forcing ingest to query Crossref/OpenAlex bloats the fetch path.
+
+**Final:**
+- Live `metadata.json` is intrinsic facts only: `source_id`, `source_type`, `doi`, `pmid`, `pmcid`, `title`, `authors` (when known from fetch), `year`, `retrieved_at`, `content_hash`, `parsed_sha256`, `pdf_sha256`, `retraction_status`. Plus `corpus:*` namespace flat keys.
+- The RO-Crate JSON-LD shell (`@context`, `@graph`, `@type: Dataset`, `relatedIdentifier[]`, `hasPart[]` with per-file sha256, etc.) is **generated dynamically** by `corpus export --format ro-crate` and `corpus export --format bagit` — both Phase 8 deliverables. ORCID/license URI enrichment happens at export time (optional flag, may call out to research-mcp clients).
+- Phase 1 stays simple. Phase 8 gets a clear export pipeline.
+
+### J.6 — Don't build permanent SchemaVer upcasters speculatively (low)
+
+Earlier text said Phase 1 ships Pydantic v2 discriminated-union upcasters for read-time schema-version dispatch. Reviewer flags: the existing Phase 5 path migration is a one-time SQL UPDATE — runtime upcasters are redundant.
+
+**Final:**
+- Phase 1 ships schema v1 ONLY (no upcaster machinery built yet).
+- The SchemaVer convention (`"1-0-0"` MODEL-REVISION-ADDITION) and `schemas/v{N}/` layout convention STAY — these are the design contract.
+- When v1→v2 eventually happens (separate session), THAT plan builds upcasters or a one-time migration script. Build the migration when there's a v2 to migrate to.
+
+### J.7 — Prompt-level enforcement in CLAUDE.md (medium)
+
+Earlier interface change relies on the agent remembering both calls. Reviewer correctly flags: agents will forget. Add Phase 4 step:
+
+Update agent-infra `CLAUDE.md` cross-project section with a hard rule:
+
+> **When recording a claim or verdict against a source:**
+> 1. Call the relevant per-repo MCP's `record_verdict(...)` (writes to repo-local claim_verdicts).
+> 2. **MUST also call `corpus_mcp.corpus_attest(...)`** (writes the provenance annotation to the canonical corpus store).
+>
+> Skipping step 2 leaves provenance incomplete. `audit_corpus_sync.py` detects drift within 24h, but the prompt-level rule prevents drift entering the system in the first place.
+
+### J.8 — Phase 6 verification check (low)
+
+Reviewer's flagged-CRITICAL on phenome UUIDs was verified safe (`primary_source.id` does NOT participate in `assertion_id` derivation). Add belt-and-suspenders verification anyway to Phase 6:
+
+```bash
+sqlite3 phenome.claims.duckdb "SELECT MD5(group_concat(id, ',')) FROM assertions ORDER BY id" > before.md5
+# … migrate primary_sources, repoint assertion_evidence to canonical_source_id …
+sqlite3 phenome.claims.duckdb "SELECT MD5(group_concat(id, ',')) FROM assertions ORDER BY id" > after.md5
+diff before.md5 after.md5  # MUST be empty
+```
+
+### J.9 — Memo + plan internal consistency (medium)
+
+Done in this commit. Stale references to `attest()` on per-repo MCPs and "move tools to research-mcp" flagged inline with `**⚠ 2026-05-11 final-critique update:**` markers (append-only convention).
+
 <!-- knowledge-index
-generated: 2026-05-11T07:49:56Z
-hash: 7a2cfa77a5b1
+generated: 2026-05-11T07:57:55Z
+hash: f298888ac4fe
 
 title: Scientific Substrate Target Architecture
 status: revised-post-critique
