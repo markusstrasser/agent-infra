@@ -79,6 +79,11 @@ mcp-health:
 doctor:
     uv run python3 scripts/doctor.py
 
+# Audit verdicts ↔ corpus-annotation drift (substrate-v1, Phase 4 backstop)
+[group('health')]
+audit-corpus-sync *args:
+    uv run python3 scripts/audit_corpus_sync.py {{args}}
+
 # Analyze always-exposed instruction / skill / MCP surface
 [group('health')]
 context-health *args:
