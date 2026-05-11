@@ -166,7 +166,7 @@ def batch_ingest(
 
     if parser == "marker-modal":
         # Stream-process via Modal's starmap so back-pressure is handled
-        from .pdf_marker_modal import extract_batch_remote
+        from .extract.pdf_marker_modal import extract_batch_remote
 
         pdf_bytes_iter = (p.read_bytes() for (p, _, _) in candidates)
         for idx, result in extract_batch_remote(
