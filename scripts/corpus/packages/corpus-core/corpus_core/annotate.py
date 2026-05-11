@@ -292,6 +292,14 @@ def annotate(
     payload = _serialize_record(record)
     _atomic_append(_annotations_path(source_id), payload)
 
+    # Phase 2 projection: best-effort insert into graph.duckdb. JSONL is the
+    # source of truth — DB failure logs and continues; rebuild catches up.
+    try:
+        from .index import index_annotation
+        index_annotation(record)
+    except Exception:  # pragma: no cover — never break a JSONL append
+        pass
+
     return annotation_id
 
 

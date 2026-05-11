@@ -32,17 +32,32 @@ CREATE TABLE IF NOT EXISTS papers (
   used_by_repos     TEXT[]
 );
 
+-- Substrate-v1 annotations table (per Phase 2 of substrate-migration plan).
+-- Per-source ~/Projects/corpus/<source_id>/annotations.jsonl is the source of
+-- truth; this table is a derived projection rebuildable via
+-- `corpus maintain --rebuild-annotations-index`.
 CREATE TABLE IF NOT EXISTS annotations (
-  event_id          TEXT PRIMARY KEY,
-  paper_id          TEXT NOT NULL,
-  annotated_at      TIMESTAMP NOT NULL,
-  annotated_by      TEXT NOT NULL,
-  target_kind       TEXT NOT NULL,
-  target_ref        TEXT,
-  kind              TEXT NOT NULL,
-  body              TEXT NOT NULL,
-  linked_claim_ids  TEXT[]
+  annotation_id            VARCHAR PRIMARY KEY,
+  source_id                VARCHAR NOT NULL,
+  source_type              VARCHAR,                       -- denormalized from metadata.json
+  repo                     VARCHAR NOT NULL,
+  actor_type               VARCHAR NOT NULL,
+  actor_id                 VARCHAR NOT NULL,
+  scope                    VARCHAR NOT NULL,
+  tool                     VARCHAR,
+  prompt_template_hash     VARCHAR,
+  output_uri               VARCHAR,
+  output_hash              VARCHAR,
+  source_content_hash      VARCHAR,
+  supersedes_annotation_id VARCHAR,
+  status                   VARCHAR NOT NULL,
+  asserted_at              TIMESTAMP NOT NULL,
+  recorded_at              TIMESTAMP NOT NULL,
+  schema_version           VARCHAR NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_annotations_source     ON annotations(source_id);
+CREATE INDEX IF NOT EXISTS idx_annotations_repo_time  ON annotations(repo, recorded_at);
+CREATE INDEX IF NOT EXISTS idx_annotations_scope      ON annotations(scope);
 
 -- Connected-Papers-style similarity views (no embeddings; pure graph).
 CREATE VIEW IF NOT EXISTS co_citation_pairs AS
