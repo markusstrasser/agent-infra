@@ -3,13 +3,13 @@ from __future__ import annotations
 
 import json
 
-from papers import ingest, paper_store as ps
+from corpus_core import ingest, store as ps
 
 
-def test_register_revision_archives(papers_root, tiny_pdf, tiny_pdf_v2):
+def test_register_revision_archives(corpus_root, tiny_pdf, tiny_pdf_v2):
     meta = ingest.ingest_pdf(tiny_pdf, doi="10.test/rev", skip_parse=True)
     pid = meta["paper_id"]
-    paper_dir = papers_root / pid
+    paper_dir = corpus_root / pid
 
     # Fake a parsed/ to ensure it gets archived
     parsed = paper_dir / "parsed"

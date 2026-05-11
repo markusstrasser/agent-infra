@@ -20,7 +20,7 @@ import urllib.request
 from pathlib import Path
 from typing import Optional
 
-from . import paper_store as ps
+from . import store as ps
 
 
 REF_HEADERS = re.compile(
@@ -82,7 +82,7 @@ def resolve_via_crossref(text: str, timeout: float = 10.0) -> Optional[dict]:
     """Best-effort Crossref query by free-text. Returns top hit dict or None."""
     q = urllib.parse.quote(text[:300])
     url = f"https://api.crossref.org/works?query.bibliographic={q}&rows=1"
-    req = urllib.request.Request(url, headers={"User-Agent": "papers-store/1.0 (mailto:markus@synthoria.bio)"})
+    req = urllib.request.Request(url, headers={"User-Agent": "corpus-core/0.1 (mailto:markus@synthoria.bio)"})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = json.loads(resp.read())

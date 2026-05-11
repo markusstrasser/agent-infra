@@ -1,26 +1,22 @@
 [project]
-name = "papers"
-version = "0.1.0"
-description = "Canonical shared papers store — PDFs, parses, citances, graph index"
-readme = "README.md"
+name = "corpus-workspace"
+version = "0"
+description = "Workspace root for the corpus toolkit (meta-package; depends on every workspace member so `uv sync` from here installs them all)"
 requires-python = ">=3.11"
 dependencies = [
-    "duckdb>=1.0",
-    "pypdf>=4.0",
+    "corpus-core",
+    "corpus-testing",
 ]
 
-[project.scripts]
-papers = "papers.cli:main"
+[dependency-groups]
+dev = [
+    "pytest>=9.0",
+    "rfc8785>=0.1.4",
+]
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+[tool.uv.workspace]
+members = ["packages/*"]
 
-[tool.hatch.build.targets.wheel]
-packages = ["papers"]
-
-[tool.hatch.build.targets.wheel.force-include]
-"papers/graph_schema.sql" = "papers/graph_schema.sql"
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
+[tool.uv.sources]
+corpus-core = { workspace = true }
+corpus-testing = { workspace = true }

@@ -8,19 +8,19 @@ import pytest
 
 duckdb = pytest.importorskip("duckdb")
 
-from papers import ingest, paper_store as ps
-from papers.maintain import cmd_rebuild_graph
+from corpus_core import ingest, store as ps
+from corpus_core.maintain import cmd_rebuild_graph
 
 
 class _Args:
     pass
 
 
-def test_graph_rebuild_idempotent(papers_root, tiny_pdf):
+def test_graph_rebuild_idempotent(corpus_root, tiny_pdf):
     meta_a = ingest.ingest_pdf(tiny_pdf, doi="10.test/a", skip_parse=True)
     pid_a = meta_a["paper_id"]
     # Make a second paper via SHA path
-    pdf_b = papers_root.parent / "b.pdf"
+    pdf_b = corpus_root.parent / "b.pdf"
     pdf_b.write_bytes(tiny_pdf.read_bytes() + b"\n%diff\n")
     meta_b = ingest.ingest_pdf(pdf_b, doi="10.test/b", skip_parse=True)
     pid_b = meta_b["paper_id"]
@@ -40,8 +40,8 @@ def test_graph_rebuild_idempotent(papers_root, tiny_pdf):
         "providers": ["scite"],
         "fetched_at": "2026-05-11T10:00:00Z",
     }
-    (papers_root / pid_b / "citances_out.jsonl").write_text(json.dumps(citance) + "\n")
-    (papers_root / pid_a / "citances_in.jsonl").write_text(json.dumps(citance) + "\n")
+    (corpus_root / pid_b / "citances_out.jsonl").write_text(json.dumps(citance) + "\n")
+    (corpus_root / pid_a / "citances_in.jsonl").write_text(json.dumps(citance) + "\n")
 
     args = _Args()
     cmd_rebuild_graph(args)

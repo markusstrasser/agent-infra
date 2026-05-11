@@ -1,9 +1,9 @@
-"""Canonical paper store helper module.
+"""Canonical corpus store helper module.
 
-The store at $PAPERS_ROOT (default ~/Projects/papers) is the SINGLE authority
-for every paper's bytes, parse, and citation context. This module exposes the
-read/write primitives. Higher-level commands live in `ingest.py`, `maintain.py`,
-`graph_cli.py`.
+The store at $CORPUS_ROOT (default ~/Projects/corpus) is the SINGLE authority
+for every source's bytes, parse, citation context, and annotations. This module
+exposes the read/write primitives. Higher-level commands live in `ingest.py`,
+`maintain.py`, `graph_cli.py`.
 
 Key functions:
     get(paper_id) -> dict                  read metadata.json
@@ -46,8 +46,8 @@ class PaperNotFoundError(PaperStoreError):
 
 
 def store_root() -> Path:
-    """Return the configured store root, defaulting to ~/Projects/papers."""
-    return Path(os.environ.get("PAPERS_ROOT", str(Path.home() / "Projects" / "papers")))
+    """Return the configured store root, defaulting to ~/Projects/corpus."""
+    return Path(os.environ.get("CORPUS_ROOT", str(Path.home() / "Projects" / "corpus")))
 
 
 def paper_path(paper_id: str) -> Path:

@@ -1,6 +1,6 @@
-"""Graph query CLI — `papers cites|cited-by|ego|path|similar|contradictions|...`.
+"""Graph query CLI — `corpus cites|cited-by|ego|path|similar|contradictions|...`.
 
-Backed by graph.duckdb (built by `papers maintain --rebuild-graph`).
+Backed by graph.duckdb (built by `corpus maintain --rebuild-graph`).
 """
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import paper_store as ps
+from . import store as ps
 
 
 def _connect(read_only: bool = True):
@@ -20,7 +20,7 @@ def _connect(read_only: bool = True):
         sys.exit(2)
     gdb = ps.graph_db_path()
     if not gdb.exists():
-        print(f"graph.duckdb missing; run `papers maintain --rebuild-graph`", file=sys.stderr)
+        print(f"graph.duckdb missing; run `corpus maintain --rebuild-graph`", file=sys.stderr)
         sys.exit(1)
     return duckdb.connect(str(gdb), read_only=read_only)
 
@@ -167,7 +167,7 @@ def cmd_collection(args) -> int:
 
 
 def cmd_table(args) -> int:
-    print("  `papers table` deferred to Phase 5 (LLM extraction).")
+    print("  `corpus table` deferred to Phase 5 (LLM extraction).")
     return 0
 
 

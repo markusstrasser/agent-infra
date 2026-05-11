@@ -1,21 +1,23 @@
-"""`papers` console script entry point.
+"""`corpus` console script entry point.
 
 Subcommands:
-    papers ingest --pdf <path> [--doi ... | --pmid ...]
-    papers ingest --revise --pdf <new> --paper-id <id>
-    papers resolve-references --paper-id <id> [--online]
-    papers extract-citances --paper-id <id> [--enrich-cito]
-    papers sync --from <manifest.json> [--dry-run]
-    papers stats
-    papers show <paper_id> [--depth full]
-    papers maintain --verify | --rebuild-indexes | --rebuild-citances | --rebuild-graph | --gc
-    papers cites|cited-by|contradictions|ego|path|similar|cluster|collection|table  ...
+    corpus ingest --pdf <path> [--doi ... | --pmid ...]
+    corpus ingest --revise --pdf <new> --paper-id <id>
+    corpus annotate --source-id <id> --repo <r> --actor-type <t> --actor-id <urn> --scope <s>
+    corpus resolve-references --paper-id <id> [--online]
+    corpus extract-citances --paper-id <id> [--enrich-cito]
+    corpus sync --from <manifest.json> [--dry-run]
+    corpus stats
+    corpus show <paper_id> [--depth full]
+    corpus maintain --verify | --rebuild-indexes | --rebuild-citances | --rebuild-graph | --gc
+    corpus cites|cited-by|contradictions|ego|path|similar|cluster|collection|table  ...
 """
 from __future__ import annotations
 
 import argparse
 import sys
 
+from . import annotate_cli as _annotate
 from . import ingest as _ingest
 from . import resolve_references as _refs
 from . import extract_citances as _cites
@@ -25,9 +27,10 @@ from . import graph_cli as _graph
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="papers", description="Canonical papers store CLI")
+    parser = argparse.ArgumentParser(prog="corpus", description="Canonical corpus store CLI")
     subs = parser.add_subparsers(dest="cmd", required=True)
     _ingest.add_cli(subs)
+    _annotate.add_cli(subs)
     _refs.add_cli(subs)
     _cites.add_cli(subs)
     _sync.add_cli(subs)

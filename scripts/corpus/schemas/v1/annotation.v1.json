@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.local/corpus/annotation/v1.0.0",
+  "title": "corpus annotation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "annotation_id",
+    "source_id",
+    "agent",
+    "scope",
+    "asserted_at",
+    "recorded_at",
+    "schema_version",
+    "conformsTo"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1-0-0",
+      "description": "SchemaVer (MODEL-REVISION-ADDITION). NOT SemVer."
+    },
+    "conformsTo": {
+      "type": "string",
+      "const": "https://schema.local/corpus/annotation/v1.0.0",
+      "description": "Per-record schema URI for export-compat checks (RO-Crate compatible)."
+    },
+    "annotation_id": {
+      "type": "string",
+      "pattern": "^ann_[0-9a-f]{16}$",
+      "description": "ann_ + first 16 hex chars of sha256_hex(canonical_json(stable_tuple))."
+    },
+    "source_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Canonical corpus source_id (e.g. doi_10_1097_fpc_..., pmid_12345, sha_abcdef...)."
+    },
+    "agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^urn:agent:(human|service|model|cli):[A-Za-z0-9._@:-]+$",
+          "description": "Stable agent identifier per urn:agent:<type>:<name>[@<version>] convention."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["human", "service", "model", "cli"]
+        }
+      }
+    },
+    "instrument": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "RO-Crate SoftwareApplication used by the agent (the tool, not the actor).",
+      "required": ["id"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "name": {"type": "string"}
+      }
+    },
+    "scope": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Free-form scope tag (e.g. raw_fetch, parse, claim_extraction, verdict, annotation)."
+    },
+    "tool": {
+      "type": ["string", "null"],
+      "description": "Optional free-form tool name (callsite-defined; informational, not for identity)."
+    },
+    "prompt_template_hash": {
+      "type": ["string", "null"],
+      "pattern": "^([0-9a-f]{8,64}|)$"
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Output reference (flat namespace per OpenTelemetry GenAI). Sidecar for >4KB outputs.",
+      "properties": {
+        "uri": {"type": "string", "pattern": "^(corpus|project-root|genomics|phenome|intel|agent-infra|research-mcp)://"},
+        "hash": {"type": "string", "pattern": "^[0-9a-f]{16,64}$"},
+        "size_bytes": {"type": "integer", "minimum": 0}
+      }
+    },
+    "output_uri": {
+      "type": ["string", "null"],
+      "pattern": "^(corpus|project-root|genomics|phenome|intel|agent-infra|research-mcp)://.+$",
+      "description": "Direct URI to a sidecar output (corpus:// or project-root:// or repo://)."
+    },
+    "output_hash": {
+      "type": ["string", "null"],
+      "pattern": "^([0-9a-f]{16,64})?$"
+    },
+    "source_content_hash": {
+      "type": ["string", "null"],
+      "pattern": "^([0-9a-f]{16,64})?$",
+      "description": "Hash of the source bytes the annotation was made against (freshness gate)."
+    },
+    "asserted_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the agent asserted this (world time). UTC ISO-8601 with Z suffix."
+    },
+    "endTime": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Alias for asserted_at — RO-Crate export compatibility."
+    },
+    "recorded_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Corpus-writer-assigned append time (transaction time). UTC ISO-8601."
+    },
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Canonical-JSON of the stable tuple. Used to derive annotation_id."
+    },
+    "supersedes_annotation_id": {
+      "type": ["string", "null"],
+      "pattern": "^(ann_[0-9a-f]{16})?$"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "superseded", "retracted"],
+      "default": "active"
+    }
+  }
+}

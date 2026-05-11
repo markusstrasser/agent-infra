@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from . import paper_store as ps
+from . import store as ps
 from . import extract_citances as ec
 
 
@@ -279,8 +279,8 @@ def cmd_rebuild_graph(args) -> int:
 def cmd_gc(args) -> int:
     # Enforce --after-rebuild + the rebuild must have run in THIS invocation.
     if not args.after_rebuild:
-        print("`papers maintain --gc` requires --after-rebuild (model-review #11)", file=sys.stderr)
-        print("Run: papers maintain --rebuild-indexes && papers maintain --gc --after-rebuild --dry-run", file=sys.stderr)
+        print("`corpus maintain --gc` requires --after-rebuild (model-review #11)", file=sys.stderr)
+        print("Run: corpus maintain --rebuild-indexes && corpus maintain --gc --after-rebuild --dry-run", file=sys.stderr)
         return 2
     if not args._rebuild_ran_this_invocation:
         print("`--after-rebuild` set but --rebuild-indexes was not run in this invocation.", file=sys.stderr)

@@ -1,6 +1,6 @@
 """Best-effort bootstrap from upstream — NOT a backup mechanism.
 
-`papers sync --from manifest.json` reads a manifest of expected papers and
+`corpus sync --from manifest.json` reads a manifest of expected papers and
 attempts to fetch any missing ones via DOI/PMID resolution. Upstream sources
 go missing (paywalls, 404, content drift) — durable backup is filesystem-level
 (Time Machine, rsync). Documented in SCHEMA.md.
@@ -20,7 +20,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import paper_store as ps
+from . import store as ps
 
 
 def sync_from_manifest(manifest_path: Path, *, dry_run: bool = False) -> dict:

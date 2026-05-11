@@ -1,7 +1,6 @@
-"""Canonical papers store — single cross-repo cache of PDFs, parses, and citations.
+"""Canonical corpus store — single cross-repo cache of source bytes, parses, citations, and annotations.
 
-Layout: see ~/Projects/papers/SCHEMA.md
-Plan:   ~/Projects/agent-infra/.claude/plans/2026-05-11-shared-papers-store.md
+Layout: see ~/Projects/corpus/SCHEMA.md
 """
 
 SCHEMA_VERSION = "1.0.0"
