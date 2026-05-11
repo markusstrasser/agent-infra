@@ -120,6 +120,37 @@ What's NOT done (still deferred from the original plan):
 - Phase 4 — `cleanup-and-close` skill
 - Phase 5 — frontier pilots
 
+## Update — 2026-05-11 night (deep cross-model review on target arch; reversal)
+
+`/critique model --axes deep` on `research/scientific-substrate-target-architecture.md` returned 61 findings, 2 cross-model agreements. Artifacts: `.model-review/2026-05-11-scientific-substrate-target-arch-7200c3/`.
+
+User directive after review: "we do whatever is longterm, strictly the best. Deeper. update plan."
+
+### Reversal of an earlier answer
+
+The earlier "claim_binding_hash bulk re-hash via supersedes pattern" recommendation in this decision was wrong. Two CRITICAL reviewer findings (Gemini-arch + Gemini Pro, independent) flagged it. Verified against `~/Projects/genomics/scripts/knowledge/mutation_gateway.py:507`:
+
+- Supersedes inserts a NEW `verdict_id` and UPDATEs the old row to `review_status='superseded'`. For path-only translation, that creates 492 new IDs and supersede edges for an infrastructure change — pollutes the bitemporal audit trail and forces downstream consumers (phenome's `KGAttestation`, genomics_bridge syncs) to chain through edges.
+- Correct mechanism: add a gateway method `migrate_source_record_paths(translator_fn)` that does in-place `UPDATE claim_verdicts SET claim_binding_hash=?, source_record_json=? WHERE verdict_id=?`, preserving `verdict_id`. Log ONE event to audit_log ("migration M translated paths"). Cost: $0, single transaction, zero orphaned references.
+
+### Other adopted corrections
+
+Full list in `research/scientific-substrate-target-architecture.md` §Post-critique revisions. Highlights:
+
+- **`corpus-mcp` is a new MCP process** (option A), not a merge into research-mcp. research-mcp keeps third-party discovery; corpus-mcp owns the local store. Cleaner long-term boundary.
+- **`corpus_core` shared library** (Python package) is the ONLY writer of `annotations.jsonl`. Both `corpus-mcp` and `research-mcp.fetch_paper` depend on it. Per-repo MCPs MUST NOT write raw to JSONL. Veto-exception clarified (corpus_core is a contract impl, not a generic util library).
+- **Annotation schema rewritten:** `actor_type`+`actor_id` (model | human | service | cli) replaces `model: null` hack; idempotency from stable tuple; `source_content_hash`, `recorded_at` (corpus-writer assigned), `supersedes_annotation_id`, `status` added; `additionalProperties: false`; portable `project-root://` / `corpus://` URIs.
+- **Global annotations table in `graph.duckdb`** projected from per-source JSONL files. Per-source files stay canonical; table is derived, rebuildable. Enables reverse queries ("all phenome activity yesterday").
+- **POSIX append atomicity claim corrected:** `os.open(O_APPEND) + os.write` single syscall; documented invariant "local POSIX only."
+- **DOI slug collisions:** `__sha_<hash8>` disambiguation. No "pick newer" silent merge.
+- **Shared MCP interface refined:** per-repo MCPs have `claims_for_source` / `verdicts_for_claim` / `record_verdict` (local writes). `corpus-mcp` has `corpus_attest` (sole annotation writer). Agent orchestrates two calls, no MCP-to-MCP. Backstop: `audit_corpus_sync.py`.
+- **Phase 0.5 rename `papers/ → corpus/` is isolated and FIRST**, before any other architecture work.
+- **Parser immutability** (`parsed.<parser_id>/`) is mandatory — Marker `--use_llm` is not bit-deterministic.
+
+### Forward-looking
+
+The executable plan lives at `.claude/plans/2026-05-11-substrate-migration.md` (post-critique multi-phase). Phase gates apply per friction Cat. 3 (premature build). The plan is the operational artifact; this decision record + the target-architecture memo are the rationale anchors.
+
 ## Provenance
 
 - 5-agent archaeology dispatch (subagent reports `research/cross-project-synthesis-2026-05-11/{01..05}-*.md`)
