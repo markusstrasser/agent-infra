@@ -219,15 +219,19 @@ def cmd_rebuild_graph(args) -> int:
                 if not line.strip():
                     continue
                 row = json.loads(line)
-                if not row.get("citing_paper_id") or not row.get("cited_paper_id"):
+                # citances_in: rows carry citing_paper_id; cited_paper_id is THIS paper (the dir).
+                # citances_out: rows carry cited_paper_id; citing_paper_id is THIS paper.
+                citing = row.get("citing_paper_id") or (rec.paper_id if f == "citances_out.jsonl" else None)
+                cited = row.get("cited_paper_id") or (rec.paper_id if f == "citances_in.jsonl" else None)
+                if not citing or not cited:
                     continue
                 try:
                     con.execute(
                         """INSERT OR REPLACE INTO edges VALUES
                            (?,?,?,?,?,?,?,?,?,?,?,?)""",
                         [
-                            row["citing_paper_id"],
-                            row["cited_paper_id"],
+                            citing,
+                            cited,
                             row["citance_id"],
                             row["stance_class"],
                             row.get("stance_cito"),
