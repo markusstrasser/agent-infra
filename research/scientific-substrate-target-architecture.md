@@ -736,6 +736,79 @@ Target shape when published (Phase 8, post-migration):
 
 This means: the build path is justified (no existing solution), AND the work could become reusable infrastructure if open-sourced later. Phase 8 is the optional offramp.
 
+### G. Inherit phenome's identity invariants (in-house prior art)
+
+User flagged correctly that phenome has substantial identity infrastructure we'd be reinventing. Audited 2026-05-11:
+
+- **`phenome/identity/canonicalize.py`** ("Plan 01 identity overlay") — `IDENTITY_KEY_VERSION = 1`, `IdentityBasis` enum (CANONICAL / NEEDS_REVIEW / UNRESOLVABLE), invariant **`sha256_hex(canonical_json(...))`**, inverse-predicate collapse (`metabolizes` ≡ `metabolized_by`).
+- **`phenome/claims/identity.py`** (v4) — `IDENTITY_VERSION = 4`, namespace UUIDs for assertion/document/span/citation_block/assertion_evidence, `uuid5(namespace, canonical_tuple)` pattern, unit normalization for quantitative claims.
+- **`phenome/claims/canonicalize.py`** — canonicalization rules.
+- **`phenome/claims/relations/`** — typed scientific-graph edges with `vocabulary.py`. V1 has variant_in_gene + inverse mirror.
+- **`phenome/claims/predicates.py`** — 56 typed predicates × 9 families.
+- **`phenome/claims/schema.sql` + `views.sql`** — actual DDL.
+
+**corpus_core inherits this — does NOT reinvent and does NOT cherry-pick PaperQA2 over it.** Specifically:
+
+| Layer | Phenome already has | corpus_core's job |
+|---|---|---|
+| `canonical_json(...)` + `sha256_hex(...)` invariant | Yes — `phenome/identity/canonicalize.py` | Use the same invariant. Optionally pull into corpus_core as the canonical contract (Phase 8 candidate). |
+| `uuid5(namespace, tuple)` pattern | Yes — `phenome/claims/identity.py` v4 with stable namespace UUIDs | Use same pattern. corpus_core defines new namespaces for source-level: `SOURCE_NAMESPACE`, `ANNOTATION_NAMESPACE` (assertion namespaces stay phenome-owned) |
+| Inverse-predicate collapse | Yes — phenome's canonicalize | N/A (corpus_core deals with sources, not predicates) |
+| Unit normalization for quantitative claims | Yes — `UNIT_RE` in phenome | N/A (sources don't carry units) |
+| Typed predicate registry | Yes — `phenome/claims/predicates.py` (56 × 9 families) | N/A (corpus_core doesn't own predicates) |
+| Typed scientific-graph edges with vocabulary | Yes — `phenome/claims/relations/` | N/A (corpus_core has citation graph only; predicate/relation graph stays per-repo) |
+| **DOI/PMID slug derivation** | **NO** — phenome doesn't have it | **corpus_core OWNS** (`doi_<slug>`, `pmid_<id>`, `db_<slug>`, etc.) |
+| **Cross-repo source identity** | **NO** — phenome tracks `primary_sources` rows per-repo, not canonical | **corpus_core OWNS** (`source_id`, `canonical_source_id`, content-addressable) |
+| **Annotation provenance ledger** | **NO** — phenome has `audit_log` for claim verdicts, not source attestation | **corpus_core OWNS** (`annotations.jsonl` per source) |
+
+**Reversal of finding C (PaperQA2 cherry-pick):** PaperQA2's `compute_unique_doc_id` was a useful hint but phenome's identity pattern is the right cite. Phase 1 plan:
+- `corpus_core/identity.py` mirrors `phenome/identity/canonicalize.py`'s `sha256_hex(canonical_json(...))` invariant
+- Use phenome's UUID5-with-namespace pattern (define new namespaces for source/annotation; assertion namespaces stay phenome-owned)
+- DOI/PMID slug rules are genuinely new — corpus_core defines them, cites neither phenome nor PaperQA2
+- Document in `corpus_core/identity.py` docstring: "follows phenome v4 identity convention; see phenome/claims/identity.py"
+- **DO NOT vendor PaperQA2's `compute_unique_doc_id`** — phenome's pattern is more sophisticated and already battle-tested in our codebase
+
+### H. Round-2 prior-art findings (6 additional axes)
+
+After round 1, dispatched 6 more parallel agents for the remaining open questions. All reports converged (no contradictions). Synthesis: `research/prior-art-2026-05-11-round2/00-synthesis.md`. Key changes:
+
+**1. Schema versioning — switch to SchemaVer.** `schema_version: "1.0.0"` → `"1-0-0"` (MODEL-REVISION-ADDITION). SemVer doesn't describe schema compatibility; SchemaVer does. Path: `~/Projects/corpus/schemas/v{N}/`. JSONL never rewritten — Pydantic v2 discriminated-union upcasters run at read time. DuckDB projection rebuilt only on MODEL bumps. Per-repo MCPs on different schema versions resolve via adapter. Reject: Avro/Protobuf/Iceberg-direct (binary breaks grep-ability), W3C VC `@context` (dead weight), SemVer-for-schemas.
+
+**2. Graph storage — DuckDB confirmed; Kuzu out.** Kuzu archived on GitHub 2025-10-10 after Apple acquired the team (verified 1.0 confidence via The Verge, BetaKit, MacRumors, Waterloo CS). DuckPGQ extension is the upgrade path (same engine, no migration). At our scale (100K nodes / 2.4M edges): bounded triangle 7.7-28.8 ms, multi-hop 16.5-67.7 ms. Lance consolidates toward DuckDB SQL — cohabitation when semantic-similarity edges land.
+
+**3. Annotation ID — REVERSAL: use sha256, not UUID5.** Round 1 aligned annotation IDs to phenome's UUID5-with-namespace pattern. Round 2 correctly distinguishes: phenome's UUID5 is a historical compromise for the assertion-ID namespace (3622 existing rows; migration cost > upgrade value). UUID5 uses SHA-1 truncated to 122 bits — strictly weaker than direct sha256. **For corpus_core's NEW ID space, use `annotation_id = "ann_" + sha256_hex(canonical_json(stable_tuple))[:16]`.** Phenome's INVARIANT (`sha256_hex(canonical_json(...))`) is what we inherit; the UUID5 wrapper is layer-specific.
+
+**4. Content addressing — stay plain sha256.** No 2026 consumer wants CIDs (Zenodo = DOIs, HuggingFace = git-LFS hash, S2 = sequential int, Crossref/DataCite/arXiv same). sha256 IS already a multihash — `to_cidv1_b32()` is a 5-line view function the day a consumer asks. **Add `rfc8785.py` (Trail of Bits JCS impl) as dev-dep property test only** — assert phenome's `canonical_json` produces byte-identical output to JCS for our actual input types. Don't swap runtime. Rejected: W3C VC Data Integrity, Sigstore/Rekor, CBOR canonical.
+
+**5. On-disk layout — stay native, stamp metadata.json with RO-Crate JSON-LD shell.** Layout itself unchanged. Add ~11 fields to `metadata.json` for export-compat: `@context`, `@graph`, `@type: Dataset`, `identifier`, `name`, `datePublished`, `license` (URI), `author[]` (ORCID URIs), `relatedIdentifier[]` (DOI/PMID aliases), `hasPart[]` (component files with per-file sha256), `corpus:*` custom namespace. Cost: ~30 LOC; retroactive migration painful. Reject OCFL (petabyte-scale 100-year preservation, wrong scale), Frictionless/Croissant/BIDS/DCAT (wrong domain). **BagIt is the right EXPORT format, not the live layout** — `corpus export --format bagit` (Phase 8) wraps RO-Crate in a Bag (bagit-ro pattern); manifests mechanically computable from per-file sha256.
+
+**6. Annotation storage at scale — JSONL+DuckDB confirmed; DuckLake is the upgrade path.** Per-source JSONL canonical + DuckDB projection. **Critical invariant for SCHEMA.md:** Annotation records MUST be ≤4096 bytes when serialized. Records exceeding MUST reference large blobs by hash to a content-addressed store, not inline. Writers MUST use `os.open(path, O_WRONLY | O_APPEND | O_CREAT) + single os.write(line.encode() + b"\n")`. **Migration trigger if projection bottlenecks:** DuckLake (DuckDB Labs, 1.0 April 2026) — designed for 50GB-2TB, small writes, data inlining. **Reject Iceberg** (DuckDB-Iceberg schema evolution broken — issue #805, column-add crashes against old files). **Reject Lance** (loses human-grokkability, ecosystem still vector-flavored). Cognee/Mem0/paperclip RFC #801 all converge on the same architecture as ours — pattern validated.
+
+**7. Skill/MCP DX — ship test fixtures, OTel from day one, lint stdio prints.** Bake into `corpus_core` from start:
+- **`corpus_core.testing` module** exporting FastMCP `Client(server)` async fixture + copy-paste `conftest.py` template. 5-line fixture, 3-6 lines per test, sub-ms execution. THE highest-leverage gift to downstream MCP authors.
+- **OpenTelemetry from day one** — FastMCP emits MCP semantic conventions natively. Zero config. Downstream observability = point an OTLP endpoint at it.
+- **Lint against `print()` from stdio MCPs** — runtime check in `corpus_core` rejects stdout outside JSON-RPC stream. Bites every new MCP author.
+- **Tool budget invariant: 5-15 tools/MCP, hard cap 20.** Speakeasy: 95% accuracy at 20 → near-0 at 107. Industry: GitHub Copilot 40→13, Block Linear 30+→2.
+- **Don't reinvent** skill scaffolder (use Anthropic's `skill-creator` plugin), MCP server scaffolder (`mcp-server-dev`), typed-client codegen (export schemas via `just export-schemas`, let downstream codegen).
+- **Hello-world install:** `/plugin marketplace add <url>` → `/plugin install corpus@corpus-marketplace` → `/reload-plugins`.
+
+**Note:** genomics-mcp has ~30 tools today, above the accuracy cliff. Audit candidate for Phase 4 follow-up (not blocking this migration).
+
+### I. Hot-path optimization candidates (profile-before-swap)
+
+Surfaced for completeness; not blocking. Architectural picks are converged; these are library-swap optimizations inside `corpus_core` if profiling shows a hot path.
+
+| Concern | Default in plan | Faster candidate | Trigger to swap |
+|---|---|---|---|
+| JSON Schema validation | `jsonschema` (pure Python) | `fastjsonschema` (~10× faster) | Validation in top-3 hot paths |
+| JSON serialization | stdlib `json` (matches phenome) | `orjson` (Rust, ~10× faster) | Byte-identical output test must pass first |
+| Pydantic validators | Pydantic v2 (already fast) | `msgspec` (~3-5× faster, smaller ecosystem) | Only if Pydantic v2 is the bottleneck |
+| Python sqlite | stdlib `sqlite3` | `apsw` (more features, similar speed) | Need apsw-specific features |
+| In-memory graph algos | (not in plan) | `rustworkx` (Apache-2.0, IBM/Qiskit-backed; NetworkX replacement, 10-100×) | When PageRank/centrality/community ops are needed — future Phase 9 |
+| Annotation storage at >100K-1M scale | per-source JSONL + DuckDB | DuckLake (DuckDB Labs, 1.0 April 2026) | When single-file DuckDB projection bottlenecks |
+
+These are profile-driven, not research-driven. The plan ships with the defaults; profiling/optimization happens after.
+
 ### F. Plan changes triggered by prior-art
 
 | Change | Phase | Severity |
@@ -751,12 +824,12 @@ This means: the build path is justified (no existing solution), AND the work cou
 | GROBID as optional citation lane | future | Low |
 
 <!-- knowledge-index
-generated: 2026-05-11T07:32:01Z
-hash: 4ab3689c6f00
+generated: 2026-05-11T07:49:56Z
+hash: 7a2cfa77a5b1
 
 title: Scientific Substrate Target Architecture
 status: revised-post-critique
 tags: architecture, target-state, breaking-refactor, papers, attestation, federation
-cross_refs: decisions/2026-05-11-cross-attestation-substrate.md
+cross_refs: decisions/2026-05-11-cross-attestation-substrate.md, research/prior-art-2026-05-11-round2/00-synthesis.md
 
 end-knowledge-index -->
