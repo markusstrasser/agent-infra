@@ -7,7 +7,7 @@ audience: AI Agent developers and maintainers
 inputs:
   - cross-project-architecture-overview.md
   - cross-project-synthesis-2026-05-11/06-synthesis-and-proposals.md
-  - ~/Projects/papers/SCHEMA.md
+  - ~/Projects/corpus/SCHEMA.md
   - decisions/2026-05-11-cross-attestation-substrate.md
 ---
 
@@ -917,8 +917,8 @@ diff before.md5 after.md5  # MUST be empty
 Done in this commit. Stale references to `attest()` on per-repo MCPs and "move tools to research-mcp" flagged inline with `**⚠ 2026-05-11 final-critique update:**` markers (append-only convention).
 
 <!-- knowledge-index
-generated: 2026-05-11T07:57:55Z
-hash: f298888ac4fe
+generated: 2026-05-11T08:13:25Z
+hash: 406e62539449
 
 title: Scientific Substrate Target Architecture
 status: revised-post-critique

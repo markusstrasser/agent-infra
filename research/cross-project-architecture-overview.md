@@ -101,7 +101,7 @@ The unification target is **not** to merge these into one — each fits its repo
             │               │           │                      │
             ▼               ▼           ▼                      ▼
     research-mcp         biomedical-mcp                  research/
-   (papers, sources)    (ClinVar, gnomAD,                improvement-log
+   (corpus, sources)    (ClinVar, gnomAD,                improvement-log
                         PharmGKB, dbSNP,                 decisions/
                         Ensembl, PanelApp,
                         HPO — used by
@@ -195,8 +195,8 @@ This memo synthesizes:
 Read those for primary detail. This memo is the index.
 
 <!-- knowledge-index
-generated: 2026-05-11T06:44:00Z
-hash: 4fd7c64c7cf0
+generated: 2026-05-11T08:12:41Z
+hash: d2c9bd0e2fd6
 
 title: Cross-Project Architecture Overview — phenome × genomics × intel × agent-infra
 status: active
