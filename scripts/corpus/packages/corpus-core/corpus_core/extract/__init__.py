@@ -57,12 +57,20 @@ DEFAULT_PARSER: dict[str, str] = {
 
 def _registry() -> dict[str, Callable[..., ExtractResult]]:
     """Lazy import — keeps optional deps optional."""
-    from . import pdf_lightweight, pdf_marker, pdf_mineru, html_trafilatura, pdf_llm
+    from . import (
+        html_trafilatura,
+        pdf_lightweight,
+        pdf_llm,
+        pdf_marker,
+        pdf_marker_modal,
+        pdf_mineru,
+    )
     return {
         "mineru":            pdf_mineru.extract,
         "pymupdf4llm":       pdf_lightweight.extract,
         "trafilatura":       html_trafilatura.extract_from_bytes,
-        "marker":            pdf_marker.extract,  # opt-in; GPL-3.0
+        "marker":            pdf_marker.extract,         # opt-in; GPL-3.0, local CPU
+        "marker-modal":      pdf_marker_modal.extract,   # opt-in; GPL-3.0, T4 GPU on Modal
         "gemini-flash-lite": pdf_llm.extract,
     }
 
