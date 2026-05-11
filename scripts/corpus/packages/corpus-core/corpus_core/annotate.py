@@ -230,6 +230,7 @@ def annotate(
         agent_id=actor_id,
         prompt_template_hash=prompt_template_hash,
         output_hash=output_hash,
+        output_uri=output_uri,
     )
     annotation_id = annotation_id_from_tuple(stable_tuple)
     idempotency_key = annotation_idempotency_key(stable_tuple)

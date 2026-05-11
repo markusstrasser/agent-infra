@@ -145,16 +145,26 @@ def annotation_stable_tuple(
     agent_id: str,
     prompt_template_hash: str | None,
     output_hash: str | None,
+    output_uri: str | None = None,
 ) -> dict[str, str | None]:
     """Build the stable tuple used for annotation idempotency + id derivation.
 
     Order is fixed (alphabetic via canonical_json sort) — DO NOT include
     asserted_at, recorded_at, instrument, or any field the agent may legitimately
     re-emit at a later time without changing semantic content.
+
+    `output_uri` is included so each addressable output (e.g. distinct
+    `genomics://verdicts/<vid>` URIs) gets its own annotation even when the
+    content projection (output_hash) is shared with another output. Without
+    this, two verdicts with the same support_state + review_status + …
+    collapse to one annotation, hiding the second attestation event.
+    Idempotent retries (same agent re-calling with the same output_uri)
+    remain no-ops.
     """
     return {
         "agent_id": agent_id,
         "output_hash": output_hash,
+        "output_uri": output_uri,
         "prompt_template_hash": prompt_template_hash,
         "repo": repo,
         "scope": scope,
