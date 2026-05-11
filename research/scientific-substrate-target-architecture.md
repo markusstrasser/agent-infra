@@ -547,6 +547,64 @@ Two explicit calls. Backstop: `corpus maintain --audit-sync` reports verdicts wi
 
 Critique #28: Marker with `--use_llm` via Gemini is not bit-deterministic across runs. The existing `parsed.<parser_id>/` immutability convention in SCHEMA.md is therefore mandatory, not optional. `corpus_core.ingest()` enforces: if `parsed/` exists, refuse re-parse with same parser_id; force a new parser_id (e.g., bumped `parser_config_md5`).
 
+### Extraction pipelines — `corpus_core.extract`
+
+`corpus_core.extract` provides source-type-routed extractors. Each emits to `corpus/<source_id>/parsed.<parser_id>/` (immutable directory per critique #28). The extractor registry is a small dict; adding a new format is one entry + one module.
+
+| `parser_id` form | Backend | Use for | Cost | Determinism |
+|---|---|---|---|---|
+| `marker@<version>` | `marker_single` subprocess | `source_type ∈ {paper, preprint}` — multi-column scientific PDFs | Slow (minutes/PDF on MPS), no API | Mostly deterministic; `--use_llm` is not |
+| `pymupdf4llm@<version>` | `pymupdf4llm` Python lib | `source_type ∈ {database_release, regulatory_filing, tool_output}` — simple-layout PDFs | Fast (ms/PDF), no API | Fully deterministic |
+| `trafilatura@<version>` | `trafilatura` + `httpx` | `source_type ∈ {webpage, blog_post, news}` — HTML | Fast, no API | Deterministic |
+| `gemini-flash-lite@<date>` | Gemini 3.1 Flash Lite API | LLM fallback when above fail | $0.0001/page-ish | NON-deterministic — `parsed.<parser_id>/` immutability is the protection |
+
+Routing default by `source_type` (override via `--parser` CLI flag or `parser=` kwarg):
+
+```python
+DEFAULT_PARSER = {
+  "paper":             "marker",
+  "preprint":          "marker",
+  "database_release":  "pymupdf4llm",       # if PDF; trafilatura if HTML
+  "regulatory_filing": "pymupdf4llm",
+  "tool_output":       "pymupdf4llm",
+  "webpage":           "trafilatura",
+  "blog_post":         "trafilatura",
+  "news":              "trafilatura",
+  "other":             "pymupdf4llm",       # safest fast default
+}
+```
+
+The Gemini LLM extractor exists today inside `research-mcp.papers.py:_extract_with_gemini`. It moves into `corpus_core.extract.pdf_llm()` with explicit `parser_id="gemini-flash-lite@<YYYY-MM-DD>"` so re-runs go to a fresh parsed.<parser_id>/ directory. No in-place overwrite.
+
+**Marker venv stabilization (kills the `/tmp/pdf-bench` runtime dependency):**
+- Install via `uv tool install marker-pdf` → resolves at `~/.local/share/uv/tools/marker/` (survives reboot).
+- Resolver order in `corpus_core.extract.pdf_marker._find_marker_bin()`:
+  1. `$PAPERS_MARKER_BIN` env var (user override)
+  2. `~/.local/share/uv/tools/marker/bin/marker_single`
+  3. `shutil.which("marker_single")`
+  4. Error with installation instructions
+- The `/tmp/pdf-bench/.venv/bin/marker_single` fallback is dropped entirely (developer artifact, not infrastructure).
+
+**Public surface in `corpus_core`:**
+
+```python
+# corpus_core/extract/__init__.py
+def extract(source_id: str, *, content: bytes | str | Path,
+            source_type: str, parser: str | None = None,
+            parser_config: dict | None = None) -> ExtractResult
+# Dispatches to the right extractor module. Returns ExtractResult with
+# parsed_markdown, parser_id, parser_config_md5, page_count, char_count.
+
+# corpus_core/extract/pdf_marker.py     — Marker
+# corpus_core/extract/pdf_lightweight.py — pymupdf4llm
+# corpus_core/extract/html_trafilatura.py — trafilatura (handles bytes, str, or URL)
+# corpus_core/extract/pdf_llm.py        — Gemini Flash Lite fallback
+```
+
+`corpus_core.ingest.from_url(url, source_type="webpage")` calls `extract.html_trafilatura.fetch_and_extract(url)`, writes `corpus/<source_id>/parsed.trafilatura@<v>/page.md` + metadata, returns paper_id-equivalent.
+
+**Migration consequence:** research-mcp's `papers.db.sources` table (today stores raw web-page content provided by callers via `save_source`) gets unified into corpus during Phase 7. Each existing row becomes a corpus entry with `source_type: "webpage"`, parser_id="caller-provided" (since trafilatura didn't run on it). Going forward, agents calling `save_source` route through `corpus_core.ingest.from_url` instead; the `sources` table is dropped.
+
 ### Things deleted from the plan
 
 Per "no cruft" directive, these earlier proposals are dropped:
@@ -576,9 +634,125 @@ Per "no cruft" directive, these earlier proposals are dropped:
 - Network-filesystem support: out of scope per #50.
 - Schema v2 migration path: agreed schema is versioned; concrete v1→v2 migration is a problem for v2.
 
+---
+
+## Prior-art validation — 2026-05-11
+
+Sanity-checked the design against the OSS ecosystem via 4 parallel research dispatches (`research/prior-art-2026-05-11/`). Synthesis: `00-synthesis.md`. Three changes are critical, one is a deferred-but-noted future direction.
+
+### A. Extractor stack flips: Marker → MinerU (CRITICAL)
+
+**Marker is GPL-3.0** — violates the MIT/Apache license policy. AND empirically broken on Apple Silicon (4 open issues: surya MPS #993, table-decoder no MPS #967, 20× slowdown #960, CLI #966; today's parallel-agent benchmark crashed at p.10 of a 41-page preprint).
+
+**Switch to MinerU 3.1.0** for the high-fidelity paper lane:
+- Apache-2.0-derivative license (with 100M-MAU / $20M-MRR commercial trigger — ~8 orders of magnitude below us, irrelevant)
+- +14.6 OmniDocBench points over Marker (93.04 vs 78.44) on academic_literature subset
+- CPU-runnable pipeline backend (DocLayout-YOLO + UniMERNet), Apple Silicon supported per README
+- Formulas → LaTeX, tables → HTML, multi-column reading order is the documented strength
+
+**Other lanes confirmed:**
+- **pymupdf4llm stays** for fast non-paper PDFs (25-50× faster than MinerU on native-text). Note: AGPL-3.0 — fine for personal-local use, AGPL network clause activates if served behind a public endpoint. Document the boundary.
+- **trafilatura stays** for HTML (F1 0.909, Apache-2.0, no contender since 2022).
+- **No single library** does PDF + HTML + Office well in 2026. Docling is closest (MIT) but trades ~5-8 OmniDocBench points and ~2× speed.
+- **GROBID** noted as the citation-graph specialist (TEI-XML; used by S2/scite); different niche from markdown extractors. Add only if/when citation graph quality matters more than the current Marker-emitted citances.
+
+**License policy invariant (add to SCHEMA.md):**
+> Apache-2.0 / MIT / BSD preferred. AGPL-3.0 acceptable for local-only personal use ONLY (no network service serving the AGPL code to others). GPL-3.0 prohibited.
+
+### B. Annotation schema: stay bespoke, borrow RO-Crate vocab (MEDIUM)
+
+None of the surveyed standards (PROV-O, RO-Crate, OpenLineage, SLSA/in-toto, OpenTelemetry GenAI, MLflow/DataHub/Marquez, DVC, sigstore) fits cleanly. **Closest semantically:** RO-Crate Process Run Crate (`CreateAction` with `agent`/`instrument`/`object`/`result`/`endTime`). **Closest architecturally:** OpenLineage (file transport, JSONL).
+
+Recommendation from the survey: stay bespoke, align names with RO-Crate, add `conformsTo` + flat namespace keys. Specifically:
+
+| Earlier field | Final (RO-Crate-aligned) | Notes |
+|---|---|---|
+| `actor_type` + `actor_id` | KEEP — use `agent` for human/service/cli; `instrument` for model/tool | RO-Crate distinguishes `Person` vs `SoftwareApplication`; we map cleanly |
+| `tool` | `instrument.name` | |
+| `output_uri` + `output_hash` | `result.uri` + `result.hash` | Nested under `result` |
+| `asserted_at` | KEEP + add `endTime` alias | RO-Crate uses `endTime`; keep both for export compat |
+| (new) | `conformsTo` | per-record schema version URI (`https://schema.local/corpus/annotation/v1.0.0`) |
+| (style) | Flat namespace keys for nested fields | OpenTelemetry pattern: `agent.id`, `agent.type`, `result.uri`, `result.hash` |
+| (new) | Stable URI-form agent IDs | `urn:agent:claude-opus-4-7@2026-04-16`, `urn:agent:research-mcp@0.1.2` |
+
+What we keep that no standard offers: `recorded_at ≠ asserted_at`, `idempotency_key` from stable tuple, `supersedes_annotation_id` as first-class field. These are legitimate workflow needs (the academic literature — Information Systems 2025 paper, Werder et al. — validates "extend the standard, map to PROV-O via SKOS" as the convergent practitioner pattern).
+
+**Explicitly NOT adopted:** JSON-LD `@context`/`@graph` wrapper (RO-Crate ceremony with no current return at our scale).
+
+### C. Build corpus_core (don't adopt PaperQA2's `Docs`); cherry-pick its identity convention (MEDIUM)
+
+Audited PaperQA2, Aviary, LDP, OpenScholar, ASReview, pyzotero. Verdict: **build `corpus_core` (~400 LOC).**
+
+PaperQA2's `Docs` container is structurally close but:
+- `extra="forbid"` Pydantic — hard to extend
+- Mandatory `texts_index: VectorStore` field — can't use the container without embedding machinery
+- `Doc` extends `Embeddable` from `lmi`, transitively pulling `litellm`+`openai`+`anthropic`
+- `Docs.aadd()` default makes 2 LLM calls per document (bypassable but API-shaped around them)
+- No opinionated on-disk layout — single-blob `model_dump_json()` persistence
+
+**What's worth borrowing from PaperQA2** (Apache-2.0):
+- **`compute_unique_doc_id(doi, content_hash)` from `utils.py`** — stable ID derivation. Vendor (~10 LOC, with attribution comment) for cross-tool ID interop.
+- **`DocDetails.lowercase_doi_and_populate_doc_id` validator** — DOI normalization rules.
+- **`paperqa.clients/` directory** is the actual gem: `crossref.py`, `openalex.py`, `semantic_scholar.py`, `unpaywall.py`, `retractions.py`, `journal_quality.py` + `DocMetadataClient` orchestrator. No LLM dep, returns enriched `DocDetails`. **Treat as optional enrichment dependency** — when `corpus_core.enrich.metadata(source_id)` is needed, the call is between (a) `paperqa-clients` import vs (b) 150 LOC of homegrown REST clients. Deferred until metadata enrichment is actually wired in.
+
+Other libraries: Aviary/LDP (wrong category — agent gym + decision process), OpenScholar (research code, dormant 2025-08-13), ASReview (screening prioritization, wrong problem), pyzotero (HTTP client to Zotero — wrong abstraction).
+
+### D. Packaging: uv workspace, 5 packages, Claude Code plugin (DEFERRED — Phase 8)
+
+The 2026 standard verified across PaperQA2, DVC, mem0, cognee, fastmcp: **single repo, `uv` workspace, multiple PyPI packages, Claude Code plugin bundle on top.**
+
+Target shape when published (Phase 8, post-migration):
+
+```
+~/Projects/corpus/                  (standalone repo, eventually)
+├── pyproject.toml                  (workspace root: tool.uv.workspace = ["packages/*"])
+├── packages/
+│   ├── corpus-core/                pip install corpus-core      schemas + IDs + store layout
+│   ├── corpus-cli/                 pip install corpus-cli       CLI
+│   ├── corpus-mcp/                 uvx corpus-mcp               MCP server
+│   ├── corpus-extractors/          opt-in extractor adapters
+│   └── corpus-plugin-claude/       Claude Code plugin bundle (skills + hooks + .mcp.json)
+├── schemas/                        versioned JSON Schema (bundled with packages)
+├── data/                           gitignored — canonical store
+└── tests/
+```
+
+**MCP distribution:** PyPI + `uvx corpus-mcp` (2026 standard across `mcp-server-git`, `aws-mcp`, `cognee-mcp`). NO Docker as primary distribution. Bundle MCP into the Claude Code plugin via `.mcp.json` for one-line install.
+
+**Config resolution layers:** explicit kwarg → `CORPUS_ROOT` env → `[tool.corpus]` in pyproject.toml → `platformdirs.user_data_dir("corpus")` default.
+
+**Per-repo schema registration:** Entry-points (`[project.entry-points."corpus.schemas"]`). Each scientific repo registers its claim/verdict schema versions with `corpus_core` at install time.
+
+**Today's reality (Phase 0.5–7 of plan):** Code lives in `agent-infra/scripts/corpus/` (renamed from `scripts/papers/`). Reshape `scripts/corpus/` as a workspace-ready monorepo from the start (workspace root pyproject.toml + `packages/corpus-core/`) so the eventual Phase 8 extraction is a `git filter-repo` and PyPI publish, not a restructure.
+
+**Phase 8 (NEW, deferred):** Extract `agent-infra/scripts/corpus/` to its own repo at `~/Projects/corpus/`. PyPI publish the 5 packages. Build the Claude Code plugin bundle. Trigger condition: >1 user OR explicit decision to open-source.
+
+### E. Negative findings (what the survey did NOT find)
+
+- **No 2026 convergence on "agent annotations"** as a standardized schema. The space is bespoke. Our schema can become a convergent answer in this niche.
+- **No drop-in scientific-corpus-manager** handling paper + non-paper + provenance + extractor dispatch. The niche is unfilled.
+- **No mature Apple-Silicon-first PDF extractor.** Most tools are NVIDIA-first; MinerU works on MPS but isn't optimized for it. Expect performance ceiling on Mac.
+- **No emerging MCP** that does what `corpus-mcp` will. The personal-scientific-substrate niche is genuinely empty in 2026 OSS.
+
+This means: the build path is justified (no existing solution), AND the work could become reusable infrastructure if open-sourced later. Phase 8 is the optional offramp.
+
+### F. Plan changes triggered by prior-art
+
+| Change | Phase | Severity |
+|---|---|---|
+| Marker → MinerU swap; `corpus_core/extract/pdf_mineru.py` (was `pdf_marker.py`) | 1.5 | Critical |
+| Drop `/tmp/pdf-bench/.venv/bin/marker_single` fallback | 1.5 | Critical |
+| Document AGPL local-only carve-out + license policy invariant | 1 | Medium |
+| Rename annotation fields to RO-Crate vocab + `conformsTo` + flat keys + URN agent IDs | 1 | Medium |
+| Reshape `scripts/papers/` → workspace-ready `scripts/corpus/packages/corpus-core/` (not just rename) | 0.5 / 1 | Medium |
+| Vendor PaperQA2's `compute_unique_doc_id` pattern in `corpus_core/identity.py` (~10 LOC + attribution) | 1 | Low |
+| Defer `paperqa.clients` import decision until enrichment is wired | future | Low |
+| Add Phase 8 (deferred): repo extraction + PyPI publish + Claude plugin bundle | 8 | Low (future) |
+| GROBID as optional citation lane | future | Low |
+
 <!-- knowledge-index
-generated: 2026-05-11T07:11:50Z
-hash: 4c3116f1028e
+generated: 2026-05-11T07:32:01Z
+hash: 4ab3689c6f00
 
 title: Scientific Substrate Target Architecture
 status: revised-post-critique
