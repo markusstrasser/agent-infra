@@ -110,7 +110,9 @@ def extract_pdf(pdf_bytes: bytes, parser_config: dict | None = None) -> dict:
         "use_llm": True,
         "extract_images": True,
         "llm_service": "marker.services.gemini.GoogleGeminiService",
-        "gemini_model_name": "gemini-2.5-flash",
+        # Default Flash 3 (matches agent-infra canonical model ref). NEVER
+        # default to 2.5 — operator policy.
+        "gemini_model_name": "gemini-3-flash-preview",
         "force_ocr": False,
         "format_lines": False,
         "redo_inline_math": False,
