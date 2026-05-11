@@ -540,6 +540,125 @@ def create_mcp() -> FastMCP:
             _meta={"anthropic/maxResultSizeChars": max(len(text) * 2, 16000)},
         )]
 
+    @mcp.tool()
+    def papers_lookup(
+        ctx: Context,
+        identifier: str,
+    ) -> list[TextContent]:
+        """Look up a paper in the canonical local store at ~/Projects/papers/.
+
+        Use BEFORE fetching a paper from upstream — the cache hit is
+        instantaneous (filesystem only) and gives you parsed markdown +
+        citance edges if they exist.
+
+        Complementary to cross_attestation_lookup: that one tells you "has any
+        repo VERIFIED this source", this one tells you "do we have the BYTES
+        + PARSE locally".
+
+        Args:
+            identifier: DOI ("10.1038/...", optionally prefixed "doi:"),
+                PMID (bare digits, optionally prefixed "pmid:"), or
+                paper_id ("doi_10_1038_...", "pmid_12345", "sha_abc...").
+
+        Returns:
+            {paper_id, present, doi, pmid, title, parsed_present,
+             citances_in_count, citances_out_count, used_by, paths}
+        """
+        import json as _json
+        from pathlib import Path as _Path
+
+        # Resolve identifier → paper_id
+        ident = identifier.strip()
+        if ident.startswith("doi:"):
+            ident = ident[4:].strip()
+        if ident.startswith("pmid:"):
+            ident = ident[5:].strip()
+
+        if ident.startswith(("doi_", "pmid_", "sha_")):
+            paper_id = ident
+        elif "/" in ident or "." in ident:
+            slug = ident.lower()
+            for ch in "/.-:":
+                slug = slug.replace(ch, "_")
+            paper_id = f"doi_{slug}"
+        elif ident.isdigit():
+            paper_id = f"pmid_{ident}"
+        else:
+            payload = {
+                "error": True,
+                "error_type": "UNRECOGNIZED_IDENTIFIER",
+                "message": f"Cannot resolve {identifier!r} to a paper_id",
+                "recoverable": True,
+                "suggested_action": "pass a DOI, PMID, or paper_id (doi_*, pmid_*, sha_*)",
+            }
+            text = _json.dumps(payload, indent=2)
+            return [TextContent(type="text", text=text)]
+
+        store_root = _Path.home() / "Projects" / "papers"
+        paper_dir = store_root / paper_id
+
+        if not paper_dir.exists():
+            payload = {
+                "paper_id": paper_id,
+                "present": False,
+                "message": f"Not in store; ingest via 'papers ingest --pdf <path> --doi <doi>'",
+            }
+            text = _json.dumps(payload, indent=2)
+            return [TextContent(type="text", text=text)]
+
+        meta_path = paper_dir / "metadata.json"
+        meta = {}
+        if meta_path.exists():
+            try:
+                meta = _json.loads(meta_path.read_text())
+            except Exception:
+                meta = {}
+
+        parsed_md = paper_dir / "parsed" / "paper.md"
+        cin = paper_dir / "citances_in.jsonl"
+        cout = paper_dir / "citances_out.jsonl"
+        idx = paper_dir / "INDEX.json"
+
+        def _count_lines(p: _Path) -> int:
+            if not p.exists():
+                return 0
+            return sum(1 for ln in p.read_text(errors="replace").splitlines() if ln.strip())
+
+        used_by = []
+        if idx.exists():
+            try:
+                used_by = _json.loads(idx.read_text()).get("used_by", [])
+            except Exception:
+                pass
+
+        payload = {
+            "paper_id": paper_id,
+            "present": True,
+            "doi": meta.get("doi"),
+            "pmid": meta.get("pmid"),
+            "title": meta.get("title"),
+            "fabio_class": meta.get("fabio_class"),
+            "retraction_status": meta.get("retraction_status", "unknown"),
+            "parsed_present": parsed_md.exists(),
+            "parsed_sha256": meta.get("parsed_sha256"),
+            "pdf_sha256": meta.get("pdf_sha256"),
+            "citances_in_count": _count_lines(cin),
+            "citances_out_count": _count_lines(cout),
+            "used_by": used_by,
+            "paths": {
+                "dir": str(paper_dir),
+                "pdf": str(paper_dir / "paper.pdf"),
+                "parsed_md": str(parsed_md) if parsed_md.exists() else None,
+                "metadata": str(meta_path) if meta_path.exists() else None,
+            },
+            "graph_db": str(store_root / "graph.duckdb") if (store_root / "graph.duckdb").exists() else None,
+        }
+        text = _json.dumps(payload, indent=2, default=str)
+        return [TextContent(
+            type="text", text=text,
+            _meta={"anthropic/maxResultSizeChars": max(len(text) * 2, 16000)},
+        )]
+
     return mcp
 
 
