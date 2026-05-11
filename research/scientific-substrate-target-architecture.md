@@ -456,7 +456,7 @@ Field changes from earlier draft:
 | Was | Now | Why |
 |---|---|---|
 | `model` required | `actor_type` (model/human/service/cli) + `actor_id` | fetch_paper writes `actor_type:"service", actor_id:"research-mcp"` — no schema violation for non-model actors (critique #5) |
-| `annotation_id` = sha256 of full line | `annotation_id` = `ann_<sha256[:16](idempotency_key)>`; `idempotency_key` = sha256 of stable tuple `(source_id, repo, scope, actor_id, prompt_template_hash, output_hash)` | retries are now idempotent (critique #14) |
+| `annotation_id` = sha256 of full line | `annotation_id` = `ann_<sha256[:16](idempotency_key)>`; `idempotency_key` = sha256 of stable tuple `(source_id, repo, scope, actor_id, prompt_template_hash, output_hash, output_uri)` | retries are now idempotent (critique #14). **`output_uri` added 2026-05-11** after Phase 5 close-review revealed scope='verdict' annotations collapsed when multiple verdicts shared the same projection (`output_hash`); the original 6-field tuple matched the "one annotation per content projection" intent but contradicted §J.3's "one annotation per verdict" cardinality. Including `output_uri` makes every distinct addressable output its own annotation while keeping true retries (same agent, same URI) idempotent. |
 | (missing) | `source_content_hash` | binds annotation to source state at annotation time; detects upstream drift (critique #47) |
 | (missing) | `recorded_at` (corpus-writer assigned, UTC) | resolves multi-agent clock drift on `asserted_at` (critique #42) |
 | (missing) | `supersedes_annotation_id` + `status` | annotations themselves can be superseded/retracted (critique #18) |
@@ -917,12 +917,12 @@ diff before.md5 after.md5  # MUST be empty
 Done in this commit. Stale references to `attest()` on per-repo MCPs and "move tools to research-mcp" flagged inline with `**⚠ 2026-05-11 final-critique update:**` markers (append-only convention).
 
 <!-- knowledge-index
-generated: 2026-05-11T08:13:25Z
-hash: 406e62539449
+generated: 2026-05-11T19:00:09Z
+hash: 4998f60d0ae7
 
-title: Scientific Substrate Target Architecture
-status: revised-post-critique
-tags: architecture, target-state, breaking-refactor, papers, attestation, federation
+index:title: Scientific Substrate Target Architecture
+index:status: revised-post-critique
+index:tags: architecture, target-state, breaking-refactor, papers, attestation, federation
 cross_refs: decisions/2026-05-11-cross-attestation-substrate.md, research/prior-art-2026-05-11-round2/00-synthesis.md
 
 end-knowledge-index -->
