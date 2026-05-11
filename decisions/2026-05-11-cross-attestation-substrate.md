@@ -157,3 +157,31 @@ The executable plan lives at `.claude/plans/2026-05-11-substrate-migration.md` (
 - Cross-model review via `/critique model --axes deep` (Gemini Pro domain + Gemini arch + GPT-5.5 formal + Gemini Flash mechanical), 74 findings, 2 cross-model agreements. Artifacts at `.model-review/2026-05-11-cross-project-attestation-substrate-b397f6/`.
 - User decisions captured 2026-05-11: wait ~1 week on federation; ship Phase 0 now; revise memo in place.
 - Verified: research-mcp uses SQLite (`papers.db`), not DuckDB; `~/Projects/genomics/data/knowledge/writer.lock` exists; phenome `verify_quantitative_claims.py` exists.
+
+## Update — 2026-05-11 (Phase 0.5 of substrate plan: papers → corpus rename)
+
+The `papers/` namespace is renamed to `corpus/` because the canonical store now
+generalizes to non-paper sources (database releases, regulatory filings, tool
+outputs, web pages, etc.) per the target-architecture memo. Earlier sections
+above describe the historical state.
+
+**Rename mapping (effective Phase 0.5):**
+
+| Old | New |
+|---|---|
+| `~/Projects/papers/` | `~/Projects/corpus/` |
+| `scripts/papers/` | `scripts/corpus/packages/corpus-core/` (workspace-reshaped) |
+| `papers` Python package | `corpus_core` |
+| `paper_store.py` module | `store.py` |
+| `papers` CLI | `corpus` CLI |
+| `papers_lookup` MCP tool | `corpus_lookup` |
+| `papers_graph_query` MCP tool | `corpus_graph_query` |
+| `papers` skill | `corpus` skill |
+| `pretool-papers-store-remind.sh` | `pretool-corpus-remind.sh` |
+| `PAPERS_ROOT` env | `CORPUS_ROOT` env |
+| `docs/papers-store/` | `docs/corpus/` |
+
+The L1 read tools (`corpus_lookup`, `corpus_graph_query`) continue to live in
+`agent_infra_mcp.py` for now; they migrate to a dedicated `corpus_mcp.py` in
+Phase 3 of the substrate plan, at which point `agent_infra_mcp.py` returns to
+markdown search only.

@@ -76,16 +76,16 @@ Do NOT use for: behavioral rules (already in CLAUDE.md), enforcement (hooks).
 
 ## Tool trio: paper status before you fetch
 Call in order, short-circuit when sufficient:
-  1. papers_lookup(identifier) — canonical store at ~/Projects/papers/.
+  1. corpus_lookup(identifier) — canonical store at ~/Projects/corpus/.
      "Do we have the bytes + parsed markdown?" — instant filesystem hit.
   2. cross_attestation_lookup(source_id) — read-only DuckDB federation over
      genomics/phenome/intel knowledge stores. "Has any repo VERIFIED this
      source?" Independent of whether bytes are stored.
-  3. papers_graph_query(paper_id, query) — citation graph at
-     ~/Projects/papers/graph.duckdb. "What does the citation graph say?"
+  3. corpus_graph_query(paper_id, query) — citation graph at
+     ~/Projects/corpus/graph.duckdb. "What does the citation graph say?"
      Requires paper_id from steps 1 or 2.
 All three accept DOI, PMID, PMCID, or paper_id forms. Use cross_attestation_lookup's
-returned `paper_id` field to chain directly into papers_lookup or papers_graph_query.\
+returned `paper_id` field to chain directly into corpus_lookup or corpus_graph_query.\
 """
 
 
@@ -285,7 +285,7 @@ _PMCID_RE = re.compile(r"^PMC\d+$", re.IGNORECASE)
 
 
 def _slugify_doi(doi: str) -> str:
-    """Match papers_lookup / canonical store paper_id derivation."""
+    """Match corpus_lookup / canonical store paper_id derivation."""
     slug = doi.lower()
     for ch in "/.-:":
         slug = slug.replace(ch, "_")
@@ -523,10 +523,10 @@ def create_mcp() -> FastMCP:
         bytes are in the canonical store.
 
         Part of the unified paper-status trio (call in this order):
-          1. papers_lookup(identifier) — do we have bytes + parsed markdown?
+          1. corpus_lookup(identifier) — do we have bytes + parsed markdown?
           2. cross_attestation_lookup(source_id) — has any repo VERIFIED it?
              (this tool — read-only DuckDB federation, fail-soft on lock)
-          3. papers_graph_query(paper_id, ...) — what does the citation
+          3. corpus_graph_query(paper_id, ...) — what does the citation
              graph say once we have a paper_id?
 
         Use BEFORE fetching a paper to detect duplicate work across repos.
@@ -545,7 +545,7 @@ def create_mcp() -> FastMCP:
             JSON with:
               source_id: parsed components (doi/pmid/pmcid/nct/raw/normalized)
               paper_id: canonical-store form (e.g. "doi_10_1038_nature12345"),
-                        suitable for direct papers_lookup / papers_graph_query
+                        suitable for direct corpus_lookup / corpus_graph_query
               found_in: list of repos with attestation hits
               results: per-repo hits with sample rows
               errors: per-repo error strings (e.g., for locked databases)
@@ -575,16 +575,16 @@ def create_mcp() -> FastMCP:
         )]
 
     @mcp.tool()
-    def papers_graph_query(
+    def corpus_graph_query(
         ctx: Context,
         paper_id: str,
         query: str = "cited-by",
         stance: str | None = None,
         limit: int = 50,
     ) -> list[TextContent]:
-        """Query the canonical paper citation graph at ~/Projects/papers/graph.duckdb.
+        """Query the canonical paper citation graph at ~/Projects/corpus/graph.duckdb.
 
-        Use AFTER papers_lookup confirms a paper is in the store to surface
+        Use AFTER corpus_lookup confirms a paper is in the store to surface
         the actual evidence around it (supporting/contrasting snippets, not
         just counts).
 
@@ -608,7 +608,7 @@ def create_mcp() -> FastMCP:
         import json as _json
         from pathlib import Path as _Path
 
-        store_root = _Path.home() / "Projects" / "papers"
+        store_root = _Path.home() / "Projects" / "corpus"
         db_path = store_root / "graph.duckdb"
 
         def _wrap(payload: dict) -> list[TextContent]:
@@ -624,7 +624,7 @@ def create_mcp() -> FastMCP:
                 "error_type": "GRAPH_NOT_BUILT",
                 "message": "graph.duckdb does not exist",
                 "recoverable": True,
-                "suggested_action": "run 'papers maintain --rebuild-graph'",
+                "suggested_action": "run 'corpus maintain --rebuild-graph'",
             })
 
         try:
@@ -718,11 +718,11 @@ def create_mcp() -> FastMCP:
         })
 
     @mcp.tool()
-    def papers_lookup(
+    def corpus_lookup(
         ctx: Context,
         identifier: str,
     ) -> list[TextContent]:
-        """Look up a paper in the canonical local store at ~/Projects/papers/.
+        """Look up a paper in the canonical local store at ~/Projects/corpus/.
 
         Use BEFORE fetching a paper from upstream — the cache hit is
         instantaneous (filesystem only) and gives you parsed markdown +
@@ -771,14 +771,14 @@ def create_mcp() -> FastMCP:
             text = _json.dumps(payload, indent=2)
             return [TextContent(type="text", text=text)]
 
-        store_root = _Path.home() / "Projects" / "papers"
+        store_root = _Path.home() / "Projects" / "corpus"
         paper_dir = store_root / paper_id
 
         if not paper_dir.exists():
             payload = {
                 "paper_id": paper_id,
                 "present": False,
-                "message": f"Not in store; ingest via 'papers ingest --pdf <path> --doi <doi>'",
+                "message": f"Not in store; ingest via 'corpus ingest --pdf <path> --doi <doi>'",
             }
             text = _json.dumps(payload, indent=2)
             return [TextContent(type="text", text=text)]
