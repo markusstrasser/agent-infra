@@ -64,21 +64,28 @@ SCOPE_MAP = {
 }
 
 INSTRUCTIONS = """\
-Cross-project knowledge base — searches research memos and entity files across
-agent-infra, phenome, and genomics projects.
+Cross-project knowledge base — markdown research search + paper-status trio
+spanning agent-infra, phenome, genomics, and intel.
 
-Use search when you need:
-- Hook design patterns (how to write hooks, gotchas, event types)
-- Agent failure mode reference (22 documented modes with mitigations)
-- Architecture decisions (search/retrieval, git workflow, cross-project)
-- Health/genomics research (interventions, genes, pharmacogenomics, phenotypes)
-- Gene entity pages (CYP2D6, HLA, MTHFR, etc.)
-- Session-analyst findings (improvement-log entries)
-- Research findings (self-modification, prompt structure, native features)
+## Tool: search (markdown sections)
+Use for hook design patterns, agent failure modes, architecture decisions,
+health/genomics research, gene entity pages, improvement-log findings.
+Scopes: all, hooks, failures, research, architecture, improvement-log,
+health, genomics, genes.
+Do NOT use for: behavioral rules (already in CLAUDE.md), enforcement (hooks).
 
-Scopes: all, hooks, failures, research, architecture, improvement-log, health, genomics, genes.
-
-Do NOT use for: behavioral rules (already in CLAUDE.md), enforcement (use hooks).\
+## Tool trio: paper status before you fetch
+Call in order, short-circuit when sufficient:
+  1. papers_lookup(identifier) — canonical store at ~/Projects/papers/.
+     "Do we have the bytes + parsed markdown?" — instant filesystem hit.
+  2. cross_attestation_lookup(source_id) — read-only DuckDB federation over
+     genomics/phenome/intel knowledge stores. "Has any repo VERIFIED this
+     source?" Independent of whether bytes are stored.
+  3. papers_graph_query(paper_id, query) — citation graph at
+     ~/Projects/papers/graph.duckdb. "What does the citation graph say?"
+     Requires paper_id from steps 1 or 2.
+All three accept DOI, PMID, PMCID, or paper_id forms. Use cross_attestation_lookup's
+returned `paper_id` field to chain directly into papers_lookup or papers_graph_query.\
 """
 
 
@@ -277,14 +284,26 @@ _PMID_RE = re.compile(r"^\d{6,9}$")
 _PMCID_RE = re.compile(r"^PMC\d+$", re.IGNORECASE)
 
 
+def _slugify_doi(doi: str) -> str:
+    """Match papers_lookup / canonical store paper_id derivation."""
+    slug = doi.lower()
+    for ch in "/.-:":
+        slug = slug.replace(ch, "_")
+    # Collapse consecutive underscores and strip trailing.
+    while "__" in slug:
+        slug = slug.replace("__", "_")
+    return slug.strip("_")
+
+
 def _normalize_source_id(s: str) -> dict:
     """Parse a free-form source_id into typed components.
 
     Accepts: 'doi:10.x/y', '10.x/y', 'pmid:12345', '12345', 'PMC123', 'pmcid:PMC123', 'nct:NCT...'.
-    Returns dict with keys: doi, pmid, pmcid, nct, raw, normalized (best-effort canonical).
+    Returns dict with keys: doi, pmid, pmcid, nct, raw, normalized, paper_id (canonical-store form).
     """
     raw = s.strip()
-    out = {"doi": None, "pmid": None, "pmcid": None, "nct": None, "raw": raw, "normalized": raw}
+    out = {"doi": None, "pmid": None, "pmcid": None, "nct": None,
+           "raw": raw, "normalized": raw, "paper_id": None}
     low = raw.lower()
     if low.startswith("doi:"):
         out["doi"] = raw[4:].strip()
@@ -304,8 +323,10 @@ def _normalize_source_id(s: str) -> dict:
         out["pmid"] = raw
     if out["doi"]:
         out["normalized"] = f"doi:{out['doi']}"
+        out["paper_id"] = f"doi_{_slugify_doi(out['doi'])}"
     elif out["pmid"]:
         out["normalized"] = f"pmid:{out['pmid']}"
+        out["paper_id"] = f"pmid_{out['pmid']}"
     elif out["pmcid"]:
         out["normalized"] = f"pmcid:{out['pmcid']}"
     elif out["nct"]:
@@ -498,11 +519,19 @@ def create_mcp() -> FastMCP:
     @mcp.tool()
     def cross_attestation_lookup(ctx: Context, source_id: str) -> list[TextContent]:
         """Check whether any local repo (genomics, phenome, intel) has already
-        fetched, processed, or attested to a paper/source identifier.
+        attested to a paper/source identifier — independent of whether the
+        bytes are in the canonical store.
 
-        Use BEFORE fetching a paper to detect duplicate work across repos. The
-        federation is read-only over each repo's DuckDB store; one repo
-        failing or being write-locked does not block the others.
+        Part of the unified paper-status trio (call in this order):
+          1. papers_lookup(identifier) — do we have bytes + parsed markdown?
+          2. cross_attestation_lookup(source_id) — has any repo VERIFIED it?
+             (this tool — read-only DuckDB federation, fail-soft on lock)
+          3. papers_graph_query(paper_id, ...) — what does the citation
+             graph say once we have a paper_id?
+
+        Use BEFORE fetching a paper to detect duplicate work across repos.
+        Federation is read-only over each repo's DuckDB store; one repo
+        being write-locked returns status='locked' for that repo only.
 
         Args:
             source_id: DOI, PMID, PMCID, or NCT identifier. Accepted forms:
@@ -513,9 +542,13 @@ def create_mcp() -> FastMCP:
                 - "nct:NCT01234567"
 
         Returns:
-            JSON with: source_id (parsed), found_in (list of repos with hits),
-            results (per-repo hits with sample rows), errors (per-repo error
-            strings, e.g., for write-locked databases).
+            JSON with:
+              source_id: parsed components (doi/pmid/pmcid/nct/raw/normalized)
+              paper_id: canonical-store form (e.g. "doi_10_1038_nature12345"),
+                        suitable for direct papers_lookup / papers_graph_query
+              found_in: list of repos with attestation hits
+              results: per-repo hits with sample rows
+              errors: per-repo error strings (e.g., for locked databases)
         """
         import json
         ids = _normalize_source_id(source_id)
@@ -529,6 +562,7 @@ def create_mcp() -> FastMCP:
         found_in = [r["repo"] for r in results if r["count"] > 0]
         payload = {
             "source_id": ids,
+            "paper_id": ids.get("paper_id"),  # canonical-store form when DOI/PMID
             "found_in": found_in,
             "any_hits": bool(found_in),
             "results": results,

@@ -88,6 +88,38 @@ What's still deferred:
 - Phase 4 (cleanup-and-close skill)
 - Phase 5 (frontier pilots)
 
+## Update — 2026-05-11 late (unified paper system landed in parallel)
+
+While Phase 6 was shipping, a parallel agent built the **canonical papers store** spanning four repos:
+
+- **agent-infra `b365da5`** — `scripts/papers/` package with CLI (`papers ingest`, `papers stats`, `papers cited-by`, `papers maintain`), 14 unit tests, citation graph indexer.
+- **research-mcp `8d28fb1`** — `fetch_paper` re-routed to write into the canonical store at `~/Projects/papers/`; `pdf_dir` removed.
+- **agent-infra `55ae7a1`, `f024aa6`** — two new MCP tools: `papers_lookup(identifier)` and `papers_graph_query(paper_id, query, stance)`.
+- **skills `e720061`, `a0d609c`** — `papers` skill + `pretool-papers-store-remind.sh` advisory hook (wired into PreToolUse via `~/.claude` 66f1ef1).
+- **Store layout** at `~/Projects/papers/<paper_id>/` with metadata.json (authoritative), paper.pdf, parsed/paper.md, citances_in.jsonl, citances_out.jsonl, INDEX.json (`used_by`), graph.duckdb. Schema: `~/Projects/papers/SCHEMA.md`.
+
+This answers the "should it be research-mcp or unified system" question — **the unified system is agent-infra-mcp**. research-mcp is the fetch/write side; agent-infra-mcp is the cross-cutting read surface. Three tools now compose:
+
+| # | Tool | What it answers | Speed |
+|---|---|---|---|
+| 1 | `papers_lookup(identifier)` | "Do we have bytes + parsed markdown locally?" | Filesystem-fast |
+| 2 | `cross_attestation_lookup(source_id)` | "Has any repo VERIFIED this source?" | ~30ms DuckDB federation |
+| 3 | `papers_graph_query(paper_id, query, stance)` | "What does the citation graph say?" | DuckDB graph index |
+
+Consolidation applied (this update):
+- Shared `_slugify_doi()` helper so `cross_attestation_lookup`'s returned `paper_id` matches `papers_lookup`'s canonical-store form exactly. Smoke-tested against 6 DOI/PMID forms including the live `doi_10_1101_2026_04_10_26350624` entry in the store.
+- `cross_attestation_lookup` output now includes `paper_id` field; agent can chain directly into `papers_lookup` or `papers_graph_query` without re-deriving.
+- Cross-references in tool docstrings; updated agent-infra-mcp `INSTRUCTIONS` to surface the trio together so the next agent sees the call ordering.
+
+**Earlier "move to research-mcp?" recommendation is reversed.** The parallel agent's architectural choice (agent-infra-mcp = cross-cutting read surface) is the right one and it's already shipped.
+
+What's NOT done (still deferred from the original plan):
+- Phase 0.5 — DOI/PMID/PMCID alias resolver (smaller need now that papers_lookup handles the paper_id form)
+- Phase 2 — transparent cache inside research-mcp's `fetch_paper` (gated on Phase 0 measurement). Note: research-mcp already writes to canonical store, so the cache lookup may collapse to `papers_lookup`-style filesystem check before any network fetch.
+- Phase 3 — cosigned hooks (phase-gate, dispatch-delete-guard, genomics-pipeline-sync)
+- Phase 4 — `cleanup-and-close` skill
+- Phase 5 — frontier pilots
+
 ## Provenance
 
 - 5-agent archaeology dispatch (subagent reports `research/cross-project-synthesis-2026-05-11/{01..05}-*.md`)
