@@ -14,7 +14,10 @@ from . import ExtractResult
 from ._common import config_md5
 
 
-_DEFAULT_MODEL = "gemini-flash-lite-latest"
+# NEVER default to gemini-2.5 — operator policy: Flash 3 only.
+# The 'latest' aliases (gemini-flash-lite-latest, etc.) currently resolve
+# to 2.5 — explicit pin required.
+_DEFAULT_MODEL = "gemini-3-flash-preview"
 _DEFAULT_PROMPT = (
     "Extract the full text of this PDF as markdown. Preserve section "
     "headings, lists, tables (as GFM), and inline math (as LaTeX between "
@@ -30,7 +33,7 @@ def extract(
     """Upload PDF to Gemini, return extracted markdown.
 
     parser_config supports:
-        model:  Gemini model id (default: gemini-flash-lite-latest)
+        model:  Gemini model id (default: gemini-3-flash-preview)
         prompt: extraction prompt (default: see _DEFAULT_PROMPT)
     """
     pdf_path = Path(pdf_path).resolve()
