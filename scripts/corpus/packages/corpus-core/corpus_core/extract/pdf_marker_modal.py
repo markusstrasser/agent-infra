@@ -114,10 +114,19 @@ def extract_batch_remote(
     """
     fn = _lookup_fn()
     pdf_bytes_iter = list(pdf_bytes_iter)
-    args = [(b, parser_config or {}) for b in pdf_bytes_iter]
+    args = [
+        (b, {**(parser_config or {}), "_batch_index": idx})
+        for idx, b in enumerate(pdf_bytes_iter)
+    ]
     # starmap unpacks (bytes, dict) tuples into the function's two args.
-    # order_outputs preserves input order so the caller can zip with paths.
-    for idx, result in enumerate(
-        fn.starmap(args, order_outputs=True, return_exceptions=True)
-    ):
-        yield idx, result
+    # Do not preserve input order: one OCR-heavy/preempted PDF should not block
+    # all completed siblings from being written to the local corpus.
+    for result in fn.starmap(args, order_outputs=False, return_exceptions=True):
+        if isinstance(result, Exception):
+            yield -1, result
+            continue
+        idx = result.get("input_index")
+        if idx is None:
+            yield -1, result
+            continue
+        yield int(idx), result

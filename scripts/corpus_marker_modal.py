@@ -106,6 +106,9 @@ def extract_pdf(pdf_bytes: bytes, parser_config: dict | None = None) -> dict:
     import zipfile
     from pathlib import Path
 
+    parser_config = parser_config or {}
+    input_index = parser_config.get("_batch_index")
+
     cfg = {
         "use_llm": True,
         "extract_images": True,
@@ -116,7 +119,7 @@ def extract_pdf(pdf_bytes: bytes, parser_config: dict | None = None) -> dict:
         "force_ocr": False,
         "format_lines": False,
         "redo_inline_math": False,
-        **(parser_config or {}),
+        **parser_config,
     }
     # Marker reads GOOGLE_API_KEY from env; Modal secret provides GEMINI_API_KEY.
     if not os.environ.get("GOOGLE_API_KEY"):
@@ -215,6 +218,8 @@ def extract_pdf(pdf_bytes: bytes, parser_config: dict | None = None) -> dict:
 
     return {
         "ok": True,
+        "input_index": input_index,
+        "pdf_sha256": hashlib.sha256(pdf_bytes).hexdigest(),
         "markdown": md,
         "parsed_zip_b64": base64.b64encode(zip_buf.getvalue()).decode("ascii"),
         "parser_id": parser_id,
