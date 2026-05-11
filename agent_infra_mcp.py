@@ -541,6 +541,149 @@ def create_mcp() -> FastMCP:
         )]
 
     @mcp.tool()
+    def papers_graph_query(
+        ctx: Context,
+        paper_id: str,
+        query: str = "cited-by",
+        stance: str | None = None,
+        limit: int = 50,
+    ) -> list[TextContent]:
+        """Query the canonical paper citation graph at ~/Projects/papers/graph.duckdb.
+
+        Use AFTER papers_lookup confirms a paper is in the store to surface
+        the actual evidence around it (supporting/contrasting snippets, not
+        just counts).
+
+        Args:
+            paper_id: The canonical paper_id (doi_*, pmid_*, or sha_*).
+            query: One of:
+              - "cited-by" (default): incoming citances; combine with stance="contrasting"
+                to surface counter-evidence.
+              - "cites": outgoing references.
+              - "contradictions": incoming citances tagged cito:disagreesWith
+                or stance_class='contrasting', joined with retraction status
+                of the citing paper.
+            stance: Optional filter for cited-by — "supporting" | "contrasting"
+                | "mentioning".
+            limit: Max edges (default 50, capped at 200).
+
+        Returns:
+            {paper_id, query, count, edges: [{paper_id, stance_class, stance_cito,
+             confidence, snippet, retraction_status?}]}
+        """
+        import json as _json
+        from pathlib import Path as _Path
+
+        store_root = _Path.home() / "Projects" / "papers"
+        db_path = store_root / "graph.duckdb"
+
+        def _wrap(payload: dict) -> list[TextContent]:
+            text = _json.dumps(payload, indent=2, default=str)
+            return [TextContent(
+                type="text", text=text,
+                _meta={"anthropic/maxResultSizeChars": max(len(text) * 2, 16000)},
+            )]
+
+        if not db_path.exists():
+            return _wrap({
+                "error": True,
+                "error_type": "GRAPH_NOT_BUILT",
+                "message": "graph.duckdb does not exist",
+                "recoverable": True,
+                "suggested_action": "run 'papers maintain --rebuild-graph'",
+            })
+
+        try:
+            import duckdb
+        except ImportError:
+            return _wrap({
+                "error": True,
+                "error_type": "DUCKDB_NOT_INSTALLED",
+                "message": "duckdb python package not available in this environment",
+                "recoverable": False,
+            })
+
+        capped = max(1, min(limit, 200))
+
+        try:
+            con = duckdb.connect(str(db_path), read_only=True)
+        except Exception as exc:
+            return _wrap({
+                "error": True,
+                "error_type": "GRAPH_OPEN_FAILED",
+                "message": str(exc),
+            })
+
+        try:
+            if query == "cites":
+                sql = (
+                    "SELECT cited_paper_id, stance_class, stance_cito, "
+                    "stance_confidence, snippet, citing_section, citing_page "
+                    "FROM edges WHERE citing_paper_id = ? LIMIT ?"
+                )
+                rows = con.execute(sql, [paper_id, capped]).fetchall()
+                edges = [{
+                    "paper_id": r[0], "stance_class": r[1], "stance_cito": r[2],
+                    "confidence": r[3], "snippet": r[4],
+                    "citing_section": r[5], "citing_page": r[6],
+                } for r in rows]
+            elif query == "cited-by":
+                base_sql = (
+                    "SELECT citing_paper_id, stance_class, stance_cito, "
+                    "stance_confidence, snippet, citing_section, citing_page "
+                    "FROM edges WHERE cited_paper_id = ?"
+                )
+                params: list = [paper_id]
+                if stance:
+                    if stance not in ("supporting", "contrasting", "mentioning"):
+                        return _wrap({
+                            "error": True,
+                            "error_type": "INVALID_STANCE",
+                            "message": f"stance must be supporting|contrasting|mentioning, got {stance!r}",
+                        })
+                    base_sql += " AND stance_class = ?"
+                    params.append(stance)
+                base_sql += " LIMIT ?"
+                params.append(capped)
+                rows = con.execute(base_sql, params).fetchall()
+                edges = [{
+                    "paper_id": r[0], "stance_class": r[1], "stance_cito": r[2],
+                    "confidence": r[3], "snippet": r[4],
+                    "citing_section": r[5], "citing_page": r[6],
+                } for r in rows]
+            elif query == "contradictions":
+                sql = (
+                    "SELECT e.citing_paper_id, e.snippet, e.stance_cito, "
+                    "e.stance_confidence, p.retraction_status "
+                    "FROM edges e LEFT JOIN papers p ON p.paper_id = e.citing_paper_id "
+                    "WHERE e.cited_paper_id = ? "
+                    "AND (e.stance_class = 'contrasting' OR "
+                    "     e.stance_cito LIKE '%disagreesWith%') "
+                    "LIMIT ?"
+                )
+                rows = con.execute(sql, [paper_id, capped]).fetchall()
+                edges = [{
+                    "paper_id": r[0], "snippet": r[1], "stance_cito": r[2],
+                    "confidence": r[3], "retraction_status": r[4],
+                } for r in rows]
+            else:
+                return _wrap({
+                    "error": True,
+                    "error_type": "INVALID_QUERY",
+                    "message": f"query must be 'cited-by' | 'cites' | 'contradictions', got {query!r}",
+                })
+        finally:
+            con.close()
+
+        return _wrap({
+            "paper_id": paper_id,
+            "query": query,
+            "stance_filter": stance,
+            "count": len(edges),
+            "edges": edges,
+        })
+
+    @mcp.tool()
     def papers_lookup(
         ctx: Context,
         identifier: str,
