@@ -261,6 +261,155 @@ def _search(sections: list[dict], query: str, scope: str, max_tokens: int) -> di
 _call_count = 0
 
 
+# --- Cross-project attestation federation ---
+# Decision: decisions/2026-05-11-cross-attestation-substrate.md
+# Read-only DuckDB ATTACH-style lookup over genomics/phenome/intel knowledge stores.
+# Fail-soft on lock contention — one repo failing must not sink the others.
+
+_ATTEST_STORES = [
+    ("genomics", _PROJECTS_ROOT / "genomics" / "data" / "knowledge" / "knowledge.duckdb"),
+    ("phenome",  _PROJECTS_ROOT / "phenome" / "indexed" / "claims.duckdb"),
+    ("intel",    _PROJECTS_ROOT / "intel" / "intel" / "indexed" / "theses.duckdb"),
+]
+
+_DOI_RE = re.compile(r"^10\.\d{4,9}/", re.IGNORECASE)
+_PMID_RE = re.compile(r"^\d{6,9}$")
+_PMCID_RE = re.compile(r"^PMC\d+$", re.IGNORECASE)
+
+
+def _normalize_source_id(s: str) -> dict:
+    """Parse a free-form source_id into typed components.
+
+    Accepts: 'doi:10.x/y', '10.x/y', 'pmid:12345', '12345', 'PMC123', 'pmcid:PMC123', 'nct:NCT...'.
+    Returns dict with keys: doi, pmid, pmcid, nct, raw, normalized (best-effort canonical).
+    """
+    raw = s.strip()
+    out = {"doi": None, "pmid": None, "pmcid": None, "nct": None, "raw": raw, "normalized": raw}
+    low = raw.lower()
+    if low.startswith("doi:"):
+        out["doi"] = raw[4:].strip()
+    elif _DOI_RE.match(raw):
+        out["doi"] = raw
+    elif low.startswith("pmid:"):
+        out["pmid"] = raw[5:].strip()
+    elif low.startswith("pmcid:"):
+        out["pmcid"] = raw[6:].strip().upper()
+        if not out["pmcid"].startswith("PMC"):
+            out["pmcid"] = "PMC" + out["pmcid"]
+    elif _PMCID_RE.match(raw):
+        out["pmcid"] = raw.upper()
+    elif low.startswith("nct:"):
+        out["nct"] = raw[4:].strip().upper()
+    elif _PMID_RE.match(raw):
+        out["pmid"] = raw
+    if out["doi"]:
+        out["normalized"] = f"doi:{out['doi']}"
+    elif out["pmid"]:
+        out["normalized"] = f"pmid:{out['pmid']}"
+    elif out["pmcid"]:
+        out["normalized"] = f"pmcid:{out['pmcid']}"
+    elif out["nct"]:
+        out["normalized"] = f"nct:{out['nct']}"
+    return out
+
+
+def _query_attestation_store(repo: str, db_path: Path, ids: dict) -> dict:
+    """Read-only query against one repo's DuckDB. Fail-soft.
+
+    Returns: {repo, status, count, hits, error?}
+    status ∈ {"ok", "missing", "locked", "error"}
+    """
+    if not db_path.exists():
+        return {"repo": repo, "status": "missing", "count": 0, "hits": []}
+    try:
+        import duckdb
+        con = duckdb.connect(str(db_path), read_only=True)
+    except Exception as e:
+        # IO Error from concurrent writer → mark locked, not fatal.
+        msg = str(e)
+        if "lock" in msg.lower() or "in use" in msg.lower() or "io error" in msg.lower():
+            return {"repo": repo, "status": "locked", "count": 0, "hits": [], "error": msg[:200]}
+        return {"repo": repo, "status": "error", "count": 0, "hits": [], "error": msg[:200]}
+    try:
+        candidates = []
+        if ids["doi"]:
+            candidates += [ids["doi"], f"doi:{ids['doi']}"]
+        if ids["pmid"]:
+            candidates += [ids["pmid"], f"pmid:{ids['pmid']}"]
+        if ids["pmcid"]:
+            candidates += [ids["pmcid"], f"pmcid:{ids['pmcid']}"]
+        if ids["nct"]:
+            candidates += [ids["nct"], f"nct:{ids['nct']}"]
+        candidates += [ids["raw"]]
+        candidates = sorted({c for c in candidates if c})
+
+        hits = []
+        if repo == "genomics":
+            rows = con.execute(
+                """SELECT source_id, source_release_id, fetched_at, fetched_via, evidence_depth, status
+                   FROM source_observations
+                   WHERE source_id IN (SELECT UNNEST(?))
+                   ORDER BY fetched_at DESC LIMIT 10""",
+                [candidates],
+            ).fetchall()
+            for r in rows:
+                hits.append({
+                    "table": "source_observations",
+                    "source_id": r[0], "release_id": r[1],
+                    "fetched_at": str(r[2]) if r[2] else None,
+                    "fetched_via": r[3], "evidence_depth": r[4], "status": r[5],
+                })
+        elif repo == "phenome":
+            # primary_sources has separate doi/pmid/pmcid columns
+            rows = con.execute(
+                """SELECT primary_source_id, kind, doi, pmid, pmcid, title, year, retrieved_at,
+                          retraction_status
+                   FROM primary_sources
+                   WHERE (doi IS NOT NULL AND doi IN (SELECT UNNEST(?)))
+                      OR (pmid IS NOT NULL AND pmid IN (SELECT UNNEST(?)))
+                      OR (pmcid IS NOT NULL AND pmcid IN (SELECT UNNEST(?)))
+                   LIMIT 10""",
+                [
+                    [ids["doi"]] if ids["doi"] else [],
+                    [ids["pmid"]] if ids["pmid"] else [],
+                    [ids["pmcid"]] if ids["pmcid"] else [],
+                ],
+            ).fetchall()
+            for r in rows:
+                hits.append({
+                    "table": "primary_sources",
+                    "primary_source_id": str(r[0]), "kind": r[1],
+                    "doi": r[2], "pmid": r[3], "pmcid": r[4],
+                    "title": r[5], "year": r[6],
+                    "retrieved_at": str(r[7]) if r[7] else None,
+                    "retraction_status": r[8],
+                })
+        elif repo == "intel":
+            # filings_and_datasets has doi + ssrn_id; theses tables don't carry raw paper ids directly
+            rows = con.execute(
+                """SELECT filing_or_dataset_id, kind, doi, title, year, venue, retrieved_at
+                   FROM filings_and_datasets
+                   WHERE doi IS NOT NULL AND doi IN (SELECT UNNEST(?))
+                   LIMIT 10""",
+                [[ids["doi"]] if ids["doi"] else []],
+            ).fetchall()
+            for r in rows:
+                hits.append({
+                    "table": "filings_and_datasets",
+                    "id": r[0], "kind": r[1], "doi": r[2],
+                    "title": r[3], "year": r[4], "venue": r[5],
+                    "retrieved_at": str(r[6]) if r[6] else None,
+                })
+        return {"repo": repo, "status": "ok", "count": len(hits), "hits": hits}
+    except Exception as e:
+        return {"repo": repo, "status": "error", "count": 0, "hits": [], "error": str(e)[:300]}
+    finally:
+        try:
+            con.close()
+        except Exception:
+            pass
+
+
 def create_mcp() -> FastMCP:
     @asynccontextmanager
     async def lifespan(server):
@@ -345,6 +494,51 @@ def create_mcp() -> FastMCP:
             )
 
         return _wrap(result)
+
+    @mcp.tool()
+    def cross_attestation_lookup(ctx: Context, source_id: str) -> list[TextContent]:
+        """Check whether any local repo (genomics, phenome, intel) has already
+        fetched, processed, or attested to a paper/source identifier.
+
+        Use BEFORE fetching a paper to detect duplicate work across repos. The
+        federation is read-only over each repo's DuckDB store; one repo
+        failing or being write-locked does not block the others.
+
+        Args:
+            source_id: DOI, PMID, PMCID, or NCT identifier. Accepted forms:
+                - "doi:10.1038/nature12345"
+                - "10.1038/nature12345"
+                - "pmid:12345678" or "12345678"
+                - "pmcid:PMC1234567" or "PMC1234567"
+                - "nct:NCT01234567"
+
+        Returns:
+            JSON with: source_id (parsed), found_in (list of repos with hits),
+            results (per-repo hits with sample rows), errors (per-repo error
+            strings, e.g., for write-locked databases).
+        """
+        import json
+        ids = _normalize_source_id(source_id)
+        results = []
+        errors = {}
+        for repo, db_path in _ATTEST_STORES:
+            r = _query_attestation_store(repo, db_path, ids)
+            results.append(r)
+            if r["status"] not in ("ok", "missing"):
+                errors[repo] = r.get("error", r["status"])
+        found_in = [r["repo"] for r in results if r["count"] > 0]
+        payload = {
+            "source_id": ids,
+            "found_in": found_in,
+            "any_hits": bool(found_in),
+            "results": results,
+            "errors": errors,
+        }
+        text = json.dumps(payload, indent=2, default=str)
+        return [TextContent(
+            type="text", text=text,
+            _meta={"anthropic/maxResultSizeChars": max(len(text) * 2, 16000)},
+        )]
 
     return mcp
 

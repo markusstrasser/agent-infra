@@ -70,6 +70,24 @@ Searched for prior attempt at "cache lookup as agent ritual via skill+hook" patt
 - Phenome's 9 citation verifier scripts stay in place until `research_mcp.audit_citations()` ships AND a grep/import-graph proof shows no external callers (Finding #7).
 - Intel's research-mcp registration → first-actual-use bridge can proceed independently of all the above. Highest-ROI lone-wolf piece.
 
+## Update — 2026-05-11 evening (Phase 6 shipped)
+
+Genomics direction-E agent reported "structurally complete — every phase shipped infrastructure + probe results" with deferred bulk drains parked behind operator-budgeted runs. With direction-E quiescent (no active writer modifying `claim_verdicts` shape), Phase 6 of the revised phasing was unblocked and shipped.
+
+- **`cross_attestation_lookup(source_id)` MCP tool** added to `agent_infra_mcp.py`. Read-only DuckDB connections to genomics `knowledge.duckdb`, phenome `claims.duckdb`, intel `theses.duckdb`. Fail-soft on lock contention — one repo's IO error returns `{status: "locked", error}` without sinking others.
+- Source-id normalizer handles DOI (with/without prefix), PMID (bare digits), PMCID, NCT. Lookup queries genomics' `source_observations`, phenome's `primary_sources` (separate doi/pmid/pmcid columns), intel's `filings_and_datasets`.
+- Smoke-tested against 5 real source_ids in current corpora — all returned correct presence/absence and capped at LIMIT 10 hits.
+- Path correction applied: intel's DB lives at `intel/intel/indexed/theses.duckdb` (nested), not `intel/indexed/theses.duckdb` as the original overview claimed.
+
+Phase 6 was originally gated to ~1-week wait. It shipped early because direction-E reached a quiet point first. Phase 0 measurement (fetch_log) continues to run independently.
+
+What's still deferred:
+- Phase 0.5 (DOI/PMID/PMCID alias resolver) — small but not yet justified by data
+- Phase 2 (cache inside `fetch_paper`) — gated on Phase 0 measurement
+- Phase 3 (cosigned hooks)
+- Phase 4 (cleanup-and-close skill)
+- Phase 5 (frontier pilots)
+
 ## Provenance
 
 - 5-agent archaeology dispatch (subagent reports `research/cross-project-synthesis-2026-05-11/{01..05}-*.md`)
