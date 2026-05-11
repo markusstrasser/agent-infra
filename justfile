@@ -192,6 +192,13 @@ hook-telemetry *args:
 hook-decay *args:
     uv run python3 scripts/hook-outcome-correlator.py --decay {{args}}
 
+# Install git pre-commit hooks (currently: pre-commit-no-large-binaries)
+[group('epistemic')]
+install-hooks:
+    @ln -sf "$HOME/Projects/skills/hooks/pre-commit-no-large-binaries.sh" .git/hooks/pre-commit
+    @echo "  ✓ .git/hooks/pre-commit → skills/hooks/pre-commit-no-large-binaries.sh"
+    @echo "  (bypass: GIT_ALLOW_BINARIES=1)"
+
 # ── Governance ──────────────────────────────────────────────────
 
 # Audit gotchas across all projects (manual prompt / ad-hoc research)
