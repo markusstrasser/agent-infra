@@ -4,121 +4,167 @@ paths:
   - "decisions/**"
 ---
 
-# Research Index
+# Research Index (`research/`)
 
-Consult before acting on the topic. Agent: grep file names or scan triggers.
+Consult these files before acting on the topic. Scan this table when starting a task.
 
-academic-research-agent-landscape-2026-03.md | academic, research, agents, openscholar, storm, scite, paperqa2, patterns, architectures, agent, design, literature
-agent-economics-decision-frameworks.md | near-zero, dev, cost, changes, decision, frameworks., new, bottlenecks, maintenance, comprehension, debt, supervision
-agent-ecosystem-weekly-2026-03-20.md | agent, ecosystem, developments, outside, big, vendors, march, 14-20, trend, monitoring, architecture, decisions
-agent-ecosystem-weekly-2026-03-26.md | agent, ecosystem, weekly, scan, march, 19-26, repos, mcps, benchmarks, trend, monitoring, mcp
-agent-memory-architectures.md | memory, systems, comparison, files, git, defense, designing, entity, storage, patterns
-agent-qa-genomics-pipelines.md | agent-proof, qa, autonomous, genomics, pipelines, regression, detection, ci/cd, bioinformatics, code-modifying, automation
-agent-reliability-benchmarks.md | capability, reliability, swe-bench, featurebench, metr, evaluating, agent, performance, retry/voting, strategies
-agent-scaffolding-instructions-infra-2026-03.md | recent, agent, scaffolding, instruction-following, infrastructure, papers, signal, noise, filtering, building, harnesses, prompt/schema
-agent-scaffolding-landscape-2026-03.md | mast, failure, taxonomy, 14, modes, 44, system, design, act, rl, action, judgment
-agent-self-modification.md | dgm, context, collapse, reward, hacking, self-improvement, loops, memory.md, update, strategy
-agent-tools-mcp-landscape-2026-03.md | agent, tools, mcps, beyond, search, e2b, sandboxes, browserbase/stagehand, diffbot, kg, jina, reader
-biomcp-evaluation-2026-04-03.md | rust, mit, 480, stars, 1-tool, cli, 800, tokens, revised, run, both, servers.
-biomcp-source-comparison-2026-04-03.md | 99k, lines, rust, 5.8k, python., areas, biomcp, better, cpic, pgx, pipeline, somatic
-agentic-research-synthesis.md | cross-cutting, synthesis, unknowns, papers, track, research, planning, understanding, overall, landscape
-agentic-safety-guardrails.md | safety-by-construction, mind, gap, text, action, writing, hooks, permission, gates, safety, architecture
-agentic-search-api-comparison.md | brave/exa/tavily/firecrawl/perplexity/parallel, benchmarks, aimultiple, feature, matrix, pricing, index, independence, latency., academic, 80, websearch
-ai-reasoning-causal-abductive-deductive.md | frontier, model, causal/abductive/deductive, reasoning, t3, benchmark, numbers, scaling, paradox, causal, rung, collapse
-ai-research-tools-landscape-2026-03.md | consensus, futurehouse/paperqa2, elicit, openscholar, storm., rcs, as, highest-roi, pattern, 0.001, ablation, calibrated
-ai-scientist-patterns.md | pre-output, quality, gate, automated, reviewer, 69, balanced, accuracy, agentic, tree, search, evolutionary
-alphaxiv-trending-2026-03-27.md | alphaxiv, trending, papers, skill, routing, autoresearch, self-improvement, improvement
-anthropic-claude-weekly-2026-03-26.md | anthropic/claude, dev, updates, march, 19-26, claude, code, sdk, releases, feature, adoption, migration
-anthropic-platform-sweep-2026-03-02.md | claude, code, v2.1.30, v2.1.63, features, api/sdk, updates, sonnet, 4.6, launch, financial, plugins
-anthropic-soul-guidelines.md | anthropic, internal, model, guidelines, archived, understanding, trust, operator, role
-anthropic-tooling-landscape.md | full, anthropic, tooling, inventory, agent, sdk, 72, repos, api, features, plugins, skills
-anti-sycophancy-process-supervision.md | multi-turn, sycophancy, detection, fold, patterns, structural, anti-sycophancy, mechanisms, prms, research, agents, tool-trace
-arxiv-weekly-2026-03-20.md | 22, papers, read, full., agentdrift, sonnet, 4.6, 93, safety, violations, invisible, quality
-autoresearch-analysis.md | karpathy, autoresearch, evolutionary, code, search, llm-as-mutator, four, viability, conditions, cross-model, reviewed, adaptation
-benchmarking-science-2026.md | science, benchmarks, evals, state, field, 2025-2026, measurement, approaches, eval, methodology, system, design
-brave-search-api-deep-dive.md | full, brave, api, surface, 10, endpoints, llm, context, params/schema, answers, openai, compat
-caid-multi-agent-swe-2026-03.md | caid, centralized, async, isolated, delegation, dag, task, decomposition, git, worktree, isolation, 7.8pp
-calibration-measurement-practical.md | practical, calibration, min, samples, hedging, accuracy, scoring, rules, spc, cromwell, rule, building
-causal-reasoning-evidence.md | llm, causal/abductive, reasoning, gaps, rung, collapse, architectural, limits, prompt, fixes, constrained, output
-claude-code-internals.md | claude, code, architecture, docs, community, source, analysis, 2026-03-31, clawd-code, port, 902, ts
-claude-code-native-features-deferred.md | deferred, adoption, items, api, mcp, tool, compression, scoped, tools, agent, teams, --bare
-claude-code-native-vs-agent-infra.md | native, claude, code, features, custom, infrastructure, building, new, hooks/skills, duplicate
-code-structure-for-agents.md | repo, formatting, agents, bitter, lesson, test, graph, tools, codexgraph/rig/, one, tool, enough
-coding-agents-long-context-2026-03.md | coding, agents, as, long-context, processors, directory, tree, navigation, via, shell, commands., 88.5
-wiki-vs-flat-for-agents.md | three, independent, findings, retrieval, paradox, cao, agents.md, distraction, effect, gloaguen/eth, -0.5-3, success
-cognee-technical-assessment.md | cognee, topoteretes/cognee, graph-based, knowledge, substrate, dependency, assessment, alternatives, retrieval
-consensus-app-analysis.md | consensus.app, deep, dive, 220m, papers, consensus, meter, vote, counting, scholar, agent, gpt-5
-constitutional-delta.md | why, project, constitutions, differ, claude, base, error, correction, as, telos, constitutional, design
-context-bundling-solutions.md | repomix, aider, repo-map, contextpacker, jcodemunch, context, packing/formatting, tools, llm, agents., four-tier, taxonomy
-context-rot-evidence.md | context, degradation, attention, dilution, mrcr, benchmarks, management, deciding, put, claude.md/skills
-context-window-scaling-escapes.md | sparse, attention, rlm, compaction, alternatives, designing, subagent, patterns, strategy
-conviction-tracking-pattern.md | conviction, tracking, pattern, structured, belief, across, projects, system, design, journaling
-cot-faithfulness-evidence.md | cot, reasoning, fidelity, 7-13, baseline, unfaithfulness, trusting, traces, designing, cross-model, review
-cross-model-review-failure-modes.md | cross-model, llm, review, failure, modes, correlated, errors, 60, shared, wrong, answers, self-preference
-cross-project-infra-factoring.md | architectural, assessment, 7-project, overlap, why, embeddings, extracted, dataset/dag/telemetry/mcp/caching, don, designing, shared, libraries
-divergent-convergent-thinking-llms.md | llm, divergent, convergent, thinking, asymmetry, denial, prompting, persona-based, mode, switching, liveideabench/aut/neogauge, benchmarks
-domain-specific-agent-biases.md | domain-specific, cognitive, biases, trading, bias, echo, product, disposition, mirroring, scientific, review, citation
-design-md-format.md | DESIGN.md, google-labs, visual, identity, spec, YAML, tokens, coding, agents, lint, diff, frontend, adopt-when-stable
-frontend-polish-techniques.md | CSS, micro-interactions, text-wrap, balance, pretty, concentric, radius, tabular-nums, interruptible, transitions, optical, alignment, shadows
-epistemic-architecture-v3.md | domain-branched, epistemic, layers, layer, universal, domain-specific, meta-monitoring, first-principles, 13-item, phased, implementation, plan.
-epistemic-causal-bayesian-sweep-2026-03-12.md | do-calculus, three-framework, comparison, pearl/robins-swigs/dawid, bayesian, uq, conformal, prediction, winning, e-values, rising, prm
-epistemic-measurement-concepts.md | concepts, reference, canary, queries, fold, detection, trace, faithfulness, spc, goodhart, mitigation, brier
-epistemic-quality-evals.md | benchmarks, hallucination, calibration, source, attribution, sycophancy, agents, designing, epistemic, eval, pipelines, checks
-epistemic-scaffolding-evidence.md | measurement, infrastructure, agentic, systems, prms, outcome, supervision, reflection, gains, 4-14, frontier, agent
-epistemic-v2-synthesis.md | 25, papers, synthesized, 22, findings, roi, assessment, measurement, redesign, frameworks, sdt, ooda
-exa-skill-vs-ours.md | exa, single-tool, research, skill, 7-tool, multi-source, architecture, research-mcp, brave, perplexity, design, triangulation
-factual-verification-systems.md | safe/veriscore/finch-zk, production, landscape, cross-model, verification, 39, f1, unclear, bucket, diagnosis, prms, prediction
-fastmcp3-integration-plan.md | active, servers, 3.2.0., code, mode, high, biomedical-mcp, 81, tools, apps/approval, watch, needs
-firecrawl-api-deep-dive.md | api, endpoints, agpl, license, mcp, server, 14, tools, pricing, tiers, self-hosting, gaps
-futurehouse-technical-analysis.md | futurehouse/paperqa2, 7-stage, retrieval, pipeline, rcs, architecture, citation, traversal, aviary/ldp, robin, multi-agent, ether0.
-genomics-benchmark-design.md | benchmark, validation, strategies, personal, genomics, wgs, pipelines, pipeline, clinical, qc, patterns
-genomics-validation-gaps.md | wgs, validation, gaps, beyond, giab, cap/clia, methods, 2024-2026, frameworks, genomics, qc, implementation
-google-ai-developments-2026-03-14-20.md | google, ai, deepmind, developments, march, 14-20, gemini, updates, new, tools, model/tool, adoption
-infra-gap-analysis-2026-03-28.md | infrastructure, gap, analysis, detection, coverage, error, classes, todo
-intel-feedback-loop-plan.md | 5-phase, plan, activate, prediction, feedback, loop, intel, feedback/calibration, work
-karpathy-autoresearch-deep-dive.md | repo, architecture, 56k, stars, 3-file, contract, priors, podcast, transcript, karpathy, himself, blockchain
-knowledge-accrual-architecture.md | institutional, case, studies, wikipedia, cochrane, clingen, common, law, ic, tradecraft, structural, error-catching
-knowledge-representation-paradigms.md | deep-dive, wolfram, cyc, post-mortem, owl/rdf, wikidata, toulmin/dung/ibis, probabilistic, dbs, type, theory, representation
-leverage-survey-2026-03-19.md | datasette, adopt, duckdb, python, lib, polars, scan_ndjson, selectively, ruptures, changepoint, defer, 60
-mcp-protocol-evolution.md | mcp, spec, wg, tracking, tasks, sep-1686, amazon-authored, skills, over, multi, round-trip, task
-meta-harness-deep-dive-2026-03.md | meta-harness, stanford, iris, lab, evolutionary, harness, optimization, via, coding, agent, proposer., diagnosis.
-agent-infra-mcp.md | design, memo, agent-infra, mcp, server, development
-multi-agent-coordination-evidence.md | multi-agent, helps/hurts, 45, threshold, error, amplification, deciding, single, parallelization
-native-leverage-plan.md | implementation, plan, adopting, native, features, hook/skill, work
-negative-space-and-meta-epistemics.md | deep-dive, smithson, taxonomy, presupposition, analysis, pertinent, negatives, replication, crisis, numbers, weather, calibration
-openai-developments-2026-03-14-20.md | openai, developments, march, 14-20, gpt-5.4, codex, api, updates, tooling, adoption, gpt-5, capability
-openai-google-agent-dev-2026-03-19-26.md | openai, google, agent, infra, updates, march, 19-26, github, releases, sdk/api, changes, infrastructure
-opentraces-dspy-deep-dive-2026-03.md | opentraces.ai, trace, sanitization, huggingface, publishing, v0.1.1, dspy, shopify, 5.5m, 73k, claim, unverified.
-openclaw-deep-dive.md | openclaw, analysis, openclaw-related, work
-openclaw-model-review.md | model, review, openclaw, openclaw-related, work
-opus-46-action-plan.md | action, plan, opus, 4.6, capabilities, planning, new, capability, adoption
-opus-46-prompt-structure.md | xml, tags, emphasis, markers, anti-laziness, anthropic, patterns, writing, prompts, skills, claude.md, sections
-orchestrator-design.md | 24/7, autonomous, agent, orchestrator, task, queue, loops, self-improvement, implementation, blocked, pending, validation
-perplexity-sonar-api-landscape.md | four, perplexity, apis, sonar/agent/search/embeddings, billing, models, openai-compatible, endpoints, search, api, selection, grounded
-personal-ai-agent-infra-march-2026.md | personal, ai, agent, infrastructure, march, 2026, landscape, sweep, architecture, deployment, patterns
-philosophy-of-epistemic-agents.md | popper, frankfurt, hart, bratman, philosophical, foundations, anti-sycophancy, design, rules, standards
-practitioner-agent-usage-2026-03.md | 20, blog/substack, sources, people, actually, agents., 10, thematic, findings, great, consolidation, 16
-reasoning-scaffolding-divergent.md | beyond, dags, causal, discovery, data, causal-learn, llm, priors, sensitivity, analysis, pysensemakr, thinkprm
-reasoning-trace-verification.md | verifying, agent, reasoning, traces, prms, thinkprm/versaprm/med-prm/vrpm, cot, faithfulness, 7-13, formal, causal, verification
-runlog-otel-compatibility.md | runlog, schema, borrowing, openinference/otel, vocabulary, local-first, domain, model, later, export, target, instrumentation
-schema-bounded-review-packets-2026-03.md | narrow, schemas, at, handoff, points, search, evidence, review, synthesize, wholesale, structure, conversion
-scientific-computing-for-agent-telemetry.md | 10-tool, assessment, spc, libraries, scipy, forecast, pymc/arviz, ruptures, changepoint, stumpy, matrix, profiles
-search-api-integration-landscape.md | all, search, apis, configured, brave/perplexity/firecrawl/exa/papers, migration, user, scope, 14, tool, mcp, footprint
-self-distillation-code-generation-2026-04.md | ssd, apple, arxiv, 2604.01193, sample, at, high, temp, truncation, fine-tune, raw, unverified
-skill-improvement-frontier-2026-03.md | 4-stage, modular, causal, pipeline, 3x, f1, corr2cause, popper, sequential, falsification, ach, liveideabench
-skill-provenance-controls-2026-03.md | mutable, instruction, supply, chain, skill, inventory, version, hashing, change, detection, skills, governance
-skills-audit-2026-02-28.md | multi-model, audit, 16, skills, verified, findings, action, items, maintenance, quality, review
-structured-vs-prose-for-agents.md | zero, frontier-model, evidence, structured, prose, input, formatting., anthropic, docs, notes, state, data.
-symphony-orchestrator-assessment.md | openai, symphony, elixir/beam, continuous, daemon, polling, linear, codex, app-server, protocol, workflow.md, config
-temporal-epistemic-degradation.md | within-session, precision, decay, compaction, nuance, loss, memory, belief, drift, staleness, detection, multi-run
-tig-foundation-claims-verification-2026-03-25.md | tig, foundation, people/claims, verification, fletcher, verified, ceo, philip, david, co-founder, ip, counsel
-tig-monorepo-architecture-2026-03.md | tig, opow, protocol, challenges, sat, vrp, qkp, vector, search, hypergraph, nn, optimizer
-tig-qkp-claim-verification.md | tig, qkp, sota, claim, verification, hochbaum, ejor, 2025, verified, self-reported, investor, only
-tool-use-mcp-reliability.md | bfcl, scores, mcp, adoption, tool, description, quality, writing, tools, skill, descriptions
-tooling-feedback-2026-03-24.md | research, tooling, field, report, operational, debrief, multi-tool, workflow, optimization, tool, integration, lessons
-trending-scout-2026-03-19.md | 10, repos, evaluated, plugins-official, hermes-agent, chrome-devtools-mcp, superpowers, promptfoo, openviking, deepagents, cognee, hindsight
-trending-scout-2026-03-26.md | trending, scout, march, 26, weekly, vendor/ecosystem, developments, ecosystem, awareness, trend, monitoring
-trending-scout-2026-04-03.md | trending, scout, april, fastmcp, 3.2.0, apps/security, cc, 2.1.89-91, defer, permissiondenied, autocompact, thrash
-agent-behavior-refresh-2026-04.md | memory, self-modification, sycophancy, ERL, heuristics, stability, asymmetry, reward, hacking, MemMA, delta, refresh
-agent-engineering-refresh-2026-04.md | SlopCodeBench, structural, erosion, coding, agents, practitioner, usage, IBM, enterprise, Mem0, benchmarks, delta, refresh
-ecosystem-mcp-refresh-2026-04.md | MCP, SDK, 2.0, ecosystem, 10K, servers, deep, research, agent, skills, taxonomy, delta, refresh
+| File | Topic | Consult before |
+|------|-------|----------------|
+| `2026-04-25-tool-attention-and-skill-bank.md` | Tool Attention + Co-Evolving Skill Bank — Two papers from arxiv week of 2026-... | TODO |
+| `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
+| `adversarial-case-library.md` | Adversarial Case Library: The Best "Calling BS" Reviews | TODO |
+| `agent-behavior-refresh-2026-04.md` | Agent Behavior Delta — Memory, Self-Modification, Sycophancy | TODO |
+| `agent-economics-decision-frameworks.md` | Agent Economics: How Near-Zero Dev Cost Changes Decision Frameworks | TODO |
+| `agent-ecosystem-weekly-2026-03-20.md` | Agent Ecosystem Weekly 2026 03 20 | TODO |
+| `agent-ecosystem-weekly-2026-03-26.md` | Agent Ecosystem Weekly 2026 03 26 | TODO |
+| `agent-engineering-refresh-2026-04.md` | Agent Engineering Delta Refresh — April 2026 | TODO |
+| `agent-infra-mcp.md` | Meta Knowledge MCP — Research & Decision Record | TODO |
+| `agent-knowledge-frontier-2026-04.md` | Agent Knowledge Frontier 2026 04 | TODO |
+| `agent-memory-architectures.md` | Memory and State Management | TODO |
+| `agent-qa-genomics-pipelines.md` | Pre-commit hook or post-commit CI job | TODO |
+| `agent-reliability-benchmarks.md` | Agent Reliability: Capability =/= Reliability — Now With Better Data | TODO |
+| `agent-scaffolding-instructions-infra-2026-03.md` | Recent Agent Scaffolding, Instruction-Following, and Infra Papers | TODO |
+| `agent-scaffolding-landscape-2026-03.md` | Agent Scaffolding, Self-Improvement, and Orchestration — March 2026 Landscape | TODO |
+| `agent-self-modification.md` | Agent Self Modification | TODO |
+| `agent-tools-mcp-landscape-2026-03.md` | Agent Tools & MCP Landscape Beyond Search — March 2026 | TODO |
+| `agent_harness_scientific_truth_review_2026-04-10.md` | Agent Harness / Scientific-Agent / Truth-Seeking Review | TODO |
+| `agentic-research-synthesis.md` | Agentic Research Synthesis: What We Know vs What We're Guessing | TODO |
+| `agentic-safety-guardrails.md` | Agentic Scaffolding: From Safety-by-Prompt to Guardrails-by-Construction | TODO |
+| `agentic-search-api-comparison.md` | Agentic Search API Comparison — Brave, Exa, Tavily, Firecrawl, Perplexity Son... | TODO |
+| `ai-reasoning-causal-abductive-deductive.md` | AI Reasoning: Causal, Abductive, Deductive — State of the Art (2025-2026) | TODO |
+| `ai-research-tools-landscape-2026-03.md` | AI Research Tools Landscape — What to Steal | TODO |
+| `ai-scientist-patterns.md` | Portable Patterns from AI Scientist v2 | TODO |
+| `ai-scientist-v2-analysis.md` | Ai Scientist V2 Analysis | TODO |
+| `alphaxiv-trending-2026-03-27.md` | alphaXiv Trending Papers — What We Can Leverage (2026-03-27) | TODO |
+| `anthropic-claude-weekly-2026-03-26.md` | Anthropic Claude Weekly 2026 03 26 | TODO |
+| `anthropic-platform-sweep-2026-03-02.md` | Anthropic Platform Sweep — 2026-03-02 | TODO |
+| `anthropic-soul-guidelines.md` | Anthropic Soul Guidelines | TODO |
+| `anthropic-tooling-landscape.md` | Anthropic Tooling Landscape (March 2026) | TODO |
+| `anti-sycophancy-process-supervision.md` | Anti-Sycophancy Beyond Word-Counting & Process Supervision for Agent Reasoning | TODO |
+| `arxiv-weekly-2026-03-20.md` | Arxiv Weekly 2026 03 20 | TODO |
+| `autoagent-self-optimizing-agents.md` | AutoAgent: Self-Optimizing Agent Harnesses | TODO |
+| `autoresearch-analysis.md` | Autoresearch Analysis — Evolutionary Code Search with LLM-as-Mutator | TODO |
+| `benchmarking-science-2026.md` | The Science of Benchmarks & Evals — State of the Field (2025-2026) | TODO |
+| `biomcp-evaluation-2026-04-03.md` | BioMCP (GenomOncology) — Technical Evaluation vs biomedical-mcp | TODO |
+| `biomcp-source-comparison-2026-04-03.md` | BioMCP vs biomedical-mcp: Source Code Comparison | TODO |
+| `brainstorm-codex-execution-failure-2026-04-18.md` | Brainstorm Skill Codex Failure — Research Delta + Diagnosis | TODO |
+| `brave-search-api-deep-dive.md` | Brave Search API — Deep Dive for Agent/LLM Integration | TODO |
+| `caid-multi-agent-swe-2026-03.md` | Caid Multi Agent Swe 2026 03 | TODO |
+| `calibration-measurement-practical.md` | Practical Calibration Measurement for AI Agents | TODO |
+| `causal-reasoning-evidence.md` | Causal and Abductive Reasoning in LLMs: What the Evidence Says | TODO |
+| `claim-bench-kg-integration-architecture.md` | claim_bench → Knowledge Graph Integration Architecture | TODO |
+| `claim_bench_plan_post_sweep_audit_2026-04-11.md` | claim_bench Plan — Post-Sweep 2026 Literature Audit | TODO |
+| `claim_verification_package_prior_art_2026-04-11.md` | Claim Verification Package Prior Art — What to Reuse | TODO |
+| `claude-code-internals.md` | Claude Code Architecture: Research Notes | TODO |
+| `claude-code-native-features-deferred.md` | Claude Code Native Features — Deferred Adoption Items | TODO |
+| `claude-code-native-vs-agent-infra.md` | Claude Code Native Features vs Meta Infrastructure | TODO |
+| `code-structure-for-agents.md` | Code Repository Structure for AI Agent Navigation | TODO |
+| `coding-agents-long-context-2026-03.md` | Coding Agents Long Context 2026 03 | TODO |
+| `cognee-technical-assessment.md` | Cognee (topoteretes/cognee) — Technical Assessment | TODO |
+| `consensus-app-analysis.md` | Consensus.app — Technical Analysis | TODO |
+| `constitutional-delta.md` | The Constitutional Delta: What to Add on Top of Claude | TODO |
+| `context-bundling-solutions.md` | Context Bundling & Formatting Solutions: What Can We Learn? | TODO |
+| `context-rot-evidence.md` | Context Rot: Universal and Architectural — But the Curve Is Flattening | TODO |
+| `context-window-scaling-escapes.md` | Context Window Scaling: Bigger =/= Better — But Architectural Escapes Emerging | TODO |
+| `conviction-tracking-pattern.md` | Conviction Tracking Pattern | TODO |
+| `coral-multi-agent-2026-04.md` | CORAL: Multi-Agent Evolution with Shared Persistent Memory | TODO |
+| `cot-faithfulness-evidence.md` | Reasoning Model Internals: CoT Faithfulness | TODO |
+| `cross-model-review-failure-modes.md` | Cross-Model LLM Review: Failure Modes and Biases | TODO |
+| `cross-project-architecture-overview.md` | Cross-Project Architecture Overview — phenome × genomics × intel × agent-infra | Walking into any of phenome/genomics/intel for the first time; proposing cross-repo infra; designing attestation; touching multiple repos |
+| `cross-project-infra-factoring.md` | Cross-Project Infrastructure Factoring (v3) | TODO |
+| `design-md-format.md` | DESIGN.md — Visual Identity Spec for Coding Agents | TODO |
+| `divergent-convergent-thinking-llms.md` | Divergent vs Convergent Thinking in LLMs | TODO |
+| `domain-specific-agent-biases.md` | Domain-Specific Cognitive Biases in AI Agents — Research Memo | TODO |
+| `ecosystem-mcp-refresh-2026-04.md` | Ecosystem Mcp Refresh 2026 04 | TODO |
+| `embedding-search-critique-2026-04.md` | Embedding Search Critique 2026 04 | TODO |
+| `epistemic-architecture-v3.md` | Epistemic Architecture v3 — Domain-Branched Checks and Balances | TODO |
+| `epistemic-causal-bayesian-sweep-2026-03-12.md` | Epistemic, Causal, and Bayesian Methods — State of the Field (March 2026) | TODO |
+| `epistemic-measurement-concepts.md` | Epistemic Measurement Concepts | TODO |
+| `epistemic-quality-evals.md` | Epistemic Quality Evaluation for LLM Agent Systems | TODO |
+| `epistemic-scaffolding-evidence.md` | Epistemic Scaffolding for Agentic Systems: What the Evidence Says | TODO |
+| `epistemic-system-optimal-2026-04.md` | Evidence-Tiered Epistemic Framework for Scientific Agents | TODO |
+| `epistemic-v2-synthesis.md` | Epistemic Quality System v2 — Research Synthesis | TODO |
+| `exa-skill-vs-ours.md` | Exa's Recommended Skill vs Our Setup (2026-03-04) | TODO |
+| `factual-verification-systems.md` | Factual Verification Systems for AI Agents — Research Memo | TODO |
+| `fastmcp3-integration-plan.md` | FastMCP 3 Integration Plan — All MCP Repos | TODO |
+| `firecrawl-api-deep-dive.md` | Firecrawl API Deep Dive | TODO |
+| `frontend-polish-techniques.md` | Frontend Polish Techniques — Micro-Interaction Details | TODO |
+| `frontier-delta-2026-05-08.md` | Frontier Delta — 2026-04-18 → 2026-05-08 | TODO |
+| `futurehouse-org-scan-2026-04.md` | FutureHouse GitHub Org Scan — April 2026 Update | TODO |
+| `futurehouse-technical-analysis.md` | FutureHouse Technical Analysis | TODO |
+| `genomics-benchmark-design.md` | Genomics Benchmark Design | TODO |
+| `genomics-validation-gaps.md` | Genomics Validation Gaps | TODO |
+| `git-forensics-codebase-audit.md` | Git Commands Before Reading Code | TODO |
+| `google-ai-developments-2026-03-14-20.md` | Google Ai Developments 2026 03 14 20 | TODO |
+| `infra-gap-analysis-2026-03-28.md` | Infrastructure Gap Analysis: Detection Coverage vs Error Classes | TODO |
+| `intel-feedback-loop-plan.md` | Action Plan: Close the Error-Correction Loop | TODO |
+| `karpathy-autoresearch-deep-dive.md` | Karpathy Autoresearch Deep Dive | TODO |
+| `kimi-k2.6-release-2026-04-20.md` | Kimi K2.6 — Research Memo | TODO |
+| `knowledge-accrual-architecture.md` | The Architecture of Knowledge Accrual — Research Memo | TODO |
+| `knowledge-representation-paradigms.md` | Knowledge Representation Paradigms for Agent Knowledge Systems | TODO |
+| `leverage-survey-2026-03-19.md` | Leverage Survey: Packages, Languages, and Tools Beyond Python | TODO |
+| `leverage-survey-delta-2026-04-18.md` | Leverage Survey Delta — Agent Observability, Transcript Analysis, Hook DSLs | TODO |
+| `life-sci-skills-consolidation.md` | Life-Sci Skills Consolidation — Keep Separate | TODO |
+| `markdown-enforcement-tools-2026-04.md` | Markdown Enforcement Tools 2026 04 | TODO |
+| `markdown-formatting-llm-effects-2026-04.md` | Markdown Formatting Llm Effects 2026 04 | TODO |
+| `mcp-protocol-evolution.md` | MCP Protocol Evolution (March 2026) | TODO |
+| `meta-harness-deep-dive-2026-03.md` | Meta Harness Deep Dive 2026 03 | TODO |
+| `meta-harness-leverage-brainstorm.md` | Meta-Harness: Leverage Brainstorm | TODO |
+| `model-task-routing-empirical-2026-04.md` | Model-Task Routing: Empirical Observations | TODO |
+| `ms-agent-framework-1.0-2026-04.md` | Ms Agent Framework 1.0 2026 04 | TODO |
+| `multi-agent-coordination-evidence.md` | Multi-Agent Coordination — Now With Controlled Experiments | TODO |
+| `native-leverage-plan.md` | Native Leverage Plan: Claude Code Features → Project Infrastructure | TODO |
+| `negative-space-and-meta-epistemics.md` | Negative Space and Meta-Epistemics for Agent Knowledge Systems | TODO |
+| `nih-dsld-ods-api-assessment-2026-04.md` | Nih Dsld Ods Api Assessment 2026 04 | TODO |
+| `nlah-and-sycophancy-papers-2026-03.md` | Nlah And Sycophancy Papers 2026 03 | TODO |
+| `oeberst-imhoff-bias-framework-audit.md` | Oeberst & Imhoff Bias Framework — Coverage Audit of Agent Tooling | TODO |
+| `openai-developments-2026-03-14-20.md` | Openai Developments 2026 03 14 20 | TODO |
+| `openai-google-agent-dev-2026-03-19-26.md` | Openai Google Agent Dev 2026 03 19 26 | TODO |
+| `openclaw-deep-dive.md` | OpenClaw Architecture Deep Dive — Research Memo | TODO |
+| `openclaw-model-review.md` | OpenClaw Lessons — Model Review Synthesis | TODO |
+| `opentraces-dspy-deep-dive-2026-03.md` | Opentraces Dspy Deep Dive 2026 03 | TODO |
+| `opus-46-action-plan.md` | Opus 46 Action Plan | TODO |
+| `opus-46-prompt-structure.md` | Opus 46 Prompt Structure | TODO |
+| `orchestrator-design.md` | Autonomous Agent Architecture for Long-Running Intelligence Work | TODO |
+| `pdf-to-markdown-tooling-2026-05.md` | or with LLM cleanup: | TODO |
+| `perplexity-sonar-api-landscape.md` | Perplexity API Landscape — Research Memo | TODO |
+| `personal-ai-agent-infra-march-2026.md` | Personal AI Agent Infrastructure — March 2026 Landscape Sweep | TODO |
+| `philosophy-of-epistemic-agents.md` | Philosophy of Epistemic Agents | TODO |
+| `practitioner-agent-usage-2026-03.md` | How Practitioners Actually Use AI Agents — March 2026 Landscape | TODO |
+| `reasoning-scaffolding-divergent.md` | Divergent Research: Beyond Causal DAGs — What Else Should We Build? | TODO |
+| `reasoning-trace-verification.md` | Verifying Agent Reasoning Traces: Faithfulness, Correctness, and Formal Methods | TODO |
+| `runlog-otel-compatibility.md` | Runlog OTel / OpenInference Compatibility | TODO |
+| `scale-agentic-rubrics-2026-04.md` | Scale AI Agentic Rubrics and ResearchRubrics | TODO |
+| `schema-bounded-review-packets-2026-03.md` | Schema-Bounded Review Packets for `researcher` and `intel` | TODO |
+| `scientific-citation-graph-patterns-2026-05.md` | Scientific Citation Graph Patterns 2026 05 | TODO |
+| `scientific-computing-for-agent-telemetry.md` | Scientific Computing Tools for Agent Telemetry | TODO |
+| `search-api-integration-landscape.md` | Search API Integration Landscape — Brave, Firecrawl, Perplexity | TODO |
+| `self-distillation-code-generation-2026-04.md` | Self Distillation Code Generation 2026 04 | TODO |
+| `skill-consolidation-brainstorm.md` | Skill Consolidation: From 42 Skills to Synergistic Architecture | TODO |
+| `skill-improvement-frontier-2026-03.md` | Agent Skill Improvement: Frontier LLM Techniques (March 2026) | TODO |
+| `skill-provenance-controls-2026-03.md` | Skill Provenance Controls | TODO |
+| `skill0-internalization-2026-04.md` | Skill0 Internalization 2026 04 | TODO |
+| `skills-audit-2026-02-28.md` | Skills Library Review — 2026-02-28 | TODO |
+| `structured-vs-prose-for-agents.md` | Structured vs Prose for Agent-Read Documents | TODO |
+| `supp-ai-assessment-2026-04.md` | Supp Ai Assessment 2026 04 | TODO |
+| `supplement-database-survey-2026-04.md` | Supplement & Nutrition Evidence Databases — Comprehensive Survey | TODO |
+| `symphony-orchestrator-assessment.md` | Symphony (OpenAI) — Deep Assessment | TODO |
+| `temporal-epistemic-degradation.md` | Temporal Epistemic Degradation in AI Agents | TODO |
+| `terminal-output-ux-2026-04.md` | One import, covers progress + logging + tables + pretty print | TODO |
+| `think-anywhere-code-2026-04.md` | Think Anywhere Code 2026 04 | TODO |
+| `tig-foundation-claims-verification-2026-03-25.md` | Tig Foundation Claims Verification 2026 03 25 | TODO |
+| `tig-monorepo-architecture-2026-03.md` | Tig Monorepo Architecture 2026 03 | TODO |
+| `tig-qkp-claim-verification.md` | Tig Qkp Claim Verification | TODO |
+| `token-reduction-techniques-2026-04.md` | Token Reduction Techniques 2026 04 | TODO |
+| `tool-use-mcp-reliability.md` | Tool Use Reliability | TODO |
+| `tooling-feedback-2026-03-24.md` | Research Tooling Field Report — 2026-03-24 | TODO |
+| `trending-scout-2026-03-19.md` | Trending Scout — 2026-03-19 | TODO |
+| `trending-scout-2026-03-26.md` | Trending Scout — 2026-03-26 | TODO |
+| `trending-scout-2026-03-29.md` | Trending Scout — 2026-03-29 | TODO |
+| `trending-scout-2026-04-03.md` | Trending Scout — 2026-04-03 | TODO |
+| `trending-scout-2026-04-05.md` | Trending Scout — 2026-04-05 | TODO |
+| `trending-scout-2026-04-17-clojure-mcps.md` | Trending Scout — Clojure MCPs & UI Debugging (2026-04-17) | TODO |
+| `trending-scout-2026-04-21-claude-code-codex.md` | Trending Scout — Claude Code + Codex CLI (2026-04-21) | TODO |
+| `trending-scout-2026-04-21-kimi-cli.md` | Kimi CLI Update Sweep + Parity Check (2026-04-21) | TODO |
+| `weekly-agent-infra-sweep-2026-04-02.md` | Weekly Agent Infra Sweep 2026 04 02 | TODO |
+| `wiki-vs-flat-for-agents.md` | Wiki Vs Flat For Agents | TODO |
