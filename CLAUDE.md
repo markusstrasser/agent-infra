@@ -155,6 +155,32 @@ See `~/.claude/rules/llmx-routing.md` (global) for model/transport table and got
 - Not a place to document things that should be implemented. Plan here → implement in target repo in same session.
 - Architectural changes > documentation changes.
 
+<cross_project_rules>
+## Corpus attestation (substrate v1) — HARD RULE
+
+When recording a claim or verdict against a source, you MUST make TWO MCP
+calls in this order:
+
+1. `<repo>_mcp.record_verdict(claim_id=..., support_state=..., ...)`
+   — writes to repo-local `claim_verdicts` via the repo's mutation gateway.
+
+2. `corpus_mcp.corpus_attest(source_id=..., repo=<repo>, actor_type=...,
+        actor_id=..., scope="verdict",
+        output_uri=f"{repo}://verdicts/{result['verdict_id']}",
+        output_hash=...)`
+   — writes the provenance annotation to the canonical corpus.
+
+Skipping step 2 leaves provenance incomplete. The daily launchd job
+`com.agent-infra.audit-corpus-sync` (logs to `~/.claude/logs/corpus/`)
+detects drift within 24h, but the prompt-level rule prevents drift
+entering the system in the first place.
+
+**NEVER call `corpus_mcp` from inside another MCP** (no MCP-to-MCP). The
+agent orchestrates the two calls.
+
+Anchor: `decisions/2026-05-11-cross-attestation-substrate.md` §J.1, §J.7.
+</cross_project_rules>
+
 <reference_data>
 ## Cross-Project Architecture
 | Layer | Location | Syncs how |

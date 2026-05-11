@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.agent-infra.audit-corpus-sync</string>
+
+    <!--
+      Phase 4 backstop for the substrate-v1 attestation flow.
+      Detects per-repo verdicts without a corresponding corpus annotation
+      (and corpus annotations without a corresponding verdict).
+      Exit non-zero on drift; output to log for next-session triage.
+      No paging, no auto-fix — this is informational.
+    -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/alien/Projects/agent-infra/.venv/bin/python3</string>
+        <string>/Users/alien/Projects/agent-infra/scripts/audit_corpus_sync.py</string>
+        <string>--json</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/alien/Projects/agent-infra</string>
+
+    <!-- Daily at 04:30 (after agentlogs-backup at 04:00). -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>4</integer>
+        <key>Minute</key>
+        <integer>30</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/alien/.claude/logs/corpus/audit-corpus-sync.out</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/alien/.claude/logs/corpus/audit-corpus-sync.err</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+
+    <key>LowPriorityIO</key>
+    <true/>
+
+    <key>Nice</key>
+    <integer>5</integer>
+</dict>
+</plist>
