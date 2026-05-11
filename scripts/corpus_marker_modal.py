@@ -193,16 +193,23 @@ def extract_pdf(pdf_bytes: bytes, parser_config: dict | None = None) -> dict:
                     if re.search(r"_page_.*\.(jpe?g|png)$", f.name, re.IGNORECASE):
                         image_count += 1
 
-    # Resolve marker version once (cheap; comes from import metadata).
+    # Resolve marker version once. Marker exposes version via package
+    # metadata (PEP 396), not a `__version__` attribute — the latter
+    # returns "unknown" in the Modal container.
     try:
-        import marker
-        marker_version = getattr(marker, "__version__", "unknown")
+        from importlib.metadata import PackageNotFoundError, version
+        try:
+            marker_version = version("marker-pdf")
+        except PackageNotFoundError:
+            marker_version = "unknown"
     except ImportError:
         marker_version = "unknown"
 
+    # The Gemini model name already carries the `gemini-` prefix
+    # (e.g. `gemini-3-flash-preview`), so don't double-prefix in parser_id.
     parser_id = (
         f"marker-modal@{marker_version}"
-        f"+gemini-{cfg.get('gemini_model_name', 'unknown').replace('.', '_')}"
+        f"+{cfg.get('gemini_model_name', 'unknown').replace('.', '_')}"
         f"+cfg-{cfg_md5[:8]}"
     )
 
