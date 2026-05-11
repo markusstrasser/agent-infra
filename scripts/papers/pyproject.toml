@@ -1,0 +1,26 @@
+[project]
+name = "papers"
+version = "0.1.0"
+description = "Canonical shared papers store — PDFs, parses, citances, graph index"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "duckdb>=1.0",
+    "pypdf>=4.0",
+]
+
+[project.scripts]
+papers = "papers.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["papers"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"papers/graph_schema.sql" = "papers/graph_schema.sql"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
