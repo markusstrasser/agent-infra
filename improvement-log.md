@@ -3302,3 +3302,21 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
   - `skills/hooks/stop-research-gate.sh`: HTML comments stripped before SOURCE_TAG regex.
   - `skills/hooks/pretool-plan-protect.sh`: NEW. Blocks `rm`/`mv`/`trash` targeting `.claude/plans/*.md`, `docs/ops/plans/*.md`, `.claude/checkpoint.md`. Override via `PLAN-PROTECT-OVERRIDE` token in the command. Wired into `~/.claude/settings.json` PreToolUse:Bash.
 - **Source:** `artifacts/observe/20260508-221127-sessions-multi/candidates.jsonl`
+
+### [2026-05-15] SHIPPED — corpus-attest hook + 6 cleanup fixes from skill audit
+- **Session:** agent-infra 68fe6d79 (claude-code)
+- **Audit:** `/tmp/skill-regressions.md` + `/tmp/skill-gaps.md` produced from parallel general-purpose agents on skill changes (last 30d) and project skill gaps.
+- **Implemented:**
+  1. `skills@be56a71` — **`posttool-corpus-attest-remind.sh`** (NEW). PostToolUse hook on `mcp__<repo>__record_verdict` that emits the exact `corpus_attest` signature to invoke next. Architectural enforcement of the substrate v1 hard rule that sampled phenome transcripts already skipped — the "instructions = 0% reliable" failure mode the constitution names. Wired into `~/.claude/settings.json`.
+  2. `agent-infra@4607c3b` — `<cross_project_rules>` updated to a 3-layer enforcement framing (hook prevents, daily audit catches, prose is the spec).
+  3. `skills@28988d2` — **subagent-gate Check 10 calibration**. Regex extended to recognize `PROBE IN PROGRESS`, `Begin by writing ...`, `First, write a scaffold ...`. Block rate jumped 11.5% → 19.6% after the `4a84e72` escalation; the escalation itself is correct but the regex was too narrow.
+  4. `genomics@1671d08f` + `evals@c966ea6` + `skills@2e84579` — **AGENTS.md → CLAUDE.md symlink normalization**. genomics flipped direction (CLAUDE.md now canonical); evals had a botched-sed divergence (`~/.Codex/`, `GPT/Codex`) — discarded the broken AGENTS.md, symlinked to canonical CLAUDE.md; skills added the symlink.
+  5. `agent-infra@b27b474` — convention documented in `<reference_data>` cross-project architecture table.
+  6. `agent-infra@7b4b626` — **`load_jsonl` UTF-8 robustness**. `just hook-decay` was broken on a `0xe2` byte in `event-log.jsonl`. Switched to `errors='replace'`.
+- **NEW NEAR-MISS (recorded for future):** `rm -rf <symlink>/` follows the symlink and deletes the target's contents. I ran `rm -rf ~/Projects/intel/.claude/skills/x-api/` on what I thought was a duplicate directory; it was actually a symlink to `~/Projects/skills/x-api/`, so the global skill files were deleted. Recovered via `git restore`. The correct command for removing a symlink to a directory is `rm <name>` (no `-rf`, no trailing slash). Worth a hook? Probably not — the trailing-slash-on-symlink-with-rf pattern is uncommon enough that telemetry would be sparse. But the lesson belongs in the rule set for destructive ops.
+- **Audit findings that turned out to be NULL:**
+  - "Constitution-merge consumer drift in 3 CLAUDE.md files" — `<constitution>` tags are inline section delimiters, not skill invocations. No project has a standalone `constitution.md`. The `goals/` skill cleanly absorbed the constitution skill.
+  - "x-api duplicated in intel/.claude/skills" — was already a symlink; audit was misled by identical byte counts (which is what symlinks produce).
+- **New skill gaps recorded (not yet built):** `planctl` (genomics plan-lifecycle), `thesis-lifecycle` (intel), `evo-cljs` (evo project).
+- **Status:** [x] implemented
+- **Source:** `/tmp/skill-regressions.md`, `/tmp/skill-gaps.md` (this session)
