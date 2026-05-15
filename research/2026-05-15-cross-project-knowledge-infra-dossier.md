@@ -473,11 +473,34 @@ These are observations from reading the dossiers, not recommendations. The user 
 
 ---
 
+## Revisions
+
+### 2026-05-15 (same-day, post-user-pushback)
+
+Three of the seven "open questions" in Section 7 are withdrawn under current decisions. The user pointed out each had a recorded reason already that I missed while drafting.
+
+**§7.2 — Genomics knowledge-mcp — WITHDRAWN.**  
+Vetoed 2026-03-24 in `.claude/rules/vetoed-decisions.md`: knowledge-substrate MCP retired (4 reads / 60 writes in 7 days; knowledge-index hook solved the actual pain). The veto's reasoning applies equally to a genomics-specific knowledge-mcp wrapper: no recorded incident of a consumer needing MCP access that CLI + Pattern B import doesn't already serve. **Re-opens if:** a concrete consumer is documented that can't use CLI/import (e.g., an external agent or skill that needs `record_verdict` over stdio).
+
+**§7.3 — Intel `record_verdict` disabled — WITHDRAWN.**  
+Not a TODO. Intel's write path is **markdown edit → `replay.py` idempotent rebuild → atomic rename**; the DuckDB is a derivation, not a primary store. Adding `record_verdict` either creates a parallel event-sourced write surface (conflicts with "DB is derivation") or requires persisting FSM verdicts as first-class entities (a new table + new writer). Phenome and genomics both have direct-mutation surfaces; intel's architecture is genuinely different. The 2026-05-11 decision's "highest-ROI lone-wolf piece" framing missed this structural mismatch. **Re-opens if:** intel adopts a direct-mutation write surface for verdicts, OR if FSM verdicts need to persist as first-class entities (e.g., for cross-project querying via `corpus_attest`).
+
+**§7.4 — Phenome verifier consolidation — WITHDRAWN.**  
+The 9 verifier scripts embed domain knowledge that doesn't generalize: `verify_pgx_consistency.py` knows CPIC tier semantics, `verify_variant_claims.py` knows dbSNP/ClinVar 2★ conventions, `verify_protocol_claims.py` knows active-protocol dosing context. Moving them to `research_mcp.audit_citations()` either bloats research-mcp with biomedical specifics or strips the domain logic. **Re-opens if:** `research_mcp.audit_citations()` ships with a clean domain-plugin interface AND a grep/import-graph proof shows no external callers of the phenome verifiers — the original 2026-05-11 gate.
+
+**Pattern in the withdrawn questions:** each proposed consolidating across projects without checking the recorded reason for divergence. The veto file, the structural difference, and the domain-specificity argument were all available in the dossiers themselves; the questions should not have been raised without cross-referencing. Saved as feedback at `~/.claude/projects/-Users-alien-Projects-agent-infra/memory/feedback_cross_project_consolidation.md`.
+
+**Standing questions:** §7.1 (extract kernel into library), §7.5 (generalize `claim_binding_hash`), §7.6 (Pattern B vs events), §7.7 (evals integration) are unaffected — they don't conflict with recorded decisions.
+
+**User commentary on the underlying decisions** ("those decisions were stupid idk"): the withdrawals reflect **current** authoritative state, not a claim those vetoes are correct in perpetuity. If usage data shifts (knowledge-substrate consumers appear), or architecture pivots (intel adopts direct-mutation, research-mcp grows domain plugins), the questions re-open and the dossier gets another Revisions entry. The withdrawals are "current decisions say no," not "consolidation is impossible."
+
+---
+
 *Dossier compiled 2026-05-15 from parallel Explore-agent inventories. Each per-project dossier is preserved verbatim at `/tmp/`. The "kernel" framing is empirical observation across three independent implementations, not advocacy — the user steers whether/when to extract.*
 
 <!-- knowledge-index
-generated: 2026-05-15T06:04:11Z
-hash: d993b65ac9ca
+generated: 2026-05-15T06:12:44Z
+hash: 11837245abfd
 
 index:title: Cross-Project Knowledge Infrastructure Dossier — intel × phenome × genomics × agent-infra (+ evals)
 index:status: active
