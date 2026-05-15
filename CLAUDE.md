@@ -170,10 +170,14 @@ calls in this order:
         output_hash=...)`
    — writes the provenance annotation to the canonical corpus.
 
-Skipping step 2 leaves provenance incomplete. The daily launchd job
-`com.agent-infra.audit-corpus-sync` (logs to `~/.claude/logs/corpus/`)
-detects drift within 24h, but the prompt-level rule prevents drift
-entering the system in the first place.
+Skipping step 2 leaves provenance incomplete. Three enforcement layers:
+1. **PostToolUse hook** `posttool-corpus-attest-remind.sh` — fires after any
+   `*_record_verdict` MCP call and emits the exact `corpus_attest` signature
+   to invoke next (advisory).
+2. **Daily audit** — `com.agent-infra.audit-corpus-sync` launchd job (logs to
+   `~/.claude/logs/corpus/`) detects drift within 24h.
+3. **This prose rule** — last-resort backstop. Architecture (1) is meant to
+   prevent drift; (2) catches what (1) missed; (3) is the spec.
 
 **NEVER call `corpus_mcp` from inside another MCP** (no MCP-to-MCP). The
 agent orchestrates the two calls.
