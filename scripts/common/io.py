@@ -9,7 +9,7 @@ def load_jsonl(path: Path, *, since: str | None = None) -> list[dict]:
     if not path.exists():
         return []
     rows = []
-    with open(path) as f:
+    with open(path, encoding="utf-8", errors="replace") as f:
         for line in f:
             line = line.strip()
             if not line:
