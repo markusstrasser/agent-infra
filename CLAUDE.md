@@ -190,6 +190,7 @@ Anchor: `decisions/2026-05-11-cross-attestation-substrate.md` §J.1, §J.7.
 | Shared hooks | `~/Projects/skills/hooks/` | Referenced by path in each project's `settings.json` |
 | Project rules | `.claude/rules/` per project | Diverges intentionally (domain-specific) |
 | Project hooks | `.claude/settings.json` per project | Per-project, similar patterns |
+| Project agent doc | `CLAUDE.md` per project (canonical) | `AGENTS.md` symlinks to `CLAUDE.md` so Codex/Gemini/Cody read the same source. Never edit AGENTS.md directly. |
 | Global hooks | `~/.claude/settings.json` | Loaded in every project |
 | Research MCP | `~/Projects/research-mcp/` | Configured in `.mcp.json` per project |
 | Genomics pipeline | `~/Projects/genomics/` | Extracted from selve 2026-02-28 |
