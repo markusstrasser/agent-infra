@@ -3320,3 +3320,11 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **New skill gaps recorded (not yet built):** `planctl` (genomics plan-lifecycle), `thesis-lifecycle` (intel), `evo-cljs` (evo project).
 - **Status:** [x] implemented
 - **Source:** `/tmp/skill-regressions.md`, `/tmp/skill-gaps.md` (this session)
+
+### [2026-05-15] NEW: Disk preflight check for large downloads
+- **Evidence:** observe digest 2026-05-15 (genomics, sess 69266773): agent ran `gsutil -m cp -r` for a 23GB dataset into cwd without `df -h`. Disk hit 99%, 8.3 GiB free, download failed.
+- **Failure mode:** capability-abandonment — agent didn't preflight a deterministically checkable resource constraint.
+- **Proposed fix:** Global rule `~/.claude/rules/disk-preflight.md`: before any download >10GB (gsutil/curl/wget/modal volume get/aria2c/rclone/huggingface-cli), run `df -h <dest>` and abort if free < 1.5× payload. Probe size first via `gsutil du -sh` / `Content-Length` / `modal volume ls`.
+- **Status:** [x] implemented — rule file created
+- **Source:** `artifacts/observe/2026-05-15-genomics-48h/digest.md` (promotion-ready); `candidates.jsonl` id=2026-05-15-preflight-disk-check
+- **Severity:** high (lost session)
