@@ -27,26 +27,16 @@ def get_verified_tasks(limit: int = 20) -> list[dict]:
     Task details are in orchestrator.db (tasks table).
     """
     # 1. Read verify events from JSONL log
-    verify_events = []
-    if LOG_PATH.exists():
-        for line in LOG_PATH.read_text().splitlines():
-            try:
-                event = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if event.get("action") == "verify":
-                verify_events.append(event)
+    from common.io import load_jsonl
+    events = load_jsonl(LOG_PATH)
+    verify_events = [e for e in events if e.get("action") == "verify"]
 
     if not verify_events:
         # Fall back: check for verify_retry events (also indicates verification ran)
-        if LOG_PATH.exists():
-            for line in LOG_PATH.read_text().splitlines():
-                try:
-                    event = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if event.get("action") in ("verify_retry", "verify_exhausted", "verify_error"):
-                    verify_events.append(event)
+        verify_events = [
+            e for e in events
+            if e.get("action") in ("verify_retry", "verify_exhausted", "verify_error")
+        ]
 
     verify_events = verify_events[-limit:]
 

@@ -6,12 +6,11 @@ Usage:
     uv run python3 scripts/hook-telemetry-report.py [--days N] [--hook NAME]
 """
 
-import json
 import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
+from common.io import load_jsonl
 from common.paths import TRIGGERS_FILE as LOG_FILE
 
 
@@ -20,15 +19,7 @@ def load_entries(days: int = 7, hook_filter: str | None = None) -> list[dict]:
         return []
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     entries = []
-    for line in LOG_FILE.read_text().splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            entry = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        # Parse timestamp
+    for entry in load_jsonl(LOG_FILE):
         ts_str = entry.get("ts", "")
         try:
             ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))

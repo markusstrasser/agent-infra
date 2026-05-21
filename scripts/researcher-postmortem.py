@@ -33,13 +33,8 @@ def load_events(days: int) -> list[dict]:
 
     cutoff = datetime.now() - timedelta(days=days)
     events = []
-    for line in LOGFILE.read_text().splitlines():
-        if not line.strip():
-            continue
-        try:
-            entry = json.loads(line)
-        except json.JSONDecodeError:
-            continue
+    from common.io import load_jsonl
+    for entry in load_jsonl(LOGFILE):
         ts_str = entry.get("ts", "")
         try:
             ts = datetime.fromisoformat(
