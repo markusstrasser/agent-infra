@@ -9,6 +9,7 @@ Usage: uv run python3 scripts/doctor.py [--project PROJECT] [--json]
 
 import json
 import os
+import shlex
 import subprocess
 import sys
 import time
@@ -78,6 +79,28 @@ def check_settings_json(path: Path, scope: str) -> list[Check]:
 
     checks = [c.ok(f"{len(data.get('hooks', {}))} hook events")]
 
+    # $CLAUDE_PROJECT_DIR is expanded by Claude/Codex at hook execution time.
+    # For the global settings file (scope == "global") it's not bound to one
+    # project, so skip path checks for those entries rather than reporting
+    # bogus misses against meta's directory.
+    project_dir = path.parent.parent if scope != "global" else None
+
+    def resolve(token: str, base: Path | None = None) -> Path | None:
+        if scope == "global" and "$CLAUDE_PROJECT_DIR" in token:
+            return None
+        # Strip surrounding quotes some hooks use to handle paths with spaces
+        token = token.strip("'\"")
+        if project_dir is not None:
+            token = token.replace("$CLAUDE_PROJECT_DIR", str(project_dir))
+        p = Path(os.path.expandvars(token)).expanduser()
+        # Relative hook paths (.claude/hooks/foo.sh) resolve relative to the
+        # base directory — usually the project dir (cwd Claude/Codex runs hooks
+        # under), but `uv run --directory X` overrides this.
+        resolve_base = base if base is not None else project_dir
+        if not p.is_absolute() and resolve_base is not None:
+            p = resolve_base / p
+        return p
+
     # Validate hook command paths exist
     for event, hook_groups in data.get("hooks", {}).items():
         for group in hook_groups:
@@ -85,14 +108,27 @@ def check_settings_json(path: Path, scope: str) -> list[Check]:
                 if hook.get("type") != "command":
                     continue
                 cmd = hook.get("command", "")
-                # Extract script path (first token if it's a file path)
-                parts = cmd.split()
+                # Use shlex so we don't pull tokens out of quoted strings
+                # (e.g. error messages that mention ".sh/.py" or paths
+                # embedded in `python3 -c '...'` blocks).
+                try:
+                    parts = shlex.split(cmd, posix=True)
+                except ValueError:
+                    parts = cmd.split()
+                # `uv run --directory X script.py` resolves script.py against X,
+                # not the project dir. Honor that here so the script check
+                # doesn't false-positive cross-project hooks.
+                resolve_base = project_dir
+                for i, p in enumerate(parts):
+                    if p == "--directory" and i + 1 < len(parts):
+                        resolve_base = Path(os.path.expandvars(parts[i + 1])).expanduser()
+                        break
                 # Find the script file — may be the command itself or an argument to bash/python3
                 script_token = next((p for p in parts if p.endswith(('.sh', '.py'))), None)
                 if script_token:
-                    script = Path(script_token).expanduser()
-                elif parts and parts[0].startswith(("/", "~")):
-                    script = Path(parts[0]).expanduser()
+                    script = resolve(script_token, resolve_base)
+                elif parts and (parts[0].startswith(("/", "~", "$"))):
+                    script = resolve(parts[0], resolve_base)
                 else:
                     script = None
                 if script is not None:
