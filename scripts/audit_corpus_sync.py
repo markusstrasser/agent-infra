@@ -107,72 +107,104 @@ def _read_verdicts(repo: str, db_path: Path, sql: str) -> list[tuple[str, str, s
 
 def _drain_repo_outbox(repo: str, db_path: Path) -> dict[str, int]:
     """Drain pending_corpus_attestations for a repo. Returns counts:
-    {flushed, retried, abandoned, no_table, skipped_locked}."""
+    {flushed, retried, abandoned, no_table, skipped_locked}.
+
+    Lock-friendly: opens read-only first to fetch pending rows, releases,
+    performs filesystem IO outside any DuckDB lock, then re-opens write
+    only briefly per row to DELETE/UPDATE. Critique #13 fix — prior
+    implementation held the writer lock for the full O(N) corpus IO loop,
+    blocking concurrent gateway drains.
+    """
     out = {"flushed": 0, "retried": 0, "abandoned": 0, "no_table": 0, "skipped_locked": 0}
     if not db_path.exists():
         out["no_table"] = 1
         return out
-    # Open in write mode (DELETEs / UPDATEs). Bail soft on concurrent writer.
+    # Phase 1: read-only fetch of pending rows (lock-free).
     try:
-        con = duckdb.connect(str(db_path), read_only=False)
+        con_ro = duckdb.connect(str(db_path), read_only=True)
     except duckdb.IOException:
         out["skipped_locked"] = 1
         return out
     try:
         try:
-            rows = con.execute(
+            rows = con_ro.execute(
                 """
-                SELECT pending_id, canonical_source_id, actor_type, actor_id,
+                SELECT verdict_id, canonical_source_id, actor_type, actor_id,
                        output_uri, output_hash, prompt_template_hash,
                        asserted_at, retry_count
                 FROM pending_corpus_attestations
                 WHERE status = 'pending'
+                LIMIT 1000
                 """
             ).fetchall()
         except (duckdb.BinderException, duckdb.CatalogException):
             out["no_table"] = 1
             return out
-        if not rows:
-            return out
-        # Lazy import — only the drain path needs corpus_core. Keep audit
-        # importable in environments without the package installed.
-        sys.path.insert(
-            0, str(Path.home() / "Projects" / "agent-infra" / "scripts" / "corpus" / "packages" / "corpus-core")
-        )
-        from corpus_core.annotate import AnnotationError, annotate as _annotate
-        from corpus_core.store import paper_path
-        for (
-            pending_id, canon, actor_type, actor_id, output_uri,
-            output_hash, prompt_template_hash, asserted_at, retry_count,
-        ) in rows:
-            try:
-                paper_path(canon).mkdir(parents=True, exist_ok=True)
-                _annotate(
-                    canon, repo=repo, actor_type=actor_type, actor_id=actor_id,
-                    scope="verdict", output_uri=output_uri, output_hash=output_hash,
-                    prompt_template_hash=prompt_template_hash, asserted_at=asserted_at,
-                )
-            except (OSError, AnnotationError, duckdb.IOException) as exc:
-                new_retry = retry_count + 1
-                new_status = "abandoned" if new_retry >= 3 else "pending"
-                con.execute(
-                    """UPDATE pending_corpus_attestations
-                       SET retry_count = ?, last_error = ?, status = ?
-                       WHERE pending_id = ?""",
-                    [new_retry, str(exc)[:500], new_status, pending_id],
-                )
-                if new_status == "abandoned":
-                    out["abandoned"] += 1
-                else:
-                    out["retried"] += 1
-                continue
-            con.execute(
-                "DELETE FROM pending_corpus_attestations WHERE pending_id = ?",
-                [pending_id],
+    finally:
+        con_ro.close()
+    if not rows:
+        return out
+
+    # Phase 2: FS IO with NO DuckDB lock held. Lazy import — only the
+    # drain path needs corpus_core; keep audit importable in environments
+    # without the package installed.
+    cc_path = str(
+        Path.home() / "Projects" / "agent-infra" / "scripts" / "corpus" / "packages" / "corpus-core"
+    )
+    if cc_path not in sys.path:
+        sys.path.insert(0, cc_path)
+    from corpus_core.annotate import AnnotationError, annotate as _annotate
+    from corpus_core.store import paper_path
+
+    # Collect successes/failures; apply DB writes in Phase 3.
+    successes: list[tuple[str, str]] = []  # (verdict_id, canon)
+    failures: list[tuple[str, str, int, str]] = []  # (vid, canon, new_retry, err)
+    for (
+        verdict_id, canon, actor_type, actor_id, output_uri,
+        output_hash, prompt_template_hash, asserted_at, retry_count,
+    ) in rows:
+        try:
+            paper_path(canon).mkdir(parents=True, exist_ok=True)
+            _annotate(
+                canon, repo=repo, actor_type=actor_type, actor_id=actor_id,
+                scope="verdict", output_uri=output_uri, output_hash=output_hash,
+                prompt_template_hash=prompt_template_hash, asserted_at=asserted_at,
+            )
+            successes.append((verdict_id, canon))
+        except (OSError, AnnotationError, duckdb.IOException) as exc:
+            failures.append((verdict_id, canon, retry_count + 1, str(exc)[:500]))
+
+    # Phase 3: short write-locked transaction to apply DELETEs and UPDATEs.
+    try:
+        con_rw = duckdb.connect(str(db_path), read_only=False)
+    except duckdb.IOException:
+        # We did the FS IO but can't record it. Next audit cycle re-fetches
+        # the same rows — annotate is idempotent so re-emit is a no-op.
+        # The DB hasn't been updated; rows stay as 'pending'.
+        out["skipped_locked"] = 1
+        return out
+    try:
+        for verdict_id, canon in successes:
+            con_rw.execute(
+                """DELETE FROM pending_corpus_attestations
+                   WHERE verdict_id = ? AND canonical_source_id = ?""",
+                [verdict_id, canon],
             )
             out["flushed"] += 1
+        for verdict_id, canon, new_retry, err in failures:
+            new_status = "abandoned" if new_retry >= 3 else "pending"
+            con_rw.execute(
+                """UPDATE pending_corpus_attestations
+                   SET retry_count = ?, last_error = ?, status = ?
+                   WHERE verdict_id = ? AND canonical_source_id = ?""",
+                [new_retry, err, new_status, verdict_id, canon],
+            )
+            if new_status == "abandoned":
+                out["abandoned"] += 1
+            else:
+                out["retried"] += 1
     finally:
-        con.close()
+        con_rw.close()
     return out
 
 
