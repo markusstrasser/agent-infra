@@ -156,33 +156,44 @@ See `~/.claude/rules/llmx-routing.md` (global) for model/transport table and got
 - Architectural changes > documentation changes.
 
 <cross_project_rules>
-## Corpus attestation (substrate v1) — HARD RULE
+## Corpus attestation (substrate v2) — ARCHITECTURAL
 
-When recording a claim or verdict against a source, you MUST make TWO MCP
-calls in this order:
+Cross-repo attestation is enforced **at each repo's mutation gateway via a
+transactional outbox**, not as an agent ritual. There is no agent-facing
+`record_verdict` MCP tool. There is no `corpus_attest` ritual the agent
+must remember.
 
-1. `<repo>_mcp.record_verdict(claim_id=..., support_state=..., ...)`
-   — writes to repo-local `claim_verdicts` via the repo's mutation gateway.
+Reference implementation (genomics): `MutationGateway.write_verdict` INSERTs
+annotation intent into `pending_corpus_attestations` inside the verdict's
+BEGIN/COMMIT span (atomic). After `__exit__` releases the writer lock, the
+gateway drains the outbox via `corpus_core.annotate`. Failures bump
+retry_count; ≥3 retries flips status to `'abandoned'` (audit reports).
 
-2. `corpus_mcp.corpus_attest(source_id=..., repo=<repo>, actor_type=...,
-        actor_id=..., scope="verdict",
-        output_uri=f"{repo}://verdicts/{result['verdict_id']}",
-        output_hash=...)`
-   — writes the provenance annotation to the canonical corpus.
+**If you are writing a new mutation gateway in a repo that should attest:**
+1. Add a `pending_corpus_attestations` table — mirror
+   `genomics/migrations/2026-05-26-pending-corpus-attestations.sql`.
+2. Inside your gateway transaction, INSERT annotation intent — see
+   `genomics/scripts/knowledge/mutation_gateway.py:_enqueue_corpus_attestation`.
+3. After the transaction commits AND your lock is released, drain the
+   outbox via `corpus_core.annotate` with narrow exception types — see
+   `_drain_pending_corpus_attestations` in the same file.
+4. Add the lint enforcement (`scripts/lint_no_direct_corpus_writes.py`)
+   so non-gateway code can't bypass the outbox.
 
-Skipping step 2 leaves provenance incomplete. Three enforcement layers:
-1. **PostToolUse hook** `posttool-corpus-attest-remind.sh` — fires after any
-   `*_record_verdict` MCP call and emits the exact `corpus_attest` signature
-   to invoke next (advisory).
-2. **Daily audit** — `com.agent-infra.audit-corpus-sync` launchd job (logs to
-   `~/.claude/logs/corpus/`) detects drift within 24h.
-3. **This prose rule** — last-resort backstop. Architecture (1) is meant to
-   prevent drift; (2) catches what (1) missed; (3) is the spec.
+**`corpus_core.annotate` is the SOLE writer of corpus annotations.** Only
+repo mutation gateways may import it. The `lint_no_direct_corpus_writes.py`
+lint enforces this per repo. If you find yourself wanting to call annotate
+from elsewhere, the right answer is "extend the gateway," not "bypass the lint."
 
-**NEVER call `corpus_mcp` from inside another MCP** (no MCP-to-MCP). The
-agent orchestrates the two calls.
+**`audit_corpus_sync.py`** runs daily and:
+- Drains pending outbox rows for repos that couldn't self-drain (process
+  crash, gateway not invoked since outbox row landed).
+- Reports verdict ↔ annotation drift in both directions.
+- Surfaces `abandoned` row counts for human triage.
 
-Anchor: `decisions/2026-05-11-cross-attestation-substrate.md` §J.1, §J.7.
+Anchor: `decisions/2026-05-26-cross-attestation-substrate-v2.md`. Supersedes
+the agent-orchestrated 2-call ritual from substrate v1 (0 invocations in
+9 months of indexed agentlogs).
 </cross_project_rules>
 
 <reference_data>

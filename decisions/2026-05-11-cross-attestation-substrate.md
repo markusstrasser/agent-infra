@@ -5,9 +5,14 @@ repo: agent-infra
 decision_date: 2026-05-11
 recorded_date: 2026-05-11
 provenance: contemporaneous
-status: accepted
+status: superseded
+superseded_by: 2026-05-26-cross-attestation-substrate-v2
 initial_leaning: Build a federated cross-attestation MCP across phenome/genomics/intel with a new paper_fetch_attestations schema, an attest-before-fetch skill, two new hooks, and a standalone federation MCP server.
-relations: []
+relations:
+  - type: superseded_by
+    target: 2026-05-26-cross-attestation-substrate-v2
+    note: 2-call MCP ritual had 0 organic invocations in 9 months; replaced by gateway-invariant outbox per decisions/2026-05-26-cross-attestation-substrate-v2.md
+
 ---
 
 # 2026-05-11: Cross-project attestation substrate — defer federation ~1 week, ship Phase 0 measurement now
