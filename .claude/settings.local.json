@@ -16,7 +16,28 @@
       "Bash(HOME=/tmp/bias-hook-test /Users/alien/Projects/skills/hooks/stop-unsupported-completion.sh)",
       "Bash(HOME=/tmp/bias-hook-test /Users/alien/Projects/skills/hooks/stop-unsupported-completion.sh echo \"--- shadow log ---\" cat /tmp/bias-hook-test/.claude/unsupported-completion-shadow.jsonl)",
       "Bash(mv /Users/alien/Projects/agent-infra/.claude/plans/e5a3a60d-epistemology-event-log-foundation.md /Users/alien/Projects/genomics/docs/ops/plans/2026-04-11-epistemology-genomics-adapter-draft.md)",
-      "Read(//Users/alien/Projects/genomics/docs/ops/plans/**)"
+      "Read(//Users/alien/Projects/genomics/docs/ops/plans/**)",
+      "Bash(rm -rf ~/.claude/debug/)",
+      "Bash(mkdir ~/.claude/debug/)",
+      "Bash(mkdir -p ~/.claude/archive)",
+      "Bash(mv ~/.claude/sessions.db ~/.claude/archive/sessions_pre_unification.db)",
+      "Bash(mv ~/.claude/runlogs.db ~/.claude/archive/runlogs_pre_unification.db)",
+      "Read(//Users/alien/.claude/**)",
+      "Bash(/Users/alien/Projects/skills/hooks/kimi-session-start.sh)",
+      "Read(//tmp/.claude/**)",
+      "Read(//tmp/**)",
+      "Bash(mv ~/Projects/genomics/.claude/skills/neurokit2 ~/Projects/skills/neurokit2)",
+      "Bash(mv ~/Projects/genomics/.claude/skills/oura-ring ~/Projects/skills/oura-ring)",
+      "Bash(ln -s /Users/alien/Projects/skills/neurokit2 ~/Projects/genomics/.claude/skills/neurokit2)",
+      "Bash(ln -s /Users/alien/Projects/skills/oura-ring ~/Projects/genomics/.claude/skills/oura-ring)",
+      "Read(//Users/alien/Projects/genomics/.claude/skills/oura-ring/**)",
+      "Bash(pkill -9 -f \"/.venv/bin/agentlogs\")",
+      "Bash(rm -f ~/.claude/agentlogs.db.indexlock)",
+      "Bash(sqlite3 -cmd \".timeout 10000\" ~/.claude/agentlogs.db \"UPDATE indexer_runs SET status='error', error_message='hit 30min timeout', ended_at=datetime\\('now'\\) WHERE status='running';\")",
+      "Bash(sqlite3 -cmd \".timeout 10000\" ~/.claude/agentlogs.db \"SELECT s.vendor, COUNT\\(*\\) AS sources, SUM\\(CASE WHEN i.success=1 THEN 1 ELSE 0 END\\) AS imported_ok FROM sources s LEFT JOIN imports i ON i.source_id = s.source_id AND i.import_id = \\(SELECT MAX\\(import_id\\) FROM imports WHERE source_id = s.source_id\\) GROUP BY s.vendor;\")",
+      "Bash(sqlite3 -cmd \".timeout 10000\" ~/.claude/agentlogs.db \"SELECT s.vendor, COUNT\\(*\\) AS pending FROM sources s WHERE NOT EXISTS \\(SELECT 1 FROM imports i WHERE i.source_id = s.source_id AND i.success = 1\\) GROUP BY s.vendor;\")",
+      "Bash(rm ~/Projects/intel/.claude/skills/review)",
+      "Read(//Users/alien/Projects/intel/.claude/skills/**)"
     ]
   }
 }
