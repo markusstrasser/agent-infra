@@ -72,11 +72,29 @@ VERDICTS_SOURCES: list[dict[str, Any]] = [
         "db_path": PROJECTS_ROOT / "phenome" / "indexed" / "claims.duckdb",
         "scope": "cert_event",
         "natural_key_cols": ("cert_event_id",),
-        # Phenome's verdict surface is the cert stack. Until phenome's
-        # gateway INSERT site is wired into the outbox (Phase 3), this
-        # query references a table that may not exist — missing-table is
-        # tolerated; the audit reports verdicts=0 for phenome.
-        "sql": "SELECT cert_id AS verdict_id, '' AS source_id, '' AS output_hash FROM cert_attestations",
+        # Phenome's verdict surface is the cert stack (Phase 3 of substrate-
+        # v2-deferred shipped 2026-05-27). Each `issued` claim_certificate_event
+        # bound to assertion_evidence with a canonical_source_id becomes one
+        # attestation. DISTINCT collapses the same cert_event_id appearing
+        # against multiple sources to one drift row per (event_id, source_id).
+        # The output_hash is the SHA-256 hex digest of the cert (strip
+        # phenome's `sha256:` prefix to match what corpus annotations carry).
+        "sql": """
+            SELECT DISTINCT
+                cce.event_id AS verdict_id,
+                ae.canonical_source_id AS source_id,
+                CASE
+                    WHEN cce.certificate_hash LIKE 'sha256:%'
+                    THEN substr(cce.certificate_hash, 8)
+                    ELSE cce.certificate_hash
+                END AS output_hash
+            FROM claim_certificate_events cce
+            JOIN assertion_evidence ae
+              ON ae.assertion_id = TRY_CAST(cce.target_id AS UUID)
+            WHERE cce.event_kind = 'issued'
+              AND cce.target_kind = 'assertion'
+              AND ae.canonical_source_id IS NOT NULL
+        """,
     },
     {
         "repo": "intel",
@@ -93,7 +111,7 @@ VERDICTS_SOURCES: list[dict[str, Any]] = [
 ]
 
 
-_URI_RE = re.compile(r"^([a-z-]+)://verdicts/(.+)$")
+_URI_RE = re.compile(r"^([a-z-]+)://(?:verdicts|cert_events|contradiction_events)/(.+)$")
 
 
 def _read_verdicts(repo: str, db_path: Path, sql: str) -> list[tuple[str, str, str]]:
@@ -171,20 +189,34 @@ def _abandoned_count(db_path: Path) -> int:
 
 
 def _read_corpus_annotations() -> list[dict[str, Any]]:
-    """All scope=verdict annotations in the corpus annotations table."""
+    """All annotations from any per-repo emission scope in VERDICTS_SOURCES.
+
+    Scope filter is derived from per-repo config (close-review #14/#21):
+    each VERDICTS_SOURCES entry declares its scope (e.g. 'verdict',
+    'cert_event'). Previously hardcoded to 'verdict', which made phenome's
+    cert_event annotations invisible to the audit even when the emission
+    pipeline was working end-to-end.
+    """
     if not CORPUS_GRAPH_DB.exists():
         return []
+    scopes = sorted({src["scope"] for src in VERDICTS_SOURCES if src.get("scope")})
+    if not scopes:
+        return []
+    placeholders = ",".join(["?"] * len(scopes))
     con = duckdb.connect(str(CORPUS_GRAPH_DB), read_only=True)
     try:
         rows = con.execute(
-            "SELECT annotation_id, source_id, repo, output_uri, output_hash, recorded_at "
-            "FROM annotations WHERE scope = 'verdict'"
+            "SELECT annotation_id, source_id, repo, output_uri, output_hash, "
+            "       recorded_at, scope "
+            f"FROM annotations WHERE scope IN ({placeholders})",
+            scopes,
         ).fetchall()
     finally:
         con.close()
     return [
         {"annotation_id": r[0], "source_id": r[1], "repo": r[2],
-         "output_uri": r[3], "output_hash": r[4] or "", "recorded_at": r[5]}
+         "output_uri": r[3], "output_hash": r[4] or "", "recorded_at": r[5],
+         "scope": r[6]}
         for r in rows
     ]
 
