@@ -33,6 +33,7 @@ plans/2026-05-27-substrate-v2-deferred-items.md Phase 2.5.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -45,6 +46,31 @@ if TYPE_CHECKING:
 
 
 OUTBOX_TABLE_NAME = "pending_corpus_attestations"
+
+# Strict allowlists for SQL identifiers interpolated into DDL/DML. The
+# drainer f-strings natural_key_cols into SELECT / DELETE / UPDATE clauses;
+# validating up front prevents malformed config from causing parser errors
+# OR injection-shaped bugs (close-review #12). Identifiers must be plain
+# snake_case (the convention every per-repo outbox follows); SQL types are
+# constrained to the small set that actually makes sense for an outbox PK
+# column (string ids + integer schema_version).
+_IDENTIFIER_RE = re.compile(r"^[a-z][a-z0-9_]{0,62}$")
+_ALLOWED_SQL_TYPES = frozenset({"VARCHAR", "INTEGER", "BIGINT", "UUID", "TEXT"})
+
+
+def _validate_identifier(name: str, *, role: str) -> None:
+    if not _IDENTIFIER_RE.fullmatch(name):
+        raise ValueError(
+            f"invalid {role} {name!r}: must match {_IDENTIFIER_RE.pattern} "
+            "(snake_case, starts with letter, ≤63 chars)"
+        )
+
+
+def _validate_sql_type(sql_type: str) -> None:
+    if sql_type not in _ALLOWED_SQL_TYPES:
+        raise ValueError(
+            f"invalid SQL type {sql_type!r}; allowed: {sorted(_ALLOWED_SQL_TYPES)}"
+        )
 
 
 def outbox_schema(natural_key: tuple[tuple[str, str], ...]) -> str:
@@ -67,6 +93,9 @@ def outbox_schema(natural_key: tuple[tuple[str, str], ...]) -> str:
     """
     if not natural_key:
         raise ValueError("natural_key must have at least one column")
+    for name, sqltype in natural_key:
+        _validate_identifier(name, role="natural_key column")
+        _validate_sql_type(sqltype)
     nk_decl = ",\n    ".join(f"{name:<20s} {sqltype} NOT NULL" for name, sqltype in natural_key)
     nk_names = ", ".join(name for name, _ in natural_key)
     return f"""
@@ -185,6 +214,8 @@ def drain(
 
     if not natural_key_cols:
         raise ValueError("natural_key_cols must have at least one column")
+    for col in natural_key_cols:
+        _validate_identifier(col, role="natural_key column")
 
     db_path = Path(db_path)
     if not db_path.exists():

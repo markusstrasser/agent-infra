@@ -144,10 +144,22 @@ def index_annotation(record: dict[str, Any], graph_db_path: Path | None = None) 
 
 
 def rebuild_annotations_index(graph_db_path: Path | None = None) -> dict[str, int]:
-    """Walk every source's annotations.jsonl, replace the annotations table.
+    """Walk every source dir with an annotations.jsonl, replace the annotations
+    table.
 
     Idempotent: TRUNCATE + bulk INSERT. Returns {sources_scanned, rows_written}.
+
+    Source discovery walks the corpus root directly (one level deep) and
+    selects any subdir containing annotations.jsonl — NOT just dirs with
+    metadata.json. Synthetic annotation-only sources (e.g. genomics' verdict
+    sources `pubmed_asof`, `pubmed_conflict` written by the substrate-v2
+    backfill without ingest) are valid attestation targets even without a
+    metadata.json. Using iter_papers() here previously dropped these
+    annotations on rebuild — the per-call index_annotation path inserted
+    them, then the rebuild nuked them.
     """
+    from .store import store_root
+
     con = _connect(graph_db_path)
     try:
         # TRUNCATE first so removed entries (theoretical — JSONL is append-only)
@@ -155,11 +167,20 @@ def rebuild_annotations_index(graph_db_path: Path | None = None) -> dict[str, in
         con.execute("DELETE FROM annotations")
         sources_scanned = 0
         rows_written = 0
-        for sid in iter_papers():
-            sources_scanned += 1
-            jsonl = paper_path(sid) / "annotations.jsonl"
+        root = store_root()
+        if not root.is_dir():
+            return {"sources_scanned": 0, "rows_written": 0}
+        for entry in sorted(root.iterdir()):
+            if not entry.is_dir():
+                continue
+            jsonl = entry / "annotations.jsonl"
             if not jsonl.exists():
                 continue
+            sid = entry.name
+            sources_scanned += 1
+            # source_type lookup tolerates missing metadata.json — returns
+            # the default ('paper') in that case. Annotations carry their
+            # own scope; the source_type is index-side metadata.
             source_type = _read_metadata_source_type(sid)
             batch = []
             for record in _iter_jsonl(jsonl):
