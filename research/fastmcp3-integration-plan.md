@@ -1,7 +1,12 @@
 ---
 title: FastMCP 3 Integration Plan — All MCP Repos
 date: 2026-04-03
+status: shipped (FastMCP 3.2.0 across 6 servers)
+watch:
+  - "MCP 2026-07-28 Release Candidate (announced 2026-05-21) — protocol going STATELESS (drops session model), formalizes Extensions/Apps/Tasks, OAuth+OIDC realignment, 22 SEPs. Breaking change for any session-stateful server. See research/2026-05-27-tool-use-mcp-4w.md."
 ---
+
+> **[WATCH 2026-05-27]** MCP 2026-07-28 Release Candidate (announced 2026-05-21) is the largest spec revision since launch. The protocol is going **stateless** — drops the session model, formalizes Extensions/Apps/Tasks, realigns OAuth+OIDC, 22 SEPs. **Breaking change for session-stateful servers.** Do NOT design new servers around session lifecycle assumptions. Re-evaluate this integration plan after the spec finalizes. Source: `research/2026-05-27-tool-use-mcp-4w.md`.
 
 # FastMCP 3 Integration Plan — All MCP Repos
 
@@ -422,9 +427,11 @@ mcp = FastMCP("server", providers=[FileSystemProvider(Path("./tools/"))])
 ```
 
 <!-- knowledge-index
-generated: 2026-04-03T19:27:55Z
-hash: a5066b83bde0
+generated: 2026-05-27T10:52:26Z
+hash: d7306e555764
 
-title: FastMCP 3 Integration Plan — All MCP Repos
+index:title: FastMCP 3 Integration Plan — All MCP Repos
+index:status: shipped (FastMCP 3.2.0 across 6 servers)
+cross_refs: research/2026-05-27-tool-use-mcp-4w.md
 
 end-knowledge-index -->
