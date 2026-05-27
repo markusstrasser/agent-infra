@@ -31,7 +31,8 @@ from .identity import (
     annotation_stable_tuple,
     canonical_json,
 )
-from .store import paper_path  # use the canonical-store path helper
+from .schema_version import SchemaVersionMismatch, verify_graph_schema
+from .store import graph_db_path, paper_path  # use the canonical-store path helpers
 from .uri import KNOWN_PROJECT_SCHEMES
 
 # ---------------------------------------------------------------------------
@@ -293,11 +294,19 @@ def annotate(
     payload = _serialize_record(record)
     _atomic_append(_annotations_path(source_id), payload)
 
+    # Phase G0 preflight: raise loudly on schema skew BEFORE attempting the
+    # projection. SchemaVersionMismatch must propagate — the bare-Exception
+    # swallow below is for transient DB errors that the rebuild script can
+    # backfill, not for permanent version-skew that needs operator action.
+    verify_graph_schema(graph_db_path())
+
     # Phase 2 projection: best-effort insert into graph.duckdb. JSONL is the
     # source of truth — DB failure logs and continues; rebuild catches up.
     try:
         from .index import index_annotation
         index_annotation(record)
+    except SchemaVersionMismatch:
+        raise
     except Exception:  # pragma: no cover — never break a JSONL append
         pass
 
