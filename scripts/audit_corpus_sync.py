@@ -127,16 +127,36 @@ def _drain_repo_outbox(repo: str, db_path: Path) -> dict[str, int]:
         return out
     try:
         try:
-            rows = con_ro.execute(
-                """
-                SELECT verdict_id, canonical_source_id, actor_type, actor_id,
-                       output_uri, output_hash, prompt_template_hash,
-                       asserted_at, retry_count
-                FROM pending_corpus_attestations
-                WHERE status = 'pending'
-                LIMIT 1000
-                """
-            ).fetchall()
+            # Lifecycle columns (annotation_status, supersedes_annotation_id)
+            # may not exist on repos that haven't migrated yet (only genomics
+            # at the time substrate v2 deferred-items plan landed). Use
+            # COALESCE-on-missing pattern via two-step query: try the full
+            # SELECT first, fall back to the legacy shape if columns are
+            # absent. Mapped to defaults at emit time.
+            try:
+                rows = con_ro.execute(
+                    """
+                    SELECT verdict_id, canonical_source_id, actor_type, actor_id,
+                           output_uri, output_hash, prompt_template_hash,
+                           asserted_at, retry_count,
+                           annotation_status, supersedes_annotation_id
+                    FROM pending_corpus_attestations
+                    WHERE status = 'pending'
+                    LIMIT 1000
+                    """
+                ).fetchall()
+            except duckdb.BinderException:
+                legacy_rows = con_ro.execute(
+                    """
+                    SELECT verdict_id, canonical_source_id, actor_type, actor_id,
+                           output_uri, output_hash, prompt_template_hash,
+                           asserted_at, retry_count
+                    FROM pending_corpus_attestations
+                    WHERE status = 'pending'
+                    LIMIT 1000
+                    """
+                ).fetchall()
+                rows = [(*r, "active", None) for r in legacy_rows]
         except (duckdb.BinderException, duckdb.CatalogException):
             out["no_table"] = 1
             return out
@@ -162,6 +182,7 @@ def _drain_repo_outbox(repo: str, db_path: Path) -> dict[str, int]:
     for (
         verdict_id, canon, actor_type, actor_id, output_uri,
         output_hash, prompt_template_hash, asserted_at, retry_count,
+        annotation_status, supersedes_annotation_id,
     ) in rows:
         try:
             paper_path(canon).mkdir(parents=True, exist_ok=True)
@@ -169,6 +190,8 @@ def _drain_repo_outbox(repo: str, db_path: Path) -> dict[str, int]:
                 canon, repo=repo, actor_type=actor_type, actor_id=actor_id,
                 scope="verdict", output_uri=output_uri, output_hash=output_hash,
                 prompt_template_hash=prompt_template_hash, asserted_at=asserted_at,
+                status=annotation_status or "active",
+                supersedes_annotation_id=supersedes_annotation_id,
             )
             successes.append((verdict_id, canon))
         except (OSError, AnnotationError, duckdb.IOException) as exc:
