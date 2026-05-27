@@ -11,6 +11,15 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | File | Topic | Consult before |
 |------|-------|----------------|
 | `2026-04-25-tool-attention-and-skill-bank.md` | Tool Attention + Co-Evolving Skill Bank — Two papers from arxiv week of 2026-... | TODO |
+| `2026-05-27-llm-agentic-4w-compiled-brief.md` | LLM & Agentic Frontier — 4-Week Compiled Brief (pulls from 8 axis memos below) | Any "what's new in LLM/agentic land" question; start here before per-axis memos |
+| `2026-05-27-frontier-model-releases-delta-4w.md` | Frontier model releases delta (DeepSeek V4-Pro -75%, Gemini 3.5 Flash, Qwen 3.7 Max) | Pricing decisions; choosing default models; vendor cost comparisons |
+| `2026-05-27-rl-post-training-4w.md` | RL post-training delta — PRM orthodoxy fracturing, Anthropic Model Spec Midtraining | Proposing PRMs; designing verifier loops; alignment-by-training proposals |
+| `2026-05-27-long-context-memory-4w.md` | Long-context & memory — Opus 4.7 holds at 1M multi-hop; BM25 beats most memory systems | 1M context jobs; agent memory architecture choices; retrieval-vs-long-context |
+| `2026-05-27-agentic-coding-swe-4w.md` | Agentic coding & SWE — SWE-bench inflation, Claude Code v2.1.139, HiL-Bench | Extending dashboard/orchestrator; SWE benchmarking; epistemic-discipline hooks |
+| `2026-05-27-multi-agent-coordination-4w.md` | Multi-agent — "more agents helps" claim flipped; asymmetric primary+sub-task wins | ANY multi-agent design; debate/consensus proposals; CORAL-pattern questions |
+| `2026-05-27-reasoning-cot-process-supervision-4w.md` | Reasoning/CoT — post-answer confabulation 58%; reasoning-helps-tool-use broken | Trace-faithfulness checks; thinking-budget defaults; tool routing with reasoning |
+| `2026-05-27-agent-safety-alignment-4w.md` | Safety/alignment — METR ≥16% cheating; Opus 4.7 sycophancy halved; Exploration Hacking | Capability evals; sycophancy mitigation; sandboxing/control proposals |
+| `2026-05-27-tool-use-mcp-4w.md` | Tool use/MCP — MCP 2026-07-28 RC (breaking, stateless); MCP-Atlas; OSWorld-Verified | MCP server work; fastmcp3-integration-plan; CUA/browser-agent decisions |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
 | `adversarial-case-library.md` | Adversarial Case Library: The Best "Calling BS" Reviews | TODO |
 | `agent-behavior-refresh-2026-04.md` | Agent Behavior Delta — Memory, Self-Modification, Sycophancy | TODO |
