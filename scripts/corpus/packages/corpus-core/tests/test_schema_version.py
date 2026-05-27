@@ -140,6 +140,52 @@ def test_bootstrap_missing_db_returns_false(tmp_path):
     assert bootstrap_db(tmp_path / "nope.duckdb", artifact="graph") is False
 
 
+def test_g2_outbox_at_low_version_raises_informative(tmp_path):
+    """Phase G2: stale outbox DB at v1.2.0 (no valid_from) raises
+    SchemaVersionMismatch (NOT bare BinderException). The G0 preflight
+    catches this before any SELECT touches the missing column.
+    """
+    db = tmp_path / "stale-outbox.duckdb"
+    con = duckdb.connect(str(db))
+    # Hand-craft a v1.2.0 outbox: composite-PK + lifecycle, NO valid_from.
+    con.execute(SCHEMA_META_DDL)
+    bump_schema(
+        con,
+        artifact="outbox",
+        new_version="1.2.0",
+        min_reader="1.2.0",
+        min_writer="1.2.0",
+        notes="composite-PK + lifecycle (pre-valid_from)",
+    )
+    con.execute(
+        """
+        CREATE TABLE pending_corpus_attestations (
+            verdict_id VARCHAR NOT NULL,
+            canonical_source_id VARCHAR NOT NULL,
+            actor_type VARCHAR NOT NULL,
+            actor_id VARCHAR NOT NULL,
+            output_uri VARCHAR NOT NULL,
+            output_hash VARCHAR,
+            prompt_template_hash VARCHAR,
+            asserted_at TIMESTAMP NOT NULL,
+            queued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            retry_count INTEGER DEFAULT 0,
+            last_error VARCHAR,
+            status VARCHAR DEFAULT 'pending',
+            annotation_status VARCHAR DEFAULT 'active',
+            supersedes_annotation_id VARCHAR,
+            PRIMARY KEY (verdict_id, canonical_source_id)
+        )
+        """
+    )
+    con.close()
+
+    with pytest.raises(SchemaVersionMismatch) as exc:
+        verify_outbox_schema(db)
+    assert exc.value.found == "1.2.0"
+    assert "bootstrap-schema-meta" in exc.value.migration_cmd
+
+
 def test_bump_schema_overwrites(tmp_path):
     db = tmp_path / "graph.duckdb"
     con = duckdb.connect(str(db))
