@@ -205,10 +205,12 @@ def _read_corpus_annotations() -> list[dict[str, Any]]:
     placeholders = ",".join(["?"] * len(scopes))
     con = duckdb.connect(str(CORPUS_GRAPH_DB), read_only=True)
     try:
+        # Phase A: read annotations_current (chain-aware view) so
+        # superseded attestations don't inflate the drift count.
         rows = con.execute(
             "SELECT annotation_id, source_id, repo, output_uri, output_hash, "
             "       recorded_at, scope "
-            f"FROM annotations WHERE scope IN ({placeholders})",
+            f"FROM annotations_current WHERE scope IN ({placeholders})",
             scopes,
         ).fetchall()
     finally:

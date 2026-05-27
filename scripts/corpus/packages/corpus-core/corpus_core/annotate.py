@@ -185,6 +185,7 @@ def annotate(
     supersedes_annotation_id: str | None = None,
     status: Status = "active",
     asserted_at: datetime | str | None = None,
+    valid_from: datetime | str | None = None,
 ) -> str:
     """Append one annotation to ~/Projects/corpus/<source_id>/annotations.jsonl.
 
@@ -241,17 +242,26 @@ def annotate(
         return annotation_id
 
     # Time stamps.
+    def _to_iso_z(v: datetime | str) -> str:
+        if isinstance(v, datetime):
+            if v.tzinfo is None:
+                v = v.replace(tzinfo=timezone.utc)
+            return v.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return v  # caller-provided ISO string
+
     if asserted_at is None:
         asserted_at_iso = _utc_now_iso()
-    elif isinstance(asserted_at, datetime):
-        if asserted_at.tzinfo is None:
-            asserted_at = asserted_at.replace(tzinfo=timezone.utc)
-        asserted_at_iso = asserted_at.astimezone(timezone.utc).strftime(
-            "%Y-%m-%dT%H:%M:%SZ"
-        )
     else:
-        asserted_at_iso = asserted_at  # caller-provided ISO string
+        asserted_at_iso = _to_iso_z(asserted_at)
     recorded_at_iso = _utc_now_iso()
+    # Phase A: informational bitemporal field. Defaults to asserted_at
+    # so writers that don't care about world-time vs. record-time get
+    # a sensible value, while writers that DO care (verdicts coming
+    # from a published-on-2026-01-01 paper) can pass it explicitly.
+    if valid_from is None:
+        valid_from_iso = asserted_at_iso
+    else:
+        valid_from_iso = _to_iso_z(valid_from)
 
     # Build the record.
     record: dict[str, Any] = {
@@ -280,6 +290,9 @@ def annotate(
         record["source_content_hash"] = source_content_hash
     if supersedes_annotation_id is not None:
         record["supersedes_annotation_id"] = supersedes_annotation_id
+    # Phase A: emit valid_from to JSONL. NOT in stable_tuple — does
+    # not mutate annotation_id (idempotency preserved on replay).
+    record["valid_from"] = valid_from_iso
     if output_uri or output_hash or output_size_bytes is not None:
         result: dict[str, Any] = {}
         if output_uri is not None:

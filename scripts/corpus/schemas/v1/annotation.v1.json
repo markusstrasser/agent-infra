@@ -126,6 +126,16 @@
       "type": "string",
       "enum": ["active", "superseded", "retracted"],
       "default": "active"
+    },
+    "valid_from": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Phase A: world-time the assertion becomes valid (bitemporal). Informational; defaults to asserted_at when the writer omits. NOT part of annotation_stable_tuple — adding it does not mutate annotation_id."
+    },
+    "canonicalize_version": {
+      "type": ["string", "null"],
+      "enum": ["legacy", "v1", null],
+      "description": "Phase F sidecar: which canonical_json form was used to derive annotation_id. Absent (= legacy) for all historical records; v1 only on new records that opted into NFC + pinned-timestamp canonicalization. NOT part of annotation_stable_tuple."
     }
   }
 }

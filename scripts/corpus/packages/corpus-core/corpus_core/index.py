@@ -36,6 +36,7 @@ _COLS = (
     "asserted_at",
     "recorded_at",
     "schema_version",
+    "valid_from",
 )
 
 
@@ -72,6 +73,9 @@ def _row_from_record(record: dict[str, Any], *, source_type: Optional[str]) -> t
         record["asserted_at"],
         record["recorded_at"],
         record["schema_version"],
+        # Phase A: valid_from is informational; pre-A records lack it,
+        # so we fall back to asserted_at (matches the annotate() default).
+        record.get("valid_from") or record["asserted_at"],
     )
 
 

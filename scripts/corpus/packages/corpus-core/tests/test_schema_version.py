@@ -33,7 +33,11 @@ def test_verify_pre_g0_db_raises_informative(tmp_path):
     db_path, artifact, expected/found, migration_cmd."""
     db = tmp_path / "legacy-graph.duckdb"
     con = duckdb.connect(str(db))
-    con.execute("CREATE TABLE annotations (annotation_id VARCHAR PRIMARY KEY)")
+    con.execute(
+        "CREATE TABLE annotations ("
+        "annotation_id VARCHAR PRIMARY KEY, "
+        "asserted_at TIMESTAMP)"
+    )
     con.close()
 
     with pytest.raises(SchemaVersionMismatch) as exc_info:
@@ -92,15 +96,43 @@ def test_outbox_preflight_symmetric(tmp_path):
 
 
 def test_bootstrap_db_idempotent(tmp_path):
-    """First call seeds (True); second call no-ops (False)."""
+    """First call seeds + bumps (True); second call no-ops (False).
+    Uses the realistic pre-Phase-A annotations shape (all v1 columns
+    minus valid_from) so the bootstrap ALTER + UPDATE paths exercise
+    correctly. Schema_sql's CREATE TABLE IF NOT EXISTS is a no-op for
+    the existing table; the migration tail handles the upgrade."""
     db = tmp_path / "graph.duckdb"
     con = duckdb.connect(str(db))
-    con.execute("CREATE TABLE annotations (annotation_id VARCHAR PRIMARY KEY)")
+    # Realistic pre-Phase-A substrate-v1 annotations table — the same
+    # shape that existed before this commit landed.
+    con.execute(
+        """
+        CREATE TABLE annotations (
+            annotation_id            VARCHAR PRIMARY KEY,
+            source_id                VARCHAR NOT NULL,
+            source_type              VARCHAR,
+            repo                     VARCHAR NOT NULL,
+            actor_type               VARCHAR NOT NULL,
+            actor_id                 VARCHAR NOT NULL,
+            scope                    VARCHAR NOT NULL,
+            tool                     VARCHAR,
+            prompt_template_hash     VARCHAR,
+            output_uri               VARCHAR,
+            output_hash              VARCHAR,
+            source_content_hash      VARCHAR,
+            supersedes_annotation_id VARCHAR,
+            status                   VARCHAR NOT NULL,
+            asserted_at              TIMESTAMP NOT NULL,
+            recorded_at              TIMESTAMP NOT NULL,
+            schema_version           VARCHAR NOT NULL
+        )
+        """
+    )
     con.close()
 
     assert bootstrap_db(db, artifact="graph") is True
     assert bootstrap_db(db, artifact="graph") is False
-    # Now verify passes.
+    # Now verify passes — preflight finds 1.1.0, expects 1.1.0.
     verify_graph_schema(db)
 
 
