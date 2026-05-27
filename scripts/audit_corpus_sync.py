@@ -152,7 +152,7 @@ def _ensure_corpus_core_importable() -> None:
         sys.path.insert(0, cc_path)
 
 
-def _drain_repo_outbox(src: dict[str, Any]) -> dict[str, int]:
+def _drain_repo_outbox(src: dict[str, Any]) -> dict[str, Any]:
     """Drain a per-repo outbox via corpus_core.outbox.drain (substrate-v2
     shared primitive). Lock-friendly drain owns its own connection pair —
     RO fetch, unlocked FS IO, RW DELETE/UPDATE. Drain stats normalized to
@@ -161,16 +161,23 @@ def _drain_repo_outbox(src: dict[str, Any]) -> dict[str, int]:
     Per-repo config (scope, natural_key_cols) comes from VERDICTS_SOURCES,
     not hardcoded — close-review #14/#21 resolution. Adding a new repo
     means appending one dict to VERDICTS_SOURCES.
+
+    Phase C: includes drain_seconds_last (single-sample latency) so the
+    Stop hook can surface "drain ran slow this time." NOT a rolling
+    percentile — N=1 honest measurement, not fake p95 from one sample.
     """
+    import time
     _ensure_corpus_core_importable()
     from corpus_core.outbox import drain
 
+    t0 = time.monotonic()
     stats = drain(
         src["db_path"],
         repo=src["repo"],
         scope=src["scope"],
         natural_key_cols=src["natural_key_cols"],
     )
+    drain_seconds = time.monotonic() - t0
     return {
         "flushed": stats.flushed,
         "retried": stats.retried,
@@ -181,6 +188,8 @@ def _drain_repo_outbox(src: dict[str, Any]) -> dict[str, int]:
         # consumer downstream only cares about positive activity counts.
         "no_table": 0,
         "skipped_locked": 0,
+        # Phase C: single-sample latency for the Stop hook.
+        "drain_seconds_last": round(drain_seconds, 3),
     }
 
 
