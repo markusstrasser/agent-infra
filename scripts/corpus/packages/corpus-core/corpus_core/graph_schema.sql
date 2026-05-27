@@ -121,6 +121,32 @@ ON CONFLICT (artifact) DO UPDATE SET
     notes                = EXCLUDED.notes,
     updated_at           = now();
 
+-- Phase B: cross-repo source identity crosswalk. Maps repo-local
+-- identifiers (intel filing UUIDs, phenome doc_ids, …) to canonical
+-- corpus source_ids (doi_*, pmid_*, sha_*).
+--
+-- Composite PK includes link_type so the same (repo, local_id, corpus_id)
+-- triple can carry both 'mainEntityOfPage' (filing is the surface) AND
+-- 'cites' (filing cites this paper) if both apply — Schema.org typed
+-- linkage avoids the owl:sameAs identity-confusion problem (Raad et al.).
+CREATE TABLE IF NOT EXISTS source_identity_crosswalk (
+    repo                 VARCHAR NOT NULL,
+    repo_local_id        VARCHAR NOT NULL,
+    corpus_source_id     VARCHAR NOT NULL,
+    link_type            VARCHAR NOT NULL  -- NO DEFAULT; caller specifies
+        CHECK (link_type IN ('sameAs', 'mainEntityOfPage', 'about',
+                             'subjectOf', 'cites', 'derivedFrom')),
+    confidence           VARCHAR NOT NULL DEFAULT 'asserted'
+        CHECK (confidence IN ('asserted', 'inferred', 'unverified')),
+    asserted_by          VARCHAR NOT NULL,
+    asserted_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (repo, repo_local_id, corpus_source_id, link_type)
+);
+CREATE INDEX IF NOT EXISTS idx_crosswalk_corpus
+    ON source_identity_crosswalk(corpus_source_id);
+CREATE INDEX IF NOT EXISTS idx_crosswalk_local
+    ON source_identity_crosswalk(repo, repo_local_id);
+
 -- Connected-Papers-style similarity views (no embeddings; pure graph).
 CREATE VIEW IF NOT EXISTS co_citation_pairs AS
   SELECT e1.cited_paper_id AS paper_a,
