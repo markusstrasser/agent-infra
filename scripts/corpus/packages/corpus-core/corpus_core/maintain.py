@@ -337,6 +337,13 @@ def add_cli(subparsers: argparse._SubParsersAction) -> None:
         default=[],
         help="Outbox DB path for --bootstrap-schema-meta (repeatable)",
     )
+    p.add_argument(
+        "--verify-replay",
+        action="store_true",
+        help="Phase F: rebuild graph.duckdb from JSONL into a temp DB "
+             "and compare against the live DB column-by-column. Exits "
+             "non-zero on any drift.",
+    )
     p.set_defaults(func=_cmd_maintain)
 
 
@@ -375,19 +382,36 @@ def cmd_bootstrap_schema_meta(args) -> int:
     return rc
 
 
+def cmd_verify_replay(args) -> int:
+    """Phase F: replay JSONL into a fresh DB, diff against the live one."""
+    from .replay import verify_replay_matches_current
+
+    diff = verify_replay_matches_current()
+    d = diff.as_dict()
+    print(
+        f"replay-verify  matched={d['matched']}  "
+        f"missing_in_replay={d['missing_in_replay']}  "
+        f"extra_in_replay={d['extra_in_replay']}  "
+        f"mismatched={d['mismatched']}"
+    )
+    return 0 if diff.is_clean() else 1
+
+
 def _cmd_maintain(args) -> int:
     args._rebuild_ran_this_invocation = False
     if not any([args.verify, args.rebuild_indexes, args.rebuild_citances,
                 args.rebuild_graph, args.rebuild_annotations_index,
-                args.gc, args.bootstrap_schema_meta]):
+                args.gc, args.bootstrap_schema_meta, args.verify_replay]):
         print("specify one of --verify --rebuild-indexes --rebuild-citances "
               "--rebuild-graph --rebuild-annotations-index --gc "
-              "--bootstrap-schema-meta",
+              "--bootstrap-schema-meta --verify-replay",
               file=sys.stderr)
         return 2
     rc = 0
     if args.bootstrap_schema_meta:
         rc = max(rc, cmd_bootstrap_schema_meta(args))
+    if args.verify_replay:
+        rc = max(rc, cmd_verify_replay(args))
     if args.verify:
         rc = max(rc, cmd_verify(args))
     if args.rebuild_indexes:
