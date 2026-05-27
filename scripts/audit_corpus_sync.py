@@ -40,18 +40,21 @@ PROJECTS_ROOT = Path.home() / "Projects"
 CORPUS_ROOT = Path.home() / "Projects" / "corpus"
 CORPUS_GRAPH_DB = CORPUS_ROOT / "graph.duckdb"
 
-# Each per-repo verdicts source is a (repo_name, db_path, sql) triple.
-# The SQL must yield (verdict_id, source_id) rows. Phase 5/6 will normalize
-# source_id forms across all three repos.
-# Each per-repo verdicts source yields (verdict_id, source_id, output_hash)
-# triples. The audit covers a verdict if the corpus carries an annotation
-# whose (source_id, output_hash) matches the verdict's pair — idempotent
-# annotations collapse when multiple verdicts share a projection, so 1:1
-# verdict_id ↔ output_uri matching undercounts coverage.
+# Each per-repo verdicts source declares:
+#   repo     — corpus_core.uri scheme + audit grouping key
+#   db_path  — DuckDB containing the domain tables AND the outbox
+#   scope    — corpus annotation scope (close-review #14: per-repo, not hardcoded)
+#   natural_key_cols — outbox PK shape for that repo (close-review #21)
+#   sql      — query producing (entity_id, source_id, output_hash) triples
+#              for the verdicts↔annotations drift report. Missing-table is
+#              tolerated (BinderException-swallowed); repos that don't write
+#              the domain table yet appear as verdicts=0.
 VERDICTS_SOURCES: list[dict[str, Any]] = [
     {
         "repo": "genomics",
         "db_path": PROJECTS_ROOT / "genomics" / "data" / "knowledge" / "knowledge.duckdb",
+        "scope": "verdict",
+        "natural_key_cols": ("verdict_id",),
         "sql": """
             SELECT cv.verdict_id,
                    (SELECT so.canonical_source_id
@@ -67,14 +70,24 @@ VERDICTS_SOURCES: list[dict[str, Any]] = [
     {
         "repo": "phenome",
         "db_path": PROJECTS_ROOT / "phenome" / "indexed" / "claims.duckdb",
-        # Phenome's verdict surface is the cert stack. Until phenome-mcp
-        # stands up record_verdict, this query is a placeholder — missing-
-        # table is tolerated by the audit.
+        "scope": "cert_event",
+        "natural_key_cols": ("cert_event_id",),
+        # Phenome's verdict surface is the cert stack. Until phenome's
+        # gateway INSERT site is wired into the outbox (Phase 3), this
+        # query references a table that may not exist — missing-table is
+        # tolerated; the audit reports verdicts=0 for phenome.
         "sql": "SELECT cert_id AS verdict_id, '' AS source_id, '' AS output_hash FROM cert_attestations",
     },
     {
         "repo": "intel",
         "db_path": PROJECTS_ROOT / "intel" / "intel" / "indexed" / "theses.duckdb",
+        # Intel's source-id namespace doesn't yet align with corpus's slug
+        # shape (filings_and_datasets.filing_or_dataset_id is a UUID, not
+        # doi_*/pmid_*/db_*). Phase 4 of the substrate-v2-deferred plan was
+        # STOPed at preflight for this reason. The scope/natural_key entries
+        # are placeholders for when the alignment lands.
+        "scope": "contradiction_resolution",
+        "natural_key_cols": ("contradiction_event_id",),
         "sql": "SELECT verdict_id, '' AS source_id, '' AS output_hash FROM claim_verdicts",
     },
 ]
@@ -105,150 +118,56 @@ def _read_verdicts(repo: str, db_path: Path, sql: str) -> list[tuple[str, str, s
         con.close()
 
 
-def _drain_repo_outbox(repo: str, db_path: Path) -> dict[str, int]:
-    """Drain pending_corpus_attestations for a repo. Returns counts:
-    {flushed, retried, abandoned, no_table, skipped_locked}.
-
-    Lock-friendly: opens read-only first to fetch pending rows, releases,
-    performs filesystem IO outside any DuckDB lock, then re-opens write
-    only briefly per row to DELETE/UPDATE. Critique #13 fix — prior
-    implementation held the writer lock for the full O(N) corpus IO loop,
-    blocking concurrent gateway drains.
-    """
-    out = {"flushed": 0, "retried": 0, "abandoned": 0, "no_table": 0, "skipped_locked": 0}
-    if not db_path.exists():
-        out["no_table"] = 1
-        return out
-    # Phase 1: read-only fetch of pending rows (lock-free).
-    try:
-        con_ro = duckdb.connect(str(db_path), read_only=True)
-    except duckdb.IOException:
-        out["skipped_locked"] = 1
-        return out
-    try:
-        try:
-            # Lifecycle columns (annotation_status, supersedes_annotation_id)
-            # may not exist on repos that haven't migrated yet (only genomics
-            # at the time substrate v2 deferred-items plan landed). Use
-            # COALESCE-on-missing pattern via two-step query: try the full
-            # SELECT first, fall back to the legacy shape if columns are
-            # absent. Mapped to defaults at emit time.
-            try:
-                rows = con_ro.execute(
-                    """
-                    SELECT verdict_id, canonical_source_id, actor_type, actor_id,
-                           output_uri, output_hash, prompt_template_hash,
-                           asserted_at, retry_count,
-                           annotation_status, supersedes_annotation_id
-                    FROM pending_corpus_attestations
-                    WHERE status = 'pending'
-                    LIMIT 1000
-                    """
-                ).fetchall()
-            except duckdb.BinderException:
-                legacy_rows = con_ro.execute(
-                    """
-                    SELECT verdict_id, canonical_source_id, actor_type, actor_id,
-                           output_uri, output_hash, prompt_template_hash,
-                           asserted_at, retry_count
-                    FROM pending_corpus_attestations
-                    WHERE status = 'pending'
-                    LIMIT 1000
-                    """
-                ).fetchall()
-                rows = [(*r, "active", None) for r in legacy_rows]
-        except (duckdb.BinderException, duckdb.CatalogException):
-            out["no_table"] = 1
-            return out
-    finally:
-        con_ro.close()
-    if not rows:
-        return out
-
-    # Phase 2: FS IO with NO DuckDB lock held. Lazy import — only the
-    # drain path needs corpus_core; keep audit importable in environments
-    # without the package installed.
+def _ensure_corpus_core_importable() -> None:
+    """corpus_core is an editable install in this monorepo. The audit script
+    can run from cron / launchd / a thin venv that doesn't have it on
+    sys.path; prepend the package dir so the import resolves."""
     cc_path = str(
         Path.home() / "Projects" / "agent-infra" / "scripts" / "corpus" / "packages" / "corpus-core"
     )
     if cc_path not in sys.path:
         sys.path.insert(0, cc_path)
-    from corpus_core.annotate import AnnotationError, annotate as _annotate
-    from corpus_core.store import paper_path
 
-    # Collect successes/failures; apply DB writes in Phase 3.
-    successes: list[tuple[str, str]] = []  # (verdict_id, canon)
-    failures: list[tuple[str, str, int, str]] = []  # (vid, canon, new_retry, err)
-    for (
-        verdict_id, canon, actor_type, actor_id, output_uri,
-        output_hash, prompt_template_hash, asserted_at, retry_count,
-        annotation_status, supersedes_annotation_id,
-    ) in rows:
-        try:
-            paper_path(canon).mkdir(parents=True, exist_ok=True)
-            _annotate(
-                canon, repo=repo, actor_type=actor_type, actor_id=actor_id,
-                scope="verdict", output_uri=output_uri, output_hash=output_hash,
-                prompt_template_hash=prompt_template_hash, asserted_at=asserted_at,
-                status=annotation_status or "active",
-                supersedes_annotation_id=supersedes_annotation_id,
-            )
-            successes.append((verdict_id, canon))
-        except (OSError, AnnotationError, duckdb.IOException) as exc:
-            failures.append((verdict_id, canon, retry_count + 1, str(exc)[:500]))
 
-    # Phase 3: short write-locked transaction to apply DELETEs and UPDATEs.
-    try:
-        con_rw = duckdb.connect(str(db_path), read_only=False)
-    except duckdb.IOException:
-        # We did the FS IO but can't record it. Next audit cycle re-fetches
-        # the same rows — annotate is idempotent so re-emit is a no-op.
-        # The DB hasn't been updated; rows stay as 'pending'.
-        out["skipped_locked"] = 1
-        return out
-    try:
-        for verdict_id, canon in successes:
-            con_rw.execute(
-                """DELETE FROM pending_corpus_attestations
-                   WHERE verdict_id = ? AND canonical_source_id = ?""",
-                [verdict_id, canon],
-            )
-            out["flushed"] += 1
-        for verdict_id, canon, new_retry, err in failures:
-            new_status = "abandoned" if new_retry >= 3 else "pending"
-            con_rw.execute(
-                """UPDATE pending_corpus_attestations
-                   SET retry_count = ?, last_error = ?, status = ?
-                   WHERE verdict_id = ? AND canonical_source_id = ?""",
-                [new_retry, err, new_status, verdict_id, canon],
-            )
-            if new_status == "abandoned":
-                out["abandoned"] += 1
-            else:
-                out["retried"] += 1
-    finally:
-        con_rw.close()
-    return out
+def _drain_repo_outbox(src: dict[str, Any]) -> dict[str, int]:
+    """Drain a per-repo outbox via corpus_core.outbox.drain (substrate-v2
+    shared primitive). Lock-friendly drain owns its own connection pair —
+    RO fetch, unlocked FS IO, RW DELETE/UPDATE. Drain stats normalized to
+    the audit's existing reporting shape.
+
+    Per-repo config (scope, natural_key_cols) comes from VERDICTS_SOURCES,
+    not hardcoded — close-review #14/#21 resolution. Adding a new repo
+    means appending one dict to VERDICTS_SOURCES.
+    """
+    _ensure_corpus_core_importable()
+    from corpus_core.outbox import drain
+
+    stats = drain(
+        src["db_path"],
+        repo=src["repo"],
+        scope=src["scope"],
+        natural_key_cols=src["natural_key_cols"],
+    )
+    return {
+        "flushed": stats.flushed,
+        "retried": stats.retried,
+        "abandoned": stats.abandoned,
+        # `no_table` / `skipped_locked` flags were used by the prior bespoke
+        # drainer to distinguish steady-state cases from active progress.
+        # The shared drain treats both as "drained zero rows"; the audit
+        # consumer downstream only cares about positive activity counts.
+        "no_table": 0,
+        "skipped_locked": 0,
+    }
 
 
 def _abandoned_count(db_path: Path) -> int:
-    """How many rows are stuck in status='abandoned' (need human triage)."""
-    if not db_path.exists():
-        return 0
-    try:
-        con = duckdb.connect(str(db_path), read_only=True)
-    except duckdb.IOException:
-        return 0
-    try:
-        try:
-            row = con.execute(
-                "SELECT COUNT(*) FROM pending_corpus_attestations WHERE status = 'abandoned'"
-            ).fetchone()
-            return int(row[0]) if row else 0
-        except (duckdb.BinderException, duckdb.CatalogException):
-            return 0
-    finally:
-        con.close()
+    """Delegate to corpus_core.outbox.abandoned_count — graceful on missing
+    DB / missing table / locked DB."""
+    _ensure_corpus_core_importable()
+    from corpus_core.outbox import abandoned_count
+
+    return abandoned_count(db_path)
 
 
 def _read_corpus_annotations() -> list[dict[str, Any]]:
@@ -356,10 +275,7 @@ def audit() -> dict[str, Any]:
 def drain_all() -> dict[str, dict[str, int]]:
     """Drain pending_corpus_attestations across all repos with the outbox.
     Returns {repo: {flushed, retried, abandoned, no_table, skipped_locked}}."""
-    return {
-        src["repo"]: _drain_repo_outbox(src["repo"], src["db_path"])
-        for src in VERDICTS_SOURCES
-    }
+    return {src["repo"]: _drain_repo_outbox(src) for src in VERDICTS_SOURCES}
 
 
 def main(argv: list[str] | None = None) -> int:
