@@ -16,7 +16,13 @@ GRAPH_DB="${CORPUS_GRAPH_DB:-$HOME/Projects/corpus/graph.duckdb}"
 # v6 (per v5 critique #8): filter holders by process command. Only SIGTERM
 # known agent/MCP infrastructure. Human dev tools (duckdb shell, DBeaver,
 # IDE introspection) get a warning and abort — NEVER blind-killed.
-AGENT_PATTERNS='corpus_mcp|corpus_core|audit_corpus_sync|drain|outbox'
+#
+# Plan-close finding #10 (CONFIRMED): patterns tightened with word
+# boundaries to avoid matching unrelated shells whose path contains a
+# substring like 'outbox' or 'drain'. Each pattern now requires either
+# a .py extension, a /-separated path component, or a uvx-style
+# invocation suffix.
+AGENT_PATTERNS='(corpus_mcp\.py|corpus_core/|audit_corpus_sync\.py|/drain[._/]|/outbox[._/])'
 
 # 1. Get ALL holders via kernel fcntl (robust across container/user boundaries).
 ALL_HOLDERS=$(lsof -t "$GRAPH_DB" 2>/dev/null || true)

@@ -106,10 +106,13 @@ WHERE NOT EXISTS (
     WHERE s.supersedes_annotation_id = a.annotation_id
 );
 
--- Phase A bumps the graph artifact to 1.1.0. Bump via ON CONFLICT DO UPDATE
--- so a v1.1.0 client connecting to a v1.0.0-seeded DB cleanly advances the
--- meta row. A v1.0.0 client cannot do this — its schema_sql carries the
--- v1.0.0 seed which uses DO NOTHING.
+-- Phase A bumps the graph artifact to 1.1.0. Bump is MONOTONIC: WHERE
+-- guard on EXCLUDED.schema_version > existing prevents an older client
+-- (running an older schema_sql) from silently downgrading the meta row
+-- on a newer DB (plan-close finding #1 — CONFIRMED).
+--
+-- String compare assumes single-digit minor.patch — adequate through
+-- 1.9.x. If we ever cross 1.10.0, switch to a function-based compare.
 INSERT INTO corpus_schema_meta
     (artifact, schema_version, min_reader_version, min_writer_version, notes, updated_at)
 VALUES ('graph', '1.1.0', '1.1.0', '1.1.0',
@@ -119,7 +122,8 @@ ON CONFLICT (artifact) DO UPDATE SET
     min_reader_version   = EXCLUDED.min_reader_version,
     min_writer_version   = EXCLUDED.min_writer_version,
     notes                = EXCLUDED.notes,
-    updated_at           = now();
+    updated_at           = now()
+WHERE EXCLUDED.schema_version > corpus_schema_meta.schema_version;
 
 -- Phase B: cross-repo source identity crosswalk. Maps repo-local
 -- identifiers (intel filing UUIDs, phenome doc_ids, …) to canonical

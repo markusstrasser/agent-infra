@@ -186,6 +186,42 @@ def test_g2_outbox_at_low_version_raises_informative(tmp_path):
     assert "bootstrap-schema-meta" in exc.value.migration_cmd
 
 
+def test_close_review_finding_1_no_silent_downgrade(tmp_path):
+    """Plan-close review #1 (CONFIRMED): an OLD client running an OLD
+    schema_sql script should NOT downgrade the meta row from a NEWER
+    DB version.
+
+    Caught-red-handed: pre-fix, calling bump_schema with new_version
+    LOWER than the existing version overwrote. Post-fix, bump_schema
+    refuses to go backwards.
+    """
+    db = tmp_path / "graph.duckdb"
+    con = duckdb.connect(str(db))
+    seed_graph_meta(con)
+    bump_schema(
+        con,
+        artifact="graph",
+        new_version="1.1.0",
+        min_reader="1.1.0",
+        min_writer="1.1.0",
+        notes="+valid_from",
+    )
+    # Attempt to downgrade to 1.0.0 — should be REJECTED (no-op).
+    bump_schema(
+        con,
+        artifact="graph",
+        new_version="1.0.0",
+        min_reader="1.0.0",
+        min_writer="1.0.0",
+        notes="legacy",
+    )
+    row = con.execute(
+        "SELECT schema_version FROM corpus_schema_meta WHERE artifact='graph'"
+    ).fetchone()
+    con.close()
+    assert row[0] == "1.1.0"  # NOT downgraded
+
+
 def test_bump_schema_overwrites(tmp_path):
     db = tmp_path / "graph.duckdb"
     con = duckdb.connect(str(db))
