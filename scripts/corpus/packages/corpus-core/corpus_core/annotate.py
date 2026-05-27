@@ -16,6 +16,33 @@ Guarantees:
 Failure-mode contract (with Phase 2's graph.duckdb projection):
     JSONL append succeeds, DB insert fails → JSONL has truth; rebuild catches up.
     The reverse (DB insert before JSONL) is forbidden.
+
+## PROV-AGENT mapping (informative; ORNL arXiv:2508.02866)
+
+The annotation shape is isomorphic to prov:Activity:
+
+    source_id          → prov:used (Entity, content-addressed)
+    agent              → prov:wasAssociatedWith → prov:Agent
+    output_uri         → URI of the prov:Entity generated (no direct
+                         property; the relation is prov:wasGeneratedBy)
+    output_hash        → content hash of the generated Entity
+    asserted_at        → prov:atTime
+    valid_from         → informational; PROV has no direct equivalent
+                         (Phase A bitemporal extension)
+    scope              → custom property
+    idempotency_key    → stable_tuple hash; PROV has no equivalent
+
+We adopt the PROV-AGENT vocabulary in documentation. We do NOT serialize
+to RDF or import the PROV-O stack. JSONL with the right shape buys what
+RDF would at our scale (Phase D decision record).
+
+We do NOT rename `output_uri` → `generated_uri` at the schema level:
+output_uri is in annotation_stable_tuple — renaming would mutate
+annotation_id for every replayed record (rename-risks memo move #2).
+Also `generated_uri` is not blessed PROV; `prov:wasGeneratedBy` is a
+relation, not a property name (move #4).
+
+Phase E of .claude/plans/2026-05-27-knowledge-infra-next-foundations.md.
 """
 from __future__ import annotations
 

@@ -6,6 +6,26 @@ domain write. After the gateway releases its writer lock, the drainer
 flushes intent rows to corpus filesystem via `corpus_core.annotate`. A
 crash between commit and drain is recoverable by the audit job.
 
+## PROV-AGENT mapping (informative; ORNL arXiv:2508.02866)
+
+Each outbox row is the PRE-COMMIT shape of a prov:Activity. After the
+drainer succeeds:
+
+    canonical_source_id     → prov:used
+    actor_id                → prov:wasAssociatedWith → prov:Agent
+    output_uri              → URI of generated prov:Entity
+    output_hash             → content hash of generated Entity
+    asserted_at             → prov:atTime
+    valid_from              → informational (no PROV equivalent)
+    annotation_status       → custom (active/superseded/retracted)
+    supersedes_annotation_id → prov:wasRevisionOf when non-null
+
+We do NOT rename outbox columns to PROV property names (rename-risks
+memo move #4); column names follow domain semantics, vocabulary maps
+at documentation level.
+
+Phase E of .claude/plans/2026-05-27-knowledge-infra-next-foundations.md.
+
 This module provides the THREE pieces that genuinely repeat across repos:
 
   1. `outbox_schema(natural_key)`     — parameterized CREATE TABLE DDL
