@@ -166,6 +166,12 @@ def rebuild_annotations_index(graph_db_path: Path | None = None) -> dict[str, in
 
     con = _connect(graph_db_path)
     try:
+        # Plan-close finding #3 (CONFIRMED): rebuild is now wrapped in
+        # an explicit transaction. Pre-fix, a crash between DELETE and
+        # the bulk INSERT left the index empty until the next rebuild.
+        # BEGIN/COMMIT scopes the DELETE+INSERT atomically; ROLLBACK
+        # on any exception preserves the prior projection state.
+        con.execute("BEGIN TRANSACTION")
         # TRUNCATE first so removed entries (theoretical — JSONL is append-only)
         # don't linger.
         con.execute("DELETE FROM annotations")
@@ -173,6 +179,7 @@ def rebuild_annotations_index(graph_db_path: Path | None = None) -> dict[str, in
         rows_written = 0
         root = store_root()
         if not root.is_dir():
+            con.execute("COMMIT")
             return {"sources_scanned": 0, "rows_written": 0}
         for entry in sorted(root.iterdir()):
             if not entry.is_dir():
@@ -201,7 +208,17 @@ def rebuild_annotations_index(graph_db_path: Path | None = None) -> dict[str, in
                     batch,
                 )
                 rows_written += len(batch)
+        con.execute("COMMIT")
         return {"sources_scanned": sources_scanned, "rows_written": rows_written}
+    except Exception:
+        # Rollback on any failure mid-rebuild — leaves the projection at
+        # its prior state instead of a partial (DELETE'd but not yet
+        # repopulated) intermediate.
+        try:
+            con.execute("ROLLBACK")
+        except Exception:
+            pass
+        raise
     finally:
         con.close()
 

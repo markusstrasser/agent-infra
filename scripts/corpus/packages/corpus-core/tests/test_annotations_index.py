@@ -100,6 +100,37 @@ def test_jsonl_is_truth_for_rebuild(corpus_root):
     assert rows[0][0] == aid
 
 
+def test_close_review_finding_3_rebuild_is_atomic(corpus_root, monkeypatch):
+    """Plan-close review #3 (CONFIRMED): rebuild_annotations_index is
+    now wrapped in a transaction. If iteration raises mid-rebuild, the
+    prior projection survives (vs. pre-fix: DELETE landed first, leaving
+    the table empty until the next rebuild).
+
+    Caught-red-handed: monkeypatch the iter helper to raise mid-way;
+    assert the existing rows are preserved.
+    """
+    from corpus_core import index as idx_mod
+    aid = annotate(SOURCE_A, repo="agent-infra", actor_type="service",
+                   actor_id=ACTOR, scope="x")
+    # Confirm baseline.
+    rows = _query(corpus_root, "SELECT annotation_id FROM annotations")
+    assert rows[0][0] == aid
+
+    # Force a failure mid-rebuild by monkeypatching _iter_jsonl to raise.
+    def _boom(_path):
+        raise RuntimeError("synthetic mid-rebuild failure")
+    monkeypatch.setattr(idx_mod, "_iter_jsonl", _boom)
+
+    with pytest.raises(RuntimeError, match="synthetic"):
+        idx_mod.rebuild_annotations_index()
+
+    # CRH: pre-fix this assertion would FAIL — DELETE landed first, the
+    # row would be gone. With BEGIN/ROLLBACK, the original row survives.
+    rows = _query(corpus_root, "SELECT annotation_id FROM annotations")
+    assert len(rows) == 1
+    assert rows[0][0] == aid
+
+
 def test_idempotent_annotate_does_not_double_insert(corpus_root):
     a1 = annotate(SOURCE_A, repo="agent-infra", actor_type="service",
                   actor_id=ACTOR, scope="x")

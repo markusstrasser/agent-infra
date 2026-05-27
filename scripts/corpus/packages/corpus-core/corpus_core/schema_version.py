@@ -253,12 +253,32 @@ def bump_schema(
     min_writer: str,
     notes: str,
 ) -> None:
-    """Bump the artifact's schema version. Called inside the same connection
-    as the DDL migration; reverting the migration also reverts the row."""
+    """Bump the artifact's schema version MONOTONICALLY.
+
+    Refuses to downgrade — calling this with a new_version LOWER than
+    the existing row's schema_version is a no-op (silent). Prevents the
+    "older client reapplies older schema_sql to a newer DB and silently
+    overwrites the meta row" failure mode (plan-close finding #1).
+
+    Reverting a migration must explicitly use a downgrade path that
+    drops the meta row first; never via bump_schema alone.
+    """
     ensure_meta_table(con)
     # DuckDB's ON CONFLICT DO UPDATE parser treats bare `CURRENT_TIMESTAMP`
     # on the RHS as a column reference (Binder Error). Use now() instead;
     # both evaluate to the current UTC timestamp.
+    #
+    # Monotonic guard via WHERE on the EXCLUDED.schema_version compared
+    # to the existing schema_version. DuckDB lacks a clean COMPARE() for
+    # semver-string ordering, so we do it in Python: check before INSERT.
+    existing = _read_meta_row(con, artifact)
+    if existing is not None:
+        existing_version = existing[0]
+        if _parse_version(new_version) < _parse_version(existing_version):
+            # Downgrade attempt — silently no-op. The caller may be a
+            # stale client whose schema_sql was committed before the
+            # newer migration shipped.
+            return
     con.execute(
         """
         INSERT INTO corpus_schema_meta
