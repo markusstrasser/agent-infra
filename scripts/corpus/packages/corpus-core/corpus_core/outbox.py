@@ -286,7 +286,12 @@ def drain(
                 """,
                 [batch_size],
             ).fetchall()
-        except (duckdb.BinderException, duckdb.CatalogException):
+        except duckdb.CatalogException:
+            # Outbox table doesn't exist — legitimate steady-state for
+            # repos that haven't enqueued anything yet (intel pre-Phase-I).
+            # BinderException catch removed in Phase G2: with G0 preflight
+            # in front of this code, column drift surfaces as
+            # SchemaVersionMismatch, not as silent no-op.
             return DrainStats()
     finally:
         con_ro.close()
