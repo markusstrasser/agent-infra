@@ -407,7 +407,7 @@ def create_mcp() -> FastMCP:
             rows = con.execute(
                 f"SELECT annotation_id, source_id, repo, actor_type, actor_id, "
                 f"scope, tool, output_uri, status, asserted_at, recorded_at "
-                f"FROM annotations{where} "
+                f"FROM annotations_current{where} "
                 f"ORDER BY recorded_at DESC LIMIT ?",
                 params,
             ).fetchall()
@@ -488,12 +488,12 @@ def create_mcp() -> FastMCP:
             import duckdb
             con = duckdb.connect(str(_graph_db()), read_only=True)
             for repo, n in con.execute(
-                "SELECT repo, COUNT(*) FROM annotations GROUP BY repo"
+                "SELECT repo, COUNT(*) FROM annotations_current GROUP BY repo"
             ).fetchall():
                 per_repo[repo] = n
             for r in con.execute(
                 "SELECT annotation_id, source_id, repo, scope, recorded_at "
-                "FROM annotations ORDER BY recorded_at DESC LIMIT 10"
+                "FROM annotations_current ORDER BY recorded_at DESC LIMIT 10"
             ).fetchall():
                 recent.append({
                     "annotation_id": r[0], "source_id": r[1], "repo": r[2],

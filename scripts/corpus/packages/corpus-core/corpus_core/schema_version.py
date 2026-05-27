@@ -22,10 +22,10 @@ if TYPE_CHECKING:
     import duckdb
 
 
-GRAPH_SCHEMA_VERSION = "1.0.0"   # bumps to 1.1.0 after Phase A
-OUTBOX_SCHEMA_VERSION = "1.2.0"  # bumps to 1.3.0 after Phase A
-GRAPH_MIN_READER = "1.0.0"
-OUTBOX_MIN_READER = "1.2.0"
+GRAPH_SCHEMA_VERSION = "1.1.0"   # Phase A: +valid_from + annotations_current view
+OUTBOX_SCHEMA_VERSION = "1.3.0"  # Phase A: +valid_from passthrough
+GRAPH_MIN_READER = "1.1.0"
+OUTBOX_MIN_READER = "1.3.0"
 
 
 SCHEMA_META_DDL = """
@@ -163,6 +163,34 @@ def verify_graph_schema(db_path: Path) -> None:
 
 
 def verify_outbox_schema(db_path: Path) -> None:
+    """Outbox preflight. Returns silently if the outbox table itself
+    doesn't exist — the DB belongs to a repo that doesn't yet enqueue
+    corpus attestations (intel pre-Phase-I, or a fresh repo). The drain
+    code's missing-table check covers the no-op path; preflight only
+    matters when there's a partially-migrated state to detect.
+    """
+    import duckdb
+
+    db_path = Path(db_path)
+    if not db_path.exists():
+        return
+    try:
+        con = duckdb.connect(str(db_path), read_only=True)
+    except duckdb.IOException:
+        return
+    try:
+        try:
+            rows = con.execute(
+                "SELECT 1 FROM information_schema.tables "
+                "WHERE table_name = 'pending_corpus_attestations'"
+            ).fetchall()
+        except (duckdb.BinderException, duckdb.CatalogException):
+            return
+        if not rows:
+            return  # no outbox table → nothing to verify
+    finally:
+        con.close()
+
     _verify(
         db_path,
         artifact="outbox",
@@ -249,11 +277,14 @@ def bump_schema(
 
 
 def bootstrap_db(db_path: Path, *, artifact: str) -> bool:
-    """One-shot: seed corpus_schema_meta on an existing pre-G0 DB.
+    """One-shot: apply the canonical current-version schema to an existing
+    DB. For graph DBs this opens via index._connect (running the full
+    graph_schema.sql, which seeds + bumps meta + applies all ALTERs
+    idempotently). For outbox DBs it ensures lifecycle columns + seeds
+    the meta row.
 
-    Used by the maintain CLI for the G0 transition. Idempotent. Returns
-    True if it actually inserted a row, False if the row was already
-    present (or DB doesn't exist).
+    Returns True if the meta row landed/advanced; False if the DB doesn't
+    exist OR the meta was already at the current version.
     """
     import duckdb
 
@@ -261,20 +292,43 @@ def bootstrap_db(db_path: Path, *, artifact: str) -> bool:
     if not db_path.exists():
         return False
 
-    con = duckdb.connect(str(db_path))
-    try:
-        existing = _read_meta_row(con, artifact)
-        if existing is not None:
-            return False
-        if artifact == "graph":
-            seed_graph_meta(con)
-        elif artifact == "outbox":
-            seed_outbox_meta(con)
-        else:
-            raise ValueError(f"unknown artifact {artifact!r}")
-        return True
-    finally:
-        con.close()
+    if artifact == "graph":
+        # index._connect applies graph_schema.sql which idempotently
+        # ALTERs to add new columns and bumps the meta row via ON
+        # CONFLICT DO UPDATE. Open then close — work happens at connect.
+        from .index import _connect
+        before = None
+        con = duckdb.connect(str(db_path), read_only=True)
+        try:
+            before = _read_meta_row(con, "graph")
+        finally:
+            con.close()
+        _connect(db_path).close()
+        after = None
+        con = duckdb.connect(str(db_path), read_only=True)
+        try:
+            after = _read_meta_row(con, "graph")
+        finally:
+            con.close()
+        return after != before
+
+    if artifact == "outbox":
+        con = duckdb.connect(str(db_path))
+        try:
+            existing = _read_meta_row(con, "outbox")
+            if existing is not None and _parse_version(existing[0]) >= _parse_version(OUTBOX_SCHEMA_VERSION):
+                return False
+            # Apply lifecycle ALTERs + seed (handles legacy outboxes
+            # that pre-date G0).
+            from .outbox import ensure_lifecycle_columns
+            ensure_lifecycle_columns(con)
+            # ensure_lifecycle_columns calls seed_outbox_meta with default
+            # (current) version; the row is at OUTBOX_SCHEMA_VERSION after.
+            return True
+        finally:
+            con.close()
+
+    raise ValueError(f"unknown artifact {artifact!r}")
 
 
 __all__ = [

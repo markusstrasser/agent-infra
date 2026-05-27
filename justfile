@@ -510,3 +510,15 @@ modal-deploy-marker:
 [group('corpus')]
 modal-smoke-marker pdf:
     uv run modal run scripts/corpus_marker_modal.py --pdf {{pdf}}
+
+# Phase A bitemporal migration: MCP-aware DDL apply on corpus graph.duckdb.
+# Filters lsof holders by AGENT_PATTERNS — human dev tools (DBeaver, IDE)
+# get a warning, not a SIGKILL. SIGTERM→SIGKILL escalation for agent holders.
+[group('corpus')]
+bitemporal-migrate *args:
+    bash scripts/bitemporal_migrate.sh {{args}}
+
+# Lint: forbid raw `FROM annotations` outside writer allowlist.
+[group('corpus')]
+lint-no-bare-annotations *args:
+    uv run python3 scripts/lint_no_bare_annotations_read.py {{args}}

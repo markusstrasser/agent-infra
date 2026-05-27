@@ -43,6 +43,7 @@ from .schema_version import (
     SCHEMA_META_DDL,
     OUTBOX_SCHEMA_VERSION,
     OUTBOX_MIN_READER,
+    bump_schema,
     seed_outbox_meta,
     verify_outbox_schema,
 )
@@ -129,6 +130,7 @@ CREATE TABLE IF NOT EXISTS {OUTBOX_TABLE_NAME} (
     status                  VARCHAR NOT NULL DEFAULT 'pending',
     annotation_status       VARCHAR NOT NULL DEFAULT 'active',
     supersedes_annotation_id VARCHAR,
+    valid_from              TIMESTAMP,
     PRIMARY KEY ({nk_names}, canonical_source_id)
 );
 
@@ -174,10 +176,26 @@ def ensure_lifecycle_columns(con: "duckdb.DuckDBPyConnection") -> None:
             f"ALTER TABLE {OUTBOX_TABLE_NAME} "
             "ADD COLUMN supersedes_annotation_id VARCHAR"
         )
+    # Phase A: bitemporal valid_from passthrough column. NULL-default;
+    # callers pass it through to corpus_core.annotate via the drainer.
+    if "valid_from" not in cols:
+        con.execute(
+            f"ALTER TABLE {OUTBOX_TABLE_NAME} "
+            "ADD COLUMN valid_from TIMESTAMP"
+        )
     # Phase G0: legacy outboxes that pre-date schema_meta need the row
-    # seeded so preflight can compare against. seed_outbox_meta is
-    # ON CONFLICT DO NOTHING — idempotent for outboxes already at 1.2.0.
+    # seeded so preflight can compare against. seed first (DO NOTHING),
+    # then bump to current version (DO UPDATE) — this advances 1.2.0 →
+    # 1.3.0 cleanly after the ALTERs above.
     seed_outbox_meta(con)
+    bump_schema(
+        con,
+        artifact="outbox",
+        new_version=OUTBOX_SCHEMA_VERSION,
+        min_reader=OUTBOX_MIN_READER,
+        min_writer=OUTBOX_MIN_READER,
+        notes="composite-PK + lifecycle + valid_from",
+    )
 
 
 @dataclass(frozen=True)
@@ -261,7 +279,7 @@ def drain(
                 SELECT {nk_select},
                        canonical_source_id, actor_type, actor_id, output_uri,
                        output_hash, prompt_template_hash, asserted_at, retry_count,
-                       annotation_status, supersedes_annotation_id
+                       annotation_status, supersedes_annotation_id, valid_from
                 FROM {OUTBOX_TABLE_NAME}
                 WHERE status = 'pending'
                 LIMIT ?
@@ -284,7 +302,7 @@ def drain(
         (
             canon, actor_type, actor_id, output_uri, output_hash,
             prompt_template_hash, asserted_at, retry_count,
-            annotation_status, supersedes_annotation_id,
+            annotation_status, supersedes_annotation_id, valid_from,
         ) = row[n_nk:]
         try:
             paper_path(canon).mkdir(parents=True, exist_ok=True)
@@ -300,6 +318,7 @@ def drain(
                 asserted_at=asserted_at,
                 status=annotation_status or "active",
                 supersedes_annotation_id=supersedes_annotation_id,
+                valid_from=valid_from,
             )
             successes.append((nk_values, canon))
         except (OSError, AnnotationError, duckdb.IOException) as exc:

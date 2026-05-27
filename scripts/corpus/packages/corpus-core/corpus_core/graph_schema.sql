@@ -70,11 +70,56 @@ CREATE TABLE IF NOT EXISTS annotations (
   status                   VARCHAR NOT NULL,
   asserted_at              TIMESTAMP NOT NULL,
   recorded_at              TIMESTAMP NOT NULL,
-  schema_version           VARCHAR NOT NULL
+  schema_version           VARCHAR NOT NULL,
+  -- Phase A: bitemporal `valid_from` (informational; defaults to
+  -- asserted_at on writer's behalf). NOT in annotation_stable_tuple
+  -- — adding it does not mutate annotation_id. Pure-append-only:
+  -- no valid_to; supersession is a NEW annotation that points back
+  -- via supersedes_annotation_id.
+  valid_from               TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_annotations_source     ON annotations(source_id);
 CREATE INDEX IF NOT EXISTS idx_annotations_repo_time  ON annotations(repo, recorded_at);
 CREATE INDEX IF NOT EXISTS idx_annotations_scope      ON annotations(scope);
+
+-- Phase A migration for pre-1.1.0 DBs: idempotent ALTER + UPDATE +
+-- DROP/CREATE VIEW. Greenfield DBs already have valid_from from the
+-- CREATE TABLE above; ALTER IF NOT EXISTS is a no-op for them.
+-- The view binding requires DROP-then-CREATE because DuckDB rejects
+-- ALTER TABLE while a dependent view is bound (v5 critique #12).
+DROP VIEW IF EXISTS annotations_current;
+ALTER TABLE annotations ADD COLUMN IF NOT EXISTS valid_from TIMESTAMP;
+UPDATE annotations SET valid_from = asserted_at WHERE valid_from IS NULL;
+
+-- Phase A: chain-aware current view. Pure-append-only — "current" is
+-- whatever has no successor (no other annotation supersedes it). DuckDB
+-- auto-decorrelates NOT EXISTS to hash anti-join (Raasveldt 2023).
+-- Multi-agent revision/retraction branches naturally surface as MULTIPLE
+-- leaves for the same source — operator UX, not DB constraint.
+-- v6: dropped UNIQUE(supersedes_annotation_id) index per critique #7;
+-- two annotations legitimately superseding the same prior is a curation
+-- signal, not a violation.
+CREATE OR REPLACE VIEW annotations_current AS
+SELECT a.* FROM annotations a
+WHERE NOT EXISTS (
+    SELECT 1 FROM annotations s
+    WHERE s.supersedes_annotation_id = a.annotation_id
+);
+
+-- Phase A bumps the graph artifact to 1.1.0. Bump via ON CONFLICT DO UPDATE
+-- so a v1.1.0 client connecting to a v1.0.0-seeded DB cleanly advances the
+-- meta row. A v1.0.0 client cannot do this — its schema_sql carries the
+-- v1.0.0 seed which uses DO NOTHING.
+INSERT INTO corpus_schema_meta
+    (artifact, schema_version, min_reader_version, min_writer_version, notes, updated_at)
+VALUES ('graph', '1.1.0', '1.1.0', '1.1.0',
+        '+valid_from informational; annotations_current chain-aware view', now())
+ON CONFLICT (artifact) DO UPDATE SET
+    schema_version       = EXCLUDED.schema_version,
+    min_reader_version   = EXCLUDED.min_reader_version,
+    min_writer_version   = EXCLUDED.min_writer_version,
+    notes                = EXCLUDED.notes,
+    updated_at           = now();
 
 -- Connected-Papers-style similarity views (no embeddings; pure graph).
 CREATE VIEW IF NOT EXISTS co_citation_pairs AS
