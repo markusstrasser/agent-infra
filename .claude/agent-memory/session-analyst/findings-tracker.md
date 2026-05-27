@@ -97,3 +97,30 @@ type: project
 **Date:** 2026-03-26
 **Sessions analyzed:** aa2981a8, 955b17d9, 7e3fdd99, a315e598
 **Output:** /Users/alien/Projects/meta/artifacts/session-retro/2026-03-26-meta.md
+
+## Last analysis run — publishing 2026-05-16
+**Date:** 2026-05-16
+**Sessions analyzed:** 65064d5d, 40a3baf4, acd8f39d, 148bd9b4, 93549110, 6200f5f5
+**Output:** /Users/alien/Projects/agent-infra/artifacts/session-retro/2026-05-16-publishing-corrections.json
+**Dossier:** /Users/alien/Projects/publishing/.scratch/2026-05-16-correction-dossier.md
+
+## PUBLISHING — Slop Re-Accumulates (PUBLISHING-01)
+**Status:** active, hook-promotion candidate
+**First seen:** 2026-05-16 (publishing 65064d5d, acd8f39d, 93549110)
+**Recurrence count:** 8+ instances in one day
+**Pattern:** Reception notes/commentary regress to slop (curation-meta, aphoristic thesis, editorial X-into-Y verbs, closing defensive negation) even when de-slop rules exist. Parallel agents re-introduce slop. User had to manually invoke /de-slop 4-5 times.
+**Hook candidate:** PostToolUse hook on Write/Edit to reception.ts or sidenote data files → trigger de-slop check for curation-meta patterns and banned constructions
+**Promotion threshold:** Already meets 2+ recurrence rule
+
+## PUBLISHING — Visual Fix Claimed Without Verification (PUBLISHING-02)
+**Status:** active
+**First seen:** 2026-05-16 (65064d5d 06:10, 06:15; 40a3baf4 10:25)
+**Recurrence count:** 3 in one session
+**Pattern:** CSS fix committed and claimed fixed without browser verification. User sends screenshot showing layout still broken.
+**Proposed fix:** Rule in publishing CLAUDE.md: never claim visual fix without browser verification
+
+## PUBLISHING — Fake Source Attribution on Agent Prose (PUBLISHING-04)
+**Status:** active
+**First seen:** 2026-05-16 (65064d5d 08:49)
+**Pattern:** Agent stamps named sources (RSC, Folger) on commentary it wrote itself. 19/20 RSC attributions were fake.
+**Hook candidate:** Semantic check on new sidenote/reception entries that have a source field but whose content is agent-generated
