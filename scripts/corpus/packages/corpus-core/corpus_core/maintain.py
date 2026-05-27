@@ -325,6 +325,18 @@ def add_cli(subparsers: argparse._SubParsersAction) -> None:
     p.add_argument("--all", action="store_true", help="With --rebuild-citances, all papers")
     p.add_argument("--paper-id", default=None)
     p.add_argument("--dry-run", action="store_true")
+    p.add_argument(
+        "--bootstrap-schema-meta",
+        action="store_true",
+        help="Phase G0: seed corpus_schema_meta on graph.duckdb and any "
+             "outbox DBs passed via --outbox-db (repeatable)",
+    )
+    p.add_argument(
+        "--outbox-db",
+        action="append",
+        default=[],
+        help="Outbox DB path for --bootstrap-schema-meta (repeatable)",
+    )
     p.set_defaults(func=_cmd_maintain)
 
 
@@ -336,15 +348,46 @@ def cmd_rebuild_annotations_index(args) -> int:
     return 0
 
 
+def cmd_bootstrap_schema_meta(args) -> int:
+    """One-shot G0 transition: seed corpus_schema_meta on existing DBs.
+
+    Idempotent. Seeds graph.duckdb at the canonical store_root. Each
+    --outbox-db path is seeded as artifact='outbox'.
+    """
+    from .schema_version import bootstrap_db
+
+    rc = 0
+    gdb = ps.graph_db_path()
+    if gdb.exists():
+        seeded = bootstrap_db(gdb, artifact="graph")
+        print(f"  graph  {gdb}  {'seeded' if seeded else 'already present'}")
+    else:
+        print(f"  graph  {gdb}  (not present; first writer will seed)")
+
+    for raw in args.outbox_db or []:
+        path = Path(raw).expanduser()
+        if not path.exists():
+            print(f"  outbox {path}  MISSING — skip", file=sys.stderr)
+            rc = max(rc, 1)
+            continue
+        seeded = bootstrap_db(path, artifact="outbox")
+        print(f"  outbox {path}  {'seeded' if seeded else 'already present'}")
+    return rc
+
+
 def _cmd_maintain(args) -> int:
     args._rebuild_ran_this_invocation = False
     if not any([args.verify, args.rebuild_indexes, args.rebuild_citances,
-                args.rebuild_graph, args.rebuild_annotations_index, args.gc]):
+                args.rebuild_graph, args.rebuild_annotations_index,
+                args.gc, args.bootstrap_schema_meta]):
         print("specify one of --verify --rebuild-indexes --rebuild-citances "
-              "--rebuild-graph --rebuild-annotations-index --gc",
+              "--rebuild-graph --rebuild-annotations-index --gc "
+              "--bootstrap-schema-meta",
               file=sys.stderr)
         return 2
     rc = 0
+    if args.bootstrap_schema_meta:
+        rc = max(rc, cmd_bootstrap_schema_meta(args))
     if args.verify:
         rc = max(rc, cmd_verify(args))
     if args.rebuild_indexes:

@@ -39,6 +39,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .annotate import AnnotationError, annotate as _annotate
+from .schema_version import (
+    SCHEMA_META_DDL,
+    OUTBOX_SCHEMA_VERSION,
+    OUTBOX_MIN_READER,
+    seed_outbox_meta,
+    verify_outbox_schema,
+)
 from .store import paper_path
 
 if TYPE_CHECKING:
@@ -99,6 +106,14 @@ def outbox_schema(natural_key: tuple[tuple[str, str], ...]) -> str:
     nk_decl = ",\n    ".join(f"{name:<20s} {sqltype} NOT NULL" for name, sqltype in natural_key)
     nk_names = ", ".join(name for name, _ in natural_key)
     return f"""
+{SCHEMA_META_DDL}
+
+INSERT INTO corpus_schema_meta
+    (artifact, schema_version, min_reader_version, min_writer_version, notes)
+VALUES ('outbox', '{OUTBOX_SCHEMA_VERSION}', '{OUTBOX_MIN_READER}',
+        '{OUTBOX_MIN_READER}', 'composite-PK + lifecycle columns')
+ON CONFLICT (artifact) DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS {OUTBOX_TABLE_NAME} (
     {nk_decl},
     canonical_source_id     VARCHAR NOT NULL,
@@ -159,6 +174,10 @@ def ensure_lifecycle_columns(con: "duckdb.DuckDBPyConnection") -> None:
             f"ALTER TABLE {OUTBOX_TABLE_NAME} "
             "ADD COLUMN supersedes_annotation_id VARCHAR"
         )
+    # Phase G0: legacy outboxes that pre-date schema_meta need the row
+    # seeded so preflight can compare against. seed_outbox_meta is
+    # ON CONFLICT DO NOTHING — idempotent for outboxes already at 1.2.0.
+    seed_outbox_meta(con)
 
 
 @dataclass(frozen=True)
@@ -220,6 +239,11 @@ def drain(
     db_path = Path(db_path)
     if not db_path.exists():
         return DrainStats()
+
+    # Phase G0 preflight: fail loud on schema skew BEFORE doing any FS IO.
+    # Greenfield (no meta row, missing table) is handled by the verify
+    # function — only raises when the DB exists and skew is real.
+    verify_outbox_schema(db_path)
 
     nk_select = ", ".join(natural_key_cols)
     nk_where = " AND ".join(f"{col} = ?" for col in natural_key_cols)

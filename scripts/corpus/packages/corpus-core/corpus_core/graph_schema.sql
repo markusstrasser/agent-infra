@@ -1,6 +1,23 @@
 -- DuckDB schema for the canonical paper graph index.
 -- Rebuilt by `corpus maintain --rebuild-graph` from per-paper JSONL files.
 
+-- Phase G0: DB-resident schema version. Every connection that runs this
+-- schema_sql is brought up to at least graph schema 1.0.0. Bumps land via
+-- corpus_core.schema_version.bump_schema(...) inside migration commits.
+CREATE TABLE IF NOT EXISTS corpus_schema_meta (
+    artifact             VARCHAR PRIMARY KEY,
+    schema_version       VARCHAR NOT NULL,
+    min_reader_version   VARCHAR NOT NULL,
+    min_writer_version   VARCHAR NOT NULL,
+    updated_at           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    notes                VARCHAR
+);
+
+INSERT INTO corpus_schema_meta
+    (artifact, schema_version, min_reader_version, min_writer_version, notes)
+VALUES ('graph', '1.0.0', '1.0.0', '1.0.0', 'pre-bitemporal substrate v2.x')
+ON CONFLICT (artifact) DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS edges (
   citing_paper_id  TEXT NOT NULL,
   cited_paper_id   TEXT NOT NULL,
