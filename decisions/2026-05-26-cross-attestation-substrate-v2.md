@@ -117,3 +117,47 @@ Each repo's mutation gateway is the sole writer of corpus attestations for its s
 ## Supersedes
 
 `decisions/2026-05-11-cross-attestation-substrate.md` (substrate v1: agent-orchestrated 2-call ritual). Empirically unimplemented in all 5 target MCPs; replaced by gateway invariant.
+
+## Update — 2026-05-27 — deferred items closed; outbox extracted to corpus_core
+
+Executed `plans/2026-05-27-substrate-v2-deferred-items.md`:
+
+| Phase | Status | Anchor |
+|---|---|---|
+| 1 — `pick_canonical_source` semantic priority (close-review #20) | Shipped | genomics@b50ffc2d |
+| 2 — Outbox lifecycle (supersedes_annotation_id, annotation_status) (close-review #18) | Shipped — 493 superseded verdicts in live data validated the need | genomics@1f36e57e + agent-infra@b42befd |
+| 2.5 — Extract `corpus_core.outbox` shared primitive | Shipped — net -124 lines | agent-infra@3135d0e + genomics@e0b7fc54 |
+| 3 — Phenome cert-stack gateway emission (`scope='cert_event'`) | Shipped — single chokepoint at `claim_closure.py:_persist_certificate` | phenome@2930dc9 |
+| 4 — Intel theses-graph emission | **STOPPED at preflight** — intel uses `filings_and_datasets.filing_or_dataset_id` UUIDs, not corpus's `doi_*`/`pmid_*`/`db_*` slug shape; `entry_readiness_certificates` has zero INSERT sites in code; `contradiction_resolutions_log` doesn't link to source. Source-id alignment is a separate prerequisite plan, not part of substrate-v2-deferred. Plan explicitly anticipated this STOP. | n/a |
+| 5 — Audit/lint propagation + decision update | Shipped (this update) | (this commit) |
+
+**Substrate-v2 reality, post-deferred-items:**
+
+- **One sole writer of corpus annotations across all repos: `corpus_core.outbox.drain`.** The genomics `MutationGateway.__exit__` and `audit_corpus_sync.py` both delegate to it (path-based API; lock-friendly 3-phase pattern: RO fetch → unlocked FS emit → short RW DELETE/UPDATE). Phenome's cert-stack does not invoke drain locally — relies on `audit_corpus_sync` as the sole drain path (no writer-lock pattern in phenome's call surface).
+- **Outbox table shape standardized via `corpus_core.outbox.outbox_schema(natural_key)`.** Per-repo natural keys: genomics=`(verdict_id,)`, phenome=`(cert_event_id,)`. Lifecycle columns inline for greenfield, idempotent ALTER (`ensure_lifecycle_columns`) for legacy.
+- **Per-repo lint deployed:** `genomics/scripts/lint_no_direct_corpus_writes.py`, `phenome/scripts/lint_no_direct_corpus_writes.py` (AST-based, bans direct `corpus_core.annotate` imports outside the gateway).
+- **Per-repo emission table:**
+
+| Repo | Where enqueue happens | Scope | Drain path |
+|---|---|---|---|
+| genomics | `MutationGateway._enqueue_corpus_attestation` (inside write_verdict txn) | `verdict` | Post-lock-release in `__exit__` + audit (both via `corpus_core.outbox.drain`) |
+| phenome | `_enqueue_cert_attestations` (inside `_persist_certificate`, sequential after event INSERT) | `cert_event` | audit-only (no in-process drain — eventual consistency via retry idempotency) |
+| intel | not yet emitting (Phase 4 STOPPED — prerequisite source-id alignment) | n/a | n/a |
+
+**Atomicity contract differs per repo by design:**
+
+- **genomics**: writer.lock + BEGIN/COMMIT → event + outbox in one transaction (strong atomicity).
+- **phenome**: shared-connection-across-threads use case (regression test races 4 workers); BEGIN/COMMIT would segfault DuckDB. Event INSERT and outbox INSERT are individually idempotent (uniq_cce_issued + composite PK); crash between them leaves drift that the audit detects + operator re-runs idempotently.
+
+The audit drain (`audit_corpus_sync.py --drain-only`) handles the cross-process safety net for both repos.
+
+**Audit/lint generalization closes close-review #14 and #21:** `audit_corpus_sync.VERDICTS_SOURCES` per-repo entries now carry `scope` and `natural_key_cols` keys instead of hardcoded `'verdict'` strings. Adding a new repo (e.g. intel once source-id alignment lands) is one dict append.
+
+### Why intel was deferred
+
+Per plan §4 preflight: intel's `filings_and_datasets` table uses UUIDs as primary identity. corpus uses slug-namespaced source IDs (`doi_*`, `pmid_*`, `db_*`, `guideline_*`, etc.) per the corpus_core source-id namespace. There's no current mapping from intel's UUIDs to corpus slugs — `filings_and_datasets.doi` is optional metadata, not a primary identity. Wiring emission without first aligning source identity would either:
+
+- Write attestations using UUIDs as source IDs (breaks the cross-repo lookup contract — corpus's `cross_attestation_lookup` would never match across repos)
+- Synthesize fake corpus slugs (loses the deterministic stable_tuple property)
+
+Both are worse than not emitting. The right next step is a separate plan: "Intel source-identity alignment with corpus." That plan unblocks Phase 4. Until then, intel stays a placeholder in `VERDICTS_SOURCES` with the audit reporting `verdicts=0`.
