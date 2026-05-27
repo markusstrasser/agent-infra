@@ -99,14 +99,19 @@ VERDICTS_SOURCES: list[dict[str, Any]] = [
     {
         "repo": "intel",
         "db_path": PROJECTS_ROOT / "intel" / "intel" / "indexed" / "theses.duckdb",
-        # Intel's source-id namespace doesn't yet align with corpus's slug
-        # shape (filings_and_datasets.filing_or_dataset_id is a UUID, not
-        # doi_*/pmid_*/db_*). Phase 4 of the substrate-v2-deferred plan was
-        # STOPed at preflight for this reason. The scope/natural_key entries
-        # are placeholders for when the alignment lands.
+        # Phase I: contradiction events attest via the crosswalk. Audit
+        # compares intel's local event_ids against the verdict_id slot of
+        # `intel://contradiction_events/<vid>` corpus URIs.
+        # source_id + output_hash are advisory (projection coverage); the
+        # primary drift check is event_id presence in URIs.
         "scope": "contradiction_resolution",
         "natural_key_cols": ("contradiction_event_id",),
-        "sql": "SELECT verdict_id, '' AS source_id, '' AS output_hash FROM claim_verdicts",
+        "sql": (
+            "SELECT crl.event_id::VARCHAR AS verdict_id, "
+            "       '' AS source_id, "
+            "       '' AS output_hash "
+            "FROM contradiction_resolutions_log crl"
+        ),
     },
 ]
 
