@@ -522,3 +522,10 @@ bitemporal-migrate *args:
 [group('corpus')]
 lint-no-bare-annotations *args:
     uv run python3 scripts/lint_no_bare_annotations_read.py {{args}}
+
+# Run corpus-core tests from the right cwd (scripts/corpus has its own
+# pyproject + venv; `uv run pytest` from agent-infra root fails to
+# spawn because uv resolves to the wrong project).
+[group('corpus')]
+test-corpus *args:
+    cd scripts/corpus && uv run pytest packages/corpus-core/tests/ {{args}}
