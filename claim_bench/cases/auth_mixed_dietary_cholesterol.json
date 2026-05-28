@@ -1,6 +1,6 @@
 {
   "task_id": "auth_mixed_dietary_cholesterol",
-  "claim_text": "Dietary cholesterol intake meaningfully raises serum LDL cholesterol and cardiovascular risk in the general population.",
+  "claim_text": "Dietary cholesterol intake is a meaningful contributor to cardiovascular disease risk in the general population.",
   "domain": "nutrition_epidemiology",
   "claim_type": "causal",
   "verifiability": "verifiable",

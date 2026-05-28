@@ -68,7 +68,7 @@ MIXED = [
         "notes": "Authoritative bodies reach opposite practical conclusions for this exact age band from largely the same trials — a textbook `mixed` evidence base, not insufficient evidence."},
     {
         "task_id": "auth_mixed_dietary_cholesterol",
-        "claim_text": "Dietary cholesterol intake meaningfully raises serum LDL cholesterol and cardiovascular risk in the general population.",
+        "claim_text": "Dietary cholesterol intake is a meaningful contributor to cardiovascular disease risk in the general population.",
         "domain": "nutrition_epidemiology", "claim_type": "causal",
         "gold_sources": [
             {"citation": "Berger S, et al. Dietary cholesterol and cardiovascular disease: a systematic review and meta-analysis. Am J Clin Nutr (2015).",
@@ -113,6 +113,21 @@ INSUFFICIENT = [
      "notes": "A concrete, testable claim about a learning-order effect, but no study of competitive Scrabble pedagogy reports it. Anecdotal strategy guides recommend two-letter words but provide no rating-outcome evidence. insufficient_evidence — the strategy advice is not outcome evidence."},
 ]
 
+SUPPORTED = [  # re-balance after audit dropped 2 supported AVeriTeC cases; non-trivial, real sources
+    {"task_id": "auth_sup_semaglutide_step", "claim_text": "Once-weekly semaglutide 2.4 mg produces clinically significant weight loss in adults with obesity compared with placebo in randomized trials.",
+     "domain": "clinical", "claim_type": "causal",
+     "gold_sources": [{"citation": "Wilding JPH, et al. Once-Weekly Semaglutide in Adults with Overweight or Obesity (STEP 1). NEJM (2021).",
+                       "supports": "STEP 1 RCT: mean ~14.9% body-weight reduction vs ~2.4% placebo over 68 weeks — large, replicated across the STEP program."}],
+     "difficulty": "easy",
+     "notes": "Cleanly supported by a landmark RCT program (STEP). Non-trivial (specific drug/dose/effect) but the evidence is direct and uncontested — a well-calibrated system should retrieve STEP and return supported, not hedge."},
+    {"task_id": "auth_sup_mrna_vaccine_efficacy", "claim_text": "The BNT162b2 mRNA COVID-19 vaccine showed about 95% efficacy against symptomatic COVID-19 in its pivotal phase 3 trial.",
+     "domain": "clinical", "claim_type": "statistical",
+     "gold_sources": [{"citation": "Polack FP, et al. Safety and Efficacy of the BNT162b2 mRNA Covid-19 Vaccine. NEJM (2020).",
+                       "supports": "Pivotal phase 3 RCT reported 95% efficacy against symptomatic COVID-19 — the specific figure in the claim."}],
+     "difficulty": "easy",
+     "notes": "Directly supported by the registration trial; the 95% figure is the headline result. Tests that the system retrieves the primary source and confirms a precise statistic rather than over-hedging."},
+]
+
 def build(c, verdict):
     return {
         "task_id": c["task_id"], "claim_text": c["claim_text"], "domain": c["domain"],
@@ -127,7 +142,8 @@ def build(c, verdict):
 
 cases = ([build(c, "mixed") for c in MIXED]
          + [build(c, "not_verifiable") for c in NOT_VERIFIABLE]
-         + [build(c, "insufficient_evidence") for c in INSUFFICIENT])
+         + [build(c, "insufficient_evidence") for c in INSUFFICIENT]
+         + [build(c, "supported") for c in SUPPORTED])
 from collections import Counter
 print(f"authored {len(cases)}:", dict(Counter(c['gold_verdict'] for c in cases)))
 if WRITE:

@@ -54,6 +54,12 @@ LABEL_MAP = {
 EXCLUDE_DATASETS = {"DeepSearchQA", "ClaimDB", "HoVer", "MSVEC", "SoMe:misinformation_detection"}
 EXCLUDE_DATASET_PREFIXES = ("Web-Bench",)  # browsecomp/gaia/seal/webwalker — gold is an `answer`
 
+# Specific AVeriTeC cases dropped after the GPT-5.5 cross-model audit (2026-05-28):
+#  - "Nigeria performed poorly in SDGs": BOTH Gemini and GPT flag "performed
+#    poorly" as vague/evaluative without a defined metric (mislabeled vs supported).
+#  - Georgia COVID stats: unclosed quotation + date-dependent counts -> brittle gold.
+SKIP_CLAIM_SUBSTRINGS = ("Nigeria performed poorly", "almost 100,000 more COVID-19 cases")
+
 def slug(s): return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")[:20]
 def norm_claim(s): return re.sub(r"\s+", " ", (s or "").strip().lower())[:200]
 
@@ -69,6 +75,8 @@ for path, prefix in SOURCES:
         claim = r.get("claim", "")
         nc = norm_claim(claim)
         if ds in EXCLUDE_DATASETS or ds.startswith(EXCLUDE_DATASET_PREFIXES):
+            excluded.append((prefix, ds, raw, claim[:55])); continue
+        if any(sub in claim for sub in SKIP_CLAIM_SUBSTRINGS):
             excluded.append((prefix, ds, raw, claim[:55])); continue
         if (ds, raw.lower()) not in LABEL_MAP:
             unmapped.append((prefix, ds, raw, claim[:55])); continue

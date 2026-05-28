@@ -1,0 +1,18 @@
+{
+  "task_id": "auth_sup_semaglutide_step",
+  "claim_text": "Once-weekly semaglutide 2.4 mg produces clinically significant weight loss in adults with obesity compared with placebo in randomized trials.",
+  "domain": "clinical",
+  "claim_type": "causal",
+  "verifiability": "verifiable",
+  "gold_verdict": "supported",
+  "gold_sources": [
+    {
+      "citation": "Wilding JPH, et al. Once-Weekly Semaglutide in Adults with Overweight or Obesity (STEP 1). NEJM (2021).",
+      "supports": "STEP 1 RCT: mean ~14.9% body-weight reduction vs ~2.4% placebo over 68 weeks — large, replicated across the STEP program."
+    }
+  ],
+  "gold_contradict_sources": [],
+  "distractor_sources": [],
+  "difficulty": "easy",
+  "notes": "Cleanly supported by a landmark RCT program (STEP). Non-trivial (specific drug/dose/effect) but the evidence is direct and uncontested — a well-calibrated system should retrieve STEP and return supported, not hedge."
+}
