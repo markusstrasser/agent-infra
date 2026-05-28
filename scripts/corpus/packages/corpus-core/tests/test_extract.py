@@ -75,3 +75,24 @@ def test_pymupdf4llm_extracts_real_pdf(tmp_path):
     assert result.parser_id.startswith("pymupdf4llm@")
     # Empty page → empty markdown is fine; we're testing shape, not content
     assert result.char_count is not None
+
+
+def test_liteparse_dispatch_shape(tmp_path):
+    """Smoke: opt-in liteparse parser returns a well-formed ExtractResult.
+
+    Skips when the optional `liteparse` extra isn't installed. A blank page has
+    no text layer, so extras.has_text_layer must be False — the preflight signal
+    we route scanned/image PDFs on."""
+    pytest.importorskip("liteparse")
+    pypdf = pytest.importorskip("pypdf")
+    pdf_path = tmp_path / "tiny.pdf"
+    from pypdf import PdfWriter
+    w = PdfWriter()
+    w.add_blank_page(width=72, height=72)
+    with open(pdf_path, "wb") as f:
+        w.write(f)
+    result = extract(content=pdf_path, source_type="other", parser="liteparse")
+    assert result.parser_id.startswith("liteparse@")
+    assert result.page_count == 1
+    assert result.extras is not None
+    assert result.extras["has_text_layer"] is False
