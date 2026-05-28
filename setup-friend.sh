@@ -773,7 +773,7 @@ project=$(basename "$workspace")
 now=$(date +%s)
 
 model_tag=""
-[[ "$model" != "Opus 4.6" ]] && model_tag="$model "
+[[ "$model" != "Opus 4.8" ]] && model_tag="$model "
 
 cache="/tmp/statusline-git-cache"
 if [[ -f "$cache" ]] && (( now - $(stat -f%m "$cache") < 5 )); then
