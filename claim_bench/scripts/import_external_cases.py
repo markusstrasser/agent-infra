@@ -39,8 +39,12 @@ LABEL_MAP = {
     ("SciFact", "contradict"): "contradicted",
     ("SciFact", "not enough info"): "insufficient_evidence", ("SciFact", "noinfo"): "insufficient_evidence",
 }
-# Datasets whose task is NOT 5-class claim verification (QA / answer-set) -> exclude.
-EXCLUDE_DATASETS = {"DeepSearchQA"}
+# Datasets whose task is NOT 5-class web-retrieval claim verification -> exclude.
+#  DeepSearchQA: gold = answer_set (deep-research QA, not a verdict).
+#  ClaimDB: BIRD text-to-SQL claims tied to a PRIVATE database (bird_id); gold
+#    verdicts are relative to a SQL DB the retrieval harness can't access, so the
+#    model correctly abstains but is scored wrong. Audit 2026-05-28 — removed.
+EXCLUDE_DATASETS = {"DeepSearchQA", "ClaimDB"}
 EXCLUDE_DATASET_PREFIXES = ("Web-Bench",)  # browsecomp/gaia/seal/webwalker — gold is an `answer`
 
 def slug(s): return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")[:20]

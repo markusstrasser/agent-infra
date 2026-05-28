@@ -1,0 +1,13 @@
+{
+  "task_id": "auth_ie_bookstore_delivery",
+  "claim_text": "More than half of independent bookstores in Portugal offered same-day local delivery in 2023.",
+  "domain": "retail",
+  "claim_type": "statistical",
+  "verifiability": "verifiable",
+  "gold_verdict": "insufficient_evidence",
+  "gold_sources": [],
+  "gold_contradict_sources": [],
+  "distractor_sources": [],
+  "difficulty": "medium",
+  "notes": "Verifiable in principle (a sector survey could settle it) but no such survey is published. A diligent search finds general e-commerce/bookstore articles but no figure on this specific population/metric/year. Correct verdict is insufficient_evidence — NOT not_verifiable (it's a concrete falsifiable proposition), and NOT contradicted (absence of evidence isn't refutation). Trap: a model may anchor on a tangential statistic and over-claim."
+}
