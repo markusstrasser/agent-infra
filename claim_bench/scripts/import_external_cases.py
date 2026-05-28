@@ -44,7 +44,14 @@ LABEL_MAP = {
 #  ClaimDB: BIRD text-to-SQL claims tied to a PRIVATE database (bird_id); gold
 #    verdicts are relative to a SQL DB the retrieval harness can't access, so the
 #    model correctly abstains but is scored wrong. Audit 2026-05-28 — removed.
-EXCLUDE_DATASETS = {"DeepSearchQA", "ClaimDB"}
+#  HoVer/MSVEC/SoMe: removed after a cross-model (Gemini) audit 2026-05-28 —
+#    HoVer = synthetic multi-hop trivia templates, UNFIT and at least one wrong
+#    gold (hover_08: "Cunningham won more Pulitzers than Plath" labeled supported,
+#    both won exactly 1 → contradicted); MSVEC = mojibake-corrupted + question/
+#    paragraph framings, not clean claims; SoMe = weak, non-self-contained
+#    ("this year" without a date). Only AVeriTeC (professionally adjudicated
+#    fact-checks) survives import; the rest of the corpus is hand-built/authored.
+EXCLUDE_DATASETS = {"DeepSearchQA", "ClaimDB", "HoVer", "MSVEC", "SoMe:misinformation_detection"}
 EXCLUDE_DATASET_PREFIXES = ("Web-Bench",)  # browsecomp/gaia/seal/webwalker — gold is an `answer`
 
 def slug(s): return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")[:20]
