@@ -25,6 +25,11 @@ Opt-in parsers (NOT in DEFAULT_PARSER; pass via `--parser <name>`):
                          (#993/#967/#960). Chunked-by-default workaround.
                          Install: `uv tool install marker-pdf`.
   - `gemini-flash-lite`  Cloud LLM fallback for PDFs the local parsers fail.
+  - `liteparse`          Apache-2.0; Rust, model-free. Flat text only (no
+                         structure) — fast text-layer extraction + office docs,
+                         and a cheap scan-vs-digital preflight (extras
+                         .has_text_layer). NOT a markdown parser for papers.
+                         Install: `pip install liteparse`.
 """
 from __future__ import annotations
 
@@ -60,6 +65,7 @@ def _registry() -> dict[str, Callable[..., ExtractResult]]:
     from . import (
         html_trafilatura,
         pdf_lightweight,
+        pdf_liteparse,
         pdf_llm,
         pdf_marker,
         pdf_marker_modal,
@@ -71,6 +77,7 @@ def _registry() -> dict[str, Callable[..., ExtractResult]]:
         "trafilatura":       html_trafilatura.extract_from_bytes,
         "marker":            pdf_marker.extract,         # opt-in; GPL-3.0, local CPU
         "marker-modal":      pdf_marker_modal.extract,   # opt-in; GPL-3.0, T4 GPU on Modal
+        "liteparse":         pdf_liteparse.extract,      # opt-in; Apache-2.0, Rust, flat text
         "gemini-flash-lite": pdf_llm.extract,
     }
 

@@ -15,6 +15,7 @@ dependencies = [
 
 [project.optional-dependencies]
 llm-fallback = ["google-genai>=1.0"]
+liteparse = ["liteparse>=2.0"]
 modal = [
     "modal>=1.0,<2.0",
 ]
