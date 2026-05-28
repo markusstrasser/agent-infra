@@ -40,7 +40,7 @@ argument-hint: '[issue-number]'       # autocomplete hint
 user-invocable: true                  # false = hide from /menu (background knowledge only)
 disable-model-invocation: true        # true = manual /name only (for side-effect workflows)
 allowed-tools: Read, Grep, Glob       # tool whitelist (convenience, not security boundary)
-model: claude-opus-4-7                # per-skill model override
+model: claude-opus-4-8                # per-skill model override
 context: fork                         # run in isolated subagent
 agent: Explore                        # subagent type (Explore, Plan, general-purpose, or custom)
 hooks:                                # skill-scoped hooks
