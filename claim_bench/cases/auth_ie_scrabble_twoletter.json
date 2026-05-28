@@ -1,0 +1,13 @@
+{
+  "task_id": "auth_ie_scrabble_twoletter",
+  "claim_text": "Among competitive Scrabble players, those who memorize two-letter words before longer words reach higher tournament ratings.",
+  "domain": "games",
+  "claim_type": "causal",
+  "verifiability": "verifiable",
+  "gold_verdict": "insufficient_evidence",
+  "gold_sources": [],
+  "gold_contradict_sources": [],
+  "distractor_sources": [],
+  "difficulty": "medium",
+  "notes": "A concrete, testable claim about a learning-order effect, but no study of competitive Scrabble pedagogy reports it. Anecdotal strategy guides recommend two-letter words but provide no rating-outcome evidence. insufficient_evidence — the strategy advice is not outcome evidence."
+}

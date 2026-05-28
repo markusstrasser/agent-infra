@@ -98,6 +98,21 @@ NOT_VERIFIABLE = [
      "notes": "Underspecified and speculative: 'fundamentally transform', 'AGI', and 'our lifetimes' lack operational definitions, and the event is future/unrealized. No current body of evidence can support or refute it. Tempting to call `insufficient_evidence`, but the deeper issue is it is not (yet) a verifiable proposition at all."},
 ]
 
+INSUFFICIENT = [
+    {"task_id": "auth_ie_bookstore_delivery", "claim_text": "More than half of independent bookstores in Portugal offered same-day local delivery in 2023.",
+     "domain": "retail", "claim_type": "statistical",
+     "notes": "Verifiable in principle (a sector survey could settle it) but no such survey is published. A diligent search finds general e-commerce/bookstore articles but no figure on this specific population/metric/year. Correct verdict is insufficient_evidence — NOT not_verifiable (it's a concrete falsifiable proposition), and NOT contradicted (absence of evidence isn't refutation). Trap: a model may anchor on a tangential statistic and over-claim."},
+    {"task_id": "auth_ie_firefighter_age_slovenia", "claim_text": "The average age of volunteer firefighters in Slovenia rose by more than three years between 2015 and 2022.",
+     "domain": "demographics", "claim_type": "statistical",
+     "notes": "Registry data could in principle establish this, but no public analysis reports the specific delta. Searching yields Slovenian firefighting-association pages without this longitudinal figure. insufficient_evidence; the trap is treating 'I found the association's website' as having found the answer."},
+    {"task_id": "auth_ie_statin_timing_myalgia", "claim_text": "Patients who take their statin in the morning report less muscle pain than those who take it at night.",
+     "domain": "clinical", "claim_type": "causal",
+     "notes": "Falsifiable in principle (a timing RCT with myalgia as endpoint) but no trial has tested this specific comparison; chronotherapy studies of statins target LDL, not myalgia. Correct verdict insufficient_evidence. Trap: retrieving LDL-timing studies and reporting them as if they answer the muscle-pain claim."},
+    {"task_id": "auth_ie_scrabble_twoletter", "claim_text": "Among competitive Scrabble players, those who memorize two-letter words before longer words reach higher tournament ratings.",
+     "domain": "games", "claim_type": "causal",
+     "notes": "A concrete, testable claim about a learning-order effect, but no study of competitive Scrabble pedagogy reports it. Anecdotal strategy guides recommend two-letter words but provide no rating-outcome evidence. insufficient_evidence — the strategy advice is not outcome evidence."},
+]
+
 def build(c, verdict):
     return {
         "task_id": c["task_id"], "claim_text": c["claim_text"], "domain": c["domain"],
@@ -110,9 +125,11 @@ def build(c, verdict):
         "difficulty": c.get("difficulty", "medium"), "notes": c["notes"],
     }
 
-cases = [build(c, "mixed") for c in MIXED] + [build(c, "not_verifiable") for c in NOT_VERIFIABLE]
-print(f"authored {len(cases)}: {sum(1 for c in cases if c['gold_verdict']=='mixed')} mixed, "
-      f"{sum(1 for c in cases if c['gold_verdict']=='not_verifiable')} not_verifiable")
+cases = ([build(c, "mixed") for c in MIXED]
+         + [build(c, "not_verifiable") for c in NOT_VERIFIABLE]
+         + [build(c, "insufficient_evidence") for c in INSUFFICIENT])
+from collections import Counter
+print(f"authored {len(cases)}:", dict(Counter(c['gold_verdict'] for c in cases)))
 if WRITE:
     for c in cases:
         (OUT / f"{c['task_id']}.json").write_text(json.dumps(c, indent=2, ensure_ascii=False))

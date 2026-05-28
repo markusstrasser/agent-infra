@@ -1,0 +1,13 @@
+{
+  "task_id": "auth_ie_statin_timing_myalgia",
+  "claim_text": "Patients who take their statin in the morning report less muscle pain than those who take it at night.",
+  "domain": "clinical",
+  "claim_type": "causal",
+  "verifiability": "verifiable",
+  "gold_verdict": "insufficient_evidence",
+  "gold_sources": [],
+  "gold_contradict_sources": [],
+  "distractor_sources": [],
+  "difficulty": "medium",
+  "notes": "Falsifiable in principle (a timing RCT with myalgia as endpoint) but no trial has tested this specific comparison; chronotherapy studies of statins target LDL, not myalgia. Correct verdict insufficient_evidence. Trap: retrieving LDL-timing studies and reporting them as if they answer the muscle-pain claim."
+}

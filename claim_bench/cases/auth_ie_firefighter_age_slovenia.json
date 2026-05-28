@@ -1,0 +1,13 @@
+{
+  "task_id": "auth_ie_firefighter_age_slovenia",
+  "claim_text": "The average age of volunteer firefighters in Slovenia rose by more than three years between 2015 and 2022.",
+  "domain": "demographics",
+  "claim_type": "statistical",
+  "verifiability": "verifiable",
+  "gold_verdict": "insufficient_evidence",
+  "gold_sources": [],
+  "gold_contradict_sources": [],
+  "distractor_sources": [],
+  "difficulty": "medium",
+  "notes": "Registry data could in principle establish this, but no public analysis reports the specific delta. Searching yields Slovenian firefighting-association pages without this longitudinal figure. insufficient_evidence; the trap is treating 'I found the association's website' as having found the answer."
+}
