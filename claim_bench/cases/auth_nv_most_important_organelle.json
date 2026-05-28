@@ -1,0 +1,13 @@
+{
+  "task_id": "auth_nv_most_important_organelle",
+  "claim_text": "The mitochondrion is the most important organelle in the eukaryotic cell.",
+  "domain": "cell_biology",
+  "claim_type": "value_judgment",
+  "verifiability": "not_verifiable",
+  "gold_verdict": "not_verifiable",
+  "gold_sources": [],
+  "gold_contradict_sources": [],
+  "distractor_sources": [],
+  "difficulty": "medium",
+  "notes": "Has the shape of a biology fact but 'most important' has no objective metric — importance depends on which cellular function you privilege. The nucleus, ribosome, or membrane could each be argued 'most important' under different framings. Not falsifiable."
+}

@@ -1,0 +1,31 @@
+{
+  "task_id": "auth_mixed_mammography_40s",
+  "claim_text": "Routine screening mammography for women aged 40-49 at average risk reduces breast-cancer mortality.",
+  "domain": "clinical_epidemiology",
+  "claim_type": "causal",
+  "verifiability": "verifiable",
+  "gold_verdict": "mixed",
+  "gold_sources": [
+    {
+      "citation": "Independent UK Panel on Breast Cancer Screening (Marmot review). The Lancet (2012).",
+      "supports": "Concludes screening reduces breast-cancer mortality (~20% relative) across invited age ranges, accepting overdiagnosis as a cost."
+    }
+  ],
+  "gold_contradict_sources": [
+    {
+      "citation": "Gøtzsche PC, Jørgensen KJ. Screening for breast cancer with mammography. Cochrane Database Syst Rev (2013).",
+      "contradicts": "Cochrane review questions the mortality benefit, emphasizing trial-quality issues and substantial overdiagnosis; benefit in the 40-49 group is least certain."
+    },
+    {
+      "citation": "USPSTF breast cancer screening recommendation history (2009/2016).",
+      "contradicts": "Graded the 40-49 benefit as small/uncertain and made routine screening in that band an individual decision rather than a blanket recommendation."
+    }
+  ],
+  "distractor_sources": [
+    {
+      "note": "The 40-49 band specifically is where guideline bodies disagree most; older bands have clearer benefit. Verdict hinges on the age qualifier."
+    }
+  ],
+  "difficulty": "hard",
+  "notes": "Authoritative bodies reach opposite practical conclusions for this exact age band from largely the same trials — a textbook `mixed` evidence base, not insufficient evidence."
+}

@@ -1,0 +1,13 @@
+{
+  "task_id": "auth_nv_climate_policy_should",
+  "claim_text": "Climate policy should prioritize near-term economic growth over rapid emissions reductions.",
+  "domain": "policy",
+  "claim_type": "normative",
+  "verifiability": "not_verifiable",
+  "gold_verdict": "not_verifiable",
+  "gold_sources": [],
+  "gold_contradict_sources": [],
+  "distractor_sources": [],
+  "difficulty": "medium",
+  "notes": "A normative 'should' claim about value trade-offs. Empirical facts inform it but cannot settle it — the conclusion depends on discount rates and value weightings, not on evidence alone. Models should refuse the verdict shape, not retrieve economic studies and pick a side."
+}

@@ -1,0 +1,31 @@
+{
+  "task_id": "auth_mixed_dietary_cholesterol",
+  "claim_text": "Dietary cholesterol intake meaningfully raises serum LDL cholesterol and cardiovascular risk in the general population.",
+  "domain": "nutrition_epidemiology",
+  "claim_type": "causal",
+  "verifiability": "verifiable",
+  "gold_verdict": "mixed",
+  "gold_sources": [
+    {
+      "citation": "Berger S, et al. Dietary cholesterol and cardiovascular disease: a systematic review and meta-analysis. Am J Clin Nutr (2015).",
+      "supports": "Finds dietary cholesterol raises serum total and LDL cholesterol, a causal step toward CVD risk."
+    }
+  ],
+  "gold_contradict_sources": [
+    {
+      "citation": "2015-2020 Dietary Guidelines Advisory Committee (USA).",
+      "contradicts": "Removed the long-standing 300 mg/day dietary-cholesterol limit, concluding cholesterol is 'not a nutrient of concern for overconsumption' at the population level."
+    },
+    {
+      "citation": "Soliman GA. Dietary cholesterol and the lack of evidence in CVD. Nutrients (2018).",
+      "contradicts": "Reviews the weak/inconsistent link between dietary (vs serum) cholesterol and CVD outcomes."
+    }
+  ],
+  "distractor_sources": [
+    {
+      "note": "Serum-cholesterol response to dietary cholesterol varies (hyper- vs hypo-responders); population-level CVD outcome evidence is weaker than the LDL-mechanism evidence. The claim bundles both, so neither pure verdict fits."
+    }
+  ],
+  "difficulty": "hard",
+  "notes": "Mechanistic LDL evidence supports the claim; population guideline bodies walked back the CVD link. Genuinely mixed and currently unsettled."
+}

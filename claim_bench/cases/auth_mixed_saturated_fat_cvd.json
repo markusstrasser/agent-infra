@@ -1,0 +1,35 @@
+{
+  "task_id": "auth_mixed_saturated_fat_cvd",
+  "claim_text": "Reducing dietary saturated fat intake lowers cardiovascular disease risk in the general adult population.",
+  "domain": "nutrition_epidemiology",
+  "claim_type": "causal",
+  "verifiability": "verifiable",
+  "gold_verdict": "mixed",
+  "gold_sources": [
+    {
+      "citation": "Hooper L, et al. Reduction in saturated fat intake for cardiovascular disease. Cochrane Database Syst Rev (2020).",
+      "supports": "Cochrane review finds reducing saturated fat lowers combined cardiovascular events ~17%, strongest where replaced with polyunsaturated fat."
+    },
+    {
+      "citation": "Sacks FM, et al. AHA Presidential Advisory: Dietary Fats and Cardiovascular Disease. Circulation (2017).",
+      "supports": "AHA advisory concludes lowering saturated fat and replacing with unsaturated fat reduces CVD."
+    }
+  ],
+  "gold_contradict_sources": [
+    {
+      "citation": "Dehghan M, et al. (PURE study). Associations of fats and carbohydrate intake with cardiovascular disease and mortality. The Lancet (2017).",
+      "contradicts": "Large multinational cohort finds higher saturated fat associated with LOWER mortality and no significant CVD harm — challenges the reduction claim."
+    },
+    {
+      "citation": "Siri-Tarino PW, et al. Meta-analysis of prospective cohort studies of saturated fat and CVD. Am J Clin Nutr (2010).",
+      "contradicts": "Meta-analysis finds no significant association between saturated fat intake and CHD/CVD risk."
+    }
+  ],
+  "distractor_sources": [
+    {
+      "note": "The replacement nutrient is the crux — benefit appears when saturated fat is replaced by polyunsaturated fat, not refined carbohydrate. A model citing only one framing will reach a one-sided verdict."
+    }
+  ],
+  "difficulty": "hard",
+  "notes": "Genuinely mixed: RCT-reduction/Cochrane evidence supports the claim while large cohorts (PURE) and bias-corrected meta-analyses contradict the simple version. `supported` or `contradicted` alone both cherry-pick; `insufficient_evidence` is wrong (evidence is abundant, it disagrees)."
+}

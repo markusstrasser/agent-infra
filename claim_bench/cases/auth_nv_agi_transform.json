@@ -1,0 +1,13 @@
+{
+  "task_id": "auth_nv_agi_transform",
+  "claim_text": "Artificial general intelligence will fundamentally transform human civilization within our lifetimes.",
+  "domain": "technology",
+  "claim_type": "speculative",
+  "verifiability": "not_verifiable",
+  "gold_verdict": "not_verifiable",
+  "gold_sources": [],
+  "gold_contradict_sources": [],
+  "distractor_sources": [],
+  "difficulty": "medium",
+  "notes": "Underspecified and speculative: 'fundamentally transform', 'AGI', and 'our lifetimes' lack operational definitions, and the event is future/unrealized. No current body of evidence can support or refute it. Tempting to call `insufficient_evidence`, but the deeper issue is it is not (yet) a verifiable proposition at all."
+}

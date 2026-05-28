@@ -1,0 +1,31 @@
+{
+  "task_id": "auth_mixed_ssri_mild_depression",
+  "claim_text": "SSRI antidepressants are clinically effective for mild-to-moderate depression beyond placebo.",
+  "domain": "clinical_psychiatry",
+  "claim_type": "causal",
+  "verifiability": "verifiable",
+  "gold_verdict": "mixed",
+  "gold_sources": [
+    {
+      "citation": "Cipriani A, et al. Comparative efficacy of 21 antidepressants: systematic review and network meta-analysis. The Lancet (2018).",
+      "supports": "Network meta-analysis of 522 trials finds all studied antidepressants more efficacious than placebo for acute major depression."
+    }
+  ],
+  "gold_contradict_sources": [
+    {
+      "citation": "Kirsch I, et al. Initial severity and antidepressant benefits: meta-analysis of FDA data. PLoS Medicine (2008).",
+      "contradicts": "Meta-analysis of FDA trial data finds drug-placebo difference below clinical-significance threshold except in very severe depression — i.e. little benefit for mild-to-moderate."
+    },
+    {
+      "citation": "Jakobsen JC, et al. SSRIs versus placebo for major depressive disorder. BMC Psychiatry (2017).",
+      "contradicts": "Concludes SSRI effects are small and of questionable clinical importance, with high risk of bias inflating estimates."
+    }
+  ],
+  "distractor_sources": [
+    {
+      "note": "Efficacy scales with baseline severity — the literature genuinely splits on the MILD end specifically. A model retrieving only Cipriani will say supported; only Kirsch, contradicted."
+    }
+  ],
+  "difficulty": "hard",
+  "notes": "The severity gradient makes this mixed: efficacy is well-supported for severe depression but contested for the mild-to-moderate range the claim names. Both literatures are real and current."
+}
