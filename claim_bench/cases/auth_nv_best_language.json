@@ -1,0 +1,13 @@
+{
+  "task_id": "auth_nv_best_language",
+  "claim_text": "Rust is the best programming language for building reliable systems software.",
+  "domain": "software",
+  "claim_type": "value_judgment",
+  "verifiability": "not_verifiable",
+  "gold_verdict": "not_verifiable",
+  "gold_sources": [],
+  "gold_contradict_sources": [],
+  "distractor_sources": [],
+  "difficulty": "medium",
+  "notes": "'Best' is threshold-free and frame-dependent. Benchmarks of memory-safety or performance exist, but they do not adjudicate 'best' — that depends on the evaluator's weighting of safety vs. ecosystem vs. familiarity. Retrieving Rust adoption stats does not convert the claim to verifiable."
+}
