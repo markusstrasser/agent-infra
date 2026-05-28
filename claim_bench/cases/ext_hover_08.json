@@ -1,0 +1,13 @@
+{
+  "task_id": "ext_hover_08",
+  "claim_text": "The author of The Bell Jar is American. The author of Specimen Days won more Pulitzer prizes than her.",
+  "domain": "HoVer",
+  "claim_type": "imported",
+  "verifiability": "verifiable",
+  "gold_verdict": "supported",
+  "gold_sources": [],
+  "gold_contradict_sources": [],
+  "distractor_sources": [],
+  "difficulty": "unknown",
+  "notes": "Imported from HoVer (raw label 'SUPPORTED'). evidence_summary: {\"supporting_facts\": [[\"Sylvia Plath\", 0], [\"Sylvia Plath\", 1], [\"Sylvia Plath\", 2], [\"Sylvia Plath\", 3], [\"Sylvia Plath\", 4], [\"Sylvia Plath\", 5], [\"Michael Cunningham\", 0], [\"Michael Cunningham\", 1]"
+}

@@ -1,0 +1,13 @@
+{
+  "task_id": "ext_msvec_20",
+  "claim_text": "Are vaccinated and boosted people more susceptible to infection or disease with the omicron variant than unvaccinated people?",
+  "domain": "MSVEC",
+  "claim_type": "imported",
+  "verifiability": "verifiable",
+  "gold_verdict": "contradicted",
+  "gold_sources": [],
+  "gold_contradict_sources": [],
+  "distractor_sources": [],
+  "difficulty": "unknown",
+  "notes": "Imported from MSVEC (raw label 'False'). evidence_summary: {\"fact_check_url\": \"https://www.factcheck.org/2022/06/scicheck-vaccinated-people-not-more-susceptible-to-covid-19-than-unvaccinated/\", \"paper_title\": \"Association Between COVID-19 Booster Vaccination "
+}

@@ -1,0 +1,13 @@
+{
+  "task_id": "ext_claimdb_12",
+  "claim_text": "If purchases made in border towns were excluded from the LAM region, a different customer would have had the least consumption in 2012.",
+  "domain": "ClaimDB",
+  "claim_type": "imported",
+  "verifiability": "verifiable",
+  "gold_verdict": "insufficient_evidence",
+  "gold_sources": [],
+  "gold_contradict_sources": [],
+  "distractor_sources": [],
+  "difficulty": "unknown",
+  "notes": "Imported from ClaimDB (raw label 'NOT ENOUGH INFO'). evidence_summary: {\"bird_id\": 1472, \"category\": \"COUNTERFACTUAL\", \"claim\": \"If purchases made in border towns were excluded from the LAM region, a different customer would have had the least consumption in 2012.\", \"cla"
+}
