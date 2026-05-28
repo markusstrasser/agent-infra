@@ -1,0 +1,18 @@
+{
+  "task_id": "auth_sup_mrna_vaccine_efficacy",
+  "claim_text": "The BNT162b2 mRNA COVID-19 vaccine showed about 95% efficacy against symptomatic COVID-19 in its pivotal phase 3 trial.",
+  "domain": "clinical",
+  "claim_type": "statistical",
+  "verifiability": "verifiable",
+  "gold_verdict": "supported",
+  "gold_sources": [
+    {
+      "citation": "Polack FP, et al. Safety and Efficacy of the BNT162b2 mRNA Covid-19 Vaccine. NEJM (2020).",
+      "supports": "Pivotal phase 3 RCT reported 95% efficacy against symptomatic COVID-19 — the specific figure in the claim."
+    }
+  ],
+  "gold_contradict_sources": [],
+  "distractor_sources": [],
+  "difficulty": "easy",
+  "notes": "Directly supported by the registration trial; the 95% figure is the headline result. Tests that the system retrieves the primary source and confirms a precise statistic rather than over-hedging."
+}
