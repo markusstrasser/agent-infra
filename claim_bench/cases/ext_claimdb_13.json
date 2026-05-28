@@ -9,5 +9,5 @@
   "gold_contradict_sources": [],
   "distractor_sources": [],
   "difficulty": "unknown",
-  "notes": "Imported from ClaimDB (raw label 'ENTAILED'). evidence_summary: {\"bird_id\": 1479, \"claim\": \"Spending on gas paid in CZK peaked in 2013.\", \"claim_id\": 16205, \"db_name\": \"debit_card_specializing\", \"extra_info\": \"The first 4 strings of the Date values in the yearmont"
+  "notes": "Imported from ClaimDB (ext, raw label 'ENTAILED'). evidence_summary: {\"bird_id\": 1479, \"claim\": \"Spending on gas paid in CZK peaked in 2013.\", \"claim_id\": 16205, \"db_name\": \"debit_card_specializing\", \"extra_info\": \"The first 4 strings of the Date va"
 }

@@ -1,5 +1,5 @@
 {
-  "task_id": "ext_some-misinformation-dete_25",
+  "task_id": "ext_some-misinformation-_25",
   "claim_text": "Wisconsin is on pace to double the number of layoffs this year.",
   "domain": "SoMe:misinformation_detection",
   "claim_type": "imported",
@@ -9,5 +9,5 @@
   "gold_contradict_sources": [],
   "distractor_sources": [],
   "difficulty": "unknown",
-  "notes": "Imported from SoMe:misinformation_detection (raw label 'false'). evidence_summary: {\"claim\": \"Wisconsin is on pace to double the number of layoffs this year.\", \"label\": \"false\"}"
+  "notes": "Imported from SoMe:misinformation_detection (ext, raw label 'false'). evidence_summary: {\"claim\": \"Wisconsin is on pace to double the number of layoffs this year.\", \"label\": \"false\"}"
 }

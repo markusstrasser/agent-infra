@@ -1,0 +1,13 @@
+{
+  "task_id": "extc_hover_19",
+  "claim_text": "The Boy with No Name is the fifth studio album from a Scottish indie pop band. That indie pop band and the soutern Rock band whose first single was Le Disko are not from the same country.",
+  "domain": "HoVer",
+  "claim_type": "imported",
+  "verifiability": "verifiable",
+  "gold_verdict": "contradicted",
+  "gold_sources": [],
+  "gold_contradict_sources": [],
+  "distractor_sources": [],
+  "difficulty": "unknown",
+  "notes": "Imported from HoVer (extc, raw label 'NOT_SUPPORTED'). evidence_summary: {\"supporting_facts\": [[\"Travis (band)\", 0], [\"Travis (band)\", 1], [\"Travis (band)\", 2], [\"Shiny Toy Guns\", 0], [\"Shiny Toy Guns\", 1], [\"Shiny Toy Guns\", 2], [\"Shiny Toy Guns\", 3], "
+}

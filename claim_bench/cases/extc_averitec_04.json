@@ -1,0 +1,13 @@
+{
+  "task_id": "extc_averitec_04",
+  "claim_text": "Potential voter fraud in the 2020 U.S Presidential Election is caused by mail-in ballots being sent in error to previous tenants in Washington DC.",
+  "domain": "AVeriTeC",
+  "claim_type": "imported",
+  "verifiability": "verifiable",
+  "gold_verdict": "contradicted",
+  "gold_sources": [],
+  "gold_contradict_sources": [],
+  "distractor_sources": [],
+  "difficulty": "unknown",
+  "notes": "Imported from AVeriTeC (extc, raw label 'Refuted'). evidence_summary: media=['PDF', 'Web text']; answer_types=['Abstractive', 'Boolean', 'Extractive', 'Unanswerable']; rank=5"
+}

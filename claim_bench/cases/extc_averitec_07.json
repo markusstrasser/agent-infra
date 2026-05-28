@@ -1,0 +1,13 @@
+{
+  "task_id": "extc_averitec_07",
+  "claim_text": "This Democratic Party of Joe Biden is pushing the so-called Green New Deal. If given power, they would essentially ban animal agriculture and eliminate gas-powered cars.",
+  "domain": "AVeriTeC",
+  "claim_type": "imported",
+  "verifiability": "verifiable",
+  "gold_verdict": "contradicted",
+  "gold_sources": [],
+  "gold_contradict_sources": [],
+  "distractor_sources": [],
+  "difficulty": "unknown",
+  "notes": "Imported from AVeriTeC (extc, raw label 'Refuted'). evidence_summary: media=['Web text']; answer_types=['Abstractive', 'Extractive']; rank=8"
+}

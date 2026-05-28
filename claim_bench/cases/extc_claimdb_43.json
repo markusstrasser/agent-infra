@@ -1,0 +1,13 @@
+{
+  "task_id": "extc_claimdb_43",
+  "claim_text": "Fewer than 600 transactions at Czech gas stations occurred after 2012-01-01.",
+  "domain": "ClaimDB",
+  "claim_type": "imported",
+  "verifiability": "verifiable",
+  "gold_verdict": "contradicted",
+  "gold_sources": [],
+  "gold_contradict_sources": [],
+  "distractor_sources": [],
+  "difficulty": "unknown",
+  "notes": "Imported from ClaimDB (extc, raw label 'CONTRADICTED'). evidence_summary: {\"bird_id\": 1509, \"claim\": \"Fewer than 600 transactions at Czech gas stations occurred after 2012-01-01.\", \"claim_id\": 7666, \"db_name\": \"debit_card_specializing\", \"extra_info\": \"Cz"
+}

@@ -9,5 +9,5 @@
   "gold_contradict_sources": [],
   "distractor_sources": [],
   "difficulty": "unknown",
-  "notes": "Imported from MSVEC (raw label 'True'). evidence_summary: {\"fact_check_url\": \"https://www.reuters.com/news/article/factcheck-climate-covid/fact-check-2019-study-on-increases-in-maternal-heat-exposure-and-climate-change-is-unrelated-to-covid-19-vaccines-idUSL"
+  "notes": "Imported from MSVEC (ext, raw label 'True'). evidence_summary: {\"fact_check_url\": \"https://www.reuters.com/news/article/factcheck-climate-covid/fact-check-2019-study-on-increases-in-maternal-heat-exposure-and-climate-change-is-unrelated-to-cov"
 }

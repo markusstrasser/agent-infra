@@ -1,0 +1,13 @@
+{
+  "task_id": "extc_averitec_05",
+  "claim_text": "Supreme Court Justice Ruth Bader Ginsburg said, “Pedophilia is good for the children.”",
+  "domain": "AVeriTeC",
+  "claim_type": "imported",
+  "verifiability": "verifiable",
+  "gold_verdict": "contradicted",
+  "gold_sources": [],
+  "gold_contradict_sources": [],
+  "distractor_sources": [],
+  "difficulty": "unknown",
+  "notes": "Imported from AVeriTeC (extc, raw label 'Refuted'). evidence_summary: media=['Metadata', 'PDF', 'Web text']; answer_types=['Abstractive', 'Boolean', 'Extractive']; rank=6"
+}

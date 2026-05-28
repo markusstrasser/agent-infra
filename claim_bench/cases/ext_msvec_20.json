@@ -9,5 +9,5 @@
   "gold_contradict_sources": [],
   "distractor_sources": [],
   "difficulty": "unknown",
-  "notes": "Imported from MSVEC (raw label 'False'). evidence_summary: {\"fact_check_url\": \"https://www.factcheck.org/2022/06/scicheck-vaccinated-people-not-more-susceptible-to-covid-19-than-unvaccinated/\", \"paper_title\": \"Association Between COVID-19 Booster Vaccination "
+  "notes": "Imported from MSVEC (ext, raw label 'False'). evidence_summary: {\"fact_check_url\": \"https://www.factcheck.org/2022/06/scicheck-vaccinated-people-not-more-susceptible-to-covid-19-than-unvaccinated/\", \"paper_title\": \"Association Between COVID-19 "
 }

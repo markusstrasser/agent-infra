@@ -1,0 +1,13 @@
+{
+  "task_id": "extc_claimdb_40",
+  "claim_text": "Had the toxicology database included isotopic labeling information, the phosphorus participating in any triple bonds would predominantly be the 31P isotope.",
+  "domain": "ClaimDB",
+  "claim_type": "imported",
+  "verifiability": "verifiable",
+  "gold_verdict": "insufficient_evidence",
+  "gold_sources": [],
+  "gold_contradict_sources": [],
+  "distractor_sources": [],
+  "difficulty": "unknown",
+  "notes": "Imported from ClaimDB (extc, raw label 'NOT ENOUGH INFO'). evidence_summary: {\"bird_id\": 260, \"category\": \"COUNTERFACTUAL\", \"claim\": \"Had the toxicology database included isotopic labeling information, the phosphorus participating in any triple bonds would "
+}

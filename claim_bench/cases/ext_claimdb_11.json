@@ -9,5 +9,5 @@
   "gold_contradict_sources": [],
   "distractor_sources": [],
   "difficulty": "unknown",
-  "notes": "Imported from ClaimDB (raw label 'NOT ENOUGH INFO'). evidence_summary: {\"bird_id\": 1339, \"category\": \"SUBJECTIVE\", \"claim\": \"Elijah Allen felt that the events he participated in during September were better organized than those in October.\", \"claim_id\": 7156, \"db_name\": "
+  "notes": "Imported from ClaimDB (ext, raw label 'NOT ENOUGH INFO'). evidence_summary: {\"bird_id\": 1339, \"category\": \"SUBJECTIVE\", \"claim\": \"Elijah Allen felt that the events he participated in during September were better organized than those in October.\", \"claim_id"
 }
