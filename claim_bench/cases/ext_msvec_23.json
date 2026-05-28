@@ -1,0 +1,13 @@
+{
+  "task_id": "ext_msvec_23",
+  "claim_text": "Reports about an early U.S. recommendation against certain adults taking a daily dose of aspirin to prevent heart disease have nothing to do with COVID-19. The comparison comes from social media users who claim the painkiller is â€œbeing attackedâ€ by the media due to early positive research concerning mitigating effects on the virus.",
+  "domain": "MSVEC",
+  "claim_type": "imported",
+  "verifiability": "verifiable",
+  "gold_verdict": "supported",
+  "gold_sources": [],
+  "gold_contradict_sources": [],
+  "distractor_sources": [],
+  "difficulty": "unknown",
+  "notes": "Imported from MSVEC (raw label 'True'). evidence_summary: {\"fact_check_url\": \"https://www.reuters.com/news/article/factcheck-coronavirus-aspirin/fact-check-no-evidence-aspirin-is-being-attacked-because-its-proven-to-treat-covid-19-idUSL1N2RE1CG\", \"paper_titl"
+}

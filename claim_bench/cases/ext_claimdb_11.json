@@ -1,0 +1,13 @@
+{
+  "task_id": "ext_claimdb_11",
+  "claim_text": "Elijah Allen felt that the events he participated in during September were better organized than those in October.",
+  "domain": "ClaimDB",
+  "claim_type": "imported",
+  "verifiability": "verifiable",
+  "gold_verdict": "insufficient_evidence",
+  "gold_sources": [],
+  "gold_contradict_sources": [],
+  "distractor_sources": [],
+  "difficulty": "unknown",
+  "notes": "Imported from ClaimDB (raw label 'NOT ENOUGH INFO'). evidence_summary: {\"bird_id\": 1339, \"category\": \"SUBJECTIVE\", \"claim\": \"Elijah Allen felt that the events he participated in during September were better organized than those in October.\", \"claim_id\": 7156, \"db_name\": "
+}

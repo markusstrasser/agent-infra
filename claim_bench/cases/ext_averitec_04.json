@@ -1,0 +1,13 @@
+{
+  "task_id": "ext_averitec_04",
+  "claim_text": "US state of Georgia has “almost 100,000 more COVID-19 cases, almost twice as many deaths and almost 600 more nursing home deaths than North Carolina, US.",
+  "domain": "AVeriTeC",
+  "claim_type": "imported",
+  "verifiability": "verifiable",
+  "gold_verdict": "supported",
+  "gold_sources": [],
+  "gold_contradict_sources": [],
+  "distractor_sources": [],
+  "difficulty": "unknown",
+  "notes": "Imported from AVeriTeC (raw label 'Supported'). evidence_summary: media=['Web table', 'Web text']; answer_types=['Abstractive', 'Extractive']; rank=10"
+}

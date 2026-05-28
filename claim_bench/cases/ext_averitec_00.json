@@ -1,0 +1,13 @@
+{
+  "task_id": "ext_averitec_00",
+  "claim_text": "Between 2010 and 2018, the Uighur population had the region’s highest birthrate, at about 12 newborns per 1,000 people in Xinjiang, China.",
+  "domain": "AVeriTeC",
+  "claim_type": "imported",
+  "verifiability": "verifiable",
+  "gold_verdict": "contradicted",
+  "gold_sources": [],
+  "gold_contradict_sources": [],
+  "distractor_sources": [],
+  "difficulty": "unknown",
+  "notes": "Imported from AVeriTeC (raw label 'Refuted'). evidence_summary: media=['Image/graphic', 'PDF', 'Web table', 'Web text']; answer_types=['Abstractive', 'Boolean', 'Extractive']; rank=1"
+}

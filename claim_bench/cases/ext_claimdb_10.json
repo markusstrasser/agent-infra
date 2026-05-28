@@ -1,0 +1,13 @@
+{
+  "task_id": "ext_claimdb_10",
+  "claim_text": "None of the 933 Czech gas station transactions recorded after 2012-01-01 were made using contactless (NFC) cards.",
+  "domain": "ClaimDB",
+  "claim_type": "imported",
+  "verifiability": "verifiable",
+  "gold_verdict": "insufficient_evidence",
+  "gold_sources": [],
+  "gold_contradict_sources": [],
+  "distractor_sources": [],
+  "difficulty": "unknown",
+  "notes": "Imported from ClaimDB (raw label 'NOT ENOUGH INFO'). evidence_summary: {\"bird_id\": 1509, \"category\": \"OUT-OF-SCHEMA\", \"claim\": \"None of the 933 Czech gas station transactions recorded after 2012-01-01 were made using contactless (NFC) cards.\", \"claim_id\": 16375, \"db_name"
+}

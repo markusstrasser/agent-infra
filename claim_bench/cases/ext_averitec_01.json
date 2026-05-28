@@ -1,0 +1,13 @@
+{
+  "task_id": "ext_averitec_01",
+  "claim_text": "Flu shot is 2.4x more deadly than Covid-19.",
+  "domain": "AVeriTeC",
+  "claim_type": "imported",
+  "verifiability": "verifiable",
+  "gold_verdict": "contradicted",
+  "gold_sources": [],
+  "gold_contradict_sources": [],
+  "distractor_sources": [],
+  "difficulty": "unknown",
+  "notes": "Imported from AVeriTeC (raw label 'Refuted'). evidence_summary: media=['Metadata', 'PDF', 'Web table', 'Web text']; answer_types=['Abstractive', 'Boolean', 'Extractive', 'Unanswerable']; rank=2"
+}

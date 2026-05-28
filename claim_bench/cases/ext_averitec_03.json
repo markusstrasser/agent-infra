@@ -1,0 +1,13 @@
+{
+  "task_id": "ext_averitec_03",
+  "claim_text": "Potential voter fraud in the 2020 U.S Presidential Election is caused by mail-in ballots being sent to a mans  deceased parents in Mercer County in New Jersey.",
+  "domain": "AVeriTeC",
+  "claim_type": "imported",
+  "verifiability": "verifiable",
+  "gold_verdict": "contradicted",
+  "gold_sources": [],
+  "gold_contradict_sources": [],
+  "distractor_sources": [],
+  "difficulty": "unknown",
+  "notes": "Imported from AVeriTeC (raw label 'Refuted'). evidence_summary: media=['PDF', 'Web text']; answer_types=['Extractive']; rank=4"
+}
