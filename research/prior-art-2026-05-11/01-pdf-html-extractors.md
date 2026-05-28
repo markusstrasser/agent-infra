@@ -188,13 +188,26 @@ Recommendation: relax (a). The AGPL is for distribution and network deployment, 
 - **Bevendorff et al. 2023 "best single tool by ROUGE-LSum"** — cited via trafilatura docs, not directly verified against the paper.
 - **Mistral OCR $1/1K pages, "4.32 vs Marker 4.41 LLM-judge"** — quoted from earlier internal memo (`pdf-to-markdown-tooling-2026-05.md`); reference [7] there was not re-verified in this survey.
 
-<!-- knowledge-index
-generated: 2026-05-11T07:26:21Z
-hash: 877e022e49bf
+## Revisions
 
-title: PDF + HTML → Markdown Extractor Ecosystem Survey (Q2 2026)
-status: complete
-tags: prior-art, document-extraction, pdf, html, markdown, knowledge-system
+**2026-05-28 — LiteParse v2 added to the candidate set (postdates this survey).**
+LlamaIndex shipped LiteParse v2 on 2026-05-27 (Rust, model-free, Apache-2.0) —
+not evaluated here. Bake-off vs `pymupdf4llm` on 6 corpus papers: ~100–300×
+faster (0.1–0.5s vs 12–42s w/ OCR) and ~30–45% more raw characters, but it
+emits **flat text only** — zero headings/tables/reading-order, whereas
+pymupdf4llm recovers 9–32 headings + up to 108 table rows/paper. It is not a
+structured-markdown competitor to mineru/pymupdf4llm; it's a fast text-recall +
+Apache-licensed + office-doc + scan-preflight tool. Registered as opt-in
+`--parser liteparse`, NOT a default (corpus 223e64b). The survey's tool picks
+(mineru for papers, pymupdf4llm for other PDFs) are unchanged.
+
+<!-- knowledge-index
+generated: 2026-05-28T10:21:43Z
+hash: 3fede51d4567
+
+index:title: PDF + HTML → Markdown Extractor Ecosystem Survey (Q2 2026)
+index:status: complete
+index:tags: prior-art, document-extraction, pdf, html, markdown, knowledge-system
 cross_refs: research/pdf-to-markdown-tooling-2026-05.md
 
 end-knowledge-index -->
