@@ -1,0 +1,13 @@
+{
+  "task_id": "extc_averitec_08",
+  "claim_text": "A Pakistani website was hacked by an Indian cyber group to wish Pawan Kalyan a Happy Birthday.",
+  "domain": "AVeriTeC",
+  "claim_type": "imported",
+  "verifiability": "verifiable",
+  "gold_verdict": "supported",
+  "gold_sources": [],
+  "gold_contradict_sources": [],
+  "distractor_sources": [],
+  "difficulty": "unknown",
+  "notes": "Imported from AVeriTeC (extc, raw label 'Supported'). evidence_summary: media=['Metadata', 'Video', 'Web text']; answer_types=['Abstractive', 'Boolean', 'Extractive']; rank=9"
+}

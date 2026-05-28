@@ -9,5 +9,5 @@
   "gold_contradict_sources": [],
   "distractor_sources": [],
   "difficulty": "unknown",
-  "notes": "Imported from ClaimDB (raw label 'CONTRADICTED'). evidence_summary: {\"bird_id\": 1339, \"claim\": \"The average cost Elijah Allen spent on events in September and October was 19.50, well below seventy-four dollars.\", \"claim_id\": 7153, \"db_name\": \"student_club\", \"extra_inf"
+  "notes": "Imported from ClaimDB (ext, raw label 'CONTRADICTED'). evidence_summary: {\"bird_id\": 1339, \"claim\": \"The average cost Elijah Allen spent on events in September and October was 19.50, well below seventy-four dollars.\", \"claim_id\": 7153, \"db_name\": \"stude"
 }

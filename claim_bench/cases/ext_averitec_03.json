@@ -9,5 +9,5 @@
   "gold_contradict_sources": [],
   "distractor_sources": [],
   "difficulty": "unknown",
-  "notes": "Imported from AVeriTeC (raw label 'Refuted'). evidence_summary: media=['PDF', 'Web text']; answer_types=['Extractive']; rank=4"
+  "notes": "Imported from AVeriTeC (ext, raw label 'Refuted'). evidence_summary: media=['PDF', 'Web text']; answer_types=['Extractive']; rank=4"
 }

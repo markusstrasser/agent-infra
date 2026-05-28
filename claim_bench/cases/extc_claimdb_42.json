@@ -1,0 +1,13 @@
+{
+  "task_id": "extc_claimdb_42",
+  "claim_text": "If loyalty points had been awarded for the 933 post-2012-01-01 Czech gas station transactions at a rate of 1 point per Czech koruna spent, at least one customer would have exceeded 10,000 points by the end of 2012.",
+  "domain": "ClaimDB",
+  "claim_type": "imported",
+  "verifiability": "verifiable",
+  "gold_verdict": "insufficient_evidence",
+  "gold_sources": [],
+  "gold_contradict_sources": [],
+  "distractor_sources": [],
+  "difficulty": "unknown",
+  "notes": "Imported from ClaimDB (extc, raw label 'NOT ENOUGH INFO'). evidence_summary: {\"bird_id\": 1509, \"category\": \"COUNTERFACTUAL\", \"claim\": \"If loyalty points had been awarded for the 933 post-2012-01-01 Czech gas station transactions at a rate of 1 point per Cze"
+}

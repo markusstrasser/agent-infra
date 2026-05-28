@@ -1,0 +1,13 @@
+{
+  "task_id": "extc_claimdb_44",
+  "claim_text": "Among players listed in the European Football 2 database who were born after 1990, the average annual salary in 2015 exceeded €1.2 million.",
+  "domain": "ClaimDB",
+  "claim_type": "imported",
+  "verifiability": "verifiable",
+  "gold_verdict": "insufficient_evidence",
+  "gold_sources": [],
+  "gold_contradict_sources": [],
+  "distractor_sources": [],
+  "difficulty": "unknown",
+  "notes": "Imported from ClaimDB (extc, raw label 'NOT ENOUGH INFO'). evidence_summary: {\"bird_id\": 1060, \"category\": \"OUT-OF-SCHEMA\", \"claim\": \"Among players listed in the European Football 2 database who were born after 1990, the average annual salary in 2015 exceed"
+}

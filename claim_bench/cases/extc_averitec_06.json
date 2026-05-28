@@ -1,0 +1,13 @@
+{
+  "task_id": "extc_averitec_06",
+  "claim_text": "The Edo State government of Nigeria receives 600 million naira monthly as a security vote.",
+  "domain": "AVeriTeC",
+  "claim_type": "imported",
+  "verifiability": "verifiable",
+  "gold_verdict": "contradicted",
+  "gold_sources": [],
+  "gold_contradict_sources": [],
+  "distractor_sources": [],
+  "difficulty": "unknown",
+  "notes": "Imported from AVeriTeC (extc, raw label 'Refuted'). evidence_summary: media=['Metadata', 'PDF', 'Web text']; answer_types=['Abstractive', 'Extractive']; rank=7"
+}
