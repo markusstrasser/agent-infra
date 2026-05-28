@@ -87,6 +87,18 @@ Eight parallel researcher passes over arxiv + vendor blogs covering 2026-04-29 �
 | Sycophancy on Opus 4.7 | "instruction-mitigated only" | "Anthropic shipped a measurable ~50% reduction baseline-vs-Opus-4.7; less mitigation effort needed" | Anthropic 2026-04-30 |
 | Cost economics | Opus 4.7 / Sonnet 4.6 default | re-cost vs DeepSeek V4-Pro for verbose Modal jobs | DeepSeek V4-Pro -75% permanent |
 
+## Delta — 2026-05-28 (verified one day after compile)
+
+Three items postdate the window cutoff or were missed; all checked against primary sources and graded for inclusion alongside the A/B body above.
+
+1. **NVIDIA Polar — "Agentic RL on Any Harness at Scale" (arXiv:2605.24220, May 27).** `[A]` Rollout framework that runs RL over an *unmodified* agent harness (Codex, Claude Code, Qwen Code, Pi) by proxying the LLM-API boundary, recording token-level prompts/responses/logprobs, and reconstructing token-faithful trajectories for the trainer. Simple GRPO improves Qwen3.5-4B on SWE-Bench Verified by **+22.6 (Codex), +4.8 (Claude Code), +0.6 (Qwen Code), +6.2 (Pi)** points. Builds on ProRL Agent (arXiv:2603.18815); registered as a NeMo Gym env; code at github.com/NVIDIA-NeMo/ProRL-Agent-Server. **Significance:** makes "the harness is the training target" a concrete systems pattern — strongest evidence this window for the cross-cutting "train the scaffold, not just the model" theme (pairs with Cursor's reported 100K-VM Composer-2.5 training run). `[SOURCE: arxiv.org/abs/2605.24220]`
+
+2. **xAI Grok Build (x.ai/news/grok-build-cli, May 25).** `[A]` New terminal coding agent + CLI, early beta for SuperGrok / X Premium Plus. Model `grok-build-0.1` (256k ctx, $1.00/$2.00 per MTok, agentic-coding-tuned; replaces retired `grok-code-fast-1`). Reads AGENTS.md / plugins / hooks / skills / MCP out of the box, plan-review-approve mode, parallel subagents in worktrees, headless `-p`, full ACP support; also lands in OpenCode / Kilo Code / OpenClaw. **Significance:** fourth major harness entrant (after Claude Code, Codex, Cursor/Cline) and explicitly Claude-Code-shaped — convergence on the Claude Code harness model (hooks/skills/MCP/AGENTS.md/subagent-worktrees) is now industry-wide. `[SOURCE: x.ai/news/grok-build-cli]`
+
+3. **Anthropic → xAI compute deal: $1.25B/month through May 2029 (TechCrunch, May 20, from SpaceX S-1).** `[B]` Anthropic bought ~300 MW — the entire output of xAI's Colossus 1 (Memphis) — ~$40B total; either side may terminate on 90 days' notice. xAI's "neocloud" play monetizes overbuilt capacity as Grok usage dropped. **Significance:** concrete datapoint on agentic-compute economics the frontier axis only covered via per-token pricing — frontier labs are now each other's cloud vendors. `[SOURCE: techcrunch.com/2026/05/20/anthropic-will-pay-xai-1-25-billion-per-month-for-compute]`
+
+**Unverified leads (aggregator-grade, not promoted):** OpenAI Codex Hooks (parallels Claude Code's hook model), SkillOpt ("train SKILL.md with validation gates"), Cursor Composer 2.5 (the 403 the coding memo flagged — now live), a Microsoft minimalist (~1k-line) browser-agent harness reportedly beating heavier setups. Verify against primary sources before citing.
+
 ## Sources
 
 All claims trace to a per-axis memo. Confidence and source grades live in each memo's claims table:
@@ -101,8 +113,8 @@ All claims trace to a per-axis memo. Confidence and source grades live in each m
 - Tool use / MCP: `research/2026-05-27-tool-use-mcp-4w.md`
 
 <!-- knowledge-index
-generated: 2026-05-27T09:21:31Z
-hash: 0c41ea3d2ed7
+generated: 2026-05-28T10:55:30Z
+hash: d01fddc90a33
 
 index:title: LLM & Agentic Frontier — Compiled 4-Week Brief
 index:status: intel-only (no build proposals)
