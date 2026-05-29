@@ -75,9 +75,11 @@ def test_tagged_prompt_captures(tmp_path):
     assert len(r["dedupe_hash"]) == 64
 
 
-def test_case_insensitive_and_to_end_of_line(tmp_path):
+def test_case_insensitive_and_multiline_body(tmp_path):
+    # Contract (revised post-/critique close): capture the FULL body below the
+    # tag, not just the first line — a multi-line correction must survive.
     payload = {
-        "prompt": "#F GOVERNANCE: Always tag sources.\nnext line ignored",
+        "prompt": "#F GOVERNANCE: Always tag sources.\nand cite the incident",
         "session_id": "s3",
         "cwd": "/proj",
     }
@@ -85,7 +87,7 @@ def test_case_insensitive_and_to_end_of_line(tmp_path):
     assert res.returncode == 0
     recs = [json.loads(l) for l in _quarantine(tmp_path, "s3").read_text().splitlines() if l.strip()]
     assert len(recs) == 1
-    assert recs[0]["correction_text"] == "Always tag sources."
+    assert recs[0]["correction_text"] == "Always tag sources.\nand cite the incident"
 
 
 def test_dedupe_on_repeat(tmp_path):

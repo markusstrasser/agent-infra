@@ -32,8 +32,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-# Case-insensitive; capture from the marker to end of line (or end of prompt).
-_TAG_RE = re.compile(r"#f\s+governance:\s*(.+?)(?:\n|$)", re.IGNORECASE)
+# Case-insensitive. Capture from the marker to END OF PROMPT (DOTALL) so a
+# multi-line correction below the tag is not silently dropped, but STOP at a
+# second `#f governance:` tag so two tags yield one clean capture each (we take
+# the first). The quarantine is human-reviewed, so mild over-capture is safe;
+# losing the body is not. Length-capped in _extract_correction.
+_TAG_RE = re.compile(
+    r"#f\s+governance:\s*(.+?)\s*(?=\n\s*#f\s+governance:|$)",
+    re.IGNORECASE | re.DOTALL,
+)
+_MAX_CORRECTION_CHARS = 2000  # cap over-capture of a long trailing prompt
 
 
 def _intake_dir() -> Path:
@@ -56,7 +64,7 @@ def _extract_correction(prompt: str) -> str | None:
     m = _TAG_RE.search(prompt)
     if not m:
         return None
-    correction = m.group(1).strip()
+    correction = m.group(1).strip()[:_MAX_CORRECTION_CHARS].strip()
     return correction or None
 
 

@@ -70,7 +70,12 @@ except Exception:
 #   verifier: evals/cases/autonomy-boundaries   (or: null)
 #   blast_radius: constitution                  (style|local|shared|constitution)
 
-_FIELD = re.compile(r"^\s*(?:#|<!--|//|\*)?\s*(goal|verifier|blast_radius)\s*:\s*(.+?)\s*(?:-->)?\s*$",
+# NOTE: comment prefix is optional (markdown Gov-ID fields sit bare inside an
+# HTML comment), so the field scan below is BOUNDED to the contiguous block
+# right after the Gov-ID line (stops at blank line / `-->` / first non-field
+# line) to avoid matching ordinary prose. `*` is NOT an allowed prefix — bullet
+# list items like `* goal: ...` must not be parsed as metadata.
+_FIELD = re.compile(r"^\s*(?:#|<!--|//)?\s*(goal|verifier|blast_radius)\s*:\s*(.+?)\s*(?:-->)?\s*$",
                     re.IGNORECASE)
 _GOVID = re.compile(r"Gov-ID\s*:\s*([A-Za-z0-9_:./-]+)")
 
@@ -87,11 +92,18 @@ def parse_gov_id(path: Path) -> dict | None:
         m = _GOVID.search(line)
         if m:
             gid = m.group(1)
-            # scan the next few lines for fields
+            # scan ONLY the contiguous block right after the Gov-ID line; stop
+            # at the comment close, a blank line, or the first non-field line
+            # once we've started collecting (prevents prose false-matches).
             for nxt in head[i + 1:i + 8]:
+                stripped = nxt.strip()
+                if stripped in ("-->", ""):
+                    break
                 fm = _FIELD.match(nxt)
                 if fm:
                     fields[fm.group(1).lower()] = fm.group(2).strip()
+                elif fields:
+                    break
             break
     if not gid:
         return None
@@ -178,10 +190,15 @@ def advisory_noise(days: int) -> list[dict]:
         return []
     counts = sorted(fires.values())
     decile = counts[int(len(counts) * 0.9)] if len(counts) >= 10 else max(counts)
+    # Absolute floor: never flag "noise" on sparse telemetry — a hook that fired
+    # a handful of times in the window is not a habituation problem, even if it
+    # tops a small sample. Habituation is a HIGH-volume phenomenon.
+    MIN_FIRES = 50
+    threshold = max(decile, MIN_FIRES)
     out = []
     for h, n in sorted(fires.items(), key=lambda kv: -kv[1]):
         advisory_only = actions[h].issubset({"warn", "advise", "", "context"})
-        if n >= decile and advisory_only:
+        if n >= threshold and advisory_only:
             out.append({
                 "hook": h, "fires": n,
                 "confidence": "medium",  # no per-fire heeded/ignored signal yet
