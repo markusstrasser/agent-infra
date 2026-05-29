@@ -16,7 +16,8 @@
 # Aware of THIS machine's real hogs: uv cache (~50 GB), HuggingFace, datalab,
 # the sudo-gated queue (Previously Relocated Items, Claude vm_bundles).
 #
-# Usage:  reclaim [report|caches|venvs|big|rosetta|ssd|tm-off|sudo-items|all] [--yes] [--days N] [--gb N]
+# Usage:  reclaim [report|preview|caches|venvs|big|rosetta|ssd|tm-off|sudo-items|all] [--yes] [--days N] [--gb N]
+#         preview = force dry-run of every destructive action (caches+venvs+sudo-items); never deletes.
 # Safe by default — destructive subcommands print a dry-run unless you pass --yes (alias --force, -y).
 
 set -uo pipefail   # NOT -e on purpose: one missing path must not abort the whole run.
@@ -100,6 +101,7 @@ cmd_report() {
   info "$nca caffeinate holds, $(pgrep -x claude 2>/dev/null | wc -l | tr -d ' ') claude agents alive"
 
   sect "Reclaim hints"
+  info "preview ALL → reclaim preview     (dry-run everything; deletes nothing)"
   info "caches      → reclaim caches      (uv/brew/hf/playwright/quicklook/crashes)"
   info "stale venvs → reclaim venvs       (git-dormant > ${DAYS}d, skips live agents)"
   info "big files   → reclaim big --gb 2"
@@ -249,6 +251,10 @@ case "$SUB" in
   ssd)         cmd_ssd ;;
   tm-off)      cmd_tm_off ;;
   sudo-items)  cmd_sudo_items ;;
+  preview)     YES=0
+               printf "${B}reclaim preview${N} — everything that WOULD run/delete across caches+venvs+sudo-items.\n"
+               printf "${C}● nothing is touched${N} (preview ignores --yes; run a specific subcommand with --yes to apply)\n"
+               cmd_caches; cmd_venvs; cmd_sudo_items ;;
   all)         cmd_report; printf "\n"; cmd_caches ;;
   help|*)
     sed -n '2,30p' "$0" | sed 's/^#\{0,1\} \{0,1\}//'
