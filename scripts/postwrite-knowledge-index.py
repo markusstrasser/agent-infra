@@ -22,6 +22,7 @@ Usage as hook:
 
 import hashlib
 import json
+import os
 import re
 import sys
 from datetime import datetime, timezone
@@ -277,8 +278,28 @@ def main():
     index_block = build_knowledge_index(text)
     new_text = inject_index(text, index_block)
 
-    # Write back
-    Path(file_path).write_text(new_text, encoding="utf-8")
+    # DATA-LOSS GUARD (2026-05-29): this hook's ONLY legitimate effect is updating
+    # the knowledge-index block. If regeneration would change the document BODY,
+    # it has corrupted the file — refuse to persist. (A regex edge once blanked an
+    # entire docs/research memo; the empty body was then committed undetected.)
+    def _body(t: str) -> str:
+        return re.sub(
+            rf"{re.escape(KI_START)}.*?{re.escape(KI_END)}", "", t, flags=re.DOTALL
+        ).strip()
+
+    if _body(new_text) != _body(text):
+        print(json.dumps({"additionalContext": (
+            f"knowledge-index hook ABORTED on {file_path}: regeneration would alter "
+            f"the document body (data-loss guard tripped). File left unchanged; "
+            f"the index block was NOT updated. Inspect the generator."
+        )}))
+        sys.exit(0)
+
+    # Atomic write — write to a temp sibling then rename, so an interrupted write
+    # can never truncate the real file.
+    tmp = Path(file_path).with_name(Path(file_path).name + ".ki.tmp")
+    tmp.write_text(new_text, encoding="utf-8")
+    os.replace(tmp, file_path)
 
     # Log telemetry (amendment A5)
     try:
