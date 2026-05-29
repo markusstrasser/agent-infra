@@ -6,6 +6,11 @@ Surfaces the persisted quality card after `mcp__research__fetch_paper` or
 next turn, even if it does not inspect the raw JSON carefully.
 """
 
+# Gov-ID: hook:posttool-paper-quality
+# goal: surface paper vetoes/flags after fetch
+# verifier: null
+# blast_radius: local
+
 from __future__ import annotations
 
 import json

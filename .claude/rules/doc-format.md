@@ -6,6 +6,12 @@ paths:
 
 # Document Format Requirements
 
+<!-- Gov-ID: rule:doc-format
+goal: document formatting conventions
+verifier: null
+blast_radius: style
+-->
+
 All knowledge-eligible files (research memos, decisions, entity files) must have YAML frontmatter.
 The PostToolUse hook warns if frontmatter is missing. The balance check flags it as an error.
 

@@ -6,6 +6,12 @@ paths:
 
 # Artifact Naming Convention
 
+<!-- Gov-ID: rule:artifact-naming
+goal: naming conventions for files/artifacts
+verifier: null
+blast_radius: style
+-->
+
 Artifacts are files written to `artifacts/` subdirectories by skills and scripts.
 Any artifact that could be produced by multiple agents or sessions **must** include
 a session discriminator to prevent overwrites.

@@ -1,5 +1,11 @@
 # Session Forensics
 
+<!-- Gov-ID: rule:session-forensics
+goal: where session logs and dbs live
+verifier: null
+blast_radius: local
+-->
+
 - Chat histories: `~/.claude/projects/-Users-alien-Projects-*/UUID.jsonl`
 - Compaction log: `~/.claude/compact-log.jsonl`
 - Session receipts: `~/.claude/session-receipts.jsonl`

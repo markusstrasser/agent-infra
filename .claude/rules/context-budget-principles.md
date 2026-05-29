@@ -5,6 +5,12 @@ date: 2026-04-05
 
 # Context Budget Principles
 
+<!-- Gov-ID: rule:context-budget-principles
+goal: keep agent-readable files token-efficient
+verifier: evals/graders/governance/context_budget.py
+blast_radius: local
+-->
+
 Markdown organization rules for agent-readable files. Derived from measured data
 and the Gloaguen et al. AGENTS.md study (wiki summaries: -0.5-3% success, +20% cost).
 

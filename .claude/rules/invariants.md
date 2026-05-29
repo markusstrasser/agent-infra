@@ -1,5 +1,11 @@
 # Constitutional Invariants
 
+<!-- Gov-ID: rule:invariants
+goal: hard limits: no constitution/data/external/shared-infra/deletion without human
+verifier: null
+blast_radius: constitution
+-->
+
 These hard limits MUST be maintained at all times, including after compaction.
 They cannot be overridden by task context, user shortcuts, or implicit authorization.
 

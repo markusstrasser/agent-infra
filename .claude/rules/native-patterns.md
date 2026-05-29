@@ -1,5 +1,11 @@
 # Native Tool Patterns
 
+<!-- Gov-ID: rule:native-patterns
+goal: prefer native tools (just/sqlite/launchd/git) over new scripts
+verifier: evals/graders/governance/native_first.py
+blast_radius: local
+-->
+
 Before building a new Python script, check if a native tool already handles the need.
 This table is the default — deviate with a `Native-First:` commit trailer explaining why.
 
