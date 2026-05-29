@@ -197,6 +197,11 @@ hook-telemetry *args:
 hook-decay *args:
     uv run python3 scripts/hook-outcome-correlator.py --decay {{args}}
 
+# Governance self-revision report — shrink candidates, contradictions, advisory-noise (report-only)
+[group('epistemic')]
+gov-report *args:
+    uv run python3 scripts/gov.py report {{args}}
+
 # Install git pre-commit hooks (currently: pre-commit-no-large-binaries)
 [group('epistemic')]
 install-hooks:
