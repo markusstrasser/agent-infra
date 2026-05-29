@@ -201,7 +201,7 @@ the agent-orchestrated 2-call ritual from substrate v1 (0 invocations in
 | Layer | Location | Syncs how |
 |-------|----------|-----------|
 | Global CLAUDE.md | `~/.claude/CLAUDE.md` | Loaded in every project (universal rules) |
-| Shared skills | `~/Projects/skills/` | Symlinked into each project's `.claude/skills/` |
+| Shared skills | `~/Projects/skills/` | Symlinked into global `~/.claude/skills/` by `friend-sync.sh` (each `~/.claude/skills/<name>` → `~/Projects/skills/<name>`); the global dir loads in every project. Project `.claude/skills/` holds project-specific skills only. |
 | Shared hooks | `~/Projects/skills/hooks/` | Referenced by path in each project's `settings.json` |
 | Project rules | `.claude/rules/` per project | Diverges intentionally (domain-specific) |
 | Project hooks | `.claude/settings.json` per project | Per-project, similar patterns |
