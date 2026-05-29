@@ -534,3 +534,18 @@ lint-no-bare-annotations *args:
 [group('corpus')]
 test-corpus *args:
     cd scripts/corpus && uv run pytest packages/corpus-core/tests/ {{args}}
+
+# ── Knowledge ──────────────────────────────────────────────────────
+
+# Find docs that may be stale after a correction — lexical scan for a term
+# across the knowledge repos. Replaces propagate-correction.py's forward
+# term-match leg (correction-sweep pipeline retired 2026-05-29).
+[group('knowledge')]
+propagate term:
+    rg -n --type md "{{term}}" /Users/alien/Projects/phenome/docs /Users/alien/Projects/agent-infra/research /Users/alien/Projects/intel/analysis
+
+# Find unresolved correction/retraction blockquotes across the knowledge
+# repos. Replaces propagate-correction.py's @correction-scan leg.
+[group('knowledge')]
+scan-corrections:
+    rg -n '^>\s*\*\*(CORRECTION|RETRACTION|REVISED|UPDATE)\b' --type md /Users/alien/Projects/phenome /Users/alien/Projects/agent-infra /Users/alien/Projects/intel
