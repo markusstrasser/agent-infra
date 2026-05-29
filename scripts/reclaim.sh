@@ -151,6 +151,15 @@ cmd_caches() {
   # Mail Downloads can hold stale attachments:
   del "$HOME/Library/Containers/com.apple.mail/Data/Library/Mail Downloads"
 
+  sect "App & browser caches (regenerable — NOT profiles/history)"
+  del "$HOME/Library/Caches/Google"                    # Chrome HTTP cache
+  del "$HOME/Library/Caches/com.apple.Safari"
+  del "$HOME/Library/Caches/BraveSoftware"
+  del "$HOME/Library/Caches/ru.keepcoder.Telegram"     # Telegram media cache (re-downloads)
+  del "$HOME/Library/Caches/CloudKit"                  # re-syncs from iCloud
+  del "$HOME/.cache/codex-runtimes"                    # Codex CLI runtimes (re-fetched)
+  del "$HOME/.cache/chrome-devtools-mcp"               # MCP chrome download (re-fetched)
+
   if [ "$YES" = 1 ]; then
     local after; after=$(free_gb)
     sect "Result"; ok "free space: ${before} GB → ${after} GB  (Δ $((after-before)) GB)"
