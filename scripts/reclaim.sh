@@ -160,6 +160,14 @@ cmd_caches() {
   del "$HOME/.cache/codex-runtimes"                    # Codex CLI runtimes (re-fetched)
   del "$HOME/.cache/chrome-devtools-mcp"               # MCP chrome download (re-fetched)
 
+  sect "Project build caches (rederivable — regenerate on next run)"
+  local pyc; pyc=$(find "$HOME/Projects" -type d \( -name __pycache__ -o -name .pytest_cache -o -name .ruff_cache -o -name .mypy_cache \) -prune 2>/dev/null)
+  if [ -n "$pyc" ]; then
+    local pn; pn=$(printf '%s\n' "$pyc" | grep -c .)
+    if [ "$YES" = 1 ]; then printf '%s\n' "$pyc" | xargs rm -rf 2>/dev/null; ok "removed $pn Python build-cache dirs under ~/Projects"
+    else printf "  ${D}[dry-run]${N} would remove %s Python build-cache dirs under ~/Projects\n" "$pn"; fi
+  else info "none"; fi
+
   if [ "$YES" = 1 ]; then
     local after; after=$(free_gb)
     sect "Result"; ok "free space: ${before} GB → ${after} GB  (Δ $((after-before)) GB)"
@@ -173,10 +181,13 @@ cmd_venvs() {
   printf "${B}reclaim venvs${N}  (dormant > ${DAYS}d)  "; mode_banner
   local cutoff; cutoff=$(date -v-"${DAYS}"d +%s)
   local active=" intel genomics phenome publishing "   # live-agent cwds — never touch
+  # venvs with a live process (MCP servers, dev servers, launchd jobs) — deleting breaks them
+  local inuse; inuse=$(ps -axww -o command= 2>/dev/null | grep -oE "$HOME/Projects/[A-Za-z0-9_.-]+/\.venv" | sort -u)
   local d n lc ts
   for d in "$HOME"/Projects/*/; do
     n=$(basename "$d"); [ -d "${d}.venv" ] || continue
     case "$active" in *" $n "*) info "skip $n (live agent)"; continue ;; esac
+    case "$inuse" in *"${d}.venv"*) info "skip $n (venv in use by a running process)"; continue ;; esac
     lc=$(git -C "$d" log -1 --format=%ct 2>/dev/null || echo 0)
     if [ "${lc:-0}" -lt "$cutoff" ]; then
       ts=$(git -C "$d" log -1 --format=%cd --date=short 2>/dev/null || echo "no-git")
