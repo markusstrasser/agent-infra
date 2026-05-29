@@ -6,6 +6,21 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-05-29] SHIPPED: Governance self-revision system — the subtract loop (gov-shrink)
+- **Session:** agent-infra `aa8a3835` (this session). Plan: `.claude/plans/aa8a3835-governance-self-revision.md`.
+- **Problem:** the improvement apparatus was a one-directional ratchet — 171 implemented / 128 open proposals, ALL additive, with no retirement verb for rules/clauses; the only decay (`hook-decay`) covered hooks alone; user corrections captured ad hoc. Governance only grew.
+- **Telos shift (user):** governance should SHRINK as model IQ rises. Rules are scaffolding; goals+verifiers (evals/) are durable. Engine of removal = re-run the verifier with the scaffold gone (gov-shrink); if it still passes, retire the scaffold.
+- **Implemented:**
+  1. `scripts/gov.py` — report-only detector (`just gov-report`). Gov-ID parse → ephemeral `:memory:` projection (no governance DB; markdown/git authoritative — clears the 2026-03-21 finding-triage-DB veto) → shrink candidates + contradiction invariants + advisory-noise, each with a {confidence,evidence,blast_radius} routing triple. Earned-autonomy apply-gate built but DORMANT.
+  2. `scripts/gov_invariants.py` — curated clause↔telemetry registry. P1 rule:hook imbalance (4.19) surfaces as a contradiction unprompted; P11 + verifier-coverage (3/9).
+  3. `scripts/buildthenundo.py` — report-only detector for the top unenforced recurrence (P11). Validated on real history.
+  4. `scripts/gov_intake.py` — `#f governance:` correction capture → quarantine (explicit-tag only; no semantic FP factory). Wired meta-local; GLOBAL deploy gated on user sign-off.
+  5. `.claude/rules/gov-id.md` + Gov-ID annotations on 13 scaffolds + `[~]retired`/`[>]superseded` verbs.
+  6. `evals/graders/governance/` — 3 ground-truth verifiers (no LLM judge: leniency bias scales with capability + Rice undecidability).
+- **Cross-model hardened** (Gemini 3.5 Flash + GPT-5.5): inverted SQLite-as-authority → markdown-authoritative projection; dropped a needless constitution edit (proposing already permitted); explicit-only correction intake; curated (not generic-SQL) contradiction checks.
+- **Day-one signal:** P1 contradiction + 2 high-fire advisory-noise hooks (read-discipline 6680/60d, commit-check 5757) + a veto-adjacent artifact (`scripts/finding-triage.py` exists despite the 2026-03-21 veto) all surfaced automatically.
+- **Status:** [x] implemented — Phase 1 + workstream X live; Phases 2-3 mechanisms built, gated (global intake on sign-off; auto-apply on 14d zero-revert track record). Success metric: governance corpus LOC trends ▼ per model-era while eval pass-rate holds.
+
 ### [2026-05-11] HOOK WEAKNESS: subagent-gate write-stub advisory ignored across all 36 dispatches (intel)
 - **Sessions:** intel `4ef78841` (14+ dispatches), `1792c708` (multiple dispatches)
 - **Evidence:** `pretool-subagent-gate.sh` Check 10 fires advisory `additionalContext` on every Agent() dispatch where `output_file:` is specified but no write-stub-first instruction is present: `"SUBAGENT WRITE-FIRST: Prompt specifies file output but doesn't instruct write-stub-first. Add: 'Your FIRST tool call MUST be Write with a PROBE IN PROGRESS stub at the output path.'"` In session `4ef78841` this fired ~14 times consecutively; the parent agent read the advisory in tool_result each turn and dispatched the next agent unchanged. Pattern verified independently in `1792c708`. The `spinning:528` counter partially reflects this advisory inflation — every advisory logs to `hook-trigger-log.sh` without producing any behavioral change.
