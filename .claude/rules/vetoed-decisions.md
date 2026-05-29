@@ -1,5 +1,11 @@
 # Vetoed Decisions
 
+<!-- Gov-ID: rule:vetoed-decisions
+goal: do not re-propose or re-implement retired decisions
+verifier: evals/graders/governance/no_vetoed_rebuild.py
+blast_radius: local
+-->
+
 Agents: check this list before proposing or re-implementing anything listed here.
 These decisions were made deliberately and should not be re-derived.
 

@@ -6,6 +6,12 @@ paths:
 
 # Research Index (`research/`)
 
+<!-- Gov-ID: rule:research-index
+goal: route to the right research memo
+verifier: null
+blast_radius: style
+-->
+
 Consult these files before acting on the topic. Scan this table when starting a task.
 
 | File | Topic | Consult before |

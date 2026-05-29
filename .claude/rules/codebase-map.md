@@ -4,6 +4,13 @@ paths:
   - "scripts/**"
 ---
 # Codebase Map
+
+<!-- Gov-ID: rule:codebase-map
+goal: compact code map for agent navigation (generated)
+verifier: null
+blast_radius: style
+-->
+
 # 84 Python files — generated 2026-05-11
 # Navigation: repo_callgraph(target="name") finds callers across files
 

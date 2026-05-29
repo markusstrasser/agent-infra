@@ -1,5 +1,11 @@
 # Decision Journal Format
 
+<!-- Gov-ID: rule:decision-journal
+goal: when and how to record path-dependent decisions
+verifier: null
+blast_radius: style
+-->
+
 One file per decision in `decisions/`, format: `YYYY-MM-DD-slug.md`. Template in `decisions/.template.md`.
 Records use YAML frontmatter for machine-readable metadata (concept grouping, typed relations, provenance).
 
