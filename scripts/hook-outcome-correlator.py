@@ -15,82 +15,13 @@ Usage:
   uv run python3 scripts/hook-outcome-correlator.py --effectiveness [--days N]
 """
 
-import subprocess
 import sys
 from collections import defaultdict
 from datetime import datetime, timedelta
-from pathlib import Path
 
 from common.paths import TRIGGERS_FILE, RECEIPTS_PATH as RECEIPTS_FILE
 from common.io import load_jsonl
-
-
-# Manual overrides for hook deploy dates. Auto-derivation from git log covers
-# the common case (filename contains hook name); overrides are only needed
-# when a hook predates its current filename or was renamed.
-HOOK_DEPLOY_OVERRIDES: dict[str, str] = {
-    "commit-check": "2026-03-01",
-    "search-burst": "2026-03-01",
-    "subagent-gate": "2026-03-01",
-    "source-check": "2026-03-02",
-    "spinning": "2026-03-08",
-}
-
-
-def _git_first_commit_dates(repo: Path, subdir: str) -> dict[str, str]:
-    """Map basename -> ISO date of first commit adding that file under subdir."""
-    if not (repo / ".git").exists():
-        return {}
-    try:
-        out = subprocess.check_output(
-            ["git", "-C", str(repo), "log", "--reverse", "--diff-filter=A",
-             "--format=%ai", "--name-only", "--", subdir],
-            text=True, stderr=subprocess.DEVNULL,
-        )
-    except subprocess.CalledProcessError:
-        return {}
-    date: str | None = None
-    result: dict[str, str] = {}
-    for line in out.splitlines():
-        if not line.strip():
-            continue
-        if len(line) >= 10 and line[0].isdigit() and line[4] == "-":
-            date = line[:10]
-        elif date:
-            fname = line.rsplit("/", 1)[-1]
-            result.setdefault(fname, date)
-    return result
-
-
-def derive_hook_deploy_dates(hook_names: set[str]) -> dict[str, str]:
-    """Best-effort: match trigger-log hook names to hook filenames by token substring."""
-    file_dates: dict[str, str] = {}
-    for repo, sub in [(Path.home() / "Projects" / "skills", "hooks/"),
-                      (Path.home() / ".claude", "hooks/")]:
-        for fname, date in _git_first_commit_dates(repo, sub).items():
-            # earliest wins if a hook file appears in both repos
-            if fname not in file_dates or date < file_dates[fname]:
-                file_dates[fname] = date
-
-    result: dict[str, str] = {}
-    for hook in hook_names:
-        if not hook or hook == "?":
-            continue
-        hook_parts = hook.split("-")
-        matches: list[tuple[str, str]] = []
-        for fname, date in file_dates.items():
-            stem = fname.rsplit(".", 1)[0].replace("_", "-")
-            parts = stem.split("-")
-            # Contiguous subsequence match: "dup-read" ⊂ "posttool-dup-read"
-            for i in range(len(parts) - len(hook_parts) + 1):
-                if parts[i:i + len(hook_parts)] == hook_parts:
-                    matches.append((date, fname))
-                    break
-        if matches:
-            matches.sort()
-            result[hook] = matches[0][0]
-    result.update(HOOK_DEPLOY_OVERRIDES)
-    return result
+from common.hookmeta import derive_hook_deploy_dates  # noqa: F401 (shared; also used here)
 
 
 def effectiveness_report(days: int):
@@ -128,7 +59,7 @@ def effectiveness_report(days: int):
 
     print(f"{'=' * 85}")
     print(f"  Hook Effectiveness Analysis — last {days} days")
-    print(f"  Method: daily trigger rate (triggers/day) before vs after deployment")
+    print("  Method: daily trigger rate (triggers/day) before vs after deployment")
     print(f"{'=' * 85}")
     print()
     print(f"  {'HOOK':<25} {'DEPLOYED':>10} {'DAYS_PRE':>8} {'TRIG/DAY':>8} "
@@ -240,7 +171,7 @@ def decay_report(days: int):
 
     print(f"{'=' * 95}")
     print(f"  Hook Decay Analysis — last {days} days ({len(weeks_sorted)} ISO weeks)")
-    print(f"  Method: post-deploy weekly trigger rate, slope over last min(4, N) weeks")
+    print("  Method: post-deploy weekly trigger rate, slope over last min(4, N) weeks")
     print(f"{'=' * 95}")
     print()
     header = f"  {'HOOK':<25} {'DEPLOYED':>10} {'W1':>6} {'W-latest':>9} " \
@@ -410,7 +341,6 @@ def main():
         blocks = stats["blocks"]
         warns = stats["warns"]
         sessions_fired = stats["sessions_fired"]
-        sessions_blocked = stats["sessions_blocked"]
 
         # Compute cost delta: sessions where hook fired vs sessions where it didn't
         fired_costs = [
