@@ -1,0 +1,78 @@
+{
+  "_comment": "High-signal AI/LLM/agentic accounts for release+tricks sweeps. user_id cached after first resolve to skip $0.01 lookups.",
+  "_purpose": "newest LLM / agentic / model releases, tricks, code",
+  "accounts": [
+    {
+      "username": "karpathy",
+      "user_id": "33836629"
+    },
+    {
+      "username": "simonw",
+      "user_id": "12497"
+    },
+    {
+      "username": "_philschmid",
+      "user_id": "1141052916570214400"
+    },
+    {
+      "username": "omarsar0",
+      "user_id": "3448284313"
+    },
+    {
+      "username": "_akhaliq",
+      "user_id": "2465283662"
+    },
+    {
+      "username": "reach_vb",
+      "user_id": "874987512850128897"
+    },
+    {
+      "username": "swyx",
+      "user_id": "33521530"
+    },
+    {
+      "username": "alexalbert__",
+      "user_id": "1380719534970040322"
+    },
+    {
+      "username": "mervenoyann",
+      "user_id": "1202267633049100291"
+    },
+    {
+      "username": "_jasonwei",
+      "user_id": "1319101874532978690"
+    },
+    {
+      "username": "DrJimFan",
+      "user_id": "1007413134"
+    },
+    {
+      "username": "teortaxesTex",
+      "user_id": "192201556"
+    },
+    {
+      "username": "scaling01",
+      "user_id": "1825243643529027584"
+    },
+    {
+      "username": "corbtt",
+      "user_id": "823506858"
+    },
+    {
+      "username": "hwchase17",
+      "user_id": "2728439146"
+    },
+    {
+      "username": "skirano",
+      "user_id": "73105934"
+    },
+    {
+      "username": "kalomaze",
+      "user_id": "1319397157913436163"
+    },
+    {
+      "username": "rohanpaul_ai",
+      "user_id": "2588345408"
+    }
+  ]
+}
