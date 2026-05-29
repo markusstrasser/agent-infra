@@ -325,6 +325,7 @@ THEN agent claims success without pre-action prediction language (outcome bias),
 **Mitigation:**
 - Instrumentation first: session-analyst detects all three labels (added 2026-04-11) and emits findings to `artifacts/session-retro/`. Measure base rate for ≥2 sessions before promoting to preventive hook.
 - Structural: `decisions/.template.md` now requires a `## Counterevidence sought` section — converts belief-2 "consider the opposite" from instruction to required document field.
+- Structural (prevention, added 2026-05-29): `verify-before preregister` mode — locks a directional prediction + decision rule in git BEFORE a result-bearing run (experiment/eval/A-B), supplying the missing pre-action counterfactual. Cause-side fix; the hooks/analyst above are symptom-side detection. Instruction-tier (git timestamp is the artifact). Pattern extracted from K-Dense-AI/science-superpowers. A preventive PreToolUse gate (refuse long Modal/eval dispatch without a committed prereg) stays deferred per the measure-first rule above.
 - Do NOT enforce at commit-message surface. Commit messages are pre-hoc authorial documentation, not post-hoc reasoning. Belief 6 manifests at Stop/retro/analyst surfaces.
 
 **Enforcement scope (narrower than the label set):**
