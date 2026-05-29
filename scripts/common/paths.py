@@ -11,6 +11,7 @@ PROJECTS_DIR = CLAUDE_DIR / "projects"
 RECEIPTS_PATH = CLAUDE_DIR / "session-receipts.jsonl"
 COMPACT_LOG = CLAUDE_DIR / "compact-log.jsonl"
 TRIGGERS_FILE = CLAUDE_DIR / "hook-triggers.jsonl"
+EVENT_LOG = CLAUDE_DIR / "event-log.jsonl"  # hook action log {ts,hook,action,detail,...}
 
 # Databases
 ORCHESTRATOR_DB = CLAUDE_DIR / "orchestrator.db"
