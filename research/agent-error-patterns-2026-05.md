@@ -98,3 +98,48 @@ SELECT substr(replace(e.text,char(10),' '),1,70) sig, COUNT(*) n,
 FROM events e JOIN tool_calls tc ON e.tool_call_id=tc.tool_call_id
 WHERE tc.status='error' AND e.kind='error' GROUP BY sig ORDER BY n DESC LIMIT 40;
 ```
+
+## Revisions
+
+### 2026-05-30 — measurements that sharpen the conclusion (and one correction)
+
+**Hook-blocks inflate the "error" total.** 5,303 / 86,321 error calls (**6.1%**) are
+PreToolUse/PostToolUse hook *blocks* or the `Sibling tool call errored` parallel-batch
+artifact — i.e. guardrails firing **correctly**, not failures. The top "PreToolUse hook
+error" signatures are intentional `BLOCKED`/`BLOCK; exit 2` gates
+(`recent-news-scan-gate` 117, `near-term-tape-risk-gate` 92, `TaskCreate` 195,
+`disqualification-required-gate` 40). The subagent's "broken hook" framing was doubly
+wrong: these are deliberate blocks, and the two hooks I tested (`tool-tracker.sh`,
+`pretool-ast-precommit.sh`) exit 0 on normal input.
+
+**MCP retry-spin is real and uncovered** (the #2 build's load-bearing evidence). Per
+session × server, count sessions with ≥5 errors AND ≥60% error fraction ("spin") vs
+1–4 errors ("fail-once-then-move-on"):
+- exa: **84 spin** / 154 busy-mixed / 243 light (worst session 116 errors)
+- research: 26 spin · perplexity: 26 · genomics: 16 · scite: 13 · duckdb: 5 · brave: 3
+
+So agents *do* hammer a throttled/down MCP instead of falling back — and the fallback
+already exists **as an instruction** in `llmx-routing.md` ("S2 403→OpenAlex",
+"first 503→switch to Flash/GPT"). 84 exa spin-sessions = direct evidence that the
+instruction is ≈0% reliable (constitution #1). This is the one defensible *new* build,
+but it's shared infra → propose, not autonomous, and `pretool-search-burst.sh` already
+covers the pacing half.
+
+**Correction to build candidate #1.** What I actually found & fixed in `tool-tracker.sh`
+was NOT the "2× python3 spawn" (it's mostly jq; python3 runs once, only to JSON-encode a
+warning). The real bug: `grep -cxF … || echo 0` emits `0\n0` on no-match → `[: integer
+expected` on the ≥4/≥3 read-count tests, on essentially every Read. Fixed (capture then
+`${VAR:-0}`), committed `8beb8b2` in `~/.claude`. Same bug class as
+`pretool-read-discipline.sh:31`.
+
+**Same-turn duplicate-batch gap — confirmed rare, no hook.** The PostToolUse
+`spinning-detector` structurally cannot catch oversized *same-turn* parallel batches of
+identical calls (there's no "next call" to block mid-turn). I produced exactly this
+pathology twice while writing this memo. But the fingerprint — ≥8 identical
+(run_id, tool, args) calls within one second — returns **zero rows** in the 14-day live
+window. It's an operator failure this session, not a system pattern; no architecture
+warranted.
+
+**Net:** the recurrent error mass is already-guarded, external, or self-correcting. One
+real bug fixed. Zero new hooks justified autonomously; one (MCP fallback) worth a
+proposal if the 84 exa spin-sessions are deemed costly enough.
