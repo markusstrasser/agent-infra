@@ -6,6 +6,14 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-05-30] NEW FAILURE MODE: Confirmatory Fan-Out (FM26) — intel flip re-underwrite
+- **Session:** intel flip-reunderwrite 2026-05-30. Operator suspected a systemic over-caution ("cowardice tax"; 399 RESEARCH/WATCHLIST vs 11 BUY = 36:1) and asked to re-underwrite the cautious book.
+- **Failure:** orchestrator dispatched 12 parallel subagents with prompts each beginning "WHY THIS IS A FLIP CANDIDATE" + framing the existing caution as cowardice → 9/12 "flipped" to a starter buy. A `/critique` pass framed "find what is WRONG" over the SAME memos reversed 2 outright (AIXA = revenue-not-delivered Q1 GM 18%; Winbond = 581% premium to fair value, cyclical peak), softened 2, exposed a cyclical-over-application gap. **Same evidence, opposite dispatch direction, opposite verdict** — the framing produced the answer, not the analysis. Worker memos even carried self-caveats ("revenue-realization-gate not cleared", "[C3] price, SSD unmounted") the orchestrator relayed past.
+- **Root cause:** single-direction fan-out is a confirmation engine — N agents pointed one way = 1 biased query at N× volume, not N independent checks. Generalizes FM4 (synthesis-mode) to the dispatch surface; distinct from FM11 (review theater — bites even with diverse models) and FM5 (amplification — each worker is correct, the question is biased).
+- **Proposed fix:** adversarial-by-construction dispatch — per item, PAIR a finder with a refuter (one confirms, one kills) and adjudicate the disagreement, OR require each worker to write the bear case first. Neutral prompts (no embedded verdict). Null control group when the work-list is outcome-selected. Self-cosign gate (worker caveat = STOP, not footnote).
+- **Status:** [x] documented as `agent-failure-modes.md` FM26. Intel-side: paired finder+refuter dispatch (instruction-tier this session) + `metabolic-bottleneck-prior.md` cyclical-peak caveat. `CONFIRMATORY_FANOUT` session-analyst label is a measure-first candidate (dispatch embeds conclusion AND accept rate >0.7) before any preventive hook.
+- **Source:** intel `.scratch/flip/*.md`, `.model-review/2026-05-30-flip-reunderwrite-12names-bbcd7b/`.
+
 ### [2026-05-29] SHIPPED: Governance self-revision system — the subtract loop (gov-shrink)
 - **Session:** agent-infra `aa8a3835` (this session). Plan: `.claude/plans/aa8a3835-governance-self-revision.md`.
 - **Problem:** the improvement apparatus was a one-directional ratchet — 171 implemented / 128 open proposals, ALL additive, with no retirement verb for rules/clauses; the only decay (`hook-decay`) covered hooks alone; user corrections captured ad hoc. Governance only grew.

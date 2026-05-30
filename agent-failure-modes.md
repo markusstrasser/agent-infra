@@ -306,6 +306,45 @@ The list is not wrong — all those factors are real. But it's not analysis. Ana
 
 ---
 
+### Failure Mode 26: Confirmatory Fan-Out (N Workers, One Prior)
+```
+IF orchestrator fans out N subagents whose prompts embed the desired conclusion
+   ("WHY THIS IS A FLIP CANDIDATE", "confirm X", "find evidence that Y")
+THEN the N outputs are N voices for ONE confirmatory prior, not N independent
+     checks — the framing does the work, and an opposite-framed pass over the
+     SAME evidence reverses the verdict
+```
+**Source:** intel flip-reunderwrite session 2026-05-30. 12 cautious-stamped names were dispatched to parallel subagents with prompts that each began "WHY THIS IS A FLIP CANDIDATE" and described the existing caution as presumptive cowardice → 9/12 "flipped" to a starter buy. A subsequent `/critique` pass framed "find what is WRONG, do not validate" over the *same memos* reversed 2 outright (AIXA revenue-not-delivered, Winbond cyclical-peak), softened 2 more, and exposed a systemic cyclical-over-application gap. Same evidence, opposite dispatch direction, opposite conclusion — proof the framing, not the analysis, produced the verdict.
+
+**Why it persists:** RLHF reward for task completion + helpfulness makes a worker satisfy the framing it is handed; a prompt that states the answer gets the answer back, fluently sourced. The orchestrator *feels* rigorous (12 agents! parallel! source-graded!) while having run a single biased query at 12× volume. The orchestrator's own adversarial pass (the "falsify the consensus" move) is hardest to fire precisely when an in-session consensus already exists — momentum points one way and the fan-out launders it into apparent independence. Generalizes FM4 (synthesis-mode default) to the multi-agent dispatch surface.
+
+**Distinct from neighbors:**
+- **FM11 (same-model review theater):** bites even with *diverse* models — the priming is in the task framing, not the model identity. Swapping Gemini for GPT does not fix a prompt that states the verdict.
+- **FM5 (error amplification):** nothing is *wrong* in any single worker — each correctly answers a biased question. The error is in the question distribution, not worker accuracy.
+- **FM25 (belief-consistent processing):** FM25 is the post-hoc reporting bias; FM26 is the pre-hoc *dispatch-construction* bias that manufactures the evidence FM25 then reports.
+
+**Manifestations:**
+- Dispatch prompt contains the verdict ("why this flips", "confirm the thesis", "find support for Y") instead of a neutral question ("flip or hold — and which side wins, with the bear case first").
+- Worker memos carry self-caveats ("not cleared", "[C3] unverified", "would want primary") that the orchestrator relays *past* as if confirmed.
+- The work-list itself is outcome-selected (ranked by the price move / metric that vindicates the thesis) — tape-vindication selection feeding a confirmatory dispatch.
+- Accept/flip rate ≫ 50% on a list curated to support the accept/flip.
+
+**Mitigation:**
+- **Structural (cause-side) — adversarial-by-construction dispatch.** Per item, either (a) require each worker to write the BEAR / refutation case FIRST and then state which side wins, or (b) PAIR a finder with a refuter (one tasked to confirm, one tasked to kill) and adjudicate the *disagreement* — the disagreement is the signal. This is the `/disqualify`-before-bull-thesis discipline applied to re-underwrites/refreshes, not just new names.
+- **Neutral prompts.** If the dispatch prompt states the verdict, that is the smell. Ask "X or not-X, which wins, bear case first."
+- **Null control group.** When the work-list is outcome-selected, run the identical pass over a matched control (flat/down items). If the accept rate is similar, the pass is measuring framing, not signal.
+- **Self-cosign gate.** Do not relay a worker verdict the worker itself caveated; the caveat is a STOP, not a footnote (links FM25 counterevidence-sought).
+- **Measure-first:** session-analyst label `CONFIRMATORY_FANOUT` candidate (dispatch prompt embeds conclusion AND fan-out accept rate >0.7) before any preventive hook, per the project's measure-before-promote rule.
+
+**Enforcement scope:**
+| Surface | Status |
+|---|---|
+| intel re-underwrite/refresh dispatch → paired finder+refuter | instruction-tier (this session); candidate dispatch-prompt linter deferred to measure-first |
+| intel `metabolic-bottleneck-prior.md` cyclical-peak caveat (the domain gap this failure exposed) | rule amendment (intel) |
+| cross-project `CONFIRMATORY_FANOUT` analyst label | candidate — measure base rate ≥2 sessions before hook |
+
+---
+
 ### Failure Mode 25: Belief-6 Attribution Errors (FAE / Outcome Bias)
 ```
 IF agent reports on task outcome or investigates a failure
