@@ -1,3 +1,10 @@
+---
+title: Agent Error Patterns — agentlogs mining
+date: 2026-05-30
+tags: [agentlogs, error-analysis, hooks, telemetry]
+status: complete
+---
+
 # Agent Error Patterns — agentlogs mining (2026-05-30)
 
 Source: `~/.claude/agentlogs.db` (9.9 GB). Error signal = `tool_calls.status='error'`
