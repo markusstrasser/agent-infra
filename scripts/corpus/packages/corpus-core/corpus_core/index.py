@@ -571,6 +571,41 @@ def support_balance_for_source(
     }
 
 
+def epistemic_surface(
+    source_id: str,
+    *,
+    retraction_status: str = "unknown",
+    db_path: Path | None = None,
+) -> dict[str, Any]:
+    """The read-loop epistemic surface for a source — active verdicts AND active
+    claim relations it participates in (the conflict half) AND the linear
+    support_balance. This is what an agent SEES when it looks a source up before
+    reusing it (the architectural read loop; extends the shipped retraction-only
+    surface to full conflict). Pure + fail-soft — the home of the read-loop
+    logic so it is testable without the MCP layer; corpus_mcp just exposes it.
+    """
+    active_ann = active_annotations_for_source(source_id, db_path=db_path)
+    active_rels = active_relations_for_source(source_id, db_path=db_path)
+    balance = support_balance_for_source(source_id, db_path=db_path)
+    refuting = [r for r in active_rels if r.get("relation_class") == "refute"]
+    qualifying = [r for r in active_rels if r.get("relation_class") in ("qualify", "extend")]
+    return {
+        "active_annotations": active_ann,
+        "active_relations": active_rels,
+        "epistemic": {
+            "paper_retraction_status": retraction_status,
+            "active_verdict_count": len(active_ann),
+            "attesting_repos": sorted({a["repo"] for a in active_ann if a.get("repo")}),
+            "retracted_annotations": [a for a in active_ann if a.get("status") == "retracted"],
+            "conflict": len(refuting) > 0,
+            "active_relation_count": len(active_rels),
+            "refuting_relations": refuting,
+            "qualifying_relations": qualifying,
+            "support_balance": balance,  # linear tally, NOT a probability; None if no relations
+        },
+    }
+
+
 __all__ = [
     "index_annotation",
     "rebuild_annotations_index",
@@ -578,4 +613,5 @@ __all__ = [
     "active_annotations_for_source",
     "active_relations_for_source",
     "support_balance_for_source",
+    "epistemic_surface",
 ]
