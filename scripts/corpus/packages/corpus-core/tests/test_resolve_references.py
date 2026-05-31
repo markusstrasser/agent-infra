@@ -50,6 +50,14 @@ def test_no_blank_line_garbage():
     assert extract_entries(sec) == []
 
 
+def test_llm_fallback_gate():
+    # gate keeps the gemini fallback off reference-less docs; fires on ref-dense ones
+    from corpus_core.resolve_references import _has_strong_ref_signals
+    assert _has_strong_ref_signals("ref 10.1234/abc def " * 12)      # >=10 inline DOIs
+    assert _has_strong_ref_signals("Smith J et al. 2020. " * 25)     # >=20 "et al"
+    assert not _has_strong_ref_signals("A short news item with no reference list at all.")
+
+
 def test_section_header_ends_the_bullet_list():
     sec = ("- 1. Real reference entry long enough to count here. J 2020;1:2.\n"
            "## Appendix\n- not a reference, this is an appendix bullet item")
