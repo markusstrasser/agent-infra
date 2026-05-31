@@ -49,6 +49,8 @@ smoke:
     echo "=== agentlogs DB ==="
     sqlite3 "$HOME/.claude/agentlogs.db" "SELECT COUNT(*) FROM sessions" > /dev/null 2>&1 || { echo "FAIL: agentlogs sessions"; exit 1; }
     echo "OK: agentlogs readable"
+    echo "=== MCP server contracts (in-process, \$0, no LLM) ==="
+    uv run python3 scripts/mcp_contract_smoke.py
 
 # Check all research MCP servers respond (<10s)
 [group('health')]
