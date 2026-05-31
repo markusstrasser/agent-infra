@@ -219,7 +219,6 @@ def cmd_rebuild_graph(args) -> int:
     con.execute("DELETE FROM papers")
     n_edges = 0
     n_papers = 0
-    n_annot = 0
     for pid in ps.iter_papers():
         rec = ps.get(pid)
         meta = rec.metadata
@@ -275,32 +274,8 @@ def cmd_rebuild_graph(args) -> int:
                     n_edges += 1
                 except Exception as exc:
                     print(f"  ! edge insert failed: {exc}", file=sys.stderr)
-        ann = rec.path / "annotations.jsonl"
-        if ann.exists():
-            for line in ann.read_text().splitlines():
-                if not line.strip():
-                    continue
-                a = json.loads(line)
-                try:
-                    con.execute(
-                        "INSERT OR REPLACE INTO annotations VALUES (?,?,?,?,?,?,?,?,?)",
-                        [
-                            a["event_id"],
-                            pid,
-                            a["annotated_at"],
-                            a["annotated_by"],
-                            (a.get("target") or {}).get("kind") or "paper",
-                            (a.get("target") or {}).get("ref"),
-                            a["kind"],
-                            a["body"],
-                            (a.get("links") or {}).get("claim_ids") or [],
-                        ],
-                    )
-                    n_annot += 1
-                except Exception as exc:
-                    print(f"  ! annotation insert failed: {exc}", file=sys.stderr)
     con.close()
-    print(f"rebuilt graph.duckdb  papers={n_papers} edges={n_edges} annotations={n_annot}")
+    print(f"rebuilt graph.duckdb  papers={n_papers} edges={n_edges}")
     return 0
 
 
@@ -355,6 +330,9 @@ def add_cli(subparsers: argparse._SubParsersAction) -> None:
     p.add_argument("--rebuild-graph", action="store_true")
     p.add_argument("--rebuild-annotations-index", action="store_true",
                    help="Project annotations.jsonl files into graph.duckdb annotations table")
+    p.add_argument("--rebuild-claim-relations", action="store_true",
+                   help="Project claim_relation annotations into graph.duckdb "
+                        "claim_relations + claim_relation_endpoints (epistemic core)")
     p.add_argument("--gc", action="store_true")
     p.add_argument("--after-rebuild", action="store_true",
                    help="Required for --gc (model-review #11)")
@@ -388,6 +366,19 @@ def cmd_rebuild_annotations_index(args) -> int:
     stats = rebuild_annotations_index()
     print(f"rebuilt annotations index  "
           f"sources={stats['sources_scanned']}  rows={stats['rows_written']}")
+    return 0
+
+
+def cmd_rebuild_claim_relations(args) -> int:
+    from .index import rebuild_claim_relations
+    r = rebuild_claim_relations()
+    print(
+        f"rebuilt claim_relations  sources={r['sources_scanned']}  "
+        f"seen={r['relations_seen']}  active={r['relations_active']}  "
+        f"retracted={r['relations_retracted']}  superseded={r['relations_superseded']}  "
+        f"malformed={r['relations_malformed']}  endpoints={r['endpoints_written']}  "
+        f"participants_unresolved={r['participants_unresolved']}"
+    )
     return 0
 
 
@@ -437,11 +428,11 @@ def _cmd_maintain(args) -> int:
     args._rebuild_ran_this_invocation = False
     if not any([args.verify, args.rebuild_indexes, args.rebuild_citances,
                 args.rebuild_references, args.rebuild_graph,
-                args.rebuild_annotations_index,
+                args.rebuild_annotations_index, args.rebuild_claim_relations,
                 args.gc, args.bootstrap_schema_meta, args.verify_replay]):
         print("specify one of --verify --rebuild-indexes --rebuild-references "
               "--rebuild-citances --rebuild-graph --rebuild-annotations-index "
-              "--gc --bootstrap-schema-meta --verify-replay",
+              "--rebuild-claim-relations --gc --bootstrap-schema-meta --verify-replay",
               file=sys.stderr)
         return 2
     rc = 0
@@ -462,6 +453,8 @@ def _cmd_maintain(args) -> int:
         rc = max(rc, cmd_rebuild_graph(args))
     if args.rebuild_annotations_index:
         rc = max(rc, cmd_rebuild_annotations_index(args))
+    if args.rebuild_claim_relations:
+        rc = max(rc, cmd_rebuild_claim_relations(args))
     if args.gc:
         rc = max(rc, cmd_gc(args))
     return rc

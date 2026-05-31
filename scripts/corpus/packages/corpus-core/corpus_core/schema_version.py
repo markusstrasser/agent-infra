@@ -22,8 +22,10 @@ if TYPE_CHECKING:
     import duckdb
 
 
-GRAPH_SCHEMA_VERSION = "1.1.0"   # Phase A: +valid_from + annotations_current view
-OUTBOX_SCHEMA_VERSION = "1.3.0"  # Phase A: +valid_from passthrough
+GRAPH_SCHEMA_VERSION = "1.2.0"   # Epistemic core: +claim_relations(+endpoints,+active view)
+OUTBOX_SCHEMA_VERSION = "1.4.0"  # Epistemic core: +relation_json passthrough
+# Both bumps are ADDITIVE (new tables / new nullable column), so the minimum
+# reader stays back: a 1.1.0 graph reader and a 1.3.0 outbox reader keep working.
 GRAPH_MIN_READER = "1.1.0"
 OUTBOX_MIN_READER = "1.3.0"
 

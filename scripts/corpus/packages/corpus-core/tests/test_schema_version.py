@@ -197,7 +197,9 @@ def test_close_review_finding_1_no_silent_downgrade(tmp_path):
     """
     db = tmp_path / "graph.duckdb"
     con = duckdb.connect(str(db))
-    seed_graph_meta(con)
+    # Seed explicitly low so the test exercises the up/down mechanic
+    # independently of the current GRAPH_SCHEMA_VERSION.
+    seed_graph_meta(con, version="1.0.0")
     bump_schema(
         con,
         artifact="graph",
@@ -225,7 +227,9 @@ def test_close_review_finding_1_no_silent_downgrade(tmp_path):
 def test_bump_schema_overwrites(tmp_path):
     db = tmp_path / "graph.duckdb"
     con = duckdb.connect(str(db))
-    seed_graph_meta(con)
+    # Seed explicitly low so the upgrade is unambiguous regardless of the
+    # current GRAPH_SCHEMA_VERSION (a monotonic bump only moves forward).
+    seed_graph_meta(con, version="1.0.0")
     bump_schema(
         con,
         artifact="graph",

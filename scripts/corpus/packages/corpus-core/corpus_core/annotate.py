@@ -9,7 +9,8 @@ retired 2026-05-26 per substrate-v2 — 0 invocations in 9 months.)
 
 Guarantees:
     - Schema-validated against schemas/v1/annotation.v1.json (jsonschema)
-    - 4KB serialized record ceiling (large outputs go to sidecars)
+    - 16KB serialized record ceiling (a claim_relation rides inline; genuinely
+      large outputs like parses still go to output_uri sidecars)
     - annotation_id = "ann_" + sha256(canonical_json(stable_tuple))[:16]
     - Idempotent: re-append with same stable_tuple is a no-op (read-tail check)
     - Atomic append via os.open(O_APPEND) + single os.write (local POSIX only)
@@ -68,9 +69,22 @@ from .uri import KNOWN_PROJECT_SCHEMES
 # Constants
 # ---------------------------------------------------------------------------
 
-ANNOTATION_RECORD_CEILING_BYTES = 4096
+# Inline ceiling. Raised from 4096 for the epistemic core: a claim_relation
+# rides INLINE on the annotation (references spans by id, not full text), so a
+# single atomic O_APPEND carries the whole record — no sidecar, no two-write
+# non-atomicity. 16 KiB is generous headroom for a multi-party relation while
+# still bounding pathological inlining (the original reason a ceiling exists).
+ANNOTATION_RECORD_CEILING_BYTES = 16384
+
+# SchemaVer (MODEL-REVISION-ADDITION). Provenance-only annotations stay 1-0-0;
+# relation-bearing annotations advance the ADDITION digit to 1-0-1. The
+# validator accepts both, and schema_version is NOT in annotation_stable_tuple,
+# so the bump never mutates an annotation_id.
 SCHEMA_VERSION = "1-0-0"
+SCHEMA_VERSION_RELATION = "1-0-1"
 CONFORMS_TO = "https://schema.local/corpus/annotation/v1.0.0"
+CONFORMS_TO_RELATION = "https://schema.local/corpus/annotation/v1.0.1"
+CLAIM_RELATION_SCOPE = "claim_relation"
 
 ActorType = Literal["model", "human", "service", "cli"]
 Status = Literal["active", "superseded", "retracted"]
@@ -81,7 +95,8 @@ class AnnotationError(Exception):
 
 
 class AnnotationTooLargeError(AnnotationError):
-    """Record exceeds the 4KB ceiling. Reference output via sidecar."""
+    """Record exceeds ANNOTATION_RECORD_CEILING_BYTES. Reference genuinely
+    large outputs via an output_uri sidecar (a claim_relation rides inline)."""
 
 
 class AnnotationSchemaError(AnnotationError):
@@ -215,6 +230,7 @@ def annotate(
     status: Status = "active",
     asserted_at: datetime | str | None = None,
     valid_from: datetime | str | None = None,
+    relation: dict[str, Any] | None = None,
 ) -> str:
     """Append one annotation to ~/Projects/corpus/<source_id>/annotations.jsonl.
 
@@ -252,6 +268,22 @@ def annotate(
         )
     if status not in ("active", "superseded", "retracted"):
         raise AnnotationError(f"unknown status {status!r}")
+
+    # Epistemic core: the substrate owns relation identity. Content-address the
+    # relation, stamp its relation_id, and derive the annotation's output_hash
+    # from the same sha so a re-emit of the identical relation is idempotent
+    # (the producer supplies only the semantic body).
+    if relation is not None:
+        from .identity import relation_content_sha
+        rel_sha = relation_content_sha(
+            relation_class=relation.get("relation_class", ""),
+            subject_refs=relation.get("subject_refs", []) or [],
+            object_refs=relation.get("object_refs", []) or [],
+            detector=relation.get("detector", "") or "",
+        )
+        relation = {**relation, "relation_id": f"rel_{rel_sha[:16]}"}
+        if output_hash is None:
+            output_hash = rel_sha
 
     # Identity (idempotency-bearing fields only — NOT asserted_at/recorded_at).
     stable_tuple = annotation_stable_tuple(
@@ -292,10 +324,10 @@ def annotate(
     else:
         valid_from_iso = _to_iso_z(valid_from)
 
-    # Build the record.
+    # Build the record. A relation-bearing record advances to schema 1-0-1.
     record: dict[str, Any] = {
-        "schema_version": SCHEMA_VERSION,
-        "conformsTo": CONFORMS_TO,
+        "schema_version": SCHEMA_VERSION_RELATION if relation is not None else SCHEMA_VERSION,
+        "conformsTo": CONFORMS_TO_RELATION if relation is not None else CONFORMS_TO,
         "annotation_id": annotation_id,
         "source_id": source_id,
         "agent": {"id": actor_id, "type": actor_type},
@@ -331,6 +363,12 @@ def annotate(
         if output_size_bytes is not None:
             result["size_bytes"] = output_size_bytes
         record["result"] = result
+    # Epistemic core: inline the structured claim relation (validated as part
+    # of the closed annotation schema). Callers route distinct relations to
+    # distinct annotation_ids by passing output_hash = the relation content
+    # sha (relation_id is its 16-hex prefix), so re-emit stays idempotent.
+    if relation is not None:
+        record["relation"] = relation
 
     _validate_annotation(record)
     payload = _serialize_record(record)
@@ -357,8 +395,11 @@ def annotate(
 
 __all__ = [
     "ANNOTATION_RECORD_CEILING_BYTES",
+    "CLAIM_RELATION_SCOPE",
     "CONFORMS_TO",
+    "CONFORMS_TO_RELATION",
     "SCHEMA_VERSION",
+    "SCHEMA_VERSION_RELATION",
     "AnnotationError",
     "AnnotationSchemaError",
     "AnnotationTooLargeError",

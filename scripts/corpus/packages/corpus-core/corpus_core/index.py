@@ -39,6 +39,23 @@ _COLS = (
     "valid_from",
 )
 
+# claim_relations projection columns (epistemic core), in INSERT order.
+_REL_COLS = (
+    "relation_id",
+    "annotation_id",
+    "anchor_source_id",
+    "relation_class",
+    "kind",
+    "grade_weight",
+    "detector",
+    "home_pair_id",
+    "home_verdict_id",
+    "repo",
+    "status",
+    "asserted_at",
+    "recorded_at",
+)
+
 
 def _connect(graph_db_path: Path | None = None):
     """Open the graph.duckdb (read-write); ensure schema is applied."""
@@ -120,6 +137,50 @@ def _iter_jsonl(path: Path) -> Iterator[dict[str, Any]]:
                 continue
 
 
+def _relation_rows(
+    record: dict[str, Any],
+) -> Optional[tuple[tuple, list[tuple[str, str, str]]]]:
+    """Project a claim_relation-bearing annotation record into
+    (claim_relations row, endpoint rows). Returns None for non-relation records
+    or malformed relation bodies (missing relation_id / endpoints).
+
+    The anchor endpoint is namespaced `corpus:<source_id>` so a single
+    endpoint_ref lookup catches anchored relations AND object/subject mentions
+    of the same paper.
+    """
+    rel = record.get("relation")
+    if not isinstance(rel, dict):
+        return None
+    rid = rel.get("relation_id")
+    subjects = rel.get("subject_refs") or []
+    objects = rel.get("object_refs") or []
+    if not rid or not rel.get("relation_class") or not subjects or not objects:
+        return None
+    source_id = record["source_id"]
+    rrow = (
+        rid,
+        record["annotation_id"],
+        source_id,
+        rel["relation_class"],
+        rel.get("kind"),
+        rel.get("grade_weight"),
+        rel.get("detector") or "",
+        rel.get("home_pair_id"),
+        rel.get("home_verdict_id"),
+        _derive_repo(record),
+        record.get("status", "active"),
+        record.get("asserted_at"),
+        record.get("recorded_at"),
+    )
+    eps: list[tuple[str, str, str]] = []
+    for ref in subjects:
+        eps.append((rid, ref, "subject"))
+    for ref in objects:
+        eps.append((rid, ref, "object"))
+    eps.append((rid, f"corpus:{source_id}", "anchor"))
+    return rrow, eps
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -143,8 +204,44 @@ def index_annotation(record: dict[str, Any], graph_db_path: Path | None = None) 
             f"VALUES ({placeholders})",
             row,
         )
+        _index_relation(con, record)
     finally:
         con.close()
+
+
+def _index_relation(con, record: dict[str, Any]) -> None:
+    """Best-effort per-write projection of a claim_relation into
+    claim_relations + claim_relation_endpoints. A superseding relation drops
+    the relation(s) carried by the annotation it supersedes (current-leaf
+    semantics). No-op for non-relation records. The authoritative idempotent
+    rebuild is `rebuild_claim_relations`; this keeps the projection fresh on
+    each write without a full rescan."""
+    rows = _relation_rows(record)
+    if rows is None:
+        return
+    rrow, eps = rows
+    sup = record.get("supersedes_annotation_id")
+    if sup:
+        con.execute(
+            "DELETE FROM claim_relation_endpoints WHERE relation_id IN "
+            "(SELECT relation_id FROM claim_relations WHERE annotation_id = ?)",
+            [sup],
+        )
+        con.execute("DELETE FROM claim_relations WHERE annotation_id = ?", [sup])
+    placeholders = ",".join(["?"] * len(_REL_COLS))
+    con.execute(
+        f"INSERT OR REPLACE INTO claim_relations ({','.join(_REL_COLS)}) "
+        f"VALUES ({placeholders})",
+        rrow,
+    )
+    con.execute(
+        "DELETE FROM claim_relation_endpoints WHERE relation_id = ?", [rrow[0]]
+    )
+    con.executemany(
+        "INSERT OR REPLACE INTO claim_relation_endpoints "
+        "(relation_id, endpoint_ref, role) VALUES (?,?,?)",
+        eps,
+    )
 
 
 def rebuild_annotations_index(graph_db_path: Path | None = None) -> dict[str, int]:
@@ -263,8 +360,179 @@ def active_annotations_for_source(
     ]
 
 
+def rebuild_claim_relations(graph_db_path: Path | None = None) -> dict[str, int]:
+    """Rebuild claim_relations + claim_relation_endpoints from the JSONL ledger.
+
+    Authoritative + idempotent: TRUNCATE both tables, scan every
+    annotations.jsonl, keep only CURRENT-LEAF relation records (annotation_id
+    not superseded by any other record) and drop retracted/superseded ones from
+    the active surface. Returns a health report so a standing audit can catch
+    projection drift (the substrate's measure-before-trust discipline).
+
+    Cross-repo participant liveness is NOT introspected here — the home repo
+    emits a superseding relation when a participant dies, which this rebuild
+    then honours via the supersession chain.
+    """
+    con = _connect(graph_db_path)
+    try:
+        con.execute("BEGIN TRANSACTION")
+        con.execute("DELETE FROM claim_relation_endpoints")
+        con.execute("DELETE FROM claim_relations")
+        root = store_root()
+        report = {
+            "sources_scanned": 0,
+            "relations_seen": 0,
+            "relations_active": 0,
+            "relations_retracted": 0,
+            "relations_superseded": 0,
+            "relations_malformed": 0,
+            "endpoints_written": 0,
+            "participants_unresolved": 0,
+        }
+        if not root.is_dir():
+            con.execute("COMMIT")
+            return report
+
+        records: list[dict[str, Any]] = []
+        superseded: set[str] = set()
+        for entry in sorted(root.iterdir()):
+            if not entry.is_dir():
+                continue
+            jsonl = entry / "annotations.jsonl"
+            if not jsonl.exists():
+                continue
+            has_relation = False
+            for record in _iter_jsonl(jsonl):
+                if not record.get("relation"):
+                    continue
+                has_relation = True
+                records.append(record)
+                sup = record.get("supersedes_annotation_id")
+                if sup:
+                    superseded.add(sup)
+            if has_relation:
+                report["sources_scanned"] += 1
+
+        report["relations_seen"] = len(records)
+        rel_placeholders = ",".join(["?"] * len(_REL_COLS))
+        for record in records:
+            if record.get("annotation_id") in superseded:
+                report["relations_superseded"] += 1
+                continue
+            rows = _relation_rows(record)
+            if rows is None:
+                report["relations_malformed"] += 1
+                continue
+            rrow, eps = rows
+            con.execute(
+                f"INSERT OR REPLACE INTO claim_relations ({','.join(_REL_COLS)}) "
+                f"VALUES ({rel_placeholders})",
+                rrow,
+            )
+            con.executemany(
+                "INSERT OR REPLACE INTO claim_relation_endpoints "
+                "(relation_id, endpoint_ref, role) VALUES (?,?,?)",
+                eps,
+            )
+            report["endpoints_written"] += len(eps)
+            if rrow[10] == "retracted":
+                report["relations_retracted"] += 1
+            elif rrow[10] == "active":
+                report["relations_active"] += 1
+            for _rid, ref, role in eps:
+                if role in ("subject", "object") and ref.startswith("corpus:"):
+                    sid = ref[len("corpus:"):]
+                    if not (root / sid).is_dir():
+                        report["participants_unresolved"] += 1
+        con.execute("COMMIT")
+        return report
+    except Exception:
+        try:
+            con.execute("ROLLBACK")
+        except Exception:
+            pass
+        raise
+    finally:
+        con.close()
+
+
+def active_relations_for_source(
+    source_id: str, *, db_path: Path | None = None
+) -> list[dict[str, Any]]:
+    """Active claim_relations touching a source — the conflict read-loop primitive.
+
+    Returns every ACTIVE relation in which `source_id` participates as anchor,
+    subject, or object (discovered through the namespaced `corpus:<source_id>`
+    endpoint). Each relation carries its class, grounded detector, originating
+    repo, round-trip ids, and its subject/object endpoints. An agent about to
+    reuse a paper/claim calls this (via corpus_lookup) to SEE active refutations
+    or qualifications before acting. Fail-soft: [] if duckdb/graph.duckdb absent.
+    """
+    from .store import graph_db_path
+    path = Path(db_path) if db_path else graph_db_path()
+    if not path.exists():
+        return []
+    try:
+        import duckdb
+    except ImportError:
+        return []
+    ref = f"corpus:{source_id}"
+    try:
+        con = duckdb.connect(str(path), read_only=True)
+    except Exception:
+        return []
+    try:
+        try:
+            rel_rows = con.execute(
+                "SELECT relation_id, relation_class, kind, grade_weight, detector, "
+                "repo, home_pair_id, home_verdict_id, anchor_source_id "
+                "FROM claim_relations_active "
+                "WHERE relation_id IN ("
+                "  SELECT relation_id FROM claim_relation_endpoints WHERE endpoint_ref = ?"
+                ") ORDER BY recorded_at DESC",
+                [ref],
+            ).fetchall()
+            ep_rows = con.execute(
+                "SELECT e.relation_id, e.endpoint_ref, e.role "
+                "FROM claim_relation_endpoints e "
+                "JOIN claim_relations_active a ON a.relation_id = e.relation_id "
+                "WHERE a.relation_id IN ("
+                "  SELECT relation_id FROM claim_relation_endpoints WHERE endpoint_ref = ?"
+                ")",
+                [ref],
+            ).fetchall()
+        except Exception:
+            return []
+    finally:
+        con.close()
+    endpoints: dict[str, dict[str, list[str]]] = {}
+    for rid, eref, role in ep_rows:
+        slot = endpoints.setdefault(rid, {"subject": [], "object": [], "anchor": []})
+        slot.setdefault(role, []).append(eref)
+    out = []
+    for r in rel_rows:
+        rid = r[0]
+        eps = endpoints.get(rid, {"subject": [], "object": [], "anchor": []})
+        out.append({
+            "relation_id": rid,
+            "relation_class": r[1],
+            "kind": r[2],
+            "grade_weight": r[3],
+            "detector": r[4],
+            "repo": r[5],
+            "home_pair_id": r[6],
+            "home_verdict_id": r[7],
+            "anchor_source_id": r[8],
+            "subjects": eps.get("subject", []),
+            "objects": eps.get("object", []),
+        })
+    return out
+
+
 __all__ = [
     "index_annotation",
     "rebuild_annotations_index",
+    "rebuild_claim_relations",
     "active_annotations_for_source",
+    "active_relations_for_source",
 ]

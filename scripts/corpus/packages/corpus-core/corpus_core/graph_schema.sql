@@ -125,6 +125,68 @@ ON CONFLICT (artifact) DO UPDATE SET
     updated_at           = now()
 WHERE EXCLUDED.schema_version > corpus_schema_meta.schema_version;
 
+-- Epistemic core (graph 1.2.0): durable, cross-repo CLAIM RELATIONS. A
+-- claim_relation is projected from the inline `relation` body on a
+-- scope='claim_relation' annotation (per-source JSONL is the source of truth;
+-- these tables are rebuildable via `corpus maintain --rebuild-claim-relations`).
+-- The three siloed within-repo contradiction detectors (phenome
+-- contradiction_pairs, genomics claim_contradicted, and — gated, last — the
+-- citation `edges` snippet adjudication) promote into this ONE sink. Stance and
+-- the support_balance scalar are DERIVED views over this; never mutable columns
+-- (overwriting would destroy the replayable belief-change moat).
+--
+-- Additive: a 1.1.0 reader that ignores these tables is unaffected, so
+-- GRAPH_MIN_READER stays 1.1.0. The 5-class relation_class is stored in full
+-- (deep representation); inference operates on refute/support (operate-simple).
+CREATE TABLE IF NOT EXISTS claim_relations (
+    relation_id       TEXT PRIMARY KEY,            -- rel_<sha16>, content-addressed
+    annotation_id     TEXT NOT NULL,               -- carrying annotation (current leaf)
+    anchor_source_id  TEXT NOT NULL,               -- annotation source_id (paper or virtual source)
+    relation_class    TEXT NOT NULL
+        CHECK (relation_class IN ('support','extend','qualify','refute','background')),
+    kind              TEXT,                          -- home-repo taxonomy (phenome kind, …)
+    grade_weight      REAL,                          -- GRADE-style weight in [0,1]; never a probability
+    detector          TEXT NOT NULL,                 -- repo+tool+prompt_hash (part of relation_id identity)
+    home_pair_id      TEXT,                           -- round-trip → phenome contradiction_pairs.pair_id
+    home_verdict_id   TEXT,                           -- round-trip → genomics verdict id
+    repo              TEXT NOT NULL,                 -- writer repo (from idempotency_key)
+    status            TEXT NOT NULL,                 -- active | superseded | retracted (annotation status)
+    asserted_at       TIMESTAMP,
+    recorded_at       TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_claim_relations_class  ON claim_relations(relation_class);
+CREATE INDEX IF NOT EXISTS idx_claim_relations_anchor ON claim_relations(anchor_source_id);
+
+-- Endpoint index: makes every relation discoverable from ANY participant.
+-- role='anchor' carries the namespaced anchor (corpus:<source_id>) so a single
+-- endpoint_ref lookup returns object-mentions AND anchored relations.
+CREATE TABLE IF NOT EXISTS claim_relation_endpoints (
+    relation_id   TEXT NOT NULL,
+    endpoint_ref  TEXT NOT NULL,                    -- namespaced id (corpus:/repo:/local:/internal:)
+    role          TEXT NOT NULL CHECK (role IN ('subject','object','anchor')),
+    PRIMARY KEY (relation_id, endpoint_ref, role)
+);
+CREATE INDEX IF NOT EXISTS idx_claim_rel_endpoint_ref ON claim_relation_endpoints(endpoint_ref);
+
+-- Active relations = current-leaf annotations with status='active'. Cross-repo
+-- participant liveness is upheld by the HOME repo emitting a superseding
+-- relation when a participant is retracted/superseded — the corpus stays
+-- domain-agnostic (it does not introspect phenome/genomics internal state).
+CREATE VIEW IF NOT EXISTS claim_relations_active AS
+SELECT * FROM claim_relations WHERE status = 'active';
+
+INSERT INTO corpus_schema_meta
+    (artifact, schema_version, min_reader_version, min_writer_version, notes, updated_at)
+VALUES ('graph', '1.2.0', '1.1.0', '1.2.0',
+        '+claim_relations + claim_relation_endpoints + claim_relations_active (epistemic core)', now())
+ON CONFLICT (artifact) DO UPDATE SET
+    schema_version       = EXCLUDED.schema_version,
+    min_reader_version   = EXCLUDED.min_reader_version,
+    min_writer_version   = EXCLUDED.min_writer_version,
+    notes                = EXCLUDED.notes,
+    updated_at           = now()
+WHERE EXCLUDED.schema_version > corpus_schema_meta.schema_version;
+
 -- Phase B: cross-repo source identity crosswalk. Maps repo-local
 -- identifiers (intel filing UUIDs, phenome doc_ids, …) to canonical
 -- corpus source_ids (doi_*, pmid_*, sha_*).

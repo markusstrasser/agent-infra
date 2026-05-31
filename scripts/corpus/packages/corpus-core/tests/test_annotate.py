@@ -129,12 +129,13 @@ def test_invalid_output_uri_scheme_caught_by_schema(corpus_root):
         )
 
 
-# --- 4KB ceiling ---
+# --- record ceiling (16KB; raised from 4KB for inline claim_relations) ---
 
 
-def test_4kb_ceiling_enforced(corpus_root):
-    # source_id repeated long enough to push the serialized record past 4KB
-    huge_scope = "x" * 5000
+def test_record_ceiling_enforced(corpus_root):
+    # scope long enough to push the serialized record past the 16KB ceiling
+    # (scope appears in both the top-level field and the idempotency_key → ~2x)
+    huge_scope = "x" * 20000
     with pytest.raises(AnnotationTooLargeError):
         annotate(
             SOURCE_ID, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
