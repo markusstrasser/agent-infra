@@ -152,6 +152,8 @@ def extract_entries_llm(markdown: str, *, model: str = "gemini-3-flash-preview")
     if not api_key:
         raise RuntimeError("set GEMINI_API_KEY (or GOOGLE_API_KEY) for the gemini fallback")
 
+    # NB: Gemini's response_schema is an OpenAPI subset — it REJECTS
+    # `additionalProperties` (that's an OpenAI strict-mode field). Keep it out.
     schema = {
         "type": "object",
         "properties": {
@@ -162,7 +164,6 @@ def extract_entries_llm(markdown: str, *, model: str = "gemini-3-flash-preview")
             }
         },
         "required": ["references"],
-        "additionalProperties": False,
     }
     prompt = (
         "Extract the COMPLETE list of bibliographic references from this paper's "
