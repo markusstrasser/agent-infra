@@ -126,6 +126,14 @@ def extract_pdf(pdf_bytes: bytes, parser_config: dict | None = None) -> dict:
         # common text-heavy case. Evidence: .scratch/marker-token-economics.md.
         # (gemini-3-flash takes thinkingLevel as its native gradient, but marker
         # 1.10.2 only plumbs thinking_budget, and budget=0 is honored — verified.)
+        # DECIDED not to add a thinkingLevel=LOW path: on a table-DENSE paper LOW
+        # was ~12% cheaper than budget:0 ($0.060 vs $0.068) at identical table-cell
+        # fidelity, BUT (a) that's an n=1, call-count-confounded sample worth a
+        # sub-cent/paper, (b) it only helps the table-dense minority, and (c) it
+        # needs a monkeypatch of marker's internal BaseGeminiService.__call__ —
+        # a brittle internal-API pin not worth the standing maintenance. budget:0
+        # is the right single default for both paper classes. Reconsider only if
+        # table-dense docs come to dominate the ingest mix.
         "thinking_budget": 0,
         **parser_config,
     }
