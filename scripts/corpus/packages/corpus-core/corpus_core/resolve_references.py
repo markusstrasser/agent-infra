@@ -1,38 +1,63 @@
 """Phase B of the graph layer — resolve reference-section entries to (doi, pmid).
 
-Reads `parsed/paper.md` + `parsed/paper_meta.json` block bboxes to locate the
-reference section, extracts each entry, queries Crossref / OpenAlex / PubMed,
-and writes `references_resolved.json`.
+Reads the active parsed markdown (``parsed.<parser_id>/page.md`` via
+``PaperRecord.parsed_markdown_path``), locates the reference section, splits it
+into entries, queries Crossref for the non-inline-DOI tail, and writes
+``references_resolved.json``.
 
-This module is intentionally minimal — heavy network resolution is gated behind
-`--online` so the smoke test can run offline. The offline path still extracts
-reference strings and emits a partial result with `unresolved_reason="offline"`.
+Network resolution is gated behind ``--online`` so the smoke test runs offline;
+the offline path still extracts reference strings with
+``unresolved_reason="offline"``.
 """
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import re
-import sys
 import urllib.parse
 import urllib.request
-from pathlib import Path
 from typing import Optional
 
 from . import store as ps
 
 
+# Header: tolerate marker's `## <span id=...></span>REFERENCES` (HTML tags) and
+# trailing content (no `$` anchor); `\b` ends the keyword.
 REF_HEADERS = re.compile(
-    r"^\s{0,3}#{1,6}\s+(references|bibliography|works\s+cited|literature\s+cited)\s*$",
+    r"^\s{0,3}#{1,6}\s+(?:<[^>]*>\s*)*"
+    r"(references|bibliography|works\s+cited|literature\s+cited)\b",
     re.IGNORECASE | re.MULTILINE,
 )
-# Numbered or bracketed reference entries
+# Numbered or bracketed reference entries (fallback path for non-marker markdown)
 REF_ENTRY = re.compile(
     r"^\s*(?:\[(\d+)\]|(\d+)[\.\)])\s+(.+?)(?=^\s*(?:\[\d+\]|\d+[\.\)])\s|\Z)",
     re.MULTILINE | re.DOTALL,
 )
 DOI_IN_TEXT = re.compile(r"\b(10\.\d{4,9}/[^\s\)\]<>\"']+)", re.IGNORECASE)
+
+# Marker renders references as markdown list items. Match the bullet, then strip
+# an optional leading number / span tag downstream.
+_BULLET = re.compile(r"^\s*[-*]\s+(.*\S.*)$")
+_NUM_PREFIX = re.compile(r"^(\d{1,4})[.)]\s+(.*)$")
+_MD_LINK = re.compile(r"\[([^\]]*)\]\(([^)]*)\)")
+_HTML_TAG = re.compile(r"<[^>]+>")
+_SECTION_HEADER = re.compile(r"^\s{0,3}#{1,6}\s")
+
+
+def _clean_reference_text(s: str) -> str:
+    """Collapse marker markdown to plain reference text, preserving DOIs.
+
+    Pulls DOIs out of link hrefs into the text (marker often hides the DOI in
+    the URL while the visible text is truncated), drops HTML/span tags, flattens
+    `[text](url)` to `text`, and normalizes whitespace.
+    """
+    def _link(m: "re.Match[str]") -> str:
+        text, url = m.group(1), m.group(2)
+        doi = re.search(r"10\.\d{4,9}/[^\s)\"'>]+", url)
+        return f"{text} {doi.group(0)}" if doi else text
+    s = _MD_LINK.sub(_link, s)
+    s = _HTML_TAG.sub("", s)
+    return re.sub(r"\s+", " ", s).strip()
 
 
 def extract_reference_section(paper_md: str) -> Optional[str]:
@@ -49,24 +74,49 @@ def extract_reference_section(paper_md: str) -> Optional[str]:
 
 
 def extract_entries(ref_section: str) -> list[dict]:
-    """Parse reference entries from the reference section."""
+    """Split the reference section into entries.
+
+    Marker renders references as a markdown bullet list — that is the primary
+    path (numbered `- 9. Buss`, span-tagged `- <span/>1. [t](u)`, or unnumbered
+    Vancouver `- Zhang Z`). A clean numbered-entry fallback covers non-bulleted
+    markdown. There is deliberately NO blank-line/paragraph heuristic: it matched
+    stray digits in acknowledgment/copyright text and produced ~0% real recall.
+    """
+    # --- Primary: markdown bullet list (marker-modal) ---
+    items: list[list[str]] = []
+    cur: list[str] | None = None
+    for line in ref_section.split("\n"):
+        if _SECTION_HEADER.match(line):
+            break  # the next section header ends the reference list
+        bullet = _BULLET.match(line)
+        if bullet:
+            if cur is not None:
+                items.append(cur)
+            cur = [bullet.group(1)]
+        elif cur is not None and line.strip():
+            cur.append(line.strip())  # wrapped continuation of the current entry
+    if cur is not None:
+        items.append(cur)
+
     entries: list[dict] = []
-    matches = list(REF_ENTRY.finditer(ref_section))
-    if not matches:
-        # Fallback: split on blank lines
-        for i, chunk in enumerate(re.split(r"\n\s*\n", ref_section), start=1):
-            chunk = chunk.strip()
-            if len(chunk) < 30 or len(chunk) > 1500:
-                continue
-            entries.append({"ref_label": f"[{i}]", "raw_text": chunk})
+    for i, parts in enumerate(items, start=1):
+        text = _clean_reference_text(" ".join(parts))
+        numbered = _NUM_PREFIX.match(text)
+        if numbered:
+            label, text = f"[{numbered.group(1)}]", numbered.group(2).strip()
+        else:
+            label = f"[{i}]"
+        if len(text) >= 20:
+            entries.append({"ref_label": label, "raw_text": text})
+    if entries:
         return entries
-    for m in matches:
+
+    # --- Fallback: bare numbered/bracketed entries (non-bulleted markdown) ---
+    for m in REF_ENTRY.finditer(ref_section):
         label = m.group(1) or m.group(2)
-        text = m.group(3).strip()
-        text = re.sub(r"\s+", " ", text)
-        if len(text) < 20:
-            continue
-        entries.append({"ref_label": f"[{label}]", "raw_text": text})
+        text = _clean_reference_text(m.group(3))
+        if len(text) >= 20:
+            entries.append({"ref_label": f"[{label}]", "raw_text": text})
     return entries
 
 
@@ -102,9 +152,11 @@ def resolve_via_crossref(text: str, timeout: float = 10.0) -> Optional[dict]:
 
 def resolve_references(paper_id: str, *, online: bool = False) -> dict:
     rec = ps.get(paper_id)
-    parsed_md = rec.parsed_dir / "paper.md"
-    if not parsed_md.exists():
-        raise FileNotFoundError(f"parsed/paper.md not found for {paper_id}")
+    parsed_md = rec.parsed_markdown_path()
+    if parsed_md is None:
+        raise FileNotFoundError(
+            f"{paper_id} is not parsed (no parsed.<parser_id>/page.md)"
+        )
 
     parsed_sha = rec.metadata.get("parsed_sha256") or ""
     out_path = rec.path / "references_resolved.json"
