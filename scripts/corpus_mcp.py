@@ -91,6 +91,23 @@ def _wrap(payload: dict) -> list[TextContent]:
     )]
 
 
+def _build_epistemic(paper_id: str, meta: dict, db_path: Path) -> dict:
+    """Read-loop epistemic surface for a source (active verdicts + active claim
+    relations it participates in + the linear support_balance). Thin shell over
+    corpus_core.index.epistemic_surface — the logic lives in corpus_core (where
+    it is unit-tested without the MCP layer). This is the architectural read
+    loop: an agent doing corpus_lookup (which it already does before reusing a
+    source) is SHOWN whether the source is under an active refutation. Extends
+    the shipped retraction-only loop (agent-infra@d5f9ab0) to full conflict.
+    """
+    from corpus_core.index import epistemic_surface
+    return epistemic_surface(
+        paper_id,
+        retraction_status=meta.get("retraction_status", "unknown"),
+        db_path=db_path,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Server
 # ---------------------------------------------------------------------------
@@ -177,8 +194,7 @@ def create_mcp() -> FastMCP:
                 return 0
             return sum(1 for ln in p.read_text(errors="replace").splitlines() if ln.strip())
 
-        from corpus_core.index import active_annotations_for_source
-        active_ann = active_annotations_for_source(paper_id, db_path=_graph_db())
+        epistemic = _build_epistemic(paper_id, meta, _graph_db())
         return _wrap({
             "paper_id": paper_id,
             "present": True,
@@ -194,13 +210,7 @@ def create_mcp() -> FastMCP:
             "citances_in_count": _count_lines(cin),
             "citances_out_count": _count_lines(cout),
             "annotations_count": _count_lines(ann),
-            "active_annotations": active_ann,
-            "epistemic": {
-                "paper_retraction_status": meta.get("retraction_status", "unknown"),
-                "active_verdict_count": len(active_ann),
-                "attesting_repos": sorted({a["repo"] for a in active_ann if a.get("repo")}),
-                "retracted_annotations": [a for a in active_ann if a.get("status") == "retracted"],
-            },
+            **epistemic,  # active_annotations, active_relations, epistemic{conflict, support_balance, …}
             "paths": {
                 "dir": str(p_dir),
                 "pdf": str(p_dir / "paper.pdf") if (p_dir / "paper.pdf").exists() else None,
@@ -225,6 +235,12 @@ def create_mcp() -> FastMCP:
             query: 'cited-by' | 'cites' | 'contradictions'.
             stance: optional filter for cited-by — supporting|contrasting|mentioning.
             limit: max edges (capped at 200).
+
+        'contradictions' returns BOTH citation-edge contradictions (`edges`, the
+        weak/gated signal) AND active claim relations refuting/qualifying this
+        source (`claim_relations`, the strong within-repo signal from
+        phenome/genomics). For the full epistemic surface (incl. support_balance)
+        use corpus_lookup, which carries it on the lookup an agent already does.
         """
         db_path = _graph_db()
         if not db_path.exists():
@@ -245,6 +261,7 @@ def create_mcp() -> FastMCP:
         except Exception as exc:
             return _wrap({"error": True, "error_type": "GRAPH_OPEN_FAILED", "message": str(exc)})
 
+        claim_rels: list = []
         try:
             if query == "cites":
                 rows = con.execute(
@@ -292,6 +309,26 @@ def create_mcp() -> FastMCP:
                     "paper_id": r[0], "snippet": r[1], "stance_cito": r[2],
                     "confidence": r[3], "retraction_status": r[4],
                 } for r in rows]
+                # Epistemic core: active claim relations refuting/qualifying this
+                # source. These are the STRONG within-repo signal (phenome/genomics
+                # adjudicated with full claim context); the citation `edges` above
+                # are the weak, gated signal. Fail-soft for pre-1.2.0 graph DBs.
+                try:
+                    rel_rows = con.execute(
+                        "SELECT r.relation_id, r.relation_class, r.repo, r.detector, "
+                        "r.home_pair_id, r.home_verdict_id "
+                        "FROM claim_relations_active r "
+                        "WHERE r.relation_id IN (SELECT relation_id FROM "
+                        "claim_relation_endpoints WHERE endpoint_ref = ?) "
+                        "AND r.relation_class IN ('refute', 'qualify') LIMIT ?",
+                        [f"corpus:{paper_id}", capped],
+                    ).fetchall()
+                    claim_rels = [{
+                        "relation_id": r[0], "relation_class": r[1], "repo": r[2],
+                        "detector": r[3], "home_pair_id": r[4], "home_verdict_id": r[5],
+                    } for r in rel_rows]
+                except Exception:
+                    claim_rels = []
             else:
                 return _wrap({"error": True, "error_type": "INVALID_QUERY"})
         finally:
@@ -300,6 +337,7 @@ def create_mcp() -> FastMCP:
         return _wrap({
             "paper_id": paper_id, "query": query, "stance_filter": stance,
             "count": len(edges), "edges": edges,
+            "claim_relations": claim_rels,
         })
 
     # ----- corpus_annotations_query -----

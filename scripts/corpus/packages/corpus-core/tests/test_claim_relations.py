@@ -276,3 +276,25 @@ def test_support_balance_grade_weighted(corpus_root):
              relation=_rel(["repo:genomics:claim:x"], [f"corpus:{PAPER}"], cls="refute", grade_weight=0.5))
     bal = support_balance_for_source(PAPER)
     assert bal["support_balance"] == -0.5  # linear: sign × grade_weight, no squash
+
+
+# --- epistemic_surface (Phase 4: the read-loop conflict signal) --------------
+
+
+def test_epistemic_surface_flags_conflict(corpus_root):
+    from corpus_core.index import epistemic_surface
+    # no relations → no conflict
+    before = epistemic_surface(PAPER, retraction_status="unknown")
+    assert before["epistemic"]["conflict"] is False
+    assert before["epistemic"]["support_balance"] is None
+    # a refute relation touching the paper → the read loop surfaces the conflict
+    annotate(PAPER, repo="genomics", actor_type="model", actor_id=ACTOR_ID,
+             scope="claim_relation", output_uri="genomics://verdicts/v1",
+             relation=_rel(["repo:genomics:claim:x"], [f"corpus:{PAPER}"], cls="refute"))
+    after = epistemic_surface(PAPER, retraction_status="unknown")
+    ep = after["epistemic"]
+    assert ep["conflict"] is True
+    assert ep["active_relation_count"] == 1
+    assert len(ep["refuting_relations"]) == 1
+    assert ep["refuting_relations"][0]["repo"] == "genomics"
+    assert ep["support_balance"]["support_balance"] == -1.0
