@@ -14,6 +14,7 @@ from typing import Optional
 
 from . import store as ps
 from . import extract_citances as ec
+from . import resolve_references as rr
 
 
 SCHEMA_RESOURCE = "graph_schema.sql"
@@ -179,6 +180,24 @@ def cmd_rebuild_citances(args) -> int:
     return 0
 
 
+def cmd_rebuild_references(args) -> int:
+    """Phase B: resolve each parsed paper's reference list (references_resolved.json).
+
+    Upstream of citances/graph. `--online` queries Crossref for the
+    non-inline-DOI tail; otherwise inline DOIs only.
+    """
+    targets = [args.paper_id] if args.paper_id else list(ps.iter_papers())
+    online = getattr(args, "online", False)
+    for pid in targets:
+        if ps.get(pid).parsed_markdown_path() is None:
+            continue  # unparsed — nothing to resolve
+        try:
+            rr.resolve_references(pid, online=online)
+        except Exception as exc:
+            print(f"  ! {pid}: {exc}", file=sys.stderr)
+    return 0
+
+
 def cmd_rebuild_graph(args) -> int:
     try:
         import duckdb  # type: ignore
@@ -186,10 +205,13 @@ def cmd_rebuild_graph(args) -> int:
         print("duckdb not installed; run `uv pip install duckdb` or install via the uv tool.", file=sys.stderr)
         return 2
     gdb = ps.graph_db_path()
-    if gdb.exists():
-        gdb.unlink()
     con = duckdb.connect(str(gdb))
     con.execute(_read_schema())
+    # Rebuild only the projections this command owns (papers, edges); preserve
+    # the annotations + source_identity_crosswalk tables, which have their own
+    # rebuild commands. (Previously unlinked the whole DB, nuking annotations.)
+    con.execute("DELETE FROM edges")
+    con.execute("DELETE FROM papers")
     n_edges = 0
     n_papers = 0
     n_annot = 0
@@ -317,6 +339,10 @@ def add_cli(subparsers: argparse._SubParsersAction) -> None:
     p.add_argument("--verify", action="store_true")
     p.add_argument("--rebuild-indexes", action="store_true")
     p.add_argument("--rebuild-citances", action="store_true")
+    p.add_argument("--rebuild-references", action="store_true",
+                   help="Phase B: re-resolve each parsed paper's reference list")
+    p.add_argument("--online", action="store_true",
+                   help="With --rebuild-references, query Crossref for the non-inline-DOI tail")
     p.add_argument("--rebuild-graph", action="store_true")
     p.add_argument("--rebuild-annotations-index", action="store_true",
                    help="Project annotations.jsonl files into graph.duckdb annotations table")
@@ -401,11 +427,12 @@ def cmd_verify_replay(args) -> int:
 def _cmd_maintain(args) -> int:
     args._rebuild_ran_this_invocation = False
     if not any([args.verify, args.rebuild_indexes, args.rebuild_citances,
-                args.rebuild_graph, args.rebuild_annotations_index,
+                args.rebuild_references, args.rebuild_graph,
+                args.rebuild_annotations_index,
                 args.gc, args.bootstrap_schema_meta, args.verify_replay]):
-        print("specify one of --verify --rebuild-indexes --rebuild-citances "
-              "--rebuild-graph --rebuild-annotations-index --gc "
-              "--bootstrap-schema-meta --verify-replay",
+        print("specify one of --verify --rebuild-indexes --rebuild-references "
+              "--rebuild-citances --rebuild-graph --rebuild-annotations-index "
+              "--gc --bootstrap-schema-meta --verify-replay",
               file=sys.stderr)
         return 2
     rc = 0
@@ -418,6 +445,8 @@ def _cmd_maintain(args) -> int:
     if args.rebuild_indexes:
         rc = max(rc, cmd_rebuild_indexes(args))
         args._rebuild_ran_this_invocation = True
+    if args.rebuild_references:
+        rc = max(rc, cmd_rebuild_references(args))
     if args.rebuild_citances:
         rc = max(rc, cmd_rebuild_citances(args))
     if args.rebuild_graph:
