@@ -121,6 +121,72 @@ def extract_entries(ref_section: str) -> list[dict]:
     return entries
 
 
+def _has_strong_ref_signals(markdown: str) -> bool:
+    """True if a paper looks like it has a reference list the deterministic
+    extractor missed — the gate for the (cost-bearing) gemini fallback. Keeps
+    the LLM off genuinely reference-less docs (news, abstracts, guidelines)."""
+    dois = len(re.findall(r"10\.\d{4,9}/", markdown))
+    etal = len(re.findall(r"\bet al\b", markdown, re.IGNORECASE))
+    return dois >= 10 or etal >= 20
+
+
+def extract_entries_llm(markdown: str, *, model: str = "gemini-3-flash-preview") -> list[dict]:
+    """gemini-3-flash fallback for papers the deterministic extractor can't parse
+    (header-less, OCR-garbled, exotic layouts). Returns the same
+    ``{ref_label, raw_text}`` shape; the existing inline-DOI + Crossref path then
+    resolves these strings — gemini only replaces entry *splitting*, not resolution.
+
+    Needs the ``llm-fallback`` extra (google-genai) + GEMINI_API_KEY/GOOGLE_API_KEY.
+    """
+    import json as _json
+    import os
+
+    try:
+        from google import genai
+    except ImportError as exc:  # pragma: no cover — optional extra
+        raise RuntimeError(
+            "gemini fallback needs the llm-fallback extra: "
+            "`uv pip install 'corpus-core[llm-fallback]'`"
+        ) from exc
+    api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("set GEMINI_API_KEY (or GOOGLE_API_KEY) for the gemini fallback")
+
+    schema = {
+        "type": "object",
+        "properties": {
+            "references": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Each full reference string, verbatim, one per entry.",
+            }
+        },
+        "required": ["references"],
+        "additionalProperties": False,
+    }
+    prompt = (
+        "Extract the COMPLETE list of bibliographic references from this paper's "
+        "markdown. Return each reference as ONE verbatim string (authors, title, "
+        "venue, year, volume, pages, and DOI if present). Include every entry in "
+        "the reference/bibliography section; do not summarize, renumber, merge, or "
+        "invent. If the document has no reference list, return an empty array.\n\n"
+        f"MARKDOWN:\n{markdown}"
+    )
+    client = genai.Client(api_key=api_key)
+    resp = client.models.generate_content(
+        model=model,
+        contents=[prompt],
+        config={"response_mime_type": "application/json", "response_schema": schema},
+    )
+    data = _json.loads(resp.text)
+    out: list[dict] = []
+    for i, ref in enumerate(data.get("references", []), start=1):
+        cleaned = re.sub(r"\s+", " ", ref).strip()
+        if len(cleaned) >= 20:
+            out.append({"ref_label": f"[{i}]", "raw_text": cleaned, "extraction_source": "gemini"})
+    return out
+
+
 def extract_inline_doi(text: str) -> Optional[str]:
     m = DOI_IN_TEXT.search(text)
     if not m:
@@ -151,7 +217,8 @@ def resolve_via_crossref(text: str, timeout: float = 10.0) -> Optional[dict]:
     }
 
 
-def resolve_references(paper_id: str, *, online: bool = False) -> dict:
+def resolve_references(paper_id: str, *, online: bool = False,
+                       llm_fallback: bool = False) -> dict:
     rec = ps.get(paper_id)
     parsed_md = rec.parsed_markdown_path()
     if parsed_md is None:
@@ -162,11 +229,13 @@ def resolve_references(paper_id: str, *, online: bool = False) -> dict:
     parsed_sha = rec.metadata.get("parsed_sha256") or ""
     out_path = rec.path / "references_resolved.json"
 
-    # Idempotency: skip if parsed_sha matches stored value
+    # Idempotency: skip if parsed_sha + online + llm_fallback all match.
     if out_path.exists():
         try:
             existing = json.loads(out_path.read_text())
-            if existing.get("parsed_sha256") == parsed_sha and existing.get("online") == online:
+            if (existing.get("parsed_sha256") == parsed_sha
+                    and existing.get("online") == online
+                    and existing.get("llm_fallback", False) == llm_fallback):
                 print(f"  ✓ {paper_id} references already resolved (cache hit)")
                 return existing
         except json.JSONDecodeError:
@@ -175,6 +244,12 @@ def resolve_references(paper_id: str, *, online: bool = False) -> dict:
     md = parsed_md.read_text(encoding="utf-8")
     ref_section = extract_reference_section(md) or ""
     entries = extract_entries(ref_section)
+    # gemini fallback: only when deterministic extraction fails on a doc that
+    # clearly has references (the gate keeps the LLM off reference-less non-papers).
+    used_llm = False
+    if not entries and llm_fallback and _has_strong_ref_signals(md):
+        entries = extract_entries_llm(md)
+        used_llm = bool(entries)
 
     resolved: list[dict] = []
     for e in entries:
@@ -206,6 +281,8 @@ def resolve_references(paper_id: str, *, online: bool = False) -> dict:
         "paper_id": paper_id,
         "parsed_sha256": parsed_sha,
         "online": online,
+        "llm_fallback": llm_fallback,
+        "extraction": "gemini" if used_llm else "deterministic",
         "entries": resolved,
         "stats": {
             "total": len(resolved),
@@ -222,4 +299,7 @@ def add_cli(subparsers: argparse._SubParsersAction) -> None:
     p = subparsers.add_parser("resolve-references", help="Resolve a paper's reference list")
     p.add_argument("--paper-id", required=True)
     p.add_argument("--online", action="store_true", help="Query Crossref for unresolved entries")
-    p.set_defaults(func=lambda args: (resolve_references(args.paper_id, online=args.online), 0)[1])
+    p.add_argument("--llm-fallback", action="store_true",
+                   help="Use gemini-3-flash to extract refs when the deterministic parser fails")
+    p.set_defaults(func=lambda args: (resolve_references(
+        args.paper_id, online=args.online, llm_fallback=args.llm_fallback), 0)[1])

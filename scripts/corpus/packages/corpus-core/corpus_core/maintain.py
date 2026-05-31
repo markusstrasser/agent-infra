@@ -188,11 +188,16 @@ def cmd_rebuild_references(args) -> int:
     """
     targets = [args.paper_id] if args.paper_id else list(ps.iter_papers())
     online = getattr(args, "online", False)
+    llm = getattr(args, "llm_fallback", False)
+    force = getattr(args, "force", False)
     for pid in targets:
-        if ps.get(pid).parsed_markdown_path() is None:
+        rec = ps.get(pid)
+        if rec.parsed_markdown_path() is None:
             continue  # unparsed — nothing to resolve
+        if force:
+            (rec.path / "references_resolved.json").unlink(missing_ok=True)
         try:
-            rr.resolve_references(pid, online=online)
+            rr.resolve_references(pid, online=online, llm_fallback=llm)
         except Exception as exc:
             print(f"  ! {pid}: {exc}", file=sys.stderr)
     return 0
@@ -343,6 +348,10 @@ def add_cli(subparsers: argparse._SubParsersAction) -> None:
                    help="Phase B: re-resolve each parsed paper's reference list")
     p.add_argument("--online", action="store_true",
                    help="With --rebuild-references, query Crossref for the non-inline-DOI tail")
+    p.add_argument("--llm-fallback", action="store_true",
+                   help="With --rebuild-references, gemini-3-flash fallback when the parser fails")
+    p.add_argument("--force", action="store_true",
+                   help="With --rebuild-references, delete cached references_resolved.json first")
     p.add_argument("--rebuild-graph", action="store_true")
     p.add_argument("--rebuild-annotations-index", action="store_true",
                    help="Project annotations.jsonl files into graph.duckdb annotations table")
