@@ -12,8 +12,10 @@ from corpus_core.extract import DEFAULT_PARSER, extract
 
 
 def test_default_parser_routing():
-    assert DEFAULT_PARSER["paper"] == "mineru"
-    assert DEFAULT_PARSER["preprint"] == "mineru"
+    # papers/preprints default to marker-modal (agent-infra@09dbba6 — LLM
+    # table/equation/figure fidelity on a baked-weights Modal T4).
+    assert DEFAULT_PARSER["paper"] == "marker-modal"
+    assert DEFAULT_PARSER["preprint"] == "marker-modal"
     assert DEFAULT_PARSER["webpage"] == "trafilatura"
     assert DEFAULT_PARSER["regulatory_filing"] == "pymupdf4llm"
     assert DEFAULT_PARSER["other"] == "pymupdf4llm"
