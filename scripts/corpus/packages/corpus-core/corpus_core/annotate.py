@@ -1,9 +1,11 @@
 """Sole writer for `~/Projects/corpus/<source_id>/annotations.jsonl`.
 
 Every cross-repo annotation flows through `annotate(...)`. Per-repo MCPs and
-external callers MUST NOT write annotations.jsonl directly — the agent
-orchestrates two MCP calls (per-repo `record_verdict` + `corpus_attest`),
-where `corpus_attest` is the MCP wrapper around this function.
+external callers MUST NOT write annotations.jsonl directly — repos enqueue
+attestation intent in their mutation gateway's transactional outbox
+(`pending_corpus_attestations`), which drains via `corpus_core.outbox.drain`
+into this function. (The v1 `record_verdict` + `corpus_attest` MCP ritual was
+retired 2026-05-26 per substrate-v2 — 0 invocations in 9 months.)
 
 Guarantees:
     - Schema-validated against schemas/v1/annotation.v1.json (jsonschema)
