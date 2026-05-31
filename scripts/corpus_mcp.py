@@ -177,6 +177,8 @@ def create_mcp() -> FastMCP:
                 return 0
             return sum(1 for ln in p.read_text(errors="replace").splitlines() if ln.strip())
 
+        from corpus_core.index import active_annotations_for_source
+        active_ann = active_annotations_for_source(paper_id, db_path=_graph_db())
         return _wrap({
             "paper_id": paper_id,
             "present": True,
@@ -192,6 +194,13 @@ def create_mcp() -> FastMCP:
             "citances_in_count": _count_lines(cin),
             "citances_out_count": _count_lines(cout),
             "annotations_count": _count_lines(ann),
+            "active_annotations": active_ann,
+            "epistemic": {
+                "paper_retraction_status": meta.get("retraction_status", "unknown"),
+                "active_verdict_count": len(active_ann),
+                "attesting_repos": sorted({a["repo"] for a in active_ann if a.get("repo")}),
+                "retracted_annotations": [a for a in active_ann if a.get("status") == "retracted"],
+            },
             "paths": {
                 "dir": str(p_dir),
                 "pdf": str(p_dir / "paper.pdf") if (p_dir / "paper.pdf").exists() else None,

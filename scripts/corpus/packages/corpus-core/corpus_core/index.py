@@ -223,4 +223,48 @@ def rebuild_annotations_index(graph_db_path: Path | None = None) -> dict[str, in
         con.close()
 
 
-__all__ = ["index_annotation", "rebuild_annotations_index"]
+def active_annotations_for_source(
+    source_id: str, *, db_path: Path | None = None
+) -> list[dict[str, Any]]:
+    """Active (current-leaf) annotations for a source — the read-loop primitive.
+
+    An agent about to act on a source uses this to SEE what's already been
+    attested about it (active verdicts, retractions) before re-deriving. This is
+    the READ half of the attestation ledger; without it the ledger is write-only
+    (the substrate-v1 ritual got ~0 read invocations in 9 months because no read
+    path was wired into agent context). Surfaced by `corpus_lookup` so the verdict
+    rides along the lookup an agent already does.
+
+    Queries the `annotations_current` view (annotations with no successor).
+    Fail-soft: returns [] if duckdb or graph.duckdb is unavailable.
+    """
+    from .store import graph_db_path
+    path = Path(db_path) if db_path else graph_db_path()
+    if not path.exists():
+        return []
+    try:
+        import duckdb
+    except ImportError:
+        return []
+    try:
+        con = duckdb.connect(str(path), read_only=True)
+        rows = con.execute(
+            "SELECT annotation_id, repo, scope, output_uri, status, recorded_at "
+            "FROM annotations_current WHERE source_id = ? ORDER BY recorded_at DESC",
+            [source_id],
+        ).fetchall()
+        con.close()
+    except Exception:
+        return []
+    return [
+        {"annotation_id": r[0], "repo": r[1], "scope": r[2],
+         "output_uri": r[3], "status": r[4], "recorded_at": r[5]}
+        for r in rows
+    ]
+
+
+__all__ = [
+    "index_annotation",
+    "rebuild_annotations_index",
+    "active_annotations_for_source",
+]
