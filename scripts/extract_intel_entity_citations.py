@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
-"""Phase 6.5 of substrate-migration plan: intel entity citation extraction.
+"""Intel entity citation extraction (manual corpus annotation backfill).
 
 Walks ~/Projects/intel/analysis/{entities,themes}/*.md, extracts DOI/PMID
 citations with their adjacent admiralty grade marker (e.g. [A1]–[F6]), and
 writes one corpus annotation per citation.
 
+This is a backfill/CLI writer: it calls corpus_core.annotate (the sole
+annotation writer) directly with actor_type='human' — the v2-sanctioned manual
+path. There is no corpus_attest MCP tool (retired under substrate v2; routine
+attestation is automatic via each repo's mutation-gateway outbox).
+
 For each citation:
   - Derive source_id (doi_<slug> | pmid_<n> | pmcid_<id>)
   - Ensure ~/Projects/corpus/<source_id>/ exists (lazy metadata-only entry)
-  - Append corpus_attest annotation:
+  - Append a corpus annotation (corpus_core.annotate):
       repo='intel', actor_type='human', actor_id='urn:agent:human:markus',
       scope='annotation', tool='entity-file-citation',
       source_content_hash=sha256(entity_file_bytes)

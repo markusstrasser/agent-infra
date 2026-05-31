@@ -2,7 +2,7 @@
 title: Scientific Substrate Target Architecture
 date: 2026-05-11
 tags: [architecture, target-state, breaking-refactor, papers, attestation, federation]
-status: revised-post-critique
+status: superseded-by-v2 (attestation section)
 audience: AI Agent developers and maintainers
 inputs:
   - cross-project-architecture-overview.md
@@ -12,6 +12,16 @@ inputs:
 ---
 
 # Scientific Substrate Target Architecture
+
+> **⚠ Attestation section superseded (2026-05-31).** This v1-era memo's
+> cross-attestation design (the agent-orchestrated `record_verdict` +
+> `corpus_attest` two-call ritual) was replaced by the **gateway
+> transactional-outbox** model — see
+> `decisions/2026-05-26-cross-attestation-substrate-v2.md` (shipped) and its
+> 2026-05-27 framing `corpus-as-event-log-repos-as-hybrid.md`. The `corpus_attest`
+> MCP tool no longer exists; routine attestation is automatic via each repo's
+> mutation gateway. Read this memo for the broader papers/federation target
+> shape only; for attestation, follow v2.
 
 The long-term shape of the personal scientific knowledge system that bridges phenome, genomics, intel, research-mcp, and agent-infra. **Breaking refactor, no compatibility shims, no wrappers, no legacy** (per Constitution Principle 14 and explicit user direction). Designed for AI agent developers and maintainers — the next agent walking in cold should grok this without spelunking history.
 
