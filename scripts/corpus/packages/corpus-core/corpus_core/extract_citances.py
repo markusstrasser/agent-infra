@@ -31,7 +31,9 @@ STANCE_TO_CITO = {
     "mentioning": f"{CITO_BASE}citesAsRelated",
 }
 
-# Match in-text bracketed/parenthesized citations
+# Match in-text bracketed/parenthesized citations. Marker renders these as
+# anchor links `[[12](#page-4-0)]`; the inner `[12]` is matched directly (a
+# link-collapse pre-pass was tried and empirically REDUCED recall — don't).
 INLINE_CITE = re.compile(r"\[(\d+(?:[,\s\-–]\d+)*)\]")
 
 
