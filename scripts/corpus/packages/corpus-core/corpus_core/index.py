@@ -529,10 +529,53 @@ def active_relations_for_source(
     return out
 
 
+def support_balance_for_source(
+    source_id: str, *, db_path: Path | None = None
+) -> dict[str, Any] | None:
+    """The linear support_balance row for a corpus source (keyed by its
+    namespaced `corpus:<source_id>` ref). Returns None when the source has no
+    active relations. The scalar is a transparent sign-weighted tally — NOT a
+    probability. Fail-soft: None if duckdb/graph.duckdb/view absent."""
+    from .store import graph_db_path
+    path = Path(db_path) if db_path else graph_db_path()
+    if not path.exists():
+        return None
+    try:
+        import duckdb
+    except ImportError:
+        return None
+    try:
+        con = duckdb.connect(str(path), read_only=True)
+    except Exception:
+        return None
+    try:
+        try:
+            row = con.execute(
+                "SELECT support_balance, relation_count, n_refute, n_support, "
+                "n_qualify, n_extend FROM support_balance WHERE claim_ref = ?",
+                [f"corpus:{source_id}"],
+            ).fetchone()
+        except Exception:
+            return None
+    finally:
+        con.close()
+    if row is None:
+        return None
+    return {
+        "support_balance": row[0],
+        "relation_count": row[1],
+        "n_refute": row[2],
+        "n_support": row[3],
+        "n_qualify": row[4],
+        "n_extend": row[5],
+    }
+
+
 __all__ = [
     "index_annotation",
     "rebuild_annotations_index",
     "rebuild_claim_relations",
     "active_annotations_for_source",
     "active_relations_for_source",
+    "support_balance_for_source",
 ]

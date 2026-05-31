@@ -23,6 +23,7 @@ from corpus_core.identity import relation_content_sha
 from corpus_core.index import (
     active_relations_for_source,
     rebuild_claim_relations,
+    support_balance_for_source,
 )
 from corpus_core.store import graph_db_path
 
@@ -231,3 +232,47 @@ def test_unresolved_participant_counted(corpus_root):
              relation=_rel([f"corpus:{PAPER}"], ["corpus:doi_does_not_exist"]))
     report = rebuild_claim_relations()
     assert report["participants_unresolved"] == 1
+
+
+# --- support_balance (Phase 5: transparent linear net-support, never P(true)) ---
+
+
+def test_support_balance_refute_is_symmetric(corpus_root):
+    # a refutation lowers BOTH participants (conflict is symmetric)
+    annotate(VIRTUAL, repo="phenome", actor_type="model", actor_id=ACTOR_ID,
+             scope="claim_relation", output_uri="phenome://contradiction_pairs/p1",
+             relation=_rel(["repo:phenome:assertion:aaaa"], ["repo:phenome:assertion:bbbb"], cls="refute"))
+    bal = {r[0]: r[1] for r in _q("SELECT claim_ref, support_balance FROM support_balance")}
+    assert bal["repo:phenome:assertion:aaaa"] == -1.0
+    assert bal["repo:phenome:assertion:bbbb"] == -1.0
+    # the anchor (corpus:internal_phenome) is storage, not a participant → excluded
+    assert "corpus:internal_phenome" not in bal
+
+
+def test_support_balance_support_is_directional(corpus_root):
+    # endorsement raises only the OBJECT, not the asserting subject
+    annotate(PAPER, repo="genomics", actor_type="model", actor_id=ACTOR_ID,
+             scope="claim_relation", output_uri="genomics://verdicts/v1",
+             relation=_rel(["repo:genomics:claim:x"], [f"corpus:{PAPER}"], cls="support"))
+    bal = {r[0]: r[1] for r in _q("SELECT claim_ref, support_balance FROM support_balance")}
+    assert bal[f"corpus:{PAPER}"] == 1.0
+    assert "repo:genomics:claim:x" not in bal
+
+
+def test_support_balance_for_source_helper(corpus_root):
+    annotate(PAPER, repo="genomics", actor_type="model", actor_id=ACTOR_ID,
+             scope="claim_relation", output_uri="genomics://verdicts/v1",
+             relation=_rel(["repo:genomics:claim:x"], [f"corpus:{PAPER}"], cls="refute"))
+    bal = support_balance_for_source(PAPER)
+    assert bal is not None
+    assert bal["support_balance"] == -1.0
+    assert bal["n_refute"] == 1
+    assert support_balance_for_source("doi_no_such_paper") is None  # no relations → None
+
+
+def test_support_balance_grade_weighted(corpus_root):
+    annotate(PAPER, repo="genomics", actor_type="model", actor_id=ACTOR_ID,
+             scope="claim_relation", output_uri="genomics://verdicts/v1",
+             relation=_rel(["repo:genomics:claim:x"], [f"corpus:{PAPER}"], cls="refute", grade_weight=0.5))
+    bal = support_balance_for_source(PAPER)
+    assert bal["support_balance"] == -0.5  # linear: sign × grade_weight, no squash
