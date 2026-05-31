@@ -346,8 +346,14 @@ def drain(
             # A relation-bearing row routes to scope='claim_relation' with the
             # parsed body inlined; ordinary attestations keep the drain's scope.
             # Malformed relation_json is a data error for THIS row, not a reason
-            # to abort the batch — handled as a retry/abandon below.
+            # to abort the batch — handled as a retry/abandon below. A non-dict
+            # body (`[…]`, `"x"`, `42`) would otherwise reach annotate() and
+            # crash on `.get()`; reject it here as a row error (close-review).
             relation = json.loads(relation_json) if relation_json else None
+            if relation is not None and not isinstance(relation, dict):
+                raise AnnotationError(
+                    f"relation_json must be a JSON object, got {type(relation).__name__}"
+                )
             effective_scope = CLAIM_RELATION_SCOPE if relation is not None else scope
             paper_path(canon).mkdir(parents=True, exist_ok=True)
             _annotate(

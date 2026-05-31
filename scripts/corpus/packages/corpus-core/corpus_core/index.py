@@ -172,10 +172,12 @@ def _relation_rows(
         record.get("asserted_at"),
         record.get("recorded_at"),
     )
+    # Endpoints are a SET per role (dedup): a duplicate ref must not produce a
+    # duplicate endpoint row and must match the set-based relation_id identity.
     eps: list[tuple[str, str, str]] = []
-    for ref in subjects:
+    for ref in dict.fromkeys(subjects):
         eps.append((rid, ref, "subject"))
-    for ref in objects:
+    for ref in dict.fromkeys(objects):
         eps.append((rid, ref, "object"))
     eps.append((rid, f"corpus:{source_id}", "anchor"))
     return rrow, eps
@@ -222,12 +224,29 @@ def _index_relation(con, record: dict[str, Any]) -> None:
     rrow, eps = rows
     sup = record.get("supersedes_annotation_id")
     if sup:
+        # Tombstone the superseded annotation_id FIRST (order-independent), then
+        # drop its projected relation. The tombstone persists even if the
+        # superseded relation has not been indexed yet.
+        con.execute(
+            "INSERT OR IGNORE INTO claim_relation_tombstones "
+            "(superseded_annotation_id) VALUES (?)",
+            [sup],
+        )
         con.execute(
             "DELETE FROM claim_relation_endpoints WHERE relation_id IN "
             "(SELECT relation_id FROM claim_relations WHERE annotation_id = ?)",
             [sup],
         )
         con.execute("DELETE FROM claim_relations WHERE annotation_id = ?", [sup])
+    # If THIS relation's annotation was already superseded by an earlier-arriving
+    # retraction (out-of-order drain), project it as 'superseded' — never as a
+    # stale-active leaf. This makes the incremental path agree with rebuild.
+    ann_id = rrow[1]
+    if rrow[10] == "active" and con.execute(
+        "SELECT 1 FROM claim_relation_tombstones WHERE superseded_annotation_id = ?",
+        [ann_id],
+    ).fetchone():
+        rrow = (*rrow[:10], "superseded", *rrow[11:])
     placeholders = ",".join(["?"] * len(_REL_COLS))
     con.execute(
         f"INSERT OR REPLACE INTO claim_relations ({','.join(_REL_COLS)}) "
@@ -378,6 +397,7 @@ def rebuild_claim_relations(graph_db_path: Path | None = None) -> dict[str, int]
         con.execute("BEGIN TRANSACTION")
         con.execute("DELETE FROM claim_relation_endpoints")
         con.execute("DELETE FROM claim_relations")
+        con.execute("DELETE FROM claim_relation_tombstones")
         root = store_root()
         report = {
             "sources_scanned": 0,
@@ -414,6 +434,15 @@ def rebuild_claim_relations(graph_db_path: Path | None = None) -> dict[str, int]
                 report["sources_scanned"] += 1
 
         report["relations_seen"] = len(records)
+        # Repopulate tombstones so the incremental path stays order-independent
+        # after a rebuild (every superseded annotation_id is recorded, even if
+        # its relation record is absent/not-yet-arrived).
+        if superseded:
+            con.executemany(
+                "INSERT OR IGNORE INTO claim_relation_tombstones "
+                "(superseded_annotation_id) VALUES (?)",
+                [(s,) for s in superseded],
+            )
         rel_placeholders = ",".join(["?"] * len(_REL_COLS))
         for record in records:
             if record.get("annotation_id") in superseded:
@@ -587,8 +616,19 @@ def epistemic_surface(
     active_ann = active_annotations_for_source(source_id, db_path=db_path)
     active_rels = active_relations_for_source(source_id, db_path=db_path)
     balance = support_balance_for_source(source_id, db_path=db_path)
-    refuting = [r for r in active_rels if r.get("relation_class") == "refute"]
-    qualifying = [r for r in active_rels if r.get("relation_class") in ("qualify", "extend")]
+    # Conflict fires only when THIS source is the OBJECT of a refute/qualify
+    # (it is being refuted) — NOT when it is the subject (the refuter). A
+    # gold-standard db_source used to refute a wrong claim must not show
+    # conflict=true on its own lookup (close-review: cross-model).
+    own_ref = f"corpus:{source_id}"
+    refuting = [
+        r for r in active_rels
+        if r.get("relation_class") == "refute" and own_ref in (r.get("objects") or [])
+    ]
+    qualifying = [
+        r for r in active_rels
+        if r.get("relation_class") == "qualify" and own_ref in (r.get("objects") or [])
+    ]
     return {
         "active_annotations": active_ann,
         "active_relations": active_rels,

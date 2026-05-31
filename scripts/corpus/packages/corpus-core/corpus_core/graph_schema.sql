@@ -175,28 +175,56 @@ CREATE INDEX IF NOT EXISTS idx_claim_rel_endpoint_ref ON claim_relation_endpoint
 CREATE VIEW IF NOT EXISTS claim_relations_active AS
 SELECT * FROM claim_relations WHERE status = 'active';
 
--- support_balance (graph 1.3.0): a TRANSPARENT LINEAR net-support scalar per
--- claim, derived from active relations. NOT a probability, NOT a logistic/QBAF
--- squash, NEVER called "P(true)" — at N=1 a calibrated posterior is
--- unjustifiable (no validation set). It is a sign-weighted tally:
---   refute  = -1.0   qualify = -0.5   (conflict — lowers BOTH participants)
---   support = +1.0   extend  = +0.5   (endorsement — raises the OBJECT)
---   background = 0
--- weighted by grade_weight (default 1.0). Recomputed on read; never stored
--- (a stored posterior would destroy the replayable belief-change record).
+-- Supersession tombstones (graph 1.4.0): the set of annotation_ids that some
+-- relation supersedes. Makes the INCREMENTAL projection order-independent —
+-- if a retraction is indexed before its target relation (possible when a repo
+-- is drained out-of-order by the audit job, not the in-process gateway), the
+-- target's annotation_id is already tombstoned and it is projected as
+-- 'superseded', never as a stale-active leaf. Rebuilt deterministically by
+-- rebuild_claim_relations; the per-write path consults it (close-review:
+-- cross-model CRITICAL — incremental/rebuild divergence under out-of-order drain).
+CREATE TABLE IF NOT EXISTS claim_relation_tombstones (
+    superseded_annotation_id TEXT PRIMARY KEY,
+    recorded_at              TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- support_balance (graph 1.4.0): a TRANSPARENT LINEAR net-support scalar,
+-- derived from active relations. NOT a probability, NOT a logistic/QBAF squash,
+-- NEVER "P(true)" — at N=1 a calibrated posterior is unjustifiable. A
+-- sign-weighted tally (refute -1, qualify -0.5, support +1, extend +0.5,
+-- background 0), weighted by grade_weight (default 1.0). Recomputed on read.
+-- Directionality (close-review: cross-model — a refuting source must not be
+-- defaced):
+--   * the OBJECT is always scored — it is what the relation is ABOUT (the
+--     refuted/qualified/endorsed target), any endpoint type.
+--   * the SUBJECT of a conflict relation is scored ONLY when it is a CLAIM
+--     (repo:/local:/internal:) — a MUTUAL claim-vs-claim contradiction, which
+--     is symmetric. A `corpus:` SOURCE subject is the REFUTER (evidence), not a
+--     refuted claim, so it is excluded — no penalty for correcting a wrong claim.
 CREATE VIEW IF NOT EXISTS support_balance AS
 WITH contributions AS (
-    -- conflict relations are symmetric: both endpoints lose confidence
+    -- the OBJECT of a conflict relation loses confidence (it is refuted/qualified)
     SELECT e.endpoint_ref AS claim_ref,
            (CASE r.relation_class WHEN 'refute' THEN -1.0 WHEN 'qualify' THEN -0.5 END)
                * COALESCE(r.grade_weight, 1.0) AS contrib,
            r.relation_class
     FROM claim_relations_active r
     JOIN claim_relation_endpoints e
-      ON e.relation_id = r.relation_id AND e.role IN ('subject', 'object')
+      ON e.relation_id = r.relation_id AND e.role = 'object'
     WHERE r.relation_class IN ('refute', 'qualify')
     UNION ALL
-    -- endorsement relations are directional: the object is endorsed
+    -- the SUBJECT loses confidence ONLY in a claim-vs-claim mutual contradiction
+    SELECT e.endpoint_ref,
+           (CASE r.relation_class WHEN 'refute' THEN -1.0 WHEN 'qualify' THEN -0.5 END)
+               * COALESCE(r.grade_weight, 1.0),
+           r.relation_class
+    FROM claim_relations_active r
+    JOIN claim_relation_endpoints e
+      ON e.relation_id = r.relation_id AND e.role = 'subject'
+    WHERE r.relation_class IN ('refute', 'qualify')
+      AND e.endpoint_ref NOT LIKE 'corpus:%'
+    UNION ALL
+    -- endorsement raises the OBJECT (any endpoint type)
     SELECT e.endpoint_ref,
            (CASE r.relation_class WHEN 'support' THEN 1.0 WHEN 'extend' THEN 0.5 END)
                * COALESCE(r.grade_weight, 1.0),
@@ -218,8 +246,8 @@ GROUP BY claim_ref;
 
 INSERT INTO corpus_schema_meta
     (artifact, schema_version, min_reader_version, min_writer_version, notes, updated_at)
-VALUES ('graph', '1.3.0', '1.1.0', '1.3.0',
-        '+claim_relations(+endpoints,+active view,+support_balance) (epistemic core)', now())
+VALUES ('graph', '1.4.0', '1.1.0', '1.4.0',
+        '+claim_relation_tombstones (order-independent supersession); support_balance claim-typed only', now())
 ON CONFLICT (artifact) DO UPDATE SET
     schema_version       = EXCLUDED.schema_version,
     min_reader_version   = EXCLUDED.min_reader_version,

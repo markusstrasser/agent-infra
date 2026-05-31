@@ -202,10 +202,12 @@ def relation_content_sha(
     not fork it. `relation_id` is the 16-hex prefix; the full sha doubles as the
     annotation's output_hash so re-emitting the same relation stays idempotent.
     """
+    # Endpoints are a SET per side: dedup so [A, A] and [A] yield the same
+    # relation_id (a duplicate ref must not fork identity — close-review).
     core = {
         "relation_class": relation_class,
-        "subject_refs": sorted(subject_refs),
-        "object_refs": sorted(object_refs),
+        "subject_refs": sorted(set(subject_refs)),
+        "object_refs": sorted(set(object_refs)),
         "detector": detector,
     }
     return sha256_hex(canonical_json(core))
