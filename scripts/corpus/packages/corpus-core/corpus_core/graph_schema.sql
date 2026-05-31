@@ -175,10 +175,51 @@ CREATE INDEX IF NOT EXISTS idx_claim_rel_endpoint_ref ON claim_relation_endpoint
 CREATE VIEW IF NOT EXISTS claim_relations_active AS
 SELECT * FROM claim_relations WHERE status = 'active';
 
+-- support_balance (graph 1.3.0): a TRANSPARENT LINEAR net-support scalar per
+-- claim, derived from active relations. NOT a probability, NOT a logistic/QBAF
+-- squash, NEVER called "P(true)" — at N=1 a calibrated posterior is
+-- unjustifiable (no validation set). It is a sign-weighted tally:
+--   refute  = -1.0   qualify = -0.5   (conflict — lowers BOTH participants)
+--   support = +1.0   extend  = +0.5   (endorsement — raises the OBJECT)
+--   background = 0
+-- weighted by grade_weight (default 1.0). Recomputed on read; never stored
+-- (a stored posterior would destroy the replayable belief-change record).
+CREATE VIEW IF NOT EXISTS support_balance AS
+WITH contributions AS (
+    -- conflict relations are symmetric: both endpoints lose confidence
+    SELECT e.endpoint_ref AS claim_ref,
+           (CASE r.relation_class WHEN 'refute' THEN -1.0 WHEN 'qualify' THEN -0.5 END)
+               * COALESCE(r.grade_weight, 1.0) AS contrib,
+           r.relation_class
+    FROM claim_relations_active r
+    JOIN claim_relation_endpoints e
+      ON e.relation_id = r.relation_id AND e.role IN ('subject', 'object')
+    WHERE r.relation_class IN ('refute', 'qualify')
+    UNION ALL
+    -- endorsement relations are directional: the object is endorsed
+    SELECT e.endpoint_ref,
+           (CASE r.relation_class WHEN 'support' THEN 1.0 WHEN 'extend' THEN 0.5 END)
+               * COALESCE(r.grade_weight, 1.0),
+           r.relation_class
+    FROM claim_relations_active r
+    JOIN claim_relation_endpoints e
+      ON e.relation_id = r.relation_id AND e.role = 'object'
+    WHERE r.relation_class IN ('support', 'extend')
+)
+SELECT claim_ref,
+       SUM(contrib)                                              AS support_balance,
+       COUNT(*)                                                  AS relation_count,
+       SUM(CASE WHEN relation_class = 'refute'  THEN 1 ELSE 0 END) AS n_refute,
+       SUM(CASE WHEN relation_class = 'support' THEN 1 ELSE 0 END) AS n_support,
+       SUM(CASE WHEN relation_class = 'qualify' THEN 1 ELSE 0 END) AS n_qualify,
+       SUM(CASE WHEN relation_class = 'extend'  THEN 1 ELSE 0 END) AS n_extend
+FROM contributions
+GROUP BY claim_ref;
+
 INSERT INTO corpus_schema_meta
     (artifact, schema_version, min_reader_version, min_writer_version, notes, updated_at)
-VALUES ('graph', '1.2.0', '1.1.0', '1.2.0',
-        '+claim_relations + claim_relation_endpoints + claim_relations_active (epistemic core)', now())
+VALUES ('graph', '1.3.0', '1.1.0', '1.3.0',
+        '+claim_relations(+endpoints,+active view,+support_balance) (epistemic core)', now())
 ON CONFLICT (artifact) DO UPDATE SET
     schema_version       = EXCLUDED.schema_version,
     min_reader_version   = EXCLUDED.min_reader_version,
