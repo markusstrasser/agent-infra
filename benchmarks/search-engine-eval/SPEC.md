@@ -14,27 +14,25 @@ the N=60 Gospel-reader study's rigor onto a standardized harness, hardened by
 adversarial critique (25 findings, disposition in `.model-review/`). Goal: a
 **conditional routing policy** + cost-aware comparison, not a vanity leaderboard.
 
-## Domain: Business-Intelligence (human pick) — OPEN: BI-only vs +scientific
+## Domain: BI + Scientific split (human pick, 2026-05-31) — N=60 = 30 + 30
 
-BI lets us source **fresh, post-cutoff** claims (recent filings, funding,
-exec/regulatory actions), satisfying contamination-resistance. **Unresolved
-(escalated to human):** critique #9 warns BI-only may not generalize to our
-*actual* production search (genomics/intel/phenome = static, citation-dense
-scientific retrieval). Two options pending human call:
-- **(A) BI-only** — cleanest test of Linkup's pitch, N=60 all BI.
-- **(B) BI + scientific split** — 30 BI-fresh + 30 scientific-static, separate
-  routing recs; matches production but halves per-domain N.
+Two domains, **separate routing recommendations** per domain:
+- **30 BI-fresh** — recent filings, funding, exec/regulatory actions
+  (post-cutoff → contamination-resistant; carries the claim-age axis).
+- **30 scientific-static** — genomics/ML/research-paper claims, the workload
+  research-mcp *actually* serves (genomics/intel/phenome). Mature, citation-dense.
 
-## Stratification (revised — adds claim-age to break the freshness confound)
+The split also **controls the freshness confound by construction** (critique
+#7/#9/#18): scientific-static is the "no-freshness, pure-retrieval-quality"
+baseline; if an engine wins BI-fresh but loses scientific-static, that gap *is*
+freshness-specialization, now measured instead of conflated.
 
-Critique #7/#18: recent-only BI claims confound **index freshness** with
-**retrieval quality** (an engine may win because it crawls faster, not retrieves
-better). Fix: claim-age is a controlled axis.
+## Stratification
 
-- **Truth class (primary balance):** 20 TRUE / 20 PARTIAL / 20 FALSE → baseline 33.3%.
-- **Claim-age strata:** 0–7 days / 8–30 days / 31–180 days (~20 each), crossed
-  with truth class. Lets us separate "fresh-specialist" from "general-quality"
-  engines instead of conflating them.
+- **Truth class (primary balance), per domain:** ~10 TRUE / 10 PARTIAL / 10 FALSE
+  each → overall 20/20/20, baseline 33.3%.
+- **Claim-age strata (BI only):** 0–7 / 8–30 / 31–180 days, ~10 each. Scientific
+  set is static by definition (the mature-claim control).
 - **BI sub-type** (company/financial · regulatory · people/market-events) as a
   descriptive label, not a powered cell.
 
@@ -99,12 +97,13 @@ Engines run on the SAME claims → **paired** analysis, never marginal-CI overla
 
 N=60/5-engines = 10 pairwise comparisons = underpowered for a full ranking.
 Therefore:
-- **One pre-registered primary contrast: Exa (incumbent) vs Linkup (challenger).**
-  Powered, Holm-protected. All other engines run but are **descriptive/
-  exploratory** (cheap to run, give per-stratum color; no inferential claims).
-- **Decision rule (pre-registered):** adopt Linkup into routing iff
-  P(θ_Linkup > θ_Exa) ≥ 0.90 on the evidence-normalized lane AND its
-  cost-per-correct-verdict ≤ Exa's, on ≥1 claim-age stratum.
+- **One pre-registered primary contrast: Exa (incumbent) vs Linkup (challenger),
+  run separately per domain.** Powered, Holm-protected. Other engines run but are
+  **descriptive/exploratory** (cheap, per-stratum color; no inferential claims).
+- **Decision rule (pre-registered), evaluated per domain:** adopt Linkup into
+  that domain's routing iff P(θ_Linkup > θ_Exa) ≥ 0.90 on the evidence-normalized
+  lane AND cost-per-correct-verdict ≤ Exa's. Per-domain → BI and scientific can
+  reach different verdicts (the whole point of the split).
 - **Sequential expansion:** if the primary contrast is inconclusive
   (0.80 < P < 0.90 or overlapping bootstrap CI), expand gold set to N=120 rather
   than over-claim at 60. Pre-registered so it's not p-hacking.
@@ -133,7 +132,7 @@ native-lane-only and flagged. Errors → FETCH_FAILED, never crash the run.
 
 - **P1 ✅** spec + `stats.py` (now incl. Holm, paired bootstrap, Bayesian superiority) validated.
 - **P-research ✅** · **P-critique ✅** (folded in).
-- **P-decision (now):** human resolves BI-only vs BI+scientific split.
+- **P-decision ✅** human chose BI+scientific split (30+30).
 - **P2:** adapters (5, with raw-snippet audit) + two-lane blind judge + grader + run.py; 6-claim pilot smoke.
 - **P3:** human authors + signs off balanced gold set; **pre-register** (decision rule + primary contrast); run.
 - **P4:** judge audit → analysis (Bayesian superiority, per-stratum, utility) → routing policy. Expand to N=120 only if primary contrast inconclusive.
