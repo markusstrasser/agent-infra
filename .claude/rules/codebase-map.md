@@ -47,7 +47,6 @@ blast_radius: style
   fold-detector.py              Fold detector: measures behavioral s…  → common, config
   gen-skill-docs.py             Generate SKILL.md from .tmpl templates with …  → common
   generate-indexes.py           Generate and validate index files across meta project.
-  harness-changelog.py            → common
   hook-outcome-correlator.py    Hook outcome correlator — join hook triggers…  → common
   hook-roi.py                   Hook ROI telemetry — analyze hook trigger pa…  → common
   hook-telemetry-report.py      Hook telemetry report — reads ~/.claude/hook…  → common

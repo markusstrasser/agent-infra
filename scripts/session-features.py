@@ -8,14 +8,18 @@ Usage:
     session-features.py --session UUID
     session-features.py --today
     session-features.py --days 7 --output artifacts/epistemic-metrics.jsonl
+
+Emits raw behavioral feature vectors. The composite quality_score / DB-enrich
+path was retired 2026-06-01 (never populated; see migration 003) — analysis
+lives downstream, not here.
 """
 
 import argparse
 import json
 import re
 import sys
-from collections import Counter, defaultdict
-from datetime import datetime, timedelta, timezone
+from collections import Counter
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import session_detectors as sd
@@ -206,9 +210,8 @@ def extract_features(path: Path) -> dict:
         date = timestamps[0][:10]
 
     # --- Deterministic advisory detectors (see session_detectors.py). ---
-    # These are RAW advisory features only — deliberately NOT folded into
-    # compute_quality_score until calibrated on a backfill review cycle
-    # (cross-model critique: no metric mutation before calibration).
+    # These are RAW advisory features only — emitted, never reduced to a
+    # composite score here (the parked scorer was retired 2026-06-01).
     cp = sd.detect_context_pressure(assistant_texts, occupancies, model)
     pc = sd.detect_premature_completion(assistant_texts[-1] if assistant_texts else "")
     rl = sd.count_rate_limit_cascade(tool_results)
@@ -379,123 +382,6 @@ def find_sessions_by_date(since: datetime, until: datetime | None = None) -> lis
 
 
 # ---------------------------------------------------------------------------
-# Quality Score — composite from features
-# ---------------------------------------------------------------------------
-
-def compute_quality_score(features: dict) -> float:
-    """Compute a 0-1 quality score from session features.
-
-    Higher = better session. Penalizes tool failures, backtracks, and
-    reformulations relative to session size. Weights aligned with
-    session-analyst anti-pattern severity.
-
-    NOTE: the advisory detectors (context_pressure / premature_completion /
-    rate_limit_cascade in session_detectors.py) are deliberately NOT folded in
-    here yet. Per the 2026-05-31 cross-model critique, new detector signals must
-    be calibrated against a backfill review (target FP rate <5%) before they
-    earn a penalty term — to avoid metric drift that would break longitudinal
-    quality_score comparisons. Promote them only after that calibration.
-    """
-    tc = max(features.get("tool_call_count", 1), 1)
-    failure_rate = features.get("tool_failure_rate", 0.0)
-    backtrack_rate = features.get("backtrack_count", 0) / tc
-    reformulation_rate = features.get("query_reformulation_count", 0) / tc
-
-    # Penalty components (each 0-1, higher = worse)
-    penalties = (
-        0.30 * min(failure_rate * 2, 1.0) +        # tool failures (W:3-4)
-        0.25 * min(backtrack_rate * 5, 1.0) +       # backtracks/undo (W:4)
-        0.20 * min(reformulation_rate * 5, 1.0) +   # search churn (W:3)
-        0.15 * (1.0 if tc > 200 else 0.0) +         # excessive tool calls (W:3)
-        0.10 * (1.0 if features.get("session_duration_minutes", 0) > 120 else 0.0)  # marathon sessions
-    )
-    return round(max(0.0, 1.0 - penalties), 3)
-
-
-def enrich_sessions_db():
-    """Compute quality scores for agentlogs sessions that don't have them.
-
-    Reads JSONL paths via sources joined on runs.primary_source_id (no
-    `jsonl_path` column on the agentlogs sessions table). Writes into the
-    session_quality table created by 001_initial.sql (session_pk PK).
-    """
-    import sqlite3
-    from common.paths import AGENTLOGS_DB
-
-    db = sqlite3.connect(AGENTLOGS_DB)
-    db.row_factory = sqlite3.Row
-
-    # Sessions without a quality score, with at least one run pointing at a
-    # source we can re-parse for feature extraction.
-    rows = db.execute("""
-        SELECT
-            s.session_pk,
-            s.session_uuid,
-            (SELECT src.path FROM sources src
-             JOIN runs r2 ON r2.primary_source_id = src.source_id
-             WHERE r2.session_pk = s.session_pk
-             LIMIT 1) AS jsonl_path
-        FROM sessions s
-        WHERE s.session_pk NOT IN (SELECT session_pk FROM session_quality)
-          AND s.start_ts IS NOT NULL
-        ORDER BY s.start_ts DESC
-        LIMIT 100
-    """).fetchall()
-
-    if not rows:
-        print("All sessions already have quality scores.", file=sys.stderr)
-        db.close()
-        return
-
-    enriched = 0
-    for row in rows:
-        jsonl = row["jsonl_path"]
-        if not jsonl:
-            continue
-        path = Path(jsonl)
-        if not path.exists():
-            continue
-        try:
-            features = extract_features(path)
-            score = compute_quality_score(features)
-            db.execute("""
-                INSERT INTO session_quality
-                  (session_pk, quality_score, quality_notes, scored_at, scorer)
-                VALUES (?, ?, ?, ?, 'session-features.py')
-                ON CONFLICT(session_pk) DO UPDATE SET
-                  quality_score = excluded.quality_score,
-                  quality_notes = excluded.quality_notes,
-                  scored_at = excluded.scored_at
-            """, [
-                row["session_pk"],
-                score,
-                json.dumps(features),
-                datetime.now(timezone.utc).isoformat(),
-            ])
-            enriched += 1
-        except Exception as e:
-            uuid = (row["session_uuid"] or "")[:8]
-            print(f"  WARN: {uuid}: {e}", file=sys.stderr)
-
-    db.commit()
-    print(f"Enriched {enriched} sessions with quality scores.", file=sys.stderr)
-
-    stats = db.execute("""
-        SELECT
-            COUNT(*) as total,
-            ROUND(AVG(quality_score), 3) as avg_score,
-            ROUND(MIN(quality_score), 3) as min_score,
-            ROUND(MAX(quality_score), 3) as max_score
-        FROM session_quality
-    """).fetchone()
-    print(f"Quality scores: {stats['total']} sessions, "
-          f"avg={stats['avg_score']}, range=[{stats['min_score']}, {stats['max_score']}]",
-          file=sys.stderr)
-
-    db.close()
-
-
-# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -513,17 +399,11 @@ def main():
     group.add_argument("--session", help="UUID or UUID prefix of a specific session")
     group.add_argument("--today", action="store_true", help="Process today's sessions")
     group.add_argument("--days", type=int, help="Process sessions from last N days")
-    group.add_argument("--enrich-db", action="store_true",
-                       help="Compute quality scores for sessions.db entries missing them")
 
     parser.add_argument("--output", "-o", help="Append JSONL output to this file")
     parser.add_argument("--project", "-p", help="Filter by project name")
 
     args = parser.parse_args()
-
-    if args.enrich_db:
-        enrich_sessions_db()
-        return
 
     # Resolve sessions
     sessions: list[Path] = []

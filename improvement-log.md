@@ -6,6 +6,15 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-06-01] [~] RETIRED: parked session-quality scorer + harness-correlation tool
+- **Session:** agent-infra 2026-06-01. Trigger: user asked whether an X/Twitter "eval loop fixes AI slop (via Hermes)" post was leverageable. Verdict: thesis correct-but-not-novel, product is an ad, and the scored-regression-gate it pitches ("move 5") was already built here — twice — and deliberately parked.
+- **Decay evidence:** `session_quality` table held 0 / 3850 sessions scored (built 2026-04-07 @ce4f331, never run). `compute_quality_score`/`enrich_sessions_db` gated "until calibrated on a backfill review" that never happened. The harness-correlation half was already half-retired — migration 002 dropped the `harness_hash` column and `v_harness_correlation` no longer existed. `scripts/harness-changelog.py` (the scored before/after harness-diff tool) only ever emitted "run --enrich-db first".
+- **Why retire not activate (option #2):** build-then-undo — the failure mode the scorer was meant to surface — is the #1 documented recurrence (8+ instances) and is already covered **report-only** by `scripts/buildthenundo.py` (wired into `gov.py`) + the `v_build_then_retire` view. No incident exists where a *scored* gate would have caught something report-only detection missed. Activating the scorer was the higher-maintenance path closing no evidenced gap.
+- **Removed:** migration `003_drop_session_quality.sql` (drops the 0-row table); `compute_quality_score`/`enrich_sessions_db`/`--enrich-db` from `session-features.py` (kept the raw feature extractor); `scripts/harness-changelog.py` + `harness-changelog.md`; `just harness-changelog` + `just enrich-quality` recipes; `TestQualityScore`; stale docstring refs.
+- **Reversibility:** revert migration 003 + restore the two functions to reintroduce a scored gate if a measured gap appears that report-only detection misses.
+- **Status:** [~] retired
+- **Source:** this session; verifier = `tests/agentlogs/test_schema.py` (fresh-DB head version 3, surface no longer includes session_quality).
+
 ### [2026-05-30] NEW FAILURE MODE: Confirmatory Fan-Out (FM26) — intel flip re-underwrite
 - **Session:** intel flip-reunderwrite 2026-05-30. Operator suspected a systemic over-caution ("cowardice tax"; 399 RESEARCH/WATCHLIST vs 11 BUY = 36:1) and asked to re-underwrite the cautious book.
 - **Failure:** orchestrator dispatched 12 parallel subagents with prompts each beginning "WHY THIS IS A FLIP CANDIDATE" + framing the existing caution as cowardice → 9/12 "flipped" to a starter buy. A `/critique` pass framed "find what is WRONG" over the SAME memos reversed 2 outright (AIXA = revenue-not-delivered Q1 GM 18%; Winbond = 581% premium to fair value, cyclical peak), softened 2, exposed a cyclical-over-application gap. **Same evidence, opposite dispatch direction, opposite verdict** — the framing produced the answer, not the analysis. Worker memos even carried self-caveats ("revenue-realization-gate not cleared", "[C3] price, SSD unmounted") the orchestrator relayed past.
