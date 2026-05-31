@@ -102,6 +102,72 @@ def mcnemar_table(verd_a: list[str], verd_b: list[str], gold: list[str]) -> tupl
     return a_only, b_only, both_r, both_w
 
 
+def holm_correction(pvalues: list[float]) -> list[float]:
+    """Holm-Bonferroni step-down adjusted p-values for k pairwise comparisons.
+
+    Controls FWER across the engine-pair tests without Bonferroni's brutal power
+    loss. Returns adjusted p in original order; compare against alpha directly.
+    """
+    m = len(pvalues)
+    if m == 0:
+        return []
+    order = sorted(range(m), key=lambda i: pvalues[i])
+    adj = [0.0] * m
+    running = 0.0
+    for rank, i in enumerate(order):
+        running = max(running, (m - rank) * pvalues[i])
+        adj[i] = min(1.0, running)
+    return adj
+
+
+def paired_bootstrap_diff(
+    correct_a: list[bool], correct_b: list[bool], n_boot: int = 10000, seed: int = 0
+) -> tuple[float, float, float]:
+    """Bootstrap CI on the PAIRED accuracy difference (acc_a - acc_b).
+
+    Engines run on the same claims, so resample claim *indices* (keeping each
+    engine's verdict on that claim together). This is the correct comparison
+    instrument — NOT overlap of two marginal Wilson CIs, which ignores pairing
+    and is overly conservative (critique finding #1). Returns (point, lo, hi).
+    """
+    import random
+
+    rng = random.Random(seed)
+    n = len(correct_a)
+    if n == 0 or n != len(correct_b):
+        raise ValueError("equal nonzero length required")
+    point = (sum(correct_a) - sum(correct_b)) / n
+    diffs = []
+    for _ in range(n_boot):
+        idx = [rng.randrange(n) for _ in range(n)]
+        diffs.append((sum(correct_a[i] for i in idx) - sum(correct_b[i] for i in idx)) / n)
+    diffs.sort()
+    return point, diffs[int(0.025 * n_boot)], diffs[int(0.975 * n_boot)]
+
+
+def prob_superiority_beta(
+    succ_a: int, n_a: int, succ_b: int, n_b: int,
+    n_samples: int = 20000, seed: int = 0, prior: tuple[float, float] = (1.0, 1.0),
+) -> float:
+    """Bayesian P(theta_a > theta_b) under Beta-Binomial (Monte Carlo).
+
+    At N=60 NHST mostly returns 'not significant' — uninformative. The decision
+    we actually want is 'how probable is it that Linkup beats Exa', which a
+    Beta(1,1)-prior posterior answers directly (critique #16). Use this as the
+    primary readout; McNemar/Holm as the conservative cross-check.
+    """
+    import random
+
+    rng = random.Random(seed)
+    a0, b0 = prior
+    wins = sum(
+        rng.betavariate(a0 + succ_a, b0 + n_a - succ_a)
+        > rng.betavariate(a0 + succ_b, b0 + n_b - succ_b)
+        for _ in range(n_samples)
+    )
+    return wins / n_samples
+
+
 def _selftest() -> None:
     # Wilson: 9/10 -> point 0.9, known interval ~[0.596, 0.982]
     w = wilson_ci(9, 10)
@@ -130,10 +196,30 @@ def _selftest() -> None:
     )
     assert (a_only, b_only, both_r, both_w) == (1, 0, 1, 1), (a_only, b_only, both_r, both_w)
 
+    # Holm: [0.01, 0.04, 0.03] -> [0.03, 0.06, 0.06]
+    h = holm_correction([0.01, 0.04, 0.03])
+    assert all(abs(a - b) < 1e-9 for a, b in zip(h, [0.03, 0.06, 0.06])), h
+
+    # paired bootstrap: identical verdicts -> diff 0, CI brackets 0
+    pt, lo, hi = paired_bootstrap_diff([True, False, True, True], [True, False, True, True])
+    assert pt == 0.0 and lo <= 0 <= hi
+    # A all right, B all wrong -> diff 1.0
+    pt2, _, _ = paired_bootstrap_diff([True] * 5, [False] * 5)
+    assert pt2 == 1.0
+
+    # Bayesian superiority: 18/20 vs 12/20 -> P(a>b) clearly > 0.7
+    ps = prob_superiority_beta(18, 20, 12, 20)
+    assert ps > 0.7, ps
+    # equal evidence -> ~0.5
+    assert 0.4 < prob_superiority_beta(15, 20, 15, 20) < 0.6
+
     print("  ✓ wilson_ci    9/10 ->", w)
     print("  ✓ mcnemar      b=9,c=1 -> p =", round(p, 5), "(memo perp-vs-exa: 0.022)")
     print("  ✓ cohen_kappa  known 2x2 -> 0.5; perfect -> 1.0")
     print("  ✓ mcnemar_table discordant/concordant split correct")
+    print("  ✓ holm         [.01,.04,.03] -> [.03,.06,.06] (FWER step-down)")
+    print("  ✓ paired_boot  identical->0; A-right/B-wrong->1.0 (correct pairing instrument)")
+    print("  ✓ prob_superiority 18/20 vs 12/20 -> P(a>b) =", round(ps, 3), "(Bayesian primary readout)")
     print("\n  All stats primitives validated against reference values.")
 
 
