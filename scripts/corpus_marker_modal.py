@@ -119,6 +119,14 @@ def extract_pdf(pdf_bytes: bytes, parser_config: dict | None = None) -> dict:
         "force_ocr": False,
         "format_lines": False,
         "redo_inline_math": False,
+        # Gemini-3's default reasoning ("thoughts") tokens are ~70-85% of the
+        # gemini bill on text/reference papers (billed at the $3/1M output rate).
+        # budget 0 zeroes them — MEASURED no table-cell fidelity loss (byte-
+        # identical HTML) and ~quarters gemini cost to ~$0.001-0.003/paper on the
+        # common text-heavy case. Evidence: .scratch/marker-token-economics.md.
+        # (gemini-3-flash takes thinkingLevel as its native gradient, but marker
+        # 1.10.2 only plumbs thinking_budget, and budget=0 is honored — verified.)
+        "thinking_budget": 0,
         **parser_config,
     }
     # Marker reads GOOGLE_API_KEY from env; Modal secret provides GEMINI_API_KEY.
@@ -130,7 +138,7 @@ def extract_pdf(pdf_bytes: bytes, parser_config: dict | None = None) -> dict:
         k: v for k, v in cfg.items()
         if k in {
             "use_llm", "extract_images", "llm_service", "gemini_model_name",
-            "force_ocr", "format_lines", "redo_inline_math",
+            "force_ocr", "format_lines", "redo_inline_math", "thinking_budget",
         }
     }
     cfg_md5 = hashlib.md5(
