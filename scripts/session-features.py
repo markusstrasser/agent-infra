@@ -18,6 +18,7 @@ from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import session_detectors as sd
 from config import extract_project_name
 
 # ---------------------------------------------------------------------------
@@ -77,6 +78,8 @@ def extract_features(path: Path) -> dict:
     tool_calls = []  # (name, input_dict)
     tool_results = []  # raw result dicts
     assistant_lengths = []
+    assistant_texts = []  # per-turn text — for wrap-up + final-message detectors
+    occupancies = []  # per-turn context occupancy (input+cache_creation+cache_read)
     timestamps = []
     files_read = set()
     session_id = None
@@ -115,17 +118,26 @@ def extract_features(path: Path) -> dict:
                 if not model:
                     model = msg.get("model")
 
+                # Context occupancy = new input + cache-creation + cache-read.
+                # These are SEPARATE fields in CC JSONL (verified: no double-count).
+                usage = msg.get("usage") or {}
+                occ = ((usage.get("input_tokens") or 0)
+                       + (usage.get("cache_creation_input_tokens") or 0)
+                       + (usage.get("cache_read_input_tokens") or 0))
+                if occ:
+                    occupancies.append(occ)
+
                 content = msg.get("content", [])
                 if not isinstance(content, list):
                     continue
 
-                turn_text_len = 0
+                turn_text = ""
                 for block in content:
                     if not isinstance(block, dict):
                         continue
 
                     if block.get("type") == "text":
-                        turn_text_len += len(block.get("text", ""))
+                        turn_text += block.get("text", "")
 
                     elif block.get("type") == "tool_use":
                         name = block.get("name", "")
@@ -154,8 +166,9 @@ def extract_features(path: Path) -> dict:
                             if query:
                                 search_queries.append(query)
 
-                if turn_text_len > 0:
-                    assistant_lengths.append(turn_text_len)
+                if turn_text:
+                    assistant_lengths.append(len(turn_text))
+                    assistant_texts.append(turn_text)
 
             # --- Tool results: detect errors ---
             elif msg_type == "user" and obj.get("toolUseResult"):
@@ -192,6 +205,14 @@ def extract_features(path: Path) -> dict:
     if timestamps:
         date = timestamps[0][:10]
 
+    # --- Deterministic advisory detectors (see session_detectors.py). ---
+    # These are RAW advisory features only — deliberately NOT folded into
+    # compute_quality_score until calibrated on a backfill review cycle
+    # (cross-model critique: no metric mutation before calibration).
+    cp = sd.detect_context_pressure(assistant_texts, occupancies, model)
+    pc = sd.detect_premature_completion(assistant_texts[-1] if assistant_texts else "")
+    rl = sd.count_rate_limit_cascade(tool_results)
+
     return {
         "session_id": session_id or path.stem,
         "project": project,
@@ -208,6 +229,18 @@ def extract_features(path: Path) -> dict:
         "search_tool_count": sum(tool_names.get(t, 0) for t in SEARCH_TOOLS),
         "edit_count": sum(tool_names.get(t, 0) for t in EDIT_TOOLS),
         "session_duration_minutes": duration_minutes,
+        # --- advisory detectors (NOT penalized in quality_score until calibrated) ---
+        "context_pressure_flag": cp["context_pressure_flag"],
+        "tail_compression_flag": cp["tail_compression_flag"],
+        "peak_context_utilization": cp["peak_context_utilization"],
+        "output_decline_ratio": cp["output_decline_ratio"],
+        "wrapup_signal_count": cp["wrapup_signal_count"],
+        "premature_completion_flag": pc["premature_completion_flag"],
+        "false_success_flag": pc["false_success_flag"],
+        "completion_evidence": pc["completion_evidence"],
+        "rate_limit_hit_count": rl["rate_limit_hit_count"],
+        "rate_limit_cascade_flag": rl["rate_limit_cascade_flag"],
+        "detector_missing_prerequisites": cp["missing_prerequisites"],
     }
 
 
@@ -353,6 +386,13 @@ def compute_quality_score(features: dict) -> float:
     Higher = better session. Penalizes tool failures, backtracks, and
     reformulations relative to session size. Weights aligned with
     session-analyst anti-pattern severity.
+
+    NOTE: the advisory detectors (context_pressure / premature_completion /
+    rate_limit_cascade in session_detectors.py) are deliberately NOT folded in
+    here yet. Per the 2026-05-31 cross-model critique, new detector signals must
+    be calibrated against a backfill review (target FP rate <5%) before they
+    earn a penalty term — to avoid metric drift that would break longitudinal
+    quality_score comparisons. Promote them only after that calibration.
     """
     tc = max(features.get("tool_call_count", 1), 1)
     failure_rate = features.get("tool_failure_rate", 0.0)
