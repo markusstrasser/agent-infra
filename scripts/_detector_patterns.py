@@ -30,9 +30,9 @@ WRAPUP_PATTERNS: list[tuple[str, str]] = [
     (r"\bfor brevity\b", "brevity_excuse"),
     (r"\bI'?ll skip\b", "explicit_skip"),
     (r"\bleaving (?:that|this|the rest) for\b", "deferred_work"),
-    (r"\bfor now\b.*\b(?:move on|proceed|continue)\b", "deferred_continuation"),
+    (r"\bfor now\b.{0,200}\b(?:move on|proceed|continue)\b", "deferred_continuation"),
     (r"\blet me (?:quickly|briefly) (?:summarize|wrap|finish)\b", "rushed_conclusion"),
-    (r"\bI'?ll (?:just )?note that\b.*\binstead of\b", "shortcut_acknowledgment"),
+    (r"\bI'?ll (?:just )?note that\b.{0,200}\binstead of\b", "shortcut_acknowledgment"),
     (r"\bdue to (?:space|length|context) (?:constraints|limitations)\b", "explicit_constraint"),
     (r"\bI'?ve covered the (?:key|main|essential) (?:points|parts)\b", "selective_coverage"),
     (r"\bthe remaining (?:items|tasks|points) (?:are|can be) (?:similar|straightforward)\b", "assumed_trivial"),
@@ -114,7 +114,16 @@ NUMERIC_RATIO_PATTERNS: list[tuple[str, str]] = [
 ]
 
 # --- Rate-limit cascade (agent-xray) ------------------------------------------
-RATE_LIMIT_RE = re.compile(r"\b(?:429|rate limit|too many requests)\b", re.IGNORECASE)
+# Bare "429" matches line numbers / ports (e.g. "test.py:429"), so 429 only
+# counts when it carries rate-limit context (HTTP/status prefix or "too many"
+# / "rate" nearby). The phrase forms stand alone.
+RATE_LIMIT_RE = re.compile(
+    r"\brate[ -]?limit(?:ed|ing)?\b"
+    r"|\btoo many requests\b"
+    r"|(?:https?|status|error|response)[\s:/#]*429\b"  # NB: not bare "code" (exit codes)
+    r"|\b429\b[\s:]*(?:too many|rate)",
+    re.IGNORECASE,
+)
 
 
 # --- Context limits by model family (frontier, 2026-05) -----------------------
@@ -123,8 +132,10 @@ RATE_LIMIT_RE = re.compile(r"\b(?:429|rate limit|too many requests)\b", re.IGNOR
 # (per cross-model critique: unmatched models must be REPORTED, not guessed).
 DEFAULT_CONTEXT_LIMITS: list[tuple[str, int]] = [
     ("claude-opus-4-8[1m]", 1_000_000),
+    ("claude-opus-4-7[1m]", 1_000_000),
     ("claude-sonnet-4-6", 1_000_000),
     ("claude-opus-4-8", 200_000),
+    ("claude-opus-4-7", 200_000),
     ("claude-opus-4", 200_000),
     ("claude-sonnet-4", 1_000_000),
     ("claude-haiku-4", 200_000),
