@@ -17,13 +17,16 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "const": "1-0-0",
-      "description": "SchemaVer (MODEL-REVISION-ADDITION). NOT SemVer."
+      "enum": ["1-0-0", "1-0-1"],
+      "description": "SchemaVer (MODEL-REVISION-ADDITION). NOT SemVer. 1-0-1 adds the optional `relation` body (epistemic core); 1-0-0 records (provenance-only) remain valid — additive, append-only ledger never rewritten."
     },
     "conformsTo": {
       "type": "string",
-      "const": "https://schema.local/corpus/annotation/v1.0.0",
-      "description": "Per-record schema URI for export-compat checks (RO-Crate compatible)."
+      "enum": [
+        "https://schema.local/corpus/annotation/v1.0.0",
+        "https://schema.local/corpus/annotation/v1.0.1"
+      ],
+      "description": "Per-record schema URI for export-compat checks (RO-Crate compatible). v1.0.1 = +relation body."
     },
     "annotation_id": {
       "type": "string",
@@ -136,6 +139,76 @@
       "type": ["string", "null"],
       "enum": ["legacy", "v1", null],
       "description": "Phase F sidecar: which canonical_json form was used to derive annotation_id. Absent (= legacy) for all historical records; v1 only on new records that opted into NFC + pinned-timestamp canonicalization. NOT part of annotation_stable_tuple."
+    },
+    "relation": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Epistemic core (schema 1-0-1): a grounded claim relation carried inline on a scope='claim_relation' annotation. Self-contained (spans referenced by id, not full text) so the record stays small and the append stays atomic — no sidecar. Projected into claim_relations + claim_relation_endpoints by corpus_core.index.",
+      "required": ["relation_id", "relation_class", "subject_refs", "object_refs", "detector"],
+      "properties": {
+        "relation_id": {
+          "type": "string",
+          "pattern": "^rel_[0-9a-f]{16}$",
+          "description": "rel_ + first 16 hex of sha256(canonical_json({relation_class, sorted(subject_refs), sorted(object_refs), detector}))."
+        },
+        "relation_class": {
+          "type": "string",
+          "enum": ["support", "extend", "qualify", "refute", "background"],
+          "description": "ClaimFlow 5-class. STORED in full (deep representation); inference operates on refute/support (operate-simple)."
+        },
+        "kind": {
+          "type": ["string", "null"],
+          "description": "Home-repo taxonomy when present (e.g. phenome contradiction kind: temporal/magnitude/mechanism/subject_scope)."
+        },
+        "subject_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^(corpus|repo|local|internal):[A-Za-z0-9_.:@-]+$"
+          },
+          "description": "Namespaced participant IDs on the subject side (multi-party): corpus:<source_id> / repo:<repo>:<kind>:<id> / local:<id> / internal:<repo>."
+        },
+        "object_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^(corpus|repo|local|internal):[A-Za-z0-9_.:@-]+$"
+          },
+          "description": "Namespaced participant IDs on the object side (multi-party)."
+        },
+        "spans": {
+          "type": "array",
+          "description": "Grounded span references (id + location, not full text — text lives in the home repo/parse).",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["ref"],
+            "properties": {
+              "ref": {"type": "string", "minLength": 1},
+              "location": {"type": ["string", "null"]}
+            }
+          }
+        },
+        "grade_weight": {
+          "type": ["number", "null"],
+          "description": "GRADE-style evidence weight in [0,1] (nullable). Feeds the linear support_balance view; never a probability."
+        },
+        "detector": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Origin of the adjudication: repo+tool+prompt_hash (e.g. phenome:contradiction-detect:<sha8>). Part of relation_id identity."
+        },
+        "home_pair_id": {
+          "type": ["string", "null"],
+          "description": "Round-trip key to the home contradiction_pairs.pair_id (phenome) when applicable."
+        },
+        "home_verdict_id": {
+          "type": ["string", "null"],
+          "description": "Round-trip key to the home verdict id (genomics) when applicable."
+        }
+      }
     }
   }
 }

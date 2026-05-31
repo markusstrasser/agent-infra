@@ -180,3 +180,32 @@ def annotation_idempotency_key(stable_tuple: dict[str, str | None]) -> str:
 def annotation_id_from_tuple(stable_tuple: dict[str, str | None]) -> str:
     """ann_ + first 16 hex chars of sha256_hex(canonical_json(stable_tuple))."""
     return f"ann_{sha256_hex(canonical_json(stable_tuple))[:16]}"
+
+
+# ---------------------------------------------------------------------------
+# Claim relation identity (epistemic core)
+# ---------------------------------------------------------------------------
+
+
+def relation_content_sha(
+    *,
+    relation_class: str,
+    subject_refs: list[str],
+    object_refs: list[str],
+    detector: str,
+) -> str:
+    """Content sha (64 hex) over a claim relation's identity-bearing core.
+
+    Identity = (relation_class, sorted subject_refs, sorted object_refs,
+    detector). Endpoint order is irrelevant (sorted), spans/weight/home ids are
+    NOT in identity — re-grounding the same relation with a richer span set does
+    not fork it. `relation_id` is the 16-hex prefix; the full sha doubles as the
+    annotation's output_hash so re-emitting the same relation stays idempotent.
+    """
+    core = {
+        "relation_class": relation_class,
+        "subject_refs": sorted(subject_refs),
+        "object_refs": sorted(object_refs),
+        "detector": detector,
+    }
+    return sha256_hex(canonical_json(core))

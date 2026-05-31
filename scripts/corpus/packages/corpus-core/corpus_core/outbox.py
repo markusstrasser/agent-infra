@@ -53,12 +53,13 @@ plans/2026-05-27-substrate-v2-deferred-items.md Phase 2.5.
 """
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from .annotate import AnnotationError, annotate as _annotate
+from .annotate import CLAIM_RELATION_SCOPE, AnnotationError, annotate as _annotate
 from .schema_version import (
     SCHEMA_META_DDL,
     OUTBOX_SCHEMA_VERSION,
@@ -151,6 +152,7 @@ CREATE TABLE IF NOT EXISTS {OUTBOX_TABLE_NAME} (
     annotation_status       VARCHAR NOT NULL DEFAULT 'active',
     supersedes_annotation_id VARCHAR,
     valid_from              TIMESTAMP,
+    relation_json           VARCHAR,
     PRIMARY KEY ({nk_names}, canonical_source_id)
 );
 
@@ -203,6 +205,15 @@ def ensure_lifecycle_columns(con: "duckdb.DuckDBPyConnection") -> None:
             f"ALTER TABLE {OUTBOX_TABLE_NAME} "
             "ADD COLUMN valid_from TIMESTAMP"
         )
+    # Epistemic core: claim_relation payload passthrough. NULL for ordinary
+    # attestations (verdicts/cert events); a JSON string when the gateway
+    # enqueues a grounded relation. The drainer parses it and routes to
+    # corpus_core.annotate(relation=…, scope='claim_relation').
+    if "relation_json" not in cols:
+        con.execute(
+            f"ALTER TABLE {OUTBOX_TABLE_NAME} "
+            "ADD COLUMN relation_json VARCHAR"
+        )
     # Phase G0: legacy outboxes that pre-date schema_meta need the row
     # seeded so preflight can compare against. seed first (DO NOTHING),
     # then bump to current version (DO UPDATE) — this advances 1.2.0 →
@@ -214,7 +225,7 @@ def ensure_lifecycle_columns(con: "duckdb.DuckDBPyConnection") -> None:
         new_version=OUTBOX_SCHEMA_VERSION,
         min_reader=OUTBOX_MIN_READER,
         min_writer=OUTBOX_MIN_READER,
-        notes="composite-PK + lifecycle + valid_from",
+        notes="composite-PK + lifecycle + valid_from + relation_json",
     )
 
 
@@ -299,7 +310,8 @@ def drain(
                 SELECT {nk_select},
                        canonical_source_id, actor_type, actor_id, output_uri,
                        output_hash, prompt_template_hash, asserted_at, retry_count,
-                       annotation_status, supersedes_annotation_id, valid_from
+                       annotation_status, supersedes_annotation_id, valid_from,
+                       relation_json
                 FROM {OUTBOX_TABLE_NAME}
                 WHERE status = 'pending'
                 LIMIT ?
@@ -328,15 +340,22 @@ def drain(
             canon, actor_type, actor_id, output_uri, output_hash,
             prompt_template_hash, asserted_at, retry_count,
             annotation_status, supersedes_annotation_id, valid_from,
+            relation_json,
         ) = row[n_nk:]
         try:
+            # A relation-bearing row routes to scope='claim_relation' with the
+            # parsed body inlined; ordinary attestations keep the drain's scope.
+            # Malformed relation_json is a data error for THIS row, not a reason
+            # to abort the batch — handled as a retry/abandon below.
+            relation = json.loads(relation_json) if relation_json else None
+            effective_scope = CLAIM_RELATION_SCOPE if relation is not None else scope
             paper_path(canon).mkdir(parents=True, exist_ok=True)
             _annotate(
                 canon,
                 repo=repo,
                 actor_type=actor_type,
                 actor_id=actor_id,
-                scope=scope,
+                scope=effective_scope,
                 output_uri=output_uri,
                 output_hash=output_hash,
                 prompt_template_hash=prompt_template_hash,
@@ -344,9 +363,10 @@ def drain(
                 status=annotation_status or "active",
                 supersedes_annotation_id=supersedes_annotation_id,
                 valid_from=valid_from,
+                relation=relation,
             )
             successes.append((nk_values, canon))
-        except (OSError, AnnotationError, duckdb.IOException) as exc:
+        except (OSError, AnnotationError, duckdb.IOException, json.JSONDecodeError) as exc:
             failures.append((nk_values, canon, retry_count + 1, str(exc)[:500]))
 
     # ---- Phase 3: short RW write to record DELETE/UPDATE ------------
