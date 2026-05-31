@@ -1,8 +1,15 @@
 ---
 title: Search-Engine Verification Eval — Design Spec
 date: 2026-05-31
-status: revised post-critique (Gemini 3.5 Flash + GPT-5.5, .model-review/2026-05-31-search-eval-design-e535b3/)
+status: SUPERSEDED → ~/Projects/evals/docs/2026-05-31-search-engine-bakeoff-plan.md
 ---
+
+> **SUPERSEDED 2026-05-31.** Prior-art check found `~/Projects/evals` (MACVB), a
+> mature claim-verification eval. The work relocates there as a sibling package
+> `evals/search_bakeoff/` (reusing its blind judge + this repo's stats/adapters).
+> Live plan: `~/Projects/evals/docs/2026-05-31-search-engine-bakeoff-plan.md`.
+> `stats.py` + `adapters.py` here are validated and will move into evals.
+> This file is kept for the design-evolution trail only.
 
 # Search-Engine Verification Eval — Design Spec
 
