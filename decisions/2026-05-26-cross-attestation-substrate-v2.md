@@ -161,3 +161,36 @@ Per plan §4 preflight: intel's `filings_and_datasets` table uses UUIDs as prima
 - Synthesize fake corpus slugs (loses the deterministic stable_tuple property)
 
 Both are worse than not emitting. The right next step is a separate plan: "Intel source-identity alignment with corpus." That plan unblocks Phase 4. Until then, intel stays a placeholder in `VERDICTS_SOURCES` with the audit reporting `verdicts=0`.
+
+## Update — 2026-05-31 — corpus_attest MCP tool removed; v1 doc surfaces scrubbed
+
+The v2 cleanup (lines 90-93) deleted the `record_verdict` MCP stubs, the reminder
+hook, and the settings matcher — but **missed the `corpus_mcp.corpus_attest` tool
+itself**, the one surviving v1 surface. It was an MCP-exposed direct writer of
+`annotations.jsonl`: a dual-write backdoor around the gateway-outbox invariant (an
+agent could attest outside any gateway transaction). 0 invocations in 9 months.
+
+Removed (agent-infra@95acb61): the tool + corpus_mcp's now-unused `corpus_core.annotate`
+import — which makes corpus_mcp compliant with v2's own "only gateways import the
+sole writer" rule (corpus_mcp is now read-only for annotations). The sanctioned
+manual path for a standalone observation is the `corpus annotate` CLI (routes
+through the sole writer); the drain path is `audit_corpus_sync --drain-only`.
+Scrubbed the v1-ritual docs that still taught the dead two-call flow:
+`skills/corpus` + `skills/entity-management` (skills@94b72d5) and phenome
+`substrate_tools.py` docstring (phenome@94f6cfd).
+
+**Best-practices re-confirmation** (web-grounded; `.scratch/attestation-best-practices-research.md`):
+the shipped outbox design is best-of-breed for its scale — atomic enqueue,
+content-hash+natural-key idempotency, `abandoned`+daily-audit as the dead-letter
+strategy, polling (not CDC) — all canonical; `schema_version` already present.
+Single-writer is the universal invariant and the manual path correctly routes
+through the sole writer (a CLI), not a parallel MCP writer. Two 2026 systems
+(ESAA arXiv:2602.23193, Athenaeum) independently re-derived the same "one writer,
+safety from structure not trust" invariant. No architecture change warranted —
+deleting the parallel writer moves the system toward canonical correctness.
+
+**Still open (flagged, not blocking):** phenome still registers the v1 verdict-shape
+READ interface (`substrate_tools.py`: `claims_for_source`/`verdicts_for_claim`) —
+a retirement candidate (v2 cross-repo reads come from `corpus_lookup`). Stale
+v1-ritual COMMENTS remain in genomics `genomics_mcp.py`/`new_claim.py` and intel
+`theses_mcp.py` — left untouched this session (active agents in both repos).
