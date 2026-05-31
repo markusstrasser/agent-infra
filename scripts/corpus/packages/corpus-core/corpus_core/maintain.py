@@ -94,7 +94,7 @@ def cmd_show(args) -> int:
     print(f"retrieved_at:    {meta.get('retrieved_at')}")
     print(f"path:            {rec.path}")
     print(f"pdf:             {rec.pdf_path}")
-    print(f"parsed/:         {rec.parsed_dir}")
+    print(f"parsed:          {rec.parsed_dir_active()}")
     parser = meta.get("parser") or {}
     if parser:
         print(f"parser_id:       {parser.get('parser_id')}")
@@ -129,8 +129,9 @@ def cmd_verify(args) -> int:
             if rec.metadata.get("pdf_sha256") != actual_pdf:
                 print(f"  ! {pid} pdf_sha256 drift: meta={rec.metadata.get('pdf_sha256','')[:16]} actual={actual_pdf[:16]}")
                 drift += 1
-        if rec.parsed_dir.is_dir():
-            actual_parsed = ps.compute_parsed_sha(rec.parsed_dir)
+        active_parse = rec.parsed_dir_active()
+        if active_parse is not None:
+            actual_parsed = ps.compute_parsed_sha(active_parse)
             if rec.metadata.get("parsed_sha256") != actual_parsed:
                 print(f"  ! {pid} parsed_sha256 drift: meta={rec.metadata.get('parsed_sha256','')[:16]} actual={actual_parsed[:16]}")
                 drift += 1

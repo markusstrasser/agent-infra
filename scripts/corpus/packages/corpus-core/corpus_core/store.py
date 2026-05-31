@@ -20,7 +20,7 @@ import json
 import os
 import re
 import shutil
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator, Optional
@@ -180,9 +180,36 @@ class PaperRecord:
     def pdf_path(self) -> Path:
         return self.path / "paper.pdf"
 
-    @property
-    def parsed_dir(self) -> Path:
-        return self.path / "parsed"
+    def parsed_dirs(self) -> list[Path]:
+        """Every parser-addressed parse dir (``parsed.<parser_id>/``), sorted."""
+        return sorted(d for d in self.path.glob("parsed.*") if d.is_dir())
+
+    def parsed_dir_active(self) -> Path | None:
+        """The active parse dir: the ``parsed.<parser_id>/`` whose
+        ``parsed.sha256`` matches ``metadata['parsed_sha256']`` (else the
+        lexicographically-last, else ``None``).
+
+        Parses are immutable and parser-addressed (``ingest._write_parsed``);
+        the active one is pinned by ``metadata['parsed_sha256']``.
+        """
+        want = (self.metadata or {}).get("parsed_sha256")
+        dirs = self.parsed_dirs()
+        if want:
+            for d in dirs:
+                sha = d / "parsed.sha256"
+                if sha.exists() and sha.read_text().strip() == want:
+                    return d
+        return dirs[-1] if dirs else None
+
+    def parsed_markdown_path(self) -> Path | None:
+        """The active parsed markdown (``parsed.<parser_id>/page.md``), or
+        ``None`` if unparsed. The sole entry point for reading parsed text —
+        consumers MUST use this, never a hand-built path."""
+        d = self.parsed_dir_active()
+        if d is None:
+            return None
+        md = d / "page.md"
+        return md if md.exists() else None
 
 
 def get(paper_id: str) -> PaperRecord:
@@ -271,14 +298,14 @@ def register_revision(paper_id: str, new_pdf_path: Path) -> RevisionResult:
     archived_pdf = rec.path / f"paper.{prior_pdf_sha[:8]}.pdf"
     shutil.move(str(rec.pdf_path), str(archived_pdf))
 
-    # Archive current parsed/ if present
+    # Archive the active parse before a re-parse can clobber it. Parses are
+    # parser-addressed (parsed.<parser_id>/), so the same parser+config on the
+    # new PDF reuses the dir name — rename the old one to carry the prior PDF sha.
     archived_parsed = None
-    if rec.parsed_dir.is_dir():
-        archived_parsed = rec.path / f"parsed.{prior_parser_id}"
-        # avoid clobber
-        if archived_parsed.exists():
-            archived_parsed = rec.path / f"parsed.{prior_parser_id}.{prior_pdf_sha[:8]}"
-        shutil.move(str(rec.parsed_dir), str(archived_parsed))
+    active_parse = rec.parsed_dir_active()
+    if active_parse is not None:
+        archived_parsed = rec.path / f"parsed.{prior_parser_id}.{prior_pdf_sha[:8]}"
+        shutil.move(str(active_parse), str(archived_parsed))
 
     # Install new PDF
     shutil.copy2(str(new_pdf_path), str(rec.pdf_path))

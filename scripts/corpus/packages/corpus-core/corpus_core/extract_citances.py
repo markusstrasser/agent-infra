@@ -1,8 +1,8 @@
 """Phase C of the graph layer — extract normalized citances per paper.
 
 Reads:
-  citation_context/{scite,openalex}_response.json → citances_in.jsonl
-  parsed/paper.md + references_resolved.json     → citances_out.jsonl
+  citation_context/{scite,openalex}_response.json    → citances_in.jsonl
+  parsed.<parser_id>/page.md + references_resolved.json → citances_out.jsonl
 
 Each row is normalized to the schema in the plan's "Citance, annotation, and
 graph layer" section. Stance comes from scite when present; the optional
@@ -118,7 +118,7 @@ def _openalex_to_citances_in(openalex_payload: dict, target_paper_id: str) -> li
     return out
 
 
-def _build_citances_out(paper_md: str, refs: dict, citing_paper_id: str, paper_meta: dict) -> list[dict]:
+def _build_citances_out(paper_md: str, refs: dict, citing_paper_id: str) -> list[dict]:
     """Extract per-citance entries by finding inline citations and joining to references_resolved."""
     out: list[dict] = []
     ref_by_label: dict[str, dict] = {}
@@ -180,15 +180,13 @@ def extract_citances(paper_id: str, *, enrich_cito: bool = False) -> dict:
     # citances_out from parsed + references_resolved
     citances_out: list[dict] = []
     refs_path = rec.path / "references_resolved.json"
-    parsed_md_path = rec.parsed_dir / "paper.md"
-    if refs_path.exists() and parsed_md_path.exists():
+    parsed_md_path = rec.parsed_markdown_path()
+    if refs_path.exists() and parsed_md_path is not None:
         refs = json.loads(refs_path.read_text())
-        paper_meta = _load_json(rec.parsed_dir / "paper_meta.json") or {}
         citances_out = _build_citances_out(
             parsed_md_path.read_text(encoding="utf-8"),
             refs,
             paper_id,
-            paper_meta,
         )
 
     # Optional CiTO enrichment via llmx Gemini Flash (deferred — not in smoke)

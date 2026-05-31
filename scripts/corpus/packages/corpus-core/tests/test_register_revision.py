@@ -1,4 +1,4 @@
-"""Revision flow archives prior PDF + parsed/, updates metadata."""
+"""Revision flow archives prior PDF + active parse, updates metadata."""
 from __future__ import annotations
 
 import json
@@ -11,13 +11,14 @@ def test_register_revision_archives(corpus_root, tiny_pdf, tiny_pdf_v2):
     pid = meta["paper_id"]
     paper_dir = corpus_root / pid
 
-    # Fake a parsed/ to ensure it gets archived
-    parsed = paper_dir / "parsed"
+    # Fake an active parser-addressed parse to ensure it gets archived
+    parser_id = "marker-1.0+surya-0.4+llm-none+cfg-deadbeef"
+    parsed = paper_dir / f"parsed.{parser_id}"
     parsed.mkdir()
-    (parsed / "paper.md").write_text("# fake old parse\n")
+    (parsed / "page.md").write_text("# fake old parse\n")
     (parsed / "parsed.sha256").write_text("oldsha\n")
     ps.update_metadata(pid, parsed_sha256="oldsha",
-                       parser={"parser_id": "marker-1.0+surya-0.4+llm-none+cfg-deadbeef",
+                       parser={"parser_id": parser_id,
                                "config_md5": "deadbeefdeadbeef"})
 
     prior_sha = meta["pdf_sha256"]
