@@ -119,6 +119,34 @@ VERDICTS_SOURCES: list[dict[str, Any]] = [
 _URI_RE = re.compile(r"^([a-z-]+)://(?:verdicts|cert_events|contradiction_events)/(.+)$")
 
 
+# Relation-drift sources: a durable corpus claim_relation should exist (active)
+# for every CURRENT home contradiction, and a relation whose home contradiction
+# is gone (resolved away / retracted) is stale. The match is on the round-trip
+# key the promotion stamps into the relation (home_pair_id / home_verdict_id) —
+# no URI parsing needed. Close-review: cross-model flagged that relation↔home
+# drift was unaudited (the home repo owns participant liveness; this is the
+# corpus-side reconciliation that catches a missed supersession).
+RELATION_SOURCES: list[dict[str, Any]] = [
+    {
+        "repo": "phenome",
+        "db_path": PROJECTS_ROOT / "phenome" / "indexed" / "claims.duckdb",
+        # promotable = open/resolved (false_positive/both_valid are not contradictions)
+        "sql": (
+            "SELECT pair_id::VARCHAR FROM contradiction_pairs "
+            "WHERE resolution_status IN ('open', 'resolved')"
+        ),
+    },
+    {
+        "repo": "genomics",
+        "db_path": PROJECTS_ROOT / "genomics" / "data" / "knowledge" / "knowledge.duckdb",
+        "sql": (
+            "SELECT verdict_id FROM claim_verdicts "
+            "WHERE support_state = 'contradicted' AND review_status = 'current'"
+        ),
+    },
+]
+
+
 def _read_verdicts(repo: str, db_path: Path, sql: str) -> list[tuple[str, str, str]]:
     """Return [(verdict_id, source_id, output_hash), ...]."""
     if not db_path.exists():
@@ -320,6 +348,86 @@ def audit() -> dict[str, Any]:
     }
 
 
+def _read_active_relations() -> list[dict[str, Any]]:
+    """Active claim_relations from the corpus projection, with their round-trip
+    home keys. Empty if the graph predates the epistemic-core schema (1.2.0)."""
+    if not CORPUS_GRAPH_DB.exists():
+        return []
+    con = duckdb.connect(str(CORPUS_GRAPH_DB), read_only=True)
+    try:
+        try:
+            rows = con.execute(
+                "SELECT repo, home_pair_id, home_verdict_id, relation_id "
+                "FROM claim_relations_active"
+            ).fetchall()
+        except (duckdb.BinderException, duckdb.CatalogException):
+            return []
+    finally:
+        con.close()
+    return [
+        {"repo": r[0], "home_pair_id": r[1], "home_verdict_id": r[2], "relation_id": r[3]}
+        for r in rows
+    ]
+
+
+def _read_home_contradictions(db_path: Path, sql: str) -> set[str]:
+    """Current home contradiction ids. Empty on missing DB/table (so the audit
+    does not false-flag a repo that hasn't migrated)."""
+    if not db_path.exists():
+        return set()
+    try:
+        con = duckdb.connect(str(db_path), read_only=True)
+    except duckdb.IOException:
+        return set()
+    try:
+        try:
+            return {str(r[0]) for r in con.execute(sql).fetchall()}
+        except (duckdb.BinderException, duckdb.CatalogException):
+            return set()
+    finally:
+        con.close()
+
+
+def audit_relations() -> dict[str, Any]:
+    """Drift between durable corpus claim_relations and live home contradiction
+    tables. missing = a current home contradiction with no active relation
+    (promotion gap); orphan = an active relation whose home contradiction is
+    gone (a missed retraction — home-owned liveness failed). Orphans are only
+    reported when the home query returns rows, so an unreadable/empty home DB
+    does not false-flag every relation (mirrors the verdict audit)."""
+    active = _read_active_relations()
+    rel_ids_by_repo: dict[str, set[str]] = {}
+    for rel in active:
+        hid = rel.get("home_pair_id") or rel.get("home_verdict_id")
+        if hid:
+            rel_ids_by_repo.setdefault(rel["repo"], set()).add(str(hid))
+
+    drift_missing: list[dict[str, Any]] = []
+    drift_orphan: list[dict[str, Any]] = []
+    summary: list[dict[str, Any]] = []
+    for src in RELATION_SOURCES:
+        repo = src["repo"]
+        local = _read_home_contradictions(src["db_path"], src["sql"])
+        promoted = rel_ids_by_repo.get(repo, set())
+        missing = sorted(local - promoted)
+        orphan = sorted(promoted - local) if local else []
+        drift_missing.extend({"repo": repo, "home_id": h} for h in missing)
+        drift_orphan.extend({"repo": repo, "home_id": h} for h in orphan)
+        summary.append({
+            "repo": repo,
+            "contradictions_local": len(local),
+            "relations_active": len(promoted),
+            "missing_relations": len(missing),
+            "orphan_relations": len(orphan),
+        })
+    return {
+        "summary": summary,
+        "drift_missing_relations": drift_missing,
+        "drift_orphan_relations": drift_orphan,
+        "relation_drift_total": len(drift_missing) + len(drift_orphan),
+    }
+
+
 def drain_all() -> dict[str, dict[str, int]]:
     """Drain pending_corpus_attestations across all repos with the outbox.
     Returns {repo: {flushed, retried, abandoned, no_table, skipped_locked}}."""
@@ -368,6 +476,8 @@ def main(argv: list[str] | None = None) -> int:
     report["drain"] = drain_report
     report["abandoned_by_repo"] = abandoned_by_repo
     report["abandoned_total"] = sum(abandoned_by_repo.values())
+    # Epistemic core: relation↔home-table drift (cross-model close-review).
+    report["relations"] = audit_relations()
 
     if args.json:
         print(json.dumps(report, indent=2, default=str))
@@ -391,20 +501,32 @@ def main(argv: list[str] | None = None) -> int:
                   f"orphans={row['orphan_annotations']:4d}  "
                   f"projection_hits={row.get('projection_hits', 0):4d}  "
                   f"abandoned={abandoned:3d}")
+        rel = report["relations"]
+        print()
+        print("Relations (claim_relation ↔ home contradictions):")
+        for row in rel["summary"]:
+            print(f"  {row['repo']:10s}  contradictions={row['contradictions_local']:4d}  "
+                  f"relations_active={row['relations_active']:4d}  "
+                  f"missing={row['missing_relations']:3d}  orphan={row['orphan_relations']:3d}")
         print()
         if report["abandoned_total"]:
             print(f"WARN: {report['abandoned_total']} abandoned outbox rows need human triage")
-        if report["drift_total"] == 0:
+        total_drift = report["drift_total"] + rel["relation_drift_total"]
+        if total_drift == 0:
             print("OK: 0 drift")
         else:
-            print(f"DRIFT: {report['drift_total']} total")
+            print(f"DRIFT: {report['drift_total']} verdict + {rel['relation_drift_total']} relation")
             if args.verbose:
                 for d in report["drift_missing_annotations"][:20]:
-                    print(f"  missing  {d['repo']}/{d['verdict_id']}")
+                    print(f"  missing-ann  {d['repo']}/{d['verdict_id']}")
                 for d in report["drift_orphan_annotations"][:20]:
-                    print(f"  orphan   {d['repo']}/{d['verdict_id']}")
+                    print(f"  orphan-ann   {d['repo']}/{d['verdict_id']}")
+                for d in rel["drift_missing_relations"][:20]:
+                    print(f"  missing-rel  {d['repo']}/{d['home_id']}")
+                for d in rel["drift_orphan_relations"][:20]:
+                    print(f"  orphan-rel   {d['repo']}/{d['home_id']}")
 
-    return 1 if report["drift_total"] > 0 else 0
+    return 1 if (report["drift_total"] + report["relations"]["relation_drift_total"]) > 0 else 0
 
 
 if __name__ == "__main__":
