@@ -60,15 +60,29 @@ class ContextPressure(unittest.TestCase):
         self.assertIn("unknown_model_ctx_limit", r["missing_prerequisites"])
         self.assertFalse(r["context_pressure_flag"])
 
-    def test_occupancy_above_base_tier_escalates_not_overflows(self):
-        # model string "claude-opus-4-8" resolves to 200k, but observed
-        # occupancy 489k proves the [1m] tier is in use → util must be <=1.0.
+    def test_occupancy_above_base_tier_escalates_same_model(self):
+        # "claude-opus-4-8" resolves to 200k, but observed occupancy 489k proves
+        # the [1m] variant → escalate to 1M (SAME model), util ~0.49 + anomaly.
         texts = _texts(5, 4)
         occ = [200_000, 300_000, 489_000]
         r = sd.detect_context_pressure(texts, occ, "claude-opus-4-8")
-        self.assertIsNotNone(r["peak_context_utilization"])
-        self.assertLessEqual(r["peak_context_utilization"], 1.0)
         self.assertAlmostEqual(r["peak_context_utilization"], 0.489, places=2)
+        self.assertEqual(r["occupancy_anomaly"], "tier_inferred_from_observation")
+
+    def test_cross_family_escalation_is_blocked(self):
+        # gpt-4 (128k) with 150k occupancy must NOT escalate to Claude's 200k.
+        texts = _texts(5, 4)
+        r = sd.detect_context_pressure(texts, [150_000], "gpt-4-foo")
+        self.assertIsNone(r["peak_context_utilization"])  # abstain, don't fabricate
+        self.assertEqual(r["occupancy_anomaly"], "observed_exceeds_known_context_limit")
+        self.assertFalse(r["context_pressure_flag"])
+
+    def test_overflow_beyond_all_tiers_is_anomaly_not_one(self):
+        # occupancy beyond every known tier must not be silently reported as 1.0.
+        texts = _texts(5, 4)
+        r = sd.detect_context_pressure(texts, [1_250_000], "claude-opus-4-8[1m]")
+        self.assertIsNone(r["peak_context_utilization"])
+        self.assertEqual(r["occupancy_anomaly"], "observed_exceeds_known_context_limit")
 
     def test_too_few_turns_reports_missing_prereq(self):
         r = sd.detect_context_pressure(["a", "b", "c"], [900_000], OPUS_1M)
@@ -121,6 +135,26 @@ class PrematureCompletion(unittest.TestCase):
         self.assertTrue(r["false_success_flag"])
         self.assertTrue(r["premature_completion_flag"])
 
+    def test_negated_completion_is_not_a_claim(self):
+        # "I didn't complete." hits the bare `complete[.!]` claim pattern; the
+        # negation guard must stop it becoming a claim + false_success (L6).
+        r = sd.detect_premature_completion("I tried hard but I did not complete.")
+        self.assertFalse(r["completion_claimed"])
+        self.assertFalse(r["false_success_flag"])
+        self.assertFalse(r["premature_completion_flag"])
+
+    def test_honest_partial_preserves_failure_evidence(self):
+        # honest-partial suppresses the FLAG but must not erase explicit-failure
+        # evidence or the false-success fact (L7).
+        r = sd.detect_premature_completion(
+            "The task is complete. I was unable to finish the tests. 2 tasks left."
+        )
+        self.assertTrue(r["completion_claimed"])
+        self.assertIn("explicit_failure", r["completion_evidence"])
+        self.assertTrue(r["false_success_flag"])           # preserved
+        self.assertFalse(r["premature_completion_flag"])    # judgment suppressed
+        self.assertIn("honest_partial", r["suppressed_by"])
+
 
 class RateLimitCascade(unittest.TestCase):
     def test_three_hits_cascades(self):
@@ -135,9 +169,20 @@ class RateLimitCascade(unittest.TestCase):
         self.assertTrue(r["rate_limit_cascade_flag"])
 
     def test_two_hits_no_cascade(self):
-        results = [{"stderr": "429"}, {"content": "rate limit"}, {"content": "fine"}]
+        results = [{"stderr": "HTTP 429"}, {"content": "rate limit"}, {"content": "fine"}]
         r = sd.count_rate_limit_cascade(results)
         self.assertEqual(r["rate_limit_hit_count"], 2)
+        self.assertFalse(r["rate_limit_cascade_flag"])
+
+    def test_bare_429_line_number_not_flagged(self):
+        # "test.py:429" / "port 429" are not rate limits (F).
+        results = [
+            {"stdout": "File 'runner.py', line 429, in main"},
+            {"content": "listening on port 429"},
+            {"stderr": "exit code 429 was returned"},
+        ]
+        r = sd.count_rate_limit_cascade(results)
+        self.assertEqual(r["rate_limit_hit_count"], 0)
         self.assertFalse(r["rate_limit_cascade_flag"])
 
 

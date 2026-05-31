@@ -19,9 +19,35 @@ compute_quality_score until calibrated on a backfill review cycle (the critique'
 """
 from __future__ import annotations
 
+import re
 import statistics
 
 import _detector_patterns as dp
+
+
+# Negation cues that flip a completion verb ("didn't complete") from a claim
+# into a failure — checked in the clause preceding a claim match (close-review L6).
+_NEGATION_RE = re.compile(
+    r"\b(?:not|never|no longer|cannot|can'?t|could ?n'?t|did ?n'?t|do ?n'?t|"
+    r"does ?n'?t|was ?n'?t|is ?n'?t|are ?n'?t|won'?t|would ?n'?t|"
+    r"unable to|fail(?:ed|s|ing)? to|without)\b",
+    re.IGNORECASE,
+)
+_CLAUSE_BOUNDARY = re.compile(r"[.!?;\n]")
+
+
+def _has_unnegated_completion_claim(text: str) -> bool:
+    """True if a completion-claim pattern matches in a clause NOT preceded by a
+    negation cue, so "I didn't complete." is not counted as a claim.
+    """
+    for rx, _ in dp.COMPLETION_CLAIM_COMPILED:
+        for m in rx.finditer(text):
+            boundary = 0
+            for bm in _CLAUSE_BOUNDARY.finditer(text, 0, m.start()):
+                boundary = bm.end()
+            if not _NEGATION_RE.search(text[boundary:m.start()]):
+                return True
+    return False
 
 
 def detect_context_pressure(assistant_texts, occupancies, model, *, min_turns=6):
@@ -33,15 +59,7 @@ def detect_context_pressure(assistant_texts, occupancies, model, *, min_turns=6)
     lengths = [len(t) for t in assistant_texts]
     ctx_limit = dp.resolve_context_limit(model)
     peak_occ = max(occupancies) if occupancies else 0
-
-    # Model strings under-specify the tier: CC JSONL records "claude-opus-4-8"
-    # even when the 1M-context [1m] variant is in use. If observed occupancy
-    # exceeds the resolved limit, the DATA proves a larger context — escalate to
-    # the smallest known tier that fits (prevents bogus utilization >1.0).
-    if ctx_limit is not None and peak_occ > ctx_limit:
-        tiers = sorted({lim for _, lim in dp.DEFAULT_CONTEXT_LIMITS})
-        bigger = [t for t in tiers if t >= peak_occ]
-        ctx_limit = bigger[0] if bigger else peak_occ
+    model_l = (model or "").lower()
 
     result = {
         "peak_context_tokens": peak_occ,
@@ -51,11 +69,33 @@ def detect_context_pressure(assistant_texts, occupancies, model, *, min_turns=6)
         "quality_cliff": False,
         "tail_compression_flag": False,
         "context_pressure_flag": False,
+        "occupancy_anomaly": None,
         "missing_prerequisites": [],
     }
 
+    # Observed occupancy can exceed the resolved tier when the model string
+    # under-specifies it (CC JSONL records "claude-opus-4-8" even for the 1M
+    # [1m] variant). Escalate ONLY to a larger tier of the SAME model string —
+    # NEVER another model family (cross-family escalation, e.g. gpt-4 -> Claude
+    # 200k, is wrong). If nothing fits, the data is anomalous: abstain rather
+    # than fabricate a utilization value.
+    if ctx_limit is not None and peak_occ > ctx_limit:
+        same_model = sorted(
+            lim for name, lim in dp.DEFAULT_CONTEXT_LIMITS
+            if model_l.startswith(name.lower()) or name.lower().startswith(model_l)
+        )
+        fits = [t for t in same_model if t > ctx_limit and t >= peak_occ]
+        if fits:
+            ctx_limit = fits[0]
+            result["occupancy_anomaly"] = "tier_inferred_from_observation"
+        else:
+            result["occupancy_anomaly"] = "observed_exceeds_known_context_limit"
+            ctx_limit = None
+
     if ctx_limit is None:
-        result["missing_prerequisites"].append("unknown_model_ctx_limit")
+        result["missing_prerequisites"].append(
+            result["occupancy_anomaly"] or "unknown_model_ctx_limit"
+        )
     elif ctx_limit > 0:
         result["peak_context_utilization"] = round(peak_occ / ctx_limit, 3)
 
@@ -64,12 +104,16 @@ def detect_context_pressure(assistant_texts, occupancies, model, *, min_turns=6)
         return result
 
     # --- output_decline: last-third vs first-third mean turn length ---
-    third = max(1, len(lengths) // 3)
-    first_mean = statistics.mean(lengths[:third])
-    last_mean = statistics.mean(lengths[-third:])
-    decline_ratio = (last_mean / first_mean) if first_mean else 1.0
-    result["output_decline_ratio"] = round(decline_ratio, 3)
-    output_decline = decline_ratio < 0.50
+    # Require >=3 turns per bucket (n>=9): a 2-sample mean (n=6) gives a single
+    # outlier 50% leverage, making the ratio unstable (close-review L4).
+    third = len(lengths) // 3
+    output_decline = False
+    if third >= 3:
+        first_mean = statistics.mean(lengths[:third])
+        last_mean = statistics.mean(lengths[-third:])
+        decline_ratio = (last_mean / first_mean) if first_mean else 1.0
+        result["output_decline_ratio"] = round(decline_ratio, 3)
+        output_decline = decline_ratio < 0.50
 
     # --- wrap-up language in the last 40% of turns ---
     tail_start = int(len(assistant_texts) * 0.60)
@@ -81,8 +125,11 @@ def detect_context_pressure(assistant_texts, occupancies, model, *, min_turns=6)
     wrapup_signal = wrapup_count > 0
 
     # --- quality_cliff: any tail-20% turn > 2σ below the session mean ---
+    # Require n>=10: by Samuelson's inequality a value can't be strictly >2σ
+    # from the mean until n>10, and for small n the tail-20% slice isn't 20%
+    # (n=6 -> 33%). Below 10 turns this signal is unreliable (close-review).
     quality_cliff = False
-    if len(lengths) >= 5:
+    if len(lengths) >= 10:
         mean_len = statistics.mean(lengths)
         std_len = statistics.pstdev(lengths)
         if std_len > 0:
@@ -110,19 +157,20 @@ def detect_premature_completion(final_text):
         "false_success_flag": False,
         "completion_evidence": [],
         "numeric_ratio_incomplete": False,
+        "suppressed_by": [],
     }
     if not final_text:
         return result
 
-    claimed = any(rx.search(final_text) for rx, _ in dp.COMPLETION_CLAIM_COMPILED)
+    # Negation-aware: "I didn't complete." must NOT count as a claim, else it
+    # manufactures a bogus completion-claim + false-success (close-review L6).
+    claimed = _has_unnegated_completion_claim(final_text)
     result["completion_claimed"] = claimed
     if not claimed:
         return result
 
-    # honest-partial acknowledgement suppresses the flag (agent isn't misjudging)
-    if any(rx.search(final_text) for rx, _ in dp.HONEST_PARTIAL_COMPILED):
-        return result
-
+    # Compute ALL evidence FIRST. honest-partial must not erase explicit-failure
+    # facts (close-review L7) — suppression applies only to the final judgment.
     evidence = []
     if any(rx.search(final_text) for rx, _ in dp.INCOMPLETE_COMPILED):
         evidence.append("incomplete_marker")
@@ -134,9 +182,10 @@ def detect_premature_completion(final_text):
     if explicit_failure:
         evidence.append("explicit_failure")
 
-    # numeric ratio a<b: evidence-only, never sufficient alone (critique: "7/10
-    # files touched" is not incompleteness).
+    # numeric ratio a<b: evidence-only, never sufficient alone ("7/10 files
+    # touched" is not incompleteness).
     for rx, _ in dp.NUMERIC_RATIO_COMPILED:
+        hit = False
         for m in rx.finditer(final_text):
             try:
                 a, b = int(m.group(1)), int(m.group(2))
@@ -144,16 +193,26 @@ def detect_premature_completion(final_text):
                 continue
             if 0 < a < b:
                 result["numeric_ratio_incomplete"] = True
+                hit = True
                 break
+        if hit:
+            break
 
     result["completion_evidence"] = evidence
-    # Flag requires a STRONG contradiction: an unresolved code marker
-    # (TODO/FIXME), an external blocker, or an explicit failure admission.
-    # planned_work ("I'll add tests later") and numeric ratios are benign-common
-    # and stay evidence-only — critique: "done + next steps" is not premature.
+    # An explicit failure alongside a real completion claim is a false-success
+    # claim regardless of honest-partial language (evidence is preserved).
+    result["false_success_flag"] = explicit_failure
+
+    # Flag requires a STRONG contradiction (TODO/FIXME marker, blocker, or
+    # explicit failure). planned_work + numeric ratios are benign-common and
+    # stay evidence-only ("done + next steps" is not premature).
     strong = {"incomplete_marker", "blocker", "explicit_failure"}
-    result["premature_completion_flag"] = bool(strong.intersection(evidence))
-    result["false_success_flag"] = bool(claimed and explicit_failure)
+    flag = bool(strong.intersection(evidence))
+    # honest-partial suppresses ONLY the premature-completion judgment.
+    if flag and any(rx.search(final_text) for rx, _ in dp.HONEST_PARTIAL_COMPILED):
+        result["suppressed_by"] = ["honest_partial"]
+        flag = False
+    result["premature_completion_flag"] = flag
     return result
 
 

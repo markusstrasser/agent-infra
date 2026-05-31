@@ -137,7 +137,7 @@ def extract_features(path: Path) -> dict:
                         continue
 
                     if block.get("type") == "text":
-                        turn_text += block.get("text", "")
+                        turn_text += block.get("text") or ""  # guard None payloads
 
                     elif block.get("type") == "tool_use":
                         name = block.get("name", "")
@@ -232,7 +232,9 @@ def extract_features(path: Path) -> dict:
         # --- advisory detectors (NOT penalized in quality_score until calibrated) ---
         "context_pressure_flag": cp["context_pressure_flag"],
         "tail_compression_flag": cp["tail_compression_flag"],
+        "peak_context_tokens": cp["peak_context_tokens"],
         "peak_context_utilization": cp["peak_context_utilization"],
+        "occupancy_anomaly": cp["occupancy_anomaly"],
         "output_decline_ratio": cp["output_decline_ratio"],
         "wrapup_signal_count": cp["wrapup_signal_count"],
         "premature_completion_flag": pc["premature_completion_flag"],
