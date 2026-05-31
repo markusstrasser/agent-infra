@@ -10,9 +10,9 @@ import agentlogs
 from agentlogs import index as ix
 
 
-def test_fresh_db_reaches_user_version_1(tmp_path: Path) -> None:
+def test_fresh_db_reaches_head_version(tmp_path: Path) -> None:
     db = agentlogs.connect(tmp_path / "new.db")
-    assert agentlogs.current_version(db) == 2
+    assert agentlogs.current_version(db) == 3
     db.close()
 
 
@@ -25,7 +25,7 @@ def test_schema_has_expected_surface(tmp_path: Path) -> None:
         "sources", "imports", "record_refs", "sessions", "runs", "events",
         "tool_calls", "file_touches", "run_edges", "run_configs",
         "git_commits", "git_commit_files", "indexer_runs",
-        "session_quality", "trace_index",
+        "trace_index",
     }.issubset(tables)
     db.close()
 
@@ -83,7 +83,7 @@ def test_migrations_idempotent_on_reopen(tmp_path: Path) -> None:
     db1 = agentlogs.connect(path)
     db1.close()
     db2 = agentlogs.connect(path)
-    assert agentlogs.current_version(db2) == 2
+    assert agentlogs.current_version(db2) == 3
     db2.close()
 
 

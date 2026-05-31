@@ -13,9 +13,8 @@ Design constraints baked in from the cross-model critique (2026-05-31,
     evidence-only and never sufficient alone.
   - Unknown model => `missing_prerequisites`, never a guessed utilization.
 
-ALL outputs are advisory features. They are deliberately NOT folded into
-compute_quality_score until calibrated on a backfill review cycle (the critique's
-"no metric mutation before calibration" gate).
+ALL outputs are advisory features. They are emitted raw and never reduced to a
+composite quality score (the parked scorer was retired 2026-06-01, migration 003).
 """
 from __future__ import annotations
 
