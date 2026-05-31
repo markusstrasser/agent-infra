@@ -9,7 +9,7 @@ Tool picks (per research/prior-art-2026-05-11/01-pdf-html-extractors.md):
 
 | source_type        | default parser    | license       |
 |--------------------|-------------------|---------------|
-| paper, preprint    | mineru            | Apache-2.0+   |
+| paper, preprint    | marker-modal      | GPL-3.0 †     |
 | database_release   | pymupdf4llm       | AGPL-3.0 *    |
 | regulatory_filing  | pymupdf4llm       | AGPL-3.0 *    |
 | tool_output        | pymupdf4llm       | AGPL-3.0 *    |
@@ -19,6 +19,10 @@ Tool picks (per research/prior-art-2026-05-11/01-pdf-html-extractors.md):
 
 * AGPL is OK for local-only personal use (per SCHEMA.md license invariant).
   Must NOT be deployed behind a public network endpoint.
+† marker is GPL-3.0 and runs on your own Modal account (T4 GPU). Default
+  for papers/preprints per ~/.claude/rules/marker-modal-default.md (local
+  marker is MPS-broken on this Mac; mineru lacks LLM table/equation/figure
+  fidelity). Needs network — pass `--parser mineru` for offline / local ingest.
 
 Opt-in parsers (NOT in DEFAULT_PARSER; pass via `--parser <name>`):
   - `marker`             GPL-3.0; LLM-enhanced + figure crops. Mac MPS bugs
@@ -48,8 +52,8 @@ class ExtractResult:
 
 
 DEFAULT_PARSER: dict[str, str] = {
-    "paper":             "mineru",
-    "preprint":          "mineru",
+    "paper":             "marker-modal",
+    "preprint":          "marker-modal",
     "database_release":  "pymupdf4llm",
     "regulatory_filing": "pymupdf4llm",
     "tool_output":       "pymupdf4llm",
@@ -76,7 +80,7 @@ def _registry() -> dict[str, Callable[..., ExtractResult]]:
         "pymupdf4llm":       pdf_lightweight.extract,
         "trafilatura":       html_trafilatura.extract_from_bytes,
         "marker":            pdf_marker.extract,         # opt-in; GPL-3.0, local CPU
-        "marker-modal":      pdf_marker_modal.extract,   # opt-in; GPL-3.0, T4 GPU on Modal
+        "marker-modal":      pdf_marker_modal.extract,   # DEFAULT (paper/preprint); GPL-3.0, T4 GPU on Modal
         "liteparse":         pdf_liteparse.extract,      # opt-in; Apache-2.0, Rust, flat text
         "gemini-flash-lite": pdf_llm.extract,
     }
