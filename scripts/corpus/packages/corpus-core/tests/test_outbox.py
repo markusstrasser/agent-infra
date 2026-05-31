@@ -243,6 +243,29 @@ def test_drain_happy_path_flushes_and_deletes(outbox_path, corpus_root):
     assert ann["status"] == "active"
 
 
+def test_drain_rejects_non_dict_relation_json(outbox_path, corpus_root):
+    """A non-object relation_json ('[…]', '"x"') is a per-row data error
+    (retry/abandon), NOT a batch crash (close-review: cross-model — a list
+    would otherwise reach annotate() and AttributeError on .get())."""
+    (corpus_root / "doi_bad").mkdir()
+    con = duckdb.connect(str(outbox_path))
+    try:
+        con.execute(
+            f"INSERT INTO {OUTBOX_TABLE_NAME} "
+            "(verdict_id, canonical_source_id, actor_type, actor_id, output_uri, "
+            " output_hash, prompt_template_hash, asserted_at, annotation_status, relation_json) "
+            "VALUES ('rel_bad','doi_bad','service','urn:agent:service:test',"
+            " 'genomics://verdicts/bad', NULL, NULL, ?, 'active', '[1,2]')",
+            [datetime.now(timezone.utc)],
+        )
+    finally:
+        con.close()
+    stats = drain(outbox_path, repo="genomics", scope="verdict", natural_key_cols=("verdict_id",))
+    assert stats.flushed == 0 and stats.retried == 1  # handled, not crashed
+    pending = _read_outbox(outbox_path, status="pending")
+    assert pending and "must be a JSON object" in (pending[0][2] or "")
+
+
 def test_drain_passes_lifecycle_state_through(outbox_path, corpus_root):
     """annotation_status + supersedes_annotation_id propagate from row to
     corpus annotation — the lifecycle state is preserved end-to-end."""

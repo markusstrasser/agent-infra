@@ -287,7 +287,7 @@ def test_epistemic_surface_flags_conflict(corpus_root):
     before = epistemic_surface(PAPER, retraction_status="unknown")
     assert before["epistemic"]["conflict"] is False
     assert before["epistemic"]["support_balance"] is None
-    # a refute relation touching the paper → the read loop surfaces the conflict
+    # the PAPER is the OBJECT of a refute (it is being refuted) → conflict
     annotate(PAPER, repo="genomics", actor_type="model", actor_id=ACTOR_ID,
              scope="claim_relation", output_uri="genomics://verdicts/v1",
              relation=_rel(["repo:genomics:claim:x"], [f"corpus:{PAPER}"], cls="refute"))
@@ -298,3 +298,76 @@ def test_epistemic_surface_flags_conflict(corpus_root):
     assert len(ep["refuting_relations"]) == 1
     assert ep["refuting_relations"][0]["repo"] == "genomics"
     assert ep["support_balance"]["support_balance"] == -1.0
+
+
+# --- close-review fixes (cross-model adversarial findings) --------------------
+
+
+def test_refuting_source_not_flagged_conflicted(corpus_root):
+    """A gold-standard source used to REFUTE a wrong claim is the subject, not
+    the object — it must NOT show conflict=true on its own lookup, and must not
+    receive a support_balance penalty (only claim-typed endpoints are scored)."""
+    from corpus_core.index import epistemic_surface
+    (corpus_root / "db_x").mkdir(exist_ok=True)
+    annotate("db_x", repo="genomics", actor_type="model", actor_id=ACTOR_ID,
+             scope="claim_relation", output_uri="genomics://verdicts/v1",
+             relation=_rel(["corpus:db_x"], ["repo:genomics:claim:c1"], cls="refute"))
+    surf = epistemic_surface("db_x", retraction_status="unknown")
+    assert surf["epistemic"]["conflict"] is False  # db_x is the refuter, not refuted
+    bal = {r[0]: r[1] for r in _q("SELECT claim_ref, support_balance FROM support_balance")}
+    assert bal.get("repo:genomics:claim:c1") == -1.0   # the CLAIM is penalised
+    assert "corpus:db_x" not in bal                    # the SOURCE is not
+
+
+def test_out_of_order_retraction_does_not_resurrect(corpus_root):
+    """If a retraction is indexed BEFORE its target relation (out-of-order
+    drain), the tombstone makes the later-arriving target project as superseded,
+    never as a stale-active leaf. Pre-fix this resurrected the refute."""
+    from corpus_core.index import _connect, _index_relation
+    from corpus_core.identity import relation_content_sha
+    subj, obj = ["repo:phenome:assertion:aaaa"], ["repo:phenome:assertion:bbbb"]
+    rid_a = "rel_" + relation_content_sha(
+        relation_class="refute", subject_refs=subj, object_refs=obj, detector="d")[:16]
+
+    def _rec(ann_id, rel_class, *, supersedes=None, status="active"):
+        rel = {"relation_class": rel_class, "subject_refs": subj, "object_refs": obj, "detector": "d"}
+        rel["relation_id"] = "rel_" + relation_content_sha(
+            relation_class=rel_class, subject_refs=subj, object_refs=obj, detector="d")[:16]
+        rec = {"annotation_id": ann_id, "source_id": VIRTUAL, "status": status,
+               "idempotency_key": json.dumps({"repo": "phenome"}),
+               "asserted_at": "2026-06-01T00:00:00Z", "recorded_at": "2026-06-01T00:00:00Z",
+               "relation": rel}
+        if supersedes:
+            rec["supersedes_annotation_id"] = supersedes
+        return rec
+
+    con = _connect()
+    try:
+        # retraction R (background, supersedes A) arrives FIRST; A not yet indexed
+        _index_relation(con, _rec("ann_rrrrrrrrrrrrrrrr", "background",
+                                   supersedes="ann_aaaaaaaaaaaaaaaa", status="retracted"))
+        # the active refute A arrives SECOND
+        _index_relation(con, _rec("ann_aaaaaaaaaaaaaaaa", "refute"))
+        row = con.execute(
+            "SELECT status FROM claim_relations WHERE annotation_id = 'ann_aaaaaaaaaaaaaaaa'"
+        ).fetchone()
+        assert row is not None and row[0] == "superseded"   # NOT active
+        assert con.execute(
+            "SELECT COUNT(*) FROM claim_relations_active WHERE relation_id = ?", [rid_a]
+        ).fetchone()[0] == 0
+    finally:
+        con.close()
+
+
+def test_duplicate_endpoints_dedup(corpus_root):
+    """A duplicated endpoint ref must not fork the relation_id nor double-count."""
+    from corpus_core.identity import relation_content_sha
+    once = relation_content_sha(relation_class="refute", subject_refs=["x"], object_refs=["y"], detector="d")
+    twice = relation_content_sha(relation_class="refute", subject_refs=["x", "x"], object_refs=["y"], detector="d")
+    assert once == twice  # set semantics — duplicate does not fork identity
+    annotate(VIRTUAL, repo="phenome", actor_type="model", actor_id=ACTOR_ID,
+             scope="claim_relation", output_uri="phenome://contradiction_pairs/p1",
+             relation={"relation_class": "refute",
+                       "subject_refs": ["repo:phenome:assertion:a", "repo:phenome:assertion:a"],
+                       "object_refs": ["repo:phenome:assertion:b"], "detector": "d"})
+    assert _q("SELECT COUNT(*) FROM claim_relation_endpoints WHERE role = 'subject'")[0][0] == 1
