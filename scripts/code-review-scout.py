@@ -75,8 +75,8 @@ FOCUS_PROMPTS = {
 PROVIDERS = {
     "google": {
         "model_flag": "-p google -m gemini-3.1-pro-preview",
-        # No --max-tokens (forces API fallback, Gemini CLI defaults to 8K output which is fine)
-        # No --stream (forces API fallback)
+        # Gemini routes to the paid API since 2026-05-31 (free gemini-cli retired).
+        # Add "--flex" for the 50% best-effort discount on this background scan.
         "extra": "--timeout 180",
         "name": "gemini",
     },
