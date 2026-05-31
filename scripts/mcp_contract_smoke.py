@@ -52,8 +52,8 @@ def check_corpus_mcp() -> list[str]:
     by_name = {t.name: t for t in tools}
 
     # Minimum tool count (>=, not ==, so adding a tool never breaks the smoke).
-    if len(tools) < 6:
-        fails.append(f"corpus: expected >=6 tools, got {len(tools)}")
+    if len(tools) < 5:
+        fails.append(f"corpus: expected >=5 tools, got {len(tools)}")
 
     # Structural integrity per tool: name + description + input schema + a
     # boolean readOnlyHint (the safety annotation agents route on).
@@ -74,9 +74,9 @@ def check_corpus_mcp() -> list[str]:
             fails.append(f"corpus:{t.name} readOnlyHint is not a bool ({ro!r})")
 
     # Safety-annotation regression guard: the unambiguous WRITE tool must not
-    # be advertised read-only. (corpus_attest is intentionally NOT frozen here —
-    # substrate v2 may retire it; we only demand sanity if it is present.)
-    for w in ("corpus_ingest", "corpus_attest"):
+    # be advertised read-only. (corpus_attest was retired under substrate v2 —
+    # corpus no longer writes annotations; corpus_ingest is the lone write tool.)
+    for w in ("corpus_ingest",):
         t = by_name.get(w)
         if t is not None:
             ann = getattr(t, "annotations", None)

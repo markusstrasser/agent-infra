@@ -3,13 +3,11 @@
 Phase 3 of the substrate-migration plan
 (.claude/plans/2026-05-11-substrate-migration.md).
 
-Owns six tools, all scoped to the local corpus store at $CORPUS_ROOT
+Owns five tools, all scoped to the local corpus store at $CORPUS_ROOT
 (default ~/Projects/corpus):
 
     corpus_lookup(source_id)            do we have bytes + parsed markdown?
     corpus_graph_query(paper_id, …)     citation graph queries
-    corpus_attest(...)                  SOLE annotation writer (wraps
-                                        corpus_core.annotate.annotate)
     corpus_annotations_query(...)       reverse-query graph.duckdb
                                         annotations table (Phase 2)
     corpus_ingest(pdf_path|url, …)      drive corpus_core.ingest.{ingest_pdf,
@@ -17,18 +15,21 @@ Owns six tools, all scoped to the local corpus store at $CORPUS_ROOT
     corpus_dashboard()                  source counts + per-repo activity
                                         + recent annotations
 
-Tool budget: 6 (within the 5-15 documented MCP-tool budget; well under the
+Tool budget: 5 (within the 5-15 documented MCP-tool budget; well under the
 20-tool hard cap per round-2 finding 7).
 
-agent-infra-mcp returns to markdown search ONLY in this phase (Phase 3 of
-the plan). cross_attestation_lookup is dropped — the agent now orchestrates
-two MCP calls (per-repo record_verdict + corpus_attest) per §J.1.
+corpus never writes annotations.jsonl. Cross-repo attestation is enforced at
+each repo's mutation gateway via a transactional outbox that drains to
+corpus_core.annotate (the sole writer) — see
+decisions/2026-05-26-cross-attestation-substrate-v2.md. The old
+agent-orchestrated record_verdict + corpus_attest ritual (substrate v1) is
+retired: 0 invocations in 9 months, and an MCP write tool here was a dual-write
+backdoor around the gateway outbox invariant.
 """
 from __future__ import annotations
 
 import json
 import logging
-import os
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -43,12 +44,6 @@ if str(_CORPUS_PKG) not in sys.path:
     sys.path.insert(0, str(_CORPUS_PKG))
 
 from corpus_core import store as paper_store  # noqa: E402
-from corpus_core.annotate import (  # noqa: E402
-    AnnotationError,
-    AnnotationSchemaError,
-    AnnotationTooLargeError,
-    annotate as corpus_annotate,
-)
 from corpus_core.identity import parse_source_identifier  # noqa: E402
 from corpus_core.ingest import ingest_pdf, ingest_url  # noqa: E402
 
@@ -66,18 +61,16 @@ This server owns L1 corpus operations:
   - corpus_lookup(source_id) — do we have bytes + parsed markdown locally?
   - corpus_graph_query(paper_id, query, stance) — citation graph queries
   - corpus_annotations_query(repo, scope, since, source_id) — reverse lookups
-  - corpus_attest(source_id, repo, agent.id, scope, ...) — SOLE annotation writer
   - corpus_ingest(pdf_path|url, ...) — write a new source into the store
   - corpus_dashboard() — counts + recent activity
 
-Per substrate-v1 attestation flow (decisions/2026-05-11-cross-attestation-substrate.md):
-  When recording a claim/verdict, agent makes TWO calls:
-    1. <repo>_mcp.record_verdict(...)   — writes to repo-local DB
-    2. corpus_mcp.corpus_attest(...)    — writes provenance annotation
-  Skipping step 2 leaves provenance incomplete.
+corpus does NOT write annotations. Cross-repo attestation is enforced at each
+repo's mutation gateway via a transactional outbox that drains to
+corpus_core.annotate (the sole writer) — see
+decisions/2026-05-26-cross-attestation-substrate-v2.md. There is no
+agent-facing attestation call to remember.
 
-  NEVER call this MCP from inside another MCP (no MCP-to-MCP). The agent
-  orchestrates.
+NEVER call this MCP from inside another MCP (no MCP-to-MCP).
 """
 
 
@@ -299,56 +292,6 @@ def create_mcp() -> FastMCP:
             "paper_id": paper_id, "query": query, "stance_filter": stance,
             "count": len(edges), "edges": edges,
         })
-
-    # ----- corpus_attest -----
-
-    @mcp.tool(annotations=_WRITE)
-    def corpus_attest(
-        ctx: Context,
-        source_id: str,
-        repo: str,
-        actor_type: str,
-        actor_id: str,
-        scope: str,
-        tool: str | None = None,
-        prompt_template_hash: str | None = None,
-        output_uri: str | None = None,
-        output_hash: str | None = None,
-        source_content_hash: str | None = None,
-        supersedes_annotation_id: str | None = None,
-        status: str = "active",
-    ) -> list[TextContent]:
-        """SOLE writer of corpus annotations.jsonl. Returns annotation_id.
-
-        See decisions/2026-05-11-cross-attestation-substrate.md for the
-        two-call agent flow (per-repo record_verdict + corpus_attest).
-
-        Args:
-            source_id: canonical corpus source_id (doi_..., pmid_..., sha_...).
-            repo: 'genomics'|'phenome'|'intel'|'agent-infra'|'research-mcp'.
-            actor_type: 'model'|'human'|'service'|'cli'.
-            actor_id: 'urn:agent:<type>:<name>[@<version>]' form.
-            scope: free-form scope tag (raw_fetch|parse|claim_extraction|verdict|...).
-            output_uri: corpus:// or project-root:// URI to a sidecar output.
-            (other args see corpus_core.annotate.annotate docstring)
-        """
-        try:
-            aid = corpus_annotate(
-                source_id, repo=repo, actor_type=actor_type,  # type: ignore[arg-type]
-                actor_id=actor_id, scope=scope,
-                tool=tool, prompt_template_hash=prompt_template_hash,
-                output_uri=output_uri, output_hash=output_hash,
-                source_content_hash=source_content_hash,
-                supersedes_annotation_id=supersedes_annotation_id,
-                status=status,  # type: ignore[arg-type]
-            )
-            return _wrap({"annotation_id": aid, "status": "ok"})
-        except AnnotationTooLargeError as e:
-            return _wrap({"error": True, "error_type": "TOO_LARGE", "message": str(e)})
-        except AnnotationSchemaError as e:
-            return _wrap({"error": True, "error_type": "SCHEMA", "message": str(e)})
-        except AnnotationError as e:
-            return _wrap({"error": True, "error_type": "ANNOTATION_ERROR", "message": str(e)})
 
     # ----- corpus_annotations_query -----
 
