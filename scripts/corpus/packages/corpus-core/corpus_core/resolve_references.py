@@ -22,9 +22,10 @@ from . import store as ps
 
 
 # Header: tolerate marker's `## <span id=...></span>REFERENCES` (HTML tags) and
-# trailing content (no `$` anchor); `\b` ends the keyword.
+# `# **References**` (markdown emphasis), plus trailing content (no `$` anchor);
+# `\b` ends the keyword.
 REF_HEADERS = re.compile(
-    r"^\s{0,3}#{1,6}\s+(?:<[^>]*>\s*)*"
+    r"^\s{0,3}#{1,6}\s+(?:[*_`]+|<[^>]*>\s*)*"
     r"(references|bibliography|works\s+cited|literature\s+cited)\b",
     re.IGNORECASE | re.MULTILINE,
 )
