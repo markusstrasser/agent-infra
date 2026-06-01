@@ -34,6 +34,50 @@ class TestClassifyOutcome:
         assert "timeout" not in th._COMPLETED
 
 
+class TestIsRegression:
+    def _rec(self, completed, passed=0, failed=0, errors=0, outcome="passed"):
+        return {"completed": completed, "outcome": outcome,
+                "counts": {"passed": passed, "failed": failed, "errors": errors}}
+
+    def test_no_previous_is_never_regression(self):
+        assert th.is_regression(self._rec(True, passed=10), None) == (False, "")
+
+    def test_stopped_completing_is_regression(self):
+        cur = self._rec(False, outcome="crashed")
+        prev = self._rec(True, passed=10)
+        regressed, note = th.is_regression(cur, prev)
+        assert regressed and "stopped completing" in note
+
+    def test_more_failures_is_regression(self):
+        cur = self._rec(True, passed=120, failed=3)
+        prev = self._rec(True, passed=123, failed=0)
+        regressed, note = th.is_regression(cur, prev)
+        assert regressed and "0→3" in note
+
+    def test_same_failures_not_regression(self):
+        # chronic-but-stable failures must NOT alarm every run (report-only)
+        cur = self._rec(True, passed=121, failed=13)
+        prev = self._rec(True, passed=121, failed=13)
+        assert th.is_regression(cur, prev) == (False, "")
+
+    def test_fewer_failures_is_improvement_not_regression(self):
+        cur = self._rec(True, passed=134, failed=0)
+        prev = self._rec(True, passed=121, failed=13)
+        assert th.is_regression(cur, prev)[0] is False
+
+    def test_recovery_after_crash_not_regression(self):
+        cur = self._rec(True, passed=100)
+        prev = self._rec(False, outcome="crashed")
+        assert th.is_regression(cur, prev)[0] is False
+
+    def test_fewer_passes_alone_not_flagged(self):
+        # tests can be legitimately removed — fewer passes with no new failures
+        # is not a regression
+        cur = self._rec(True, passed=90, failed=0)
+        prev = self._rec(True, passed=120, failed=0)
+        assert th.is_regression(cur, prev) == (False, "")
+
+
 class TestParseCounts:
     def test_typical_summary(self):
         c = th.parse_counts("814 passed, 15 skipped, 2 xfailed in 155.71s (0:02:35)")
