@@ -405,3 +405,93 @@ def test_abandoned_count_on_missing_table(tmp_path):
 def test_abandoned_count_on_missing_db(tmp_path):
     """abandoned_count returns 0 when the DB file doesn't exist."""
     assert abandoned_count(tmp_path / "never.duckdb") == 0
+
+
+# ── enqueue_relation: the validated front door ────────────────────────────
+from corpus_core.outbox import enqueue_relation  # noqa: E402
+from corpus_core.annotate import AnnotationSchemaError  # noqa: E402
+
+_GOOD_REL = {
+    "relation_class": "support",
+    "subject_refs": ["repo:genomics:GENE:MONDO:1"],
+    "object_refs": ["repo:phenome:assertion:abc"],
+    "detector": "genomic-phenotype-linker:v1",
+    "kind": "exact",
+    "grade_weight": 0.9,
+    "home_verdict_id": "GENE:MONDO:1",
+}
+
+
+def _outbox_con():
+    con = duckdb.connect(":memory:")
+    con.execute(outbox_schema((("cert_event_id", "VARCHAR"),)))
+    return con
+
+
+def test_enqueue_relation_inserts_then_idempotent():
+    con = _outbox_con()
+    assert enqueue_relation(
+        con, relation=dict(_GOOD_REL), natural_key={"cert_event_id": "relpair_1"},
+        canonical_source_id="internal_phenome", actor_type="model",
+        actor_id="urn:agent:model:test", output_uri="x://1",
+    ) is True
+    # same natural key + source → ON CONFLICT DO NOTHING
+    assert enqueue_relation(
+        con, relation=dict(_GOOD_REL), natural_key={"cert_event_id": "relpair_1"},
+        canonical_source_id="internal_phenome", actor_type="model",
+        actor_id="urn:agent:model:test",
+    ) is False
+    row = con.execute(
+        "SELECT actor_type, status, annotation_status, relation_json "
+        "FROM pending_corpus_attestations"
+    ).fetchone()
+    assert row[0] == "model" and row[1] == "pending" and row[2] == "active"
+    body = json.loads(row[3])
+    assert body["relation_class"] == "support"
+    assert "relation_id" not in body  # derived at drain, never enqueued
+
+
+def test_enqueue_relation_rejects_malformed_eagerly():
+    con = _outbox_con()
+    # the exact bug class this front door exists to catch: an extra key that the
+    # closed corpus schema rejects — caught HERE, not hours later at drain.
+    with pytest.raises(AnnotationSchemaError, match="Additional properties"):
+        enqueue_relation(
+            con, relation={**_GOOD_REL, "evidence": {"x": 1}},
+            natural_key={"cert_event_id": "relpair_2"},
+            canonical_source_id="internal_phenome", actor_type="model",
+            actor_id="urn:agent:model:test",
+        )
+    # bad relation_class enum
+    with pytest.raises(AnnotationSchemaError):
+        enqueue_relation(
+            con, relation={**_GOOD_REL, "relation_class": "endorses"},
+            natural_key={"cert_event_id": "relpair_3"},
+            canonical_source_id="internal_phenome", actor_type="model",
+            actor_id="urn:agent:model:test",
+        )
+    # caller must not pre-set relation_id (substrate derives it)
+    with pytest.raises(AnnotationSchemaError, match="relation_id"):
+        enqueue_relation(
+            con, relation={**_GOOD_REL, "relation_id": "rel_deadbeef"},
+            natural_key={"cert_event_id": "relpair_4"},
+            canonical_source_id="internal_phenome", actor_type="model",
+            actor_id="urn:agent:model:test",
+        )
+    # nothing was inserted by the rejected calls
+    assert con.execute("SELECT count(*) FROM pending_corpus_attestations").fetchone()[0] == 0
+
+
+def test_enqueue_relation_retraction_lifecycle():
+    con = _outbox_con()
+    enqueue_relation(
+        con, relation=dict(_GOOD_REL), natural_key={"cert_event_id": "relpair_retract_1"},
+        canonical_source_id="internal_phenome", actor_type="model",
+        actor_id="urn:agent:model:test", output_uri="x://retract/1",
+        supersedes_annotation_id="ann_prior", annotation_status="retracted",
+    )
+    row = con.execute(
+        "SELECT annotation_status, supersedes_annotation_id "
+        "FROM pending_corpus_attestations"
+    ).fetchone()
+    assert row == ("retracted", "ann_prior")

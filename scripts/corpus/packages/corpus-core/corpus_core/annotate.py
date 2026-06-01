@@ -149,6 +149,35 @@ def _validate_annotation(record: dict[str, Any]) -> None:
         raise AnnotationSchemaError(f"annotation failed schema: {e.message}") from e
 
 
+def validate_relation_body(relation: dict[str, Any]) -> None:
+    """Validate a claim-relation body against the SAME closed schema
+    ``annotate`` enforces at write time — but EAGERLY, so a malformed relation
+    fails where it is constructed/enqueued, not hours later inside the
+    cross-process drain. ``relation_id`` is excluded from the required set
+    because the substrate derives it at drain (callers must not set it).
+
+    Raises :class:`AnnotationSchemaError`. This is the single source of truth a
+    relation enqueuer should call before persisting a relation_json row.
+    """
+    try:
+        import jsonschema
+    except ImportError as e:
+        raise AnnotationError(
+            "corpus-core: jsonschema not installed (add as a runtime dep)"
+        ) from e
+    rel_schema = dict(_load_schema("annotation.v1.json")["properties"]["relation"])
+    # Derived at drain — don't require it eagerly (and callers must not set it).
+    rel_schema["required"] = [r for r in rel_schema.get("required", []) if r != "relation_id"]
+    if "relation_id" in relation:
+        raise AnnotationSchemaError(
+            "relation must NOT carry relation_id — the substrate derives it at drain"
+        )
+    try:
+        jsonschema.validate(relation, rel_schema)
+    except jsonschema.ValidationError as e:
+        raise AnnotationSchemaError(f"relation failed schema: {e.message}") from e
+
+
 # ---------------------------------------------------------------------------
 # JSONL helpers
 # ---------------------------------------------------------------------------
