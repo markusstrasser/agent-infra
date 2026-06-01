@@ -70,10 +70,39 @@ def test_parse_health_classifies_each_state(corpus_root):
     assert {r["source_id"] for r in report["unhealthy"]} == {"doi_flatdump", "doi_tiny"}
 
 
+def test_no_sections_ignores_code_fence_comments(corpus_root):
+    """Caught-red-handed (close-review convergent): a flat-dump paper whose only
+    `#`-lines live inside a fenced code block must STILL be flagged no_sections —
+    code-fence comments are not markdown headings. Fails on the pre-fix regex
+    (which matched `# Initialize...` inside the fence and skipped the flag)."""
+    body = (
+        "Flat-dump body text without any real heading. " * 20
+        + "\n\n```python\n# Initialize the model weights\n## not a heading either\nx = 1\n```\n"
+        + "More body text continues after the code block. " * 20
+    )
+    _write_source(corpus_root, "doi_codefence", parser="pymupdf", page_md=body)
+    state = parse_health.parse_state(store.get("doi_codefence"))
+    assert state["flags"] == ["no_sections"], state
+
+
+def test_real_heading_with_code_fence_is_healthy(corpus_root):
+    """A real ## section heading keeps a paper healthy even when it also contains
+    a code fence with `#` comment lines (no false no_sections)."""
+    body = "# Title\n\n## Methods\n\n" + ("Body text here. " * 40) + "\n```\n# code comment\n```\n"
+    _write_source(corpus_root, "doi_realhead", parser="marker-modal", page_md=body)
+    state = parse_health.parse_state(store.get("doi_realhead"))
+    assert state["flags"] == []
+    assert state["chars"] > 500  # size proxy is 'chars' (code points), not 'bytes'
+
+
 def test_is_paper_shaped():
     assert parse_health.is_paper_shaped("doi_10_1038_ng_456")
     assert parse_health.is_paper_shaped("pmid_12345")
     assert parse_health.is_paper_shaped("sha_abc")
+    assert parse_health.is_paper_shaped("biorxiv_2026_01_01_123456")
+    assert parse_health.is_paper_shaped("medrxiv_abc")
+    assert parse_health.is_paper_shaped("arxiv_2601_01234")
+    assert parse_health.is_paper_shaped("DOI_10.1016/abc")  # case-insensitive
     assert not parse_health.is_paper_shaped("db_gnomad_r4")
     assert not parse_health.is_paper_shaped("tool_hirisplex_s")
     assert not parse_health.is_paper_shaped("repo_gene_panel")

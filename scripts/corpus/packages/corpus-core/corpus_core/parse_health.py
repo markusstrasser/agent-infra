@@ -24,6 +24,13 @@ acts on the re-ingest backlog.
 
 Parse access goes through ``PaperRecord.parsed_markdown_path()`` (the sole entry
 point) — never a hand-built path.
+
+Known limitations (close-review 2026-06-01, deferred as out-of-scope for an
+advisory check): heading detection is markdown-ATX only (not Setext/HTML — every
+current parser emits ATX); ``no_sections`` strips *fenced* code blocks but not
+indented ones; it does not detect scraper gatekeeping/paywall pages that happen
+to carry headings (a content-authenticity concern, distinct from structural
+health). See the review disposition for rationale.
 """
 
 from __future__ import annotations
@@ -33,21 +40,47 @@ from typing import Any
 
 from . import store
 
-# ATX markdown heading at line start (``#`` .. ``######`` then text).
-_HEADING_RE = re.compile(r"^#{1,6}\s+\S", re.MULTILINE)
+# ATX markdown heading at line start, tolerating up to 3 leading spaces
+# (CommonMark allows 0-3). Stricter indentation than that is a code block.
+_HEADING_RE = re.compile(r"^[ ]{0,3}#{1,6}\s+\S", re.MULTILINE)
 
 # Source-id prefixes that denote a scientific *paper* (where section headings are
 # expected). Non-paper corpus entries (db_/tool_/repo_/guideline_/…) legitimately
-# lack headings, so ``no_sections`` does not apply to them.
-_PAPER_PREFIXES = ("doi_", "pmid_", "pmcid_", "sha_", "pubmed")
+# lack headings, so ``no_sections`` does not apply to them. Includes the preprint
+# servers that research-mcp's search_preprints ingests (bioRxiv/medRxiv/arXiv).
+_PAPER_PREFIXES = (
+    "doi_", "pmid_", "pmcid_", "pmc_", "sha_", "pubmed",
+    "arxiv_", "biorxiv_", "medrxiv_",
+)
 
 # A real paper parse is far larger than this; below it the parse is empty/failed.
 EMPTY_BODY_THRESHOLD = 500  # characters (stripped)
 
 
 def is_paper_shaped(source_id: str) -> bool:
-    """True if the source_id denotes a scientific paper (heading-expected)."""
-    return source_id.startswith(_PAPER_PREFIXES)
+    """True if the source_id denotes a scientific paper (heading-expected).
+
+    Case-insensitive: corpus ids are slugified lowercase, but guard against an
+    upstream that records e.g. ``DOI_…`` so it is not silently skipped.
+    """
+    return source_id.lower().startswith(_PAPER_PREFIXES)
+
+
+def _strip_code_fences(text: str) -> str:
+    """Drop fenced code blocks (``` or ~~~) so a ``# comment`` inside code is not
+    mistaken for a markdown heading (close-review convergent finding). Line-based
+    and language-tag tolerant. Does NOT strip indented code blocks (rare in parser
+    output; documented limitation)."""
+    out: list[str] = []
+    in_fence = False
+    for line in text.splitlines():
+        stripped = line.lstrip()
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            in_fence = not in_fence
+            continue
+        if not in_fence:
+            out.append(line)
+    return "\n".join(out)
 
 
 def _health_flags(text: str, source_id: str) -> list[str]:
@@ -55,10 +88,11 @@ def _health_flags(text: str, source_id: str) -> list[str]:
     flags: list[str] = []
     if len(text.strip()) < EMPTY_BODY_THRESHOLD:
         flags.append("empty_or_tiny")
-    elif is_paper_shaped(source_id) and not _HEADING_RE.search(text):
-        # Only meaningful once we know the body is non-trivial (the elif): a tiny
-        # parse is already flagged; a flat-dump paper with real text but no
-        # headings is the silent-false-not_supported case.
+    elif is_paper_shaped(source_id) and not _HEADING_RE.search(_strip_code_fences(text)):
+        # Only meaningful once the body is non-trivial (the elif): a tiny parse is
+        # already the dominant, actionable flag (re-parse) and need not also carry
+        # no_sections. A flat-dump paper with real text but no headings (outside
+        # code fences) is the silent-false-not_supported case.
         flags.append("no_sections")
     return flags
 
@@ -66,7 +100,7 @@ def _health_flags(text: str, source_id: str) -> list[str]:
 def parse_state(record: store.PaperRecord) -> dict[str, Any]:
     """Parse-state + health for ONE source.
 
-    Returns: ``{source_id, parsed: bool, parser: str|None, bytes: int,
+    Returns: ``{source_id, parsed: bool, parser: str|None, chars: int,
     flags: list[str]}``. ``flags`` are HEALTH problems on a *parsed* source
     (empty_or_tiny / no_sections); an unparsed source has ``parsed=False`` and
     no flags (being unparsed is a state, not a health defect).
@@ -77,7 +111,7 @@ def parse_state(record: store.PaperRecord) -> dict[str, Any]:
             "source_id": record.paper_id,
             "parsed": False,
             "parser": None,
-            "bytes": 0,
+            "chars": 0,
             "flags": [],
         }
     active = record.parsed_dir_active()
@@ -87,7 +121,7 @@ def parse_state(record: store.PaperRecord) -> dict[str, Any]:
         "source_id": record.paper_id,
         "parsed": True,
         "parser": parser,
-        "bytes": len(text),
+        "chars": len(text),  # code points, not bytes — used as a size proxy only
         "flags": _health_flags(text, record.paper_id),
     }
 
