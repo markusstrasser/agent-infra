@@ -136,7 +136,7 @@ How to verify this constitution is working (check via `/observe sessions` after 
 
 Queue-backed task runner. Previously scheduled via `com.agent-infra.orchestrator` launchd plist; removed 2026-04-24 together with the other API-burning daily jobs (`code-review-daily`, `propose-work-daily`, `session-retro-daily`, `hook-roi-daily`). Run manually: `uv run python3 scripts/orchestrator.py --help`. Daily cost cap (when invoked): $25.
 
-The only active launchd jobs now are local, zero-API: `com.agent-infra.agentlogs-backup` (daily 04:00 sqlite backup) and `com.agent-infra.agentlogs-index` (every 2h session-dir indexing).
+The active launchd jobs are local, zero-API: `com.agent-infra.agentlogs-index` (every 2h session-dir indexing), `com.agent-infra.audit-corpus-sync` (daily 04:30 verdict/relation drift + parse-health advisory + outbox drain), and `com.agent-infra.corpus-ledger-commit` (daily 05:00 git-commit of the corpus belief-change ledger).
 
 ## Backlog
 
