@@ -1,10 +1,9 @@
-"""Parse-state (C0) + parse-health (C2) seed tests.
+"""Parse-state (C0) + empty-parse health seed tests.
 
 Constructs an isolated corpus with one source in each state and asserts the
-report classifies every case — including the two that matter most: the
-flat-dump paper (`no_sections`, the silent-false-not_supported class) and the
-empty parse (`empty_or_tiny`). Non-paper sources must NOT be flagged
-`no_sections`, and an unparsed source is a state, not a health defect.
+report classifies them. Note (2026-06-01): the `no_sections` heading check was
+dropped, so a long structureless paper is now HEALTHY — only `empty_or_tiny`
+(a failed/near-empty parse) and unparsed remain.
 """
 from __future__ import annotations
 
@@ -13,13 +12,9 @@ from pathlib import Path
 
 from corpus_core import parse_health, store
 
-# A real, healthy parse: ATX headings + a non-trivial body.
-HEALTHY = (
-    "# Title\n\n## Introduction\n\n"
-    + ("Lorem ipsum dolor sit amet. " * 80)
-    + "\n\n## Methods\n\nMore text follows."
-)
-# A flat dump: long body, NO headings — the section parser sees an empty body.
+# A real, healthy parse (non-trivial body).
+HEALTHY = "# Title\n\n## Introduction\n\n" + ("Lorem ipsum dolor sit amet. " * 80)
+# A long body with no headings — healthy now that no_sections is gone.
 FLAT_DUMP = "Lorem ipsum dolor sit amet consectetur adipiscing. " * 80
 # A failed/near-empty parse.
 TINY = "abstract only"
@@ -43,7 +38,7 @@ def test_parse_health_classifies_each_state(corpus_root):
     _write_source(root, "doi_flatdump", parser="pymupdf", page_md=FLAT_DUMP)
     _write_source(root, "doi_tiny", parser="pymupdf", page_md=TINY)
     _write_source(root, "doi_unparsed")  # metadata only, no parse
-    _write_source(root, "db_gnomad", parser="manual", page_md=FLAT_DUMP)  # non-paper
+    _write_source(root, "db_gnomad", parser="manual", page_md=TINY)  # non-paper, tiny
 
     report = parse_health.parse_health_report()
 
@@ -58,41 +53,16 @@ def test_parse_health_classifies_each_state(corpus_root):
     states = {r["source_id"]: r for r in (parse_health.parse_state(store.get(p)) for p in store.iter_papers())}
     assert states["doi_healthy"]["flags"] == []
     assert states["doi_healthy"]["parser"] == "marker-modal"
-    assert states["doi_flatdump"]["flags"] == ["no_sections"]
+    assert states["doi_healthy"]["chars"] > 500  # size proxy is 'chars', not 'bytes'
+    # a long structureless paper is HEALTHY (no_sections dropped 2026-06-01)
+    assert states["doi_flatdump"]["flags"] == []
     assert states["doi_tiny"]["flags"] == ["empty_or_tiny"]
     assert states["doi_unparsed"]["parsed"] is False
     assert states["doi_unparsed"]["flags"] == []
-    # non-paper source with no headings is healthy (no_sections does NOT apply)
-    assert states["db_gnomad"]["flags"] == []
 
-    # C2 — unhealthy = parsed-but-broken; the unparsed source is NOT "unhealthy"
+    # empty_or_tiny applies to ANY parsed source, paper or not
+    assert {r["source_id"] for r in report["unhealthy"]} == {"doi_tiny", "db_gnomad"}
     assert report["unhealthy_count"] == 2
-    assert {r["source_id"] for r in report["unhealthy"]} == {"doi_flatdump", "doi_tiny"}
-
-
-def test_no_sections_ignores_code_fence_comments(corpus_root):
-    """Caught-red-handed (close-review convergent): a flat-dump paper whose only
-    `#`-lines live inside a fenced code block must STILL be flagged no_sections —
-    code-fence comments are not markdown headings. Fails on the pre-fix regex
-    (which matched `# Initialize...` inside the fence and skipped the flag)."""
-    body = (
-        "Flat-dump body text without any real heading. " * 20
-        + "\n\n```python\n# Initialize the model weights\n## not a heading either\nx = 1\n```\n"
-        + "More body text continues after the code block. " * 20
-    )
-    _write_source(corpus_root, "doi_codefence", parser="pymupdf", page_md=body)
-    state = parse_health.parse_state(store.get("doi_codefence"))
-    assert state["flags"] == ["no_sections"], state
-
-
-def test_real_heading_with_code_fence_is_healthy(corpus_root):
-    """A real ## section heading keeps a paper healthy even when it also contains
-    a code fence with `#` comment lines (no false no_sections)."""
-    body = "# Title\n\n## Methods\n\n" + ("Body text here. " * 40) + "\n```\n# code comment\n```\n"
-    _write_source(corpus_root, "doi_realhead", parser="marker-modal", page_md=body)
-    state = parse_health.parse_state(store.get("doi_realhead"))
-    assert state["flags"] == []
-    assert state["chars"] > 500  # size proxy is 'chars' (code points), not 'bytes'
 
 
 def test_is_paper_shaped():
