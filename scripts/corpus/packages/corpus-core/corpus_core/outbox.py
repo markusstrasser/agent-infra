@@ -229,6 +229,73 @@ def ensure_lifecycle_columns(con: "duckdb.DuckDBPyConnection") -> None:
     )
 
 
+def enqueue_relation(
+    con: "duckdb.DuckDBPyConnection",
+    *,
+    relation: dict,
+    natural_key: dict[str, str],
+    canonical_source_id: str,
+    actor_type: str,
+    actor_id: str,
+    output_uri: str | None = None,
+    asserted_at=None,
+    valid_from=None,
+    supersedes_annotation_id: str | None = None,
+    status: str = "pending",
+    annotation_status: str = "active",
+) -> bool:
+    """The single front door for enqueuing a cross-repo claim_relation.
+
+    Validates ``relation`` against the SAME closed schema ``annotate`` enforces —
+    EAGERLY, so a malformed relation (e.g. an unexpected key, a bad
+    relation_class, a missing endpoint) fails HERE, where the body is built,
+    rather than hours later inside the cross-process drain. Then it INSERTs one
+    relation_json-bearing ``pending_corpus_attestations`` row, ON CONFLICT DO
+    NOTHING. Returns True iff a new row was inserted.
+
+    ``natural_key`` is the per-repo synthetic outbox key — ``{"cert_event_id":
+    "relpair_<id>"}`` (phenome) or ``{"verdict_id": "rel_<id>"}`` (genomics). The
+    prefix/identity convention stays at the call site; this owns only the
+    validate-and-insert that every gateway otherwise hand-rolls.
+
+    Must be called inside the gateway's write transaction (transactional outbox).
+    """
+    from .annotate import validate_relation_body
+
+    validate_relation_body(relation)
+    nk_cols = list(natural_key)
+    for col in nk_cols:
+        _validate_identifier(col, role="natural_key column")
+    all_cols = [
+        *nk_cols, "canonical_source_id", "actor_type", "actor_id", "output_uri",
+        "output_hash", "prompt_template_hash", "asserted_at", "status",
+        "annotation_status", "supersedes_annotation_id", "valid_from", "relation_json",
+    ]
+    conflict_cols = [*nk_cols, "canonical_source_id"]
+    nk_ph = ", ".join(["?"] * len(nk_cols))
+    # tail columns: canonical_source_id, actor_type, actor_id, output_uri,
+    # output_hash(NULL), prompt_template_hash(NULL), asserted_at(COALESCE),
+    # status, annotation_status, supersedes_annotation_id, valid_from, relation_json
+    placeholders = (
+        (nk_ph + ", " if nk_ph else "")
+        + "?, ?, ?, ?, NULL, NULL, COALESCE(?, now()), ?, ?, ?, ?, ?"
+    )
+    values = [
+        *natural_key.values(), canonical_source_id, actor_type, actor_id,
+        output_uri, asserted_at, status, annotation_status,
+        supersedes_annotation_id, valid_from, json.dumps(relation, sort_keys=True),
+    ]
+    before = con.execute(f"SELECT count(*) FROM {OUTBOX_TABLE_NAME}").fetchone()[0]
+    con.execute(
+        f"INSERT INTO {OUTBOX_TABLE_NAME} ({', '.join(all_cols)}) "
+        f"VALUES ({placeholders}) "
+        f"ON CONFLICT ({', '.join(conflict_cols)}) DO NOTHING",
+        values,
+    )
+    after = con.execute(f"SELECT count(*) FROM {OUTBOX_TABLE_NAME}").fetchone()[0]
+    return after > before
+
+
 @dataclass(frozen=True)
 class DrainStats:
     """What a single drain() invocation accomplished."""
