@@ -20,6 +20,8 @@ import statistics
 from pathlib import Path
 from collections import defaultdict
 
+from token_baseline_helpers import percentile  # pure logic, unit-tested
+
 DB = Path.home() / ".claude" / "runlogs.db"
 RECEIPTS = Path.home() / ".claude" / "session-receipts.jsonl"
 
@@ -28,14 +30,6 @@ def _warn(msg): print(f"  ! {msg}")
 def _fail(msg): print(f"  ✗ {msg}")
 def _header(s): print(f"\n[{s}]")
 def _kv(k, v): print(f"  {k:40s} {v}")
-
-def percentile(data, p):
-    """Simple percentile calculation."""
-    if not data:
-        return 0
-    s = sorted(data)
-    idx = int(len(s) * p / 100)
-    return s[min(idx, len(s) - 1)]
 
 
 def analyze_tool_output_sizes(conn, days):
