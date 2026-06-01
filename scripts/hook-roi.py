@@ -26,14 +26,20 @@ def load_triggers(path: Path) -> list[dict]:
     if not path.exists():
         return []
     entries = []
-    with open(path) as f:
-        for line in f:
-            line = line.strip()
+    # Binary-safe: the trigger log accumulates occasional non-utf8 bytes from
+    # hook detail strings; a plain text open() raises UnicodeDecodeError and
+    # crashes the whole report (this silently broke the tool, which is part of
+    # why the ledger went unconsumed — fixed 2026-06-01).
+    with open(path, "rb") as f:
+        for raw in f:
+            line = raw.decode("utf-8", "replace").strip()
             if line:
                 try:
-                    entries.append(json.loads(line))
+                    obj = json.loads(line)
                 except json.JSONDecodeError:
                     continue
+                if isinstance(obj, dict):  # skip bare JSON strings/scalars
+                    entries.append(obj)
     return entries
 
 
@@ -164,19 +170,51 @@ def main(days: int = 7, verbose: bool = False):
     if verbose and triggers:
         print(f"  All-time: {len(triggers)} total triggers")
 
-    # Recommendations
+    # Recommendations — bidirectional triage by volume x block-rate.
+    #
+    # Key principle (2026-06-01, after the spinning-detector rot): high triggers
+    # + 0 blocks is NOT a promote signal. For advisory hooks (warn/suggest/
+    # remind) the agent reads every single fire and ignores most of them; a
+    # high-volume advisory hook is NOISE to cull or narrow, not aggression to
+    # add. The old logic here said "0 blocks -> PROMOTE to block" — which for
+    # the spinning detector (~1945 fires/wk, 0 blocks, PostToolUse so it CANNOT
+    # block) was exactly backwards. It was silenced, not promoted.
+    ADVISORY = {"warn", "warn-only", "suggest", "remind", "advise", "log"}
+    # Noise floor scales with the corpus so it stays meaningful at any window.
+    total_fires = sum(a["total"] for _, a in sorted_hooks) or 1
+    noise_floor = max(50, total_fires // 50)
     print("  Recommendations:")
+    print("  (Candidates for judgment, not auto-actions. A high-volume advisory that")
+    print("   enforces a real contract — e.g. source/provenance grading — is working")
+    print("   as intended; cull NOISE, not enforcement. See feedback_hook_roi_ledger.)")
+    printed = False
     for hook, actions in sorted_hooks:
         total = actions["total"]
         blocks = actions.get("block", 0)
         if total == 0:
             continue
+        advisory = sum(actions.get(a, 0) for a in ADVISORY)
         if blocks > 10 and blocks / total > 0.8:
-            print(f"    DEMOTE? {hook} — {blocks}/{total} blocks ({blocks/total:.0%}). May be too aggressive.")
-        elif total > 20 and blocks == 0:
-            print(f"    PROMOTE? {hook} — {total} triggers, 0 blocks. Consider upgrading to block.")
-    if not any(a["total"] > 10 for _, a in sorted_hooks):
-        print("    (Not enough data yet for recommendations. Collect more triggers.)")
+            print(f"    DEMOTE? {hook} — {blocks}/{total} blocks ({blocks/total:.0%}). "
+                  f"Too aggressive; likely false-positive-heavy.")
+            printed = True
+        elif blocks == 0 and total >= noise_floor and advisory >= 0.9 * total:
+            print(f"    CULL/NARROW? {hook} — {total} fires, 0 blocks, {advisory} advisory. "
+                  f"High-volume nag the agent reads every turn and ignores. Silence it, "
+                  f"narrow the matcher, fire once instead of per-call, or move to "
+                  f"PreToolUse if it should actually PREVENT the action (PostToolUse "
+                  f"advisories can only nag after the fact).")
+            printed = True
+        elif blocks == 0 and 20 <= total < noise_floor and advisory == total:
+            print(f"    REVIEW? {hook} — {total} fires, 0 blocks. If this is a real "
+                  f"recurring problem AND the hook runs PreToolUse, consider a hard block; "
+                  f"otherwise it is working as an advisory — leave it.")
+            printed = True
+    if not printed:
+        if not any(a["total"] > 10 for _, a in sorted_hooks):
+            print("    (Not enough data yet for recommendations. Collect more triggers.)")
+        else:
+            print("    (No hooks flagged — block-rates and volumes look healthy.)")
     print()
 
 
