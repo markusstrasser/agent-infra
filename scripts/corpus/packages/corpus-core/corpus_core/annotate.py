@@ -175,22 +175,44 @@ def _serialize_record(record: dict[str, Any]) -> bytes:
     return line + b"\n"
 
 
-def _existing_annotation_id(source_id: str, annotation_id: str) -> bool:
-    """Tail-scan annotations.jsonl for the given annotation_id.
+def _existing_annotation_record(
+    source_id: str, annotation_id: str
+) -> dict[str, Any] | None:
+    """Scan annotations.jsonl for the record with the given annotation_id.
 
-    Idempotency check: same stable_tuple → same annotation_id → skip the write.
+    Returns the parsed record (the last one, if duplicates ever exist), or None.
+    Idempotency is content-keyed: same stable_tuple → same annotation_id. The
+    CALLER must still compare lifecycle fields (status / supersedes /
+    source_content_hash) that are excluded from the id, so a same-content
+    correction is not silently swallowed as a no-op.
     """
     path = _annotations_path(source_id)
     if not path.exists():
-        return False
-    needle = f'"annotation_id":"{annotation_id}"'.encode("utf-8")
+        return None
+    needle = f'"annotation_id":"{annotation_id}"'
     # Annotations files are small; full read is fine until graph.duckdb
     # projection (Phase 2) handles reverse lookups.
+    found: dict[str, Any] | None = None
     try:
-        with open(path, "rb") as fh:
-            return needle in fh.read()
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                if needle not in line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if rec.get("annotation_id") == annotation_id:
+                    found = rec
     except OSError:
-        return False
+        return None
+    return found
+
+
+# Lifecycle fields deliberately EXCLUDED from annotation_stable_tuple (so a
+# replayed record keeps its id). A re-append that changes any of these but
+# nothing else is a same-content CORRECTION — it must not be silently dropped.
+_LIFECYCLE_DISCRIMINATORS = ("status", "supersedes_annotation_id", "source_content_hash")
 
 
 def _atomic_append(path: Path, payload: bytes) -> None:
@@ -298,8 +320,31 @@ def annotate(
     annotation_id = annotation_id_from_tuple(stable_tuple)
     idempotency_key = annotation_idempotency_key(stable_tuple)
 
-    # Idempotency: re-append is a no-op.
-    if _existing_annotation_id(source_id, annotation_id):
+    # Idempotency: re-append of the SAME content is a no-op — but only if the
+    # lifecycle fields excluded from the id (status / supersedes /
+    # source_content_hash) ALSO match. If they differ, this is a same-content
+    # correction (e.g. a same-actor retraction, or re-attesting a verdict
+    # against a re-parsed source). Silently dropping it would let the
+    # append-only trail swallow a correction; fail loud instead and tell the
+    # caller to fork the id (new output_uri/output_hash) for a genuine new event.
+    existing = _existing_annotation_record(source_id, annotation_id)
+    if existing is not None:
+        incoming = {
+            "status": status,
+            "supersedes_annotation_id": supersedes_annotation_id,
+            "source_content_hash": source_content_hash,
+        }
+        for field in _LIFECYCLE_DISCRIMINATORS:
+            old = existing.get(field) if field != "status" else existing.get("status", "active")
+            if incoming[field] != old:
+                raise AnnotationError(
+                    f"annotation_id {annotation_id} already exists for {source_id} "
+                    f"with identical content, but this call changes {field!r} "
+                    f"({old!r} → {incoming[field]!r}) — a field excluded from the "
+                    "content-addressed id. A same-content correction must NOT be "
+                    "dropped as an idempotent no-op. To record it, fork the id with "
+                    "a new output_uri/output_hash (a distinct attestation event)."
+                )
         return annotation_id
 
     # Time stamps.

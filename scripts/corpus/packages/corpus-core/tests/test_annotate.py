@@ -180,6 +180,62 @@ def test_supersedes_link_recorded(corpus_root):
     assert second["status"] == "active"
 
 
+# --- lifecycle-aware idempotency: a same-content correction must not be swallowed ---
+
+
+def test_same_content_retraction_not_silently_dropped(corpus_root):
+    """A correction reusing the same content tuple but flipping status must NOT
+    be swallowed as an idempotent no-op — that would erase the correction from
+    the append-only trail. status is excluded from annotation_id, so pre-guard
+    this returned the original id with no write and no error (silent swallow).
+    Red-handed: raises only with the lifecycle guard in place.
+    """
+    a1 = annotate(
+        SOURCE_ID, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
+        scope="verdict",
+    )
+    # Same actor/scope/repo/output → same stable_tuple → same annotation_id;
+    # only status differs. Must fail loud, not silently drop.
+    with pytest.raises(AnnotationError, match="status"):
+        annotate(
+            SOURCE_ID, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
+            scope="verdict", status="retracted",
+        )
+    rows = _read_lines(corpus_root)
+    assert len(rows) == 1
+    assert rows[0]["annotation_id"] == a1
+    assert rows[0]["status"] == "active"
+
+
+def test_source_content_hash_change_not_dropped(corpus_root):
+    """Re-attesting the same verdict (same output) against a re-parsed source
+    (new source_content_hash) is a correction, not a no-op — must raise."""
+    annotate(
+        SOURCE_ID, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
+        scope="verdict", source_content_hash="a" * 64,
+    )
+    with pytest.raises(AnnotationError, match="source_content_hash"):
+        annotate(
+            SOURCE_ID, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
+            scope="verdict", source_content_hash="b" * 64,
+        )
+
+
+def test_identical_lifecycle_still_idempotent(corpus_root):
+    """Regression guard: a true re-append (content AND lifecycle identical) stays
+    a silent no-op — the guard must not break legitimate idempotency."""
+    a1 = annotate(
+        SOURCE_ID, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
+        scope="verdict", status="active", source_content_hash="c" * 64,
+    )
+    a2 = annotate(
+        SOURCE_ID, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
+        scope="verdict", status="active", source_content_hash="c" * 64,
+    )
+    assert a1 == a2
+    assert len(_read_lines(corpus_root)) == 1
+
+
 # --- atomic concurrent append (50 writers, no torn lines, no duplicates beyond idempotency) ---
 
 
