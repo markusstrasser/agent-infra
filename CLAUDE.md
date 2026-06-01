@@ -174,6 +174,14 @@ retry_count; ≥3 retries flips status to `'abandoned'` (audit reports).
    `genomics/migrations/2026-05-26-pending-corpus-attestations.sql`.
 2. Inside your gateway transaction, INSERT annotation intent — see
    `genomics/scripts/knowledge/mutation_gateway.py:_enqueue_corpus_attestation`.
+   For a **claim_relation** intent, do NOT hand-roll the INSERT: call
+   `corpus_core.outbox.enqueue_relation(con, relation=…, natural_key={…}, …)`.
+   It validates the relation against the closed corpus schema EAGERLY (a
+   malformed body fails at enqueue, not hours later at drain) and owns the
+   one shared INSERT shape. The relation schema is closed — only
+   relation_class/subject_refs/object_refs/detector/kind/grade_weight/
+   home_pair_id/home_verdict_id/spans; rich evidence belongs in a provenance
+   manifest, not the relation body.
 3. After the transaction commits AND your lock is released, drain the
    outbox via `corpus_core.annotate` with narrow exception types — see
    `_drain_pending_corpus_attestations` in the same file.
