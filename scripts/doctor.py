@@ -236,6 +236,47 @@ def check_memory_health() -> list[Check]:
     return checks
 
 
+def check_test_health() -> list[Check]:
+    """Surface the latest per-repo test-suite outcome (scripts/test_health.py).
+
+    A suite that did NOT complete (crash / collection-abort / timeout) is a
+    FAIL: it produces no regression verdict, so drift accumulates invisibly.
+    A stale sentinel (>2 days) is itself a blind spot → warn."""
+    log = CLAUDE_DIR / "test-health.jsonl"
+    if not log.exists():
+        return [Check("test-health", "global").warn("never run — `just test-health`")]
+    latest: dict[str, dict] = {}
+    try:
+        for line in log.read_text().splitlines():
+            if line.strip():
+                rec = json.loads(line)
+                latest[rec["repo"]] = rec  # append-ordered → last wins
+    except (json.JSONDecodeError, OSError, KeyError):
+        return [Check("test-health", "global").warn("unreadable test-health.jsonl")]
+
+    checks: list[Check] = []
+    newest = ""
+    for repo, rec in sorted(latest.items()):
+        newest = max(newest, rec.get("ts", ""))
+        c = Check(f"test-health:{repo}", "global")
+        counts = rec.get("counts", {})
+        if not rec.get("completed"):
+            checks.append(c.fail(f"suite did NOT complete: {rec.get('outcome', '?')}"))
+        elif counts.get("failed") or counts.get("errors"):
+            checks.append(c.warn(f"{counts.get('failed', 0)} failed, {counts.get('errors', 0)} errors"))
+        else:
+            checks.append(c.ok(f"{counts.get('passed', 0)} passed"))
+
+    try:
+        age = datetime.now(timezone.utc) - datetime.fromisoformat(newest)
+        if age > timedelta(days=2):
+            checks.append(Check("test-health:freshness", "global").warn(
+                f"last run {age.days}d ago — sentinel may not be running"))
+    except (ValueError, TypeError):
+        pass
+    return checks
+
+
 def check_git_state(project_dir: Path) -> list[Check]:
     """Check git repository health."""
     c = Check("git", project_dir.name)
@@ -437,6 +478,7 @@ def run_all_checks(project_filter: str | None = None) -> list[Check]:
         all_checks.extend(check_memory_health())
         all_checks.extend(check_stale_agents())
         all_checks.extend(check_telemetry_freshness())
+        all_checks.extend(check_test_health())
 
         # Global CLAUDE.md
         gc = Check("global:CLAUDE.md", "global")
