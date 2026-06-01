@@ -434,6 +434,22 @@ def drain_all() -> dict[str, dict[str, int]]:
     return {src["repo"]: _drain_repo_outbox(src) for src in VERDICTS_SOURCES}
 
 
+def parse_health_section() -> dict[str, Any]:
+    """Advisory parse-state (C0) + parse-health (C2) over the corpus.
+
+    Best-effort: a failure here NEVER affects the audit exit code, and the
+    section is advisory by construction — a pre-marker-modal flat-dump backlog
+    must not re-red the audit (the desensitization E1 just removed). See
+    corpus_core.parse_health.
+    """
+    try:
+        _ensure_corpus_core_importable()
+        from corpus_core.parse_health import parse_health_report
+        return parse_health_report()
+    except Exception as exc:  # never break the audit on parse-health
+        return {"error": str(exc)}
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Audit verdicts ↔ corpus annotations drift")
     parser.add_argument("--json", action="store_true",
@@ -478,6 +494,8 @@ def main(argv: list[str] | None = None) -> int:
     report["abandoned_total"] = sum(abandoned_by_repo.values())
     # Epistemic core: relation↔home-table drift (cross-model close-review).
     report["relations"] = audit_relations()
+    # C0/C2: parse-state + parse-health (advisory — does NOT affect exit code).
+    report["parse_health"] = parse_health_section()
 
     if args.json:
         print(json.dumps(report, indent=2, default=str))
@@ -508,6 +526,14 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {row['repo']:10s}  contradictions={row['contradictions_local']:4d}  "
                   f"relations_active={row['relations_active']:4d}  "
                   f"missing={row['missing_relations']:3d}  orphan={row['orphan_relations']:3d}")
+        ph = report.get("parse_health", {})
+        if "error" not in ph and ph:
+            print()
+            print("Parse health (advisory — not exit-affecting):")
+            print(f"  papers parsed={ph['papers_parsed']:3d}/{ph['papers_total']:3d}  "
+                  f"unparsed={ph['papers_unparsed']:3d}  unhealthy={ph['unhealthy_count']:3d}")
+            for row in ph.get("unhealthy", [])[:10]:
+                print(f"    {row['source_id']:42s} {row['flags']}")
         print()
         if report["abandoned_total"]:
             print(f"WARN: {report['abandoned_total']} abandoned outbox rows need human triage")
