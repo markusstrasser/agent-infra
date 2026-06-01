@@ -223,7 +223,7 @@ def cmd_rebuild_graph(args) -> int:
         rec = ps.get(pid)
         meta = rec.metadata
         con.execute(
-            "INSERT OR REPLACE INTO papers VALUES (?,?,?,?,?,?,?,?,?,?)",
+            "INSERT OR REPLACE INTO papers VALUES (?,?,?,?,?,?,?,?,?)",
             [
                 pid,
                 meta.get("doi"),
@@ -234,7 +234,6 @@ def cmd_rebuild_graph(args) -> int:
                 meta.get("openalex_id"),
                 meta.get("retrieved_at"),
                 meta.get("retraction_status"),
-                meta.get("used_by_repos") or [],
             ],
         )
         n_papers += 1

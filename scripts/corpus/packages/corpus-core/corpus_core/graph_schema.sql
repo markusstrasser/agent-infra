@@ -45,9 +45,14 @@ CREATE TABLE IF NOT EXISTS papers (
   wikidata_qid      TEXT,
   openalex_id       TEXT,
   retrieved_at      TIMESTAMP,
-  retraction_status TEXT,
-  used_by_repos     TEXT[]
+  retraction_status TEXT
 );
+-- A2 (2026-06-01): dropped the dead `used_by_repos TEXT[]` column — it was
+-- 0/209 populated (sourced from metadata.json, never backfilled), had no
+-- reader anywhere, and was a misleading "0 repos use this paper" stat. The
+-- per-source metadata.json `used_by_repos` (read by maintain.py for display)
+-- is unaffected. Idempotent migration for existing DBs:
+ALTER TABLE papers DROP COLUMN IF EXISTS used_by_repos;
 
 -- Substrate-v1 annotations table (per Phase 2 of substrate-migration plan).
 -- Per-source ~/Projects/corpus/<source_id>/annotations.jsonl is the source of
