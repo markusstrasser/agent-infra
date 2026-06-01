@@ -48,7 +48,7 @@ corpus/graph.duckdb              # DERIVED projection (12 MB), rebuilt via `corp
 
 ## 4. `corpus-core` — the package (modules by job)
 - **Identity & paths**: `store` (`PaperRecord`, `store_root()`←`CORPUS_ROOT`, `paper_path`), `uri` (`KNOWN_PROJECT_SCHEMES`), `canonical`, `identity` (content-addressing), `identity_crosswalk`.
-- **Ingest & extract (knowledge IN)**: `ingest` (PDF/URL→parse), `batch`, `extract_citances`, `resolve_references`, `parse_health` (parse-state derivation).
+- **Ingest & extract (knowledge IN)**: `ingest` (PDF/URL→parse), `batch`, `extract_citances`, `resolve_references`, `parse_health` (parse-state derivation), `figure_extract` (on-demand vision extraction of figure DATA → `figure_extraction` annotations; type-dispatched: chart→table, diagram→node-edge, image→description — `corpus figures <id>`).
 - **The ledger (heart)**: `annotate` (**sole writer** of annotations — append-only, namespaced, content-addressed, idempotent), `index` (projects JSONL→duckdb; `epistemic_surface` lives here), `outbox` (cross-repo transactional outbox + `drain`), `schema_version` (reader/writer compat gates), `maintain` (rebuilds), `replay`, `sync`.
 - **Query**: `lookup`, `graph_cli`, `cli`, `annotate_cli`.
 
