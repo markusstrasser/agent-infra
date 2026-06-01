@@ -196,6 +196,10 @@ tags *args:
 hook-telemetry *args:
     uv run python3 scripts/hook-telemetry-report.py {{args}}
 
+# Hook ROI — fire/block triage; flags high-volume advisory NOISE to cull and over-aggressive gates to demote
+hook-roi *args:
+    uv run python3 scripts/hook-roi.py {{args}}
+
 # Hook pesticide-paradox check — per-week trigger slope, flags decayed/plateaued hooks
 [group('epistemic')]
 hook-decay *args:
