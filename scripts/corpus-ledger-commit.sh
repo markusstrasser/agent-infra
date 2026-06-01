@@ -14,12 +14,14 @@ cd "$CORPUS" 2>/dev/null || exit 0
 [ -d .git ] || exit 0
 
 # Stage only the tracked source-of-truth pathspecs (never `git add -A`), incl.
-# any newly-ingested source dirs.
+# any newly-ingested source dirs. `figures/*.md` are on-demand figure-extraction
+# sidecars (paid vision output, not cheaply byte-rederivable) — small text, kept.
 git add -- \
   '*/annotations.jsonl' \
   '*/metadata.json' \
   '*/citances_in.jsonl' \
-  '*/citances_out.jsonl' 2>/dev/null || true
+  '*/citances_out.jsonl' \
+  '*/figures/*.md' 2>/dev/null || true
 
 if git diff --cached --quiet; then
   exit 0  # nothing changed today
