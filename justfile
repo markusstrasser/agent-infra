@@ -154,6 +154,12 @@ fold-detect *args:
 epistemic-lint *args:
     uv run python3 scripts/epistemic-lint.py {{args}}
 
+# Per-model /critique axis quality from .model-review artifacts (report-only).
+# `just critique-health --days 30` for current-config drift; flags noisy axes.
+[group('epistemic')]
+critique-health *args:
+    uv run python3 scripts/critique_health.py {{args}}
+
 # SAFE-lite factual precision check
 [group('epistemic')]
 safe-lite *args:
