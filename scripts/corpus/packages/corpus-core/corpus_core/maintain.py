@@ -6,7 +6,6 @@ on a stale INDEX.json (model-review #11).
 from __future__ import annotations
 
 import argparse
-import importlib.resources
 import json
 import sys
 from pathlib import Path
