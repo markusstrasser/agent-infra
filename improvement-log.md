@@ -3360,3 +3360,11 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Status:** [x] implemented — rule file created
 - **Source:** `artifacts/observe/2026-05-15-genomics-48h/digest.md` (promotion-ready); `candidates.jsonl` id=2026-05-15-preflight-disk-check
 - **Severity:** high (lost session)
+
+### [2026-06-01] SHIPPED: Test-health sentinel — watch whether each suite still COMPLETES
+- **Evidence:** a flaky certificates SIGSEGV (~2/20) aborted `pytest tests/` in phenome, so the full suite never completed. The 2026-05-31 genomics bridge reconciliation then broke 4 phenome consumers (parse_genomics, genomics_consumer ×2, sync_genomics_bridge collection-abort) — all undetected for ~6 days because a non-completing suite produces NO regression signal. `doctor.py` checked hooks/config; nothing watched whether the suites themselves ran.
+- **Failure mode:** the error-correction system (the test suite) can silently die, and nothing watched the watcher. A single crashing/flaky test blinds the entire suite.
+- **Fix:** `scripts/test_health.py` + `just test-health` + daily local launchd `com.agent-infra.test-health` (zero-API, report-only). Per repo it records COMPLETED (passed/failed) vs DID-NOT-COMPLETE (crashed/collection_error/timeout) to `~/.claude/test-health.jsonl`; exits non-zero only on did-not-complete (the high-signal alarm). Surfaced in `just doctor`. Monitors phenome + agent-infra (wholesale-runnable); genomics deliberately excluded (no canonical full-suite entrypoint → would false-alarm daily), intel (no tests/).
+- **First finding:** agent-infra's own suite has 13 pre-existing failures (test_codex_dispatch, test_token_reduction percentiles, test_skill_consolidation) — surfaced immediately, previously unwatched (the `smoke` recipe runs only 3 unittest modules).
+- **Status:** [x] implemented — script + 8 unit tests + recipe + plist (loaded) + doctor surface
+- **Severity:** high (6-day masked cross-repo drift)

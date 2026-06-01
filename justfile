@@ -71,6 +71,12 @@ mcp-health:
 doctor:
     uv run python3 scripts/doctor.py
 
+# Per-repo test-suite health: does each suite still COMPLETE (vs crash/abort)?
+# Watches the regression signal itself — a non-completing suite produces none.
+[group('health')]
+test-health *args:
+    uv run python3 scripts/test_health.py {{args}}
+
 # Audit verdicts ↔ corpus-annotation drift (substrate-v1, Phase 4 backstop)
 [group('health')]
 audit-corpus-sync *args:

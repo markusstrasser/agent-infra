@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.agent-infra.test-health</string>
+
+    <!--
+      Test-health sentinel — watches whether each repo's test suite still
+      COMPLETES (vs crashes / aborts collection / times out). A non-completing
+      suite produces NO regression signal; a flaky hard crash once masked 4
+      clusters of cross-repo drift for ~6 days. Local, zero-API, report-only.
+      Appends per-repo outcomes to ~/.claude/test-health.jsonl for trend; exits
+      non-zero only on a DID-NOT-COMPLETE (the high-signal alarm). Surfaced via
+      `just doctor` and `just test-health`.
+    -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/alien/Projects/agent-infra/.venv/bin/python3</string>
+        <string>/Users/alien/Projects/agent-infra/scripts/test_health.py</string>
+        <string>--json</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/alien/Projects/agent-infra</string>
+
+    <!-- Daily at 05:30 (after audit-corpus-sync 04:30 + corpus-ledger-commit 05:00). -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>5</integer>
+        <key>Minute</key>
+        <integer>30</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/alien/.claude/logs/test-health.out</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/alien/.claude/logs/test-health.err</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/alien/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+</dict>
+</plist>
