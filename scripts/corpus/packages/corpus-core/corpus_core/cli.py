@@ -26,6 +26,7 @@ from . import extract_citances as _cites
 from . import sync as _sync
 from . import maintain as _maintain
 from . import graph_cli as _graph
+from . import figure_extract as _figures
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -39,6 +40,7 @@ def build_parser() -> argparse.ArgumentParser:
     _sync.add_cli(subs)
     _maintain.add_cli(subs)
     _graph.add_cli(subs)
+    _figures.add_cli(subs)
     return parser
 
 
