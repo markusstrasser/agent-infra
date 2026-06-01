@@ -262,8 +262,11 @@ def check_test_health() -> list[Check]:
         counts = rec.get("counts", {})
         if not rec.get("completed"):
             checks.append(c.fail(f"suite did NOT complete: {rec.get('outcome', '?')}"))
+        elif rec.get("regressed"):
+            # got worse since last run — escalate above chronic-but-stable failures
+            checks.append(c.fail(f"regressed: {rec.get('regression_note', '?')}"))
         elif counts.get("failed") or counts.get("errors"):
-            checks.append(c.warn(f"{counts.get('failed', 0)} failed, {counts.get('errors', 0)} errors"))
+            checks.append(c.warn(f"{counts.get('failed', 0)} failed, {counts.get('errors', 0)} errors (stable)"))
         else:
             checks.append(c.ok(f"{counts.get('passed', 0)} passed"))
 

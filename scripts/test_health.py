@@ -98,6 +98,48 @@ def parse_counts(summary_tail: str) -> dict[str, int]:
     return counts
 
 
+def is_regression(current: dict, previous: dict | None) -> tuple[bool, str]:
+    """Did the suite get WORSE than its previous run? Pure (unit-tested).
+
+    The completion check answers "is the signal alive"; this answers "did it
+    regress" — the common drift mode where a suite still RUNS but more tests
+    fail. Regression = a previously-completing suite stopped completing, OR a
+    completing suite gained failures/errors. No previous run → never a regression
+    (nothing to compare). "Fewer passes" alone is NOT flagged — that's ambiguous
+    (tests can be legitimately removed); only an INCREASE in failing tests is.
+    """
+    if not previous:
+        return False, ""
+    if previous.get("completed") and not current.get("completed"):
+        return True, f"stopped completing → {current.get('outcome')}"
+    if current.get("completed") and previous.get("completed"):
+        cur = current.get("counts") or {}
+        prev = previous.get("counts") or {}
+        cur_bad = cur.get("failed", 0) + cur.get("errors", 0)
+        prev_bad = prev.get("failed", 0) + prev.get("errors", 0)
+        if cur_bad > prev_bad:
+            return True, f"failing {prev_bad}→{cur_bad}"
+    return False, ""
+
+
+def load_prior(log_path: Path, repos: set[str]) -> dict[str, dict]:
+    """Latest prior record per repo from the JSONL (append-ordered → last wins).
+    Read BEFORE this run's records are written, so it is the previous baseline."""
+    prior: dict[str, dict] = {}
+    if not log_path.exists():
+        return prior
+    for line in log_path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if rec.get("repo") in repos:
+            prior[rec["repo"]] = rec
+    return prior
+
+
 @dataclass
 class SuiteResult:
     ts: str
@@ -158,12 +200,14 @@ def _monotonic() -> float:
     return time.monotonic()
 
 
-def _icon(r: SuiteResult) -> str:
-    if r.outcome == "passed":
-        return "✓"
-    if not r.completed:
+def _icon_rec(rec: dict) -> str:
+    if not rec["completed"] and rec["outcome"] != "no_repo":
         return "✗"  # did not complete — the alarm
-    return "!"      # completed with failures
+    if rec.get("regressed"):
+        return "⤓"  # completing, but worse than last run
+    if rec["outcome"] == "passed":
+        return "✓"
+    return "!"      # completed with (unchanged) failures — report-only
 
 
 def main() -> int:
@@ -174,35 +218,59 @@ def main() -> int:
 
     now = datetime.now(timezone.utc).isoformat()
     suites = [s for s in SUITES if not args.repo or s.repo == args.repo]
+    prior = load_prior(STATUS_LOG, {s.repo for s in suites})  # BEFORE we append
     results = [run_suite(s, now=now) for s in suites]
+
+    # Augment each record with its regression verdict vs the previous run, then
+    # persist (so the flag rides in the trend + is readable by `doctor`).
+    records: list[dict] = []
+    for r in results:
+        rec = asdict(r)
+        regressed, note = is_regression(rec, prior.get(r.repo))
+        rec["regressed"] = regressed
+        rec["regression_note"] = note
+        records.append(rec)
 
     STATUS_LOG.parent.mkdir(parents=True, exist_ok=True)
     with STATUS_LOG.open("a", encoding="utf-8") as fh:
-        for r in results:
-            fh.write(json.dumps(asdict(r), sort_keys=True) + "\n")
+        for rec in records:
+            fh.write(json.dumps(rec, sort_keys=True) + "\n")
 
-    did_not_complete = [r for r in results if not r.completed and r.outcome != "no_repo"]
+    did_not_complete = [rec for rec in records
+                        if not rec["completed"] and rec["outcome"] != "no_repo"]
+    # A regression in a still-COMPLETING suite — the drift case the completion
+    # check alone misses (suite runs, but more tests fail than last time).
+    regressions = [rec for rec in records if rec["regressed"] and rec["completed"]]
+    alarm = bool(did_not_complete or regressions)
 
     if args.json:
-        print(json.dumps({"ts": now, "results": [asdict(r) for r in results],
-                          "alarm": [r.repo for r in did_not_complete]}, indent=2))
+        print(json.dumps({
+            "ts": now, "results": records,
+            "did_not_complete": [r["repo"] for r in did_not_complete],
+            "regressions": [{"repo": r["repo"], "note": r["regression_note"]} for r in regressions],
+            "alarm": alarm,
+        }, indent=2))
     else:
         print("[test-health]")
-        for r in results:
-            c = r.counts
+        for rec in records:
+            c = rec["counts"]
             tally = " ".join(f"{c[k]}{k[0]}" for k in ("passed", "failed", "errors", "skipped") if c.get(k))
-            print(f"  {_icon(r)} {r.repo:14} {r.outcome:16} {tally or '—':24} {r.duration_s:>6}s")
+            flag = "  ⤓ REGRESSED: " + rec["regression_note"] if rec["regressed"] else ""
+            print(f"  {_icon_rec(rec)} {rec['repo']:14} {rec['outcome']:16} {tally or '—':24} {rec['duration_s']:>6}s{flag}")
         if did_not_complete:
             print(f"\n  ✗ ALARM: {len(did_not_complete)} suite(s) did not complete: "
-                  f"{', '.join(r.repo for r in did_not_complete)}")
+                  f"{', '.join(r['repo'] for r in did_not_complete)}")
             print("    A non-completing suite produces NO regression signal — investigate.")
-        else:
-            print("\n  ✓ all suites completed (verdicts are live)")
+        if regressions:
+            print(f"\n  ⤓ ALARM: {len(regressions)} suite(s) regressed since last run: "
+                  + ", ".join(f"{r['repo']} ({r['regression_note']})" for r in regressions))
+        if not alarm:
+            print("\n  ✓ all suites completed, none regressed")
 
-    # Exit non-zero only on a DID-NOT-COMPLETE (the high-signal alarm); ordinary
-    # test failures are surfaced but don't fail the sentinel (report-only on
-    # regressions — they're visible in the normal suite anyway).
-    return 1 if did_not_complete else 0
+    # Exit non-zero on a DID-NOT-COMPLETE (signal dead) OR a regression (signal
+    # got worse). Standing pre-existing failures that are UNCHANGED don't alarm —
+    # only a transition does, so this fires on the edge, not as a daily nag.
+    return 1 if alarm else 0
 
 
 if __name__ == "__main__":
