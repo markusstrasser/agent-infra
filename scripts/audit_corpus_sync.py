@@ -527,13 +527,17 @@ def main(argv: list[str] | None = None) -> int:
                   f"relations_active={row['relations_active']:4d}  "
                   f"missing={row['missing_relations']:3d}  orphan={row['orphan_relations']:3d}")
         ph = report.get("parse_health", {})
-        if "error" not in ph and ph:
+        if ph.get("error"):
+            # Surface the advisory failure (still NEVER exit-affecting) so an
+            # import/disk fault isn't silently swallowed (close-review #10).
+            print(f"WARN: parse-health advisory failed: {ph['error']}", file=sys.stderr)
+        elif ph:
             print()
             print("Parse health (advisory — not exit-affecting):")
-            print(f"  papers parsed={ph['papers_parsed']:3d}/{ph['papers_total']:3d}  "
-                  f"unparsed={ph['papers_unparsed']:3d}  unhealthy={ph['unhealthy_count']:3d}")
+            print(f"  papers parsed={ph.get('papers_parsed', 0):3d}/{ph.get('papers_total', 0):3d}  "
+                  f"unparsed={ph.get('papers_unparsed', 0):3d}  unhealthy={ph.get('unhealthy_count', 0):3d}")
             for row in ph.get("unhealthy", [])[:10]:
-                print(f"    {row['source_id']:42s} {row['flags']}")
+                print(f"    {row.get('source_id', '?'):42s} {row.get('flags', [])}")
         print()
         if report["abandoned_total"]:
             print(f"WARN: {report['abandoned_total']} abandoned outbox rows need human triage")
