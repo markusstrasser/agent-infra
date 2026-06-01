@@ -336,6 +336,7 @@ The honest answer: MEMORY.md will always have some attention advantage due to po
 
 | Question | Look here |
 |----------|-----------|
+| How is the science-graph substrate wired? | `corpus-substrate-architecture.md` (corpus store + corpus-core + claim layers) |
 | Why does a hook fire? | `~/.claude/settings.json` → hook path → read the script |
 | What rules load for project X? | `{project}/CLAUDE.md` + `{project}/.claude/rules/` + `~/.claude/CLAUDE.md` + `~/.claude/rules/` |
 | What MCP tools are available? | `{project}/.mcp.json` + `~/.claude/mcp.json` + deferred tool list in session |
