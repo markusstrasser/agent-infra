@@ -1016,26 +1016,84 @@ ok "tool-tracker.sh"
 # --- spinning-detector.sh — Detect tool-call loops ---
 cat > "$HOME/.claude/hooks/spinning-detector.sh" <<'SPINNING'
 #!/usr/bin/env bash
-# Detect agent stuck in tool-call loops. PostToolUse hook.
+# spinning-detector.sh — Catch exact-repeat tool-call loops. PostToolUse hook.
+#
+# ONE signal: the identical tool_name+tool_input hash repeated 8x in a row.
+# That is an unambiguous loop — legitimate code never needs to run the exact
+# same call eight consecutive times; real retries converge within 3-4. Fired
+# ONCE, at the threshold crossing.
+#
+# What this hook deliberately does NOT do (removed 2026-06-01 after the 24h
+# trigger log showed ~1900 fires/day, 0 blocks, all advisory noise the agent
+# read and ignored):
+#   - No "same tool, varying args" advisories. Read-heavy audits and batch
+#     verification legitimately call one tool 20-40x with different args; the
+#     per-tool ceilings produced zero useful blocks and the harness reformatted
+#     them as "BLOCKED", actively misleading the agent.
+#   - No Bash handling. Bash loops are caught upstream by the PreToolUse
+#     pretool-bash-loop-guard.sh (real block) and posttool-bash-failure-loop.sh.
+#   - No warn-at-5 pre-nag, and no re-firing on every call past threshold
+#     (the old >=8 branch logged ~23x per 30-call episode — pure amplification).
+#
+# State keyed by hook input session_id so each subagent gets its own counter
+# (sharing the parent's via $PPID once wasted a 122K-token dispatch, 2026-05-10);
+# falls back to $PPID outside a session context.
+
 trap 'exit 0' ERR
+
 INPUT=$(cat)
-TOOL=$(echo "$INPUT" | python3 -c 'import sys,json
-try: print(json.load(sys.stdin).get("tool_name",""))
-except: print("")' 2>/dev/null)
+
+read -r TOOL HASH SID <<<"$(echo "$INPUT" | python3 -c '
+import sys, json, hashlib
+try:
+    d = json.load(sys.stdin)
+    tool = d.get("tool_name", "")
+    payload = json.dumps(d.get("tool_input", {}), sort_keys=True, default=str)
+    h = hashlib.sha1(f"{tool}::{payload}".encode()).hexdigest()[:16]
+    sid = (d.get("session_id") or "").replace(" ", "")[:32] or "_"
+    print(f"{tool} {h} {sid}")
+except Exception:
+    print("")
+' 2>/dev/null)"
+
 [[ -z "$TOOL" ]] && exit 0
-STATE="/tmp/claude-spinning-$PPID"
-if [[ -f "$STATE" ]]; then
-  LAST_TOOL=$(sed -n '1p' "$STATE"); COUNT=$(sed -n '2p' "$STATE"); COUNT=${COUNT:-0}
+
+if [[ -n "$SID" && "$SID" != "_" ]]; then
+  STATE="${SPIN_STATE_OVERRIDE:-/tmp/claude-spinning-sid-$SID}"
 else
-  LAST_TOOL=""; COUNT=0
+  STATE="${SPIN_STATE_OVERRIDE:-/tmp/claude-spinning-$PPID}"
 fi
-[[ "$TOOL" == "$LAST_TOOL" ]] && COUNT=$((COUNT + 1)) || COUNT=1
-printf '%s\n%s\n' "$TOOL" "$COUNT" > "$STATE"
-if (( COUNT == 4 )); then
-  echo "{\"additionalContext\": \"SPINNING WARNING: You have called $TOOL $COUNT times consecutively. You may be stuck in a loop. Stop and reconsider your approach.\"}"
-elif (( COUNT >= 8 )); then
-  echo "{\"additionalContext\": \"SPINNING ALERT: $TOOL called $COUNT times consecutively. STOP. Try a completely different approach.\"}"
+
+# State: last_hash on line 1, identical_count on line 2.
+if [[ -f "$STATE" ]]; then
+  LAST_HASH=$(sed -n '1p' "$STATE")
+  IDENTICAL_COUNT=$(sed -n '2p' "$STATE")
+  IDENTICAL_COUNT=${IDENTICAL_COUNT:-0}
+else
+  LAST_HASH=""
+  IDENTICAL_COUNT=0
 fi
+
+if [[ "$HASH" == "$LAST_HASH" ]]; then
+  IDENTICAL_COUNT=$((IDENTICAL_COUNT + 1))
+else
+  IDENTICAL_COUNT=1
+fi
+
+printf '%s\n%s\n' "$HASH" "$IDENTICAL_COUNT" > "$STATE"
+
+# Human override.
+[[ -f "/tmp/claude-spinning-bypass-$PPID" ]] && exit 0
+
+# Single firm advisory at the threshold crossing — once, not on every repeat.
+if (( IDENTICAL_COUNT == 8 )); then
+  ~/Projects/skills/hooks/hook-trigger-log.sh "spinning" "warn" "$TOOL identical x8" 2>/dev/null || true
+  printf '{"ts":"%s","tool":"%s","identical":%d,"ppid":"%s"}\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$TOOL" "$IDENTICAL_COUNT" "$PPID" \
+    >> "$HOME/.claude/spinning-shadow.jsonl" 2>/dev/null || true
+  echo "{\"additionalContext\": \"SPINNING: you have made the EXACT SAME $TOOL call 8 times in a row (identical arguments). This is a loop — the result will not change. Stop, reconsider what you expected, and change your approach or ask the user.\"}"
+fi
+
 exit 0
 SPINNING
 chmod +x "$HOME/.claude/hooks/spinning-detector.sh"
