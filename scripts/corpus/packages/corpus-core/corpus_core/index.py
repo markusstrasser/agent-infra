@@ -14,7 +14,7 @@ import json
 from pathlib import Path
 from typing import Any, Iterator, Optional
 
-from .store import iter_papers, paper_path, store_root
+from .store import paper_path, store_root
 
 
 # Columns in the order INSERT expects.
@@ -271,12 +271,19 @@ def rebuild_annotations_index(graph_db_path: Path | None = None) -> dict[str, in
 
     Source discovery walks the corpus root directly (one level deep) and
     selects any subdir containing annotations.jsonl — NOT just dirs with
-    metadata.json. Synthetic annotation-only sources (e.g. genomics' verdict
-    sources `pubmed_asof`, `pubmed_conflict` written by the substrate-v2
-    backfill without ingest) are valid attestation targets even without a
-    metadata.json. Using iter_papers() here previously dropped these
-    annotations on rebuild — the per-call index_annotation path inserted
-    them, then the rebuild nuked them.
+    metadata.json. A legitimate annotation-only synthetic source (one written
+    by a substrate backfill without a separate ingest, hence no metadata.json)
+    is still a valid attestation target. Using iter_papers() here previously
+    dropped such sources on rebuild — the per-call index_annotation path
+    inserted them, then the rebuild nuked them.
+
+    NOTE: the earlier version of this docstring cited `pubmed_asof` /
+    `pubmed_conflict` as examples of legitimate synthetic sources. Those were
+    actually test-fixture pollution (actor `urn:agent:model:m1`, verdict_ids
+    absent from genomics' claim_verdicts) that leaked into the live corpus
+    before the test-isolation autouse fixtures landed; they were removed
+    2026-06-01 (E1). The iterdir-not-iter_papers behaviour above is still
+    correct as a general invariant — it just had a mislabeled example.
     """
     from .store import store_root
 
