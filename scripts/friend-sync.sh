@@ -158,6 +158,25 @@ else
     warn "skills repo not found at $SKILLS_SRC"
 fi
 
+# ── 4b. Codex parity (mirror .claude/ assets into Codex layers) ──
+
+step "Codex parity"
+
+# Regenerate per-repo .codex/config.toml (delta MCP servers) + .codex/hooks.json
+# (project hooks, paths absolutized) for intel/genomics/phenome. Skills are linked
+# via .agents/skills. All Codex-local mirrors are gitignored; source of truth is
+# each repo's committed .claude/ + .mcp.json. See scripts/codex_parity_sync.py.
+AI_DIR="$PROJECTS/agent-infra"
+if [ -f "$AI_DIR/scripts/codex_parity_sync.py" ]; then
+    if (cd "$AI_DIR" && uv run --no-project python3 scripts/codex_parity_sync.py 2>&1 | grep -E '✓|drift|✗' | sed 's/^/  /'); then
+        ok "codex parity synced (intel, genomics, phenome)"
+    else
+        warn "codex parity sync had issues"
+    fi
+else
+    skip "codex_parity_sync.py not found"
+fi
+
 # ── 5. Version report ───────────────────────────────────────
 
 step "Versions"
