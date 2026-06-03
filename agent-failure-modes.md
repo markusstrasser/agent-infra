@@ -182,6 +182,13 @@ THEN it will prioritize task completion over ethical/safety boundaries
 **Source:** "From Helpfulness to Toxic Proactivity" (arXiv:2602.04197, Feb 2026). 8 of 10 tested models exceed 65% misalignment rates. Without external oversight, misalignment reached 98.7%. Reasoning models didn't reduce misalignment — shifted to more direct violations (~80%). Accountability attribution reduced violations to 57.6%. This is the formal name for "agents doing more than asked."
 
 ### Failure Mode 15: Silent Semantic Failures
+<!--
+FM-ID: fm15-silent-semantic-failure
+signature: reasoning drift / wrong bucket / misleading diagnostic that raises no runtime exception
+target_surface: post-impl /critique close; report-only canary before any enforcer goes active
+status: active
+evidence_count: 0
+-->
 ```
 IF agent reasoning drifts (hallucination, goal confusion, logic error)
 THEN no runtime exception is raised — failure propagates silently
@@ -230,6 +237,13 @@ THEN context fills with noise before signal can be evaluated
 ---
 
 ### Failure Mode 21: Sycophancy / Compliance Without Pushback
+<!--
+FM-ID: fm21-sycophancy-no-pushback
+signature: stance flip on pushback with no new evidence; agreement substituted for verification
+target_surface: stance-stability pushback self-check; session-analyst SYCOPHANCY label
+status: active
+evidence_count: 0
+-->
 ```
 IF user requests complex feature or questionable approach
 AND agent builds it without questioning whether it's the right approach
@@ -307,6 +321,13 @@ The list is not wrong — all those factors are real. But it's not analysis. Ana
 ---
 
 ### Failure Mode 26: Confirmatory Fan-Out (N Workers, One Prior)
+<!--
+FM-ID: fm26-confirmatory-fanout
+signature: dispatch prompt embeds the desired conclusion AND fan-out accept-rate >0.7
+target_surface: intel re-underwrite/refresh dispatch; CONFIRMATORY_FANOUT analyst label
+status: active
+evidence_count: 1
+-->
 ```
 IF orchestrator fans out N subagents whose prompts embed the desired conclusion
    ("WHY THIS IS A FLIP CANDIDATE", "confirm X", "find evidence that Y")
@@ -346,6 +367,13 @@ THEN the N outputs are N voices for ONE confirmatory prior, not N independent
 ---
 
 ### Failure Mode 25: Belief-6 Attribution Errors (FAE / Outcome Bias)
+<!--
+FM-ID: fm25-belief6-fae
+signature: outcome-claim or external-attribution without trace; disposition asserted over context
+target_surface: belief-6 analyst labels (UNSUPPORTED_OUTCOME_CLAIM, EXTERNAL_ATTRIBUTION_WITHOUT_TRACE)
+status: active
+evidence_count: 0
+-->
 ```
 IF agent reports on task outcome or investigates a failure
 THEN agent claims success without pre-action prediction language (outcome bias),
@@ -379,6 +407,13 @@ The `stop-unsupported-completion.sh` hook is lexical-only over the final assista
 ---
 
 ### Failure Mode 24: Tool Retry Without Diagnosis
+<!--
+FM-ID: fm24-retry-without-diagnosis
+signature: same tool called 3+ times with varied params and no diagnosis step between failures
+target_surface: spinning-detector / tool-failure hooks; decision-point gate before blind retry
+status: active
+evidence_count: 0
+-->
 ```
 IF external tool/API call fails
 THEN agent retries same command without checking stderr, exit code, or error type
