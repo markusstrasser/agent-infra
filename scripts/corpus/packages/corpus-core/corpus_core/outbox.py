@@ -68,7 +68,7 @@ from .schema_version import (
     seed_outbox_meta,
     verify_outbox_schema,
 )
-from .store import paper_path
+from .store import CorpusStore
 
 if TYPE_CHECKING:
     import duckdb
@@ -307,6 +307,7 @@ class DrainStats:
 def drain(
     db_path: Path | str,
     *,
+    store: CorpusStore,
     repo: str,
     scope: str,
     natural_key_cols: tuple[str, ...],
@@ -326,6 +327,7 @@ def drain(
 
     Args:
         db_path: path to the DuckDB file containing the outbox.
+        store: explicit corpus store handle for annotation JSONL + graph projection.
         repo: corpus_core.uri scheme for this writer (e.g. 'genomics').
         scope: corpus annotation scope (e.g. 'verdict', 'cert_event').
         natural_key_cols: column names that form the natural key, in the
@@ -422,9 +424,10 @@ def drain(
                     f"relation_json must be a JSON object, got {type(relation).__name__}"
                 )
             effective_scope = CLAIM_RELATION_SCOPE if relation is not None else scope
-            paper_path(canon).mkdir(parents=True, exist_ok=True)
+            store.paper_path(canon).mkdir(parents=True, exist_ok=True)
             _annotate(
                 canon,
+                store=store,
                 repo=repo,
                 actor_type=actor_type,
                 actor_id=actor_id,

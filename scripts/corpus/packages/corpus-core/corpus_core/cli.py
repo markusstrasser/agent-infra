@@ -17,7 +17,9 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
+from .store import CorpusStore
 from . import annotate_cli as _annotate
 from . import batch as _batch
 from . import ingest as _ingest
@@ -31,6 +33,12 @@ from . import figure_extract as _figures
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="corpus", description="Canonical corpus store CLI")
+    parser.add_argument(
+        "--corpus-root",
+        required=True,
+        type=Path,
+        help="Explicit corpus store root. Required; no production default exists.",
+    )
     subs = parser.add_subparsers(dest="cmd", required=True)
     _ingest.add_cli(subs)
     _batch.add_cli(subs)
@@ -47,6 +55,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    args.corpus_store = CorpusStore(args.corpus_root)
     return args.func(args) or 0
 
 

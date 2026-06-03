@@ -10,56 +10,60 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterator
 
-from .store import iter_papers, paper_path, store_root
+from .store import CorpusStore
 
 
 @dataclass(frozen=True)
 class SourceRecord:
     source_id: str
+    store: CorpusStore
     metadata: dict[str, Any]
     annotations_path: Path
 
     @property
     def path(self) -> Path:
-        return paper_path(self.source_id)
+        return self.store.paper_path(self.source_id)
 
     def annotations(self) -> list[dict[str, Any]]:
         return _read_jsonl(self.annotations_path)
 
 
-def lookup(source_id: str) -> SourceRecord:
+def lookup(store: CorpusStore, source_id: str) -> SourceRecord:
     """Read metadata.json + return a SourceRecord (annotations on demand).
 
     Raises FileNotFoundError if the source has no metadata.json.
     """
-    p = paper_path(source_id)
+    p = store.paper_path(source_id)
     meta_path = p / "metadata.json"
     if not meta_path.exists():
         raise FileNotFoundError(f"no metadata.json for {source_id} at {meta_path}")
     metadata = json.loads(meta_path.read_text(encoding="utf-8"))
     return SourceRecord(
         source_id=source_id,
+        store=store,
         metadata=metadata,
         annotations_path=p / "annotations.jsonl",
     )
 
 
-def annotations(source_id: str) -> list[dict[str, Any]]:
+def annotations(store: CorpusStore, source_id: str) -> list[dict[str, Any]]:
     """Read all annotations for a source (preserving file order)."""
-    return _read_jsonl(paper_path(source_id) / "annotations.jsonl")
+    return _read_jsonl(store.paper_path(source_id) / "annotations.jsonl")
 
 
-def by_repo(repo: str, *, since: datetime | None = None) -> Iterator[dict[str, Any]]:
+def by_repo(
+    store: CorpusStore, repo: str, *, since: datetime | None = None
+) -> Iterator[dict[str, Any]]:
     """Walk every annotations.jsonl, yield records matching repo (+ optional since).
 
     Phase 1 scan; Phase 2 replaces with a graph.duckdb annotations table query.
     Use sparingly — O(N sources) on cold cache.
     """
     cutoff = since.isoformat() if since else None
-    root = store_root()
+    root = store.root
     if not root.is_dir():
         return
-    for sid in iter_papers():
+    for sid in store.iter_papers():
         path = root / sid / "annotations.jsonl"
         if not path.exists():
             continue

@@ -30,6 +30,7 @@ from typing import Any, Iterable, Optional
 
 from . import SCHEMA_VERSION
 from . import store as ps
+from .store import CorpusStore
 from .extract import ExtractResult
 from .ingest import _ensure_jsonl, _has_any_parsed, _initial_metadata, _write_parsed
 
@@ -67,6 +68,7 @@ def _enumerate_inputs(
 
 
 def _resolve_paper_id_and_skip(
+    store: CorpusStore,
     pdf_path: Path,
     *,
     doi: Optional[str] = None,
@@ -74,10 +76,10 @@ def _resolve_paper_id_and_skip(
 ) -> tuple[str, str, bool]:
     """Returns (paper_id, pdf_sha, already_ingested)."""
     pdf_sha = ps.sha256_file(pdf_path)
-    paper_id = ps.derive_paper_id(doi=doi, pmid=pmid, pdf_sha=pdf_sha)
-    p_path = ps.paper_path(paper_id)
-    if ps.exists(paper_id):
-        existing = ps.get(paper_id)
+    paper_id = store.derive_paper_id(doi=doi, pmid=pmid, pdf_sha=pdf_sha)
+    p_path = store.paper_path(paper_id)
+    if store.exists(paper_id):
+        existing = store.get(paper_id)
         if existing.metadata.get("pdf_sha256") == pdf_sha and _has_any_parsed(p_path):
             return paper_id, pdf_sha, True
     return paper_id, pdf_sha, False
@@ -89,6 +91,7 @@ def _resolve_paper_id_and_skip(
 
 
 def _write_to_store(
+    store: CorpusStore,
     pdf_path: Path,
     paper_id: str,
     pdf_sha: str,
@@ -99,7 +102,7 @@ def _write_to_store(
     doi: Optional[str] = None,
     pmid: Optional[str] = None,
 ) -> dict[str, Any]:
-    p_path = ps.paper_path(paper_id)
+    p_path = store.paper_path(paper_id)
     p_path.mkdir(parents=True, exist_ok=True)
     dest_pdf = p_path / "paper.pdf"
     if not dest_pdf.exists() or ps.sha256_file(dest_pdf) != pdf_sha:
@@ -109,13 +112,13 @@ def _write_to_store(
         paper_id, source_type=source_type, doi=doi, pmid=pmid, title=title,
         pdf_sha=pdf_sha, content_hash=pdf_sha, extra_metadata=None,
     )
-    ps.write_metadata(paper_id, metadata)
+    store.write_metadata(paper_id, metadata)
 
     parsed_dir = _write_parsed(p_path, result, source="pdf")
     metadata["parsed_sha256"] = (parsed_dir / "parsed.sha256").read_text().strip()
     metadata["parser"] = json.loads((parsed_dir / "parser.json").read_text())
     metadata["last_updated"] = ps._now()
-    ps.write_metadata(paper_id, metadata)
+    store.write_metadata(paper_id, metadata)
     _ensure_jsonl(p_path)
     return metadata
 
@@ -126,6 +129,7 @@ def _write_to_store(
 
 
 def batch_ingest(
+    store: CorpusStore,
     inputs: list[Path],
     *,
     parser: str = "marker-modal",
@@ -144,7 +148,7 @@ def batch_ingest(
     candidates: list[tuple[Path, str, str]] = []
     skipped_already_done: list[str] = []
     for pdf in inputs:
-        paper_id, pdf_sha, done = _resolve_paper_id_and_skip(pdf)
+        paper_id, pdf_sha, done = _resolve_paper_id_and_skip(store, pdf)
         if done:
             skipped_already_done.append(paper_id)
             continue
@@ -218,6 +222,7 @@ def batch_ingest(
                     },
                 )
                 meta = _write_to_store(
+                    store,
                     pdf, paper_id, pdf_sha, er,
                     source_type=source_type,
                 )
@@ -239,6 +244,7 @@ def batch_ingest(
                     parser=parser, parser_config=parser_config,
                 )
                 meta = _write_to_store(
+                    store,
                     pdf, paper_id, pdf_sha, er,
                     source_type=source_type,
                 )
@@ -308,6 +314,7 @@ def _cmd_batch(args: argparse.Namespace) -> int:
         parser_config["gemini_model_name"] = args.gemini_model
 
     report = batch_ingest(
+        args.corpus_store,
         inputs,
         parser=args.parser,
         parser_config=parser_config or None,

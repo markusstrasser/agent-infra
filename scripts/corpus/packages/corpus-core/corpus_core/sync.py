@@ -20,17 +20,19 @@ import json
 import sys
 from pathlib import Path
 
-from . import store as ps
+from .store import CorpusStore
 
 
-def sync_from_manifest(manifest_path: Path, *, dry_run: bool = False) -> dict:
+def sync_from_manifest(
+    store: CorpusStore, manifest_path: Path, *, dry_run: bool = False
+) -> dict:
     manifest = json.loads(Path(manifest_path).read_text())
     entries = manifest.get("papers", [])
     missing: list[dict] = []
     present: list[str] = []
     for entry in entries:
         paper_id = entry.get("paper_id")
-        if paper_id and ps.exists(paper_id):
+        if paper_id and store.exists(paper_id):
             present.append(paper_id)
         else:
             missing.append(entry)
@@ -56,5 +58,5 @@ def add_cli(subparsers: argparse._SubParsersAction) -> None:
 
 
 def _cmd_sync(args) -> int:
-    sync_from_manifest(Path(args.manifest), dry_run=args.dry_run)
+    sync_from_manifest(args.corpus_store, Path(args.manifest), dry_run=args.dry_run)
     return 0

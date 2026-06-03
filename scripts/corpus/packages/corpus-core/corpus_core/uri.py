@@ -14,22 +14,13 @@ rewriting paths. The resolver expands schemes to local Path objects.
 """
 from __future__ import annotations
 
-import os
 from pathlib import Path
+
+from .store import CorpusStore
 
 KNOWN_PROJECT_SCHEMES = {
     "genomics", "phenome", "intel", "agent-infra", "research-mcp",
 }
-
-
-def _projects_root() -> Path:
-    return Path(os.environ.get("PROJECTS_ROOT", str(Path.home() / "Projects")))
-
-
-def _corpus_root() -> Path:
-    return Path(
-        os.environ.get("CORPUS_ROOT", str(_projects_root() / "corpus"))
-    )
 
 
 def _split(uri: str) -> tuple[str, str]:
@@ -39,18 +30,18 @@ def _split(uri: str) -> tuple[str, str]:
     return scheme, rest
 
 
-def resolve(uri: str) -> Path:
+def resolve(uri: str, *, corpus_store: CorpusStore, projects_root: Path) -> Path:
     """Expand a corpus:// / project-root:// / repo:// URI to a local Path.
 
     No filesystem check — caller decides whether existence matters.
     """
     scheme, rest = _split(uri)
     if scheme == "corpus":
-        return _corpus_root() / rest
+        return corpus_store.root / rest
     if scheme == "project-root":
-        return _projects_root() / rest
+        return Path(projects_root).expanduser() / rest
     if scheme in KNOWN_PROJECT_SCHEMES:
-        return _projects_root() / scheme / rest
+        return Path(projects_root).expanduser() / scheme / rest
     raise ValueError(
         f"unknown URI scheme {scheme!r} (expected corpus, project-root, or one of {sorted(KNOWN_PROJECT_SCHEMES)})"
     )

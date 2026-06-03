@@ -19,6 +19,7 @@ import urllib.request
 from typing import Optional
 
 from . import store as ps
+from .store import CorpusStore
 
 
 # Header: tolerate marker's `## <span id=...></span>REFERENCES` (HTML tags) and
@@ -227,9 +228,9 @@ def resolve_via_crossref(text: str, timeout: float = 10.0) -> Optional[dict]:
     }
 
 
-def resolve_references(paper_id: str, *, online: bool = False,
+def resolve_references(store: CorpusStore, paper_id: str, *, online: bool = False,
                        llm_fallback: bool = False) -> dict:
-    rec = ps.get(paper_id)
+    rec = store.get(paper_id)
     parsed_md = rec.parsed_markdown_path()
     if parsed_md is None:
         raise FileNotFoundError(
@@ -270,7 +271,7 @@ def resolve_references(paper_id: str, *, online: bool = False,
             "resolved_doi": inline_doi,
             "resolved_pmid": None,
             "resolved_paper_id": (
-                ps.derive_paper_id(doi=inline_doi, check_collision=False) if inline_doi else None
+                ps.derive_paper_id(doi=inline_doi) if inline_doi else None
             ),
             "confidence": 1.0 if inline_doi else 0.0,
             "source": "inline_doi" if inline_doi else None,
@@ -280,7 +281,7 @@ def resolve_references(paper_id: str, *, online: bool = False,
             hit = resolve_via_crossref(e["raw_text"]) or {}
             if hit.get("doi"):
                 record["resolved_doi"] = hit["doi"]
-                record["resolved_paper_id"] = ps.derive_paper_id(doi=hit["doi"], check_collision=False)
+                record["resolved_paper_id"] = ps.derive_paper_id(doi=hit["doi"])
                 record["confidence"] = float(hit.get("score") or 0.0) / 100.0
                 record["source"] = "crossref"
             else:

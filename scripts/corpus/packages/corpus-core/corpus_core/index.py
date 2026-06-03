@@ -14,7 +14,7 @@ import json
 from pathlib import Path
 from typing import Any, Iterator, Optional
 
-from .store import paper_path, store_root
+from .store import CorpusStore
 
 
 # Columns in the order INSERT expects.
@@ -57,11 +57,11 @@ _REL_COLS = (
 )
 
 
-def _connect(graph_db_path: Path | None = None):
+def _connect(store: CorpusStore, graph_db_path: Path | None = None):
     """Open the graph.duckdb (read-write); ensure schema is applied."""
     import duckdb  # type: ignore
 
-    db_path = graph_db_path or (store_root() / "graph.duckdb")
+    db_path = graph_db_path or store.graph_db_path()
     db_path.parent.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect(str(db_path))
     schema_sql = (Path(__file__).parent / "graph_schema.sql").read_text()
@@ -111,8 +111,8 @@ def _derive_repo(record: dict[str, Any]) -> str:
     return repo if isinstance(repo, str) else "unknown"
 
 
-def _read_metadata_source_type(source_id: str) -> Optional[str]:
-    meta_path = paper_path(source_id) / "metadata.json"
+def _read_metadata_source_type(store: CorpusStore, source_id: str) -> Optional[str]:
+    meta_path = store.paper_path(source_id) / "metadata.json"
     if not meta_path.exists():
         return None
     try:
@@ -188,16 +188,21 @@ def _relation_rows(
 # ---------------------------------------------------------------------------
 
 
-def index_annotation(record: dict[str, Any], graph_db_path: Path | None = None) -> None:
+def index_annotation(
+    record: dict[str, Any],
+    *,
+    store: CorpusStore,
+    graph_db_path: Path | None = None,
+) -> None:
     """Insert (or replace) one annotation row into graph.duckdb.
 
     Called from `corpus_core.annotate.annotate()` AFTER a successful JSONL
     append. Failures bubble to the caller — annotate() will swallow them since
     JSONL is the source of truth and the rebuild script can backfill.
     """
-    con = _connect(graph_db_path)
+    con = _connect(store, graph_db_path)
     try:
-        source_type = _read_metadata_source_type(record["source_id"])
+        source_type = _read_metadata_source_type(store, record["source_id"])
         row = _row_from_record(record, source_type=source_type)
         # INSERT OR REPLACE — idempotent on annotation_id (the primary key).
         placeholders = ",".join(["?"] * len(_COLS))
@@ -263,7 +268,11 @@ def _index_relation(con, record: dict[str, Any]) -> None:
     )
 
 
-def rebuild_annotations_index(graph_db_path: Path | None = None) -> dict[str, int]:
+def rebuild_annotations_index(
+    *,
+    store: CorpusStore,
+    graph_db_path: Path | None = None,
+) -> dict[str, int]:
     """Walk every source dir with an annotations.jsonl, replace the annotations
     table.
 
@@ -285,9 +294,7 @@ def rebuild_annotations_index(graph_db_path: Path | None = None) -> dict[str, in
     2026-06-01 (E1). The iterdir-not-iter_papers behaviour above is still
     correct as a general invariant — it just had a mislabeled example.
     """
-    from .store import store_root
-
-    con = _connect(graph_db_path)
+    con = _connect(store, graph_db_path)
     try:
         # Plan-close finding #3 (CONFIRMED): rebuild is now wrapped in
         # an explicit transaction. Pre-fix, a crash between DELETE and
@@ -300,7 +307,7 @@ def rebuild_annotations_index(graph_db_path: Path | None = None) -> dict[str, in
         con.execute("DELETE FROM annotations")
         sources_scanned = 0
         rows_written = 0
-        root = store_root()
+        root = store.root
         if not root.is_dir():
             con.execute("COMMIT")
             return {"sources_scanned": 0, "rows_written": 0}
@@ -315,7 +322,7 @@ def rebuild_annotations_index(graph_db_path: Path | None = None) -> dict[str, in
             # source_type lookup tolerates missing metadata.json — returns
             # the default ('paper') in that case. Annotations carry their
             # own scope; the source_type is index-side metadata.
-            source_type = _read_metadata_source_type(sid)
+            source_type = _read_metadata_source_type(store, sid)
             batch = []
             for record in _iter_jsonl(jsonl):
                 try:
@@ -347,7 +354,7 @@ def rebuild_annotations_index(graph_db_path: Path | None = None) -> dict[str, in
 
 
 def active_annotations_for_source(
-    source_id: str, *, db_path: Path | None = None
+    source_id: str, *, store: CorpusStore, db_path: Path | None = None
 ) -> list[dict[str, Any]]:
     """Active (current-leaf) annotations for a source — the read-loop primitive.
 
@@ -361,8 +368,7 @@ def active_annotations_for_source(
     Queries the `annotations_current` view (annotations with no successor).
     Fail-soft: returns [] if duckdb or graph.duckdb is unavailable.
     """
-    from .store import graph_db_path
-    path = Path(db_path) if db_path else graph_db_path()
+    path = Path(db_path) if db_path else store.graph_db_path()
     if not path.exists():
         return []
     try:
@@ -386,7 +392,11 @@ def active_annotations_for_source(
     ]
 
 
-def rebuild_claim_relations(graph_db_path: Path | None = None) -> dict[str, int]:
+def rebuild_claim_relations(
+    *,
+    store: CorpusStore,
+    graph_db_path: Path | None = None,
+) -> dict[str, int]:
     """Rebuild claim_relations + claim_relation_endpoints from the JSONL ledger.
 
     Authoritative + idempotent: TRUNCATE both tables, scan every
@@ -399,13 +409,13 @@ def rebuild_claim_relations(graph_db_path: Path | None = None) -> dict[str, int]
     emits a superseding relation when a participant dies, which this rebuild
     then honours via the supersession chain.
     """
-    con = _connect(graph_db_path)
+    con = _connect(store, graph_db_path)
     try:
         con.execute("BEGIN TRANSACTION")
         con.execute("DELETE FROM claim_relation_endpoints")
         con.execute("DELETE FROM claim_relations")
         con.execute("DELETE FROM claim_relation_tombstones")
-        root = store_root()
+        root = store.root
         report = {
             "sources_scanned": 0,
             "relations_seen": 0,
@@ -493,7 +503,7 @@ def rebuild_claim_relations(graph_db_path: Path | None = None) -> dict[str, int]
 
 
 def active_relations_for_source(
-    source_id: str, *, db_path: Path | None = None
+    source_id: str, *, store: CorpusStore, db_path: Path | None = None
 ) -> list[dict[str, Any]]:
     """Active claim_relations touching a source — the conflict read-loop primitive.
 
@@ -504,8 +514,7 @@ def active_relations_for_source(
     reuse a paper/claim calls this (via corpus_lookup) to SEE active refutations
     or qualifications before acting. Fail-soft: [] if duckdb/graph.duckdb absent.
     """
-    from .store import graph_db_path
-    path = Path(db_path) if db_path else graph_db_path()
+    path = Path(db_path) if db_path else store.graph_db_path()
     if not path.exists():
         return []
     try:
@@ -566,14 +575,13 @@ def active_relations_for_source(
 
 
 def support_balance_for_source(
-    source_id: str, *, db_path: Path | None = None
+    source_id: str, *, store: CorpusStore, db_path: Path | None = None
 ) -> dict[str, Any] | None:
     """The linear support_balance row for a corpus source (keyed by its
     namespaced `corpus:<source_id>` ref). Returns None when the source has no
     active relations. The scalar is a transparent sign-weighted tally — NOT a
     probability. Fail-soft: None if duckdb/graph.duckdb/view absent."""
-    from .store import graph_db_path
-    path = Path(db_path) if db_path else graph_db_path()
+    path = Path(db_path) if db_path else store.graph_db_path()
     if not path.exists():
         return None
     try:
@@ -610,6 +618,7 @@ def support_balance_for_source(
 def epistemic_surface(
     source_id: str,
     *,
+    store: CorpusStore,
     retraction_status: str = "unknown",
     db_path: Path | None = None,
 ) -> dict[str, Any]:
@@ -620,9 +629,9 @@ def epistemic_surface(
     surface to full conflict). Pure + fail-soft — the home of the read-loop
     logic so it is testable without the MCP layer; corpus_mcp just exposes it.
     """
-    active_ann = active_annotations_for_source(source_id, db_path=db_path)
-    active_rels = active_relations_for_source(source_id, db_path=db_path)
-    balance = support_balance_for_source(source_id, db_path=db_path)
+    active_ann = active_annotations_for_source(source_id, store=store, db_path=db_path)
+    active_rels = active_relations_for_source(source_id, store=store, db_path=db_path)
+    balance = support_balance_for_source(source_id, store=store, db_path=db_path)
     # Conflict fires only when THIS source is the OBJECT of a refute/qualify
     # (it is being refuted) — NOT when it is the subject (the refuter). A
     # gold-standard db_source used to refute a wrong claim must not show

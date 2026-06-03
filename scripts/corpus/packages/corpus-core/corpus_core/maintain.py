@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Optional
 
 from . import store as ps
+from .store import CorpusStore
 from . import extract_citances as ec
 from . import resolve_references as rr
 
@@ -34,24 +35,25 @@ def _human_size(n: int) -> str:
 
 
 def cmd_stats(args) -> int:
-    root = ps.store_root()
+    store: CorpusStore = args.corpus_store
+    root = store.root
     if not root.exists():
         print(f"papers=0 size=0  (store does not exist at {root})")
         return 0
-    paper_ids = list(ps.iter_papers())
+    paper_ids = list(store.iter_papers())
     total_size = 0
     by_repo: dict[str, int] = {}
     drifted = 0
     no_used_by = 0
     for pid in paper_ids:
-        p = ps.paper_path(pid)
+        p = store.paper_path(pid)
         for f in p.rglob("*"):
             if f.is_file():
                 try:
                     total_size += f.stat().st_size
                 except OSError:
                     pass
-        meta = ps.get(pid).metadata
+        meta = store.get(pid).metadata
         for repo in meta.get("used_by_repos") or []:
             by_repo[repo] = by_repo.get(repo, 0) + 1
         if not meta.get("used_by_repos"):
@@ -63,7 +65,7 @@ def cmd_stats(args) -> int:
     print(f"  no used_by:  {no_used_by}")
 
     # Graph stats
-    gdb = ps.graph_db_path()
+    gdb = store.graph_db_path()
     if gdb.exists():
         try:
             import duckdb  # type: ignore
@@ -79,8 +81,9 @@ def cmd_stats(args) -> int:
 
 
 def cmd_show(args) -> int:
+    store: CorpusStore = args.corpus_store
     try:
-        rec = ps.get(args.paper_id)
+        rec = store.get(args.paper_id)
     except ps.PaperNotFoundError:
         print(f"paper not found: {args.paper_id}", file=sys.stderr)
         return 1
@@ -121,9 +124,10 @@ def cmd_show(args) -> int:
 
 
 def cmd_verify(args) -> int:
+    store: CorpusStore = args.corpus_store
     drift = 0
-    for pid in ps.iter_papers():
-        rec = ps.get(pid)
+    for pid in store.iter_papers():
+        rec = store.get(pid)
         if rec.pdf_path.exists():
             actual_pdf = ps.sha256_file(rec.pdf_path)
             if rec.metadata.get("pdf_sha256") != actual_pdf:
@@ -142,8 +146,9 @@ def cmd_verify(args) -> int:
 def cmd_rebuild_indexes(args) -> int:
     """Rebuild INDEX.json per paper by grepping `canonical_paper_id` across repos."""
     import subprocess
+    store: CorpusStore = args.corpus_store
     repos = [Path.home() / "Projects" / r for r in ("genomics", "phenome", "research-mcp", "agent-infra")]
-    paper_ids = list(ps.iter_papers())
+    paper_ids = list(store.iter_papers())
     refs_by_paper: dict[str, list[dict]] = {pid: [] for pid in paper_ids}
     for repo in repos:
         if not repo.exists():
@@ -160,7 +165,7 @@ def cmd_rebuild_indexes(args) -> int:
                 if pid in line:
                     refs_by_paper[pid].append({"repo": repo.name, "evidence": line.strip()[:200]})
     for pid, used_by in refs_by_paper.items():
-        index_path = ps.paper_path(pid) / "INDEX.json"
+        index_path = store.paper_path(pid) / "INDEX.json"
         index_path.write_text(json.dumps({"paper_id": pid, "used_by": used_by}, indent=2))
     print(f"rebuilt INDEX.json for {len(paper_ids)} papers")
     return 0
@@ -170,10 +175,10 @@ def cmd_rebuild_citances(args) -> int:
     if args.paper_id:
         targets = [args.paper_id]
     else:
-        targets = list(ps.iter_papers())
+        targets = list(args.corpus_store.iter_papers())
     for pid in targets:
         try:
-            ec.extract_citances(pid)
+            ec.extract_citances(args.corpus_store, pid)
         except Exception as exc:
             print(f"  ! {pid}: {exc}", file=sys.stderr)
     return 0
@@ -185,30 +190,32 @@ def cmd_rebuild_references(args) -> int:
     Upstream of citances/graph. `--online` queries Crossref for the
     non-inline-DOI tail; otherwise inline DOIs only.
     """
-    targets = [args.paper_id] if args.paper_id else list(ps.iter_papers())
+    store: CorpusStore = args.corpus_store
+    targets = [args.paper_id] if args.paper_id else list(store.iter_papers())
     online = getattr(args, "online", False)
     llm = getattr(args, "llm_fallback", False)
     force = getattr(args, "force", False)
     for pid in targets:
-        rec = ps.get(pid)
+        rec = store.get(pid)
         if rec.parsed_markdown_path() is None:
             continue  # unparsed — nothing to resolve
         if force:
             (rec.path / "references_resolved.json").unlink(missing_ok=True)
         try:
-            rr.resolve_references(pid, online=online, llm_fallback=llm)
+            rr.resolve_references(store, pid, online=online, llm_fallback=llm)
         except Exception as exc:
             print(f"  ! {pid}: {exc}", file=sys.stderr)
     return 0
 
 
 def cmd_rebuild_graph(args) -> int:
+    store: CorpusStore = args.corpus_store
     try:
         import duckdb  # type: ignore
     except ImportError:
         print("duckdb not installed; run `uv pip install duckdb` or install via the uv tool.", file=sys.stderr)
         return 2
-    gdb = ps.graph_db_path()
+    gdb = store.graph_db_path()
     con = duckdb.connect(str(gdb))
     con.execute(_read_schema())
     # Rebuild only the projections this command owns (papers, edges); preserve
@@ -218,8 +225,8 @@ def cmd_rebuild_graph(args) -> int:
     con.execute("DELETE FROM papers")
     n_edges = 0
     n_papers = 0
-    for pid in ps.iter_papers():
-        rec = ps.get(pid)
+    for pid in store.iter_papers():
+        rec = store.get(pid)
         meta = rec.metadata
         con.execute(
             "INSERT OR REPLACE INTO papers "
@@ -290,8 +297,9 @@ def cmd_gc(args) -> int:
         print("`--after-rebuild` set but --rebuild-indexes was not run in this invocation.", file=sys.stderr)
         return 2
     candidates: list[str] = []
-    for pid in ps.iter_papers():
-        index_path = ps.paper_path(pid) / "INDEX.json"
+    store: CorpusStore = args.corpus_store
+    for pid in store.iter_papers():
+        index_path = store.paper_path(pid) / "INDEX.json"
         if not index_path.exists():
             continue
         idx = json.loads(index_path.read_text())
@@ -364,7 +372,7 @@ def add_cli(subparsers: argparse._SubParsersAction) -> None:
 
 def cmd_rebuild_annotations_index(args) -> int:
     from .index import rebuild_annotations_index
-    stats = rebuild_annotations_index()
+    stats = rebuild_annotations_index(store=args.corpus_store)
     print(f"rebuilt annotations index  "
           f"sources={stats['sources_scanned']}  rows={stats['rows_written']}")
     return 0
@@ -372,7 +380,7 @@ def cmd_rebuild_annotations_index(args) -> int:
 
 def cmd_rebuild_claim_relations(args) -> int:
     from .index import rebuild_claim_relations
-    r = rebuild_claim_relations()
+    r = rebuild_claim_relations(store=args.corpus_store)
     print(
         f"rebuilt claim_relations  sources={r['sources_scanned']}  "
         f"seen={r['relations_seen']}  active={r['relations_active']}  "
@@ -386,13 +394,13 @@ def cmd_rebuild_claim_relations(args) -> int:
 def cmd_bootstrap_schema_meta(args) -> int:
     """One-shot G0 transition: seed corpus_schema_meta on existing DBs.
 
-    Idempotent. Seeds graph.duckdb at the canonical store_root. Each
+    Idempotent. Seeds graph.duckdb at the configured corpus store. Each
     --outbox-db path is seeded as artifact='outbox'.
     """
     from .schema_version import bootstrap_db
 
     rc = 0
-    gdb = ps.graph_db_path()
+    gdb = args.corpus_store.graph_db_path()
     if gdb.exists():
         seeded = bootstrap_db(gdb, artifact="graph")
         print(f"  graph  {gdb}  {'seeded' if seeded else 'already present'}")
@@ -414,7 +422,7 @@ def cmd_verify_replay(args) -> int:
     """Phase F: replay JSONL into a fresh DB, diff against the live one."""
     from .replay import verify_replay_matches_current
 
-    diff = verify_replay_matches_current()
+    diff = verify_replay_matches_current(store=args.corpus_store)
     d = diff.as_dict()
     print(
         f"replay-verify  matched={d['matched']}  "

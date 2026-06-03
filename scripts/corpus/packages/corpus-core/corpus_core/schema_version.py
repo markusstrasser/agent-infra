@@ -319,13 +319,14 @@ def bootstrap_db(db_path: Path, *, artifact: str) -> bool:
         # ALTERs to add new columns and bumps the meta row via ON
         # CONFLICT DO UPDATE. Open then close — work happens at connect.
         from .index import _connect
+        from .store import CorpusStore
         before = None
         con = duckdb.connect(str(db_path), read_only=True)
         try:
             before = _read_meta_row(con, "graph")
         finally:
             con.close()
-        _connect(db_path).close()
+        _connect(CorpusStore(db_path.parent), db_path).close()
         after = None
         con = duckdb.connect(str(db_path), read_only=True)
         try:

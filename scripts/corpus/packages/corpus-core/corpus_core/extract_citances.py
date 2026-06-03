@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Optional
 
 from . import store as ps
+from .store import CorpusStore
 
 
 CITO_BASE = "http://purl.org/spar/cito/"
@@ -63,7 +64,7 @@ def _scite_to_citances_in(scite_payload: dict, target_paper_id: str) -> list[dic
         if not snippet:
             continue
         citing_doi = (c.get("citing_doi") or c.get("sourceDoi") or c.get("source") or "").lower() or None
-        citing_paper_id = ps.derive_paper_id(doi=citing_doi, check_collision=False) if citing_doi else None
+        citing_paper_id = ps.derive_paper_id(doi=citing_doi) if citing_doi else None
         stance = (c.get("classification") or c.get("stance") or "mentioning").lower()
         if stance not in {"supporting", "contrasting", "mentioning"}:
             stance = "mentioning"
@@ -95,7 +96,7 @@ def _openalex_to_citances_in(openalex_payload: dict, target_paper_id: str) -> li
         citing_doi = (w.get("doi") or "").replace("https://doi.org/", "").lower() or None
         if not citing_doi:
             continue
-        citing_paper_id = ps.derive_paper_id(doi=citing_doi, check_collision=False)
+        citing_paper_id = ps.derive_paper_id(doi=citing_doi)
         snippet = w.get("citation_context") or w.get("title") or ""
         if not snippet:
             continue
@@ -166,8 +167,8 @@ def _build_citances_out(paper_md: str, refs: dict, citing_paper_id: str) -> list
     return out
 
 
-def extract_citances(paper_id: str, *, enrich_cito: bool = False) -> dict:
-    rec = ps.get(paper_id)
+def extract_citances(store: CorpusStore, paper_id: str, *, enrich_cito: bool = False) -> dict:
+    rec = store.get(paper_id)
     cc_dir = rec.path / "citation_context"
 
     # citances_in from provider payloads

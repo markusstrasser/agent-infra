@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Iterable, Optional
 
 from .schema_version import verify_graph_schema
-from .store import graph_db_path
+from .store import CorpusStore
 
 if TYPE_CHECKING:
     import duckdb
@@ -68,6 +68,7 @@ def _open_rw(db_path: Path, retries: int = 3, backoff_ms: int = 100):
 
 def insert_crosswalk(
     *,
+    store: CorpusStore,
     repo: str,
     repo_local_id: str,
     corpus_source_id: str,
@@ -92,14 +93,14 @@ def insert_crosswalk(
             f"asserted_by must be 'urn:agent:<type>:<name>[@<version>]'; got {asserted_by!r}"
         )
 
-    target = db_path or graph_db_path()
+    target = db_path or store.graph_db_path()
     verify_graph_schema(target)
 
     # _connect ensures schema_sql has been applied (which creates the
     # crosswalk table on first run + bumps meta). After that we open a
     # brief RW connection for the INSERT.
     from .index import _connect
-    _connect(target).close()
+    _connect(store, target).close()
 
     con = _open_rw(target)
     try:
@@ -122,6 +123,7 @@ def resolve_repo_to_corpus(
     repo: str,
     repo_local_id: str,
     *,
+    store: CorpusStore,
     link_types: Iterable[str] = STRONG_IDENTITY_LINKS,
     db_path: Optional[Path] = None,
 ) -> Optional[str]:
@@ -135,7 +137,7 @@ def resolve_repo_to_corpus(
     """
     import duckdb
 
-    target = db_path or graph_db_path()
+    target = db_path or store.graph_db_path()
     if not Path(target).exists():
         return None
     try:
@@ -168,6 +170,7 @@ def resolve_repo_to_corpus(
 def resolve_corpus_to_repos(
     corpus_source_id: str,
     *,
+    store: CorpusStore,
     link_types: Optional[Iterable[str]] = None,
     db_path: Optional[Path] = None,
 ) -> list[tuple[str, str, str]]:
@@ -176,7 +179,7 @@ def resolve_corpus_to_repos(
     no matches."""
     import duckdb
 
-    target = db_path or graph_db_path()
+    target = db_path or store.graph_db_path()
     if not Path(target).exists():
         return []
     try:
