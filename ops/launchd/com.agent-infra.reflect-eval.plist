@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.agent-infra.reflect-eval</string>
+
+    <!--
+      ONE-SHOT: reflect-loop 2-week evaluation gate (plan 4d40085a). Fires once on
+      2026-06-17 ~09:00 local (StartCalendarInterval has no year field, so the
+      wrapper self-unloads + drops a sentinel to make it one-shot). Computes the
+      pre-registered metrics (compaction, throughput) from local shadow data, runs
+      the classify pass, surfaces omission firings for PPV labeling, and notifies
+      the human for the go/cut call. Local, zero-API. Never enables a surface.
+      Replaces a remote-CCR routine, which can't see the local ~/.claude capture log.
+    -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/alien/Projects/agent-infra/scripts/reflect-eval-oneshot.sh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/alien/Projects/agent-infra</string>
+
+    <!-- June 17 at 09:00 local time. Self-unloads after the first fire. -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Month</key>
+        <integer>6</integer>
+        <key>Day</key>
+        <integer>17</integer>
+        <key>Hour</key>
+        <integer>9</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/alien/.claude/logs/reflect-eval.out</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/alien/.claude/logs/reflect-eval.err</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/alien/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+</dict>
+</plist>
