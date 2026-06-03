@@ -37,6 +37,7 @@ def add_cli(subparsers) -> None:
 def _run(args: argparse.Namespace) -> int:
     annotation_id = annotate(
         args.source_id,
+        store=args.corpus_store,
         repo=args.repo,
         actor_type=args.actor_type,
         actor_id=args.actor_id,

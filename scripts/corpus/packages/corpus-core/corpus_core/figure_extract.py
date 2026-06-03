@@ -173,6 +173,7 @@ def iter_figure_crops(record: store.PaperRecord) -> list[Path]:
 
 
 def extract_source_figures(
+    store_handle: store.CorpusStore,
     source_id: str,
     *,
     actor_id: str = FIGURE_ACTOR,
@@ -187,7 +188,7 @@ def extract_source_figures(
     annotation write no-ops). A materially different re-extraction appends a new
     attestation (append-only); superseding the prior is a future refinement.
     """
-    rec = store.get(source_id)
+    rec = store_handle.get(source_id)
     crops = iter_figure_crops(rec)
     figdir = rec.path / "figures"
     out: list[dict[str, Any]] = []
@@ -204,6 +205,7 @@ def extract_source_figures(
             (figdir / f"{stem}.md").write_text(md, encoding="utf-8")
             ann_id = annotate(
                 source_id,
+                store=store_handle,
                 repo="agent-infra",
                 actor_type="model",
                 actor_id=actor_id,
@@ -243,7 +245,7 @@ def add_cli(subparsers) -> None:
 
 def _run(args) -> int:
     results = extract_source_figures(
-        args.source_id, model=args.model, write=not args.no_write
+        args.corpus_store, args.source_id, model=args.model, write=not args.no_write
     )
     if args.json:
         print(json.dumps(results, indent=2))

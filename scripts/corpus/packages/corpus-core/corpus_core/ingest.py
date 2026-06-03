@@ -29,6 +29,7 @@ from typing import Any, Optional
 
 from . import SCHEMA_VERSION
 from . import store as ps
+from .store import CorpusStore
 from .extract import DEFAULT_PARSER, ExtractResult, extract as run_extract
 
 
@@ -38,6 +39,7 @@ from .extract import DEFAULT_PARSER, ExtractResult, extract as run_extract
 
 
 def ingest_pdf(
+    store: CorpusStore,
     pdf_path: Path,
     *,
     doi: Optional[str] = None,
@@ -61,13 +63,13 @@ def ingest_pdf(
         raise ValueError(f"Expected .pdf, got: {pdf_path}")
 
     pdf_sha = ps.sha256_file(pdf_path)
-    paper_id = ps.derive_paper_id(doi=doi, pmid=pmid, pdf_sha=pdf_sha)
-    p_path = ps.paper_path(paper_id)
+    paper_id = store.derive_paper_id(doi=doi, pmid=pmid, pdf_sha=pdf_sha)
+    p_path = store.paper_path(paper_id)
     p_path.mkdir(parents=True, exist_ok=True)
 
     # Idempotency: same PDF + already-parsed → no-op (any parser_id satisfies)
-    if ps.exists(paper_id):
-        existing = ps.get(paper_id)
+    if store.exists(paper_id):
+        existing = store.get(paper_id)
         existing_pdf_sha = existing.metadata.get("pdf_sha256")
         if existing_pdf_sha == pdf_sha and _has_any_parsed(p_path):
             print(f"  ✓ {paper_id} already ingested (pdf_sha256 match) — no-op")
@@ -90,7 +92,7 @@ def ingest_pdf(
         pdf_sha=pdf_sha, content_hash=pdf_sha,
         extra_metadata=extra_metadata,
     )
-    ps.write_metadata(paper_id, metadata)
+    store.write_metadata(paper_id, metadata)
 
     if skip_parse:
         _ensure_jsonl(p_path)
@@ -109,7 +111,7 @@ def ingest_pdf(
     metadata["parsed_sha256"] = (parsed_dir / "parsed.sha256").read_text().strip()
     metadata["parser"] = json.loads((parsed_dir / "parser.json").read_text())
     metadata["last_updated"] = ps._now()
-    ps.write_metadata(paper_id, metadata)
+    store.write_metadata(paper_id, metadata)
     _ensure_jsonl(p_path)
 
     print(f"  ✓ {paper_id} ingested  parser_id={result.parser_id}  "
@@ -123,6 +125,7 @@ def ingest_pdf(
 
 
 def ingest_url(
+    store: CorpusStore,
     url: str,
     *,
     source_type: str = "webpage",
@@ -141,6 +144,7 @@ def ingest_url(
     r.raise_for_status()
     html_bytes = r.content
     return _ingest_html_bytes(
+        store,
         html_bytes, url=url, source_type=source_type, title=title,
         parser=parser or "trafilatura", parser_config=parser_config,
         extra_metadata=extra_metadata,
@@ -148,6 +152,7 @@ def ingest_url(
 
 
 def ingest_html(
+    store: CorpusStore,
     html_path: Path,
     *,
     source_url: str,
@@ -159,6 +164,7 @@ def ingest_html(
     """Ingest a caller-provided HTML file (when fetch happens elsewhere)."""
     html_path = Path(html_path).expanduser().resolve()
     return _ingest_html_bytes(
+        store,
         html_path.read_bytes(), url=source_url, source_type=source_type,
         title=title, parser="trafilatura", parser_config=parser_config,
         extra_metadata=extra_metadata,
@@ -171,6 +177,7 @@ def ingest_html(
 
 
 def revise_pdf(
+    store: CorpusStore,
     paper_id: str,
     new_pdf_path: Path,
     *,
@@ -179,8 +186,8 @@ def revise_pdf(
 ) -> dict:
     """Archive current PDF, install new, re-parse with the chosen parser."""
     new_pdf_path = Path(new_pdf_path).expanduser().resolve()
-    res = ps.register_revision(paper_id, new_pdf_path)
-    p_path = ps.paper_path(paper_id)
+    res = store.register_revision(paper_id, new_pdf_path)
+    p_path = store.paper_path(paper_id)
 
     chosen_parser = parser or "mineru"
     result = run_extract(
@@ -189,7 +196,7 @@ def revise_pdf(
     )
     parsed_dir = _write_parsed(p_path, result, source="pdf")
 
-    meta = ps.update_metadata(
+    meta = store.update_metadata(
         paper_id,
         parsed_sha256=(parsed_dir / "parsed.sha256").read_text().strip(),
         parser=json.loads((parsed_dir / "parser.json").read_text()),
@@ -284,6 +291,7 @@ def _ensure_jsonl(p_path: Path) -> None:
 
 
 def _ingest_html_bytes(
+    store: CorpusStore,
     html_bytes: bytes,
     *,
     url: str,
@@ -300,7 +308,7 @@ def _ingest_html_bytes(
     # Source id for non-paper sources: sha_<content[:16]>
     source_id = f"sha_{content_hash[:16]}"
 
-    p_path = ps.paper_path(source_id)
+    p_path = store.paper_path(source_id)
     p_path.mkdir(parents=True, exist_ok=True)
 
     metadata = _initial_metadata(
@@ -308,7 +316,7 @@ def _ingest_html_bytes(
         pdf_sha=None, content_hash=content_hash,
         extra_metadata={"source_url": url, **(extra_metadata or {})},
     )
-    ps.write_metadata(source_id, metadata)
+    store.write_metadata(source_id, metadata)
 
     # Save raw HTML alongside metadata for re-parsing later
     (p_path / "source.html").write_bytes(html_bytes)
@@ -321,7 +329,7 @@ def _ingest_html_bytes(
     metadata["parsed_sha256"] = (parsed_dir / "parsed.sha256").read_text().strip()
     metadata["parser"] = json.loads((parsed_dir / "parser.json").read_text())
     metadata["last_updated"] = ps._now()
-    ps.write_metadata(source_id, metadata)
+    store.write_metadata(source_id, metadata)
     _ensure_jsonl(p_path)
 
     print(f"  ✓ {source_id} ingested from {url}  "
@@ -370,9 +378,10 @@ def _cmd_ingest(args: argparse.Namespace) -> int:
             if not args.paper_id:
                 print("--revise requires --paper-id", file=sys.stderr)
                 return 2
-            revise_pdf(args.paper_id, pdf, parser=args.parser)
+            revise_pdf(args.corpus_store, args.paper_id, pdf, parser=args.parser)
             return 0
         ingest_pdf(
+            args.corpus_store,
             pdf,
             doi=args.doi, pmid=args.pmid, title=args.title,
             source_type=args.source_type or "paper",
@@ -382,6 +391,7 @@ def _cmd_ingest(args: argparse.Namespace) -> int:
         return 0
     if args.url:
         ingest_url(
+            args.corpus_store,
             args.url,
             source_type=args.source_type or "webpage",
             title=args.title,
@@ -393,6 +403,7 @@ def _cmd_ingest(args: argparse.Namespace) -> int:
             print("--html requires --source-url", file=sys.stderr)
             return 2
         ingest_html(
+            args.corpus_store,
             Path(args.html),
             source_url=args.source_url,
             source_type=args.source_type or "webpage",

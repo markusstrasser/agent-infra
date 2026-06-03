@@ -30,6 +30,7 @@ from __future__ import annotations
 from typing import Any
 
 from . import store
+from .store import CorpusStore
 
 # Source-id prefixes that denote a scientific *paper* (vs non-paper corpus
 # entries: db_/tool_/repo_/guideline_/…). Used as the parse-coverage denominator.
@@ -81,14 +82,14 @@ def parse_state(record: store.PaperRecord) -> dict[str, Any]:
     }
 
 
-def parse_health_report() -> dict[str, Any]:
+def parse_health_report(corpus_store: CorpusStore) -> dict[str, Any]:
     """Aggregate parse-state + health across every source in the corpus.
 
     Single-call derivation (C0) plus the health rollup. Paper-shaped sources are
     the denominator for parse-coverage; non-paper entries are counted for
     parser-mix but excluded from ``papers_unparsed``.
     """
-    rows = [parse_state(store.get(pid)) for pid in store.iter_papers()]
+    rows = [parse_state(corpus_store.get(pid)) for pid in corpus_store.iter_papers()]
     papers = [r for r in rows if is_paper_shaped(r["source_id"])]
     papers_unparsed = [r for r in papers if not r["parsed"]]
 

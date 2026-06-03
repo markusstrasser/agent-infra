@@ -9,16 +9,16 @@ import json
 import sys
 from pathlib import Path
 
-from . import store as ps
+from .store import CorpusStore
 
 
-def _connect(read_only: bool = True):
+def _connect(store: CorpusStore, read_only: bool = True):
     try:
         import duckdb  # type: ignore
     except ImportError:
         print("duckdb not installed", file=sys.stderr)
         sys.exit(2)
-    gdb = ps.graph_db_path()
+    gdb = store.graph_db_path()
     if not gdb.exists():
         print(f"graph.duckdb missing; run `corpus maintain --rebuild-graph`", file=sys.stderr)
         sys.exit(1)
@@ -26,7 +26,7 @@ def _connect(read_only: bool = True):
 
 
 def cmd_cites(args) -> int:
-    con = _connect()
+    con = _connect(args.corpus_store)
     rows = con.execute(
         "SELECT cited_paper_id, stance_class, stance_confidence, snippet FROM edges WHERE citing_paper_id = ?",
         [args.paper_id],
@@ -38,7 +38,7 @@ def cmd_cites(args) -> int:
 
 
 def cmd_cited_by(args) -> int:
-    con = _connect()
+    con = _connect(args.corpus_store)
     q = "SELECT citing_paper_id, stance_class, stance_confidence, snippet FROM edges WHERE cited_paper_id = ?"
     params = [args.paper_id]
     if args.stance:
@@ -52,7 +52,7 @@ def cmd_cited_by(args) -> int:
 
 
 def cmd_contradictions(args) -> int:
-    con = _connect()
+    con = _connect(args.corpus_store)
     rows = con.execute(
         """SELECT e.citing_paper_id, e.snippet, p.retraction_status
            FROM edges e LEFT JOIN papers p ON p.paper_id = e.citing_paper_id
@@ -68,7 +68,7 @@ def cmd_contradictions(args) -> int:
 
 
 def cmd_ego(args) -> int:
-    con = _connect()
+    con = _connect(args.corpus_store)
     rows = con.execute(
         """WITH RECURSIVE ego(node, depth) AS (
               SELECT CAST(? AS TEXT), 0
@@ -91,7 +91,7 @@ def cmd_ego(args) -> int:
 
 
 def cmd_path(args) -> int:
-    con = _connect()
+    con = _connect(args.corpus_store)
     rows = con.execute(
         """WITH RECURSIVE paths(node, path, depth) AS (
               SELECT CAST(? AS TEXT), [CAST(? AS TEXT)], 0
@@ -111,7 +111,7 @@ def cmd_path(args) -> int:
 
 
 def cmd_similar(args) -> int:
-    con = _connect()
+    con = _connect(args.corpus_store)
     view = "co_citation_pairs" if args.via == "co-citation" else "biblio_coupling_pairs"
     metric_col = "co_citation_count" if args.via == "co-citation" else "shared_references"
     rows = con.execute(
@@ -129,7 +129,7 @@ def cmd_similar(args) -> int:
 
 
 def cmd_cluster(args) -> int:
-    con = _connect()
+    con = _connect(args.corpus_store)
     rows = con.execute(
         """SELECT cited_paper_id AS other, stance_class FROM edges WHERE citing_paper_id = ?
            UNION
@@ -143,7 +143,7 @@ def cmd_cluster(args) -> int:
 
 
 def cmd_collection(args) -> int:
-    coll_dir = ps.store_root() / "collections"
+    coll_dir = args.corpus_store.root / "collections"
     coll_dir.mkdir(exist_ok=True)
     if args.action == "list":
         for f in sorted(coll_dir.glob("*.txt")):

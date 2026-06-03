@@ -1,4 +1,4 @@
-"""Sole writer for `~/Projects/corpus/<source_id>/annotations.jsonl`.
+"""Sole writer for ``<corpus-root>/<source_id>/annotations.jsonl``.
 
 Every cross-repo annotation flows through `annotate(...)`. Per-repo MCPs and
 external callers MUST NOT write annotations.jsonl directly — repos enqueue
@@ -62,7 +62,7 @@ from .identity import (
     canonical_json,
 )
 from .schema_version import SchemaVersionMismatch, verify_graph_schema
-from .store import graph_db_path, paper_path  # use the canonical-store path helpers
+from .store import CorpusStore
 from .uri import KNOWN_PROJECT_SCHEMES
 
 # ---------------------------------------------------------------------------
@@ -183,8 +183,8 @@ def validate_relation_body(relation: dict[str, Any]) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _annotations_path(source_id: str) -> Path:
-    return paper_path(source_id) / "annotations.jsonl"
+def _annotations_path(store: CorpusStore, source_id: str) -> Path:
+    return store.paper_path(source_id) / "annotations.jsonl"
 
 
 def _utc_now_iso() -> str:
@@ -205,7 +205,7 @@ def _serialize_record(record: dict[str, Any]) -> bytes:
 
 
 def _existing_annotation_record(
-    source_id: str, annotation_id: str
+    store: CorpusStore, source_id: str, annotation_id: str
 ) -> dict[str, Any] | None:
     """Scan annotations.jsonl for the record with the given annotation_id.
 
@@ -215,7 +215,7 @@ def _existing_annotation_record(
     source_content_hash) that are excluded from the id, so a same-content
     correction is not silently swallowed as a no-op.
     """
-    path = _annotations_path(source_id)
+    path = _annotations_path(store, source_id)
     if not path.exists():
         return None
     needle = f'"annotation_id":"{annotation_id}"'
@@ -266,6 +266,7 @@ def _atomic_append(path: Path, payload: bytes) -> None:
 def annotate(
     source_id: str,
     *,
+    store: CorpusStore,
     repo: str,
     actor_type: ActorType,
     actor_id: str,
@@ -283,10 +284,11 @@ def annotate(
     valid_from: datetime | str | None = None,
     relation: dict[str, Any] | None = None,
 ) -> str:
-    """Append one annotation to ~/Projects/corpus/<source_id>/annotations.jsonl.
+    """Append one annotation to ``store/<source_id>/annotations.jsonl``.
 
     Args:
         source_id: canonical corpus source_id (`doi_…`, `pmid_…`, `sha_…`).
+        store: explicit corpus store handle.
         repo: writer-repo identifier (must be one of corpus_core.uri.KNOWN_PROJECT_SCHEMES).
         actor_type: agent kind (model | human | service | cli).
         actor_id: stable urn:agent:<type>:<name>[@<version>] form.
@@ -356,7 +358,7 @@ def annotate(
     # against a re-parsed source). Silently dropping it would let the
     # append-only trail swallow a correction; fail loud instead and tell the
     # caller to fork the id (new output_uri/output_hash) for a genuine new event.
-    existing = _existing_annotation_record(source_id, annotation_id)
+    existing = _existing_annotation_record(store, source_id, annotation_id)
     if existing is not None:
         incoming = {
             "status": status,
@@ -446,19 +448,19 @@ def annotate(
 
     _validate_annotation(record)
     payload = _serialize_record(record)
-    _atomic_append(_annotations_path(source_id), payload)
+    _atomic_append(_annotations_path(store, source_id), payload)
 
     # Phase G0 preflight: raise loudly on schema skew BEFORE attempting the
     # projection. SchemaVersionMismatch must propagate — the bare-Exception
     # swallow below is for transient DB errors that the rebuild script can
     # backfill, not for permanent version-skew that needs operator action.
-    verify_graph_schema(graph_db_path())
+    verify_graph_schema(store.graph_db_path())
 
     # Phase 2 projection: best-effort insert into graph.duckdb. JSONL is the
     # source of truth — DB failure logs and continues; rebuild catches up.
     try:
         from .index import index_annotation
-        index_annotation(record)
+        index_annotation(record, store=store)
     except SchemaVersionMismatch:
         raise
     except Exception:  # pragma: no cover — never break a JSONL append

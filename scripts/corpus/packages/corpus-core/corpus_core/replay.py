@@ -23,7 +23,7 @@ from typing import Iterable, Optional
 
 from .canonical import parse_jsonl_strict
 from .index import index_annotation
-from .store import store_root
+from .store import CorpusStore
 
 
 # Columns compared between current graph.duckdb and the replay rebuild.
@@ -73,7 +73,7 @@ class ReplayDiff:
         }
 
 
-def _iter_source_dirs(root: Optional[Path] = None) -> Iterable[Path]:
+def _iter_source_dirs(root: Path) -> Iterable[Path]:
     """Walk corpus root in NFC-normalized, sorted dir-name order.
 
     APFS readdir returns hash-order; raw filesystem iteration is
@@ -81,7 +81,6 @@ def _iter_source_dirs(root: Optional[Path] = None) -> Iterable[Path]:
     by the NFC-normalized name produces a stable iteration order
     regardless of whether source dirs were created via NFC or NFD.
     """
-    root = root or store_root()
     if not root.is_dir():
         return
     entries = []
@@ -118,33 +117,35 @@ def _iter_records(jsonl: Path, *, tolerant: bool = False) -> Iterable[dict]:
 
 def replay_to_temp_graph(
     *,
+    store: CorpusStore,
     src_root: Optional[Path] = None,
     tolerant: bool = False,
 ) -> Path:
     """Rebuild a fresh graph.duckdb from every annotations.jsonl under
-    ``src_root`` (default: store_root()). Returns the path to the new
+    ``src_root`` (default: store.root). Returns the path to the new
     temp DB; caller is responsible for unlinking.
 
     The rebuild calls ``index_annotation`` per record so the projection
     logic is single-source.
     """
-    src_root = src_root or store_root()
+    src_root = src_root or store.root
     tmpdir = Path(tempfile.mkdtemp(prefix="corpus-replay-"))
     target = tmpdir / "graph.duckdb"
     # Materialize the target DB even when there are zero records so
     # downstream RO connections don't fail with "database does not
     # exist". index._connect applies the canonical schema_sql.
     from .index import _connect
-    _connect(target).close()
+    _connect(store, target).close()
     for entry in _iter_source_dirs(src_root):
         jsonl = entry / "annotations.jsonl"
         for record in _iter_records(jsonl, tolerant=tolerant):
-            index_annotation(record, graph_db_path=target)
+            index_annotation(record, store=store, graph_db_path=target)
     return target
 
 
 def verify_replay_matches_current(
     *,
+    store: CorpusStore,
     src_root: Optional[Path] = None,
     live_db: Optional[Path] = None,
     columns_to_compare: tuple[str, ...] = DEFAULT_COMPARE_COLUMNS,
@@ -157,9 +158,9 @@ def verify_replay_matches_current(
     """
     import duckdb
 
-    src_root = src_root or store_root()
+    src_root = src_root or store.root
     live_db = live_db or (src_root / "graph.duckdb")
-    replay_db = replay_to_temp_graph(src_root=src_root, tolerant=tolerant)
+    replay_db = replay_to_temp_graph(store=store, src_root=src_root, tolerant=tolerant)
 
     cols = ", ".join(columns_to_compare)
     try:
@@ -198,7 +199,9 @@ def verify_replay_matches_current(
     )
 
 
-def replay_in_place(*, confirm: bool = False, src_root: Optional[Path] = None) -> None:
+def replay_in_place(
+    *, store: CorpusStore, confirm: bool = False, src_root: Optional[Path] = None
+) -> None:
     """DESTRUCTIVE: rebuild graph.duckdb in place from JSONL.
 
     Requires confirm=True — accidental replay can blow away rows added
@@ -211,8 +214,8 @@ def replay_in_place(*, confirm: bool = False, src_root: Optional[Path] = None) -
             "replay_in_place requires confirm=True; "
             "run verify_replay_matches_current() first to confirm safety"
         )
-    src_root = src_root or store_root()
-    replay_db = replay_to_temp_graph(src_root=src_root)
+    src_root = src_root or store.root
+    replay_db = replay_to_temp_graph(store=store, src_root=src_root)
     target = src_root / "graph.duckdb"
     if target.exists():
         target.unlink()
