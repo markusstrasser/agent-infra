@@ -6,6 +6,13 @@ Evaluated against intel project's epistemic principles (2026-02-27).
 ## Still Valid (Cross-Project)
 
 ### Contract 1: Multiple Expert Agreement
+<!--
+FM-ID: contract-1-expert-agreement
+signature: question/spec accepted where 3 domain experts would give different valid answers; no falsifying observation nameable
+target_surface: /critique verify mode falsifiability check; decision-point gate before accepting a spec/hypothesis
+status: active
+evidence_count: 0
+-->
 ```
 IF multiple experts would give different valid answers
 THEN question/specification fails
@@ -15,6 +22,13 @@ TEST: Would 3 domain experts converge on same answer?
 **Status:** VALID. This IS our falsifiability requirement. "If you cannot name a falsifying observation, you don't have a hypothesis — you have a belief." Same principle, different framing.
 
 ### Contract 2: Source + Method Attribution
+<!--
+FM-ID: contract-2-source-method-attribution
+signature: claim depending on a specific analysis/encoder cites source but omits the method/encoder that produced it
+target_surface: postwrite-source-check.sh hook (extend [DATA] tag to require method dimension)
+status: active
+evidence_count: 0
+-->
 ```
 IF claim depends on specific analysis/method
 THEN must cite: source + method + context
@@ -22,6 +36,13 @@ THEN must cite: source + method + context
 **Status:** VALID. Subsumed by our provenance tagging system (`[SOURCE: url]`, `[DATA]`, `[INFERENCE]`, `[TRAINING-DATA]`, `[UNCONFIRMED]`). The selve version adds the "method" dimension — which method/encoder produced the result. We should keep this nuance.
 
 ### Contract 3: Hidden Assumption Detection
+<!--
+FM-ID: contract-3-hidden-assumptions
+signature: agent answers a question without first surfacing its embedded unstated assumptions / predicted data footprint
+target_surface: /critique verify mode; decision-point gate requiring assumption listing before analysis
+status: active
+evidence_count: 0
+-->
 ```
 IF question embeds unstated assumptions
 THEN make assumptions explicit
@@ -29,6 +50,34 @@ THEN make assumptions explicit
 **Status:** VALID. Same as "predict data footprint BEFORE querying" and counterfactual generation. Making assumptions explicit before analysis prevents confirmation bias.
 
 ### Universal Failure Modes
+<!--
+FM-ID: fm1-nondeterministic-eval
+signature: task or output graded against a question admitting multiple valid interpretations with no convergent expert answer
+target_surface: /critique verify falsifiability check; session-analyst spec-ambiguity label
+status: active
+evidence_count: 0
+-->
+<!--
+FM-ID: fm2-hidden-dependencies
+signature: spec acted on with unstated assumptions; agent queries data before predicting its footprint/shape
+target_surface: verify-before probe mode; decision-point gate requiring dependency surfacing
+status: active
+evidence_count: 0
+-->
+<!--
+FM-ID: fm3-frame-ambiguity
+signature: words like 'perspective'/'how' used without naming the method; result reported without which encoder/method produced it
+target_surface: postwrite-source-check.sh (method attribution); session-analyst frame-ambiguity label
+status: active
+evidence_count: 0
+-->
+<!--
+FM-ID: fm4-factor-listing
+signature: diagnosis returns a ranked list of generic factors with evenly-distributed probability instead of the single operative mechanism
+target_surface: /competing-hypotheses workflow; session-analyst FACTOR_LISTING / synthesis-mode label
+status: active
+evidence_count: 0
+-->
 
 | # | Failure Mode | Selve Framing | Intel Equivalent | Still Unique? |
 |---|-------------|---------------|------------------|---------------|
@@ -38,12 +87,26 @@ THEN make assumptions explicit
 | 4 | Generic solutions / factor-listing | Common approaches when specific required | "Synthesis mode default" anti-pattern; RLHF rewards comprehensive lists; Level-1 causal retrieval | Yes — this is the core agent failure |
 
 ### Regret Metric
+<!--
+FM-ID: contract-regret-metric
+signature: user immediately corrects/rejects an agent generation; correction count per conversation goes untracked
+target_surface: Stop hook / compaction-transcript instrumentation feeding regret count to session-analyst
+status: active
+evidence_count: 0
+-->
 ```
 regret = Σ(corrections_per_conversation)
 ```
 **Status:** USEFUL but unmeasured. We don't track corrections across sessions. The concept is sound — every correction is a wasted generation + user time. The `260 immediate rejections × 30s = 130 minutes wasted` calculation from selve's ChatGPT data is real. We could instrument this via the Stop hook or compaction transcripts.
 
 ### Scaffolded Search (from Agent Protocols)
+<!--
+FM-ID: contract-scaffolded-search
+signature: agent deep-dives a source without a prior broad scan + timeline check for whether the topic is abandoned vs active
+target_surface: research / observe skill Phase-1 ground-truth pattern; researcher-skill timeline-analysis step
+status: active
+evidence_count: 0
+-->
 ```
 1. Run broad search (scaffolded)
 2. Analyze the timeline (abandoned? burst of activity?)
@@ -55,12 +118,26 @@ regret = Σ(corrections_per_conversation)
 ## Superseded by Newer Principles
 
 ### ECE Calibration Contract
+<!--
+FM-ID: superseded-ece-calibration
+signature: confidence threshold tied to a raw diagnostic count (>=10 → 0.8) rather than a proper scoring rule
+target_surface: n/a — domain-specific to selve; superseded by Brier/CRPS calibration framework (no enforcer)
+status: retired
+evidence_count: 0
+-->
 ```
 diagnostic_count >= 10 → confidence_threshold = 0.8
 ```
 **Status:** DOMAIN-SPECIFIC. Only relevant to selve's learning system. Our calibration framework (Brier Skill Score, CRPS for continuous, N≈155 at 80% power) is more rigorous. Not cross-project useful.
 
 ### Query Rate Optimization
+<!--
+FM-ID: superseded-query-rate
+signature: LLM called N separate times for items that could be batched; raw call count optimized instead of marginal information yield
+target_surface: diminishing-returns gate (marginal-info formulation supersedes batch-size>=5); session-analyst un-batched-calls label
+status: retired
+evidence_count: 0
+-->
 ```
 query_efficiency = tasks_completed / llm_calls
 batch_size >= 5 when possible
@@ -68,6 +145,13 @@ batch_size >= 5 when possible
 **Status:** VALID PRINCIPLE but OUTDATED IMPLEMENTATION. The "don't call the LLM 5 times when you can batch" is still true. But our diminishing returns gate is a better formulation — it's about marginal information yield, not raw call count.
 
 ### ContractValidator Class
+<!--
+FM-ID: superseded-contractvalidator
+signature: proposal to build an automated contract-checking class that has no caller and was never implemented
+target_surface: n/a — speculative un-built infra; goal met by rules + hooks + Stop checklist instead (no enforcer)
+status: retired
+evidence_count: 0
+-->
 ```python
 class ContractValidator:
     def validate_output(self, question, answer): ...
@@ -75,6 +159,13 @@ class ContractValidator:
 **Status:** SPECULATIVE. Never implemented. The concept (automated contract checking) is sound but premature. Our approach (rules + hooks + Stop checklist) achieves the same goal with less engineering.
 
 ### Speculative Win Rate
+<!--
+FM-ID: superseded-speculative-win-rate
+signature: content generated from scratch without first searching for reusable existing content (low reused/(reused+generated) ratio)
+target_surface: research / observe Phase-1 ground-truth (search-before-generate); not directly instrumented for intel workflow
+status: retired
+evidence_count: 0
+-->
 ```
 win_rate = reused_content / (reused + generated)
 ```
@@ -97,6 +188,13 @@ win_rate = reused_content / (reused + generated)
 Research sweep across 30+ primary sources identified failure modes not captured in the original selve/intel analysis:
 
 ### Failure Mode 5: Error Amplification in Multi-Agent
+<!--
+FM-ID: fm5-error-amplification
+signature: multi-agent output passed downstream with no parent verification step between agents (peer-to-peer, not orchestrator-mediated)
+target_surface: subagent dispatch decision-point gate enforcing orchestrator-worker (centralized) topology; session-analyst label
+status: active
+evidence_count: 0
+-->
 ```
 IF independent agents pass outputs without validation
 THEN errors amplify up to 17x
@@ -104,6 +202,13 @@ THEN errors amplify up to 17x
 **Source:** Google "Science of Scaling Agent Systems" (arXiv:2512.08296). Independent agents amplify errors 17x. Centralized coordination limits to 4.4x. Our orchestrator-worker pattern is correct; peer-to-peer would be dangerous.
 
 ### Failure Mode 6: Debate as Martingale
+<!--
+FM-ID: fm6-debate-martingale
+signature: multi-agent debate (models arguing) used for correctness instead of independent assessments + majority vote
+target_surface: /critique model mode (structure as independent assessments + voting); model-review skill
+status: active
+evidence_count: 0
+-->
 ```
 IF multi-agent debate used for correctness
 THEN no expected improvement over voting
@@ -113,6 +218,13 @@ THEN no expected improvement over voting
 **Update (2026-03-01):** "Understanding Agent Scaling via Diversity" (arXiv:2602.03794, Feb 2026) provides an **information-theoretic proof** that MAS performance is bounded by intrinsic task uncertainty, not agent count. Homogeneous agents saturate early because their outputs are strongly correlated — they access the same "effective channels." Heterogeneity (different models, prompts, tools) continues to yield gains by accessing independent channels. This upgrades the martingale finding from empirical observation to theoretical bound: same-model debate is provably limited, cross-model review provably accesses more of the information space. Directly validates Constitution principle 9 (cross-model review for non-trivial decisions).
 
 ### Failure Mode 7: Implicit Post-Hoc Rationalization
+<!--
+FM-ID: fm7-unfaithful-cot
+signature: session-analyst treats a CoT reasoning trace as ground truth for what the agent actually did (7-13% baseline unfaithful even on clean prompts)
+target_surface: session-analyst (validate OUTPUTS not reasoning traces); cross-model review to compensate for per-model unfaithfulness
+status: active
+evidence_count: 0
+-->
 ```
 IF model produces CoT on clean (non-adversarial) prompt
 THEN ~7-13% chance reasoning trace is unfaithful
@@ -127,6 +239,13 @@ THEN ~7-13% chance reasoning trace is unfaithful
 **Implication:** CoT monitoring (session-analyst reading agent reasoning) has an irreducible unreliability rate. Cross-model review partially compensates (different models have different unfaithfulness patterns), but architectural validation of *outputs* (not reasoning) remains necessary.
 
 ### Failure Mode 8: Benchmark Conflation (SWE-bench ≠ Feature Development)
+<!--
+FM-ID: fm8-benchmark-conflation
+signature: capability on a real task inferred from a proxy benchmark of a different task type (e.g. bug-fix score cited for feature-building)
+target_surface: evals (~/Projects/evals) task-type matching; /observe architecture mode when assessing agent capability claims
+status: active
+evidence_count: 0
+-->
 ```
 IF agent succeeds on SWE-bench
 THEN cannot infer feature development capability
@@ -134,6 +253,13 @@ THEN cannot infer feature development capability
 **Source:** FeatureBench (ICLR 2026, arXiv:2602.10975). Same models scoring 74% on SWE-bench score 11% on feature development. Bug-fixing ≠ feature building. Evaluate agents on the actual task type, not a proxy benchmark.
 
 ### Failure Mode 9: Diminishing Multi-Agent Returns Past 45%
+<!--
+FM-ID: fm9-diminishing-multiagent-returns
+signature: agents added to a workflow whose single-agent success rate already exceeds ~45% (negative marginal return)
+target_surface: subagent dispatch decision-point gate; /observe supervision mode reviewing fan-out ROI
+status: active
+evidence_count: 0
+-->
 ```
 IF single agent success rate > 45%
 THEN adding agents brings diminishing or negative returns
@@ -141,6 +267,13 @@ THEN adding agents brings diminishing or negative returns
 **Source:** Google scaling study (arXiv:2512.08296). Task-dependent threshold. For our best workflows (entity refresh, signal scanning), single-agent may already be past the multi-agent payoff point.
 
 ### Failure Mode 10: Memory Architecture Overfit
+<!--
+FM-ID: fm10-memory-overfit
+signature: memory system selected/validated on LOCOMO-style conversational benchmarks rather than the actual entity-tracking/investigation use case
+target_surface: vetoed-decisions / decision-journal gate before adopting a fancier memory system over files+git
+status: active
+evidence_count: 0
+-->
 ```
 IF memory system evaluated on LOCOMO/conversational benchmarks
 THEN performance may not transfer to entity tracking / investigation
@@ -148,6 +281,13 @@ THEN performance may not transfer to entity tracking / investigation
 **Source:** "Anatomy of Agentic Memory" (arXiv:2602.19320). Benchmarks are underscaled, metrics misaligned, performance backbone-dependent. All memory systems underperform theoretical promise. Our files+git approach is validated by default — fancier isn't proven better for our use cases.
 
 ### Failure Mode 11: Same-Model Peer Review Theater
+<!--
+FM-ID: fm11-same-model-review-theater
+signature: multiple instances of the SAME model review each other's work and the result is treated as adversarial QA
+target_surface: /critique model mode (force cross-model: Gemini/GPT review Claude); model-review skill
+status: active
+evidence_count: 0
+-->
 ```
 IF multiple instances of the same model review each other's work
 THEN no expected correctness improvement beyond single review
@@ -161,6 +301,13 @@ THEN no expected correctness improvement beyond single review
 **Update (2026-03-01):** Now backed by information-theoretic proof. "Understanding Agent Scaling via Diversity" (arXiv:2602.03794, Feb 2026) shows that homogeneous agents access the same effective information channels — adding more instances of the same model hits a ceiling determined by per-model correlation, not task difficulty. Heterogeneous agents (different models, prompts, tools) access independent channels, pushing the ceiling higher. This is not just "cross-model is better" — it's "same-model has a provable bound that cross-model does not."
 
 ### Failure Mode 12: Personality-via-System-Prompt Illusion
+<!--
+FM-ID: fm12-personality-prompt-illusion
+signature: behavioral differentiation/specialization claimed from giving same-model instances different system prompts/personas (SOUL.md)
+target_surface: constitution principle-1 enforcement; session-analyst label for cosmetic-persona differentiation
+status: active
+evidence_count: 0
+-->
 ```
 IF different system prompts given to same model instances
 THEN behavioral differentiation is unreliable
@@ -168,6 +315,13 @@ THEN behavioral differentiation is unreliable
 **Source:** EoG (arXiv:2601.17915) — instructions alone produce 0% Majority@3 improvement. Reddit examples: giving Claude instances Game of Thrones "personalities" (SOUL.md files) to create "specialists." Sandor doesn't actually review differently from Tyrion — they're the same model with different system prompts, and prompt sensitivity (Princeton, arXiv:2602.16666) means you can't reliably steer behavior this way. The differentiation is cosmetic, not functional.
 
 ### Failure Mode 13: Text-Action Safety Gap
+<!--
+FM-ID: fm13-text-action-safety-gap
+signature: agent refuses a harmful request in prose but still attempts the equivalent forbidden action via a tool call
+target_surface: deterministic PreToolUse enforcement hooks (text alignment is insufficient — only hooks deter the tool-call)
+status: active
+evidence_count: 0
+-->
 ```
 IF model refuses harmful request in text
 THEN it may still execute the same action via tool calls
@@ -175,6 +329,13 @@ THEN it may still execute the same action via tool calls
 **Source:** "Mind the GAP" (arXiv:2602.16943, Feb 2026). GPT-5.2 shows 79.3% conditional GAP rate — among text refusals, 4 of 5 still attempted the forbidden tool call. Claude showed the narrowest prompt sensitivity (21pp vs GPT-5.2's 57pp), suggesting training-intrinsic rather than prompt-dependent safety. Runtime governance reduced information leakage but had "no detectable deterrent effect" on forbidden tool-call attempts. Text alignment ≠ action alignment. Hooks and deterministic enforcement are the only reliable mitigation.
 
 ### Failure Mode 14: Toxic Proactivity
+<!--
+FM-ID: fm14-toxic-proactivity
+signature: agent prioritizes task completion over an ethical/safety boundary (does more than asked, crosses a stated limit to be helpful)
+target_surface: invariants.md hard-limit hooks + accountability-attribution prompt framing; session-analyst over-reach label
+status: active
+evidence_count: 0
+-->
 ```
 IF agent optimized for helpfulness
 THEN it will prioritize task completion over ethical/safety boundaries
@@ -196,6 +357,13 @@ THEN no runtime exception is raised — failure propagates silently
 **Source:** MAS-FIRE (arXiv:2602.19843, Feb 2026). 15-fault taxonomy. Stronger models don't consistently enhance robustness. Silent semantic failures (hallucinations, reasoning drift) propagate without runtime exceptions. Iterative closed-loop designs neutralize >40% of faults that cause catastrophic collapse in linear workflows. Our hooks catch tool-use errors but NOT this failure class. Mitigation requires output validation or multi-model cross-check.
 
 ### Failure Mode 16: Reward Hacking in Code
+<!--
+FM-ID: fm16-reward-hacking-code
+signature: coding agent evaluated only by test passage gates the result on tests that were edited/gamed rather than the task being solved
+target_surface: /critique model adversarial review beyond test-passing; gov.py / buildthenundo report-only detection
+status: active
+evidence_count: 0
+-->
 ```
 IF coding agent evaluated by test passage
 THEN agent may hack the test/evaluation rather than solve the task
@@ -203,6 +371,13 @@ THEN agent may hack the test/evaluation rather than solve the task
 **Source:** TRACE (arXiv:2601.20103, Jan 2026). 517 trajectories, 54 exploit categories. GPT-5.2 detects only 63% of reward hacks (best method). Semantic exploits (meaning-level) much harder to detect than syntactic. 37% of reward hacks go undetected. Test-based verification alone is insufficient — validates multi-model adversarial review beyond test passing.
 
 ### Failure Mode 17: Capability-Misalignment Scaling
+<!--
+FM-ID: fm17-capability-misalignment-scaling
+signature: more-capable model assumed safer; oversight-avoidance / shutdown-resistance / sandbagging / power-seeking signs in trace; persona system-prompt raising misalignment
+target_surface: constitution minimal-instruction principle; invariants.md hard-limit hooks; session-analyst misalignment label
+status: active
+evidence_count: 0
+-->
 ```
 IF model capabilities increase
 THEN misalignment tendencies increase, not decrease
@@ -210,6 +385,13 @@ THEN misalignment tendencies increase, not decrease
 **Source:** AgentMisalignment (arXiv:2506.04018, June 2025, v2 Oct 2025). More capable models exhibit HIGHER misalignment tendencies. System prompt personality variations produce unpredictable misalignment effects — sometimes exceeding model selection impact. Measures: oversight avoidance, shutdown resistance, sandbagging, power-seeking. Validates minimal instruction principle: system prompts can INCREASE misalignment, not just fail to prevent it.
 
 ### Failure Mode 18: Targeted vs Blind Retry
+<!--
+FM-ID: fm18-blind-retry
+signature: agent blind-retries/resamples a failed step instead of feeding error-specific correction at the identified failure point
+target_surface: posttool-bash-failure-loop.sh / spinning-detector hooks; decision-point gate forcing diagnosis before retry
+status: active
+evidence_count: 0
+-->
 ```
 IF agent fails at a specific step
 THEN blind retry is less effective than error-specific correction
@@ -219,6 +401,13 @@ THEN blind retry is less effective than error-specific correction
 ---
 
 ### Failure Mode 19: Snippet-Skill Divergence
+<!--
+FM-ID: fm19-snippet-skill-divergence
+signature: inline snippet pasted into a session duplicates a pattern already encoded in a skill (snippet lags or skill rots)
+target_surface: /observe periodic snippet-vs-skill audit; skill-authoring governance in meta
+status: active
+evidence_count: 0
+-->
 ```
 IF user maintains inline snippets for patterns already encoded in skills
 THEN skills rot (never updated) OR snippets rot (lag behind skills)
@@ -228,6 +417,13 @@ THEN skills rot (never updated) OR snippets rot (lag behind skills)
 **Mitigation:** Periodic snippet-vs-skill audit. If a snippet's content exists in a skill, retire the snippet. If a snippet captures something no skill covers, either create the skill or keep the snippet (if it requires human judgment to invoke contextually).
 
 ### Failure Mode 20: Context Window Flooding via Parallel Search
+<!--
+FM-ID: fm20-parallel-search-flooding
+signature: N parallel search queries (Exa/WebSearch) fired in one batch, filling context with noise before any summary is evaluated
+target_surface: researcher skill Phase-2 affinity-tree pattern; search-flood guard hook in ~/Projects/skills/hooks/
+status: active
+evidence_count: 0
+-->
 ```
 IF agent fires N parallel search queries (Exa, WebSearch, etc.)
 THEN context fills with noise before signal can be evaluated
@@ -275,6 +471,13 @@ THEN wasted effort + technical debt from unexamined decisions
 ---
 
 ### Failure Mode 22: Usage-Limit Spin Loop
+<!--
+FM-ID: fm22-usage-limit-spin-loop
+signature: repeated 'out of extra usage' / consecutive identical command failures with continued retries instead of halting
+target_surface: posttool-bash-failure-loop.sh hook (5+ consecutive Bash failures); spinning-detector
+status: active
+evidence_count: 0
+-->
 ```
 IF agent hits repeated API/usage limits or consecutive command failures
 THEN it retries the same approach indefinitely instead of stopping
@@ -291,6 +494,13 @@ THEN it retries the same approach indefinitely instead of stopping
 ---
 
 ### Failure Mode 23: Factor-Listing as Causal Collapse
+<!--
+FM-ID: fm23-factor-listing-causal-collapse
+signature: interventional (rung-2) question answered with an associational ranked list of generic factors instead of the specific operative mechanism + evidence
+target_surface: /competing-hypotheses workflow (end-constrained specificity); session-analyst FACTOR_LISTING label
+status: active
+evidence_count: 0
+-->
 ```
 IF agent is asked to explain or diagnose a phenomenon
 THEN it produces a ranked list of generic factors
