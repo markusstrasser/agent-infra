@@ -96,3 +96,10 @@ for the §1 architecture.
 corpus (`audit_corpus_sync --corpus-root ~/Projects/corpus` → `DRIFT: 30 verdict`) plus the 5
 git-tracked `annotations.jsonl` ledgers. Destructive (prod-data delete + git history) → needs
 deliberate, snapshot-first execution; not yet done.
+
+**2026-06-04 (later) — cleanup DONE.** Removed the 5 pure-fixture ledgers
+(`p1`/`p_ok`/`src_c0`/`src_c1`/`pubmed_1` — 0 real data; verdict ids `01J0…`/`vrd-…`, all
+2026-06-02), reprojected annotations + claim_relations from remaining ledgers, verify-replay
+clean (661 rows, 0 missing/extra/mismatched), drift **30 → 0**. `corpus@3b4cff56`; pre-cleanup
+snapshot at `/tmp/corpus-graph-snapshot-20260604.duckdb`. **Incident fully closed** — the DI
+migration prevents recurrence, the historical pollution is purged.
