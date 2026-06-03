@@ -29,6 +29,7 @@ layer (the veto guarantee). See .claude/plans/4d40085a-recursive-session-learnin
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -151,10 +152,16 @@ def _bump_count(fm_id: str, delta: int) -> bool:
             if fm and fm.group(1).lower() == "evidence_count":
                 cur = int(fm.group(2).strip() or 0)
                 indent = line[:len(line) - len(line.lstrip())]
-                lines[i] = f"{indent}evidence_count: {cur + delta}\n"
+                closer = " -->" if "-->" in line else ""  # preserve inline comment closer
+                lines[i] = f"{indent}evidence_count: {cur + delta}{closer}\n"
                 FM_FILE.write_text("".join(lines), encoding="utf-8")
                 return True
     return False
+
+
+def _evidence_hash(fm_id: str, session: str, quote: str) -> str:
+    return hashlib.sha1(f"{fm_id}|{session}|{quote}".encode(),
+                        usedforsecurity=False).hexdigest()[:16]
 
 
 def cmd_attach(args) -> int:
@@ -163,12 +170,22 @@ def cmd_attach(args) -> int:
         _fail(f"unknown FM-ID: {args.id} — mint it first (with --merges) or fix the id")
         return 1
     EVIDENCE_LOG.parent.mkdir(parents=True, exist_ok=True)
-    row = {
-        "fm_id": args.id,
-        "session": args.session,
-        "quote": args.quote,
-        "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-    }
+    ev_hash = _evidence_hash(args.id, args.session, args.quote)
+    # idempotent: a re-run (e.g. after a cap-suppressed enforcer left the cluster
+    # unprocessed) must not duplicate evidence or double-bump the count.
+    existing = set()
+    if EVIDENCE_LOG.exists():
+        for line in EVIDENCE_LOG.read_text(encoding="utf-8", errors="replace").splitlines():
+            try:
+                existing.add(json.loads(line).get("ev_hash"))
+            except (json.JSONDecodeError, ValueError):
+                continue
+    if ev_hash in existing:
+        _ok(f"evidence already recorded for {args.id} (idempotent skip)")
+        return 0
+    row = {"fm_id": args.id, "session": args.session, "quote": args.quote,
+           "ev_hash": ev_hash,
+           "ts": datetime.now(timezone.utc).isoformat(timespec="seconds")}
     with EVIDENCE_LOG.open("a", encoding="utf-8") as f:
         f.write(json.dumps(row) + "\n")
     if _bump_count(args.id, 1):
