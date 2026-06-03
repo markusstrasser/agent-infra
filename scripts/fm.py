@@ -52,8 +52,14 @@ def _warn(m): print(f"  ! {m}")
 def _fail(m): print(f"  ✗ {m}")
 
 
-def parse_blocks(path: Path = FM_FILE) -> list[dict]:
-    """Scan the FM file for FM-ID blocks. Returns one dict per block."""
+def parse_blocks(path: Path | None = None) -> list[dict]:
+    """Scan the FM file for FM-ID blocks. Returns one dict per block.
+
+    Reads the module global FM_FILE at call time when path is None, so callers
+    (and tests) that reassign fm.FM_FILE are honored — do NOT bind it as a
+    default arg, which would freeze it at import.
+    """
+    path = path or FM_FILE
     try:
         lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
     except OSError:
