@@ -177,6 +177,26 @@ This converges with the prior **vetoed scored-quality-gate** decision (a self-re
 quality score is a correlated verifier) and builds on **cross-attestation-substrate-v2**
 (verification at the mutation gateway, not as agent ritual).
 
+## Implications — the closed-loop boundary
+
+The same constraint generalizes across generation, verification, and goals (full frame:
+`research/closed-loop-boundary-and-system-awareness.md`):
+
+- A closed loop of same-lineage model(s) **re-weights within its distribution; only external
+  information moves the boundary** — and the binding scarcity is information correlated with
+  the *specific unrecorded truth*, which comes only from **reality-contact** (running the
+  thing) or a **decorrelated mind** (the human).
+- `/brainstorm` (generation) and `/critique` (verification) are the two halves of the escape
+  — off-distribution conditioning and decorrelated evaluation. Goals are the third point: a
+  shrinking frontier, not a fortress.
+- "Noise / search / other agents" are **recombinative** (already in-distribution) and do not
+  move the frontier; **action** does. Abundant information relocates the bottleneck onto the
+  selector — a firehose of proposals + a weak verifier = confident slop, faster.
+- System-design consequence: our own self-referential verifiers (`reflect.py`,
+  `session-analyst`, prompt stop-hooks) inherit the correlated-error floor → anchor them to
+  reality or decorrelate. Absence-blindness needs **setpoints**, not reactive hooks. The
+  build method is **goal → setpoint → reality-touching differ → consumed alert.**
+
 ## Revisit if
 
 - A JEPA-class (or other) architecture demonstrates a genuine long-horizon **agentic**
