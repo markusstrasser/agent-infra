@@ -48,6 +48,10 @@ SIM_THRESH = 0.55        # difflib ratio to join a correction cluster
 MATCH_THRESH = 0.30      # signature-sim to attach to an existing FM vs mint
 WIP_CAP = 10             # max active quarantine items
 ARRIVAL_CAP = 3          # max new quarantine items per classify run
+# Omission probes are SHADOW (high FP by design) — they have NO durable effect
+# (no evidence-attach, no quarantine) until their subtype clears a PPV gate. Empty
+# until shadow data is labelled; until then omission clusters are held, capture-only.
+PPV_CLEARED: set[str] = set()
 
 # Deterministic anchors: a probe's nearest existing FM (a prior, confirmed by
 # signature-sim). Corrections without an anchor fall back to pure signature-sim.
@@ -104,37 +108,38 @@ def save_processed(state: dict) -> None:
 
 # ── clustering (deterministic) ───────────────────────────────────────────────
 def cluster_signals(signals: list[dict]) -> list[list[dict]]:
-    """Greedy clustering. Omission/retry signals bucket by subtype; free-text
-    corrections join an existing cluster whose representative trigger is similar
-    (difflib ratio >= SIM_THRESH), else seed a new cluster."""
-    by_subtype: dict[str, list[dict]] = defaultdict(list)
+    """Greedy clustering. Omission/retry signals bucket by (project, kind, subtype)
+    — project-scoped so two repos' same-named probes don't collide, and free
+    corrections can't contaminate a retry/omission bucket. Free-text corrections
+    join an existing FREE cluster of the same project+kind whose representative
+    trigger is similar (difflib ratio >= SIM_THRESH), else seed a new cluster."""
+    keyed: dict[tuple, list[dict]] = defaultdict(list)
     free: list[dict] = []
     for s in signals:
         st = s.get("subtype", "")
         if s.get("kind") == "omission" or st == "retry_run":
-            by_subtype[st].append(s)
+            keyed[(s.get("project", "?"), s.get("kind"), st)].append(s)
         else:
             free.append(s)
 
-    clusters: list[list[dict]] = [v for v in by_subtype.values()]
+    free_clusters: list[list[dict]] = []
     for s in free:
         trig = s.get("trigger", "")
         placed = False
-        for c in clusters:
-            if c[0].get("kind") != s.get("kind"):
+        for c in free_clusters:
+            if c[0].get("kind") != s.get("kind") or c[0].get("project") != s.get("project"):
                 continue
-            rep = c[0].get("trigger", "")
-            if difflib.SequenceMatcher(None, rep, trig).ratio() >= SIM_THRESH:
+            if difflib.SequenceMatcher(None, c[0].get("trigger", ""), trig).ratio() >= SIM_THRESH:
                 c.append(s)
                 placed = True
                 break
         if not placed:
-            clusters.append([s])
-    return clusters
+            free_clusters.append([s])
+    return list(keyed.values()) + free_clusters
 
 
 def _distinct_sessions(cluster: list[dict]) -> int:
-    return len({s.get("session") for s in cluster})
+    return len({s.get("session") for s in cluster if s.get("session")})
 
 
 # ── classification (deterministic spine) ─────────────────────────────────────
@@ -165,14 +170,18 @@ def classify_cluster(cluster: list[dict], fm_blocks: list[dict]) -> dict:
 
     axis = AXIS.get(subtype) or AXIS.get(cluster[0].get("kind", ""), "knowledge")
 
+    trace = {"best_fm": best["id"] if best else None, "best_sim": round(best_sim, 2),
+             "anchor_used": anchor["id"] if anchor else None, "threshold": MATCH_THRESH}
     if target and (anchor is not None or target_sim >= MATCH_THRESH):
         return {"action": "attach", "fm_id": target["id"], "confidence": round(target_sim, 2),
-                "axis": axis, "merges": []}
-    # below threshold and no anchor → mint candidate. Merge-before-mint: name the
-    # >=2 nearest existing FMs this would merge; mint stays a QUARANTINE proposal.
+                "axis": axis, "merges": [], "trace": trace}
+    # below threshold and no anchor → mint candidate. Merge-before-mint: a mint MUST
+    # name the >=2 nearest existing FMs it collapses; if the taxonomy can't supply
+    # two, it is NOT a mint — flag for taxonomy review rather than emit an invalid one.
     merges = [b["id"] for b in ranked[:2]]
-    return {"action": "mint", "fm_id": None, "confidence": round(best_sim, 2),
-            "axis": axis, "merges": merges}
+    action = "mint" if len(merges) >= 2 else "needs-review"
+    return {"action": action, "fm_id": None, "confidence": round(best_sim, 2),
+            "axis": axis, "merges": merges, "trace": trace}
 
 
 def propose_enforcer(cluster: list[dict], cls: dict) -> dict:
@@ -249,54 +258,76 @@ def run_classify(use_llm: bool = False, min_cluster: int = MIN_CLUSTER,
     fm_blocks = fm.parse_blocks()
 
     auto_recorded, quarantined, deferred = [], [], []
-    arrival = 0
+    arrival = suppressed = 0
     active_q = _active_quarantine_count()
+    newly_processed: set[str] = set()
+
+    def cap_open() -> bool:
+        return arrival < ARRIVAL_CAP and (active_q + arrival) < WIP_CAP
 
     for cluster in clusters:
+        kind = cluster[0].get("kind")
+        subtype = cluster[0].get("subtype", "")
+        # SHADOW: an omission probe has NO durable effect until its PPV gate clears.
+        # Hold the cluster (don't classify, don't process) — it keeps accumulating
+        # in the capture log for PPV measurement. Corrections (incl. retry_run) flow.
+        if kind == "omission" and subtype not in PPV_CLEARED:
+            deferred.append({"reason": "shadow-omission-held", "subtype": subtype,
+                             "size": len(cluster)})
+            continue
         if len(cluster) < min_cluster or _distinct_sessions(cluster) < MIN_SESSIONS:
-            deferred.append({"reason": "below-threshold",
-                             "size": len(cluster), "sessions": _distinct_sessions(cluster),
-                             "subtype": cluster[0].get("subtype", "")})
+            deferred.append({"reason": "below-threshold", "size": len(cluster),
+                             "sessions": _distinct_sessions(cluster), "subtype": subtype})
             continue  # leave UNprocessed so future signals can join
         cls = classify_cluster(cluster, fm_blocks)
-        summary = f"{cluster[0].get('subtype','')} x{len(cluster)} ({_distinct_sessions(cluster)} sessions)"
+        summary = f"{subtype} x{len(cluster)} ({_distinct_sessions(cluster)} sessions)"
+        handled = True
 
         if cls["action"] == "attach":
-            # AUTO-RECORD: evidence-attach is low-blast bookkeeping (no human gate)
+            # AUTO-RECORD evidence (idempotent attach → re-runs after a cap are safe)
             if not dry_run:
                 for s in cluster:
-                    fm.cmd_attach(_AttachArgs(cls["fm_id"], s.get("session", "?"),
-                                              s.get("trigger", "")[:160]))
+                    if fm.cmd_attach(_AttachArgs(cls["fm_id"], s.get("session", "?"),
+                                                 s.get("trigger", "")[:160])) != 0:
+                        handled = False  # attach failed → retry next run, don't process
             auto_recorded.append({"fm_id": cls["fm_id"], "summary": summary,
                                   "confidence": cls["confidence"]})
             # Propose the ENFORCER once per FM (behavior change → quarantine)
-            if cls["fm_id"] not in fm_enforced and arrival < ARRIVAL_CAP \
-                    and (active_q + arrival) < WIP_CAP:
+            if cls["fm_id"] not in fm_enforced:
+                if cap_open():
+                    prop = _build_proposal(cluster, cls, summary, use_llm)
+                    if not dry_run:
+                        _write_quarantine(prop)
+                        fm_enforced.add(cls["fm_id"])
+                    quarantined.append(prop)
+                    arrival += 1
+                else:
+                    suppressed += 1
+                    handled = False  # enforcer not yet emitted → retry (idempotent attach)
+        else:  # mint OR needs-review — taxonomy/review change, always human-gated
+            if cap_open():
                 prop = _build_proposal(cluster, cls, summary, use_llm)
                 if not dry_run:
                     _write_quarantine(prop)
-                    fm_enforced.add(cls["fm_id"])
                 quarantined.append(prop)
                 arrival += 1
-        else:  # mint — taxonomy change, always human-gated
-            if arrival < ARRIVAL_CAP and (active_q + arrival) < WIP_CAP:
-                prop = _build_proposal(cluster, cls, summary, use_llm)
-                if not dry_run:
-                    _write_quarantine(prop)
-                quarantined.append(prop)
-                arrival += 1
+            else:
+                suppressed += 1
+                handled = False  # not emitted → retry next run (no silent drop)
 
-        if not dry_run:
-            seen.update(s.get("hash") for s in cluster)
+        if handled:
+            newly_processed.update(h for h in (s.get("hash") for s in cluster) if h)
 
     if not dry_run:
-        state["hashes"] = sorted(seen)
+        seen.update(newly_processed)
+        state["hashes"] = sorted(h for h in seen if h)
         state["fm_enforced"] = sorted(fm_enforced)
         save_processed(state)
 
     return {"fresh_signals": len(fresh), "clusters": len(clusters),
             "auto_recorded": auto_recorded, "quarantined": quarantined,
-            "deferred": len(deferred), "capped": arrival >= ARRIVAL_CAP}
+            "deferred": len(deferred), "suppressed": suppressed,
+            "capped": (arrival >= ARRIVAL_CAP) or suppressed > 0}
 
 
 def _build_proposal(cluster, cls, summary, use_llm) -> dict:
@@ -305,6 +336,8 @@ def _build_proposal(cluster, cls, summary, use_llm) -> dict:
         "schema": "reflect.proposal.v1", "ts": _utc_now(), "status": "pending",
         "action": cls["action"], "fm_id": cls["fm_id"], "merges": cls["merges"],
         "axis": cls["axis"], "confidence": cls["confidence"],
+        "trace": cls.get("trace", {}),  # auditable: best FM, sim, anchor, threshold
+        "project_set": sorted({s.get("project", "?") for s in cluster}),
         "cluster_summary": summary, "evidence": [s.get("trigger", "")[:160] for s in cluster[:5]],
         **enf,
     }
@@ -313,6 +346,9 @@ def _build_proposal(cluster, cls, summary, use_llm) -> dict:
             f"merge-before-mint: would merge {cls['merges']}. Refuse unless these "
             f">=2 prior classes genuinely collapse into one. Human decides."
         )
+    elif cls["action"] == "needs-review":
+        prop["mint_note"] = ("taxonomy too small to satisfy merge-before-mint (<2 nearest "
+                             "FMs). Human: attach to an existing FM or seed a new one manually.")
     return llm_enrich(prop) if use_llm else prop
 
 
@@ -335,11 +371,13 @@ def cmd_classify(args) -> int:
           f"{r['clusters']} clusters ({r['deferred']} below threshold)")
     for a in r["auto_recorded"]:
         print(f"  ✓ auto-recorded → {a['fm_id']} ({a['summary']}, sim={a['confidence']})")
+    _kind = {"mint": "MINT", "needs-review": "NEEDS-REVIEW"}
     for q in r["quarantined"]:
-        kind = "MINT" if q["action"] == "mint" else f"enforcer→{q['fm_id']}"
+        kind = _kind.get(q["action"], f"enforcer→{q['fm_id']}")
         print(f"  ▸ quarantined [{kind}] axis={q['axis']} :: {q['cluster_summary']}")
-    if r["capped"]:
-        print(f"  ! arrival cap ({ARRIVAL_CAP}/run) hit — remaining clusters wait for next run")
+    if r.get("suppressed"):
+        print(f"  ! {r['suppressed']} eligible cluster(s) cap-suppressed — NOT processed, "
+              f"retry next run (no silent drop)")
     print(f"\nReview: reflect.py review   (auto-record is applied; enforcers/mints await you)")
     return 0
 
@@ -367,13 +405,14 @@ def cmd_review(_args) -> int:
         return 0
     print(f"\n[reflect review] {len(pending)} pending (cap {WIP_CAP}). "
           f"Approve → improvement-log [ ] proposed; report-only canary until you flip active.\n")
+    _head = {"mint": "MINT", "needs-review": "NEEDS-REVIEW"}
     for _, _, r in sorted(pending, key=lambda x: x[2].get("confidence", 0), reverse=True):
-        head = "MINT" if r["action"] == "mint" else f"enforcer → {r['fm_id']}"
-        print(f"  ▸ [{head}] axis={r['axis']} conf={r.get('confidence')}")
+        head = _head.get(r["action"], f"enforcer → {r['fm_id']}")
+        print(f"  ▸ [{head}] axis={r['axis']} conf={r.get('confidence')} proj={r.get('project_set')}")
         print(f"      {r['cluster_summary']}")
         print(f"      verifier: {r['verifier_sketch'][:140]}")
-        if r["action"] == "mint":
-            print(f"      {r.get('mint_note','')}")
+        if r.get("mint_note"):
+            print(f"      {r['mint_note']}")
         print()
     print("Disposition is manual (auto-record-never-auto-apply): edit status to "
           "approved/rejected in the quarantine jsonl, then promote approved items.")

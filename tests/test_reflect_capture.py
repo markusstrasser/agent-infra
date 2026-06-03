@@ -475,6 +475,17 @@ class TestMain:
         assert rc.main() == 0
         assert not capture_log.exists()
 
+    def test_non_dict_json_payload_fails_open(self, monkeypatch, capture_log):
+        # Valid JSON but not an object (e.g. []) must NOT raise AttributeError.
+        assert self._run_main(monkeypatch, []) == 0
+        assert not capture_log.exists()
+
+    def test_null_cwd_fails_open(self, monkeypatch, capture_log):
+        # "cwd": null coerces to "" → project "unknown" → no crash, no capture.
+        assert self._run_main(monkeypatch, {"session_id": "s", "cwd": None,
+                                            "transcript_path": "/nope"}) == 0
+        assert not capture_log.exists()
+
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))

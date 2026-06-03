@@ -256,21 +256,20 @@ def append_signals(session: str, project: str, signals: list[dict], ts: str) -> 
 
 def main() -> int:
     try:
-        payload = json.load(sys.stdin) if not sys.stdin.isatty() else {}
-    except (json.JSONDecodeError, ValueError):
-        payload = {}
-    transcript = payload.get("transcript_path", "")
-    session = (payload.get("session_id") or "unknown")[:36]
-    cwd = payload.get("cwd", "")
-    project = Path(cwd).name if cwd else "unknown"
-    ts = payload.get("timestamp") or _utc_now()
-
-    if project not in TESTBED:
-        return 0  # shadow scope: capture only on the test bed
-    if not transcript or not Path(transcript).exists():
-        return 0
-
+        raw = json.load(sys.stdin) if not sys.stdin.isatty() else {}
+    except (json.JSONDecodeError, ValueError, OSError):
+        raw = {}
+    payload = raw if isinstance(raw, dict) else {}  # tolerate non-object JSON (e.g. [])
     try:
+        transcript = payload.get("transcript_path") or ""
+        session = (payload.get("session_id") or "unknown")[:36]
+        cwd = payload.get("cwd") or ""  # coerce a null/missing cwd to ""
+        project = Path(cwd).name if cwd else "unknown"
+        ts = payload.get("timestamp") or _utc_now()
+        if project not in TESTBED:
+            return 0  # shadow scope: capture only on the test bed
+        if not transcript or not Path(transcript).exists():
+            return 0
         lines = Path(transcript).read_text(encoding="utf-8", errors="replace").splitlines()
         events = parse_events(lines)
         rules = read_central_rules(project) + (read_omission_rules(Path(cwd)) if cwd else [])

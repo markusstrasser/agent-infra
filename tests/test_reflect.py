@@ -1,7 +1,9 @@
-"""Tests for scripts/reflect.py — the deep pass (cluster → classify → emit).
+"""Tests for scripts/reflect.py — the deep pass (cluster → classify → emit),
+including the close-review fixes: shadow-omission hold, no-silent-cap-drop,
+project-isolated clustering, idempotent attach, merge-before-mint proposal guard.
 
 Hermetic: CAPTURE_LOG / PROCESSED / QUARANTINE_DIR and fm.FM_FILE / fm.EVIDENCE_LOG
-are monkeypatched onto temp paths; no real state, no LLM (use_llm defaults off).
+are monkeypatched onto temp paths; no real state, no LLM.
 """
 import json
 import sys
@@ -53,111 +55,146 @@ def env(tmp_path, monkeypatch):
     return tmp_path
 
 
-def _omission(session, n=1):
-    return {"schema": "reflect.capture.v1", "kind": "omission",
-            "subtype": "entity-write-without-identity-read", "strength": "shadow",
-            "session": session, "hash": f"h{session}{n}",
-            "trigger": "wrote analysis/companies/X.md without identity read"}
+def _omission(session, n=1, project="intel"):
+    return {"kind": "omission", "subtype": "entity-write-without-identity-read",
+            "strength": "shadow", "project": project, "session": session,
+            "hash": f"o{session}{n}", "trigger": "wrote analysis/companies/X.md without identity read"}
 
 
-def _write_capture(path: Path, rows):
+def _retry(session, n=1, project="intel"):
+    return {"kind": "correction", "subtype": "retry_run", "strength": "medium",
+            "project": project, "session": session, "hash": f"r{session}{n}",
+            "trigger": "Bash x4 varied-input run"}
+
+
+def _neg(session, trigger, project="intel"):
+    return {"kind": "correction", "subtype": "negation", "project": project,
+            "session": session, "hash": f"n{session}{hash(trigger) % 9999}", "trigger": trigger}
+
+
+def _write_capture(path, rows):
     path.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
 
 
-# ── clustering ───────────────────────────────────────────────────────────────
-def test_omissions_bucket_by_subtype(env):
-    sigs = [_omission("s1"), _omission("s2"), _omission("s3")]
-    clusters = reflect.cluster_signals(sigs)
-    assert len(clusters) == 1
-    assert reflect._distinct_sessions(clusters[0]) == 3
+# ── clustering (project-isolated, type-strict) ───────────────────────────────
+def test_omissions_bucket_by_project_subtype(env):
+    clusters = reflect.cluster_signals([_omission("s1"), _omission("s2"), _omission("s3")])
+    assert len(clusters) == 1 and reflect._distinct_sessions(clusters[0]) == 3
+
+
+def test_same_subtype_different_projects_do_not_collide(env):
+    clusters = reflect.cluster_signals([_retry("s1"), _retry("s2", project="agent-infra")])
+    assert len(clusters) == 2  # project-scoped keying — no cross-repo collision
+
+
+def test_free_correction_does_not_join_retry_bucket(env):
+    # identical trigger text, but a negation must NOT contaminate the retry bucket
+    clusters = reflect.cluster_signals([_retry("s1"), _neg("s2", "Bash x4 varied-input run")])
+    assert len(clusters) == 2
 
 
 def test_distinct_corrections_form_separate_clusters(env):
-    a = {"kind": "correction", "subtype": "negation", "session": "s1", "hash": "a",
-         "trigger": "the alpha widget is wrong"}
-    b = {"kind": "correction", "subtype": "negation", "session": "s2", "hash": "b",
-         "trigger": "totally unrelated zzz qqq topic"}
-    clusters = reflect.cluster_signals([a, b])
-    assert len(clusters) == 2
+    a = _neg("s1", "the alpha widget is wrong")
+    b = _neg("s2", "totally unrelated zzz qqq topic")
+    assert len(reflect.cluster_signals([a, b])) == 2
 
 
 # ── classification: merge-before-mint ────────────────────────────────────────
 def test_anchor_forces_attach(env):
-    blocks = fm.parse_blocks()
-    cluster = [_omission("s1"), _omission("s2"), _omission("s3")]
-    cls = reflect.classify_cluster(cluster, blocks)
+    cls = reflect.classify_cluster([_retry("s1"), _retry("s2"), _retry("s3")], fm.parse_blocks())
     assert cls["action"] == "attach"
-    assert cls["fm_id"] == "fm25-belief6-fae"  # the PROBE_FM anchor
+    assert cls["fm_id"] == "fm24-retry-without-diagnosis"  # PROBE_FM anchor
     assert cls["axis"] == "reach"
 
 
 def test_no_anchor_low_sim_proposes_mint_with_two_merges(env):
-    blocks = fm.parse_blocks()
-    cluster = [{"kind": "correction", "subtype": "negation", "session": f"s{i}",
-                "hash": f"m{i}", "trigger": "zzzzz qqqqq vvvvv wwwww"} for i in range(3)]
-    cls = reflect.classify_cluster(cluster, blocks)
-    assert cls["action"] == "mint"
-    assert len(cls["merges"]) == 2  # merge-before-mint names the 2 nearest FMs
+    cluster = [_neg(f"s{i}", "zzzzz qqqqq vvvvv wwwww") for i in range(3)]
+    cls = reflect.classify_cluster(cluster, fm.parse_blocks())
+    assert cls["action"] == "mint" and len(cls["merges"]) == 2
 
 
-# ── run_classify: auto-record vs quarantine, thresholds, caps ────────────────
-def test_below_threshold_is_deferred_not_processed(env):
-    _write_capture(reflect.CAPTURE_LOG, [_omission("s1"), _omission("s2")])  # only 2 sessions
+def test_mint_needs_two_merges_else_needs_review(env, tmp_path, monkeypatch):
+    one = tmp_path / "one.md"
+    one.write_text("### F\n<!--\nFM-ID: only-one\nsignature: x\ntarget_surface: y\n"
+                   "status: active\nevidence_count: 0\n-->\n", encoding="utf-8")
+    monkeypatch.setattr(fm, "FM_FILE", one)
+    cluster = [_neg(f"s{i}", "zzz qqq vvv") for i in range(3)]
+    cls = reflect.classify_cluster(cluster, fm.parse_blocks())
+    assert cls["action"] == "needs-review" and len(cls["merges"]) < 2
+
+
+# ── run_classify: shadow hold, auto-record, no-silent-drop, caps ─────────────
+def test_omission_clusters_held_shadow(env):
+    _write_capture(reflect.CAPTURE_LOG, [_omission("s1"), _omission("s2"), _omission("s3")])
+    r = reflect.run_classify(dry_run=False)
+    assert r["auto_recorded"] == [] and r["quarantined"] == [] and r["deferred"] == 1
+    # held → never processed → still fresh next run (accumulating for PPV)
+    assert reflect.run_classify(dry_run=False)["fresh_signals"] == 3
+    # and NO durable taxonomy mutation from shadow probes
+    ev = env / "fm-evidence.jsonl"
+    assert not ev.exists() or ev.read_text().strip() == ""
+
+
+def test_below_threshold_retry_deferred(env):
+    _write_capture(reflect.CAPTURE_LOG, [_retry("s1"), _retry("s1", 2)])  # 2 signals, 1 session
     r = reflect.run_classify(dry_run=True)
-    assert r["auto_recorded"] == [] and r["quarantined"] == []
-    assert r["deferred"] == 1
+    assert r["deferred"] == 1 and r["auto_recorded"] == [] and r["quarantined"] == []
 
 
 def test_attach_auto_records_and_quarantines_enforcer(env):
-    _write_capture(reflect.CAPTURE_LOG, [_omission("s1"), _omission("s2"), _omission("s3")])
+    _write_capture(reflect.CAPTURE_LOG, [_retry("s1"), _retry("s2"), _retry("s3")])
     r = reflect.run_classify(dry_run=False)
-    # auto-record: evidence attached to the existing FM
-    assert any(a["fm_id"] == "fm25-belief6-fae" for a in r["auto_recorded"])
-    ev = (env / "fm-evidence.jsonl").read_text().strip().splitlines()
-    assert len(ev) == 3  # one row per session-instance
-    # enforcer proposal quarantined (behavior change → human gate), report-only
-    assert len(r["quarantined"]) == 1
-    assert r["quarantined"][0]["mode"] == "report-only"
+    assert any(a["fm_id"] == "fm24-retry-without-diagnosis" for a in r["auto_recorded"])
+    assert len((env / "fm-evidence.jsonl").read_text().strip().splitlines()) == 3
+    assert len(r["quarantined"]) == 1 and r["quarantined"][0]["mode"] == "report-only"
     qfiles = list((env / "quarantine").glob("*.jsonl"))
     assert qfiles and "pending" in qfiles[0].read_text()
 
 
 def test_processed_prevents_reclassification(env):
-    _write_capture(reflect.CAPTURE_LOG, [_omission("s1"), _omission("s2"), _omission("s3")])
+    _write_capture(reflect.CAPTURE_LOG, [_retry("s1"), _retry("s2"), _retry("s3")])
     reflect.run_classify(dry_run=False)
-    r2 = reflect.run_classify(dry_run=False)
-    assert r2["fresh_signals"] == 0 and r2["auto_recorded"] == []
+    assert reflect.run_classify(dry_run=False)["fresh_signals"] == 0
+
+
+def test_evidence_attach_idempotent(env):
+    _write_capture(reflect.CAPTURE_LOG, [_retry("s1"), _retry("s2"), _retry("s3")])
+    reflect.run_classify(dry_run=False)
+    # force a full re-run (e.g. a crash that lost processed state)
+    (env / "reflect-processed.json").write_text(json.dumps({"hashes": [], "fm_enforced": []}))
+    reflect.run_classify(dry_run=False)
+    assert len((env / "fm-evidence.jsonl").read_text().strip().splitlines()) == 3  # NOT 6
 
 
 def test_enforcer_proposed_once_per_fm(env):
-    _write_capture(reflect.CAPTURE_LOG, [_omission("s1"), _omission("s2"), _omission("s3")])
+    _write_capture(reflect.CAPTURE_LOG, [_retry("s1"), _retry("s2"), _retry("s3")])
     reflect.run_classify(dry_run=False)
-    # add 3 more of the SAME subtype/FM in new sessions
-    rows = [_omission("s1"), _omission("s2"), _omission("s3"),
-            _omission("t1"), _omission("t2"), _omission("t3")]
+    rows = [_retry("t1"), _retry("t2"), _retry("t3")]
     for i, row in enumerate(rows):
         row["hash"] = f"second{i}"
-        row["session"] = ["t1", "t2", "t3", "t4", "t5", "t6"][i]
     _write_capture(reflect.CAPTURE_LOG, rows)
-    r2 = reflect.run_classify(dry_run=False)
-    # evidence still attaches, but no SECOND enforcer for the same FM
-    assert r2["quarantined"] == []
+    assert reflect.run_classify(dry_run=False)["quarantined"] == []  # evidence accrues, no 2nd enforcer
+
+
+def test_capped_mint_not_processed_then_retries(env, monkeypatch):
+    # WIP cap full → eligible mint suppressed, NOT processed (no silent drop), retries later
+    monkeypatch.setattr(reflect, "_active_quarantine_count", lambda: reflect.WIP_CAP)
+    _write_capture(reflect.CAPTURE_LOG, [_neg(f"s{i}", "alpha beta gamma delta") for i in range(3)])
+    r = reflect.run_classify(dry_run=False)
+    assert r["quarantined"] == [] and r["suppressed"] == 1 and r["capped"] is True
+    assert json.loads((env / "reflect-processed.json").read_text())["hashes"] == []
+    monkeypatch.setattr(reflect, "_active_quarantine_count", lambda: 0)
+    assert len(reflect.run_classify(dry_run=False)["quarantined"]) == 1  # budget freed → emitted
 
 
 def test_arrival_cap_limits_quarantine(env):
-    # 6 GENUINELY dissimilar mint-bound clusters (distinct words, so difflib does
-    # not merge them) — must exceed the arrival cap of 3.
-    phrases = [
-        "alpha beta gamma delta", "monsoon tractor velvet quasar",
-        "ledger biscuit tundra xenon", "harbor zephyr cobalt mango",
-        "pixel walrus orchid fjord", "thunder basil ivory nomad",
-    ]
+    phrases = ["alpha beta gamma delta", "monsoon tractor velvet quasar",
+               "ledger biscuit tundra xenon", "harbor zephyr cobalt mango",
+               "pixel walrus orchid fjord", "thunder basil ivory nomad"]
     rows = []
     for k, phrase in enumerate(phrases):
         for i in range(3):
-            rows.append({"kind": "correction", "subtype": "negation",
-                         "session": f"s{k}_{i}", "hash": f"c{k}_{i}", "trigger": phrase})
+            rows.append(_neg(f"s{k}_{i}", phrase))
     _write_capture(reflect.CAPTURE_LOG, rows)
     r = reflect.run_classify(dry_run=False)
-    assert len(r["quarantined"]) <= reflect.ARRIVAL_CAP
-    assert r["capped"] is True
+    assert len(r["quarantined"]) <= reflect.ARRIVAL_CAP and r["capped"] is True
