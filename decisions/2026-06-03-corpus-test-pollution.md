@@ -5,7 +5,7 @@ repo: agent-infra
 decision_date: 2026-06-03
 recorded_date: 2026-06-03
 provenance: contemporaneous
-status: proposed
+status: accepted
 initial_leaning: "fail-closed: raise when CORPUS_ROOT unset under pytest"
 relations:
   - type: depends_on
@@ -77,3 +77,22 @@ fixture fingerprints are conclusive. Checked a migration cause via genomics git 
 ## Supersedes
 None. Instance of the failure class in `research/closed-loop-boundary-and-system-awareness.md`
 (§5.1 self-referential/unconsumed verifiers) and `decisions/2026-06-03-verifier-bound-autonomy.md`.
+
+## Revisions
+
+**2026-06-04 — Implemented as dependency injection, NOT redirect (supersedes the Decision above).**
+The shipped fix is deeper than this record's proposed "redirect" *and* the rejected "raise":
+the ambient `CORPUS_ROOT`-with-prod-default was **deleted by construction.**
+- `8a0a790` — extract a `CorpusStore` handle, remove the root singleton (22 corpus_core modules).
+- `3f0c81c` — entrypoints (CLI/MCP/ingest/audit) **require an explicit `--corpus-root`**, fail closed.
+- `9e7434a` — 17 test files migrated to isolated temp stores.
+Validated 2026-06-04 (reality-anchored, not commit-message trust): no residual env-default /
+`store_root` singleton / prod fallback in corpus_core; `audit_corpus_sync` *errors* without
+`--corpus-root` (fail-closed confirmed live); corpus-core suite **182 passed, 1 skipped**. The
+leak path is closed by construction — neither redirect nor raise was needed. `status → accepted`
+for the §1 architecture.
+
+**Still pending: cleanup (was §3).** The 30 already-leaked fixture annotations remain in prod
+corpus (`audit_corpus_sync --corpus-root ~/Projects/corpus` → `DRIFT: 30 verdict`) plus the 5
+git-tracked `annotations.jsonl` ledgers. Destructive (prod-data delete + git history) → needs
+deliberate, snapshot-first execution; not yet done.
