@@ -13,12 +13,13 @@ import pytest
 from datetime import datetime, timezone
 
 from corpus_core.annotate import annotate
-from corpus_core.store import graph_db_path
+from corpus_core.store import CorpusStore
 
 
-def _ann_id_for_paper(paper: str) -> str:
+def _ann_id_for_paper(store: CorpusStore, paper: str) -> str:
     return annotate(
         f"doi_test_{paper}",
+        store=store,
         repo="phenome",
         actor_type="service",
         actor_id="urn:agent:service:bitemporal-test",
@@ -29,11 +30,12 @@ def _ann_id_for_paper(paper: str) -> str:
     )
 
 
-def test_valid_from_does_not_mutate_annotation_id(corpus_root):
+def test_valid_from_does_not_mutate_annotation_id(corpus_root, corpus_store):
     """Idempotency invariant — load-bearing. If valid_from accidentally
     leaks into annotation_stable_tuple, this test fails immediately."""
     id_no_vf = annotate(
         "doi_test_idempotency",
+        store=corpus_store,
         repo="phenome",
         actor_type="service",
         actor_id="urn:agent:service:foo",
@@ -46,6 +48,7 @@ def test_valid_from_does_not_mutate_annotation_id(corpus_root):
     # idempotency check should fire, no second JSONL row written, same id.
     id_with_vf = annotate(
         "doi_test_idempotency",
+        store=corpus_store,
         repo="phenome",
         actor_type="service",
         actor_id="urn:agent:service:foo",
@@ -62,11 +65,12 @@ def test_valid_from_does_not_mutate_annotation_id(corpus_root):
     assert sum(1 for _ in jsonl.open()) == 1
 
 
-def test_valid_from_defaults_to_asserted_at(corpus_root):
+def test_valid_from_defaults_to_asserted_at(corpus_root, corpus_store):
     """When the caller doesn't pass valid_from, the JSONL record gets
     the writer's asserted_at as the bitemporal default."""
     annotate(
         "doi_test_default_vf",
+        store=corpus_store,
         repo="phenome",
         actor_type="service",
         actor_id="urn:agent:service:foo",
@@ -82,9 +86,10 @@ def test_valid_from_defaults_to_asserted_at(corpus_root):
     assert rec["valid_from"] == rec["asserted_at"]
 
 
-def test_explicit_valid_from_lands_in_jsonl(corpus_root):
+def test_explicit_valid_from_lands_in_jsonl(corpus_root, corpus_store):
     annotate(
         "doi_test_explicit_vf",
+        store=corpus_store,
         repo="phenome",
         actor_type="service",
         actor_id="urn:agent:service:foo",
@@ -100,12 +105,13 @@ def test_explicit_valid_from_lands_in_jsonl(corpus_root):
     assert rec["valid_from"] == "2026-01-15T08:00:00Z"
 
 
-def test_valid_to_kwarg_is_rejected(corpus_root):
+def test_valid_to_kwarg_is_rejected(corpus_root, corpus_store):
     """Design enforcement: pure-append-only has NO valid_to.
     Supersession is its own annotation event."""
     with pytest.raises(TypeError):
         annotate(  # type: ignore[call-arg]
             "doi_test_no_valid_to",
+            store=corpus_store,
             repo="phenome",
             actor_type="service",
             actor_id="urn:agent:service:foo",
@@ -117,12 +123,13 @@ def test_valid_to_kwarg_is_rejected(corpus_root):
         )
 
 
-def test_chain_returns_only_leaves(corpus_root):
+def test_chain_returns_only_leaves(corpus_root, corpus_store):
     """annotations_current excludes annotations that have been
     superseded by another annotation. Multi-leaf branches return both
     leaves (operator UX, not constraint violation)."""
     a_id = annotate(
         "doi_test_chain",
+        store=corpus_store,
         repo="phenome",
         actor_type="service",
         actor_id="urn:agent:service:foo",
@@ -133,6 +140,7 @@ def test_chain_returns_only_leaves(corpus_root):
     )
     b_id = annotate(
         "doi_test_chain",
+        store=corpus_store,
         repo="phenome",
         actor_type="service",
         actor_id="urn:agent:service:foo",
@@ -143,7 +151,7 @@ def test_chain_returns_only_leaves(corpus_root):
         supersedes_annotation_id=a_id,
     )
 
-    con = duckdb.connect(str(graph_db_path()), read_only=True)
+    con = duckdb.connect(str(corpus_store.graph_db_path()), read_only=True)
     try:
         all_rows = [r[0] for r in con.execute(
             "SELECT annotation_id FROM annotations WHERE source_id = ?",
@@ -160,11 +168,12 @@ def test_chain_returns_only_leaves(corpus_root):
     assert current_rows == [b_id]  # a is superseded; only b is current
 
 
-def test_chain_multi_leaf_returns_all_leaves(corpus_root):
+def test_chain_multi_leaf_returns_all_leaves(corpus_root, corpus_store):
     """v6 critique #7: two annotations LEGITIMATELY superseding the same
     prior is a curation prompt, not a DB violation. View returns both."""
     a_id = annotate(
         "doi_test_multileaf",
+        store=corpus_store,
         repo="phenome",
         actor_type="service",
         actor_id="urn:agent:service:foo",
@@ -175,6 +184,7 @@ def test_chain_multi_leaf_returns_all_leaves(corpus_root):
     )
     b_id = annotate(
         "doi_test_multileaf",
+        store=corpus_store,
         repo="phenome",
         actor_type="service",
         actor_id="urn:agent:service:foo",
@@ -186,6 +196,7 @@ def test_chain_multi_leaf_returns_all_leaves(corpus_root):
     )
     c_id = annotate(
         "doi_test_multileaf",
+        store=corpus_store,
         repo="phenome",
         actor_type="service",
         actor_id="urn:agent:service:foo",
@@ -196,7 +207,7 @@ def test_chain_multi_leaf_returns_all_leaves(corpus_root):
         supersedes_annotation_id=a_id,
     )
 
-    con = duckdb.connect(str(graph_db_path()), read_only=True)
+    con = duckdb.connect(str(corpus_store.graph_db_path()), read_only=True)
     try:
         current_rows = sorted(r[0] for r in con.execute(
             "SELECT annotation_id FROM annotations_current WHERE source_id = ?",
@@ -207,12 +218,13 @@ def test_chain_multi_leaf_returns_all_leaves(corpus_root):
     assert current_rows == sorted([b_id, c_id])  # both leaves; a is not
 
 
-def test_physical_table_remains_insertable(corpus_root):
+def test_physical_table_remains_insertable(corpus_root, corpus_store):
     """rebuild_annotations_index still INSERTs into the physical table;
     views are not writable in DuckDB. Sanity check that the view's
     existence didn't break the writer path."""
     annotate(
         "doi_test_writable",
+        store=corpus_store,
         repo="phenome",
         actor_type="service",
         actor_id="urn:agent:service:foo",
@@ -222,6 +234,6 @@ def test_physical_table_remains_insertable(corpus_root):
         prompt_template_hash="cafebabe00000004",
     )
     from corpus_core.index import rebuild_annotations_index
-    stats = rebuild_annotations_index()
+    stats = rebuild_annotations_index(store=corpus_store)
     assert stats["sources_scanned"] >= 1
     assert stats["rows_written"] >= 1

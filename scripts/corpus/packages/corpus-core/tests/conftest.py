@@ -1,20 +1,23 @@
-"""Test fixtures — every test gets a fresh CORPUS_ROOT."""
+"""Test fixtures — every test gets an explicit temp CorpusStore."""
 from __future__ import annotations
 
-import os
-import tempfile
 from pathlib import Path
 
 import pytest
 
+from corpus_core.store import CorpusStore
+
 
 @pytest.fixture
-def corpus_root(monkeypatch, tmp_path) -> Path:
+def corpus_root(tmp_path) -> Path:
     root = tmp_path / "corpus"
     root.mkdir()
-    monkeypatch.setenv("CORPUS_ROOT", str(root))
-    # Force module-level rebind by re-importing
     return root
+
+
+@pytest.fixture
+def corpus_store(corpus_root: Path) -> CorpusStore:
+    return CorpusStore(corpus_root)
 
 
 @pytest.fixture

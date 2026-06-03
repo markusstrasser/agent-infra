@@ -16,13 +16,13 @@ class _Args:
     pass
 
 
-def test_graph_rebuild_idempotent(corpus_root, tiny_pdf):
-    meta_a = ingest.ingest_pdf(tiny_pdf, doi="10.test/a", skip_parse=True)
+def test_graph_rebuild_idempotent(corpus_root, corpus_store, tiny_pdf):
+    meta_a = ingest.ingest_pdf(corpus_store, tiny_pdf, doi="10.test/a", skip_parse=True)
     pid_a = meta_a["paper_id"]
     # Make a second paper via SHA path
     pdf_b = corpus_root.parent / "b.pdf"
     pdf_b.write_bytes(tiny_pdf.read_bytes() + b"\n%diff\n")
-    meta_b = ingest.ingest_pdf(pdf_b, doi="10.test/b", skip_parse=True)
+    meta_b = ingest.ingest_pdf(corpus_store, pdf_b, doi="10.test/b", skip_parse=True)
     pid_b = meta_b["paper_id"]
 
     # Manually drop a citance: B cites A
@@ -44,14 +44,15 @@ def test_graph_rebuild_idempotent(corpus_root, tiny_pdf):
     (corpus_root / pid_a / "citances_in.jsonl").write_text(json.dumps(citance) + "\n")
 
     args = _Args()
+    args.corpus_store = corpus_store
     cmd_rebuild_graph(args)
-    con = duckdb.connect(str(ps.graph_db_path()), read_only=True)
+    con = duckdb.connect(str(corpus_store.graph_db_path()), read_only=True)
     rows1 = con.execute("SELECT * FROM edges ORDER BY citing_paper_id, cited_paper_id, citance_id").fetchall()
     n1_papers = con.execute("SELECT COUNT(*) FROM papers").fetchone()[0]
     con.close()
 
     cmd_rebuild_graph(args)
-    con = duckdb.connect(str(ps.graph_db_path()), read_only=True)
+    con = duckdb.connect(str(corpus_store.graph_db_path()), read_only=True)
     rows2 = con.execute("SELECT * FROM edges ORDER BY citing_paper_id, cited_paper_id, citance_id").fetchall()
     n2_papers = con.execute("SELECT COUNT(*) FROM papers").fetchone()[0]
     con.close()

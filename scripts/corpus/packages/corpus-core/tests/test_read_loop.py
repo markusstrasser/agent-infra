@@ -20,10 +20,9 @@ ACTOR = "urn:agent:service:readloop-test@1"
 
 
 @pytest.fixture
-def corpus_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+def corpus_root(tmp_path: Path) -> Path:
     root = tmp_path / "corpus"
     root.mkdir()
-    monkeypatch.setenv("CORPUS_ROOT", str(root))
     (root / SOURCE).mkdir()
     (root / SOURCE / "metadata.json").write_text(
         json.dumps(
@@ -43,33 +42,33 @@ def _db(root: Path) -> Path:
     return root / "graph.duckdb"
 
 
-def test_empty_when_no_annotations(corpus_root):
-    assert active_annotations_for_source(SOURCE, db_path=_db(corpus_root)) == []
+def test_empty_when_no_annotations(corpus_root, corpus_store):
+    assert active_annotations_for_source(SOURCE, store=corpus_store, db_path=_db(corpus_root)) == []
 
 
-def test_surfaces_active_verdict(corpus_root):
+def test_surfaces_active_verdict(corpus_root, corpus_store):
     annotate(
-        SOURCE, repo="genomics", actor_type="service", actor_id=ACTOR,
+        SOURCE, store=corpus_store, repo="genomics", actor_type="service", actor_id=ACTOR,
         scope="verdict", output_uri="genomics://verdicts/v1",
     )
-    out = active_annotations_for_source(SOURCE, db_path=_db(corpus_root))
+    out = active_annotations_for_source(SOURCE, store=corpus_store, db_path=_db(corpus_root))
     assert len(out) == 1
     assert out[0]["repo"] == "genomics"
     assert out[0]["status"] == "active"
     assert out[0]["output_uri"] == "genomics://verdicts/v1"
 
 
-def test_surfaces_retraction(corpus_root):
+def test_surfaces_retraction(corpus_root, corpus_store):
     # Load-bearing case: an agent must SEE a retracted verdict before reusing the claim.
     annotate(
-        SOURCE, repo="genomics", actor_type="service", actor_id=ACTOR,
+        SOURCE, store=corpus_store, repo="genomics", actor_type="service", actor_id=ACTOR,
         scope="verdict", output_uri="genomics://verdicts/v1", status="retracted",
     )
-    out = active_annotations_for_source(SOURCE, db_path=_db(corpus_root))
+    out = active_annotations_for_source(SOURCE, store=corpus_store, db_path=_db(corpus_root))
     retracted = [a for a in out if a["status"] == "retracted"]
     assert retracted, "read loop must surface the retracted verdict"
     assert retracted[0]["output_uri"] == "genomics://verdicts/v1"
 
 
-def test_fail_soft_when_graph_missing(tmp_path):
-    assert active_annotations_for_source(SOURCE, db_path=tmp_path / "nope.duckdb") == []
+def test_fail_soft_when_graph_missing(tmp_path, corpus_store):
+    assert active_annotations_for_source(SOURCE, store=corpus_store, db_path=tmp_path / "nope.duckdb") == []

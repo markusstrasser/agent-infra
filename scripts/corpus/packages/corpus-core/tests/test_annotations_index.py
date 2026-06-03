@@ -9,19 +9,15 @@ import pytest
 
 from corpus_core.annotate import annotate
 from corpus_core.index import rebuild_annotations_index
-from corpus_core.store import paper_path
-
-
 SOURCE_A = "doi_10_1234_alpha"
 SOURCE_B = "doi_10_1234_beta"
 ACTOR = "urn:agent:service:phase2-test@0.0.1"
 
 
 @pytest.fixture
-def corpus_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+def corpus_root(tmp_path: Path) -> Path:
     root = tmp_path / "corpus"
     root.mkdir()
-    monkeypatch.setenv("CORPUS_ROOT", str(root))
     for sid in (SOURCE_A, SOURCE_B):
         (root / sid).mkdir()
         # metadata.json with source_type so the projection can denormalize it
@@ -42,9 +38,9 @@ def _query(root: Path, sql: str, *params):
         con.close()
 
 
-def test_annotate_writes_to_duckdb_projection(corpus_root):
+def test_annotate_writes_to_duckdb_projection(corpus_root, corpus_store):
     aid = annotate(
-        SOURCE_A, repo="agent-infra", actor_type="service", actor_id=ACTOR,
+        SOURCE_A, store=corpus_store, repo="agent-infra", actor_type="service", actor_id=ACTOR,
         scope="raw_fetch",
     )
     rows = _query(corpus_root, "SELECT annotation_id, source_id, repo, scope FROM annotations")
@@ -52,40 +48,40 @@ def test_annotate_writes_to_duckdb_projection(corpus_root):
     assert rows[0] == (aid, SOURCE_A, "agent-infra", "raw_fetch")
 
 
-def test_source_type_denormalized(corpus_root):
-    annotate(SOURCE_A, repo="agent-infra", actor_type="service",
+def test_source_type_denormalized(corpus_root, corpus_store):
+    annotate(SOURCE_A, store=corpus_store, repo="agent-infra", actor_type="service",
              actor_id=ACTOR, scope="x")
     rows = _query(corpus_root, "SELECT source_type FROM annotations WHERE source_id = ?", SOURCE_A)
     assert rows[0][0] == "paper"
 
 
-def test_query_by_repo_returns_only_matching(corpus_root):
-    annotate(SOURCE_A, repo="agent-infra", actor_type="service",
+def test_query_by_repo_returns_only_matching(corpus_root, corpus_store):
+    annotate(SOURCE_A, store=corpus_store, repo="agent-infra", actor_type="service",
              actor_id=ACTOR, scope="a1")
-    annotate(SOURCE_A, repo="phenome", actor_type="service",
+    annotate(SOURCE_A, store=corpus_store, repo="phenome", actor_type="service",
              actor_id=ACTOR, scope="a2")
-    annotate(SOURCE_B, repo="phenome", actor_type="service",
+    annotate(SOURCE_B, store=corpus_store, repo="phenome", actor_type="service",
              actor_id=ACTOR, scope="b1")
     rows = _query(corpus_root, "SELECT source_id, scope FROM annotations WHERE repo = ? ORDER BY scope",
                   "phenome")
     assert [r for r in rows] == [(SOURCE_A, "a2"), (SOURCE_B, "b1")]
 
 
-def test_rebuild_is_idempotent(corpus_root):
-    annotate(SOURCE_A, repo="agent-infra", actor_type="service",
+def test_rebuild_is_idempotent(corpus_root, corpus_store):
+    annotate(SOURCE_A, store=corpus_store, repo="agent-infra", actor_type="service",
              actor_id=ACTOR, scope="x")
-    annotate(SOURCE_B, repo="phenome", actor_type="model",
+    annotate(SOURCE_B, store=corpus_store, repo="phenome", actor_type="model",
              actor_id="urn:agent:model:test@1", scope="y")
-    s1 = rebuild_annotations_index()
-    s2 = rebuild_annotations_index()
+    s1 = rebuild_annotations_index(store=corpus_store)
+    s2 = rebuild_annotations_index(store=corpus_store)
     assert s1 == s2
     rows = _query(corpus_root, "SELECT COUNT(*) FROM annotations")
     assert rows[0][0] == 2
 
 
-def test_jsonl_is_truth_for_rebuild(corpus_root):
+def test_jsonl_is_truth_for_rebuild(corpus_root, corpus_store):
     """Wipe a row from the DB manually; rebuild restores it from JSONL."""
-    aid = annotate(SOURCE_A, repo="agent-infra", actor_type="service",
+    aid = annotate(SOURCE_A, store=corpus_store, repo="agent-infra", actor_type="service",
                    actor_id=ACTOR, scope="x")
     # Wipe out the row directly
     con = duckdb.connect(str(corpus_root / "graph.duckdb"))
@@ -94,13 +90,13 @@ def test_jsonl_is_truth_for_rebuild(corpus_root):
     rows = _query(corpus_root, "SELECT COUNT(*) FROM annotations")
     assert rows[0][0] == 0
     # Rebuild from JSONL truth
-    stats = rebuild_annotations_index()
+    stats = rebuild_annotations_index(store=corpus_store)
     assert stats["rows_written"] == 1
     rows = _query(corpus_root, "SELECT annotation_id FROM annotations")
     assert rows[0][0] == aid
 
 
-def test_close_review_finding_3_rebuild_is_atomic(corpus_root, monkeypatch):
+def test_close_review_finding_3_rebuild_is_atomic(corpus_root, corpus_store, monkeypatch):
     """Plan-close review #3 (CONFIRMED): rebuild_annotations_index is
     now wrapped in a transaction. If iteration raises mid-rebuild, the
     prior projection survives (vs. pre-fix: DELETE landed first, leaving
@@ -110,7 +106,7 @@ def test_close_review_finding_3_rebuild_is_atomic(corpus_root, monkeypatch):
     assert the existing rows are preserved.
     """
     from corpus_core import index as idx_mod
-    aid = annotate(SOURCE_A, repo="agent-infra", actor_type="service",
+    aid = annotate(SOURCE_A, store=corpus_store, repo="agent-infra", actor_type="service",
                    actor_id=ACTOR, scope="x")
     # Confirm baseline.
     rows = _query(corpus_root, "SELECT annotation_id FROM annotations")
@@ -122,7 +118,7 @@ def test_close_review_finding_3_rebuild_is_atomic(corpus_root, monkeypatch):
     monkeypatch.setattr(idx_mod, "_iter_jsonl", _boom)
 
     with pytest.raises(RuntimeError, match="synthetic"):
-        idx_mod.rebuild_annotations_index()
+        idx_mod.rebuild_annotations_index(store=corpus_store)
 
     # CRH: pre-fix this assertion would FAIL — DELETE landed first, the
     # row would be gone. With BEGIN/ROLLBACK, the original row survives.
@@ -131,10 +127,10 @@ def test_close_review_finding_3_rebuild_is_atomic(corpus_root, monkeypatch):
     assert rows[0][0] == aid
 
 
-def test_idempotent_annotate_does_not_double_insert(corpus_root):
-    a1 = annotate(SOURCE_A, repo="agent-infra", actor_type="service",
+def test_idempotent_annotate_does_not_double_insert(corpus_root, corpus_store):
+    a1 = annotate(SOURCE_A, store=corpus_store, repo="agent-infra", actor_type="service",
                   actor_id=ACTOR, scope="x")
-    a2 = annotate(SOURCE_A, repo="agent-infra", actor_type="service",
+    a2 = annotate(SOURCE_A, store=corpus_store, repo="agent-infra", actor_type="service",
                   actor_id=ACTOR, scope="x")
     assert a1 == a2
     rows = _query(corpus_root, "SELECT COUNT(*) FROM annotations")

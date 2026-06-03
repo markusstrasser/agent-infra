@@ -32,7 +32,7 @@ def _write_source(
         (pdir / "page.md").write_text(page_md)
 
 
-def test_parse_health_classifies_each_state(corpus_root):
+def test_parse_health_classifies_each_state(corpus_root, corpus_store):
     root = corpus_root
     _write_source(root, "doi_healthy", parser="marker-modal", page_md=HEALTHY)
     _write_source(root, "doi_flatdump", parser="pymupdf", page_md=FLAT_DUMP)
@@ -40,7 +40,7 @@ def test_parse_health_classifies_each_state(corpus_root):
     _write_source(root, "doi_unparsed")  # metadata only, no parse
     _write_source(root, "db_gnomad", parser="manual", page_md=TINY)  # non-paper, tiny
 
-    report = parse_health.parse_health_report()
+    report = parse_health.parse_health_report(corpus_store)
 
     # C0 — parse-state coverage (paper-shaped denominator; db_ excluded)
     assert report["sources_total"] == 5
@@ -50,7 +50,7 @@ def test_parse_health_classifies_each_state(corpus_root):
     assert report["parsed_by_parser"] == {"manual": 1, "marker-modal": 1, "pymupdf": 2}
 
     # per-source flags
-    states = {r["source_id"]: r for r in (parse_health.parse_state(store.get(p)) for p in store.iter_papers())}
+    states = {r["source_id"]: r for r in (parse_health.parse_state(corpus_store.get(p)) for p in corpus_store.iter_papers())}
     assert states["doi_healthy"]["flags"] == []
     assert states["doi_healthy"]["parser"] == "marker-modal"
     assert states["doi_healthy"]["chars"] > 500  # size proxy is 'chars', not 'bytes'
