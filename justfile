@@ -232,6 +232,11 @@ reflect-review:
 reflect-status:
     uv run python3 scripts/reflect.py status
 
+# Learning loop — grade the pre-registered tests (compaction/PPV/throughput); --dry for safe preview
+[group('epistemic')]
+reflect-eval *args:
+    uv run python3 scripts/reflect_eval.py {{args}}
+
 # Install git pre-commit hooks (currently: pre-commit-no-large-binaries)
 [group('epistemic')]
 install-hooks:
