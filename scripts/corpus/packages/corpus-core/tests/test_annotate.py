@@ -16,7 +16,7 @@ from corpus_core.annotate import (
     AnnotationTooLargeError,
     annotate,
 )
-from corpus_core.store import paper_path
+from corpus_core.store import CorpusStore
 
 
 SOURCE_ID = "doi_10_1234_test"
@@ -24,10 +24,9 @@ ACTOR_ID = "urn:agent:service:test@0.0.1"
 
 
 @pytest.fixture
-def corpus_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+def corpus_root(tmp_path: Path) -> Path:
     root = tmp_path / "corpus"
     root.mkdir()
-    monkeypatch.setenv("CORPUS_ROOT", str(root))
     # Ensure the source dir exists for annotate() to write into
     (root / SOURCE_ID).mkdir()
     return root
@@ -43,9 +42,10 @@ def _read_lines(corpus_root: Path) -> list[dict]:
 # --- happy path + record shape ---
 
 
-def test_writes_one_record(corpus_root):
+def test_writes_one_record(corpus_root, corpus_store):
     aid = annotate(
-        SOURCE_ID, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
+        SOURCE_ID,
+        store=corpus_store, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
         scope="raw_fetch",
     )
     assert aid.startswith("ann_")
@@ -65,13 +65,15 @@ def test_writes_one_record(corpus_root):
 # --- idempotency ---
 
 
-def test_idempotent_same_tuple(corpus_root):
+def test_idempotent_same_tuple(corpus_root, corpus_store):
     a1 = annotate(
-        SOURCE_ID, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
+        SOURCE_ID,
+        store=corpus_store, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
         scope="raw_fetch",
     )
     a2 = annotate(
-        SOURCE_ID, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
+        SOURCE_ID,
+        store=corpus_store, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
         scope="raw_fetch",
     )
     assert a1 == a2
@@ -79,13 +81,15 @@ def test_idempotent_same_tuple(corpus_root):
     assert len(rows) == 1
 
 
-def test_different_scope_different_id(corpus_root):
+def test_different_scope_different_id(corpus_root, corpus_store):
     a1 = annotate(
-        SOURCE_ID, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
+        SOURCE_ID,
+        store=corpus_store, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
         scope="raw_fetch",
     )
     a2 = annotate(
-        SOURCE_ID, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
+        SOURCE_ID,
+        store=corpus_store, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
         scope="parse",
     )
     assert a1 != a2
@@ -97,34 +101,38 @@ def test_different_scope_different_id(corpus_root):
 # --- schema validation ---
 
 
-def test_unknown_repo_rejected(corpus_root):
+def test_unknown_repo_rejected(corpus_root, corpus_store):
     with pytest.raises(AnnotationError, match="unknown repo"):
         annotate(
-            SOURCE_ID, repo="bogus", actor_type="service", actor_id=ACTOR_ID,
+            SOURCE_ID,
+            store=corpus_store, repo="bogus", actor_type="service", actor_id=ACTOR_ID,
             scope="x",
         )
 
 
-def test_unknown_actor_type_rejected(corpus_root):
+def test_unknown_actor_type_rejected(corpus_root, corpus_store):
     with pytest.raises(AnnotationError, match="unknown actor_type"):
         annotate(
-            SOURCE_ID, repo="agent-infra", actor_type="alien", actor_id=ACTOR_ID,
+            SOURCE_ID,
+            store=corpus_store, repo="agent-infra", actor_type="alien", actor_id=ACTOR_ID,
             scope="x",
         )
 
 
-def test_actor_id_must_be_urn(corpus_root):
+def test_actor_id_must_be_urn(corpus_root, corpus_store):
     with pytest.raises(AnnotationError, match="urn:agent"):
         annotate(
-            SOURCE_ID, repo="agent-infra", actor_type="service",
+            SOURCE_ID,
+            store=corpus_store, repo="agent-infra", actor_type="service",
             actor_id="markus", scope="x",
         )
 
 
-def test_invalid_output_uri_scheme_caught_by_schema(corpus_root):
+def test_invalid_output_uri_scheme_caught_by_schema(corpus_root, corpus_store):
     with pytest.raises(AnnotationSchemaError):
         annotate(
-            SOURCE_ID, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
+            SOURCE_ID,
+            store=corpus_store, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
             scope="x", output_uri="https://example.com/bogus", output_hash="a" * 16,
         )
 
@@ -132,24 +140,26 @@ def test_invalid_output_uri_scheme_caught_by_schema(corpus_root):
 # --- record ceiling (16KB; raised from 4KB for inline claim_relations) ---
 
 
-def test_record_ceiling_enforced(corpus_root):
+def test_record_ceiling_enforced(corpus_root, corpus_store):
     # scope long enough to push the serialized record past the 16KB ceiling
     # (scope appears in both the top-level field and the idempotency_key → ~2x)
     huge_scope = "x" * 20000
     with pytest.raises(AnnotationTooLargeError):
         annotate(
-            SOURCE_ID, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
+            SOURCE_ID,
+            store=corpus_store, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
             scope=huge_scope,
         )
 
 
-def test_just_under_ceiling_succeeds(corpus_root):
+def test_just_under_ceiling_succeeds(corpus_root, corpus_store):
     # Tuned so the full record stays under 4096 bytes after JSON framing.
     # Each scope char becomes ~2 bytes in the serialized record (it appears in
     # both the top-level scope field AND the embedded idempotency_key).
     scope = "x" * 1700
     aid = annotate(
-        SOURCE_ID, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
+        SOURCE_ID,
+        store=corpus_store, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
         scope=scope,
     )
     rows = _read_lines(corpus_root)
@@ -162,13 +172,15 @@ def test_just_under_ceiling_succeeds(corpus_root):
 # --- supersedes chain ---
 
 
-def test_supersedes_link_recorded(corpus_root):
+def test_supersedes_link_recorded(corpus_root, corpus_store):
     a1 = annotate(
-        SOURCE_ID, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
+        SOURCE_ID,
+        store=corpus_store, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
         scope="verdict",
     )
     a2 = annotate(
-        SOURCE_ID, repo="agent-infra", actor_type="model",
+        SOURCE_ID,
+        store=corpus_store, repo="agent-infra", actor_type="model",
         actor_id="urn:agent:model:claude-opus-4-7@2026-04-16",
         scope="verdict",
         supersedes_annotation_id=a1,
@@ -183,7 +195,7 @@ def test_supersedes_link_recorded(corpus_root):
 # --- lifecycle-aware idempotency: a same-content correction must not be swallowed ---
 
 
-def test_same_content_retraction_not_silently_dropped(corpus_root):
+def test_same_content_retraction_not_silently_dropped(corpus_root, corpus_store):
     """A correction reusing the same content tuple but flipping status must NOT
     be swallowed as an idempotent no-op — that would erase the correction from
     the append-only trail. status is excluded from annotation_id, so pre-guard
@@ -191,14 +203,16 @@ def test_same_content_retraction_not_silently_dropped(corpus_root):
     Red-handed: raises only with the lifecycle guard in place.
     """
     a1 = annotate(
-        SOURCE_ID, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
+        SOURCE_ID,
+        store=corpus_store, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
         scope="verdict",
     )
     # Same actor/scope/repo/output → same stable_tuple → same annotation_id;
     # only status differs. Must fail loud, not silently drop.
     with pytest.raises(AnnotationError, match="status"):
         annotate(
-            SOURCE_ID, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
+            SOURCE_ID,
+            store=corpus_store, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
             scope="verdict", status="retracted",
         )
     rows = _read_lines(corpus_root)
@@ -207,29 +221,33 @@ def test_same_content_retraction_not_silently_dropped(corpus_root):
     assert rows[0]["status"] == "active"
 
 
-def test_source_content_hash_change_not_dropped(corpus_root):
+def test_source_content_hash_change_not_dropped(corpus_root, corpus_store):
     """Re-attesting the same verdict (same output) against a re-parsed source
     (new source_content_hash) is a correction, not a no-op — must raise."""
     annotate(
-        SOURCE_ID, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
+        SOURCE_ID,
+        store=corpus_store, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
         scope="verdict", source_content_hash="a" * 64,
     )
     with pytest.raises(AnnotationError, match="source_content_hash"):
         annotate(
-            SOURCE_ID, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
+            SOURCE_ID,
+            store=corpus_store, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
             scope="verdict", source_content_hash="b" * 64,
         )
 
 
-def test_identical_lifecycle_still_idempotent(corpus_root):
+def test_identical_lifecycle_still_idempotent(corpus_root, corpus_store):
     """Regression guard: a true re-append (content AND lifecycle identical) stays
     a silent no-op — the guard must not break legitimate idempotency."""
     a1 = annotate(
-        SOURCE_ID, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
+        SOURCE_ID,
+        store=corpus_store, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
         scope="verdict", status="active", source_content_hash="c" * 64,
     )
     a2 = annotate(
-        SOURCE_ID, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
+        SOURCE_ID,
+        store=corpus_store, repo="agent-infra", actor_type="service", actor_id=ACTOR_ID,
         scope="verdict", status="active", source_content_hash="c" * 64,
     )
     assert a1 == a2
@@ -239,18 +257,19 @@ def test_identical_lifecycle_still_idempotent(corpus_root):
 # --- atomic concurrent append (50 writers, no torn lines, no duplicates beyond idempotency) ---
 
 
-def test_atomic_concurrent_append(corpus_root, tmp_path):
+def test_atomic_concurrent_append(corpus_root, corpus_store, tmp_path):
     """50 subprocesses each write a UNIQUE annotation; expect 50 distinct ids
     on 50 valid JSONL lines.
     """
     script = tmp_path / "writer.py"
     script.write_text(
         "import os, sys\n"
-        "os.environ['CORPUS_ROOT'] = sys.argv[1]\n"
+        "from pathlib import Path\n"
         "from corpus_core.annotate import annotate\n"
-        "from corpus_core.store import paper_path\n"
-        "paper_path(sys.argv[2]).mkdir(parents=True, exist_ok=True)\n"
-        "print(annotate(sys.argv[2], repo='agent-infra', actor_type='service',\n"
+        "from corpus_core.store import CorpusStore\n"
+        "store = CorpusStore(Path(sys.argv[1]))\n"
+        "store.paper_path(sys.argv[2]).mkdir(parents=True, exist_ok=True)\n"
+        "print(annotate(sys.argv[2], store=store, repo='agent-infra', actor_type='service',\n"
         "               actor_id='urn:agent:service:writer-' + sys.argv[3],\n"
         "               scope='concurrent_test'))\n"
     )

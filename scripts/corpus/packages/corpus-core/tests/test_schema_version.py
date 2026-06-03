@@ -246,15 +246,14 @@ def test_bump_schema_overwrites(tmp_path):
     assert "valid_from" in row[1]
 
 
-def test_graph_schema_sql_seeds_meta(tmp_path, monkeypatch):
+def test_graph_schema_sql_seeds_meta(tmp_path, corpus_store):
     """The canonical graph_schema.sql, when applied, seeds the meta row
     (caught-red-handed: before this change, running schema_sql gave a
     DB with no meta, breaking preflight)."""
-    monkeypatch.setenv("CORPUS_ROOT", str(tmp_path / "corpus"))
     # Use index._connect which applies the canonical schema_sql.
     from corpus_core import index
 
-    con = index._connect()
+    con = index._connect(corpus_store)
     try:
         row = con.execute(
             "SELECT schema_version FROM corpus_schema_meta WHERE artifact='graph'"

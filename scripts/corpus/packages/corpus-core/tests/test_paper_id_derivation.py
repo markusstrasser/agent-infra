@@ -8,6 +8,11 @@ import pytest
 from corpus_core import store as ps
 
 
+def test_corpus_store_requires_existing_root(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        ps.CorpusStore(tmp_path / "missing-corpus")
+
+
 def test_doi_precedence(corpus_root):
     pid = ps.derive_paper_id(doi="10.1234/abc", pmid="999", pdf_sha="a" * 64)
     assert pid == "doi_10_1234_abc"
@@ -28,23 +33,23 @@ def test_doi_slug_punctuation(corpus_root):
     assert pid == "doi_10_1097_fpc_0000000000000456"
 
 
-def test_doi_collision_raises(corpus_root):
+def test_doi_collision_raises(corpus_root, corpus_store):
     pid = "doi_10_1234_abc"
     p = corpus_root / pid
     p.mkdir()
     (p / "metadata.json").write_text(json.dumps({"doi": "10.1234/abc", "paper_id": pid}))
 
     with pytest.raises(ps.DOICollisionError):
-        ps.derive_paper_id(doi="10.1234/ABC!")  # different DOI, same slug
+        corpus_store.derive_paper_id(doi="10.1234/ABC!")  # different DOI, same slug
 
 
-def test_doi_match_no_collision(corpus_root):
+def test_doi_match_no_collision(corpus_root, corpus_store):
     pid = "doi_10_1234_abc"
     p = corpus_root / pid
     p.mkdir()
     (p / "metadata.json").write_text(json.dumps({"doi": "10.1234/abc", "paper_id": pid}))
     # Same DOI re-derives cleanly
-    assert ps.derive_paper_id(doi="10.1234/abc") == pid
+    assert corpus_store.derive_paper_id(doi="10.1234/abc") == pid
 
 
 def test_invalid_pmid(corpus_root):

@@ -31,10 +31,9 @@ from corpus_core.outbox import (
 
 
 @pytest.fixture
-def corpus_root(monkeypatch, tmp_path) -> Path:
+def corpus_root(tmp_path) -> Path:
     root = tmp_path / "corpus"
     root.mkdir()
-    monkeypatch.setenv("CORPUS_ROOT", str(root))
     return root
 
 
@@ -227,11 +226,11 @@ def test_ensure_lifecycle_columns_safe_when_table_missing(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_drain_happy_path_flushes_and_deletes(outbox_path, corpus_root):
+def test_drain_happy_path_flushes_and_deletes(outbox_path, corpus_root, corpus_store):
     """Pending row → corpus annotation written → outbox row deleted."""
     _enqueue(outbox_path, verdict_id="v1", canonical_source_id="doi_10_x")
     stats = drain(
-        outbox_path, repo="genomics", scope="verdict",
+        outbox_path, store=corpus_store, repo="genomics", scope="verdict",
         natural_key_cols=("verdict_id",),
     )
     assert stats == DrainStats(flushed=1, retried=0, abandoned=0)
@@ -243,7 +242,7 @@ def test_drain_happy_path_flushes_and_deletes(outbox_path, corpus_root):
     assert ann["status"] == "active"
 
 
-def test_drain_rejects_non_dict_relation_json(outbox_path, corpus_root):
+def test_drain_rejects_non_dict_relation_json(outbox_path, corpus_root, corpus_store):
     """A non-object relation_json ('[…]', '"x"') is a per-row data error
     (retry/abandon), NOT a batch crash (close-review: cross-model — a list
     would otherwise reach annotate() and AttributeError on .get())."""
@@ -260,13 +259,13 @@ def test_drain_rejects_non_dict_relation_json(outbox_path, corpus_root):
         )
     finally:
         con.close()
-    stats = drain(outbox_path, repo="genomics", scope="verdict", natural_key_cols=("verdict_id",))
+    stats = drain(outbox_path, store=corpus_store, repo="genomics", scope="verdict", natural_key_cols=("verdict_id",))
     assert stats.flushed == 0 and stats.retried == 1  # handled, not crashed
     pending = _read_outbox(outbox_path, status="pending")
     assert pending and "must be a JSON object" in (pending[0][2] or "")
 
 
-def test_drain_passes_lifecycle_state_through(outbox_path, corpus_root):
+def test_drain_passes_lifecycle_state_through(outbox_path, corpus_root, corpus_store):
     """annotation_status + supersedes_annotation_id propagate from row to
     corpus annotation — the lifecycle state is preserved end-to-end."""
     _enqueue(
@@ -274,7 +273,7 @@ def test_drain_passes_lifecycle_state_through(outbox_path, corpus_root):
         supersedes_annotation_id="ann_deadbeef12345678",
     )
     drain(
-        outbox_path, repo="genomics", scope="verdict",
+        outbox_path, store=corpus_store, repo="genomics", scope="verdict",
         natural_key_cols=("verdict_id",),
     )
     jsonl = corpus_root / "doi_xyz" / "annotations.jsonl"
@@ -282,7 +281,7 @@ def test_drain_passes_lifecycle_state_through(outbox_path, corpus_root):
     assert ann["supersedes_annotation_id"] == "ann_deadbeef12345678"
 
 
-def test_drain_alternate_natural_key_works(tmp_path, corpus_root):
+def test_drain_alternate_natural_key_works(tmp_path, corpus_root, corpus_store):
     """Drain on a non-verdict shape (cert_event_id) — same API, different key."""
     path = tmp_path / "cert.duckdb"
     con = duckdb.connect(str(path))
@@ -301,7 +300,7 @@ def test_drain_alternate_natural_key_works(tmp_path, corpus_root):
     finally:
         con.close()
     stats = drain(
-        path, repo="phenome", scope="cert_event",
+        path, store=corpus_store, repo="phenome", scope="cert_event",
         natural_key_cols=("cert_event_id",),
     )
     assert stats.flushed == 1
@@ -313,7 +312,7 @@ def test_drain_alternate_natural_key_works(tmp_path, corpus_root):
     assert idem["repo"] == "phenome"
 
 
-def test_drain_failure_increments_retry(outbox_path, corpus_root, monkeypatch):
+def test_drain_failure_increments_retry(outbox_path, corpus_root, corpus_store, monkeypatch):
     """Operational failure bumps retry_count + records last_error;
     row stays 'pending' for the next drain pass."""
     from corpus_core import outbox as outbox_mod
@@ -324,7 +323,7 @@ def test_drain_failure_increments_retry(outbox_path, corpus_root, monkeypatch):
     monkeypatch.setattr(outbox_mod, "_annotate", _boom)
     _enqueue(outbox_path, verdict_id="v1", canonical_source_id="doi_x")
     stats = drain(
-        outbox_path, repo="genomics", scope="verdict",
+        outbox_path, store=corpus_store, repo="genomics", scope="verdict",
         natural_key_cols=("verdict_id",),
     )
     assert stats == DrainStats(flushed=0, retried=1, abandoned=0)
@@ -335,7 +334,7 @@ def test_drain_failure_increments_retry(outbox_path, corpus_root, monkeypatch):
     assert "simulated FS failure" in rows[0][2]
 
 
-def test_drain_abandons_after_three_retries(outbox_path, corpus_root, monkeypatch):
+def test_drain_abandons_after_three_retries(outbox_path, corpus_root, corpus_store, monkeypatch):
     """Third failure flips status='abandoned'; abandoned rows excluded
     from the next drain (only 'pending' is read)."""
     from corpus_core import outbox as outbox_mod
@@ -345,28 +344,28 @@ def test_drain_abandons_after_three_retries(outbox_path, corpus_root, monkeypatc
 
     monkeypatch.setattr(outbox_mod, "_annotate", _boom)
     _enqueue(outbox_path, verdict_id="v1", canonical_source_id="doi_x")
-    drain(outbox_path, repo="genomics", scope="verdict",
+    drain(outbox_path, store=corpus_store, repo="genomics", scope="verdict",
           natural_key_cols=("verdict_id",))
-    drain(outbox_path, repo="genomics", scope="verdict",
+    drain(outbox_path, store=corpus_store, repo="genomics", scope="verdict",
           natural_key_cols=("verdict_id",))
-    final = drain(outbox_path, repo="genomics", scope="verdict",
+    final = drain(outbox_path, store=corpus_store, repo="genomics", scope="verdict",
                   natural_key_cols=("verdict_id",))
     assert final.abandoned == 1
     assert abandoned_count(outbox_path) == 1
-    again = drain(outbox_path, repo="genomics", scope="verdict",
+    again = drain(outbox_path, store=corpus_store, repo="genomics", scope="verdict",
                   natural_key_cols=("verdict_id",))
     assert again == DrainStats()
 
 
-def test_drain_idempotent_on_corpus_side(outbox_path, corpus_root):
+def test_drain_idempotent_on_corpus_side(outbox_path, corpus_root, corpus_store):
     """Two enqueue+drain cycles for the same (verdict, source) produce ONE
     annotation in corpus (stable_tuple idempotency in corpus_core.annotate).
     Outbox composite PK + corpus idempotency together prevent duplicates."""
     _enqueue(outbox_path, verdict_id="v1", canonical_source_id="doi_x")
-    drain(outbox_path, repo="genomics", scope="verdict",
+    drain(outbox_path, store=corpus_store, repo="genomics", scope="verdict",
           natural_key_cols=("verdict_id",))
     _enqueue(outbox_path, verdict_id="v1", canonical_source_id="doi_x")
-    drain(outbox_path, repo="genomics", scope="verdict",
+    drain(outbox_path, store=corpus_store, repo="genomics", scope="verdict",
           natural_key_cols=("verdict_id",))
     lines = [
         ln for ln in (corpus_root / "doi_x" / "annotations.jsonl").read_text().splitlines()
@@ -375,24 +374,24 @@ def test_drain_idempotent_on_corpus_side(outbox_path, corpus_root):
     assert len(lines) == 1, "stable_tuple idempotency must collapse re-emit"
 
 
-def test_drain_empty_outbox_is_noop(outbox_path):
+def test_drain_empty_outbox_is_noop(outbox_path, corpus_store):
     """Drain on an empty outbox returns zero counts; no exceptions."""
-    stats = drain(outbox_path, repo="genomics", scope="verdict",
+    stats = drain(outbox_path, store=corpus_store, repo="genomics", scope="verdict",
                   natural_key_cols=("verdict_id",))
     assert stats == DrainStats()
 
 
-def test_drain_missing_db_is_noop(tmp_path):
+def test_drain_missing_db_is_noop(tmp_path, corpus_store):
     """Drain against a non-existent DB returns zero counts silently —
     safe steady-state for a new repo that hasn't enqueued anything yet."""
-    stats = drain(tmp_path / "missing.duckdb", repo="genomics", scope="verdict",
+    stats = drain(tmp_path / "missing.duckdb", store=corpus_store, repo="genomics", scope="verdict",
                   natural_key_cols=("verdict_id",))
     assert stats == DrainStats()
 
 
-def test_drain_rejects_empty_natural_key(outbox_path):
+def test_drain_rejects_empty_natural_key(outbox_path, corpus_store):
     with pytest.raises(ValueError, match="natural_key_cols"):
-        drain(outbox_path, repo="genomics", scope="verdict", natural_key_cols=())
+        drain(outbox_path, store=corpus_store, repo="genomics", scope="verdict", natural_key_cols=())
 
 
 def test_abandoned_count_on_missing_table(tmp_path):

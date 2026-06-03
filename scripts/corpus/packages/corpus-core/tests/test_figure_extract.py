@@ -68,26 +68,24 @@ def test_render_pads_short_rows_to_column_width():
 # --- crop discovery: figures only, not logos ---
 
 
-def _make_source(corpus_root: Path, source_id: str, crop_names: list[str]):
-    from corpus_core import store
+def _make_source(corpus_store, corpus_root: Path, source_id: str, crop_names: list[str]):
     parse = corpus_root / source_id / "parsed.test-parser"
     parse.mkdir(parents=True)
     for name in crop_names:
         (parse / name).write_bytes(b"\xff\xd8\xff\xe0fakejpeg")
     (corpus_root / source_id / "metadata.json").write_text("{}")
-    return store.get(source_id)
+    return corpus_store.get(source_id)
 
 
 @pytest.fixture
-def corpus_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+def corpus_root(tmp_path: Path) -> Path:
     root = tmp_path / "corpus"
     root.mkdir()
-    monkeypatch.setenv("CORPUS_ROOT", str(root))
     return root
 
 
-def test_iter_figure_crops_skips_pictures(corpus_root):
-    rec = _make_source(corpus_root, "sha_" + "a" * 16, [
+def test_iter_figure_crops_skips_pictures(corpus_root, corpus_store):
+    rec = _make_source(corpus_store, corpus_root, "sha_" + "a" * 16, [
         "_page_0_Picture_1.jpeg",       # logo — skip
         "_page_2_Figure_1.jpeg",        # figure — keep
         "_page_5_Figure_2.jpeg",        # figure — keep
@@ -101,9 +99,9 @@ def test_iter_figure_crops_skips_pictures(corpus_root):
 # --- storage path: sidecar + figure_extraction annotation ---
 
 
-def test_extract_source_figures_writes_sidecar_and_annotation(corpus_root, monkeypatch):
+def test_extract_source_figures_writes_sidecar_and_annotation(corpus_root, corpus_store, monkeypatch):
     source_id = "sha_" + "b" * 16
-    _make_source(corpus_root, source_id, ["_page_5_Figure_2.jpeg"])
+    _make_source(corpus_store, corpus_root, source_id, ["_page_5_Figure_2.jpeg"])
 
     canned = FigureExtraction(
         figure_type="data_chart", caption="Allele freqs",
@@ -112,7 +110,7 @@ def test_extract_source_figures_writes_sidecar_and_annotation(corpus_root, monke
     )
     monkeypatch.setattr(fx, "extract_figure", lambda *a, **k: canned)
 
-    out = fx.extract_source_figures(source_id)
+    out = fx.extract_source_figures(corpus_store, source_id)
     assert len(out) == 1
     assert out[0]["figure_type"] == "data_chart"
     assert out[0]["annotation_id"].startswith("ann_")
@@ -134,14 +132,14 @@ def test_extract_source_figures_writes_sidecar_and_annotation(corpus_root, monke
     assert rec["source_content_hash"]  # pinned to the crop
 
 
-def test_extract_source_figures_no_write_is_dry_run(corpus_root, monkeypatch):
+def test_extract_source_figures_no_write_is_dry_run(corpus_root, corpus_store, monkeypatch):
     source_id = "sha_" + "c" * 16
-    _make_source(corpus_root, source_id, ["_page_2_Figure_1.jpeg"])
+    _make_source(corpus_store, corpus_root, source_id, ["_page_2_Figure_1.jpeg"])
     canned = FigureExtraction(figure_type="image_only", caption="x", table=None,
                               relations=None, notes=None)
     monkeypatch.setattr(fx, "extract_figure", lambda *a, **k: canned)
 
-    out = fx.extract_source_figures(source_id, write=False)
+    out = fx.extract_source_figures(corpus_store, source_id, write=False)
     assert out[0]["annotation_id"] is None
     assert not (corpus_root / source_id / "figures").exists()
     assert not (corpus_root / source_id / "annotations.jsonl").exists()
