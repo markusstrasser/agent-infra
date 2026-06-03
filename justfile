@@ -217,6 +217,21 @@ hook-decay *args:
 gov-report *args:
     uv run python3 scripts/gov.py report {{args}}
 
+# Learning loop — classify captured session signals into FM dossiers + proposals (add --llm for $0 claude -p enrichment)
+[group('epistemic')]
+reflect-classify *args:
+    uv run python3 scripts/reflect.py classify {{args}}
+
+# Learning loop — review quarantined proposals (auto-record applied; enforcers/mints await you)
+[group('epistemic')]
+reflect-review:
+    uv run python3 scripts/reflect.py review
+
+# Learning loop — capture / cluster / quarantine stats
+[group('epistemic')]
+reflect-status:
+    uv run python3 scripts/reflect.py status
+
 # Install git pre-commit hooks (currently: pre-commit-no-large-binaries)
 [group('epistemic')]
 install-hooks:
