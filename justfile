@@ -87,7 +87,10 @@ test-health *args:
 # Audit verdicts ↔ corpus-annotation drift (substrate-v1, Phase 4 backstop)
 [group('health')]
 audit-corpus-sync *args:
-    uv run python3 scripts/audit_corpus_sync.py {{args}}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    : "${CORPUS_ROOT:?set CORPUS_ROOT explicitly}"
+    uv run python3 scripts/audit_corpus_sync.py --corpus-root "$CORPUS_ROOT" {{args}}
 
 # Analyze always-exposed instruction / skill / MCP surface
 [group('health')]

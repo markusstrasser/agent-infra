@@ -12,7 +12,7 @@ attestation is automatic via each repo's mutation-gateway outbox).
 
 For each citation:
   - Derive source_id (doi_<slug> | pmid_<n> | pmcid_<id>)
-  - Ensure ~/Projects/corpus/<source_id>/ exists (lazy metadata-only entry)
+  - Ensure <corpus-root>/<source_id>/ exists (lazy metadata-only entry)
   - Append a corpus annotation (corpus_core.annotate):
       repo='intel', actor_type='human', actor_id='urn:agent:human:markus',
       scope='annotation', tool='entity-file-citation',
@@ -43,7 +43,7 @@ sys.path.insert(0, str(CORPUS_PKG))
 
 from corpus_core.annotate import annotate as corpus_annotate
 from corpus_core.identity import derive_source_id, slug_doi, sha256_hex
-from corpus_core.store import paper_path
+from corpus_core.store import CorpusStore
 
 # ---------------------------------------------------------------------------
 # Citation extraction
@@ -143,7 +143,10 @@ def main(argv: list[str] | None = None) -> int:
                         help="Apply writes. Without this, dry-run only.")
     parser.add_argument("--limit-files", type=int, default=None,
                         help="Process only the first N files (debug/test).")
+    parser.add_argument("--corpus-root", required=True, type=Path,
+                        help="Explicit corpus store root for --commit writes.")
     args = parser.parse_args(argv)
+    corpus_store = CorpusStore(args.corpus_root)
 
     files = _iter_files()
     if args.limit_files:
@@ -174,7 +177,7 @@ def main(argv: list[str] | None = None) -> int:
                 continue
 
             # Lazy-create the source dir + minimal metadata.json if absent.
-            p_dir = paper_path(c["source_id"])
+            p_dir = corpus_store.paper_path(c["source_id"])
             if not p_dir.exists():
                 p_dir.mkdir(parents=True)
                 meta_path = p_dir / "metadata.json"
@@ -203,6 +206,7 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 aid = corpus_annotate(
                     c["source_id"],
+                    store=corpus_store,
                     repo="intel",
                     actor_type="human",
                     actor_id="urn:agent:human:markus",

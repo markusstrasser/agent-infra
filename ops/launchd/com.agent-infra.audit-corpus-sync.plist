@@ -17,6 +17,8 @@
     <array>
         <string>/Users/alien/Projects/agent-infra/.venv/bin/python3</string>
         <string>/Users/alien/Projects/agent-infra/scripts/audit_corpus_sync.py</string>
+        <string>--corpus-root</string>
+        <string>/Users/alien/Projects/corpus</string>
         <string>--json</string>
     </array>
 
