@@ -1,7 +1,7 @@
 # LessWrong + Gwern — Shared Corpus Reference
 
 LessWrong high-karma posts and the full Gwern.net essay corpus are ingested into
-the shared content-addressed corpus (`$CORPUS_ROOT`, default `~/Projects/corpus`),
+an explicitly selected shared content-addressed corpus (`--corpus-root`),
 queryable from any project via the corpus MCP and the FTS helper below.
 
 ## What's in it
@@ -25,15 +25,15 @@ and `metadata.json`. Metadata carries the join keys:
 PY=~/.local/share/uv/tools/corpus-core/bin/python3
 SC=~/Projects/agent-infra/scripts/corpus_reference_search.py
 
-$PY $SC --build                                   # (re)build after an ingest
-$PY $SC "mesa optimization"                        # BM25 over both sources
-$PY $SC "AI timelines" --source lesswrong --min-karma 100 --limit 15
-$PY $SC "spaced repetition" --source gwern --full   # print top hit body
-$PY $SC "scaling laws" --tag "AI"                   # filter by LW tag
+$PY $SC --corpus-root "$CORPUS_ROOT" --build
+$PY $SC --corpus-root "$CORPUS_ROOT" "mesa optimization"
+$PY $SC --corpus-root "$CORPUS_ROOT" "AI timelines" --source lesswrong --min-karma 100 --limit 15
+$PY $SC --corpus-root "$CORPUS_ROOT" "spaced repetition" --source gwern --full
+$PY $SC --corpus-root "$CORPUS_ROOT" "scaling laws" --tag "AI"
 ```
 
 BM25 ranked; filters: `--source`, `--min-karma`, `--tag`, `--author`, `--limit`,
-`--full`. Index at `$CORPUS_ROOT/reference_fts.duckdb` (rederived, not authoritative).
+`--full`. Index at `<corpus-root>/reference_fts.duckdb` (rederived, not authoritative).
 
 **Refresh the FTS index after the LW ingest finishes** (it runs ~3h in background) —
 the index only covers sources present at `--build` time.
@@ -43,9 +43,9 @@ the index only covers sources present at `--build` time.
 ```bash
 PY=~/.local/share/uv/tools/corpus-core/bin/python3
 cd ~/Projects/agent-infra/scripts
-$PY corpus_ingest_lesswrong.py --build-index          # refresh metadata index + karma histogram
-$PY corpus_ingest_lesswrong.py --ingest --floor 30    # resumable; checkpoint lesswrong_ingested.txt
-$PY corpus_ingest_gwern.py                            # resumable; checkpoint gwern_ingested.txt
+$PY corpus_ingest_lesswrong.py --corpus-root "$CORPUS_ROOT" --build-index
+$PY corpus_ingest_lesswrong.py --corpus-root "$CORPUS_ROOT" --ingest --floor 30
+$PY corpus_ingest_gwern.py --corpus-root "$CORPUS_ROOT"
 ```
 
 Both are idempotent (content-addressed) and resumable. Lower `--floor` to widen LW
@@ -54,10 +54,13 @@ coverage (≥20: 20.4k posts, ≥10: 30.3k). Re-run periodically for new posts/e
 ## Programmatic access
 
 ```python
-from corpus_core import store as ps
+from pathlib import Path
+from corpus_core.store import CorpusStore
 import json
+import os
 # iterate LW/Gwern sources
-for m in ps.store_root().glob("*/metadata.json"):
+store = CorpusStore(Path(os.environ["CORPUS_ROOT"]))
+for m in store.root.glob("*/metadata.json"):
     meta = json.loads(m.read_text())
     if meta.get("source") in ("lesswrong", "gwern"):
         body = next(m.parent.glob("parsed.*/page.md")).read_text()

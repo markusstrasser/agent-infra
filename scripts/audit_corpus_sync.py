@@ -21,9 +21,9 @@ Exit code:
     2   audit infrastructure failure (DB unreachable, etc.)
 
 Usage:
-    just audit-corpus-sync               # human-readable
-    just audit-corpus-sync -- --json     # machine-readable (CI / launchd)
-    just audit-corpus-sync -- --drain-only   # drain pending outboxes, no report
+    CORPUS_ROOT=/path/to/corpus just audit-corpus-sync
+    CORPUS_ROOT=/path/to/corpus just audit-corpus-sync -- --json
+    CORPUS_ROOT=/path/to/corpus just audit-corpus-sync -- --drain-only
 """
 from __future__ import annotations
 
@@ -37,8 +37,13 @@ from typing import Any
 import duckdb
 
 PROJECTS_ROOT = Path.home() / "Projects"
-CORPUS_ROOT = Path.home() / "Projects" / "corpus"
-CORPUS_GRAPH_DB = CORPUS_ROOT / "graph.duckdb"
+CORPUS_GRAPH_DB: Path | None = None
+
+
+def _corpus_graph_db() -> Path:
+    if CORPUS_GRAPH_DB is None:
+        raise RuntimeError("corpus graph DB is not configured; pass --corpus-root")
+    return CORPUS_GRAPH_DB
 
 # Each per-repo verdicts source declares:
 #   repo     — corpus_core.uri scheme + audit grouping key
@@ -180,7 +185,7 @@ def _ensure_corpus_core_importable() -> None:
         sys.path.insert(0, cc_path)
 
 
-def _drain_repo_outbox(src: dict[str, Any]) -> dict[str, Any]:
+def _drain_repo_outbox(src: dict[str, Any], corpus_store) -> dict[str, Any]:
     """Drain a per-repo outbox via corpus_core.outbox.drain (substrate-v2
     shared primitive). Lock-friendly drain owns its own connection pair —
     RO fetch, unlocked FS IO, RW DELETE/UPDATE. Drain stats normalized to
@@ -201,6 +206,7 @@ def _drain_repo_outbox(src: dict[str, Any]) -> dict[str, Any]:
     t0 = time.monotonic()
     stats = drain(
         src["db_path"],
+        store=corpus_store,
         repo=src["repo"],
         scope=src["scope"],
         natural_key_cols=src["natural_key_cols"],
@@ -239,13 +245,13 @@ def _read_corpus_annotations() -> list[dict[str, Any]]:
     cert_event annotations invisible to the audit even when the emission
     pipeline was working end-to-end.
     """
-    if not CORPUS_GRAPH_DB.exists():
+    if not _corpus_graph_db().exists():
         return []
     scopes = sorted({src["scope"] for src in VERDICTS_SOURCES if src.get("scope")})
     if not scopes:
         return []
     placeholders = ",".join(["?"] * len(scopes))
-    con = duckdb.connect(str(CORPUS_GRAPH_DB), read_only=True)
+    con = duckdb.connect(str(_corpus_graph_db()), read_only=True)
     try:
         # Phase A: read annotations_current (chain-aware view) so
         # superseded attestations don't inflate the drift count.
@@ -351,9 +357,9 @@ def audit() -> dict[str, Any]:
 def _read_active_relations() -> list[dict[str, Any]]:
     """Active claim_relations from the corpus projection, with their round-trip
     home keys. Empty if the graph predates the epistemic-core schema (1.2.0)."""
-    if not CORPUS_GRAPH_DB.exists():
+    if not _corpus_graph_db().exists():
         return []
-    con = duckdb.connect(str(CORPUS_GRAPH_DB), read_only=True)
+    con = duckdb.connect(str(_corpus_graph_db()), read_only=True)
     try:
         try:
             rows = con.execute(
@@ -428,13 +434,13 @@ def audit_relations() -> dict[str, Any]:
     }
 
 
-def drain_all() -> dict[str, dict[str, int]]:
+def drain_all(corpus_store) -> dict[str, dict[str, int]]:
     """Drain pending_corpus_attestations across all repos with the outbox.
     Returns {repo: {flushed, retried, abandoned, no_table, skipped_locked}}."""
-    return {src["repo"]: _drain_repo_outbox(src) for src in VERDICTS_SOURCES}
+    return {src["repo"]: _drain_repo_outbox(src, corpus_store) for src in VERDICTS_SOURCES}
 
 
-def parse_health_section() -> dict[str, Any]:
+def parse_health_section(corpus_store) -> dict[str, Any]:
     """Advisory parse-state (C0) + parse-health (C2) over the corpus.
 
     Best-effort: a failure here NEVER affects the audit exit code, and the
@@ -445,7 +451,7 @@ def parse_health_section() -> dict[str, Any]:
     try:
         _ensure_corpus_core_importable()
         from corpus_core.parse_health import parse_health_report
-        return parse_health_report()
+        return parse_health_report(corpus_store)
     except Exception as exc:  # never break the audit on parse-health
         return {"error": str(exc)}
 
@@ -460,12 +466,19 @@ def main(argv: list[str] | None = None) -> int:
                         help="Drain pending outboxes; skip drift report")
     parser.add_argument("--no-drain", action="store_true",
                         help="Report drift; skip outbox drain (read-only)")
+    parser.add_argument("--corpus-root", required=True, type=Path,
+                        help="Explicit corpus store root")
     args = parser.parse_args(argv)
+    _ensure_corpus_core_importable()
+    from corpus_core.store import CorpusStore
+    corpus_store = CorpusStore(args.corpus_root)
+    global CORPUS_GRAPH_DB
+    CORPUS_GRAPH_DB = corpus_store.graph_db_path()
 
     drain_report: dict[str, dict[str, int]] = {}
     if not args.no_drain:
         try:
-            drain_report = drain_all()
+            drain_report = drain_all(corpus_store)
         except Exception as exc:
             print(f"outbox drain failure: {exc}", file=sys.stderr)
             return 2
@@ -495,13 +508,13 @@ def main(argv: list[str] | None = None) -> int:
     # Epistemic core: relation↔home-table drift (cross-model close-review).
     report["relations"] = audit_relations()
     # C0/C2: parse-state + parse-health (advisory — does NOT affect exit code).
-    report["parse_health"] = parse_health_section()
+    report["parse_health"] = parse_health_section(corpus_store)
 
     if args.json:
         print(json.dumps(report, indent=2, default=str))
     else:
         print("=== Corpus sync audit ===")
-        print(f"corpus.graph.duckdb: {CORPUS_GRAPH_DB}")
+        print(f"corpus.graph.duckdb: {_corpus_graph_db()}")
         if drain_report:
             print()
             print("Outbox drain:")

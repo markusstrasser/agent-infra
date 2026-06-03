@@ -14,7 +14,7 @@ ingest_url path directly.
     corpus_ingest_gwern.py --no-newsletters  # skip /newsletter/* link digests
     corpus_ingest_gwern.py --max 5         # smoke test
 
-Each page lands in $CORPUS_ROOT as a content-addressed sha_<hash> source,
+Each page lands in --corpus-root as a content-addressed sha_<hash> source,
 source_type=blog_post, extra_metadata={source:gwern, gwern_path:...}.
 
 Run with the corpus-core tool interpreter:
@@ -29,6 +29,7 @@ from pathlib import Path
 
 import httpx
 from corpus_core import ingest as ci
+from corpus_core.store import CorpusStore
 
 SITEMAP = "https://gwern.net/sitemap.xml"
 HEADERS = {"User-Agent": "Mozilla/5.0 corpus-ingest (+local research mirror)"}
@@ -70,7 +71,7 @@ def _load_done() -> set[str]:
     return set()
 
 
-def run(include_newsletters: bool, limit: int | None, delay: float) -> None:
+def run(store: CorpusStore, include_newsletters: bool, limit: int | None, delay: float) -> None:
     urls = essay_urls(include_newsletters)
     done = _load_done()
     todo = [u for u in urls if u not in done]
@@ -86,6 +87,7 @@ def run(include_newsletters: bool, limit: int | None, delay: float) -> None:
             path = u[len("https://gwern.net"):]
             try:
                 meta = ci.ingest_url(
+                    store,
                     u,
                     source_type="blog_post",
                     extra_metadata={"source": "gwern", "gwern_path": path},
@@ -93,9 +95,8 @@ def run(include_newsletters: bool, limit: int | None, delay: float) -> None:
                 chars = (meta.get("parser") or {}).get("char_count", 0)
                 if not chars:
                     # empty extraction (redirect stub / asset) — drop the source
-                    from corpus_core import store as ps
                     import shutil
-                    sd = ps.paper_path(meta["source_id"])
+                    sd = store.paper_path(meta["source_id"])
                     if sd.exists():
                         shutil.rmtree(sd, ignore_errors=True)
                     print(f"  · [{i}/{total}] {path} empty — dropped", flush=True)
@@ -121,12 +122,13 @@ def main() -> int:
     ap.add_argument("--max", type=int, default=None, help="cap N pages (smoke test)")
     ap.add_argument("--delay", type=float, default=0.8, help="seconds between fetches")
     ap.add_argument("--list", action="store_true", help="just print the URL list")
+    ap.add_argument("--corpus-root", required=True, type=Path, help="Explicit corpus store root")
     args = ap.parse_args()
     if args.list:
         for u in essay_urls(not args.no_newsletters):
             print(u)
         return 0
-    run(not args.no_newsletters, args.max, args.delay)
+    run(CorpusStore(args.corpus_root), not args.no_newsletters, args.max, args.delay)
     return 0
 
 

@@ -14,7 +14,7 @@ blog_post sources and queries it with metadata filters (source, karma, tag, auth
     corpus_reference_search.py "AI timelines" --source lesswrong --min-karma 100 --limit 15
     corpus_reference_search.py "scaling laws" --tag "AI" --full   # print top hit body
 
-Index lives at $CORPUS_ROOT/reference_fts.duckdb (rebuilt, not authoritative).
+Index lives at --corpus-root/reference_fts.duckdb (rebuilt, not authoritative).
 
 Run with the corpus-core tool interpreter:
     ~/.local/share/uv/tools/corpus-core/bin/python3 corpus_reference_search.py ...
@@ -27,9 +27,8 @@ import sys
 from pathlib import Path
 
 import duckdb
-from corpus_core import store as ps
+from corpus_core.store import CorpusStore
 
-DB = ps.store_root() / "reference_fts.duckdb"
 SOURCES = ("lesswrong", "gwern")
 
 
@@ -51,8 +50,9 @@ def _page_md(p_path: Path) -> str | None:
     return cands[0].read_text(encoding="utf-8", errors="replace") if cands else None
 
 
-def build() -> None:
-    root = ps.store_root()
+def build(store: CorpusStore) -> None:
+    root = store.root
+    db = store.root / "reference_fts.duckdb"
     rows = []
     scanned = 0
     for meta_path in root.glob("*/metadata.json"):
@@ -82,8 +82,8 @@ def build() -> None:
     if not rows:
         sys.exit("no lesswrong/gwern sources found — run the ingesters first")
 
-    DB.unlink(missing_ok=True)
-    con = duckdb.connect(str(DB))
+    db.unlink(missing_ok=True)
+    con = duckdb.connect(str(db))
     con.execute("INSTALL fts; LOAD fts")
     con.execute(
         "CREATE TABLE refs(source_id VARCHAR, source VARCHAR, title VARCHAR, "
@@ -99,15 +99,16 @@ def build() -> None:
         "SELECT source, count(*), median(n_chars)::INT FROM refs GROUP BY source"
     ).fetchall()
     con.close()
-    print(f"  ✓ indexed {len(rows)} sources -> {DB}")
+    print(f"  ✓ indexed {len(rows)} sources -> {db}")
     for s, c, med in by_src:
         print(f"      {s:<10} {c:>6} sources  (median {med} chars)")
 
 
-def search(q, source, min_karma, tag, author, limit, full) -> None:
-    if not DB.exists():
+def search(store: CorpusStore, q, source, min_karma, tag, author, limit, full) -> None:
+    db = store.root / "reference_fts.duckdb"
+    if not db.exists():
         sys.exit("index not built — run --build first")
-    con = duckdb.connect(str(DB), read_only=True)
+    con = duckdb.connect(str(db), read_only=True)
     con.execute("LOAD fts")
     where = ["score IS NOT NULL"]
     params: list = [q]
@@ -150,6 +151,7 @@ def search(q, source, min_karma, tag, author, limit, full) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("query", nargs="?", help="FTS query (DuckDB BM25)")
+    ap.add_argument("--corpus-root", required=True, type=Path, help="Explicit corpus store root")
     ap.add_argument("--build", action="store_true", help="(re)build the FTS index")
     ap.add_argument("--source", choices=SOURCES)
     ap.add_argument("--min-karma", type=int, default=0)
@@ -158,10 +160,11 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=10)
     ap.add_argument("--full", action="store_true", help="print full body of top hit")
     args = ap.parse_args()
+    store = CorpusStore(args.corpus_root)
     if args.build:
-        build()
+        build(store)
     if args.query:
-        search(args.query, args.source, args.min_karma, args.tag, args.author,
+        search(store, args.query, args.source, args.min_karma, args.tag, args.author,
                args.limit, args.full)
     if not (args.build or args.query):
         ap.print_help()

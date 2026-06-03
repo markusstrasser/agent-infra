@@ -3,8 +3,7 @@
 Phase 3 of the substrate-migration plan
 (.claude/plans/2026-05-11-substrate-migration.md).
 
-Owns five tools, all scoped to the local corpus store at $CORPUS_ROOT
-(default ~/Projects/corpus):
+Owns five tools, all scoped to the local corpus store configured by required CORPUS_ROOT.
 
     corpus_lookup(source_id)            do we have bytes + parsed markdown?
     corpus_graph_query(paper_id, …)     citation graph queries
@@ -30,6 +29,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -43,7 +43,7 @@ _CORPUS_PKG = _HERE / "corpus" / "packages" / "corpus-core"
 if str(_CORPUS_PKG) not in sys.path:
     sys.path.insert(0, str(_CORPUS_PKG))
 
-from corpus_core import store as paper_store  # noqa: E402
+from corpus_core.store import CorpusStore  # noqa: E402
 from corpus_core.identity import parse_source_identifier  # noqa: E402
 from corpus_core.ingest import ingest_pdf, ingest_url  # noqa: E402
 
@@ -74,12 +74,19 @@ NEVER call this MCP from inside another MCP (no MCP-to-MCP).
 """
 
 
-def _store_root() -> Path:
-    return paper_store.store_root()
+def _corpus_store() -> CorpusStore:
+    raw = os.environ.get("CORPUS_ROOT")
+    if not raw:
+        raise RuntimeError("CORPUS_ROOT must be set for corpus-mcp; no default corpus root exists")
+    return CorpusStore(Path(raw))
+
+
+def _corpus_root() -> Path:
+    return _corpus_store().root
 
 
 def _graph_db() -> Path:
-    return paper_store.graph_db_path()
+    return _corpus_store().graph_db_path()
 
 
 def _wrap(payload: dict) -> list[TextContent]:
@@ -103,6 +110,7 @@ def _build_epistemic(paper_id: str, meta: dict, db_path: Path) -> dict:
     from corpus_core.index import epistemic_surface
     return epistemic_surface(
         paper_id,
+        store=_corpus_store(),
         retraction_status=meta.get("retraction_status", "unknown"),
         db_path=db_path,
     )
@@ -116,7 +124,7 @@ def _build_epistemic(paper_id: str, meta: dict, db_path: Path) -> dict:
 def create_mcp() -> FastMCP:
     @asynccontextmanager
     async def lifespan(server):
-        log.info("corpus-mcp: store_root=%s", _store_root())
+        log.info("corpus-mcp: corpus_root=%s", _corpus_root())
         yield {}
 
     mcp = FastMCP("corpus", instructions=INSTRUCTIONS, lifespan=lifespan)
@@ -125,7 +133,7 @@ def create_mcp() -> FastMCP:
 
     @mcp.tool(annotations=_RO)
     def corpus_lookup(ctx: Context, identifier: str) -> list[TextContent]:
-        """Look up a source in the canonical local store at ~/Projects/corpus/.
+        """Look up a source in the configured local corpus store.
 
         Use BEFORE fetching from upstream — cache hits are instantaneous and
         return parsed markdown + citance counts if present.
@@ -161,7 +169,7 @@ def create_mcp() -> FastMCP:
                 "suggested_action": "pass a DOI, PMID, or source_id",
             })
 
-        p_dir = paper_store.paper_path(paper_id)
+        p_dir = _corpus_store().paper_path(paper_id)
         if not p_dir.exists():
             return _wrap({
                 "paper_id": paper_id, "present": False,
@@ -228,7 +236,7 @@ def create_mcp() -> FastMCP:
         stance: str | None = None,
         limit: int = 50,
     ) -> list[TextContent]:
-        """Query the canonical citation graph at ~/Projects/corpus/graph.duckdb.
+        """Query the configured corpus citation graph.
 
         Args:
             paper_id: doi_*, pmid_*, sha_*.
@@ -439,11 +447,13 @@ def create_mcp() -> FastMCP:
         try:
             if pdf_path:
                 meta = ingest_pdf(
+                    _corpus_store(),
                     Path(pdf_path), doi=doi, pmid=pmid, title=title,
                     source_type=source_type or "paper", parser=parser,
                 )
             else:
                 meta = ingest_url(
+                    _corpus_store(),
                     url,  # type: ignore[arg-type]
                     title=title,
                     source_type=source_type or "webpage",
@@ -458,8 +468,8 @@ def create_mcp() -> FastMCP:
     @mcp.tool(annotations=_RO)
     def corpus_dashboard(ctx: Context) -> list[TextContent]:
         """Stats: source count by type, annotation count by repo, recent activity."""
-        root = _store_root()
-        sources = list(paper_store.iter_papers())
+        root = _corpus_root()
+        sources = list(_corpus_store().iter_papers())
         source_types: dict[str, int] = {}
         for sid in sources:
             meta_path = root / sid / "metadata.json"
@@ -494,7 +504,7 @@ def create_mcp() -> FastMCP:
             log.warning("dashboard duckdb query failed: %s", exc)
 
         return _wrap({
-            "store_root": str(root),
+            "corpus_root": str(root),
             "source_count": len(sources),
             "source_types": source_types,
             "annotations_by_repo": per_repo,

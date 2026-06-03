@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # corpus-ledger-commit.sh — daily commit of the corpus belief-change ledger.
 #
-# The corpus (~/Projects/corpus) git-tracks the source-of-truth text
+# The configured corpus root git-tracks the source-of-truth text
 # (annotations.jsonl + metadata.json + citances_*.jsonl); heavy derivatives
 # (graph.duckdb, *.pdf, parsed.*/) are gitignored. This snapshots the day's
 # appends so "every correction is a commit" is literally true. Idempotent:
@@ -9,7 +9,8 @@
 # com.agent-infra.corpus-ledger-commit (launchd, daily). Local repo, no push.
 set -euo pipefail
 
-CORPUS="${CORPUS_ROOT:-$HOME/Projects/corpus}"
+: "${CORPUS_ROOT:?set CORPUS_ROOT explicitly}"
+CORPUS="$CORPUS_ROOT"
 cd "$CORPUS" 2>/dev/null || exit 0
 [ -d .git ] || exit 0
 

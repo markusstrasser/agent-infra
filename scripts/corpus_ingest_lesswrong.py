@@ -17,7 +17,7 @@ Two phases (run --build-index once, then --ingest):
     #    markdown). Resumable: processed _ids are checkpointed.
     corpus_ingest_lesswrong.py --ingest --floor 50 [--max N]
 
-Each post lands in $CORPUS_ROOT (default ~/Projects/corpus) as a content-addressed
+Each post lands in --corpus-root as a content-addressed
 sha_<hash> source, source_type=blog_post, with extra_metadata carrying lw_post_id,
 author, karma, posted_at, tags, word_count, lw_url.
 
@@ -37,6 +37,7 @@ from pathlib import Path
 
 import httpx
 from corpus_core import ingest as ci
+from corpus_core.store import CorpusStore
 
 GQL = "https://www.lesswrong.com/graphql"
 HEADERS = {
@@ -148,7 +149,7 @@ def _load_done() -> set[str]:
     return set()
 
 
-def ingest(floor: int, limit: int | None, delay: float) -> None:
+def ingest(store: CorpusStore, floor: int, limit: int | None, delay: float) -> None:
     if not INDEX.exists():
         sys.exit("index not found — run --build-index first")
     done = _load_done()
@@ -190,6 +191,7 @@ def ingest(floor: int, limit: int | None, delay: float) -> None:
                     tmp = Path(tf.name)
                 try:
                     ci.ingest_html(
+                        store,
                         tmp,
                         source_url=r["url"],
                         source_type="blog_post",
@@ -231,11 +233,12 @@ def main() -> int:
     ap.add_argument("--floor", type=int, default=50, help="min karma (default 50)")
     ap.add_argument("--max", type=int, default=None, help="cap N posts (smoke test)")
     ap.add_argument("--delay", type=float, default=0.25, help="seconds between fetches")
+    ap.add_argument("--corpus-root", required=True, type=Path, help="Explicit corpus store root")
     args = ap.parse_args()
     if args.build_index:
         build_index()
     if args.ingest:
-        ingest(args.floor, args.max, args.delay)
+        ingest(CorpusStore(args.corpus_root), args.floor, args.max, args.delay)
     if not (args.build_index or args.ingest):
         ap.print_help()
         return 2
