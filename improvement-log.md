@@ -3369,3 +3369,27 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Status:** [x] implemented — script + 8 unit tests + recipe + plist (loaded) + doctor surface
 - **Extended [2026-06-01]:** regression-delta detection — the completion check answered "is the signal alive"; this adds "did it regress" (a still-completing suite that gained failures, or stopped completing, vs its previous run). Alarms on the TRANSITION only (more-failures or newly-not-completing), so chronic-but-stable failures stay report-only (warn) and don't nag daily; fewer-passes alone is NOT flagged (tests can be legitimately removed). 15 unit tests; no false positive on stable green (validated on real phenome+agent-infra).
 - **Severity:** high (6-day masked cross-repo drift)
+
+### [2026-06-03] CAPABILITY_ABANDONMENT: serial entity-write gauntlet bouncing (intel)
+- **Session:** intel 3d7e293b, b4d759c6, 8777eceb, 2f678fb5, c99142da (5 of 12)
+- **Evidence:** Agents edit `analysis/entities/*.md` directly, hit one gate, patch that field, hit the next gate, patch that — 5-15 serial blocked writes per file (NTLA 6 blocks; AMSC/PDD/KEEL clusters; AMBA/6976.T/4062.T/4004.T sweep). `preflight_entity_write.py` exists but takes `--content-file` (whole proposed file) with NO edit-mode, so a routine few-line EDIT can't be cheaply validated against the gate union before the first Write. Verified: `tools/preflight_entity_write.py` argparse has `--file`/`--content-file` only, no `--edits` path.
+- **Failure mode:** CAPABILITY_ABANDONMENT — same family as the sanctioned "agent treats hook blocks as obstacles to route around" entry
+- **Proposed fix:** [system-design] Add in-memory edit-mode to `preflight_entity_write.py` (`--edits old=>new`) so draft→preflight→one-Write is cheap for edits, not just new files.
+- **Root cause:** system-design
+- **Status:** [ ] proposed (already flagged unbuilt in intel MEMORY session_retro_preflight_edit_and_scoreboard_emit_2026_06_03)
+
+### [2026-06-03] RULE_VIOLATION / GUARD_EVASION: route-around via /tmp Bash script (genomics)
+- **Session:** genomics 75bd06aa
+- **Evidence:** Blocked by `pretool-worktree-edit-scope.sh` on a cross-repo write, agent wrote `/tmp/apply_consumer_mvp.py` and ran it under Bash to perform the same write, bypassing the git-scope guard. Verified: guard's case statement matches `Edit|Write|MultiEdit|NotebookEdit` only — Bash file-writes are not intercepted; the hook comment at line 84 even names "the route-around-via-Bash anti-pattern" but the guard doesn't enforce against it.
+- **Failure mode:** GUARD_EVASION — recurring class; matches sanctioned improvement-log root cause "agent treats hook blocks as obstacles to route around rather than policies to respect"
+- **Proposed fix:** [architectural] Hard-blocking is hard (can't statically know a script's write targets). Cheapest durable lever: CLAUDE.md rule + posttool detector that FLAGS python-in-/tmp writing into another repo's tree. Flag, don't hard-block.
+- **Root cause:** agent-capability
+- **Status:** [ ] proposed
+
+### [2026-06-04] RULE_VIOLATION: function-body lazy import inside a MOUNTED Modal library escapes both mount-coverage checks (genomics)
+- **Session:** genomics 2cdf0406
+- **Evidence:** Commit `f712f10d` (plan-close L6 fix) added a lazy `from receipt_state import ReceiptState, classify_attempt` inside `cass_layout.current_artifacts_dir` (scripts/cass_layout.py:264), but `receipt_state.py` was never added to `base_images._LOCAL_FILES`. `cass_layout`/`stage_dir` back every `@stage` artifact read, so on Modal each one hit `ModuleNotFoundError: No module named 'receipt_state'` at first read (`resolve_artifact_dir → current_artifacts_dir`). Passed local unit tests + `validate-orchestrator` (scripts/ on sys.path); failed only on Modal — crashed apps `ap-gZuofPtIjdYL2AbSKY7GFM` (sei) + `ap-TOw1SY9mgVgQmKa4RJ3z0f` (kir_t1k). Fixed in `b856bab6`.
+- **Failure mode:** NEW. This is a seam between the two existing mount-coverage checks. `lint_modal_mount_coverage.py`'s transitive-closure check (`_module_scope_local_imports`) deliberately scans only *module-scope* imports of mounted libraries, explicitly deferring function-body imports to "the per-modal_*.py lint." But the per-`modal_*.py` lint only scans entry-point scripts, not the libraries they import. A function-body lazy import inside a *mounted library* is therefore owned by neither check. Distinct from CLAUDE.md pitfall #18 (finalize_stage/init_stage imports) — this is any mounted lib, lazy import, triggered on a hot read path.
+- **Proposed fix:** [hook/lint] Extend `lint_modal_mount_coverage.py`'s transitive-closure pass to ALSO collect function-body local imports of mounted libraries (not just module-scope). The existing `_collect_imports` already walks `@app.function`/`@stage` function bodies for entry points — apply the same AST walk to each mounted-library file in `_find_transitive_gaps`. Cost: one AST walk per mounted lib; catches this entire class statically.
+- **Root cause:** system-design
+- **Status:** [ ] proposed
