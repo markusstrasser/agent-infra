@@ -1,0 +1,27 @@
+{
+  "_doc": "SHADOW omission-probes for the recursive learning loop (reflect_capture.py). Keyed by project. A probe fires when a session WRITES a path matching any trigger_files substring but NONE of required_any appears as a tool name / Bash command / tool input. Firings are shadow (no surface) until they clear a PPV gate. First-draft predicates — expect tuning from shadow data; high FP is acceptable here by design (plan 4d40085a, review finding #2).",
+  "intel": [
+    {
+      "name": "entity-write-without-identity-read",
+      "trigger_files": ["analysis/companies/", "entities/"],
+      "required_any": ["entity_status", "validate_entity_identity", "price_feed", "stooq", "ticker_feed"]
+    },
+    {
+      "name": "state-claim-without-ground-truth-query",
+      "trigger_files": ["analysis/", "_state/", "convictions/"],
+      "required_any": ["entity_status", "duckdb", "signals.db", "_state/entity_state"]
+    },
+    {
+      "name": "gate-bounce-without-preflight",
+      "trigger_files": ["analysis/companies/", "convictions/"],
+      "required_any": ["preflight", "conviction_update_contract", "divergence-update", "preflight_entity_write"]
+    }
+  ],
+  "agent-infra": [
+    {
+      "name": "new-script-without-test",
+      "trigger_files": ["scripts/"],
+      "required_any": ["tests/", "test_", "py_compile", "pytest"]
+    }
+  ]
+}
