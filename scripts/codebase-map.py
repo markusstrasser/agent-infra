@@ -9,6 +9,7 @@ Usage:
   codebase-map.py /path/to/project [--source-dirs scripts,src]
 """
 import json
+import re
 import sys
 from collections import defaultdict
 from datetime import date
@@ -137,7 +138,7 @@ def generate_map(project_root: Path, source_dirs: list[Path]) -> str:
         "-->",
         "",
         f"# {total_files} Python files — generated {date.today()}",
-        "# Navigation: repo_callgraph(target=\"name\") finds callers across files",
+        "# Edge annotations: → imports  ← imported-by-N-files",
         "",
     ]
 
@@ -202,9 +203,20 @@ def main():
     output_dir = project_root / ".claude" / "rules"
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / "codebase-map.md"
-    output_path.write_text(content)
 
-    # Count files in output
+    # Idempotent: if only the date stamp would change, don't rewrite — a daily
+    # scheduled refresh must not churn the file (and dirty the repo) on no-op
+    # runs. Touch mtime so age-based staleness checks still pass; git sees no
+    # change because content is byte-identical.
+    def _norm(s: str) -> str:
+        return re.sub(r"generated \d{4}-\d{2}-\d{2}", "generated DATE", s)
+
+    if output_path.exists() and _norm(output_path.read_text()) == _norm(content):
+        output_path.touch()
+        print(f"{output_path} unchanged — touched (no content change)")
+        return
+
+    output_path.write_text(content)
     file_count = sum(1 for line in content.splitlines() if line.strip().endswith(".py") or ".py " in line)
     print(f"Wrote {output_path} ({file_count} files mapped)")
 
