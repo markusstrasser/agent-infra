@@ -67,6 +67,9 @@ docs/vendor/
 # Session scratch dirs (capture real configs — never commit)
 .scratch/
 
+# Antigravity (agy) CLI per-session cache — stray, regenerable
+.antigravitycli/
+
 # corpus ingest checkpoints/indexes (regenerable state)
 scripts/lesswrong_index.jsonl
 scripts/lesswrong_ingested.txt
