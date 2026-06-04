@@ -167,6 +167,9 @@ plan `.claude/plans/7eabbe74-reasoning-quality-fitness-signal.md` (now KILLED).
   scripts. This is a *consumption/persistence* build, NOT a new scorer — and it's the
   precondition for ever measuring enforcer utility. Surfaced to the operator as an
   investment/scope decision (propose-and-wait session-loop infra), not auto-built.
+  **Operator decision 2026-06-04: DEFER** — keep the kill clean; don't build telemetry
+  persistence/ledger/dashboard without a proven consumer. Revisit on measured pain
+  (a rule whose ROI is genuinely untellable, or a real reasoning-soundness escape).
 - **causal-coverage probe** (GPT-5.5 #32): a report-only experiment flagging edits whose diff
   scope is disjoint from the diagnosed root-cause entities. Build only if right-diagnosis-
   wrong-fix recurs ≥3× with data on hand; scope tightly (high false-positive risk).
