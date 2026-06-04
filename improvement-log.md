@@ -6,6 +6,16 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-06-04] SHIPPED: extract-generators dedup-scope + guard-route + unconditional de-laundering (cross-project extractor pattern)
+- **Session:** intel `aaacd855` review of the prior `/extract-generators` run (commit intel@e0ae7eb1, TEL/ACLS/Zitron session). Operator asked whether the output was too narrow or too generic and whether the skill should improve.
+- **Observed:** the run shipped 3 entries to `memory/thinking_prompts.md`; only 1 (`pundit-three-axis-audit`) was a clean keeper. `hold-vs-named-alternative` restated opportunity cost; `critique-recency-blindspot` restated CLAUDE.md `<ai_text_policy>` Frontier Timeliness. Failure was **over-production toward generic**, not over-fit. Two structural causes, both cross-project (they bite `/social-thread` Phase 5 and `/propose-rule` the same way):
+  1. **Dedup grepped only the two stores**, never CLAUDE.md / `.claude/rules/` — so a candidate that merely restates an existing *rule* reads as "novel" and gets minted. Fix: grep all four surfaces; a hit in a rule/CLAUDE.md → sharpen that rule, drop the candidate.
+  2. **No "guard, not generator" exit.** A verification *discipline* (cosign-before-trusting) was forced into the convergent store. Fix: third route — guard → rule-sharpening or `/propose-rule`, never a store entry.
+  3. **De-laundering was scoped to library-touching runs**, so a pure-thinking_prompts run legally validated nothing → pure debt accretion (the "BUILDS faster than MEASURES" disease, intel `recursive_improvement_deep_fixes_2026_06_02`). Fix: de-laundering is now unconditional every run; +`>1 survivor → re-filter adversarially` cap (default 1 keeper/session).
+- **Implemented (intel):** `.claude/skills/extract-generators/SKILL.md` (3-destination routing + widened dedup + unconditional de-launder + re-filter); `critique-recency-blindspot` removed from `thinking_prompts.md` and re-homed as a one-line sharpening of global `~/.claude/CLAUDE.md` `<ai_text_policy>` Frontier Timeliness (reviewer-recency false-negative case).
+- **Reversibility:** high — doc-only skill edits; revert the SKILL.md commit to restore the 2-destination router.
+- **Status:** [x] shipped (intel-local skill; pattern logged here for the sibling extractors).
+- **Source:** intel@e0ae7eb1 (the reviewed run); this session's intel commit.
 ### [2026-06-04] [~] KILLED at Phase 0a: Reasoning-Quality Signal (RQS) scorer — not built
 - **Session:** agent-infra 7eabbe74. Trigger: thesis-verifier (intel-harness) re-derived "grade the orthogonal reasoning signal, not the noisy outcome"; question was whether to generalize that to a calibrated, outcome-orthogonal **reasoning-soundness scorer** for agent sessions (TAA + perturbation + enforcer-regression in `evals/`). Brainstorm + cross-model `/critique` shrank it to a deterministic report-only v2 gated by a **VALIDITY-BEFORE-SCORER** Phase 0a kill-test.
 - **Outcome:** kill-test ran, kill criterion met. **Nothing built in `evals/`.** Decision + evidence: `decisions/2026-06-04-reasoning-quality-signal-not-built.md`. Probe: `.scratch/taa_probe.py` (reused `trace-faithfulness.py` over DB-reconstructed traces — source JSONLs rotated).
