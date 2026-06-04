@@ -35,6 +35,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastmcp import Context, FastMCP
+from fastmcp.tools.tool import ToolResult
 from mcp.types import TextContent, ToolAnnotations
 
 # Ensure the local corpus_core is importable when run via uv from agent-infra
@@ -98,6 +99,18 @@ def _wrap(payload: dict) -> list[TextContent]:
     )]
 
 
+def _err(payload: dict) -> ToolResult:
+    """Error result flagged at the protocol level (``isError=true``, fastmcp 3.4+).
+
+    Carries the same structured body as a success result, but the client/model
+    sees it as a *failure* rather than having to infer it from an ``error: True``
+    key in otherwise-normal JSON. ``error: True`` is retained in the body for
+    back-compat with any consumer that still inspects it.
+    """
+    payload.setdefault("error", True)
+    return ToolResult(content=_wrap(payload), is_error=True)
+
+
 def _build_epistemic(paper_id: str, meta: dict, db_path: Path) -> dict:
     """Read-loop epistemic surface for a source (active verdicts + active claim
     relations it participates in + the linear support_balance). Thin shell over
@@ -132,7 +145,7 @@ def create_mcp() -> FastMCP:
     # ----- corpus_lookup -----
 
     @mcp.tool(annotations=_RO)
-    def corpus_lookup(ctx: Context, identifier: str) -> list[TextContent]:
+    def corpus_lookup(ctx: Context, identifier: str) -> list[TextContent] | ToolResult:
         """Look up a source in the configured local corpus store.
 
         Use BEFORE fetching from upstream — cache hits are instantaneous and
@@ -161,8 +174,7 @@ def create_mcp() -> FastMCP:
         elif ident.isdigit():
             paper_id = f"pmid_{ident}"
         else:
-            return _wrap({
-                "error": True,
+            return _err({
                 "error_type": "UNRECOGNIZED_IDENTIFIER",
                 "message": f"Cannot resolve {identifier!r} to a source_id",
                 "recoverable": True,
@@ -235,7 +247,7 @@ def create_mcp() -> FastMCP:
         query: str = "cited-by",
         stance: str | None = None,
         limit: int = 50,
-    ) -> list[TextContent]:
+    ) -> list[TextContent] | ToolResult:
         """Query the configured corpus citation graph.
 
         Args:
@@ -252,8 +264,8 @@ def create_mcp() -> FastMCP:
         """
         db_path = _graph_db()
         if not db_path.exists():
-            return _wrap({
-                "error": True, "error_type": "GRAPH_NOT_BUILT",
+            return _err({
+                "error_type": "GRAPH_NOT_BUILT",
                 "message": "graph.duckdb missing",
                 "suggested_action": "run 'corpus maintain --rebuild-graph'",
             })
@@ -261,13 +273,13 @@ def create_mcp() -> FastMCP:
         try:
             import duckdb
         except ImportError:
-            return _wrap({"error": True, "error_type": "DUCKDB_NOT_INSTALLED"})
+            return _err({"error_type": "DUCKDB_NOT_INSTALLED"})
 
         capped = max(1, min(limit, 200))
         try:
             con = duckdb.connect(str(db_path), read_only=True)
         except Exception as exc:
-            return _wrap({"error": True, "error_type": "GRAPH_OPEN_FAILED", "message": str(exc)})
+            return _err({"error_type": "GRAPH_OPEN_FAILED", "message": str(exc)})
 
         claim_rels: list = []
         try:
@@ -292,7 +304,7 @@ def create_mcp() -> FastMCP:
                 params: list = [paper_id]
                 if stance:
                     if stance not in ("supporting", "contrasting", "mentioning"):
-                        return _wrap({"error": True, "error_type": "INVALID_STANCE"})
+                        return _err({"error_type": "INVALID_STANCE"})
                     base_sql += " AND stance_class = ?"
                     params.append(stance)
                 base_sql += " LIMIT ?"
@@ -338,7 +350,7 @@ def create_mcp() -> FastMCP:
                 except Exception:
                     claim_rels = []
             else:
-                return _wrap({"error": True, "error_type": "INVALID_QUERY"})
+                return _err({"error_type": "INVALID_QUERY"})
         finally:
             con.close()
 
@@ -360,7 +372,7 @@ def create_mcp() -> FastMCP:
         source_id: str | None = None,
         actor_id: str | None = None,
         limit: int = 100,
-    ) -> list[TextContent]:
+    ) -> list[TextContent] | ToolResult:
         """Reverse-query the graph.duckdb annotations table (Phase 2 projection).
 
         All args are optional filters. Empty filter set returns the most
@@ -369,12 +381,12 @@ def create_mcp() -> FastMCP:
         try:
             import duckdb
         except ImportError:
-            return _wrap({"error": True, "error_type": "DUCKDB_NOT_INSTALLED"})
+            return _err({"error_type": "DUCKDB_NOT_INSTALLED"})
 
         db_path = _graph_db()
         if not db_path.exists():
-            return _wrap({"error": True, "error_type": "GRAPH_NOT_BUILT",
-                          "suggested_action": "run 'corpus maintain --rebuild-annotations-index'"})
+            return _err({"error_type": "GRAPH_NOT_BUILT",
+                         "suggested_action": "run 'corpus maintain --rebuild-annotations-index'"})
 
         capped = max(1, min(limit, 500))
         clauses: list[str] = []
@@ -411,7 +423,7 @@ def create_mcp() -> FastMCP:
             ).fetchall()
             con.close()
         except Exception as exc:
-            return _wrap({"error": True, "error_type": "QUERY_FAILED", "message": str(exc)})
+            return _err({"error_type": "QUERY_FAILED", "message": str(exc)})
 
         results = [
             {
@@ -436,13 +448,13 @@ def create_mcp() -> FastMCP:
         title: str | None = None,
         source_type: str | None = None,
         parser: str | None = None,
-    ) -> list[TextContent]:
+    ) -> list[TextContent] | ToolResult:
         """Ingest a PDF (file path) or URL into the corpus store.
 
         Returns the ingested source_id and parsed metadata.
         """
         if not (pdf_path or url):
-            return _wrap({"error": True, "error_type": "MISSING_INPUT",
+            return _err({"error_type": "MISSING_INPUT",
                           "message": "Provide pdf_path or url"})
         try:
             if pdf_path:
@@ -461,12 +473,12 @@ def create_mcp() -> FastMCP:
                 )
             return _wrap({"status": "ok", "source_id": meta["source_id"], "metadata": meta})
         except Exception as exc:
-            return _wrap({"error": True, "error_type": "INGEST_FAILED", "message": str(exc)})
+            return _err({"error_type": "INGEST_FAILED", "message": str(exc)})
 
     # ----- corpus_dashboard -----
 
     @mcp.tool(annotations=_RO)
-    def corpus_dashboard(ctx: Context) -> list[TextContent]:
+    def corpus_dashboard(ctx: Context) -> list[TextContent] | ToolResult:
         """Stats: source count by type, annotation count by repo, recent activity."""
         root = _corpus_root()
         sources = list(_corpus_store().iter_papers())
