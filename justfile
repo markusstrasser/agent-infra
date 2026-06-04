@@ -575,6 +575,14 @@ test-corpus *args:
 
 # ── Knowledge ──────────────────────────────────────────────────────
 
+# Regenerate per-repo codebase maps + summary caches across 5 projects.
+# Zero-API (--no-llm), idempotent (no git churn on unchanged repos). Scheduled
+# daily 06:30 via com.agent-infra.codebase-map-refresh; run manually after large
+# script changes. Supersedes pipelines/repo-index-refresh.json (orchestrator gone).
+[group('knowledge')]
+refresh-maps:
+    scripts/refresh-codebase-maps.sh
+
 # Find docs that may be stale after a correction — lexical scan for a term
 # across the knowledge repos. Replaces propagate-correction.py's forward
 # term-match leg (correction-sweep pipeline retired 2026-05-29).
