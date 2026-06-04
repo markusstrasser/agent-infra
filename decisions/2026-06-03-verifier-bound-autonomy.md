@@ -209,6 +209,49 @@ The same constraint generalizes across generation, verification, and goals (full
   (re-run AbsenceBench-style probe on Opus 4.8/GPT-5.5) — then check #1's external watcher
   can be lightened.
 
+## Eval result (2026-06-04) — pre-registered prediction DISCONFIRMED at this difficulty
+
+The pre-registered eval (§"Pre-registered test", check #4) was run to completion.
+Harness + full results: `~/Projects/evals/cross_lab_review/` and
+`~/Projects/evals/docs/research/cross-lab-vs-same-lab-review-eval-2026-06-03.md`.
+
+**Setup.** N=12 small Opus-4.8-written Python programs, each with exactly ONE
+deterministically-injected defect (incl. the mandated genomics false-CLEAR type:
+`assertion.domain` used instead of `evidence.payload['domain']`). Identical review prompt
+to three conditions: (A) same-lab = Opus 4.8 reviewing Opus 4.8 code (via OAuth
+subscription, same lineage as the author); (B1) gpt-5.5; (B2) gemini-3.5-flash --flex.
+Cross-lab = (gpt OR gemini). Scored deterministically (line ±2 / mechanism cue) with a
+gpt-5.5 judge for the ambiguous remainder. All 36 cells returned content (no 503s).
+
+**Catch rates (N=12):**
+- same-lab (Opus 4.8): **11/12 = 92%**
+- gpt-5.5 alone: **11/12 = 92%**
+- gemini-3.5-flash alone: **11/12 = 92%**
+- cross-lab union: **11/12 = 92%**
+- **margin (cross-lab − same-lab) = 0 percentage points (+0 cases).**
+
+The single universal miss (`boundary_inclusive`: exclusive upper bound `lo <= x < hi` vs
+spec-intended inclusive `[lo,hi]`) was missed by ALL THREE conditions — a spec-ambiguous
+boundary that all reviewers read as a deliberate half-open interval, not a lineage blind
+spot. Same-lab did not under-perform cross-lab on a single case.
+
+**Decision-rule branch fired:** *"cross-lab does NOT beat same-lab by a meaningful margin
+→ the model-gate is unnecessary; the deterministic count-delta check suffices."* The
+pre-registered prediction ("cross-lab wins, because entanglement is lineage-level") was
+**disconfirmed on this defect set**. Per "Revisit if" #3 and check #4's own fallback:
+**relax check #4 from a mandatory cross-lab model-gate to the deterministic count-delta
+check for the seeded-defect tier.** Self-review-degeneracy did not reproduce on Opus 4.8.
+
+**This does NOT overturn the core decision.** The verifier-bound thesis stands; what the
+eval falsifies is narrow — the *cross-lab-model gate's marginal value over a cheaper
+deterministic check* at *seeded single-defect* difficulty. Honest limits: seeded ≠ wild
+defects; N=12 is directional with wide CIs (±8 pts per case); a 92% ceiling across the
+board means low power to separate conditions. The one genuinely hard, spec-tied case is
+exactly where cross-lab *might* still pay off on a harder set — this eval cannot rule that
+in or out, so the cross-lab gate remains the right tool for the genuinely high-stakes,
+hard-to-spec tier (the clinical-false-clear class), just not as a blanket requirement
+justified by a measured same-lab penalty that does not exist here.
+
 ## Supersedes
 
 None. Complements `research/intel-feedback-loop-plan.md` and the vetoed scored-quality-gate
