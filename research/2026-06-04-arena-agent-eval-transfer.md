@@ -56,6 +56,13 @@ Our deterministic signal catches taxonomy classes (a-invented-tool) and (b-malfo
 ## Recommendation (→ plan)
 Do **not** port the leaderboard or build a per-vendor composite. **Do** run a one-time characterization (1/10 complexity): bucket the ~400 genuine tool-hallucination events by `(tool_name, error_class)` to surface the top hallucinated-against tools/args, then fix those affordances. Graduate to a standing report-only view (`v_tool_hallucinations`, mirroring `v_build_then_retire`) **only if** recurrence justifies it. Plan: `.claude/plans/` (next).
 
+## Revisions
+
+**2026-06-04 (Phase 1 executed — `scripts/tool_hallucination_probe.py`):** Two empirical corrections to the pre-execution numbers, both directionally *deflating* the build case.
+- **Codex/Gemini/Kimi are not measurable for this signal at all** — genuine count is **0**, not 186 (codex). The earlier codex=186 was entirely shell-CLI-error false positives (`printf: invalid option`, `git: unrecognized argument`). Tool-hallucination-as-rejected-call requires a strict named-tool harness; only Claude Code has one. Memo claim 6 (cross-vendor confound) understated this — it's not a confound, it's non-measurability.
+- **The actionable-for-us residue is ~0.** Claude's 178 genuine events split: malformed-arg (126) is dominated by **Anthropic built-in tools we don't own** (`Read/offset` 33 = string-vs-number type confusion, `Read/file_path` 23, `Monitor/description` 12); invented-tool (47) is overwhelmingly the **deferred-MCP-tool-not-loaded** harness pattern (real tools like `mcp__research__search_papers` called before `ToolSearch`). Genuinely-nonexistent *our* tools: a tiny tail (`mcp__phenome__grep`, `mcp__exa__web_fetch_exa`→ real name `crawling_exa`), none recurrent.
+- **Consequence:** Phase 2 (standing `v_tool_hallucinations` view) gate is **not met** — there is no recurrent-after-fix signal because there is essentially nothing of ours to fix. Closing the thread; recorded in `vetoed-decisions.md`. My earlier walk-back of the deferred-tool confound was half-wrong: malformed-arg is genuine hallucination, but a large share of *invented-tool* IS the deferred-load mechanism.
+
 ## Sources & Search Log
 - [arena.ai/blog/arena-rank](https://arena.ai/blog/arena-rank/) — Bradley-Terry + component-treatment causal method
 - [arXiv:2601.05214](https://arxiv.org/pdf/2601.05214) — Amazon, tool-hallucination 3-class taxonomy + real-time detection (86.4%)
