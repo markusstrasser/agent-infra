@@ -65,6 +65,7 @@ def test_normalize_handles_common_shapes(raw: str, expected: str) -> None:
         ("supported  \nExplanation follows", "supported"),
         # Markdown emphasis wrapping
         ("**supported** Evidence for the claim", "supported"),
+        ("**not verifiable** because the claim is normative", "not_verifiable"),
         # All-caps with colon
         ("NOT_VERIFIABLE: rhetorical claim", "not_verifiable"),
         # Verdict with hyphenation spelling

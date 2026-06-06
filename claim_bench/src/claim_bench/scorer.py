@@ -70,13 +70,22 @@ def _extract_verdict(raw_output: str) -> str:
     # Strip leading markdown emphasis / quotes / backticks that some
     # models prepend.
     first_line = first_line.lstrip("*_`\"' \t")
+    cleaned = first_line.rstrip("*_`\"'").strip()
+    matchable = (
+        cleaned.replace("**", "")
+        .replace("__", "")
+        .replace("*", "")
+        .replace("`", "")
+    )
+    normalized_line = _normalize(matchable)
+    for verdict in sorted(VERDICTS, key=len, reverse=True):
+        if normalized_line == verdict or normalized_line.startswith(f"{verdict}_"):
+            return verdict
+
     # Break on any punctuation or whitespace that typically separates
     # verdict from explanation: ':', ',', ';', or a run of whitespace.
-    first_token = re.split(r"[:,;\s]+", first_line, maxsplit=1)[0]
-    # Strip any trailing markdown that survived the leading lstrip, e.g.
-    # the closing ** of '**supported**'.
-    first_token = first_token.rstrip("*_`\"'")
-    return _normalize(first_token)
+    first_token = re.split(r"[:,;\s]+", cleaned, maxsplit=1)[0]
+    return _normalize(first_token.rstrip("*_`\"'"))
 
 
 @scorer(metrics=[mean()])
