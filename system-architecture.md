@@ -284,6 +284,16 @@ fix-verify.py
 - `epistemic-lint.py` — Unsourced claim detection
 - `fold-detector.py` — Behavioral sycophancy (position fold rate)
 
+**Autoresearch / RSI loop** (deterministic optimization):
+- `scripts/autoresearch.py` — mutates a small editable surface, runs a metric, and keeps or discards patches.
+- `experiments/skill-routing/` — locked skill-router eval across canonical, stress, and holdout cases.
+- `experiments/claim-bench-rsi/` — claim-bench parser/source-extraction eval. This produced the first concrete tool improvement on 2026-06-06: commit `d3110e0` fixed multiword verdict parsing.
+- `experiments/hook-tuning/` and `experiments/context-packing/` — seed evals only. They are not trustworthy optimization targets until they have larger labeled holdouts.
+
+Boundary: RSI improves code only where the evaluator is real. It has not
+changed the `$research` skill, corpus MCP, or MCP server behavior unless those
+surfaces are named in the mutable files and verified by a locked eval.
+
 ---
 
 ## 6. The Memory Problem
