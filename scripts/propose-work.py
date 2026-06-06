@@ -251,6 +251,51 @@ def last_hook_roi() -> str | None:
 # Proposal generation
 # ---------------------------------------------------------------------------
 
+def _extract_affected_projects(title: str, metadata: dict) -> int:
+    if metadata.get("affected_projects") is not None:
+        try:
+            return int(metadata["affected_projects"])
+        except (TypeError, ValueError):
+            return 0
+    match = re.search(r"\b(\d+)\s+projects?\b", title.lower())
+    return int(match.group(1)) if match else 0
+
+
+def _infer_tags(title: str, metadata: dict | None = None) -> list[str]:
+    tags = set((metadata or {}).get("tags", []))
+    lower = title.lower()
+    if any(term in lower for term in (
+        "autonomy", "supervision", "agent ", "agents ", "subagent",
+        "permission loop", "cross-model", "skill execution", "skill bypass",
+    )) or re.search(r"\bskill\b", lower):
+        tags.add("autonomy")
+    if re.search(r"\bhook\b", lower) or "guard" in lower:
+        tags.add("hook")
+    if any(term in lower for term in (
+        "style", "cosmetic", "format", "emoji", "variable naming",
+        "dashboard graph labels", "commit scope",
+    )):
+        tags.add("style")
+    if re.search(r"\bui\b", lower) or "dashboard graph" in lower:
+        tags.add("ui")
+    return sorted(tags)
+
+
+def _infer_risk_class(title: str, metadata: dict | None = None) -> str:
+    if metadata and metadata.get("risk_class"):
+        return str(metadata["risk_class"])
+    lower = title.lower()
+    if any(term in lower for term in ("api key", "token leaked", "security")):
+        return "security"
+    if any(term in lower for term in ("losing session data", "data loss", "corrupted")):
+        return "data-loss"
+    if any(term in lower for term in ("telemetry broken", "hook-triggers", "triggers.jsonl")):
+        return "telemetry"
+    if "pipeline dead" in lower or "morning-brief" in lower or "morning-prep" in lower:
+        return "critical-pipeline"
+    return ""
+
+
 def _rank_score(proposal: dict) -> float:
     """Score a proposal for sorting. Higher = more urgent.
 
@@ -261,38 +306,73 @@ def _rank_score(proposal: dict) -> float:
     category = proposal.get("category", "")
     title = proposal.get("title", "")
     metadata = proposal.get("metadata", {})
+    title_lower = title.lower()
+    tags = set(_infer_tags(title, metadata))
+    risk_class = _infer_risk_class(title, metadata)
 
-    base = {
-        "health": 80, "orchestrator": 70, "strategic": 50, "drift": 45,
-        "staleness": 40, "improvement-log": 30, "hook-roi": 20,
-    }.get(category, 10)
+    score = {
+        "health": 800,
+        "orchestrator": 650,
+        "drift": 500,
+        "hook-roi": 450,
+        "strategic": 380,
+        "improvement-log": 350,
+        "staleness": 250,
+    }.get(category, 120)
 
     if "FAIL" in title:
-        base += 20
+        score += 100
     elif "WARN" in title:
-        base += 5
+        score += 40
+
+    if category == "health" and "FAIL" in title:
+        score += 200
+    if category == "security" and "FAIL" in title:
+        score += 900
 
     age_days = metadata.get("age_days", 0)
-    if age_days > 14:
-        base += min(age_days - 14, 20)
+    score += min(age_days, 45)
 
     days_ago = metadata.get("days_ago", 0)
-    if days_ago > 7:
-        base += 10
+    score += min(days_ago, 21)
 
     block_rate = metadata.get("block_rate", 0)
-    if block_rate > 0.3:
-        base += 30
+    if block_rate >= 0.6:
+        score += 300
+    elif block_rate >= 0.3:
+        score += 150
+    elif category == "hook-roi" and metadata.get("total", 0) > 20:
+        score -= 60
 
     consecutive = metadata.get("consecutive_failures", 0)
     if consecutive > 1:
-        base += consecutive * 5
+        score += consecutive * 120
 
-    tags = metadata.get("tags", [])
-    if "autonomy" in tags or "hook" in tags:
-        base += 15
+    if "autonomy" in tags:
+        score += 240
+    if "hook" in tags:
+        score += 80
+    if {"style", "cosmetic", "ui"} & tags:
+        score -= 180
 
-    return base
+    if metadata.get("scope") == "shared":
+        score += 180
+    score += 30 * _extract_affected_projects(title, metadata)
+
+    if metadata.get("pipeline") in {"morning-brief", "morning-prep"}:
+        score += 80
+
+    if risk_class in {"security", "data-loss"}:
+        score += 220
+    elif risk_class in {"telemetry", "critical-pipeline"}:
+        score += 140
+
+    if any(term in title_lower for term in (
+        "pipeline dead", "losing session data", "corrupted", "telemetry broken",
+    )):
+        score += 120
+
+    return float(score)
 
 
 def generate_proposals(data: dict) -> list[dict]:
@@ -305,44 +385,68 @@ def generate_proposals(data: dict) -> list[dict]:
             proposals.append({
                 "category": "staleness",
                 "title": f"{proj['project']} has no commits in {proj['days_ago']} days",
-                "metadata": {"days_ago": proj["days_ago"]},
+                "metadata": {"days_ago": proj["days_ago"], "project": proj["project"]},
                 "command": f'orchestrator.py run -p {proj["project"]} --prompt "Review recent state, check for stale TODOs or pending work"',
             })
 
     # Doctor failures
     for check in data["doctor_failures"]:
         is_fail = check.get("status") == "fail"
+        title = f"{'FAIL' if is_fail else 'WARN'}: {check['name']} — {check.get('message', '')[:80]}"
         proposals.append({
             "category": "health",
-            "title": f"{'FAIL' if is_fail else 'WARN'}: {check['name']} — {check.get('message', '')[:80]}",
-            "metadata": {"scope": check.get("scope", "single")},
+            "title": title,
+            "metadata": {
+                "scope": check.get("scope", "single"),
+                "tags": _infer_tags(title),
+                "risk_class": _infer_risk_class(title),
+            },
             "command": None,
         })
 
     # Unresolved improvement-log findings (>14 days old)
     for finding in data["unresolved_findings"]:
         if finding["age_days"] >= 14:
+            title = f"Unresolved ({finding['age_days']}d): {finding['title'][:60]}"
             proposals.append({
                 "category": "improvement-log",
-                "title": f"Unresolved ({finding['age_days']}d): {finding['title'][:60]}",
-                "metadata": {"age_days": finding["age_days"]},
+                "title": title,
+                "metadata": {
+                    "age_days": finding["age_days"],
+                    "tags": _infer_tags(title),
+                    "risk_class": _infer_risk_class(title),
+                },
                 "command": None,
             })
 
     # Hook ROI: high-block-rate hooks (potential false positives)
     for hook in data["hook_roi"].get("hooks", []):
         if hook["blocks"] > 5 and hook["block_rate"] > 0.5:
+            title = f"Hook '{hook['hook']}' blocking {hook['block_rate']:.0%} ({hook['blocks']}/{hook['total']}) — review for false positives"
             proposals.append({
                 "category": "hook-roi",
-                "title": f"Hook '{hook['hook']}' blocking {hook['block_rate']:.0%} ({hook['blocks']}/{hook['total']}) — review for false positives",
-                "metadata": {"block_rate": hook["block_rate"], "total": hook["total"], "blocks": hook["blocks"]},
+                "title": title,
+                "metadata": {
+                    "block_rate": hook["block_rate"],
+                    "total": hook["total"],
+                    "blocks": hook["blocks"],
+                    "tags": ["hook"],
+                    "risk_class": "false-positive-hook",
+                },
                 "command": None,
             })
         elif hook["total"] > 20 and hook["blocks"] == 0:
+            title = f"Hook '{hook['hook']}' fires {hook['total']}x but never blocks — consider promoting"
             proposals.append({
                 "category": "hook-roi",
-                "title": f"Hook '{hook['hook']}' fires {hook['total']}x but never blocks — consider promoting",
-                "metadata": {"block_rate": 0, "total": hook["total"], "blocks": 0},
+                "title": title,
+                "metadata": {
+                    "block_rate": 0,
+                    "total": hook["total"],
+                    "blocks": 0,
+                    "tags": ["hook"],
+                    "risk_class": "promotion-candidate",
+                },
                 "command": None,
             })
 
@@ -352,7 +456,7 @@ def generate_proposals(data: dict) -> list[dict]:
             proposals.append({
                 "category": "strategic",
                 "title": f"[zoom-out] {note['note'][:80]}",
-                "metadata": {"age_days": note["age_days"], "tags": ["autonomy"]},
+                "metadata": {"age_days": note["age_days"], "tags": ["autonomy"], "risk_class": "autonomy"},
                 "command": None,
             })
 
@@ -362,7 +466,11 @@ def generate_proposals(data: dict) -> list[dict]:
             proposals.append({
                 "category": "drift",
                 "title": f"[drift] {alert['id']}: {alert['description'][:80]}",
-                "metadata": {"age_days": alert["age_days"]},
+                "metadata": {
+                    "age_days": alert["age_days"],
+                    "tags": ["drift"],
+                    "risk_class": _infer_risk_class(alert["description"]),
+                },
                 "command": None,
             })
 
@@ -372,16 +480,22 @@ def generate_proposals(data: dict) -> list[dict]:
         proposals.append({
             "category": "health",
             "title": f"WARN: maintain error rate {maint_errors['error_rate']:.0%} ({maint_errors['errors']}/{maint_errors['total']})",
-            "metadata": {},
+            "metadata": {"risk_class": "critical-pipeline"},
             "command": None,
         })
 
     # Failed orchestrator tasks
     for task in data["orchestrator"].get("tasks", []):
+        pipeline = task.get("pipeline", "?")
+        title = f"Task #{task['id']} failed: {pipeline}/{task.get('step', '?')} — {(task.get('error') or '?')[:60]}"
         proposals.append({
             "category": "orchestrator",
-            "title": f"Task #{task['id']} failed: {task.get('pipeline', '?')}/{task.get('step', '?')} — {(task.get('error') or '?')[:60]}",
-            "metadata": {},
+            "title": title,
+            "metadata": {
+                "pipeline": pipeline,
+                "consecutive_failures": task.get("consecutive_failures", 1),
+                "risk_class": _infer_risk_class(title),
+            },
             "command": f"orchestrator.py show {task['id']} --full",
         })
 
@@ -390,7 +504,7 @@ def generate_proposals(data: dict) -> list[dict]:
         p["score"] = _rank_score(p)
         # Map score to priority label for display
         s = p["score"]
-        p["priority"] = 1 if s >= 95 else 2 if s >= 70 else 3 if s >= 40 else 4 if s >= 25 else 5
+        p["priority"] = 1 if s >= 800 else 2 if s >= 600 else 3 if s >= 350 else 4 if s >= 220 else 5
 
     return sorted(proposals, key=lambda x: -x["score"])
 
