@@ -1,0 +1,38 @@
+[
+  {
+    "id": "skills-brainstorm-denial",
+    "project": "skills",
+    "prompt": "brainstorm unknown unknowns with denial cascades and constraint inversion",
+    "expected_visible": ["skills:skill.brainstorm"]
+  },
+  {
+    "id": "skills-writing-style",
+    "project": "skills",
+    "prompt": "rewrite this outreach note in Markus voice",
+    "expected_visible": ["skills:skill.writing-style"]
+  },
+  {
+    "id": "skills-upgrade-audit",
+    "project": "skills",
+    "prompt": "audit the codebase, find bugs, and implement the fixes",
+    "expected_visible": ["skills:skill.upgrade"]
+  },
+  {
+    "id": "skills-bio-verify",
+    "project": "skills",
+    "prompt": "verify this biomedical claim against primary variant and gene databases",
+    "expected_visible": ["skills:skill.bio-verify"]
+  },
+  {
+    "id": "skills-scientific-drawing",
+    "project": "skills",
+    "prompt": "draw a scientific pathway diagram for this mechanism",
+    "expected_visible": ["skills:skill.scientific-drawing"]
+  },
+  {
+    "id": "skills-llmx-timeout",
+    "project": "skills",
+    "prompt": "llmx timed out on Gemini dispatch; which transport and flags should I use",
+    "expected_visible": ["skills:skill.llmx-guide"]
+  }
+]
