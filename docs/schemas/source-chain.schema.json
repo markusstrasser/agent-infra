@@ -51,7 +51,7 @@
         "additionalProperties": false,
         "required": ["url", "source_type"],
         "properties": {
-          "url": {"type": "string"},
+          "url": {"type": "string", "minLength": 1},
           "source_type": {
             "type": "string",
             "enum": ["company", "regulatory", "filing", "dataset", "paper", "official", "other"]
@@ -91,7 +91,7 @@
           "evidence_ref": {"type": "string"},
           "primary_source_urls": {
             "type": "array",
-            "items": {"type": "string"}
+            "items": {"type": "string", "minLength": 1}
           },
           "notes": {"type": "string"}
         },
@@ -150,11 +150,13 @@
         "required": ["admission_state"]
       },
       "then": {
+        "required": ["primary_source_links"],
         "properties": {
+          "primary_source_links": {
+            "minItems": 1
+          },
           "quarantine_state": {
-            "not": {
-              "enum": ["unverified_social", "failed_primary_check"]
-            }
+            "const": "none"
           }
         }
       }

@@ -19,7 +19,7 @@ import re
 import sqlite3
 from pathlib import Path
 
-from common.skill_objects import collect_skill_objects, iter_default_roots
+from common.skill_objects import collect_skill_objects, iter_default_roots, load_object_content
 
 DB = Path.home() / ".claude" / "agentlogs.db"
 DEFAULT_CASES = Path("schemas/skill-routing-cases.json")
@@ -33,7 +33,7 @@ WITH skill_calls AS (
     json_extract(tc.args_json, '$.skill') AS skill
   FROM tool_calls tc
   JOIN events e ON e.tool_call_id = tc.tool_call_id AND e.kind='tool_call'
-  WHERE tc.tool_name='Skill' AND tc.ts_start > ?
+  WHERE tc.tool_name='Skill' AND e.ts > ?
 ),
 classified AS (
   SELECT
@@ -119,6 +119,10 @@ def _terms(text: str) -> set[str]:
     return terms
 
 
+def _direct_slash(prompt: str, name: str) -> bool:
+    return bool(re.search(rf"(^|\n)\s*/{re.escape(name)}(\s|$)", prompt, re.I))
+
+
 def _score(prompt: str, row: dict) -> int:
     prompt_terms = _terms(prompt)
     name_terms = _terms(str(row.get("name") or "").replace("-", " "))
@@ -132,29 +136,119 @@ def _score(prompt: str, row: dict) -> int:
     name = str(row.get("name") or "").replace("-", " ").lower()
     if name and name in prompt.lower():
         score += 5
+    raw_name = str(row.get("name") or "")
+    if raw_name and _direct_slash(prompt, raw_name):
+        score += 20
+    elif row.get("replaced_by"):
+        score -= 4
+    if row.get("primary_category") in {"module", "lens", "reference", "artifact"} and not _direct_slash(prompt, raw_name):
+        score -= 3
+    prompt_l = prompt.lower()
+    object_id_l = str(row.get("object_id", "")).lower()
+    if "thread" in prompt_l and row.get("name") == "source-ingest":
+        score += 8
+    if "thread" in prompt_l and "social-ingest" in object_id_l:
+        score += 8
+    if any(term in prompt_l for term in ("workup", "work up", "battery")):
+        if row.get("name") == "asset-decision":
+            score += 8
+        if "workup-battery" in object_id_l:
+            score += 8
+    if any(term in prompt_l for term in ("drawdown", "dip", "systemic", "trim")):
+        if row.get("name") == "asset-decision":
+            score += 8
+        if "drawdown-context" in object_id_l:
+            score += 8
+    if any(term in prompt_l for term in ("standalone", "fresh look", "portfolio context")):
+        if row.get("name") == "asset-decision":
+            score += 8
+        if "standalone-suppression" in object_id_l:
+            score += 8
+    if any(term in prompt_l for term in ("dataset", "duckdb", "views", "onboard")):
+        if row.get("name") == "dataset":
+            score += 8
+        if "dataset.module.onboarding" in object_id_l:
+            score += 8
+    if any(term in prompt_l for term in ("running", "status", "live")) and "modal-live-state-truth" in object_id_l:
+        score += 8
     return score
+
+
+def _rank(prompt: str, rows: list[dict]) -> list[str]:
+    ranked = sorted(
+        ((row["object_id"], _score(prompt, row)) for row in rows),
+        key=lambda item: item[1],
+        reverse=True,
+    )
+    return [object_id for object_id, score in ranked[:5] if score > 0]
+
+
+def _case_expectation(case: dict, key: str) -> set[str]:
+    if key in case:
+        return set(case[key])
+    if key == "expected_visible":
+        return set(case.get("expected", []))
+    return set()
 
 
 def run_cases(cases_path: Path, *, json_output: bool = False) -> int:
     cases = json.loads(cases_path.read_text())
     rows = [obj.to_json() for obj in collect_skill_objects(iter_default_roots(None))]
+    by_id = {row["object_id"]: row for row in rows}
     results = []
     for case in cases:
         project = case.get("project")
-        candidates = [row for row in rows if row.get("project") == project]
-        ranked = sorted(
-            ((row["object_id"], _score(case["prompt"], row)) for row in candidates),
-            key=lambda item: item[1],
-            reverse=True,
-        )
-        top = [object_id for object_id, score in ranked[:5] if score > 0]
-        expected = set(case["expected"])
-        passed = bool(top and top[0] in expected)
+        project_rows = [row for row in rows if row.get("project") == project]
+        visible_rows = [
+            row for row in project_rows
+            if row.get("object_type") == "SkillEntrypoint"
+            and row.get("status", "active") == "active"
+        ]
+        planned_rows = [
+            row for row in project_rows
+            if row.get("object_type") != "SkillEntrypoint"
+            and row.get("status", "active") in {"active", "planned"}
+        ]
+        visible_top = _rank(case["prompt"], visible_rows)
+        planned_top = _rank(case["prompt"], planned_rows)
+        expected_visible = _case_expectation(case, "expected_visible")
+        expected_planned = _case_expectation(case, "expected_planned")
+        forbidden_visible = set(case.get("forbidden_visible_absent", []))
+        forbidden_planned = set(case.get("forbidden_planned_absent", []))
+        visible_passed = bool(visible_top and visible_top[0] in expected_visible) if expected_visible else True
+        planned_passed = bool(planned_top and planned_top[0] in expected_planned) if expected_planned else True
+        visible_ids = {row["object_id"] for row in visible_rows}
+        planned_ids = {row["object_id"] for row in planned_rows}
+        forbidden_visible_present = sorted(forbidden_visible & visible_ids)
+        forbidden_planned_present = sorted(forbidden_planned & planned_ids)
+        expected_planned_content_errors = []
+        for object_id in expected_planned:
+            row = by_id.get(object_id)
+            if row is None:
+                expected_planned_content_errors.append(f"{object_id}: missing row")
+                continue
+            content = load_object_content(row, max_chars=1)
+            if not content.get("available"):
+                expected_planned_content_errors.append(
+                    f"{object_id}: {content.get('error') or 'content unavailable'}"
+                )
+        forbidden_passed = not forbidden_visible_present and not forbidden_planned_present
+        content_passed = not expected_planned_content_errors
+        passed = visible_passed and planned_passed and forbidden_passed and content_passed
         results.append({
             "id": case["id"],
             "prompt": case["prompt"],
-            "expected": case["expected"],
-            "top": top,
+            "expected_visible": sorted(expected_visible),
+            "expected_planned": sorted(expected_planned),
+            "forbidden_visible_present": forbidden_visible_present,
+            "forbidden_planned_present": forbidden_planned_present,
+            "expected_planned_content_errors": expected_planned_content_errors,
+            "visible_top": visible_top,
+            "planned_top": planned_top,
+            "visible_passed": visible_passed,
+            "planned_passed": planned_passed,
+            "forbidden_passed": forbidden_passed,
+            "content_passed": content_passed,
             "passed": passed,
         })
 
@@ -163,7 +257,13 @@ def run_cases(cases_path: Path, *, json_output: bool = False) -> int:
     else:
         for result in results:
             status = "PASS" if result["passed"] else "FAIL"
-            print(f"{status} {result['id']}: top={result['top']} expected={result['expected']}")
+            print(
+                f"{status} {result['id']}: "
+                f"visible={result['visible_top']} expected_visible={result['expected_visible']} "
+                f"planned={result['planned_top']} expected_planned={result['expected_planned']} "
+                f"forbidden_visible={result['forbidden_visible_present']} "
+                f"content_errors={result['expected_planned_content_errors']}"
+            )
     return 1 if any(not result["passed"] for result in results) else 0
 
 

@@ -3,36 +3,69 @@
     "id": "intel-workup-existing-entity",
     "project": "intel",
     "prompt": "work up VST",
-    "expected": ["intel:skill.workup", "intel:skill.asset-decision"]
+    "expected_visible": ["intel:skill.asset-decision"],
+    "forbidden_visible_absent": [
+      "intel:skill.workup",
+      "intel:skill.social-thread",
+      "intel:skill.ingest-article",
+      "intel:skill.new-dataset",
+      "intel:skill.drawdown-context",
+      "intel:skill.standalone-asset"
+    ]
+  },
+  {
+    "id": "intel-full-workup",
+    "project": "intel",
+    "prompt": "run the full workup battery on VST",
+    "expected_visible": ["intel:skill.asset-decision"],
+    "expected_planned": ["intel:asset-decision.module.workup-battery"]
   },
   {
     "id": "intel-drawdown-context",
     "project": "intel",
     "prompt": "is this drawdown normal or systemic",
-    "expected": ["intel:skill.drawdown-context", "intel:asset-decision.lens.drawdown-context"]
+    "expected_visible": ["intel:skill.asset-decision"],
+    "expected_planned": ["intel:asset-decision.lens.drawdown-context"]
   },
   {
     "id": "intel-social-thread",
     "project": "intel",
     "prompt": "pasted Saso semi thread",
-    "expected": ["intel:skill.social-thread", "intel:source-ingest.engine.social-ingest"]
+    "expected_visible": ["intel:skill.source-ingest"],
+    "expected_planned": ["intel:source-ingest.engine.social-ingest"]
+  },
+  {
+    "id": "intel-new-dataset",
+    "project": "intel",
+    "prompt": "onboard a new public dataset and wire DuckDB views",
+    "expected_visible": ["intel:skill.dataset"],
+    "expected_planned": ["intel:dataset.module.onboarding"]
+  },
+  {
+    "id": "intel-standalone-eval",
+    "project": "intel",
+    "prompt": "evaluate NVDA standalone and ignore portfolio context",
+    "expected_visible": ["intel:skill.asset-decision"],
+    "expected_planned": ["intel:asset-decision.lens.standalone-suppression"]
   },
   {
     "id": "genomics-status",
     "project": "genomics",
     "prompt": "what is running in genomics",
-    "expected": ["genomics:skill.genomics-status", "genomics:genomics-pipeline.lens.modal-live-state-truth"]
+    "expected_visible": ["genomics:skill.genomics-status"],
+    "expected_planned": ["genomics:genomics-pipeline.lens.modal-live-state-truth"]
   },
   {
     "id": "phenome-entity-fill",
     "project": "phenome",
     "prompt": "fill DPYD entity",
-    "expected": ["phenome:role-agent.entity-filler", "phenome:skill.entity-management"]
+    "expected_visible": ["phenome:skill.entity-management"],
+    "expected_planned": ["phenome:role-agent.entity-filler"]
   },
   {
     "id": "phenome-markdown-convert",
     "project": "phenome",
     "prompt": "convert this PDF to markdown",
-    "expected": ["phenome:skill.markitdown"]
+    "expected_visible": ["phenome:skill.markitdown"]
   }
 ]

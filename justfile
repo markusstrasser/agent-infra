@@ -175,7 +175,7 @@ skill-loader-probe *args:
 # Validate skill references in hooks, rules, prompts, and workflow docs
 [group('health')]
 skill-reference-closure *args:
-    uv run python3 scripts/skill_reference_validator.py --repo agent-infra --repo intel --repo genomics --repo phenome {{args}}
+    uv run python3 scripts/skill_reference_validator.py --repo skills --repo agent-infra --repo intel --repo genomics --repo phenome {{args}}
 
 # Generate skill docs from templates (--dry-run to check drift)
 [group('health')]

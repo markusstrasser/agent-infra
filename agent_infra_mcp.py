@@ -5,9 +5,9 @@ corpus_graph_query, corpus_attest, etc.) live in scripts/corpus_mcp.py.
 cross_attestation_lookup is dropped (per §J.1: agent orchestrates
 record_verdict + corpus_attest, no cross-repo federation tool).
 
-NOTE: This server indexes files at startup. After editing this file (new scopes,
-new directories, scoring changes), the running MCP instance must be restarted
-for changes to take effect.
+NOTE: This server reloads indexed markdown when whitelisted files change. After
+editing this file itself (new scopes, directories, scoring changes), restart the
+running MCP instance.
 """
 
 import logging
@@ -20,7 +20,7 @@ from pathlib import Path
 from fastmcp import Context, FastMCP
 from mcp.types import TextContent
 
-from scripts.common.skill_objects import collect_skill_objects, iter_default_roots, resolve_portable_path
+from scripts.common.skill_objects import collect_skill_objects, iter_default_roots, load_object_content
 
 log = logging.getLogger(__name__)
 
@@ -161,6 +161,19 @@ def _parse_sections(path: Path, display_key: str) -> list[dict]:
     return sections
 
 
+def _index_sections() -> tuple[list[dict], int, float]:
+    files = _collect_files()
+    sections = []
+    latest_mtime = 0.0
+    for path, display_key in files:
+        try:
+            latest_mtime = max(latest_mtime, path.stat().st_mtime)
+        except OSError:
+            continue
+        sections.extend(_parse_sections(path, display_key))
+    return sections, len(files), latest_mtime
+
+
 def _get_git_sha() -> str:
     try:
         result = subprocess.run(
@@ -246,14 +259,9 @@ _call_count = 0
 def create_mcp() -> FastMCP:
     @asynccontextmanager
     async def lifespan(server):
-        files = _collect_files()
-        sections = []
-        for path, display_key in files:
-            sections.extend(_parse_sections(path, display_key))
-        log.info("agent-infra: indexed %d sections from %d files", len(sections), len(files))
-        skill_objects = [obj.to_json() for obj in collect_skill_objects(iter_default_roots(None))]
-        log.info("agent-infra: indexed %d skill objects", len(skill_objects))
-        yield {"sections": sections, "skill_objects": skill_objects}
+        sections, file_count, index_mtime = _index_sections()
+        log.info("agent-infra: indexed %d sections from %d files", len(sections), file_count)
+        yield {"sections": sections, "index_mtime": index_mtime}
 
     from scripts.mcp_middleware import TelemetryMiddleware
 
@@ -312,7 +320,13 @@ def create_mcp() -> FastMCP:
                 "call_number": _call_count,
             })
 
-        sections = ctx.lifespan_context["sections"]
+        sections, file_count, index_mtime = _index_sections()
+        if index_mtime > ctx.lifespan_context.get("index_mtime", 0):
+            ctx.lifespan_context["sections"] = sections
+            ctx.lifespan_context["index_mtime"] = index_mtime
+            log.info("agent-infra: reindexed %d sections from %d files", len(sections), file_count)
+        else:
+            sections = ctx.lifespan_context["sections"]
         result = _search(sections, query, scope, max_tokens)
         result["call_number"] = _call_count
 
@@ -343,20 +357,10 @@ def create_mcp() -> FastMCP:
     def _matching_rows(ctx: Context) -> list[dict]:
         return [dict(row) for row in _fresh_skill_objects()]
 
-    def _load_object_content(row: dict, max_chars: int) -> dict:
-        path = resolve_portable_path(row["repo_root"]) / row["path"]
-        if not path.exists() or path.is_dir():
-            return {"available": False, "resolved_path": str(path)}
-        try:
-            text = path.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            return {"available": False, "resolved_path": str(path), "error": "unicode_decode_error"}
-        return {
-            "available": True,
-            "resolved_path": str(path),
-            "truncated": len(text) > max_chars,
-            "text": text[:max_chars],
-        }
+    def _with_content(row: dict, max_chars: int) -> dict:
+        out = dict(row)
+        out["content"] = load_object_content(row, max_chars)
+        return out
 
     @mcp.tool()
     def get_skill_object(
@@ -387,8 +391,7 @@ def create_mcp() -> FastMCP:
             ]
         result = {"query": name, "project": project or None, "matches": matches[:10]}
         if include_content:
-            for row in result["matches"]:
-                row["content"] = _load_object_content(row, max_chars)
+            result["matches"] = [_with_content(row, max_chars) for row in result["matches"]]
         return _wrap_json(result)
 
     @mcp.tool()
@@ -409,9 +412,11 @@ def create_mcp() -> FastMCP:
                 or lens_name.lower() in str(row.get("object_id", "")).lower()
             )
         ]
-        result = {"query": lens_name, "project": project or None, "matches": rows[:10]}
-        for row in result["matches"]:
-            row["content"] = _load_object_content(row, max_chars)
+        result = {
+            "query": lens_name,
+            "project": project or None,
+            "matches": [_with_content(row, max_chars) for row in rows[:10]],
+        }
         return _wrap_json(result)
 
     @mcp.tool()
@@ -432,9 +437,11 @@ def create_mcp() -> FastMCP:
                 or module_name.lower() in str(row.get("object_id", "")).lower()
             )
         ]
-        result = {"query": module_name, "project": project or None, "matches": rows[:10]}
-        for row in result["matches"]:
-            row["content"] = _load_object_content(row, max_chars)
+        result = {
+            "query": module_name,
+            "project": project or None,
+            "matches": [_with_content(row, max_chars) for row in rows[:10]],
+        }
         return _wrap_json(result)
 
     return mcp

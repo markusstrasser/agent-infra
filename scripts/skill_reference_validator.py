@@ -22,6 +22,12 @@ SCAN_DIRS = [
 PATH_RE = re.compile(r"(?:~/Projects/[A-Za-z0-9_./-]+|/Users/[A-Za-z0-9_-]+/Projects/[A-Za-z0-9_./-]+)")
 
 
+def _scan_dirs_for(project: str) -> list[str]:
+    if project == "skills":
+        return ["."]
+    return SCAN_DIRS
+
+
 def _expand(path_text: str) -> Path:
     return Path(path_text.replace("~", str(Path.home()), 1))
 
@@ -53,7 +59,7 @@ def main() -> int:
                         "file": f"{root.repo_root}/skill_manifest.jsonl",
                         "reference": row["path"],
                     })
-        for scan in SCAN_DIRS:
+        for scan in _scan_dirs_for(root.project):
             directory = root.repo_root / scan
             if not directory.exists():
                 continue
