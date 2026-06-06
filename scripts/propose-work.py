@@ -15,6 +15,7 @@ Usage:
 import json
 import logging
 import re
+import sqlite3
 import subprocess
 import sys
 from datetime import datetime, timedelta, date
@@ -83,14 +84,19 @@ def hook_roi_highlights(days: int = 1) -> dict:
     cutoff = (datetime.now() - timedelta(days=days)).isoformat()
     by_hook: dict[str, dict[str, int]] = {}
 
-    with open(TRIGGERS_FILE) as f:
-        for line in f:
-            line = line.strip()
+    # Trigger details can contain non-UTF-8 bytes from tool output. Match the
+    # binary-safe read pattern used by hook-roi.py so a single bad byte does not
+    # kill the whole morning-brief proposal pass.
+    with open(TRIGGERS_FILE, "rb") as f:
+        for raw in f:
+            line = raw.decode("utf-8", "replace").strip()
             if not line:
                 continue
             try:
                 entry = json.loads(line)
             except json.JSONDecodeError:
+                continue
+            if not isinstance(entry, dict):
                 continue
             ts = entry.get("ts", "")
             if ts < cutoff:
@@ -199,19 +205,23 @@ def orchestrator_queue() -> dict:
     from common.db import open_db
     db = open_db(ORCHESTRATOR_DB)
 
-    pending = db.execute(
-        "SELECT count(*) as n FROM tasks WHERE status='pending'"
-    ).fetchone()["n"]
-    running = db.execute(
-        "SELECT count(*) as n FROM tasks WHERE status='running'"
-    ).fetchone()["n"]
-    failed_recent = db.execute(
-        "SELECT id, pipeline, step, error FROM tasks WHERE status='failed' "
-        "AND date(finished_at) >= date('now', '-3 days', 'localtime') "
-        "ORDER BY finished_at DESC LIMIT 5"
-    ).fetchall()
-    tasks = [dict(r) for r in failed_recent]
+    try:
+        pending = db.execute(
+            "SELECT count(*) as n FROM tasks WHERE status='pending'"
+        ).fetchone()["n"]
+        running = db.execute(
+            "SELECT count(*) as n FROM tasks WHERE status='running'"
+        ).fetchone()["n"]
+        failed_recent = db.execute(
+            "SELECT id, pipeline, step, error FROM tasks WHERE status='failed' "
+            "AND date(finished_at) >= date('now', '-3 days', 'localtime') "
+            "ORDER BY finished_at DESC LIMIT 5"
+        ).fetchall()
+    except sqlite3.OperationalError:
+        db.close()
+        return {"pending": 0, "running": 0, "failed": 0, "tasks": []}
     db.close()
+    tasks = [dict(r) for r in failed_recent]
     return {"pending": pending, "running": running, "failed": len(tasks), "tasks": tasks}
 
 
