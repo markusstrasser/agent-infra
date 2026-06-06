@@ -123,9 +123,42 @@ def _direct_slash(prompt: str, name: str) -> bool:
     return bool(re.search(rf"(^|\n)\s*/{re.escape(name)}(\s|$)", prompt, re.I))
 
 
+GENERIC_NAME_TOKENS = {
+    "agent",
+    "agents",
+    "docs",
+    "guide",
+    "model",
+    "research",
+    "skill",
+    "style",
+    "tool",
+    "tools",
+    "workflow",
+}
+
+
+def _name_atoms(name: str) -> set[str]:
+    return {
+        token
+        for token in re.findall(r"[a-z0-9]+", name.lower())
+        if len(token) >= 4 and token not in GENERIC_NAME_TOKENS
+    }
+
+
+def _name_variants(name: str) -> set[str]:
+    normalized = name.lower().strip()
+    if not normalized:
+        return set()
+    spaced = re.sub(r"[-_]+", " ", normalized)
+    compact = re.sub(r"[-_\s]+", "", normalized)
+    return {variant for variant in {normalized, spaced, compact} if len(variant) >= 3}
+
+
 def _score(prompt: str, row: dict) -> int:
     prompt_terms = _terms(prompt)
-    name_terms = _terms(str(row.get("name") or "").replace("-", " "))
+    raw_name = str(row.get("name") or "")
+    name_terms = _terms(raw_name.replace("-", " "))
     haystack = " ".join(
         str(row.get(key) or "")
         for key in ("object_id", "name", "description", "primary_category", "notes")
@@ -136,14 +169,30 @@ def _score(prompt: str, row: dict) -> int:
     name = str(row.get("name") or "").replace("-", " ").lower()
     if name and name in prompt.lower():
         score += 5
-    raw_name = str(row.get("name") or "")
+    prompt_l = prompt.lower()
+    prompt_compact = re.sub(r"[-_\s]+", "", prompt_l)
+    exact_name_match = any(
+        variant in prompt_l or variant in prompt_compact
+        for variant in _name_variants(raw_name)
+    )
+    distinctive_name_hits = prompt_terms & _name_atoms(raw_name)
+    object_type = row.get("object_type")
+    can_boost_name = (
+        object_type == "SkillEntrypoint"
+        or (object_type is None and row.get("primary_category") not in {"artifact", "lens", "module"})
+    )
+    if can_boost_name and exact_name_match:
+        score += 10
+    if can_boost_name and distinctive_name_hits:
+        score += 8 * len(distinctive_name_hits)
+        if row.get("primary_category") == "reference":
+            score += 6
     if raw_name and _direct_slash(prompt, raw_name):
         score += 20
     elif row.get("replaced_by"):
         score -= 4
     if row.get("primary_category") in {"module", "lens", "reference", "artifact"} and not _direct_slash(prompt, raw_name):
         score -= 3
-    prompt_l = prompt.lower()
     object_id_l = str(row.get("object_id", "")).lower()
     if "thread" in prompt_l and row.get("name") == "source-ingest":
         score += 8

@@ -34,5 +34,11 @@
     "project": "skills",
     "prompt": "llmx timed out on Gemini dispatch; which transport and flags should I use",
     "expected_visible": ["skills:skill.llmx-guide"]
+  },
+  {
+    "id": "skills-x-api-spaced",
+    "project": "skills",
+    "prompt": "the X API client is failing on paginated user tweets and cost tracking",
+    "expected_visible": ["skills:skill.x-api"]
   }
 ]
