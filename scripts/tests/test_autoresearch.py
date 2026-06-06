@@ -24,6 +24,21 @@ def test_patch_signature_normalizes_whitespace_not_constants():
     assert autoresearch.patch_signature(diff_a) != autoresearch.patch_signature(diff_c)
 
 
+def test_resolve_experiment_cwd_maps_nested_config_to_worktree(tmp_path: Path):
+    repo = tmp_path / "repo"
+    config_dir = repo / "experiments" / "foo"
+    worktree = tmp_path / "worktree"
+    config_dir.mkdir(parents=True)
+    worktree.mkdir()
+    config_path = config_dir / "config.json"
+    config_path.write_text("{}")
+
+    assert (
+        autoresearch.resolve_experiment_cwd(config_path, repo, worktree)
+        == worktree / "experiments" / "foo"
+    )
+
+
 def test_archive_parent_selection_mixes_best_failures_and_recent(tmp_path: Path):
     log = autoresearch.ExperimentLog(tmp_path)
     entries = [

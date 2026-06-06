@@ -121,6 +121,17 @@ def cleanup_worktree(repo_root: Path, worktree_path: Path):
     )
 
 
+def resolve_experiment_cwd(config_path: Path, repo_root: Path, worktree: Path) -> Path:
+    """Map a config file's directory in the source checkout to the worktree."""
+    config_dir = config_path.parent.resolve()
+    repo_root = repo_root.resolve()
+    try:
+        rel_config_dir = config_dir.relative_to(repo_root)
+    except ValueError:
+        return worktree
+    return worktree / rel_config_dir
+
+
 # ---------------------------------------------------------------------------
 # Git operations
 # ---------------------------------------------------------------------------
@@ -911,7 +922,9 @@ def run_experiment_loop(config: dict, config_path: Path, tag: str,
     # Setup worktree
     print("[autoresearch] Setting up worktree...")
     worktree = setup_worktree(repo_root, tag)
+    experiment_cwd = resolve_experiment_cwd(config_path, repo_root, worktree)
     print(f"[autoresearch] Worktree: {worktree}")
+    print(f"[autoresearch] Experiment cwd: {experiment_cwd}")
 
     experiment_id = log.count()
     consecutive_discards = 0
@@ -925,18 +938,20 @@ def run_experiment_loop(config: dict, config_path: Path, tag: str,
         import shutil as _shutil
         for i, seed_path in enumerate(seeds):
             seed_src = Path(seed_path)
+            if not seed_src.is_absolute():
+                seed_src = config_dir / seed_src
             if not seed_src.exists():
                 print(f"[autoresearch] WARN: seed {seed_path} not found, skipping")
                 continue
             # Copy seed files into worktree editable locations
             for editable in config["editable_files"]:
                 src = seed_src / editable
-                dst = worktree / editable
+                dst = experiment_cwd / editable
                 if src.exists():
                     _shutil.copy2(str(src), str(dst))
             commit_hash = git_commit(worktree, f"seed #{i}: {seed_src.name}")
             metric_value, eval_output = run_eval(
-                worktree, config["eval_command"], config["metric_name"],
+                experiment_cwd, config["eval_command"], config["metric_name"],
                 timeout=config["time_budget_seconds"] + 60,
             )
             log.log_experiment({
@@ -964,10 +979,10 @@ def run_experiment_loop(config: dict, config_path: Path, tag: str,
     # Timing probe: run 1 experiment to measure mutator latency, auto-adjust timeout
     if experiment_id == 0 or (seeds and experiment_id == len(seeds)):
         configured_timeout = config.get("mutator_timeout", 300)
-        probe_prompt = build_prompt(config, worktree, log, node_type="mutation", parent_entries=[])
+        probe_prompt = build_prompt(config, experiment_cwd, log, node_type="mutation", parent_entries=[])
         print(f"[autoresearch] Timing probe (configured timeout: {configured_timeout}s)...")
         probe_t0 = time.time()
-        probe_desc, _ = run_mutator(config, worktree, probe_prompt)
+        probe_desc, _ = run_mutator(config, experiment_cwd, probe_prompt)
         probe_elapsed = time.time() - probe_t0
         timed_out = "TIMEOUT" in probe_desc
 
@@ -1005,7 +1020,7 @@ def run_experiment_loop(config: dict, config_path: Path, tag: str,
             print(f"[autoresearch] Node: {node_type} | parents: {parent_ids or 'none'}")
             prompt = build_prompt(
                 config,
-                worktree,
+                experiment_cwd,
                 log,
                 node_type=node_type,
                 parent_entries=parent_entries,
@@ -1013,7 +1028,7 @@ def run_experiment_loop(config: dict, config_path: Path, tag: str,
 
             # 2. Run mutator (LLM edits code)
             print("[autoresearch] Running mutator...")
-            description, cost = run_mutator(config, worktree, prompt)
+            description, cost = run_mutator(config, experiment_cwd, prompt)
             print(f"[autoresearch] Mutator done: {description[:80]}")
 
             # 2b. Check for mutator errors (billing, model errors, etc.)
@@ -1092,7 +1107,7 @@ def run_experiment_loop(config: dict, config_path: Path, tag: str,
             # 6. Run eval
             print(f"[autoresearch] Running eval: {config['eval_command']}")
             metric_value, eval_output = run_eval(
-                worktree, config["eval_command"], config["metric_name"],
+                experiment_cwd, config["eval_command"], config["metric_name"],
                 timeout=config["time_budget_seconds"] + 60,  # budget + startup margin
             )
 
@@ -1163,7 +1178,7 @@ def run_experiment_loop(config: dict, config_path: Path, tag: str,
                 and keeps_since_holdout >= config.get("holdout_every_k_keeps", 5)):
                 print("[autoresearch] Running holdout evaluation...")
                 holdout_val, holdout_out = run_eval(
-                    worktree, config["holdout_eval_command"], config["metric_name"],
+                    experiment_cwd, config["holdout_eval_command"], config["metric_name"],
                     timeout=config["time_budget_seconds"] * 2,
                 )
                 keeps_since_holdout = 0
@@ -1197,7 +1212,7 @@ def run_experiment_loop(config: dict, config_path: Path, tag: str,
                 and keeps_since_stress >= config.get("stress_every_k_keeps", 5)):
                 print("[autoresearch] Running stress evaluation...")
                 stress_val, stress_out = run_eval(
-                    worktree, config["stress_eval_command"], config["metric_name"],
+                    experiment_cwd, config["stress_eval_command"], config["metric_name"],
                     timeout=config["time_budget_seconds"] * 2,
                 )
                 keeps_since_stress = 0
@@ -1228,7 +1243,7 @@ def run_experiment_loop(config: dict, config_path: Path, tag: str,
             # 9. Update LEARNINGS.md periodically
             if experiment_id % LEARNINGS_UPDATE_INTERVAL == 0:
                 print("[autoresearch] Updating LEARNINGS.md...")
-                update_learnings(worktree, log, config)
+                update_learnings(experiment_cwd, log, config)
 
             # 10. Stall detection
             if consecutive_discards >= DEFAULT_STALL_THRESHOLD:
