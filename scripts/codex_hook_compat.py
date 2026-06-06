@@ -29,16 +29,23 @@ PROJECTS = HOME / "Projects"
 GLOBAL_CODEX_HOOKS = HOME / ".codex" / "hooks.json"
 REPOS = ("agent-infra", "intel", "genomics", "phenome")
 
-JSON_STDOUT_EVENTS = {
+HOOK_SPECIFIC_EVENTS = {
     "SessionStart",
     "UserPromptSubmit",
     "PreToolUse",
     "PermissionRequest",
     "PostToolUse",
-    "PostCompact",
     "Stop",
     "SubagentStart",
     "SubagentStop",
+}
+JSON_STDOUT_EVENTS = HOOK_SPECIFIC_EVENTS | {
+    "PostCompact",
+}
+PLAIN_TEXT_OK_EVENTS = {
+    "SessionStart",
+    "UserPromptSubmit",
+    "SubagentStart",
 }
 
 BLOCK_RE = re.compile(r"\b(BLOCK(?:ED)?|DENY|DENIED|FORBID|FORBIDDEN|ABORT|STOP)\b", re.I)
@@ -216,22 +223,42 @@ def run_hook(repo: str, root: Path, hook: HookRef, timeout: float) -> HookResult
     return classify_result(repo, hook, proc.returncode, proc.stdout, proc.stderr)
 
 
-def _valid_json_stdout(stdout: str) -> bool:
+def _json_stdout_problem(hook: HookRef, stdout: str) -> str | None:
     if not stdout.strip():
-        return True
+        return None
     try:
         parsed = json.loads(stdout)
     except json.JSONDecodeError:
-        return False
-    return isinstance(parsed, dict)
+        if hook.event in PLAIN_TEXT_OK_EVENTS:
+            return None
+        return f"non-empty stdout is not a JSON object for {hook.event}"
+    if not isinstance(parsed, dict):
+        return f"JSON stdout is not an object for {hook.event}"
+    if "additionalContext" in parsed:
+        return (
+            f"top-level additionalContext is not valid Codex JSON for {hook.event}; "
+            "use hookSpecificOutput.additionalContext"
+        )
+    hook_specific = parsed.get("hookSpecificOutput")
+    if hook_specific is not None:
+        if not isinstance(hook_specific, dict):
+            return f"hookSpecificOutput is not an object for {hook.event}"
+        hook_event_name = hook_specific.get("hookEventName")
+        if hook_event_name != hook.event:
+            return (
+                f"hookSpecificOutput.hookEventName={hook_event_name!r} "
+                f"does not match {hook.event}"
+            )
+    return None
 
 
 def classify_result(repo: str, hook: HookRef, returncode: int, stdout: str, stderr: str) -> HookResult:
     status = "pass"
     problem: str | None = None
-    if hook.event in JSON_STDOUT_EVENTS and stdout.strip() and not _valid_json_stdout(stdout):
-        status = "fail"
-        problem = f"non-empty stdout is not a JSON object for {hook.event}"
+    if hook.event in JSON_STDOUT_EVENTS:
+        problem = _json_stdout_problem(hook, stdout)
+        if problem:
+            status = "fail"
 
     if returncode == 0:
         pass

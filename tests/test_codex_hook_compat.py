@@ -35,7 +35,7 @@ class CodexHookCompatTest(unittest.TestCase):
             command=command,
         )
 
-    def test_invalid_stdout_json_fails_for_codex_parsed_events(self) -> None:
+    def test_plain_stdout_passes_for_session_start(self) -> None:
         result = self.module.classify_result(
             "repo",
             self.ref("SessionStart"),
@@ -43,18 +43,39 @@ class CodexHookCompatTest(unittest.TestCase):
             "plain advisory text\n",
             "",
         )
-        self.assertEqual(result.status, "fail")
-        self.assertIn("not a JSON object", result.problem)
+        self.assertEqual(result.status, "pass")
 
-    def test_valid_json_stdout_passes(self) -> None:
+    def test_top_level_additional_context_fails_for_codex(self) -> None:
         result = self.module.classify_result(
             "repo",
-            self.ref("PostToolUse"),
+            self.ref("SessionStart"),
             0,
             '{"additionalContext":"ok"}\n',
             "",
         )
+        self.assertEqual(result.status, "fail")
+        self.assertIn("top-level additionalContext", result.problem)
+
+    def test_hook_specific_additional_context_passes(self) -> None:
+        result = self.module.classify_result(
+            "repo",
+            self.ref("PostToolUse"),
+            0,
+            '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"ok"}}\n',
+            "",
+        )
         self.assertEqual(result.status, "pass")
+
+    def test_hook_specific_event_mismatch_fails(self) -> None:
+        result = self.module.classify_result(
+            "repo",
+            self.ref("SessionStart"),
+            0,
+            '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"ok"}}\n',
+            "",
+        )
+        self.assertEqual(result.status, "fail")
+        self.assertIn("does not match SessionStart", result.problem)
 
     def test_exit_64_fails_on_smoke_input(self) -> None:
         result = self.module.classify_result("repo", self.ref("PreToolUse"), 64, "", "usage")
@@ -89,7 +110,7 @@ class CodexHookCompatTest(unittest.TestCase):
                         "assert os.environ['CODEX_HOOK_COMPAT_SMOKE'] == '1'",
                         "assert os.environ['CLAUDE_PROJECT_DIR']",
                         "assert payload['hook_event_name'] == 'PostToolUse'",
-                        "print(json.dumps({'additionalContext':'ok'}))",
+                        "print(json.dumps({'hookSpecificOutput': {'hookEventName': 'PostToolUse', 'additionalContext':'ok'}}))",
                     ]
                 ),
                 encoding="utf-8",
