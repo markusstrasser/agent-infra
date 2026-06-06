@@ -87,6 +87,15 @@ LOCAL_PROJECT_MCP = {
                 "PARALLEL_API_KEY": "${PARALLEL_API_KEY}",
             },
         },
+        "perplexity": {
+            "command": "npx",
+            "args": ["-y", "@perplexity-ai/mcp-server"],
+            "startup_timeout_sec": 30.0,
+            "tool_timeout_sec": 300,
+            "env": {
+                "PERPLEXITY_API_KEY": "${PERPLEXITY_API_KEY}",
+            },
+        },
     },
 }
 
@@ -120,6 +129,9 @@ def emit_mcp_toml(servers: dict[str, dict]) -> str:
             lines.append(f"command = {_toml_str(spec['command'])}")
             if spec.get("args"):
                 lines.append(f"args = {_toml_array(spec['args'])}")
+        for key in ("startup_timeout_sec", "tool_timeout_sec"):
+            if key in spec:
+                lines.append(f"{key} = {float(spec[key])}")
         env = spec.get("env") or {}
         # env sub-table must come after the parent's scalar keys
         if env:
