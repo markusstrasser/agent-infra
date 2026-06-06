@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import tomllib
@@ -59,12 +60,31 @@ INTENTIONAL_OVERRIDES = {
 
 LOCAL_PROJECT_MCP = {
     "agent-infra": {
+        "agent-infra": {
+            "command": "uv",
+            "args": ["run", "--directory", str(PROJECTS / "agent-infra"), "agent-infra-mcp"],
+        },
         "corpus": {
             "command": "uv",
             "args": ["run", "--directory", str(PROJECTS / "agent-infra"), "corpus-mcp"],
             "env": {
                 "CORPUS_ROOT": str(PROJECTS / "corpus"),
                 "RESEARCH_MCP_CALLER": "agent-infra",
+            },
+        },
+        "duckdb": {
+            "command": "uv",
+            "args": ["run", "--directory", str(PROJECTS / "agent-infra"), "duckdb-mcp"],
+        },
+        "modal-triage": {
+            "command": "uv",
+            "args": ["run", "--directory", str(PROJECTS / "agent-infra"), "modal-triage-mcp"],
+        },
+        "parallel": {
+            "command": "uv",
+            "args": ["run", "--directory", str(PROJECTS / "agent-infra"), "parallel-mcp"],
+            "env": {
+                "PARALLEL_API_KEY": "${PARALLEL_API_KEY}",
             },
         },
     },
@@ -125,10 +145,30 @@ def load_global_mcp() -> dict[str, dict]:
 def load_project_mcp(repo_dir: Path) -> dict[str, dict]:
     p = repo_dir / ".mcp.json"
     if not p.exists():
-        return LOCAL_PROJECT_MCP.get(repo_dir.name, {})
+        return resolve_env_placeholders(LOCAL_PROJECT_MCP.get(repo_dir.name, {}))
     project = json.loads(p.read_text()).get("mcpServers", {})
     project.update(LOCAL_PROJECT_MCP.get(repo_dir.name, {}))
-    return project
+    return resolve_env_placeholders(project)
+
+
+def resolve_env_placeholders(value):
+    """Expand ${VAR} placeholders before writing Codex TOML.
+
+    Codex does not expand TOML env values; it passes placeholders literally.
+    Project `.mcp.json` files can keep placeholders as source of truth, while
+    generated `.codex/config.toml` gets the concrete process environment value.
+    """
+    if isinstance(value, dict):
+        return {k: resolve_env_placeholders(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [resolve_env_placeholders(v) for v in value]
+    if isinstance(value, str):
+        def repl(match: re.Match[str]) -> str:
+            name = match.group(1)
+            return os.environ.get(name, match.group(0))
+
+        return re.sub(r"\$\{([^}]+)\}", repl, value)
+    return value
 
 
 def _sig(spec: dict) -> tuple:
