@@ -186,6 +186,7 @@ def ingest_jats(
     parser_config: Optional[dict] = None,
     source_type: str = "paper",
     extra_metadata: Optional[dict] = None,
+    revise: bool = False,
 ) -> dict:
     """Ingest a JATS XML full text while preserving DOI/PMID paper identity."""
     jats_path = Path(jats_path).expanduser().resolve()
@@ -207,11 +208,18 @@ def ingest_jats(
             return existing.metadata
         existing_hash = existing.metadata.get("content_hash")
         if existing_hash and existing_hash != content_hash:
-            raise ps.PaperStoreError(
-                f"{paper_id} already has different source content "
-                f"({existing_hash[:16]} vs new {content_hash[:16]}). "
-                "Use a revision path before replacing JATS full text."
-            )
+            if not revise:
+                raise ps.PaperStoreError(
+                    f"{paper_id} already has different source content "
+                    f"({existing_hash[:16]} vs new {content_hash[:16]}). "
+                    "Use --revise --jats to record a revision."
+                )
+            _archive_nonpdf_revision(existing, new_content_hash=content_hash)
+            prior_revisions = list(existing.metadata.get("revisions", []))
+        else:
+            prior_revisions = list(existing.metadata.get("revisions", []))
+    else:
+        prior_revisions = []
 
     (p_path / "source.jats.xml").write_bytes(xml_bytes)
     metadata = _initial_metadata(
@@ -223,6 +231,7 @@ def ingest_jats(
             **(extra_metadata or {}),
         },
     )
+    metadata["revisions"] = prior_revisions
     store.write_metadata(paper_id, metadata)
 
     result = _extract_jats_with_pandoc(jats_path, parser_config=parser_config)
@@ -356,6 +365,46 @@ def _ensure_jsonl(p_path: Path) -> None:
         path = p_path / fname
         if not path.exists():
             path.touch()
+
+
+def _archive_nonpdf_revision(rec, *, new_content_hash: str) -> None:
+    """Archive current source bytes before replacing a source with non-PDF full text."""
+    prior_pdf_sha = rec.metadata.get("pdf_sha256")
+    prior_content_hash = rec.metadata.get("content_hash")
+    prior_parsed_sha = rec.metadata.get("parsed_sha256")
+    prior_parser_id = (rec.metadata.get("parser", {}) or {}).get("parser_id", "unknown")
+
+    archived_pdf = None
+    if rec.pdf_path.exists():
+        if not prior_pdf_sha:
+            prior_pdf_sha = ps.sha256_file(rec.pdf_path)
+        archived_pdf = rec.path / f"paper.{prior_pdf_sha[:8]}.pdf"
+        shutil.move(str(rec.pdf_path), str(archived_pdf))
+
+    archived_parsed = None
+    active_parse = rec.parsed_dir_active()
+    if active_parse is not None:
+        suffix = (prior_content_hash or prior_pdf_sha or "unknown")[:8]
+        archived_parsed = rec.path / f"parsed.{prior_parser_id}.{suffix}"
+        shutil.move(str(active_parse), str(archived_parsed))
+
+    revisions = list(rec.metadata.get("revisions", []))
+    revisions.append(
+        {
+            "retired_at": ps._now(),
+            "prior_pdf_sha256": prior_pdf_sha,
+            "prior_content_hash": prior_content_hash,
+            "prior_parsed_sha256": prior_parsed_sha,
+            "prior_parser_id": prior_parser_id,
+            "new_content_hash": new_content_hash,
+            "archived_pdf": archived_pdf.name if archived_pdf else None,
+            "archived_parsed": archived_parsed.name if archived_parsed else None,
+        }
+    )
+    rec.metadata["revisions"] = revisions
+    rec.metadata.pop("pdf_sha256", None)
+    rec.metadata.pop("parsed_sha256", None)
+    rec.metadata["last_updated"] = ps._now()
 
 
 def _extract_jats_with_pandoc(
@@ -526,6 +575,7 @@ def _cmd_ingest(args: argparse.Namespace) -> int:
             title=args.title,
             source_url=args.source_url,
             source_type=args.source_type or "paper",
+            revise=args.revise,
         )
         return 0
     print("nothing to ingest", file=sys.stderr)

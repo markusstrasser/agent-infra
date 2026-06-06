@@ -69,3 +69,31 @@ def test_ingest_jats_is_idempotent(corpus_store, tmp_path, monkeypatch):
 
     assert meta2["content_hash"] == meta1["content_hash"]
     assert calls == 1
+
+
+def test_ingest_jats_revises_existing_bad_pdf(corpus_root, corpus_store, tiny_pdf, tmp_path, monkeypatch):
+    ingest.ingest_pdf(corpus_store, tiny_pdf, doi="10.test/jats-revise", skip_parse=True)
+    jats = tmp_path / "paper.xml"
+    jats.write_text("<article><body><p>" + ("replacement " * 20) + "</p></body></article>")
+
+    def fake_extract(path, *, parser_config):
+        return ExtractResult(
+            parser_id="jats-pandoc@test+cfg-d41d8cd9",
+            parsed_markdown="# Replacement\n\n" + ("replacement " * 20) + "\n",
+            parser_config_md5="d41d8cd98f00b204e9800998ecf8427e",
+            char_count=250,
+        )
+
+    monkeypatch.setattr(ingest, "_extract_jats_with_pandoc", fake_extract)
+
+    meta = ingest.ingest_jats(corpus_store, jats, doi="10.test/jats-revise", revise=True)
+
+    source_dir = corpus_root / "doi_10_test_jats_revise"
+    assert not (source_dir / "paper.pdf").exists()
+    assert list(source_dir.glob("paper.*.pdf"))
+    assert (source_dir / "source.jats.xml").exists()
+    assert meta["pdf_sha256"] is None
+    assert meta["revisions"]
+    assert meta["revisions"][0]["prior_pdf_sha256"]
+    assert meta["revisions"][0]["new_content_hash"] == meta["content_hash"]
+    assert meta["revisions"][0]["archived_pdf"].startswith("paper.")
