@@ -1,0 +1,50 @@
+[
+  {
+    "id": "skills-sweep-drift",
+    "project": "skills",
+    "prompt": "sweep the repo for convention drift and inconsistent patterns",
+    "expected_visible": ["skills:skill.sweep"]
+  },
+  {
+    "id": "skills-observe-session",
+    "project": "skills",
+    "prompt": "what went wrong in the last sessions and where did supervision get wasted",
+    "expected_visible": ["skills:skill.observe"]
+  },
+  {
+    "id": "skills-deslop",
+    "project": "skills",
+    "prompt": "de-slop this memo and remove AI phrasing tells",
+    "expected_visible": ["skills:skill.de-slop"]
+  },
+  {
+    "id": "skills-model-guide",
+    "project": "skills",
+    "prompt": "which model should I use for a long context code review",
+    "expected_visible": ["skills:skill.model-guide"]
+  },
+  {
+    "id": "skills-modal-crash",
+    "project": "skills",
+    "prompt": "debug this Modal GPU app crash and check whether it is running",
+    "expected_visible": ["skills:skill.modal"]
+  },
+  {
+    "id": "skills-verify-before",
+    "project": "skills",
+    "prompt": "pre-register this benchmark prediction before running the eval",
+    "expected_visible": ["skills:skill.verify-before"]
+  },
+  {
+    "id": "skills-research-papers",
+    "project": "skills",
+    "prompt": "find recent papers about autoresearch and self-improving agents",
+    "expected_visible": ["skills:skill.research"]
+  },
+  {
+    "id": "skills-llmx-guide",
+    "project": "skills",
+    "prompt": "llmx is failing with schema dispatch and transport flags",
+    "expected_visible": ["skills:skill.llmx-guide"]
+  }
+]
