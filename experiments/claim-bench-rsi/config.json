@@ -1,0 +1,26 @@
+{
+  "type": "autoresearch",
+  "eval_command": "uv run python3 eval.py --locked",
+  "metric_name": "accuracy",
+  "metric_direction": "higher",
+  "time_budget_seconds": 45,
+  "editable_files": [
+    "../../claim_bench/src/claim_bench/scorer.py",
+    "../../claim_bench/src/claim_bench/process_metrics.py"
+  ],
+  "readonly_context": [
+    "eval.py",
+    "program.md",
+    "../../claim_bench/cases",
+    "../../claim_bench/tests/test_phase1.py",
+    "../../claim_bench/tests/test_phase2.py"
+  ],
+  "program_md": "program.md",
+  "holdout_eval_command": "uv run python3 eval.py --holdout",
+  "holdout_every_k_keeps": 1,
+  "model": "sonnet",
+  "max_budget_usd": 1.0,
+  "max_turns": 6,
+  "node_types": ["debug", "mutation", "red_team", "ablation", "replication"],
+  "parent_sample_size": 4
+}

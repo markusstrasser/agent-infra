@@ -1,0 +1,62 @@
+{
+  "dev": [
+    {
+      "id": "claim-bench-scorer-work",
+      "project": "agent-infra",
+      "prompt": "improve claim-bench verdict parsing and source groundedness scoring",
+      "changed_paths": ["claim_bench/src/claim_bench/scorer.py"],
+      "include": ["claim-bench", "source-grading"],
+      "forbid": ["intel-rules"]
+    },
+    {
+      "id": "hook-threshold-work",
+      "project": "agent-infra",
+      "prompt": "tune hook thresholds using trigger telemetry and false-positive labels",
+      "changed_paths": ["scripts/hook-roi.py", "scripts/hook-outcome-correlator.py"],
+      "include": ["hook-telemetry", "hook-governance"],
+      "forbid": ["claim-bench"]
+    },
+    {
+      "id": "skill-router-work",
+      "project": "agent-infra",
+      "prompt": "fix skill routing collision between model-guide and llmx-guide",
+      "changed_paths": ["scripts/skill-routing.py"],
+      "include": ["skill-routing"],
+      "forbid": ["genomics-rules"]
+    },
+    {
+      "id": "context-budget-work",
+      "project": "agent-infra",
+      "prompt": "reduce memory and rule context loaded at session start under token budget",
+      "changed_paths": ["scripts/context-budget.py"],
+      "include": ["context-budget", "memory-summary"],
+      "forbid": ["intel-rules"]
+    }
+  ],
+  "holdout": [
+    {
+      "id": "rsi-eval-work",
+      "project": "agent-infra",
+      "prompt": "add recursive self-improvement eval with locked holdout checks",
+      "changed_paths": ["scripts/autoresearch.py", "experiments/skill-routing/eval.py"],
+      "include": ["autoresearch", "locked-evals"],
+      "forbid": ["genomics-rules"]
+    },
+    {
+      "id": "intel-workup-context",
+      "project": "intel",
+      "prompt": "refresh a ticker workup and route owned position action",
+      "changed_paths": ["analysis/companies/AMKR.md"],
+      "include": ["intel-rules"],
+      "forbid": ["claim-bench"]
+    },
+    {
+      "id": "genomics-variant-context",
+      "project": "genomics",
+      "prompt": "verify a ClinVar variant and VCF coordinate",
+      "changed_paths": ["scripts/variant_check.py"],
+      "include": ["genomics-rules"],
+      "forbid": ["intel-rules"]
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "dev": [
+    {
+      "id": "high-volume-advisory-no-corrections",
+      "features": {"hook": "spinning", "action": "warn", "phase": "PostToolUse", "fires_7d": 1800, "correction_rate": 0.01, "override_rate": 0.0},
+      "expected": "narrow"
+    },
+    {
+      "id": "block-heavy-overridden",
+      "features": {"hook": "terse-bash", "action": "block", "phase": "PreToolUse", "fires_7d": 80, "blocks_7d": 70, "correction_rate": 0.02, "override_rate": 0.55},
+      "expected": "demote"
+    },
+    {
+      "id": "pretool-catches-real-corrections",
+      "features": {"hook": "data-guard", "action": "warn", "phase": "PreToolUse", "fires_7d": 18, "correction_rate": 0.44, "override_rate": 0.0},
+      "expected": "promote"
+    },
+    {
+      "id": "low-volume-useful-block",
+      "features": {"hook": "protected-write", "action": "block", "phase": "PreToolUse", "fires_7d": 7, "blocks_7d": 7, "correction_rate": 0.8, "override_rate": 0.0},
+      "expected": "keep"
+    }
+  ],
+  "holdout": [
+    {
+      "id": "missed-high-stakes-pretool",
+      "features": {"hook": "destructive-git", "action": "warn", "phase": "PreToolUse", "fires_7d": 2, "correction_rate": 0.0, "override_rate": 0.0, "missed_incident": true, "high_stakes": true},
+      "expected": "promote"
+    },
+    {
+      "id": "posttool-cannot-block-even-if-annoying",
+      "features": {"hook": "source-remind", "action": "warn", "phase": "PostToolUse", "fires_7d": 26, "correction_rate": 0.08, "override_rate": 0.0},
+      "expected": "keep"
+    },
+    {
+      "id": "moderate-advisory-not-noise",
+      "features": {"hook": "source-check", "action": "warn", "phase": "PreToolUse", "fires_7d": 12, "correction_rate": 0.18, "override_rate": 0.0},
+      "expected": "keep"
+    }
+  ]
+}
