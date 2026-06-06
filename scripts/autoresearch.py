@@ -36,6 +36,15 @@ DEFAULT_STALL_THRESHOLD = 3  # consecutive discards with similar diffs
 LEARNINGS_UPDATE_INTERVAL = 10  # summarize every N experiments
 MAX_RESULTS_IN_PROMPT = 30  # last N results shown to agent
 MAX_KEPT_DIFFS_IN_PROMPT = 3  # last N kept diffs shown to agent
+DEFAULT_NODE_TYPES = ["mutation", "debug", "ablation", "replication", "red_team"]
+NODE_TYPE_GUIDANCE = {
+    "mutation": "Try one new mechanism that could improve the primary metric.",
+    "debug": "Fix a concrete failure mode visible in recent crashes or discards.",
+    "ablation": "Remove or simplify one piece of complexity and keep it only if eval agrees.",
+    "replication": "Strengthen reproducibility, seeds, fixtures, or evaluation stability.",
+    "red_team": "Add or improve adversarial checks that expose reward hacking or overfit.",
+}
+MAX_ARCHIVE_DIFF_CHARS = 4000
 
 
 def load_config(path: str) -> dict:
@@ -55,10 +64,15 @@ def load_config(path: str) -> dict:
     cfg.setdefault("program_md", None)
     cfg.setdefault("holdout_eval_command", None)
     cfg.setdefault("holdout_every_k_keeps", 5)
+    cfg.setdefault("stress_eval_command", None)
+    cfg.setdefault("stress_every_k_keeps", 5)
     cfg.setdefault("model", "sonnet")
     cfg.setdefault("max_budget_usd", 2.0)
     cfg.setdefault("max_turns", 10)
     cfg.setdefault("seed_implementations", [])
+    cfg.setdefault("node_types", list(DEFAULT_NODE_TYPES))
+    cfg.setdefault("parent_sample_size", 5)
+    cfg.setdefault("archive_patch_chars", MAX_ARCHIVE_DIFF_CHARS)
     return cfg
 
 
@@ -163,6 +177,35 @@ def git_has_changes(worktree: Path) -> bool:
     return bool(result.stdout.strip())
 
 
+def git_discard_uncommitted(worktree: Path):
+    """Discard uncommitted changes without moving HEAD."""
+    subprocess.run(["git", "checkout", "."], cwd=worktree, capture_output=True, check=True)
+    subprocess.run(["git", "clean", "-fd"], cwd=worktree, capture_output=True, check=True)
+
+
+def patch_signature(diff_text: str) -> str:
+    """Hash a normalized diff to catch repeated whitespace-only patch variants."""
+    normalized = []
+    for line in diff_text.splitlines():
+        if line.startswith(("diff --git ", "index ", "--- ", "+++ ", "@@")):
+            continue
+        if not line or line[0] not in "+-":
+            continue
+        body = re.sub(r"\s+", " ", line[1:].strip())
+        if body:
+            normalized.append(f"{line[0]} {body}")
+    payload = "\n".join(normalized)
+    return hashlib.sha256(payload.encode()).hexdigest()[:12]
+
+
+def select_node_type(config: dict, experiment_id: int, consecutive_discards: int = 0) -> str:
+    """Choose the next experiment node type using a deterministic cycle."""
+    node_types = config.get("node_types") or DEFAULT_NODE_TYPES
+    if consecutive_discards >= DEFAULT_STALL_THRESHOLD and "red_team" in node_types:
+        return "red_team"
+    return node_types[(experiment_id - 1) % len(node_types)]
+
+
 # ---------------------------------------------------------------------------
 # Experiment log (Phase 0: Telemetry)
 # ---------------------------------------------------------------------------
@@ -211,6 +254,10 @@ class ExperimentLog:
 
     def load_recent(self, n: int = 30) -> list[dict]:
         """Load last N experiment entries."""
+        return self.load_all()[-n:]
+
+    def load_all(self) -> list[dict]:
+        """Load all experiment entries."""
         if not self.jsonl_path.exists():
             return []
         entries = []
@@ -219,7 +266,7 @@ class ExperimentLog:
                 line = line.strip()
                 if line:
                     entries.append(json.loads(line))
-        return entries[-n:]
+        return entries
 
     def load_kept_diffs(self, n: int = 3) -> list[str]:
         """Load the last N patches from kept experiments."""
@@ -231,6 +278,55 @@ class ExperimentLog:
             if patch_path.exists():
                 diffs.append(patch_path.read_text())
         return diffs
+
+    def load_patch(self, experiment_id: int) -> str | None:
+        """Load an archived patch by experiment id."""
+        patch_path = self.patches_dir / f"{experiment_id:04d}.patch"
+        if not patch_path.exists():
+            return None
+        return patch_path.read_text()
+
+    def select_archive_parents(self, direction: str, k: int = 5) -> list[dict]:
+        """Pick diverse parent experiments for the next prompt."""
+        if k <= 0:
+            return []
+
+        entries = self.load_all()
+        selected: list[dict] = []
+        seen: set[int] = set()
+
+        def add(entry: dict | None):
+            if not entry:
+                return
+            experiment_id = entry.get("experiment_id")
+            if experiment_id is None or experiment_id in seen:
+                return
+            selected.append(entry)
+            seen.add(experiment_id)
+
+        scored = [
+            e for e in entries
+            if e.get("status") in {"keep", "seed"} and e.get("metric_value") is not None
+        ]
+        scored.sort(
+            key=lambda e: e["metric_value"],
+            reverse=(direction != "lower"),
+        )
+        for entry in scored[:2]:
+            add(entry)
+
+        for status in ("holdout_discard", "stress_discard", "crash", "skipped_duplicate", "discard"):
+            for entry in reversed(entries):
+                if entry.get("status") == status:
+                    add(entry)
+                    break
+
+        for entry in reversed(entries):
+            add(entry)
+            if len(selected) >= k:
+                break
+
+        return selected[:k]
 
     def count(self) -> int:
         if not self.jsonl_path.exists():
@@ -250,6 +346,11 @@ class ExperimentLog:
         """Check if a patch hash already exists in the log (duplicate detection)."""
         entries = self.load_recent(9999)
         return any(e.get("patch_hash") == patch_hash for e in entries)
+
+    def has_patch_signature(self, signature: str) -> bool:
+        """Check if a normalized patch signature already exists in the log."""
+        entries = self.load_recent(9999)
+        return any(e.get("patch_signature") == signature for e in entries)
 
     def total_cost(self) -> float:
         entries = self.load_recent(9999)
@@ -290,11 +391,61 @@ def run_eval(worktree: Path, eval_command: str, metric_name: str,
         return None, f"TIMEOUT after {timeout}s"
 
 
+def generalization_worse(
+    main_value: float | None,
+    check_value: float | None,
+    direction: str,
+    tolerance_ratio: float = 1.5,
+) -> bool:
+    """Return True when a holdout/stress metric diverges enough to reject."""
+    if main_value is None or check_value is None:
+        return False
+    if main_value == 0:
+        return check_value != 0
+    if direction == "lower":
+        return check_value > main_value * tolerance_ratio
+    return check_value < main_value / tolerance_ratio
+
+
+def write_generalization_discard(
+    log: ExperimentLog,
+    experiment_id: int,
+    check_name: str,
+    main_value: float,
+    check_value: float,
+    direction: str,
+    description: str,
+):
+    """Write an explanatory artifact for a retroactive generalization discard."""
+    reason_path = log.log_dir / f"{experiment_id:04d}_{check_name}_discard.md"
+    reason_path.write_text(
+        f"# {check_name.title()} Discard — Experiment #{experiment_id}\n\n"
+        f"**Date:** {datetime.now(timezone.utc).isoformat()}\n"
+        f"**Main metric:** {main_value:.6f}\n"
+        f"**{check_name.title()} metric:** {check_value:.6f}\n"
+        f"**Direction:** {direction}\n"
+        f"**Description:** {description}\n\n"
+        f"Retroactively discarded because {check_name} performance diverged "
+        f"significantly from main eval, indicating possible overfitting.\n"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Mutator (LLM agent)
 # ---------------------------------------------------------------------------
 
-def build_prompt(config: dict, worktree: Path, log: ExperimentLog) -> str:
+def _table_cell(value: object, limit: int = 80) -> str:
+    text = str(value or "").replace("|", "/").replace("\n", " ")
+    return text[:limit]
+
+
+def build_prompt(
+    config: dict,
+    worktree: Path,
+    log: ExperimentLog,
+    node_type: str = "mutation",
+    parent_entries: list[dict] | None = None,
+) -> str:
     """Construct the prompt for the LLM mutator."""
     parts = []
 
@@ -312,6 +463,9 @@ def build_prompt(config: dict, worktree: Path, log: ExperimentLog) -> str:
     if best is not None:
         parts.append(f"Current best: {best:.6f}")
     parts.append(f"Experiments so far: {log.count()}")
+    parts.append(f"Current node type: {node_type}")
+    guidance = NODE_TYPE_GUIDANCE.get(node_type, NODE_TYPE_GUIDANCE["mutation"])
+    parts.append(f"Node guidance: {guidance}")
 
     # Editable files — show current content
     parts.append("\n# Editable Files (you may ONLY modify these)")
@@ -340,11 +494,36 @@ def build_prompt(config: dict, worktree: Path, log: ExperimentLog) -> str:
     recent = log.load_recent(MAX_RESULTS_IN_PROMPT)
     if recent:
         parts.append("\n# Recent Experiment Results")
-        parts.append("| # | metric | status | description |")
-        parts.append("|---|--------|--------|-------------|")
+        parts.append("| # | node | metric | status | description |")
+        parts.append("|---|------|--------|--------|-------------|")
         for e in recent:
             mv = f"{e.get('metric_value', 0):.6f}" if e.get("metric_value") is not None else "crash"
-            parts.append(f"| {e['experiment_id']} | {mv} | {e['status']} | {e.get('description', '')} |")
+            parts.append(
+                f"| {e['experiment_id']} | {_table_cell(e.get('node_type'), 16)} | "
+                f"{mv} | {e['status']} | {_table_cell(e.get('description'))} |"
+            )
+
+    # Archive parents selected from successful and failed lineage.
+    if parent_entries:
+        parts.append("\n# Archive Parents")
+        parts.append("Use these as recombination material and as warnings against repeated dead ends.")
+        parts.append("| # | node | metric | status | description |")
+        parts.append("|---|------|--------|--------|-------------|")
+        for e in parent_entries:
+            mv = f"{e.get('metric_value', 0):.6f}" if e.get("metric_value") is not None else "crash"
+            parts.append(
+                f"| {e['experiment_id']} | {_table_cell(e.get('node_type'), 16)} | "
+                f"{mv} | {e['status']} | {_table_cell(e.get('description'))} |"
+            )
+
+        patch_limit = int(config.get("archive_patch_chars", MAX_ARCHIVE_DIFF_CHARS))
+        for e in parent_entries:
+            patch = log.load_patch(e["experiment_id"])
+            if not patch:
+                continue
+            if len(patch) > patch_limit:
+                patch = patch[:patch_limit] + "\n... (truncated)"
+            parts.append(f"\n## Parent #{e['experiment_id']} patch\n```diff\n{patch}\n```")
 
     # Last N kept diffs
     kept_diffs = log.load_kept_diffs(MAX_KEPT_DIFFS_IN_PROMPT)
@@ -372,10 +551,12 @@ def build_prompt(config: dict, worktree: Path, log: ExperimentLog) -> str:
     # Your Task
 
     Propose ONE change to improve {config['metric_name']} ({config['metric_direction']} is better).
+    Current node type: {node_type}
 
     Rules:
     - Only modify files listed under "Editable Files"
     - Make a single focused change — not multiple unrelated changes
+    - Follow the current node guidance; do not optimize the wrong objective
     - Explain your reasoning briefly in a comment or commit message
     - If recent experiments show a pattern of failures, try something radically different
     - Simpler is better: removing code for equal results is a win
@@ -598,7 +779,10 @@ def run_mutator(config: dict, worktree: Path, prompt: str) -> tuple[str, float]:
 def update_learnings(worktree: Path, log: ExperimentLog, config: dict):
     """Summarize recent failures into LEARNINGS.md."""
     recent = log.load_recent(50)
-    discards = [e for e in recent if e["status"] in ("discard", "crash")]
+    discards = [
+        e for e in recent
+        if e["status"] in {"discard", "crash", "holdout_discard", "stress_discard", "skipped_duplicate"}
+    ]
 
     if not discards:
         return
@@ -613,7 +797,8 @@ def update_learnings(worktree: Path, log: ExperimentLog, config: dict):
     for e in discards:
         desc = e.get("description", "unknown")
         # Use first 3 words as category key
-        key = " ".join(desc.split()[:3]).lower()
+        node = e.get("node_type", "unknown")
+        key = f"{node}: {' '.join(desc.split()[:3]).lower()}"
         categories.setdefault(key, []).append(e)
 
     for key, entries in sorted(categories.items(), key=lambda x: -len(x[1])):
@@ -731,6 +916,7 @@ def run_experiment_loop(config: dict, config_path: Path, tag: str,
     experiment_id = log.count()
     consecutive_discards = 0
     keeps_since_holdout = 0
+    keeps_since_stress = 0
 
     # Seed implementations: evaluate known baselines before mutation begins
     seeds = config.get("seed_implementations", [])
@@ -764,6 +950,9 @@ def run_experiment_loop(config: dict, config_path: Path, tag: str,
                 "elapsed_seconds": 0.0,
                 "eval_output_tail": (eval_output or "")[-500:],
                 "patch_hash": f"seed-{i}",
+                "patch_signature": f"seed-{i}",
+                "node_type": "seed",
+                "parent_experiment_ids": [],
             })
             if metric_value is not None:
                 print(f"[autoresearch] Seed {seed_src.name}: {config['metric_name']}={metric_value:.6f}")
@@ -775,7 +964,7 @@ def run_experiment_loop(config: dict, config_path: Path, tag: str,
     # Timing probe: run 1 experiment to measure mutator latency, auto-adjust timeout
     if experiment_id == 0 or (seeds and experiment_id == len(seeds)):
         configured_timeout = config.get("mutator_timeout", 300)
-        probe_prompt = build_prompt(config, worktree, log)
+        probe_prompt = build_prompt(config, worktree, log, node_type="mutation", parent_entries=[])
         print(f"[autoresearch] Timing probe (configured timeout: {configured_timeout}s)...")
         probe_t0 = time.time()
         probe_desc, _ = run_mutator(config, worktree, probe_prompt)
@@ -795,8 +984,7 @@ def run_experiment_loop(config: dict, config_path: Path, tag: str,
 
         # Reset worktree from probe (don't count it)
         if git_has_changes(worktree):
-            subprocess.run(["git", "checkout", "."], cwd=worktree, capture_output=True)
-            subprocess.run(["git", "clean", "-fd"], cwd=worktree, capture_output=True)
+            git_discard_uncommitted(worktree)
         print()
 
     try:
@@ -808,7 +996,20 @@ def run_experiment_loop(config: dict, config_path: Path, tag: str,
             print(f"{'='*60}")
 
             # 1. Build prompt
-            prompt = build_prompt(config, worktree, log)
+            node_type = select_node_type(config, experiment_id, consecutive_discards)
+            parent_entries = log.select_archive_parents(
+                config["metric_direction"],
+                k=int(config.get("parent_sample_size", 5)),
+            )
+            parent_ids = [e["experiment_id"] for e in parent_entries]
+            print(f"[autoresearch] Node: {node_type} | parents: {parent_ids or 'none'}")
+            prompt = build_prompt(
+                config,
+                worktree,
+                log,
+                node_type=node_type,
+                parent_entries=parent_entries,
+            )
 
             # 2. Run mutator (LLM edits code)
             print("[autoresearch] Running mutator...")
@@ -824,6 +1025,8 @@ def run_experiment_loop(config: dict, config_path: Path, tag: str,
                     "status": "error",
                     "description": description,
                     "cost_usd": cost,
+                    "node_type": node_type,
+                    "parent_experiment_ids": parent_ids,
                 })
                 # Fatal errors — don't keep looping
                 if "billing" in description.lower() or "credit" in description.lower():
@@ -841,13 +1044,45 @@ def run_experiment_loop(config: dict, config_path: Path, tag: str,
                     "status": "no_change",
                     "description": description,
                     "cost_usd": cost,
+                    "node_type": node_type,
+                    "parent_experiment_ids": parent_ids,
                 })
                 consecutive_discards += 1
                 continue
 
-            # 4. Archive patch before commit
+            # 4. Archive and reject repeated patches before spending eval time.
             diff = git_diff(worktree)
+            patch_hash = hashlib.sha256(diff.encode()).hexdigest()[:12]
+            signature = patch_signature(diff)
             log.save_patch(experiment_id, diff, rationale=description)
+
+            novelty_status = "novel"
+            if log.has_patch_hash(patch_hash):
+                novelty_status = "duplicate_patch_hash"
+            elif log.has_patch_signature(signature):
+                novelty_status = "duplicate_patch_signature"
+
+            if novelty_status != "novel":
+                print(f"[autoresearch] SKIP: {novelty_status} (hash={patch_hash}, sig={signature})")
+                log.log_experiment({
+                    "experiment_id": experiment_id,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "commit": None,
+                    "metric_value": None,
+                    "status": "skipped_duplicate",
+                    "description": description,
+                    "cost_usd": cost,
+                    "elapsed_seconds": round(time.time() - t0, 1),
+                    "eval_output_tail": None,
+                    "patch_hash": patch_hash,
+                    "patch_signature": signature,
+                    "novelty_status": novelty_status,
+                    "node_type": node_type,
+                    "parent_experiment_ids": parent_ids,
+                })
+                git_discard_uncommitted(worktree)
+                consecutive_discards += 1
+                continue
 
             # 5. Commit
             commit_msg = f"experiment #{experiment_id}: {description[:72]}"
@@ -862,27 +1097,6 @@ def run_experiment_loop(config: dict, config_path: Path, tag: str,
             )
 
             elapsed = time.time() - t0
-
-            # 6b. Duplicate patch detection
-            patch_hash = hashlib.sha256(diff.encode()).hexdigest()[:12]
-            if log.has_patch_hash(patch_hash):
-                print(f"[autoresearch] SKIP: duplicate patch (hash={patch_hash})")
-                entry = {
-                    "experiment_id": experiment_id,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "commit": None,
-                    "metric_value": None,
-                    "status": "skipped_duplicate",
-                    "description": description,
-                    "cost_usd": cost,
-                    "elapsed_seconds": round(time.time() - t0, 1),
-                    "eval_output_tail": None,
-                    "patch_hash": patch_hash,
-                }
-                log.log_experiment(entry)
-                git_reset_hard(worktree)
-                consecutive_discards += 1
-                continue
 
             # 7. Decide keep/discard
             if metric_value is None:
@@ -903,6 +1117,7 @@ def run_experiment_loop(config: dict, config_path: Path, tag: str,
                 if improved:
                     status = "keep"
                     keeps_since_holdout += 1
+                    keeps_since_stress += 1
                     consecutive_discards = 0
                     # Amend commit with reproducibility receipt
                     receipt_msg = (
@@ -936,7 +1151,78 @@ def run_experiment_loop(config: dict, config_path: Path, tag: str,
                 "elapsed_seconds": round(elapsed, 1),
                 "eval_output_tail": eval_output[-500:] if eval_output else None,
                 "patch_hash": patch_hash,
+                "patch_signature": signature,
+                "novelty_status": novelty_status,
+                "node_type": node_type,
+                "parent_experiment_ids": parent_ids,
             }
+
+            # 11. Holdout eval (enforced — mismatch triggers retroactive discard)
+            if (status == "keep"
+                and config.get("holdout_eval_command")
+                and keeps_since_holdout >= config.get("holdout_every_k_keeps", 5)):
+                print("[autoresearch] Running holdout evaluation...")
+                holdout_val, holdout_out = run_eval(
+                    worktree, config["holdout_eval_command"], config["metric_name"],
+                    timeout=config["time_budget_seconds"] * 2,
+                )
+                keeps_since_holdout = 0
+                entry["holdout_metric_value"] = holdout_val
+                entry["holdout_output_tail"] = holdout_out[-500:] if holdout_out else None
+                if holdout_val is not None:
+                    print(f"[autoresearch] Holdout {config['metric_name']}={holdout_val:.6f}")
+                    # Check for holdout mismatch — retroactive discard if divergence too large
+                    if generalization_worse(metric_value, holdout_val, config["metric_direction"]):
+                        reason = (
+                            f"Holdout mismatch: main={metric_value:.6f}, "
+                            f"holdout={holdout_val:.6f} (direction={config['metric_direction']})"
+                        )
+                        print(f"[autoresearch] HOLDOUT DISCARD: {reason}")
+                        write_generalization_discard(
+                            log, experiment_id, "holdout", metric_value, holdout_val,
+                            config["metric_direction"], description,
+                        )
+                        git_reset_hard(worktree)
+                        status = "holdout_discard"
+                        entry["status"] = status
+                        entry["commit"] = None
+                        keeps_since_stress = 0
+                        consecutive_discards += 1
+                else:
+                    entry["holdout_status"] = "crash"
+
+            # 12. Stress eval (optional distribution-shift probe, also enforced)
+            if (status == "keep"
+                and config.get("stress_eval_command")
+                and keeps_since_stress >= config.get("stress_every_k_keeps", 5)):
+                print("[autoresearch] Running stress evaluation...")
+                stress_val, stress_out = run_eval(
+                    worktree, config["stress_eval_command"], config["metric_name"],
+                    timeout=config["time_budget_seconds"] * 2,
+                )
+                keeps_since_stress = 0
+                entry["stress_metric_value"] = stress_val
+                entry["stress_output_tail"] = stress_out[-500:] if stress_out else None
+                if stress_val is not None:
+                    print(f"[autoresearch] Stress {config['metric_name']}={stress_val:.6f}")
+                    if generalization_worse(metric_value, stress_val, config["metric_direction"]):
+                        reason = (
+                            f"Stress mismatch: main={metric_value:.6f}, "
+                            f"stress={stress_val:.6f} (direction={config['metric_direction']})"
+                        )
+                        print(f"[autoresearch] STRESS DISCARD: {reason}")
+                        write_generalization_discard(
+                            log, experiment_id, "stress", metric_value, stress_val,
+                            config["metric_direction"], description,
+                        )
+                        git_reset_hard(worktree)
+                        status = "stress_discard"
+                        entry["status"] = status
+                        entry["commit"] = None
+                        consecutive_discards += 1
+                else:
+                    entry["stress_status"] = "crash"
+
             log.log_experiment(entry)
 
             # 9. Update LEARNINGS.md periodically
@@ -949,47 +1235,6 @@ def run_experiment_loop(config: dict, config_path: Path, tag: str,
                 print(f"[autoresearch] STALL: {consecutive_discards} consecutive discards")
                 # Will naturally inject "try something radically different" via the prompt
                 # (recent results table shows the streak)
-
-            # 11. Holdout eval (enforced — mismatch triggers retroactive discard)
-            if (status == "keep"
-                and config.get("holdout_eval_command")
-                and keeps_since_holdout >= config.get("holdout_every_k_keeps", 5)):
-                print("[autoresearch] Running holdout evaluation...")
-                holdout_val, holdout_out = run_eval(
-                    worktree, config["holdout_eval_command"], config["metric_name"],
-                    timeout=config["time_budget_seconds"] * 2,
-                )
-                keeps_since_holdout = 0
-                if holdout_val is not None:
-                    print(f"[autoresearch] Holdout {config['metric_name']}={holdout_val:.6f}")
-                    # Check for holdout mismatch — retroactive discard if divergence too large
-                    if metric_value is not None:
-                        if config["metric_direction"] == "lower":
-                            holdout_worse = holdout_val > metric_value * 1.5
-                        else:
-                            holdout_worse = holdout_val < metric_value * 0.5
-                        if holdout_worse:
-                            reason = (
-                                f"Holdout mismatch: main={metric_value:.6f}, "
-                                f"holdout={holdout_val:.6f} (direction={config['metric_direction']})"
-                            )
-                            print(f"[autoresearch] HOLDOUT DISCARD: {reason}")
-                            # Write explanatory artifact before discarding
-                            reason_path = log.log_dir / f"{experiment_id:04d}_holdout_discard.md"
-                            reason_path.write_text(
-                                f"# Holdout Discard — Experiment #{experiment_id}\n\n"
-                                f"**Date:** {datetime.now(timezone.utc).isoformat()}\n"
-                                f"**Main metric:** {metric_value:.6f}\n"
-                                f"**Holdout metric:** {holdout_val:.6f}\n"
-                                f"**Direction:** {config['metric_direction']}\n"
-                                f"**Description:** {description}\n\n"
-                                f"Retroactively discarded because holdout performance diverged "
-                                f"significantly from main eval, indicating possible overfitting.\n"
-                            )
-                            git_reset_hard(worktree)
-                            entry["status"] = "holdout_discard"
-                            entry["commit"] = None
-                            consecutive_discards += 1
 
             # Progress summary every 10 experiments
             if experiment_id % 10 == 0:
