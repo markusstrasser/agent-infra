@@ -24,17 +24,18 @@ Per `research/claim_verification_package_prior_art_2026-04-11.md`: inspect_ai's 
 ## Layout
 
 ```
-experiments/claim-bench/
+claim_bench/
 ├── README.md           # this file
-├── task.py             # inspect_ai Task entrypoint (Phase 0)
-├── scorer.py           # verdict-enum + atomic-claim scorers
-├── tools.py            # retrieval @tool wrappers (Phase 1+)
-├── process_metrics.py  # groundedness / calibration / trace faithfulness (Phase 2)
-├── cards.py            # independence + adequacy card derivation (Phase 4)
+├── src/claim_bench/
+│   ├── task.py             # inspect_ai Task entrypoint
+│   ├── scorer.py           # verdict-enum + groundedness scorers
+│   ├── tools.py            # retrieval @tool wrappers
+│   ├── process_metrics.py  # source/currency/calibration helpers
+│   ├── atomic_claim.py     # atomic claim parsing and matching
+│   └── cards.py            # independence + adequacy card derivation
 ├── cases/              # gold cases (cross-domain seed)
-│   ├── 001_supported_crispr_2015.json
-│   └── 002_contradicted_vitamin_c_cold.json
-├── runs/               # eval outputs (gitignored)
+├── tests/              # deterministic unit/contract tests
+├── logs/               # saved inspect eval logs
 └── LEARNINGS.md        # what worked, what didn't, schema gaps
 ```
 
@@ -42,19 +43,39 @@ experiments/claim-bench/
 
 ```bash
 cd ~/Projects/agent-infra
-uv sync                                        # install inspect_ai if missing
-uv run inspect eval experiments/claim-bench/task.py
+PYTHONPATH=claim_bench/src uv run python3 -m pytest claim_bench/tests
+uv run inspect eval claim_bench/src/claim_bench/task.py
 ```
 
-(Phase 0 task runs against a placeholder solver — proves the harness shape, not the model.)
+The pytest suite is the cheap deterministic contract. The `inspect eval` command is the live model/tool integration path.
+
+## RSI eval
+
+The recursive-improvement harness for deterministic claim-bench code lives in
+`experiments/claim-bench-rsi/`. It is allowed to mutate only:
+
+- `claim_bench/src/claim_bench/scorer.py`
+- `claim_bench/src/claim_bench/process_metrics.py`
+
+Run it with:
+
+```bash
+uv run python3 experiments/claim-bench-rsi/eval.py --locked
+```
+
+This eval uses the 30 authored/imported cases plus parser and source-extraction
+probes. On 2026-06-06 it exposed a real parser failure: markdown output
+`**not verifiable** ...` was parsed as `not`. Commit `d3110e0` fixed that in
+`scorer.py`, moving the locked RSI score from `0.975000` to `1.000000`.
 
 ## Status
 
-- **Phase 0 (probe):** in progress — task.py + 2 cases + verdict scorer
-- **Phase 1 (real solver):** not started
-- **Phase 2 (process metrics):** not started
-- **Phase 3 (atomic claim P/R/F1):** not started
-- **Phase 4 (cards):** not started
+- **Gold cases:** 30 cross-domain cases in `claim_bench/cases/`
+- **Verdict scorer:** implemented and covered by deterministic tests
+- **Groundedness scorer:** implemented; live judge calls require API access
+- **Process metrics:** implemented with deterministic unit tests
+- **Atomic claim P/R/F1:** implemented with deterministic unit tests
+- **Independence/adequacy cards:** implemented with deterministic unit tests
 - **Phase 5 (genomics adapter):** not started
 - **Phase 6 (extract package):** trigger = second consumer appears
 
