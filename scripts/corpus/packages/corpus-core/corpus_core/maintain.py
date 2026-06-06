@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Optional
 
 from . import store as ps
+from .identity import parse_source_identifier
 from .store import CorpusStore
 from . import extract_citances as ec
 from . import resolve_references as rr
@@ -80,12 +81,44 @@ def cmd_stats(args) -> int:
     return 0
 
 
+def _is_explicit_source_id(raw: str) -> bool:
+    return raw.startswith(("doi_", "pmid_", "pmcid_", "sha_"))
+
+
+def _resolve_identifier_candidate(raw: str) -> str:
+    if _is_explicit_source_id(raw):
+        return raw
+    parsed = parse_source_identifier(raw)
+    return parsed.get("source_id") or raw
+
+
+def _find_record_by_identifier(store: CorpusStore, raw: str):
+    candidate = _resolve_identifier_candidate(raw)
+    if store.exists(candidate):
+        return candidate, store.get(candidate)
+
+    parsed = parse_source_identifier(raw)
+    if parsed.get("pmid"):
+        wanted = str(parsed["pmid"]).strip()
+        for pid in store.iter_papers():
+            rec = store.get(pid)
+            if str(rec.metadata.get("pmid") or "").strip() == wanted:
+                return pid, rec
+    if parsed.get("doi"):
+        wanted = str(parsed["doi"]).strip().lower()
+        for pid in store.iter_papers():
+            rec = store.get(pid)
+            if str(rec.metadata.get("doi") or "").strip().lower() == wanted:
+                return pid, rec
+
+    return candidate, None
+
+
 def cmd_show(args) -> int:
     store: CorpusStore = args.corpus_store
-    try:
-        rec = store.get(args.paper_id)
-    except ps.PaperNotFoundError:
-        print(f"paper not found: {args.paper_id}", file=sys.stderr)
+    source_id, rec = _find_record_by_identifier(store, args.identifier)
+    if rec is None:
+        print(f"paper not found: {args.identifier} (candidate source_id: {source_id})", file=sys.stderr)
         return 1
     meta = rec.metadata
     print(f"paper_id:        {rec.paper_id}")
@@ -120,6 +153,79 @@ def cmd_show(args) -> int:
             print(f"revisions ({len(revisions)}):")
             for r in revisions:
                 print(f"  - {r.get('retired_at')}  prior_pdf_sha={r.get('prior_pdf_sha256','')[:16]}")
+    return 0
+
+
+def _lookup_source_id(store: CorpusStore, args) -> tuple[str, object | None]:
+    supplied = [bool(args.source_id), bool(args.doi), bool(args.pmid)]
+    if sum(supplied) != 1:
+        raise ps.PaperStoreError("lookup requires exactly one of source_id, --doi, or --pmid")
+
+    if args.source_id:
+        return _find_record_by_identifier(store, args.source_id)
+    elif args.doi:
+        candidate = store.derive_paper_id(doi=args.doi)
+    else:
+        candidate = store.derive_paper_id(pmid=args.pmid)
+
+    if store.exists(candidate):
+        return candidate, store.get(candidate)
+
+    if args.pmid:
+        return _find_record_by_identifier(store, f"pmid:{args.pmid}")
+
+    if args.doi:
+        return _find_record_by_identifier(store, f"doi:{args.doi}")
+
+    return candidate, None
+
+
+def cmd_lookup(args) -> int:
+    store: CorpusStore = args.corpus_store
+    try:
+        source_id, rec = _lookup_source_id(store, args)
+    except ps.PaperStoreError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
+    if rec is None:
+        if args.json:
+            print(json.dumps({"present": False, "source_id": source_id}, sort_keys=True))
+        else:
+            print(f"present:         false")
+            print(f"source_id:       {source_id}")
+        return 1
+
+    meta = rec.metadata
+    parsed_md = rec.parsed_markdown_path()
+    payload = {
+        "present": True,
+        "source_id": rec.paper_id,
+        "doi": meta.get("doi"),
+        "pmid": meta.get("pmid"),
+        "title": meta.get("title"),
+        "parsed": parsed_md is not None,
+        "parsed_path": str(parsed_md) if parsed_md else None,
+        "path": str(rec.path),
+        "parser_id": (meta.get("parser") or {}).get("parser_id"),
+        "parsed_sha256": meta.get("parsed_sha256"),
+        "retraction_status": meta.get("retraction_status"),
+    }
+    if args.json:
+        print(json.dumps(payload, sort_keys=True))
+        return 0
+
+    print(f"present:         true")
+    print(f"source_id:       {payload['source_id']}")
+    print(f"doi:             {payload['doi']}")
+    print(f"pmid:            {payload['pmid']}")
+    print(f"title:           {payload['title']}")
+    print(f"parsed:          {str(payload['parsed']).lower()}")
+    print(f"parsed_path:     {payload['parsed_path']}")
+    print(f"path:            {payload['path']}")
+    print(f"parser_id:       {payload['parser_id']}")
+    print(f"parsed_sha256:   {payload['parsed_sha256']}")
+    print(f"retraction:      {payload['retraction_status']}")
     return 0
 
 
@@ -319,10 +425,17 @@ def add_cli(subparsers: argparse._SubParsersAction) -> None:
     p = subparsers.add_parser("stats", help="Store summary")
     p.set_defaults(func=cmd_stats)
 
-    p = subparsers.add_parser("show", help="Show metadata for one paper")
-    p.add_argument("paper_id")
+    p = subparsers.add_parser("show", help="Show metadata for one source by source_id, DOI, or PMID")
+    p.add_argument("identifier")
     p.add_argument("--depth", choices=["meta", "full"], default="meta")
     p.set_defaults(func=cmd_show)
+
+    p = subparsers.add_parser("lookup", help="Resolve DOI/PMID/source_id and report corpus presence")
+    p.add_argument("source_id", nargs="?", help="source_id, DOI, PMID, doi:<id>, or pmid:<id>")
+    p.add_argument("--doi", default=None)
+    p.add_argument("--pmid", default=None)
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_lookup)
 
     p = subparsers.add_parser("maintain", help="Verify / rebuild / gc")
     p.add_argument("--verify", action="store_true")

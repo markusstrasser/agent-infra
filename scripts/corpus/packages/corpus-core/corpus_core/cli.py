@@ -9,7 +9,8 @@ Subcommands:
     corpus extract-citances --paper-id <id> [--enrich-cito]
     corpus sync --from <manifest.json> [--dry-run]
     corpus stats
-    corpus show <paper_id> [--depth full]
+    corpus lookup (--doi <doi> | --pmid <pmid> | <source_id>)
+    corpus show <identifier> [--depth full]
     corpus maintain --verify | --rebuild-indexes | --rebuild-citances | --rebuild-graph | --gc
     corpus cites|cited-by|contradictions|ego|path|similar|cluster|collection|table  ...
 """
