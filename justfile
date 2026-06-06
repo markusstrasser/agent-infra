@@ -41,6 +41,10 @@ smoke:
     echo "OK: agentlogs readable"
     echo "=== MCP server contracts (in-process, \$0, no LLM) ==="
     uv run python3 scripts/mcp_contract_smoke.py
+    echo "=== Skill routing locked evals ==="
+    uv run python3 scripts/skill-routing.py --cases schemas/skill-routing-cases.json
+    uv run python3 experiments/skill-routing/eval.py
+    uv run python3 experiments/skill-routing/eval.py --holdout
     echo "=== Codex parity (.codex/ + .agents/skills mirror Claude assets) ==="
     uv run --no-project python3 scripts/codex_parity_sync.py --check 2>&1 | tail -6 || true
     echo "=== Codex hook compatibility ==="
@@ -165,7 +169,11 @@ skill-manifest *args:
 # Evaluate hand-authored skill routing fixtures
 [group('health')]
 skill-routing-eval *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
     uv run python3 scripts/skill-routing.py --cases schemas/skill-routing-cases.json {{args}}
+    uv run python3 experiments/skill-routing/eval.py
+    uv run python3 experiments/skill-routing/eval.py --holdout
 
 # Probe filesystem/loader assumptions such as exact SKILL.md casing
 [group('health')]

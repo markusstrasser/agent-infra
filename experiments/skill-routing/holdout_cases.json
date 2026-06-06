@@ -12,6 +12,12 @@
     "expected_visible": ["skills:skill.writing-style"]
   },
   {
+    "id": "skills-writing-style-vs-deslop",
+    "project": "skills",
+    "prompt": "draft an outreach email in Markus voice; not generic prose cleanup",
+    "expected_visible": ["skills:skill.writing-style"]
+  },
+  {
     "id": "skills-upgrade-audit",
     "project": "skills",
     "prompt": "audit the codebase, find bugs, and implement the fixes",
@@ -24,10 +30,22 @@
     "expected_visible": ["skills:skill.bio-verify"]
   },
   {
+    "id": "skills-life-science-vs-bio-verify",
+    "project": "skills",
+    "prompt": "find PubMed papers and biomedical sources for DPYD pharmacogenomics mechanism",
+    "expected_visible": ["skills:skill.life-science-research"]
+  },
+  {
     "id": "skills-scientific-drawing",
     "project": "skills",
     "prompt": "draw a scientific pathway diagram for this mechanism",
     "expected_visible": ["skills:skill.scientific-drawing"]
+  },
+  {
+    "id": "skills-modal-config-vs-status",
+    "project": "skills",
+    "prompt": "Modal GPU resource config is failing during deployment; inspect the Modal script",
+    "expected_visible": ["skills:skill.modal"]
   },
   {
     "id": "skills-llmx-timeout",
