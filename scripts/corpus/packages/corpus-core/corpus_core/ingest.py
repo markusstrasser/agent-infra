@@ -21,8 +21,11 @@ write to a new dir, never mutate an existing one.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import re
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Optional
@@ -31,6 +34,7 @@ from . import SCHEMA_VERSION
 from . import store as ps
 from .store import CorpusStore
 from .extract import DEFAULT_PARSER, ExtractResult, extract as run_extract
+from .extract._common import config_md5
 
 
 # ---------------------------------------------------------------------------
@@ -171,6 +175,70 @@ def ingest_html(
     )
 
 
+def ingest_jats(
+    store: CorpusStore,
+    jats_path: Path,
+    *,
+    doi: Optional[str] = None,
+    pmid: Optional[str] = None,
+    title: Optional[str] = None,
+    source_url: Optional[str] = None,
+    parser_config: Optional[dict] = None,
+    source_type: str = "paper",
+    extra_metadata: Optional[dict] = None,
+) -> dict:
+    """Ingest a JATS XML full text while preserving DOI/PMID paper identity."""
+    jats_path = Path(jats_path).expanduser().resolve()
+    if not jats_path.exists():
+        raise FileNotFoundError(f"JATS XML not found: {jats_path}")
+    if not doi and not pmid:
+        raise ValueError("JATS ingest requires --doi or --pmid for stable paper identity")
+
+    xml_bytes = jats_path.read_bytes()
+    content_hash = hashlib.sha256(xml_bytes).hexdigest()
+    paper_id = store.derive_paper_id(doi=doi, pmid=pmid, pdf_sha=None)
+    p_path = store.paper_path(paper_id)
+    p_path.mkdir(parents=True, exist_ok=True)
+
+    if store.exists(paper_id):
+        existing = store.get(paper_id)
+        if existing.metadata.get("content_hash") == content_hash and _has_any_parsed(p_path):
+            print(f"  ✓ {paper_id} already ingested (jats content_hash match) — no-op")
+            return existing.metadata
+        existing_hash = existing.metadata.get("content_hash")
+        if existing_hash and existing_hash != content_hash:
+            raise ps.PaperStoreError(
+                f"{paper_id} already has different source content "
+                f"({existing_hash[:16]} vs new {content_hash[:16]}). "
+                "Use a revision path before replacing JATS full text."
+            )
+
+    (p_path / "source.jats.xml").write_bytes(xml_bytes)
+    metadata = _initial_metadata(
+        paper_id, source_type=source_type, doi=doi, pmid=pmid, title=title,
+        pdf_sha=None, content_hash=content_hash,
+        extra_metadata={
+            "source_url": source_url,
+            "jats_sha256": content_hash,
+            **(extra_metadata or {}),
+        },
+    )
+    store.write_metadata(paper_id, metadata)
+
+    result = _extract_jats_with_pandoc(jats_path, parser_config=parser_config)
+    parsed_dir = _write_parsed(p_path, result, source="jats")
+
+    metadata["parsed_sha256"] = (parsed_dir / "parsed.sha256").read_text().strip()
+    metadata["parser"] = json.loads((parsed_dir / "parser.json").read_text())
+    metadata["last_updated"] = ps._now()
+    store.write_metadata(paper_id, metadata)
+    _ensure_jsonl(p_path)
+
+    print(f"  ✓ {paper_id} ingested from JATS  "
+          f"parser_id={result.parser_id}  parsed_sha={metadata['parsed_sha256'][:16]}")
+    return metadata
+
+
 # ---------------------------------------------------------------------------
 # Public API — revision
 # ---------------------------------------------------------------------------
@@ -290,6 +358,44 @@ def _ensure_jsonl(p_path: Path) -> None:
             path.touch()
 
 
+def _extract_jats_with_pandoc(
+    jats_path: Path,
+    *,
+    parser_config: Optional[dict],
+) -> ExtractResult:
+    cfg_md5 = config_md5(parser_config)
+    pandoc_version = _pandoc_version()
+    proc = subprocess.run(
+        ["pandoc", "-f", "jats", "-t", "markdown", str(jats_path)],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    markdown = proc.stdout.strip() + "\n"
+    if len(markdown.strip()) < 100:
+        raise RuntimeError(f"pandoc produced too little markdown for {jats_path}")
+    return ExtractResult(
+        parser_id=f"jats-pandoc@{pandoc_version}+cfg-{cfg_md5[:8]}",
+        parsed_markdown=markdown,
+        parser_config_md5=cfg_md5,
+        page_count=None,
+        char_count=len(markdown),
+        extras={"jats_path": str(jats_path)},
+    )
+
+
+def _pandoc_version() -> str:
+    proc = subprocess.run(
+        ["pandoc", "--version"],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    first = (proc.stdout.splitlines() or ["pandoc unknown"])[0]
+    match = re.search(r"pandoc\s+([^\s]+)", first)
+    return match.group(1) if match else "unknown"
+
+
 def _ingest_html_bytes(
     store: CorpusStore,
     html_bytes: bytes,
@@ -351,6 +457,7 @@ def add_cli(subparsers: argparse._SubParsersAction) -> None:
     grp.add_argument("--pdf", help="Path to a PDF")
     grp.add_argument("--url", help="URL to fetch + extract via trafilatura")
     grp.add_argument("--html", help="Path to a local HTML file (use with --source-url)")
+    grp.add_argument("--jats", help="Path to a local JATS XML full text")
 
     p.add_argument("--source-url", help="Origin URL when ingesting --html")
     p.add_argument("--doi", default=None)
@@ -408,6 +515,17 @@ def _cmd_ingest(args: argparse.Namespace) -> int:
             source_url=args.source_url,
             source_type=args.source_type or "webpage",
             title=args.title,
+        )
+        return 0
+    if args.jats:
+        ingest_jats(
+            args.corpus_store,
+            Path(args.jats),
+            doi=args.doi,
+            pmid=args.pmid,
+            title=args.title,
+            source_url=args.source_url,
+            source_type=args.source_type or "paper",
         )
         return 0
     print("nothing to ingest", file=sys.stderr)
