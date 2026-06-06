@@ -43,11 +43,25 @@ smoke:
     uv run python3 scripts/mcp_contract_smoke.py
     echo "=== Codex parity (.codex/ + .agents/skills mirror Claude assets) ==="
     uv run --no-project python3 scripts/codex_parity_sync.py --check 2>&1 | tail -6 || true
+    echo "=== Codex hook compatibility ==="
+    uv run --no-project python3 scripts/codex_hook_compat.py --timeout 8
+    echo "=== Codex project MCP startup ==="
+    uv run --no-project python3 scripts/codex_mcp_smoke.py
 
 # Mirror per-repo .claude/ assets (MCP, hooks, skills) into Codex's .codex/ layers
 [group('health')]
 codex-parity *args:
     uv run --no-project python3 scripts/codex_parity_sync.py {{args}}
+
+# Smoke generated Codex hook mirrors for JSON stdout and benign-input exit codes
+[group('health')]
+codex-hook-compat *args:
+    uv run --no-project python3 scripts/codex_hook_compat.py {{args}}
+
+# Smoke project-scoped Codex stdio MCP deltas for startup + tools/list
+[group('health')]
+codex-mcp-smoke *args:
+    uv run --no-project python3 scripts/codex_mcp_smoke.py {{args}}
 
 # Check all research MCP servers respond (<10s)
 [group('health')]
