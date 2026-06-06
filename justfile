@@ -157,6 +157,26 @@ datasette *args:
 skill-health *args:
     uv run python3 scripts/skill-validator.py {{args}}
 
+# Generate/validate cross-project skill manifests
+[group('health')]
+skill-manifest *args:
+    uv run python3 scripts/skill_manifest.py {{args}}
+
+# Evaluate hand-authored skill routing fixtures
+[group('health')]
+skill-routing-eval *args:
+    uv run python3 scripts/skill-routing.py --cases schemas/skill-routing-cases.json {{args}}
+
+# Probe filesystem/loader assumptions such as exact SKILL.md casing
+[group('health')]
+skill-loader-probe *args:
+    uv run python3 scripts/skill_loader_probe.py {{args}}
+
+# Validate skill references in hooks, rules, prompts, and workflow docs
+[group('health')]
+skill-reference-closure *args:
+    uv run python3 scripts/skill_reference_validator.py --repo agent-infra --repo intel --repo genomics --repo phenome {{args}}
+
 # Generate skill docs from templates (--dry-run to check drift)
 [group('health')]
 skill-gen *args:

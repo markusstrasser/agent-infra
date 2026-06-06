@@ -8,6 +8,11 @@ dependencies = [
     "corpus-testing",
 ]
 
+[project.optional-dependencies]
+modal = [
+    "corpus-core[modal]",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=9.0",

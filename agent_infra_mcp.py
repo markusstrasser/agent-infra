@@ -11,6 +11,7 @@ for changes to take effect.
 """
 
 import logging
+import json
 import re
 import subprocess
 from contextlib import asynccontextmanager
@@ -18,6 +19,8 @@ from pathlib import Path
 
 from fastmcp import Context, FastMCP
 from mcp.types import TextContent
+
+from scripts.common.skill_objects import collect_skill_objects, iter_default_roots, resolve_portable_path
 
 log = logging.getLogger(__name__)
 
@@ -75,6 +78,10 @@ NOT for: behavioral rules (already in CLAUDE.md), enforcement (hooks).
 
 For corpus operations (lookup, graph query, attestation, ingest), use the
 corpus-mcp server (scripts/corpus_mcp.py).
+
+Skill registry tools expose compact, read-only skill objects, modules, lenses,
+and role-agent contracts. Use them to lazily load phase-specific instructions
+instead of recursively reading every file under `.claude/skills/`.
 """
 
 
@@ -244,7 +251,9 @@ def create_mcp() -> FastMCP:
         for path, display_key in files:
             sections.extend(_parse_sections(path, display_key))
         log.info("agent-infra: indexed %d sections from %d files", len(sections), len(files))
-        yield {"sections": sections}
+        skill_objects = [obj.to_json() for obj in collect_skill_objects(iter_default_roots(None))]
+        log.info("agent-infra: indexed %d skill objects", len(skill_objects))
+        yield {"sections": sections, "skill_objects": skill_objects}
 
     from scripts.mcp_middleware import TelemetryMiddleware
 
@@ -276,8 +285,6 @@ def create_mcp() -> FastMCP:
         _call_count += 1
 
         max_tokens = min(max(max_tokens, 50), 4000)
-
-        import json
 
         def _wrap(data: dict) -> list[TextContent]:
             text = json.dumps(data, indent=2, default=str)
@@ -319,6 +326,116 @@ def create_mcp() -> FastMCP:
             )
 
         return _wrap(result)
+
+    def _wrap_json(data: dict) -> list[TextContent]:
+        text = json.dumps(data, indent=2, default=str)
+        size_hint = max(len(text) * 2, 16000)
+        return [TextContent(
+            type="text", text=text,
+            _meta={"anthropic/maxResultSizeChars": size_hint},
+        )]
+
+    def _fresh_skill_objects() -> list[dict]:
+        # Refresh on each call. Collection is cheap at current scale and avoids
+        # serving stale skill edits for the lifetime of an MCP process.
+        return [obj.to_json() for obj in collect_skill_objects(iter_default_roots(None))]
+
+    def _matching_rows(ctx: Context) -> list[dict]:
+        return [dict(row) for row in _fresh_skill_objects()]
+
+    def _load_object_content(row: dict, max_chars: int) -> dict:
+        path = resolve_portable_path(row["repo_root"]) / row["path"]
+        if not path.exists() or path.is_dir():
+            return {"available": False, "resolved_path": str(path)}
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            return {"available": False, "resolved_path": str(path), "error": "unicode_decode_error"}
+        return {
+            "available": True,
+            "resolved_path": str(path),
+            "truncated": len(text) > max_chars,
+            "text": text[:max_chars],
+        }
+
+    @mcp.tool()
+    def get_skill_object(
+        ctx: Context,
+        name: str,
+        project: str = "",
+        include_content: bool = False,
+        max_chars: int = 6000,
+    ) -> list[TextContent]:
+        """Return one skill-object manifest row by object id or name.
+
+        Side effects: none. Use this before loading a module/lens/reference body.
+        `name` may be a full object id such as `intel:asset-decision.lens.drawdown-context`
+        or a simple object/name such as `drawdown-context`.
+        """
+        rows = _matching_rows(ctx)
+        matches = []
+        for row in rows:
+            if project and row.get("project") != project:
+                continue
+            if name in {row.get("object_id"), row.get("name")}:
+                matches.append(row)
+        if not matches:
+            matches = [
+                row for row in rows
+                if (not project or row.get("project") == project)
+                and name.lower() in str(row.get("object_id", "")).lower()
+            ]
+        result = {"query": name, "project": project or None, "matches": matches[:10]}
+        if include_content:
+            for row in result["matches"]:
+                row["content"] = _load_object_content(row, max_chars)
+        return _wrap_json(result)
+
+    @mcp.tool()
+    def get_cognitive_lens(
+        ctx: Context,
+        lens_name: str,
+        project: str = "",
+        max_chars: int = 6000,
+    ) -> list[TextContent]:
+        """Return a registered LensDoc and its fallback file content when present."""
+        rows = [
+            row for row in _matching_rows(ctx)
+            if row.get("object_type") == "LensDoc"
+            and (not project or row.get("project") == project)
+            and (
+                lens_name == row.get("name")
+                or lens_name == row.get("object_id")
+                or lens_name.lower() in str(row.get("object_id", "")).lower()
+            )
+        ]
+        result = {"query": lens_name, "project": project or None, "matches": rows[:10]}
+        for row in result["matches"]:
+            row["content"] = _load_object_content(row, max_chars)
+        return _wrap_json(result)
+
+    @mcp.tool()
+    def get_module_contract(
+        ctx: Context,
+        module_name: str,
+        project: str = "",
+        max_chars: int = 6000,
+    ) -> list[TextContent]:
+        """Return a registered ModuleDoc or RoleAgentContract with fallback content."""
+        rows = [
+            row for row in _matching_rows(ctx)
+            if row.get("object_type") in {"ModuleDoc", "RoleAgentContract"}
+            and (not project or row.get("project") == project)
+            and (
+                module_name == row.get("name")
+                or module_name == row.get("object_id")
+                or module_name.lower() in str(row.get("object_id", "")).lower()
+            )
+        ]
+        result = {"query": module_name, "project": project or None, "matches": rows[:10]}
+        for row in result["matches"]:
+            row["content"] = _load_object_content(row, max_chars)
+        return _wrap_json(result)
 
     return mcp
 

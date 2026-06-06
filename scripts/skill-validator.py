@@ -24,6 +24,13 @@ from pathlib import Path
 
 import yaml
 
+from common.skill_objects import (
+    DEFAULT_ROOTS,
+    collect_skill_objects,
+    iter_default_roots,
+    stored_skill_filename,
+)
+
 SKILLS_DIR = Path.home() / "Projects" / "skills"
 HOOKS_DIR = SKILLS_DIR / "hooks"
 
@@ -43,8 +50,16 @@ NATIVE_TOOLS = {
 KNOWN_FIELDS = {
     "name", "description", "argument-hint", "allowed-tools",
     "user-invocable", "hooks", "model", "license", "context",
-    "disable-model-invocation",
+    "disable-model-invocation", "effort", "agent",
 }
+
+PRIVATE_EXPORT_PATTERNS = (
+    "/Users/alien",
+    "Markus",
+    "phenome",
+    "genomics",
+    "intel",
+)
 
 
 def collect_mcp_servers() -> set[str]:
@@ -110,11 +125,35 @@ def parse_frontmatter(path: Path) -> tuple[dict | None, str, list[str]]:
     return fm, body, errors
 
 
-def validate_skill(skill_dir: Path, mcp_servers: set[str]) -> dict:
+def validate_skill(
+    skill_dir: Path,
+    mcp_servers: set[str],
+    *,
+    project: str = "skills",
+    repo_root: Path | None = None,
+    require_canonical_case: bool = False,
+    exportable: bool = False,
+    max_lines: int = 500,
+) -> dict:
     """Validate a single skill. Returns {name, path, errors[], warnings[]}."""
     name = skill_dir.name
     skill_md = skill_dir / "SKILL.md"
-    result = {"name": name, "path": str(skill_dir), "errors": [], "warnings": []}
+    stored_filename = stored_skill_filename(skill_dir)
+    result = {
+        "name": name,
+        "project": project,
+        "path": str(skill_dir),
+        "stored_filename": stored_filename,
+        "is_symlink": skill_dir.is_symlink(),
+        "symlink_target": os.readlink(skill_dir) if skill_dir.is_symlink() else None,
+        "errors": [],
+        "warnings": [],
+    }
+
+    if require_canonical_case and stored_filename != "SKILL.md":
+        result["errors"].append(
+            f"Non-canonical skill filename: {stored_filename or '<missing>'} (expected SKILL.md)"
+        )
 
     if not skill_md.exists():
         result["errors"].append("SKILL.md not found")
@@ -137,6 +176,10 @@ def validate_skill(skill_dir: Path, mcp_servers: set[str]) -> dict:
 
     if "description" not in fm:
         result["errors"].append("Missing required field: description")
+    elif isinstance(fm["description"], str) and len(fm["description"]) > 1024:
+        result["warnings"].append(
+            f"Long description ({len(fm['description'])} chars, >1024)"
+        )
 
     # Check for unknown frontmatter fields
     unknown = set(fm.keys()) - KNOWN_FIELDS
@@ -146,10 +189,17 @@ def validate_skill(skill_dir: Path, mcp_servers: set[str]) -> dict:
     # Validate allowed-tools
     if "allowed-tools" in fm:
         tools = fm["allowed-tools"]
-        if not isinstance(tools, list):
-            result["errors"].append("allowed-tools must be a list")
-        else:
+        if isinstance(tools, str):
+            tools = [tool.strip() for tool in tools.split(",") if tool.strip()]
+            result["warnings"].append("allowed-tools should be a YAML list, parsed comma string")
+        elif not isinstance(tools, list):
+            result["errors"].append("allowed-tools must be a list or comma-separated string")
+            tools = []
+        if tools:
             for tool in tools:
+                if not isinstance(tool, str):
+                    result["errors"].append(f"allowed-tools entries must be strings: {tool!r}")
+                    continue
                 if tool not in NATIVE_TOOLS and not tool.startswith("mcp__"):
                     result["errors"].append(f"Unknown tool in allowed-tools: {tool}")
                 if tool.startswith("mcp__"):
@@ -201,6 +251,15 @@ def validate_skill(skill_dir: Path, mcp_servers: set[str]) -> dict:
         expanded = os.path.expanduser(ref)
         if not Path(expanded).exists():
             result["warnings"].append(f"Body references missing path: {ref}")
+        if exportable and any(pattern in ref for pattern in PRIVATE_EXPORT_PATTERNS):
+            result["errors"].append(f"Exportable skill references private path/token: {ref}")
+
+    if exportable:
+        for pattern in PRIVATE_EXPORT_PATTERNS:
+            if pattern in body:
+                result["errors"].append(
+                    f"Exportable skill body contains private token: {pattern}"
+                )
 
     # Check hook script references in body
     hook_refs = re.findall(r"skills/hooks/[\w._-]+\.sh", body)
@@ -212,6 +271,8 @@ def validate_skill(skill_dir: Path, mcp_servers: set[str]) -> dict:
     # Size (line count)
     line_count = len(skill_md.read_text().splitlines())
     result["lines"] = line_count
+    if line_count > max_lines:
+        result["warnings"].append(f"Large skill ({line_count} lines, >{max_lines})")
 
     return result
 
@@ -239,15 +300,43 @@ def main():
     parser.add_argument("--json", action="store_true", help="JSON output")
     parser.add_argument("--changed-only", action="store_true", help="Only git-changed skills")
     parser.add_argument("--skill", help="Validate single skill by name")
+    parser.add_argument(
+        "--repo",
+        action="append",
+        choices=["skills", "agent-infra", "genomics", "phenome", "intel"],
+        help="Repo skill root to validate. Repeatable. Default: skills.",
+    )
+    parser.add_argument("--all-projects", action="store_true", help="Validate all known skill roots")
+    parser.add_argument(
+        "--require-canonical-case",
+        action="store_true",
+        help="Fail discovered skills not stored as SKILL.md",
+    )
+    parser.add_argument("--max-lines", type=int, default=500)
+    parser.add_argument(
+        "--manifest",
+        action="store_true",
+        help="Include manifest-style discovered object summary in JSON output",
+    )
+    parser.add_argument(
+        "--check-export-leaks",
+        action="store_true",
+        help="Treat selected shared skills as export candidates and fail on private tokens",
+    )
     args = parser.parse_args()
 
     mcp_servers = collect_mcp_servers()
+    roots = iter_default_roots(None if args.all_projects else (args.repo or ["skills"]))
 
     # Collect skills to validate
     if args.skill:
-        skill_dirs = [SKILLS_DIR / args.skill]
-        if not skill_dirs[0].exists():
-            print(f"Skill not found: {args.skill}", file=sys.stderr)
+        skill_dirs = []
+        for root in roots:
+            candidate = root.root / args.skill
+            if candidate.exists():
+                skill_dirs.append((root, candidate))
+        if not skill_dirs:
+            print(f"Skill not found in selected roots: {args.skill}", file=sys.stderr)
             sys.exit(1)
     elif args.changed_only:
         changed = get_changed_skills()
@@ -257,17 +346,33 @@ def main():
             else:
                 print("No changed skills to validate.")
             return
-        skill_dirs = [SKILLS_DIR / name for name in changed]
+        skill_dirs = [(DEFAULT_ROOTS["skills"], SKILLS_DIR / name) for name in changed]
     else:
-        skill_dirs = sorted(
-            p for p in SKILLS_DIR.iterdir()
-            if p.is_dir()
-            and p.name not in ("hooks", "archive", ".claude", ".git", "__pycache__")
-            and (p / "SKILL.md").exists()
-        )
+        skill_dirs = []
+        for root in roots:
+            if not root.root.exists():
+                continue
+            skill_dirs.extend(
+                (root, p)
+                for p in sorted(root.root.iterdir(), key=lambda x: x.name)
+                if p.is_dir()
+                and p.name not in ("hooks", "archive", ".claude", ".git", "__pycache__")
+                and stored_skill_filename(p)
+            )
 
     # Validate
-    results = [validate_skill(d, mcp_servers) for d in skill_dirs]
+    results = [
+        validate_skill(
+            d,
+            mcp_servers,
+            project=root.project,
+            repo_root=root.repo_root,
+            require_canonical_case=args.require_canonical_case,
+            exportable=args.check_export_leaks and root.shared,
+            max_lines=args.max_lines,
+        )
+        for root, d in skill_dirs
+    ]
 
     # Size anomaly detection (only when validating all)
     if not args.skill and not args.changed_only:
@@ -297,6 +402,11 @@ def main():
                 "mcp_servers_found": sorted(mcp_servers),
             },
         }
+        if args.manifest:
+            output["manifest_objects"] = [
+                obj.to_json()
+                for obj in collect_skill_objects(roots, include_planned=True)
+            ]
         print(json.dumps(output, indent=2))
     else:
         for r in results:
