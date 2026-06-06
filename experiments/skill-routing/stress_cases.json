@@ -46,5 +46,11 @@
     "project": "skills",
     "prompt": "llmx is failing with schema dispatch and transport flags",
     "expected_visible": ["skills:skill.llmx-guide"]
+  },
+  {
+    "id": "skills-x-api-direct",
+    "project": "skills",
+    "prompt": "use x-api to pull cost tracked cashtag mentions from curated accounts",
+    "expected_visible": ["skills:skill.x-api"]
   }
 ]
