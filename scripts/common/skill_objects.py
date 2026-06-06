@@ -98,19 +98,26 @@ MODULE_SKILLS = {
     "trace-influence",
 }
 
-LENS_SKILLS = {
-    "drawdown-context",
-    "standalone-asset",
-}
+LENS_SKILLS: set[str] = set()
 
 ALIAS_SKILLS = {
-    "workup",
     "genomics-status",
 }
 
-SIDE_EFFECTFUL_SKILLS = {
+FORBIDDEN_INTEL_ENTRYPOINTS = {
+    "drawdown-context",
+    "ingest-article",
     "new-dataset",
+    "social-thread",
+    "standalone-asset",
+    "workup",
+}
+
+SIDE_EFFECTFUL_SKILLS = {
+    "asset-decision",
+    "dataset",
     "propose-rule",
+    "source-ingest",
     "x-api",
 }
 
@@ -124,24 +131,18 @@ INTEL_DISPOSITIONS = {
     "dcf-model": "retain artifact builder under modeling",
     "disqualify": "retain safety-critical direct-invocable kill-switch module",
     "divergence-update": "move to asset-decision entity-update template/module",
-    "drawdown-context": "move to asset-decision lens",
     "earnings-preview": "retain event-prep workflow",
     "entity-management": "shared symlink; record as shared-shadow entry",
     "extract-generators": "move to governance module",
     "forecast": "retain evidence-packet workflow, not decision router",
     "idea-generation": "retain sourcing/screening workflow",
-    "ingest-article": "migrate into source-ingest/doc-ingest",
     "llm-check": "retain or deprecate after usage data",
     "model-update": "retain artifact builder under modeling",
-    "new-dataset": "move/alias to dataset workflow",
     "propose-rule": "move to governance module",
     "resolve-predictions": "move to asset-decision/governance module",
-    "social-thread": "migrate into source-ingest/social-ingest",
-    "standalone-asset": "move to asset-decision framing-suppression lens",
     "talent-dossier": "retain asset-decision module",
     "thesis-check": "retain adversarial-stress direct-invocable module",
     "trace-influence": "move to governance/research module",
-    "workup": "retain thin alias to asset-decision",
     "x-api": "shared symlink/tool skill",
     "xlsx-author": "retain artifact builder under modeling",
 }
@@ -155,8 +156,22 @@ INTEL_MODULES = {
         "resolve-predictions",
         "resolve-predictions/SKILL.md",
     ),
-    "source-ingest.engine.social-ingest": ("social-ingest", "social-thread/SKILL.md"),
-    "source-ingest.engine.doc-ingest": ("doc-ingest", "ingest-article/SKILL.md"),
+    "asset-decision.module.workup-battery": (
+        "workup-battery",
+        "asset-decision/references/workup-battery.md",
+    ),
+    "source-ingest.engine.social-ingest": (
+        "social-ingest",
+        "source-ingest/modules/social-ingest.md",
+    ),
+    "source-ingest.engine.doc-ingest": (
+        "doc-ingest",
+        "source-ingest/modules/doc-ingest.md",
+    ),
+    "dataset.module.onboarding": (
+        "dataset-onboarding",
+        "dataset/references/onboarding.md",
+    ),
     "governance.module.extract-generators": (
         "extract-generators",
         "extract-generators/SKILL.md",
@@ -167,44 +182,58 @@ INTEL_MODULES = {
 INTEL_LENSES = {
     "asset-decision.lens.drawdown-context": (
         "drawdown-context",
-        ".claude/skills/drawdown-context/SKILL.md",
+        ".claude/skills/asset-decision/lenses/drawdown-context.md",
+        None,
     ),
     "asset-decision.lens.standalone-suppression": (
         "standalone-suppression",
-        ".claude/skills/standalone-asset/SKILL.md",
+        ".claude/skills/asset-decision/lenses/standalone-suppression.md",
+        None,
     ),
-    "asset-decision.lens.thesis-pivot": ("thesis-pivot", "docs/workflows/asset_decision.md"),
+    "asset-decision.lens.thesis-pivot": (
+        "thesis-pivot",
+        "docs/workflows/asset_decision.md",
+        "Phase 3",
+    ),
     "asset-decision.lens.conviction-divergence": (
         "conviction-divergence",
         ".claude/skills/divergence-update/SKILL.md",
+        None,
     ),
     "asset-decision.lens.pillar-extraction": (
         "pillar-extraction",
         "docs/workflows/asset_decision.md",
+        "Phase 0.5",
     ),
     "asset-decision.lens.steelman-moat-erosion": (
         "steelman-moat-erosion",
         "docs/workflows/asset_decision.md",
+        "Phase 1.5",
     ),
     "asset-decision.lens.buyer-capex-first": (
         "buyer-capex-first",
         "docs/workflows/asset_decision.md",
+        "Buyer-side capex trajectory check",
     ),
     "asset-decision.lens.taxonomy-axis-verification": (
         "taxonomy-axis-verification",
         "docs/workflows/asset_decision.md",
+        "Taxonomy-axis verification",
     ),
     "asset-decision.lens.source-chain-admission": (
         "source-chain-admission",
-        "docs/workflows/asset_decision.md",
+        ".claude/skills/source-ingest/SKILL.md",
+        "Output Contract",
     ),
     "asset-decision.lens.generator-extraction-routing": (
         "generator-extraction-routing",
-        "memory/generator_library.md",
+        ".claude/skills/extract-generators/SKILL.md",
+        None,
     ),
     "asset-decision.lens.position-action-translation": (
         "position-action-translation",
         "docs/workflows/asset_decision.md",
+        "Position-action translation",
     ),
 }
 
@@ -290,6 +319,7 @@ class SkillObject:
     workflow_docs: list[str] = field(default_factory=list)
     uses: list[str] = field(default_factory=list)
     routing_cases: list[str] = field(default_factory=list)
+    content_anchor: str | None = None
     status: str = "active"
     notes: str | None = None
 
@@ -348,6 +378,116 @@ def resolve_portable_path(path_text: str) -> Path:
     return Path(path_text)
 
 
+def resolve_object_path(row: dict[str, Any]) -> Path:
+    return resolve_portable_path(str(row["repo_root"])) / str(row["path"])
+
+
+def _heading_level(line: str) -> int | None:
+    stripped = line.lstrip()
+    if not stripped.startswith("#"):
+        return None
+    hashes = len(stripped) - len(stripped.lstrip("#"))
+    if hashes == 0 or hashes > 6:
+        return None
+    if len(stripped) <= hashes or stripped[hashes] != " ":
+        return None
+    return hashes
+
+
+def _fenced_code_mask(lines: list[str]) -> list[bool]:
+    in_fence = False
+    fence_marker = ""
+    mask: list[bool] = []
+    for line in lines:
+        stripped = line.lstrip()
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            marker = stripped[:3]
+            mask.append(True)
+            if not in_fence:
+                in_fence = True
+                fence_marker = marker
+            elif marker == fence_marker:
+                in_fence = False
+                fence_marker = ""
+            continue
+        mask.append(in_fence)
+    return mask
+
+
+def extract_markdown_section(text: str, anchor: str) -> str | None:
+    """Return the markdown section whose heading contains ``anchor``.
+
+    The match is intentionally substring-based so stable anchors such as
+    ``Phase 1.5`` survive wording changes in the rest of the heading.
+    """
+    lines = text.splitlines()
+    fenced = _fenced_code_mask(lines)
+    anchor_l = anchor.lower()
+    start: int | None = None
+    level: int | None = None
+    for idx, line in enumerate(lines):
+        if fenced[idx]:
+            continue
+        current_level = _heading_level(line)
+        if current_level is None:
+            continue
+        if start is None and anchor_l in line.lower():
+            start = idx
+            level = current_level
+            continue
+        if start is not None and current_level <= (level or 6):
+            return "\n".join(lines[start:idx]).rstrip() + "\n"
+    if start is None:
+        for idx, line in enumerate(lines):
+            if anchor_l not in line.lower():
+                continue
+            section_start = idx
+            for prev in range(idx, -1, -1):
+                if fenced[prev]:
+                    continue
+                if _heading_level(lines[prev]) is not None:
+                    section_start = prev
+                    break
+            level = _heading_level(lines[section_start]) or 1
+            for next_idx in range(idx + 1, len(lines)):
+                if fenced[next_idx]:
+                    continue
+                current_level = _heading_level(lines[next_idx])
+                if current_level is not None and current_level <= level:
+                    return "\n".join(lines[section_start:next_idx]).rstrip() + "\n"
+            return "\n".join(lines[section_start:]).rstrip() + "\n"
+        return None
+    return "\n".join(lines[start:]).rstrip() + "\n"
+
+
+def load_object_content(row: dict[str, Any], max_chars: int) -> dict[str, Any]:
+    path = resolve_object_path(row)
+    if not path.exists() or path.is_dir():
+        return {"available": False, "resolved_path": str(path)}
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return {"available": False, "resolved_path": str(path), "error": "unicode_decode_error"}
+
+    anchor = row.get("content_anchor")
+    extracted = extract_markdown_section(text, str(anchor)) if anchor else None
+    if anchor and extracted is None:
+        return {
+            "available": False,
+            "resolved_path": str(path),
+            "error": "content_anchor_not_found",
+            "content_anchor": anchor,
+        }
+    body = extracted if extracted is not None else text
+    return {
+        "available": True,
+        "resolved_path": str(path),
+        "content_anchor": anchor,
+        "truncated": len(body) > max_chars,
+        "text": body[:max_chars],
+    }
+
+
 def infer_category(name: str) -> str:
     if name in ARTIFACT_BUILDERS:
         return "artifact"
@@ -392,7 +532,7 @@ def _entry_from_skill_dir(root: SkillRoot, skill_dir: Path, shared_names: set[st
         secondary_roles.append("shared_shadow")
 
     private = root.project != "skills"
-    exportable = False
+    exportable = root.project == "skills" and _bool_or_none(fm.get("exportable")) is True
 
     entry = SkillObject(
         object_id=f"{root.project}:skill.{skill_dir.name}",
@@ -419,16 +559,10 @@ def _entry_from_skill_dir(root: SkillRoot, skill_dir: Path, shared_names: set[st
         notes=INTEL_DISPOSITIONS.get(skill_dir.name) if root.project == "intel" else None,
     )
 
-    if root.project == "intel":
-        if skill_dir.name == "workup":
-            entry.replaced_by = "intel:skill.asset-decision"
-            entry.boundary = "live human prompt alias"
-        elif skill_dir.name in {"social-thread", "ingest-article"}:
-            entry.replaced_by = "intel:skill.source-ingest"
-            entry.boundary = "live human prompt alias"
-        elif skill_dir.name == "new-dataset":
-            entry.replaced_by = "intel:skill.dataset"
-            entry.boundary = "live human prompt alias"
+    if entry.primary_category == "alias" and entry.boundary is None:
+        entry.boundary = "live human prompt alias"
+    if entry.side_effectful and entry.boundary is None:
+        entry.boundary = "side-effectful: direct invocation or workflow router required"
 
     return entry
 
@@ -442,6 +576,7 @@ def _virtual_object(
     category: str,
     package: str,
     notes: str | None = None,
+    content_anchor: str | None = None,
 ) -> SkillObject:
     path = root.repo_root / rel_path
     status = "planned" if not path.exists() else "active"
@@ -459,6 +594,7 @@ def _virtual_object(
         exportable=False,
         status=status,
         notes=notes,
+        content_anchor=content_anchor,
     )
 
 
@@ -469,18 +605,12 @@ def planned_objects_for(root: SkillRoot) -> list[SkillObject]:
             objects.append(_virtual_object(root, suffix, "LensDoc", name, path, "lens", "analyze"))
     elif root.project == "intel":
         for suffix, (name, path) in INTEL_MODULES.items():
-            package = (
-                "source-ingest"
-                if ".engine." in suffix
-                else "governance"
-                if suffix.startswith("governance.")
-                else "asset-decision"
-            )
+            package = suffix.split(".", 1)[0]
             objects.append(
                 _virtual_object(root, suffix, "ModuleDoc", name, f".claude/skills/{path}", "module", package)
             )
-        for suffix, (name, path) in INTEL_LENSES.items():
-            objects.append(_virtual_object(root, suffix, "LensDoc", name, path, "lens", "asset-decision"))
+        for suffix, (name, path, anchor) in INTEL_LENSES.items():
+            objects.append(_virtual_object(root, suffix, "LensDoc", name, path, "lens", "asset-decision", content_anchor=anchor))
     elif root.project == "genomics":
         for suffix, (name, path) in GENOMICS_LENSES.items():
             objects.append(_virtual_object(root, suffix, "LensDoc", name, path, "lens", "genomics-pipeline"))
@@ -507,8 +637,12 @@ def collect_skill_objects(
     objects: list[SkillObject] = []
     for root in roots_list:
         if not root.root.exists():
+            if include_planned:
+                objects.extend(planned_objects_for(root))
             continue
         for skill_dir in sorted(root.root.iterdir(), key=lambda p: p.name):
+            if root.project == "intel" and skill_dir.name in FORBIDDEN_INTEL_ENTRYPOINTS:
+                raise ValueError(f"forbidden Intel skill entrypoint still exists: {skill_dir.name}")
             entry = _entry_from_skill_dir(root, skill_dir, shared_names)
             if entry:
                 objects.append(entry)

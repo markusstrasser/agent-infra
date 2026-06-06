@@ -20,7 +20,9 @@ from common.skill_objects import (
     SkillObject,
     collect_skill_objects,
     iter_default_roots,
+    load_object_content,
     load_manifest,
+    resolve_object_path,
     resolve_portable_path,
     write_manifest,
 )
@@ -58,6 +60,47 @@ CATEGORIES = {
 }
 
 
+def _case_sensitive_path_exists(path: Path) -> bool:
+    if not path.exists():
+        return False
+    current = Path(path.anchor) if path.is_absolute() else Path(".")
+    parts = path.parts[1:] if path.is_absolute() else path.parts
+    for part in parts:
+        if part in ("", "."):
+            continue
+        try:
+            names = {child.name for child in current.iterdir()}
+        except OSError:
+            return False
+        if part not in names:
+            return False
+        current = current / part
+    return True
+
+
+def _validate_readable_symlink_target(target: Path) -> str | None:
+    try:
+        resolved = target.resolve(strict=True)
+    except OSError as exc:
+        return f"symlink target does not resolve strictly: {exc}"
+    if resolved.is_dir():
+        skill_file = next((resolved / name for name in ("SKILL.md", "skill.md") if (resolved / name).is_file()), None)
+        if skill_file is None:
+            return "symlink target directory has no SKILL.md or skill.md"
+        try:
+            skill_file.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            return "symlink target skill file is not UTF-8 readable"
+        return None
+    if resolved.is_file():
+        try:
+            resolved.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            return "symlink target file is not UTF-8 readable"
+        return None
+    return "symlink target is neither file nor directory"
+
+
 def _shared_shadow_exists(object_id: str) -> bool:
     prefix = "skills:skill."
     if not object_id.startswith(prefix):
@@ -82,6 +125,16 @@ def _validate_row(row: dict[str, Any], *, strict: bool = False, object_ids: set[
         errors.append("symlink row missing symlink_target")
     if row.get("status") not in (None, "active", "planned", "deprecated"):
         errors.append(f"invalid status: {row.get('status')}")
+    if row.get("replaced_by") and not row.get("boundary"):
+        errors.append("alias/replaced row missing boundary")
+    if row.get("replaced_by") and not row.get("sunset_after"):
+        errors.append("alias/replaced row missing sunset_after")
+    if row.get("primary_category") == "alias" and not row.get("boundary"):
+        errors.append("alias row missing boundary")
+    if row.get("side_effectful") and not row.get("boundary"):
+        errors.append("side-effectful row missing invocation boundary")
+    if row.get("side_effectful") and not (row.get("user_invocable") or row.get("disable_model_invocation")):
+        errors.append("side-effectful row missing explicit invocation policy")
     if strict:
         repo_root_text = row.get("repo_root")
         path_text = row.get("path")
@@ -90,8 +143,8 @@ def _validate_row(row: dict[str, Any], *, strict: bool = False, object_ids: set[
             if not repo_root.exists():
                 errors.append(f"repo_root does not resolve: {repo_root_text}")
             elif path_text and row.get("status", "active") == "active":
-                target = repo_root / path_text
-                if not target.exists():
+                target = resolve_object_path(row)
+                if not _case_sensitive_path_exists(target):
                     errors.append(f"active path does not exist: {path_text}")
                 elif target.is_file():
                     try:
@@ -104,6 +157,20 @@ def _validate_row(row: dict[str, Any], *, strict: bool = False, object_ids: set[
             for shadow in row["shadows"]:
                 if object_ids and shadow not in object_ids and not _shared_shadow_exists(shadow):
                     errors.append(f"shadow target not found: {shadow}")
+        symlink_target = row.get("symlink_target")
+        if symlink_target:
+            target = resolve_portable_path(symlink_target)
+            if not target.exists():
+                errors.append(f"symlink target does not resolve: {symlink_target}")
+            else:
+                symlink_error = _validate_readable_symlink_target(target)
+                if symlink_error:
+                    errors.append(symlink_error)
+        if row.get("status", "active") == "active":
+            content = load_object_content(row, max_chars=1)
+            if not content.get("available"):
+                reason = content.get("error") or "content unavailable"
+                errors.append(f"active content not loadable: {reason}")
     return errors
 
 

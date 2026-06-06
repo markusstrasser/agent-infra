@@ -11,10 +11,21 @@ import argparse
 import shutil
 from pathlib import Path
 
-from common.skill_objects import collect_skill_objects, iter_default_roots, resolve_portable_path
+from common.skill_objects import collect_skill_objects, iter_default_roots, resolve_object_path
 
 
 BLOCKED_TOKENS = ("/Users/alien", "Markus", "phenome", "genomics", "intel")
+BLOCKED_PROJECT_PATH_PATTERNS = (
+    "../intel",
+    "../phenome",
+    "../genomics",
+    "~/Projects/intel",
+    "~/Projects/phenome",
+    "~/Projects/genomics",
+    "$HOME/Projects/intel",
+    "$HOME/Projects/phenome",
+    "$HOME/Projects/genomics",
+)
 
 
 def _contains_blocked_token(path: Path) -> str | None:
@@ -32,6 +43,19 @@ def _contains_blocked_token(path: Path) -> str | None:
         for token in BLOCKED_TOKENS:
             if token in text:
                 return f"{file}: {token}"
+        for pattern in BLOCKED_PROJECT_PATH_PATTERNS:
+            if pattern in text:
+                return f"{file}: {pattern}"
+    return None
+
+
+def _export_block_reason(row: dict) -> str | None:
+    if row.get("private"):
+        return "row is private"
+    if not row.get("exportable"):
+        return "row is not marked exportable"
+    if row.get("is_symlink"):
+        return "symlink skill rows are not exportable"
     return None
 
 
@@ -52,10 +76,12 @@ def main() -> int:
         if not row:
             errors.append(f"unknown skill: {name}")
             continue
-        if row.get("private"):
-            errors.append(f"not exportable: {name}")
+        block_reason = _export_block_reason(row)
+        if block_reason:
+            errors.append(f"not exportable: {name} ({block_reason})")
             continue
-        source_dir = resolve_portable_path(row["repo_root"]) / name
+        source_file = resolve_object_path(row)
+        source_dir = source_file.parent if source_file.is_file() else source_file
         blocked = _contains_blocked_token(source_dir)
         if blocked:
             errors.append(f"blocked token in {name}: {blocked}")

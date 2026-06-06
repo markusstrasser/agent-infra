@@ -88,7 +88,7 @@ Watch for:
 When updating a skill in `~/.claude/skills/` (user-level):
 - [ ] Check if any project has a project-level override in `.claude/skills/`
 - [ ] If so, decide: update the project version or delete it to inherit user-level
-- [ ] Currently overridden in intel: `researcher`, `deep-research` (redirected), `competing-hypotheses`, `multi-model-review`, `thesis-check`, `new-dataset`, `commands`
+- [ ] Currently overridden in intel: `researcher`, `deep-research` (redirected), `competing-hypotheses`, `multi-model-review`, `thesis-check`, `commands`
 - [x] Intel `researcher` is a symlink to shared skill — updates propagate automatically
 - [x] `entity-management` flipped to `user-invocable: true` (2026-02-27)
 - [x] `model-review` skill exists at shared level (cross-model adversarial review via llmx)
