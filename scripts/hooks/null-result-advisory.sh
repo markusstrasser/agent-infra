@@ -57,10 +57,9 @@ for candidate in "$DIR/open_questions.md" "$PROJECT_ROOT/open_questions.md" "$PR
 done
 
 if [ "$HAS_OQ" = "false" ]; then
-    echo "⚠ Research file with claims table but no open_questions.md found."
-    echo "  Null results and refutations are first-class knowledge."
-    echo "  Consider: schemas/open_questions.md template for tracking question resolutions."
-    echo "  (Advisory only — not blocking. See Phase 2.1 in epistemic v2 plan.)"
+    MSG="Research file with claims table but no open_questions.md found. Null results and refutations are first-class knowledge. Consider: schemas/open_questions.md template for tracking question resolutions. Advisory only — not blocking. See Phase 2.1 in epistemic v2 plan."
+    SAFE_MSG=$(printf '%s' "$MSG" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))' 2>/dev/null)
+    [ -n "$SAFE_MSG" ] && echo "{\"additionalContext\": ${SAFE_MSG}}"
 
     # Log to epistemic-metrics.jsonl for shadow mode tracking
     python3 -c "

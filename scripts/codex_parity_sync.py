@@ -27,7 +27,7 @@ Empirically verified (2026-06-02, codex-cli 0.135):
     additionalContext contract, so Claude project hooks port over.
 
 Run:
-  uv run python3 scripts/codex_parity_sync.py            # sync all three repos
+  uv run python3 scripts/codex_parity_sync.py            # sync all mirrored repos
   uv run python3 scripts/codex_parity_sync.py --check    # report drift, write nothing
   uv run python3 scripts/codex_parity_sync.py --repo intel
 """
@@ -47,7 +47,7 @@ HOME = Path.home()
 PROJECTS = HOME / "Projects"
 GLOBAL_CODEX_CONFIG = HOME / ".codex" / "config.toml"
 
-REPOS = ["intel", "genomics", "phenome"]
+REPOS = ["agent-infra", "intel", "genomics", "phenome"]
 
 # Servers whose .mcp.json definition deliberately differs from the ~/.codex global
 # and where the PROJECT one should win (project-scoped override). Everything else
@@ -55,6 +55,19 @@ REPOS = ["intel", "genomics", "phenome"]
 # the newer/canonical definition (e.g. brave-search package rename).
 INTENTIONAL_OVERRIDES = {
     "intel": {"duckdb"},  # intel wants motherduck on intel.duckdb, not agent-infra duckdb-mcp
+}
+
+LOCAL_PROJECT_MCP = {
+    "agent-infra": {
+        "corpus": {
+            "command": "uv",
+            "args": ["run", "--directory", str(PROJECTS / "agent-infra"), "corpus-mcp"],
+            "env": {
+                "CORPUS_ROOT": str(PROJECTS / "corpus"),
+                "RESEARCH_MCP_CALLER": "agent-infra",
+            },
+        },
+    },
 }
 
 SECRET_HINT = re.compile(r"(?:\$\{[^}]+\}|[A-Za-z0-9_-]{24,})")
@@ -112,8 +125,10 @@ def load_global_mcp() -> dict[str, dict]:
 def load_project_mcp(repo_dir: Path) -> dict[str, dict]:
     p = repo_dir / ".mcp.json"
     if not p.exists():
-        return {}
-    return json.loads(p.read_text()).get("mcpServers", {})
+        return LOCAL_PROJECT_MCP.get(repo_dir.name, {})
+    project = json.loads(p.read_text()).get("mcpServers", {})
+    project.update(LOCAL_PROJECT_MCP.get(repo_dir.name, {}))
+    return project
 
 
 def _sig(spec: dict) -> tuple:

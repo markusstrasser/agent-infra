@@ -74,3 +74,7 @@ docs/vendor/
 scripts/lesswrong_index.jsonl
 scripts/lesswrong_ingested.txt
 scripts/gwern_ingested.txt
+
+.codex/
+
+.agents/
