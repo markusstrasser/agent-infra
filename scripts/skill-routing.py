@@ -14,10 +14,15 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
+import re
 import sqlite3
 from pathlib import Path
 
+from common.skill_objects import collect_skill_objects, iter_default_roots
+
 DB = Path.home() / ".claude" / "agentlogs.db"
+DEFAULT_CASES = Path("schemas/skill-routing-cases.json")
 
 QUERY = """
 WITH skill_calls AS (
@@ -61,7 +66,12 @@ def main() -> int:
     ap.add_argument("--days", type=int, default=30)
     ap.add_argument("--skill", help="Filter to one skill name")
     ap.add_argument("--db", default=str(DB))
+    ap.add_argument("--cases", type=Path, help="Run deterministic routing fixture cases")
+    ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
+
+    if args.cases:
+        return run_cases(args.cases, json_output=args.json)
 
     cutoff = f"date('now', '-{args.days} days')"
     conn = sqlite3.connect(args.db)
@@ -100,6 +110,61 @@ def main() -> int:
         print(f"{skill:<40} {p:>10} {u:>8} {t:>8}  {sig}")
 
     return 0
+
+
+def _terms(text: str) -> set[str]:
+    raw = re.findall(r"[a-z0-9]+", text.lower())
+    terms = {t for t in raw if len(t) >= 3}
+    terms.update(f"{a}{b}" for a, b in zip(raw, raw[1:]) if len(a) + len(b) >= 3)
+    return terms
+
+
+def _score(prompt: str, row: dict) -> int:
+    prompt_terms = _terms(prompt)
+    name_terms = _terms(str(row.get("name") or "").replace("-", " "))
+    haystack = " ".join(
+        str(row.get(key) or "")
+        for key in ("object_id", "name", "description", "primary_category", "notes")
+    )
+    row_terms = _terms(haystack)
+    score = len(prompt_terms & row_terms)
+    score += 3 * len(prompt_terms & name_terms)
+    name = str(row.get("name") or "").replace("-", " ").lower()
+    if name and name in prompt.lower():
+        score += 5
+    return score
+
+
+def run_cases(cases_path: Path, *, json_output: bool = False) -> int:
+    cases = json.loads(cases_path.read_text())
+    rows = [obj.to_json() for obj in collect_skill_objects(iter_default_roots(None))]
+    results = []
+    for case in cases:
+        project = case.get("project")
+        candidates = [row for row in rows if row.get("project") == project]
+        ranked = sorted(
+            ((row["object_id"], _score(case["prompt"], row)) for row in candidates),
+            key=lambda item: item[1],
+            reverse=True,
+        )
+        top = [object_id for object_id, score in ranked[:5] if score > 0]
+        expected = set(case["expected"])
+        passed = bool(top and top[0] in expected)
+        results.append({
+            "id": case["id"],
+            "prompt": case["prompt"],
+            "expected": case["expected"],
+            "top": top,
+            "passed": passed,
+        })
+
+    if json_output:
+        print(json.dumps({"cases": results}, indent=2))
+    else:
+        for result in results:
+            status = "PASS" if result["passed"] else "FAIL"
+            print(f"{status} {result['id']}: top={result['top']} expected={result['expected']}")
+    return 1 if any(not result["passed"] for result in results) else 0
 
 
 if __name__ == "__main__":

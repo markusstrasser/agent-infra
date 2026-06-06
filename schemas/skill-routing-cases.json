@@ -1,0 +1,38 @@
+[
+  {
+    "id": "intel-workup-existing-entity",
+    "project": "intel",
+    "prompt": "work up VST",
+    "expected": ["intel:skill.workup", "intel:skill.asset-decision"]
+  },
+  {
+    "id": "intel-drawdown-context",
+    "project": "intel",
+    "prompt": "is this drawdown normal or systemic",
+    "expected": ["intel:skill.drawdown-context", "intel:asset-decision.lens.drawdown-context"]
+  },
+  {
+    "id": "intel-social-thread",
+    "project": "intel",
+    "prompt": "pasted Saso semi thread",
+    "expected": ["intel:skill.social-thread", "intel:source-ingest.engine.social-ingest"]
+  },
+  {
+    "id": "genomics-status",
+    "project": "genomics",
+    "prompt": "what is running in genomics",
+    "expected": ["genomics:skill.genomics-status", "genomics:genomics-pipeline.lens.modal-live-state-truth"]
+  },
+  {
+    "id": "phenome-entity-fill",
+    "project": "phenome",
+    "prompt": "fill DPYD entity",
+    "expected": ["phenome:role-agent.entity-filler", "phenome:skill.entity-management"]
+  },
+  {
+    "id": "phenome-markdown-convert",
+    "project": "phenome",
+    "prompt": "convert this PDF to markdown",
+    "expected": ["phenome:skill.markitdown"]
+  }
+]

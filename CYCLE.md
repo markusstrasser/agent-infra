@@ -31,19 +31,19 @@
 
 ### G1: Stop-hook feedback relay fix
 
-**Problem:** Stop hooks fire with advisory feedback but agent ignores `additionalContext` on "allow" decisions because it's already stopping. Human relays feedback 7x across 4 sessions.
+**Problem:** Stop hooks can fire with advisory feedback after the agent is already stopping. Human relays feedback 7x across 4 sessions.
 
-**Root cause:** The stop hooks use `decision: "allow"` for advisory feedback. When the hook allows stopping, the agent receives the additionalContext but has no obligation to act on it. The feedback gets printed to the human (who then relays it) but the agent has already stopped.
+**Root cause:** Advisory stop-hook output is not an enforcement surface. The feedback gets printed to the human, but the agent has no obligation to act on it unless the hook blocks.
 
 **Fix approach:** Two-part:
-1. **Audit stop hooks** — classify each stop hook's feedback as advisory (truly optional) vs critical (agent should address before stopping). Critical = "block", advisory = "allow".
+1. **Audit stop hooks** — classify each stop hook's feedback as advisory (truly optional) vs critical (agent should address before stopping). Critical = `block`; advisory should be silent or clearly documented as non-enforcing.
 2. **Add meta-rule** — In global CLAUDE.md or rules file: "When a stop hook provides additionalContext, read and address it before confirming stop."
 
 **Files to change:**
 - `~/Projects/skills/hooks/stop-plan-gate.sh` — if plan has uncompleted items, this should "block" not "allow"
 - `~/.claude/hooks/stop-verify-claims.sh` — already blocks on unverified claims (correct)
 - `~/Projects/skills/hooks/stop-uncommitted-warn.sh` — already attempts auto-commit (correct)
-- `~/.claude/hooks/stop-debrief.sh` — advisory debrief, should stay "allow" (optional)
+- `~/.claude/hooks/stop-debrief.sh` — disabled and unregistered. A real debrief gate should block once and name the exact daily log path.
 
 **Verification:** After fix, check 5 subsequent sessions for "stop-hook-feedback-relay" signal. Should drop to 0.
 
@@ -54,13 +54,13 @@
 
 ## Autonomous (done)
 
-- [2026-03-25] **G1: Stop-hook feedback relay** — Changed `stop-debrief.sh` from `decision: "allow"` to `decision: "block"`. Agent must now write debrief before stopping. Reflection: straightforward — the root cause was clear once I read the hook code.
+- [2026-03-25] **G1: Stop-hook feedback relay** — Superseded. `stop-debrief.sh` is now disabled and unregistered because advisory output looked like enforcement without creating a memory record. A future replacement should be a one-shot blocking gate, not a reminder.
 - [2026-03-25] **G2: Plan auto-load** — Enhanced `05-plan-scan.sh` to include plan body snippet (800 chars) with file path in additionalContext. Agent now gets plan content at session start, not just "INCOMPLETE PLANS: slug". Reflection: the hook already existed but only emitted a one-liner — the gap was in the content, not the infrastructure.
 - [2026-03-25] **Skill fix: research-cycle model override** — Removed `model: claude-sonnet-4-6` from SKILL.md frontmatter. Skill now inherits session model.
 
 ## Verification Results
 
-- [2026-03-25] **G1 verified:** `stop-debrief.sh` contains `decision: "block"`. PASS.
+- [2026-06-06] **G1 verified:** global settings no longer register `stop-debrief.sh`, and the script exits `0` without output. PASS as disabled/no-op; no debrief enforcement is currently active.
 - [2026-03-25] **G2 verified:** `05-plan-scan.sh` contains snippet extraction logic. Functional test with dummy plan extracts 118-char snippet correctly. PASS.
 - [2026-03-25] **Skill fix verified:** `research-cycle/SKILL.md` has no `model:` field. PASS.
 - **Lagging indicator:** STEER signal reduction (stop-hook-feedback-relay, plan-injection-manual) measurable after 5+ sessions. Check via `just improvement-signals` in ~3 days.

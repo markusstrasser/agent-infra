@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Subagent Contract",
+  "description": "Flat cross-vendor output contract for role agents that produce durable artifacts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "agent_role",
+    "task_id",
+    "status",
+    "summary",
+    "files_read",
+    "files_written",
+    "claims",
+    "open_questions",
+    "cosign_status"
+  ],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "description": "Optional non-semantic runtime metadata. Canonical fields stay closed.",
+      "additionalProperties": true
+    },
+    "schema_version": {
+      "type": "string",
+      "const": "subagent-contract.v1"
+    },
+    "agent_role": {
+      "type": "string"
+    },
+    "task_id": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["complete", "partial", "blocked", "rejected"]
+    },
+    "summary": {
+      "type": "string"
+    },
+    "files_read": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "files_written": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "claims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["claim_id", "text", "evidence_ref", "status"],
+        "properties": {
+          "claim_id": {"type": "string"},
+          "text": {"type": "string"},
+          "evidence_ref": {"type": "string"},
+          "status": {
+            "type": "string",
+            "enum": ["verified", "partially_verified", "inference", "unverified", "contradicted", "rejected"]
+          }
+        }
+      }
+    },
+    "open_questions": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "cosign_status": {
+      "type": "string",
+      "enum": ["self_checked", "needs_review", "not_applicable"]
+    },
+    "validation_command": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "files_written": {"minItems": 1}
+        },
+        "required": ["files_written"]
+      },
+      "then": {
+        "required": ["validation_command"],
+        "properties": {
+          "cosign_status": {
+            "not": {"const": "not_applicable"}
+          },
+          "validation_command": {"minLength": 1}
+        }
+      }
+    }
+  ]
+}

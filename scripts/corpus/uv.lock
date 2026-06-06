@@ -580,6 +580,11 @@ dependencies = [
     { name = "corpus-testing" },
 ]
 
+[package.optional-dependencies]
+modal = [
+    { name = "corpus-core", extra = ["modal"] },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "pytest" },
@@ -589,8 +594,10 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "corpus-core", editable = "packages/corpus-core" },
+    { name = "corpus-core", extras = ["modal"], marker = "extra == 'modal'", editable = "packages/corpus-core" },
     { name = "corpus-testing", editable = "packages/corpus-testing" },
 ]
+provides-extras = ["modal"]
 
 [package.metadata.requires-dev]
 dev = [

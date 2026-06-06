@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Source Chain",
+  "description": "Contract emitted by social-ingest and doc-ingest before source-derived claims can influence asset-decision.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "origin_type",
+    "source_id",
+    "source_identity",
+    "admission_state",
+    "quarantine_state",
+    "claims",
+    "entity_routes",
+    "primary_source_links"
+  ],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "description": "Optional non-semantic runtime metadata. Canonical fields stay closed.",
+      "additionalProperties": true
+    },
+    "schema_version": {
+      "type": "string",
+      "const": "source-chain.v1"
+    },
+    "origin_type": {
+      "type": "string",
+      "enum": ["social", "article", "pdf", "substack", "sell_side", "news", "filing", "other"]
+    },
+    "source_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_identity": {
+      "type": "string",
+      "description": "Author, account, publication, filing accession, or document identity."
+    },
+    "author_identity": {
+      "type": "string"
+    },
+    "source_of_source_chain": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "primary_source_links": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["url", "source_type"],
+        "properties": {
+          "url": {"type": "string"},
+          "source_type": {
+            "type": "string",
+            "enum": ["company", "regulatory", "filing", "dataset", "paper", "official", "other"]
+          },
+          "supports_claim_ids": {
+            "type": "array",
+            "items": {"type": "string"}
+          }
+        }
+      }
+    },
+    "admission_state": {
+      "type": "string",
+      "enum": ["admitted", "context_only", "verification_queue", "rejected"]
+    },
+    "quarantine_state": {
+      "type": "string",
+      "enum": ["none", "source_of_source", "unverified_social", "paid_pull_only", "failed_primary_check"]
+    },
+    "source_grade": {
+      "type": "string",
+      "description": "Optional local source grading label, e.g. tier 3/context-only."
+    },
+    "claims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["claim_id", "text", "status"],
+        "properties": {
+          "claim_id": {"type": "string"},
+          "text": {"type": "string"},
+          "status": {
+            "type": "string",
+            "enum": ["verified", "partially_verified", "inference", "unverified", "contradicted", "rejected"]
+          },
+          "evidence_ref": {"type": "string"},
+          "primary_source_urls": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "notes": {"type": "string"}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {"status": {"const": "verified"}},
+              "required": ["status"]
+            },
+            "then": {
+              "required": ["primary_source_urls"],
+              "properties": {
+                "primary_source_urls": {"minItems": 1}
+              }
+            }
+          }
+        ]
+      }
+    },
+    "entity_routes": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "theme_routes": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "generator_candidates": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "cost_metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "paid_pull": {"type": "boolean"},
+        "api": {"type": "string"},
+        "estimated_cost_usd": {"type": "number"}
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"origin_type": {"const": "social"}},
+        "required": ["origin_type"]
+      },
+      "then": {
+        "required": ["author_identity"],
+        "properties": {"author_identity": {"minLength": 1}}
+      }
+    },
+    {
+      "if": {
+        "properties": {"admission_state": {"const": "admitted"}},
+        "required": ["admission_state"]
+      },
+      "then": {
+        "properties": {
+          "quarantine_state": {
+            "not": {
+              "enum": ["unverified_social", "failed_primary_check"]
+            }
+          }
+        }
+      }
+    }
+  ]
+}

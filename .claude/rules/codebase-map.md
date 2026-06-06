@@ -11,7 +11,7 @@ verifier: null
 blast_radius: style
 -->
 
-# 173 Python files — generated 2026-06-04
+# 174 Python files — generated 2026-06-05
 # Edge annotations: → imports  ← imported-by-N-files
 
 ## scripts/
@@ -108,6 +108,7 @@ blast_radius: style
   token-baseline.py                 Token baseline measurements …  → token_baseline_helpers
   token_baseline_helpers.py         Pure, importable helpers for token-baseline.py.
   tool-trajectory.py                Tool-opportunity utilization model —…  → common, config
+  tool_hallucination_probe.py       One-time characterization of tool-hallucination events
   trace-faithfulness.py             Tool-Trace Faithfulness — detect mis…  → common, config
   ts-replace.py                     TS/JS-aware string replacement for fix scripts.
   usage-check.py                    Session cost meter — reads ~/.claude/llmx-usage.jsonl a

@@ -360,9 +360,9 @@ def add_cli(subparsers: argparse._SubParsersAction) -> None:
                    help="paper|preprint|database_release|regulatory_filing|tool_output|"
                         "webpage|blog_post|news|other  (default depends on input)")
     p.add_argument("--parser", default=None,
-                   help="mineru|pymupdf4llm|trafilatura|marker|gemini-flash-lite "
-                        "(override default). 'marker' is GPL-3.0 + Mac-MPS-buggy; "
-                        "opt-in only.")
+                   help="marker-modal|mineru|pymupdf4llm|trafilatura|marker|gemini-flash-lite "
+                        "(override default). Papers/preprints default to marker-modal; "
+                        "'marker' is GPL-3.0 + Mac-MPS-buggy; opt-in only.")
     p.add_argument("--revise", action="store_true",
                    help="Treat this as a revision; --paper-id required (PDF only)")
     p.add_argument("--paper-id", default=None, help="Required with --revise")
