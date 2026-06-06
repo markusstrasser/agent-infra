@@ -9,6 +9,15 @@ Maximize `accuracy` on the stress and holdout case files. A case passes when
 the expected visible skill is ranked first, and when any expected planned
 module/lens/reference is ranked first.
 
+The primary eval is the locked aggregate suite:
+
+- canonical cross-project cases in `../../schemas/skill-routing-cases.json`
+- stress cases in `stress_cases.json`
+- holdout cases in `holdout_cases.json`
+
+Any kept patch must also pass holdout and stress checks. Do not optimize one
+split at the expense of another.
+
 ## Editable Surface
 
 - `../../scripts/skill-routing.py`

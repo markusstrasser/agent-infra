@@ -24,9 +24,21 @@
     "expected_visible": ["skills:skill.model-guide"]
   },
   {
+    "id": "skills-model-guide-vs-llmx",
+    "project": "skills",
+    "prompt": "which model should I use for a long-context architecture review, Opus 4.8 or GPT-5.5",
+    "expected_visible": ["skills:skill.model-guide"]
+  },
+  {
     "id": "skills-modal-crash",
     "project": "skills",
     "prompt": "debug this Modal GPU app crash and check whether it is running",
+    "expected_visible": ["skills:skill.modal"]
+  },
+  {
+    "id": "skills-modal-deploy-vs-status",
+    "project": "skills",
+    "prompt": "Modal script deployment failed on GPU resource config; debug the app setup",
     "expected_visible": ["skills:skill.modal"]
   },
   {
@@ -40,6 +52,18 @@
     "project": "skills",
     "prompt": "find recent papers about autoresearch and self-improving agents",
     "expected_visible": ["skills:skill.research"]
+  },
+  {
+    "id": "skills-bio-verify-vs-life-science",
+    "project": "skills",
+    "prompt": "verify hardcoded rsid, gene coordinate, ClinVar, and gnomAD constants in this script",
+    "expected_visible": ["skills:skill.bio-verify"]
+  },
+  {
+    "id": "skills-deslop-vs-writing-style",
+    "project": "skills",
+    "prompt": "de-slop this memo and remove AI phrasing without drafting an email",
+    "expected_visible": ["skills:skill.de-slop"]
   },
   {
     "id": "skills-llmx-guide",

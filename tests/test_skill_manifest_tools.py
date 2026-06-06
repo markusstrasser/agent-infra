@@ -266,6 +266,35 @@ def test_routing_prefers_router_over_internal_object_without_direct_slash():
     assert skill_routing_script._score("work up VST", router) > skill_routing_script._score("work up VST", internal)
 
 
+def test_routing_explains_reference_name_token_match():
+    row = {
+        "object_id": "skills:skill.llmx-guide",
+        "object_type": "SkillEntrypoint",
+        "name": "llmx-guide",
+        "description": "llmx CLI gotchas",
+        "primary_category": "reference",
+    }
+
+    details = skill_routing_script._score_details("llmx transport flags are failing", row)
+    reasons = {reason["reason"] for reason in details["reasons"]}
+
+    assert details["score"] > 0
+    assert "distinctive_name_tokens" in reasons
+    assert "reference_name_token" in reasons
+
+
+def test_skill_routing_autoresearch_config_uses_locked_suite():
+    cfg_path = Path(__file__).resolve().parents[1] / "experiments" / "skill-routing" / "config.json"
+    cfg = json.loads(cfg_path.read_text())
+
+    assert cfg["editable_files"] == ["../../scripts/skill-routing.py"]
+    assert cfg["eval_command"] == "python3 eval.py --locked"
+    assert cfg["holdout_eval_command"] == "python3 eval.py --holdout"
+    assert cfg["holdout_every_k_keeps"] == 1
+    assert cfg["stress_eval_command"] == "python3 eval.py"
+    assert cfg["stress_every_k_keeps"] == 1
+
+
 def test_public_export_rejects_symlink(tmp_path: Path):
     source = tmp_path / "skill"
     source.mkdir()
