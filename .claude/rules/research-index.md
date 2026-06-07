@@ -6,26 +6,27 @@ paths:
 
 # Research Index (`research/`)
 
-<!-- Gov-ID: rule:research-index
-goal: route to the right research memo
-verifier: null
-blast_radius: style
--->
-
 Consult these files before acting on the topic. Scan this table when starting a task.
 
 | File | Topic | Consult before |
 |------|-------|----------------|
 | `2026-04-25-tool-attention-and-skill-bank.md` | Tool Attention + Co-Evolving Skill Bank — Two papers from arxiv week of 2026-... | TODO |
-| `2026-05-27-llm-agentic-4w-compiled-brief.md` | LLM & Agentic Frontier — 4-Week Compiled Brief (pulls from 8 axis memos below) | Any "what's new in LLM/agentic land" question; start here before per-axis memos |
-| `2026-05-27-frontier-model-releases-delta-4w.md` | Frontier model releases delta (DeepSeek V4-Pro -75%, Gemini 3.5 Flash, Qwen 3.7 Max) | Pricing decisions; choosing default models; vendor cost comparisons |
-| `2026-05-27-rl-post-training-4w.md` | RL post-training delta — PRM orthodoxy fracturing, Anthropic Model Spec Midtraining | Proposing PRMs; designing verifier loops; alignment-by-training proposals |
-| `2026-05-27-long-context-memory-4w.md` | Long-context & memory — Opus 4.7 holds at 1M multi-hop; BM25 beats most memory systems | 1M context jobs; agent memory architecture choices; retrieval-vs-long-context |
+| `2026-05-15-cross-project-knowledge-infra-dossier.md` | Cross-Project Knowledge Infrastructure — The Dossier | TODO |
+| `2026-05-27-agent-safety-alignment-4w.md` | Safety/alignment — METR ≥16% cheating; Opus 4.7 sycophancy halved; Exploration Hacking | Capability evals; sycophancy mitigation; sandboxing/control proposals |
 | `2026-05-27-agentic-coding-swe-4w.md` | Agentic coding & SWE — SWE-bench inflation, Claude Code v2.1.139, HiL-Bench | Extending dashboard/orchestrator; SWE benchmarking; epistemic-discipline hooks |
+| `2026-05-27-claude-code-native-overlap-probe.md` | Claude Code Native Primitives — Overlap Probe | TODO |
+| `2026-05-27-continueonblock-probe-anchor.md` | continueOnBlock Probe — Measurement Anchor | TODO |
+| `2026-05-27-continueonblock-probe.md` | continueOnBlock — Probe & Conversion Proposal | TODO |
+| `2026-05-27-frontier-model-releases-delta-4w.md` | Frontier model releases delta (DeepSeek V4-Pro -75%, Gemini 3.5 Flash, Qwen 3.7 Max) | Pricing decisions; choosing default models; vendor cost comparisons |
+| `2026-05-27-llm-agentic-4w-compiled-brief.md` | LLM & Agentic Frontier — 4-Week Compiled Brief (pulls from 8 axis memos below) | Any "what's new in LLM/agentic land" question; start here before per-axis memos |
+| `2026-05-27-long-context-memory-4w.md` | Long-context & memory — Opus 4.7 holds at 1M multi-hop; BM25 beats most memory systems | 1M context jobs; agent memory architecture choices; retrieval-vs-long-context |
 | `2026-05-27-multi-agent-coordination-4w.md` | Multi-agent — "more agents helps" claim flipped; asymmetric primary+sub-task wins | ANY multi-agent design; debate/consensus proposals; CORAL-pattern questions |
 | `2026-05-27-reasoning-cot-process-supervision-4w.md` | Reasoning/CoT — post-answer confabulation 58%; reasoning-helps-tool-use broken | Trace-faithfulness checks; thinking-budget defaults; tool routing with reasoning |
-| `2026-05-27-agent-safety-alignment-4w.md` | Safety/alignment — METR ≥16% cheating; Opus 4.7 sycophancy halved; Exploration Hacking | Capability evals; sycophancy mitigation; sandboxing/control proposals |
+| `2026-05-27-rl-post-training-4w.md` | RL post-training delta — PRM orthodoxy fracturing, Anthropic Model Spec Midtraining | Proposing PRMs; designing verifier loops; alignment-by-training proposals |
 | `2026-05-27-tool-use-mcp-4w.md` | Tool use/MCP — MCP 2026-07-28 RC (breaking, stateless); MCP-Atlas; OSWorld-Verified | MCP server work; fastmcp3-integration-plan; CUA/browser-agent decisions |
+| `2026-05-31-eval-benchmark-methodology-delta.md` | Eval Methodology Delta — last 3 weeks | TODO |
+| `2026-06-04-arena-agent-eval-transfer.md` | Arena.ai Agent Arena — What Transfers to a Single-Operator Setup — Research Memo | TODO |
+| `2026-06-07-harness1-state-externalization.md` | Harness-1: State-Externalizing Harnesses — Research Memo + Leverage Analysis | TODO |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
 | `adversarial-case-library.md` | Adversarial Case Library: The Best "Calling BS" Reviews | TODO |
 | `agent-behavior-refresh-2026-04.md` | Agent Behavior Delta — Memory, Self-Modification, Sycophancy | TODO |
@@ -33,19 +34,24 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `agent-ecosystem-weekly-2026-03-20.md` | Agent Ecosystem Weekly 2026 03 20 | TODO |
 | `agent-ecosystem-weekly-2026-03-26.md` | Agent Ecosystem Weekly 2026 03 26 | TODO |
 | `agent-engineering-refresh-2026-04.md` | Agent Engineering Delta Refresh — April 2026 | TODO |
+| `agent-error-patterns-2026-05.md` | Agent Error Patterns — agentlogs mining (2026-05-30) | TODO |
 | `agent-infra-mcp.md` | Meta Knowledge MCP — Research & Decision Record | TODO |
 | `agent-knowledge-frontier-2026-04.md` | Agent Knowledge Frontier 2026 04 | TODO |
+| `agent-llm-eval-frontier-2026-05-11.md` | Agent / LLM Evaluation Frontier - Verification, Scientific Reasoning, and Gen... | TODO |
 | `agent-memory-architectures.md` | Memory and State Management | TODO |
 | `agent-qa-genomics-pipelines.md` | Pre-commit hook or post-commit CI job | TODO |
+| `agent-reasoning-skill-refresh-2026-06-06.md` | Agent Reasoning Skill Refresh | TODO |
 | `agent-reliability-benchmarks.md` | Agent Reliability: Capability =/= Reliability — Now With Better Data | TODO |
 | `agent-scaffolding-instructions-infra-2026-03.md` | Recent Agent Scaffolding, Instruction-Following, and Infra Papers | TODO |
 | `agent-scaffolding-landscape-2026-03.md` | Agent Scaffolding, Self-Improvement, and Orchestration — March 2026 Landscape | TODO |
 | `agent-self-modification.md` | Agent Self Modification | TODO |
 | `agent-tools-mcp-landscape-2026-03.md` | Agent Tools & MCP Landscape Beyond Search — March 2026 | TODO |
 | `agent_harness_scientific_truth_review_2026-04-10.md` | Agent Harness / Scientific-Agent / Truth-Seeking Review | TODO |
+| `agentic-hygiene-plateau-reward-hacking.md` | Agentic Hygiene Plateau & Reward Hacking — RESEARCH IN PROGRESS | TODO |
 | `agentic-research-synthesis.md` | Agentic Research Synthesis: What We Know vs What We're Guessing | TODO |
 | `agentic-safety-guardrails.md` | Agentic Scaffolding: From Safety-by-Prompt to Guardrails-by-Construction | TODO |
 | `agentic-search-api-comparison.md` | Agentic Search API Comparison — Brave, Exa, Tavily, Firecrawl, Perplexity Son... | TODO |
+| `ai-literature-tools-schemas-2026-05.md` | AI Literature Tools — Schema Patterns for a Personal Papers Store | TODO |
 | `ai-reasoning-causal-abductive-deductive.md` | AI Reasoning: Causal, Abductive, Deductive — State of the Art (2025-2026) | TODO |
 | `ai-research-tools-landscape-2026-03.md` | AI Research Tools Landscape — What to Steal | TODO |
 | `ai-scientist-patterns.md` | Portable Patterns from AI Scientist v2 | TODO |
@@ -59,10 +65,13 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `arxiv-weekly-2026-03-20.md` | Arxiv Weekly 2026 03 20 | TODO |
 | `autoagent-self-optimizing-agents.md` | AutoAgent: Self-Optimizing Agent Harnesses | TODO |
 | `autoresearch-analysis.md` | Autoresearch Analysis — Evolutionary Code Search with LLM-as-Mutator | TODO |
+| `backup-strategy-2026-05.md` | macOS Backup Strategy — Decision Memo (2026-05) | TODO |
 | `benchmarking-science-2026.md` | The Science of Benchmarks & Evals — State of the Field (2025-2026) | TODO |
 | `biomcp-evaluation-2026-04-03.md` | BioMCP (GenomOncology) — Technical Evaluation vs biomedical-mcp | TODO |
 | `biomcp-source-comparison-2026-04-03.md` | BioMCP vs biomedical-mcp: Source Code Comparison | TODO |
+| `bitemporal-append-only-correctness-2026-05-27.md` | Bitemporal Append-Only via Supersedes Chain — Correctness Deep-Dive | TODO |
 | `brainstorm-codex-execution-failure-2026-04-18.md` | Brainstorm Skill Codex Failure — Research Delta + Diagnosis | TODO |
+| `brainstorm-creativity-axes-2026-05.md` | Extending the /brainstorm Axes — New Creativity Research (Mar–May 2026) | TODO |
 | `brave-search-api-deep-dive.md` | Brave Search API — Deep Dive for Agent/LLM Integration | TODO |
 | `caid-multi-agent-swe-2026-03.md` | Caid Multi Agent Swe 2026 03 | TODO |
 | `calibration-measurement-practical.md` | Practical Calibration Measurement for AI Agents | TODO |
@@ -73,6 +82,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `claude-code-internals.md` | Claude Code Architecture: Research Notes | TODO |
 | `claude-code-native-features-deferred.md` | Claude Code Native Features — Deferred Adoption Items | TODO |
 | `claude-code-native-vs-agent-infra.md` | Claude Code Native Features vs Meta Infrastructure | TODO |
+| `closed-loop-boundary-and-system-awareness.md` | The Closed-Loop Boundary | TODO |
 | `code-structure-for-agents.md` | Code Repository Structure for AI Agent Navigation | TODO |
 | `coding-agents-long-context-2026-03.md` | Coding Agents Long Context 2026 03 | TODO |
 | `cognee-technical-assessment.md` | Cognee (topoteretes/cognee) — Technical Assessment | TODO |
@@ -90,6 +100,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `design-md-format.md` | DESIGN.md — Visual Identity Spec for Coding Agents | TODO |
 | `divergent-convergent-thinking-llms.md` | Divergent vs Convergent Thinking in LLMs | TODO |
 | `domain-specific-agent-biases.md` | Domain-Specific Cognitive Biases in AI Agents — Research Memo | TODO |
+| `duckdb-mcp-ddl-migration-2026-05-27.md` | DuckDB Writer-Lock Semantics + Safe DDL Migration for Long-Running MCP Servers | TODO |
 | `ecosystem-mcp-refresh-2026-04.md` | Ecosystem Mcp Refresh 2026 04 | TODO |
 | `embedding-search-critique-2026-04.md` | Embedding Search Critique 2026 04 | TODO |
 | `epistemic-architecture-v3.md` | Epistemic Architecture v3 — Domain-Branched Checks and Balances | TODO |
@@ -107,19 +118,26 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `frontier-delta-2026-05-08.md` | Frontier Delta — 2026-04-18 → 2026-05-08 | TODO |
 | `futurehouse-org-scan-2026-04.md` | FutureHouse GitHub Org Scan — April 2026 Update | TODO |
 | `futurehouse-technical-analysis.md` | FutureHouse Technical Analysis | TODO |
+| `gemini-3.5-flash-benchmarks.md` | Gemini 3.5 Flash — Benchmark Survey | TODO |
+| `gemini-3.5-flash-vs-exa-vs-perplexity-probe.md` | Gemini 3.5 Flash `--search` vs Perplexity `_ask` vs Exa `web_search_exa` — 5-... | TODO |
 | `genomics-benchmark-design.md` | Genomics Benchmark Design | TODO |
 | `genomics-validation-gaps.md` | Genomics Validation Gaps | TODO |
 | `git-forensics-codebase-audit.md` | Git Commands Before Reading Code | TODO |
 | `google-ai-developments-2026-03-14-20.md` | Google Ai Developments 2026 03 14 20 | TODO |
 | `infra-gap-analysis-2026-03-28.md` | Infrastructure Gap Analysis: Detection Coverage vs Error Classes | TODO |
 | `intel-feedback-loop-plan.md` | Action Plan: Close the Error-Correction Loop | TODO |
+| `intel-genomics-verifier-diagnosis.md` | Intel & Genomics: Verifier Diagnosis | TODO |
 | `karpathy-autoresearch-deep-dive.md` | Karpathy Autoresearch Deep Dive | TODO |
+| `karpathy-autoresearch-implementation-deltas.md` | Karpathy/autoresearch — Implementation-Level Deltas vs Our Adaptation | TODO |
 | `kimi-k2.6-release-2026-04-20.md` | Kimi K2.6 — Research Memo | TODO |
 | `knowledge-accrual-architecture.md` | The Architecture of Knowledge Accrual — Research Memo | TODO |
+| `knowledge-infra-next-abstractions-2026-05-27.md` | Knowledge Infrastructure — Next Abstractions | TODO |
+| `knowledge-infra-rename-risks-2026-05-27.md` | Knowledge Infrastructure Rename Risks — Iatrogenic Failure Modes | TODO |
 | `knowledge-representation-paradigms.md` | Knowledge Representation Paradigms for Agent Knowledge Systems | TODO |
 | `leverage-survey-2026-03-19.md` | Leverage Survey: Packages, Languages, and Tools Beyond Python | TODO |
 | `leverage-survey-delta-2026-04-18.md` | Leverage Survey Delta — Agent Observability, Transcript Analysis, Hook DSLs | TODO |
 | `life-sci-skills-consolidation.md` | Life-Sci Skills Consolidation — Keep Separate | TODO |
+| `llm-slop-prose-patterns.md` | LLM Slop Prose Patterns | TODO |
 | `markdown-enforcement-tools-2026-04.md` | Markdown Enforcement Tools 2026 04 | TODO |
 | `markdown-formatting-llm-effects-2026-04.md` | Markdown Formatting Llm Effects 2026 04 | TODO |
 | `mcp-protocol-evolution.md` | MCP Protocol Evolution (March 2026) | TODO |
@@ -141,6 +159,8 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `opus-46-action-plan.md` | Opus 46 Action Plan | TODO |
 | `opus-46-prompt-structure.md` | Opus 46 Prompt Structure | TODO |
 | `orchestrator-design.md` | Autonomous Agent Architecture for Long-Running Intelligence Work | TODO |
+| `paperqa-evidence-model-2026-05.md` | PaperQA2 evidence model — deep dive | TODO |
+| `pdf-guard-and-cross-repo-audit-2026-05-11.md` | PDF guard + cross-repo pointer audit — 2026-05-11 | TODO |
 | `pdf-to-markdown-tooling-2026-05.md` | or with LLM cleanup: | TODO |
 | `perplexity-sonar-api-landscape.md` | Perplexity API Landscape — Research Memo | TODO |
 | `personal-ai-agent-infra-march-2026.md` | Personal AI Agent Infrastructure — March 2026 Landscape Sweep | TODO |
@@ -148,21 +168,30 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `practitioner-agent-usage-2026-03.md` | How Practitioners Actually Use AI Agents — March 2026 Landscape | TODO |
 | `reasoning-scaffolding-divergent.md` | Divergent Research: Beyond Causal DAGs — What Else Should We Build? | TODO |
 | `reasoning-trace-verification.md` | Verifying Agent Reasoning Traces: Faithfulness, Correctness, and Formal Methods | TODO |
+| `replay-canonical-json-edges-2026-05-27.md` | Replay → Projection → Bit-Exact Match: Edge Cases | TODO |
+| `rsi-verification-bound.md` | RSI / Agent Autonomy as Verification-Bounded | TODO |
 | `runlog-otel-compatibility.md` | Runlog OTel / OpenInference Compatibility | TODO |
 | `scale-agentic-rubrics-2026-04.md` | Scale AI Agentic Rubrics and ResearchRubrics | TODO |
 | `schema-bounded-review-packets-2026-03.md` | Schema-Bounded Review Packets for `researcher` and `intel` | TODO |
 | `scientific-citation-graph-patterns-2026-05.md` | Scientific Citation Graph Patterns 2026 05 | TODO |
 | `scientific-computing-for-agent-telemetry.md` | Scientific Computing Tools for Agent Telemetry | TODO |
+| `scientific-kg-schema-standards-2026-05.md` | Scientific KG schema standards — verdict for personal scale | TODO |
+| `scientific-substrate-target-architecture.md` | Scientific Substrate Target Architecture | TODO |
 | `search-api-integration-landscape.md` | Search API Integration Landscape — Brave, Firecrawl, Perplexity | TODO |
+| `search-tool-thinning-perplexity-exa-parallel-2026-06-06.md` | Search Tool Thinning — Perplexity vs Exa vs Parallel | TODO |
 | `self-distillation-code-generation-2026-04.md` | Self Distillation Code Generation 2026 04 | TODO |
+| `self-evolving-governance-architecture.md` | Self Evolving Governance Architecture | TODO |
 | `skill-consolidation-brainstorm.md` | Skill Consolidation: From 42 Skills to Synergistic Architecture | TODO |
 | `skill-improvement-frontier-2026-03.md` | Agent Skill Improvement: Frontier LLM Techniques (March 2026) | TODO |
 | `skill-provenance-controls-2026-03.md` | Skill Provenance Controls | TODO |
 | `skill0-internalization-2026-04.md` | Skill0 Internalization 2026 04 | TODO |
 | `skills-audit-2026-02-28.md` | Skills Library Review — 2026-02-28 | TODO |
 | `structured-vs-prose-for-agents.md` | Structured vs Prose for Agent-Read Documents | TODO |
+| `subagent-zero-output-failure-still-open-2026-06.md` | Subagent Zero-Output-on-Failure — Fix Research | TODO |
+| `substrate-usage-forensics-2026-05-26.md` | Cross-Attestation Substrate — Usage Forensics | TODO |
 | `supp-ai-assessment-2026-04.md` | Supp Ai Assessment 2026 04 | TODO |
 | `supplement-database-survey-2026-04.md` | Supplement & Nutrition Evidence Databases — Comprehensive Survey | TODO |
+| `symbolic-engines-in-frontier-training-2026-06-07.md` | Symbolic engines (CAS/Lean/Z3) in frontier RLVR — verifier is the system; CAS-as-verifier is an untested gap | RLVR/verifier-loop design; judge-panel robustness (isomorphic perturbation); CAS/Symbolica claims; reward-hacking lens |
 | `symphony-orchestrator-assessment.md` | Symphony (OpenAI) — Deep Assessment | TODO |
 | `temporal-epistemic-degradation.md` | Temporal Epistemic Degradation in AI Agents | TODO |
 | `terminal-output-ux-2026-04.md` | One import, covers progress + logging + tables + pretty print | TODO |
@@ -181,5 +210,6 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `trending-scout-2026-04-17-clojure-mcps.md` | Trending Scout — Clojure MCPs & UI Debugging (2026-04-17) | TODO |
 | `trending-scout-2026-04-21-claude-code-codex.md` | Trending Scout — Claude Code + Codex CLI (2026-04-21) | TODO |
 | `trending-scout-2026-04-21-kimi-cli.md` | Kimi CLI Update Sweep + Parity Check (2026-04-21) | TODO |
+| `trending-scout-2026-05-19.md` | Trending Scout — 2026-05-19 | TODO |
 | `weekly-agent-infra-sweep-2026-04-02.md` | Weekly Agent Infra Sweep 2026 04 02 | TODO |
 | `wiki-vs-flat-for-agents.md` | Wiki Vs Flat For Agents | TODO |
