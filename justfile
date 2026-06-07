@@ -48,6 +48,8 @@ smoke:
     uv run --no-project python3 scripts/codex_parity_sync.py --check 2>&1 | tail -6
     echo "=== Codex hook compatibility ==="
     uv run --no-project python3 scripts/codex_hook_compat.py --timeout 8
+    echo "=== Hook input contract (stdin/.tool_input — all surfaces) ==="
+    uv run --no-project python3 "$HOME/Projects/skills/hooks/lint_hook_input_contract.py" --surfaces
     echo "=== Codex project MCP startup ==="
     uv run --no-project python3 scripts/codex_mcp_smoke.py
 
