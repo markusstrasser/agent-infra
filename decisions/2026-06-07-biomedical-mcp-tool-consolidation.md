@@ -89,3 +89,24 @@ Artifacts: `.model-review/2026-06-07-d0-tool-consolidation-8f6bc0/`. Gemini 3.5 
 
 ## Supersedes
 None (first tool-surface decision for biomedical-mcp).
+
+## Revisions
+- **2026-06-07 (during execution):** No `adapters/` directory needed — reading the
+  code showed the composites *already call the ~32 client classes directly*
+  (`myvariant.lookup()`, `gnomad.gene_constraint()`), bypassing the domain `@tool`
+  wrappers entirely. **The client classes ARE the adapter layer.** So consolidation =
+  build entity composites + a section registry over the existing clients, and gate the
+  domain `@tool` mounts behind a `full` profile (the agreed escape hatch) rather than
+  rewriting 85 tools into adapter functions. Strictly simpler than the recorded plan;
+  same end state (~6 visible tools). Phase 0 (envelope + registry + describe_sections +
+  refactored gene_dossier + 9 contract tests) shipped at biomedical-mcp@609d53e.
+- **2026-06-07 (execution complete):** All phases shipped in biomedical-mcp.
+  Phase 1 generic entities/ registration @5e63896; Phase 2 variant/drug/protein/disease
+  composites (parallel fan-out) @f1b8abc; Phase 3 profile cutover @4aca588 —
+  `BIOMEDICAL_MCP_PROFILE` env var, default "composite" = **8 tools / ~1.2k at-rest
+  tokens** vs "full" = 93 tools / ~10.4k (**88% reduction**), bio_search added; Phase 4
+  CPIC/PharmGKB + DDInter + CIViC/OncoKB as new sections @b8d5845. 138 offline tests green.
+  Only `literature`+`population` domains were fully redundant — every other domain kept
+  long-tail tools, so raw domains are gated behind `full` (not deleted); clinical trials,
+  pathways, supplements, nutrition, blood groups, HPO/gene search, eQTLs, ensembl sequence
+  remain promotion candidates. DDInter has no official API (web-UI endpoints) → opt-in section.
