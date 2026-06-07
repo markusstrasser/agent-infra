@@ -181,3 +181,41 @@ Three items landed + verified in genomics; measurement corrected two plan claims
 Net: the verify-diff idea and the ast-grep-as-edit-tool held up; the "migrate the
 linters to ast-grep for speed" framing did not — speed comes from the runner plus
 killing the nested-`uv run` outliers, and ast-grep's lint role is narrow.
+
+### 2026-06-08 — items 1 & 2 dispositioned (measurement + convention)
+
+- **Outlier fix** (the lint-runner follow-up) — DONE but the hypothesis was WRONG.
+  `lint_modal_import_smoke` nested `uv run` → `sys.executable` gave **no speedup**
+  (uv resolution is cached warm). The real cost is importing ~40 modal-SDK modules;
+  the throttle was a hardcoded `--jobs=4`. Raised to `min(cpu,12)`: ~19.8s → ~12.6s
+  (24 oversubscribes). genomics 600cbe5e. Lesson: measure the outlier before
+  asserting its cause.
+
+- **Item 1 (autonomous bundle) — measured down to mostly SKIP/marginal.** This was
+  always the weakest item; evidence confirms it:
+  - **basedpyright — SKIP (measured, all 3 repos).** NOT a drop-in: on identical
+    config it floods — genomics 0/0 → 55 err/1627 warn; intel 431 → 2554/74501;
+    phenome 960 → 1960/28106. Matching pyright-basic needs 6+ strict categories
+    disabled for ~zero agent gain (pyright already emits `--outputjson`). Its only
+    real edge (baseline → incremental repo-wide strict) is an owner decision, not
+    a bundle swap. Reconsider only if a repo chooses to go strict.
+  - **COVERAGE_CORE=sysmon** — already wired where it matters (`verify_diff`).
+    No global change needed.
+  - **pytest `--tb` default / rich-traceback-to-file** — NOT done. `--tb=short`
+    addopts is change-for-change's-sake over pytest's default; rich-traceback has
+    no named consumer (agents debug from stdout today). Consumption-gate: defer
+    until a real need shows up. Honest call, not an oversight.
+
+- **Item 2 (failure-envelope) — DONE as a convention.** `decisions/2026-06-08-
+  failure-envelope-convention.md`: uniform `[<check>] BLOCKED — <reason>` + a
+  `fix:` line naming a deterministic `just` target (never generated shell).
+  Documented as a standard with live exemplars (the genomics bash hooks +
+  verify_diff + lint_runner + ast-grep all already emit it), NOT a shared lib
+  (that's vetoed). Propagates opportunistically, check-by-check.
+
+**Final tally:** items 3 (ast-grep infra + parallel runner) and 4 (verify-diff)
+shipped substantively in genomics; the lint outlier was improved (~1.6x) and its
+cause corrected; item 1 measured down to a reasoned skip; item 2 shipped as a
+convention. The durable win was the *measurement* — three plan claims (parallel
+speedup, ast-grep migratability, basedpyright drop-in) were corrected by eating
+the dogfood, exactly the research-is-first-class / measure-before-enforcing loop.
