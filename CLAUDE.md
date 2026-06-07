@@ -27,7 +27,7 @@ uv run agentlogs stats                   # DB size, per-vendor counts, indexer h
 
 ## Research Index
 
-~158 research memos in `research/`. Full index with topics and "consult before" triggers: `.claude/rules/research-index.md` (path-scoped to `research/**`, `decisions/**`).
+~201 research memos in `research/`. Full index with topics and "consult before" triggers: `.claude/rules/research-index.md` (path-scoped to `research/**`, `decisions/**`).
 
 <constitution>
 > **Human-protected.** Agent may propose changes but must not modify without explicit approval.
@@ -143,7 +143,7 @@ How to verify this constitution is working (check via `/observe sessions` after 
 
 The orchestrator (queue-backed task runner) was fully eradicated 2026-06-07 — its launchd schedule was removed 2026-04-24 (with `code-review-daily`/`propose-work-daily`/`session-retro-daily`/`hook-roi-daily`), and the parked `archived_orchestrator.py` + its dead state path (`agent-state.json`, `stop-failures.jsonl`, the StopFailure backoff/billing writes) were deleted once confirmed it had no live consumer.
 
-The active launchd jobs are local, zero-API: `com.agent-infra.agentlogs-index` (every 2h session-dir indexing), `com.agent-infra.audit-corpus-sync` (daily 04:30 verdict/relation drift + parse-health advisory + outbox drain), `com.agent-infra.corpus-ledger-commit` (daily 05:00 git-commit of the corpus belief-change ledger), `com.agent-infra.test-health` (daily 05:30 suite-completion sentinel), `com.agent-infra.codebase-map-refresh` (daily 06:30 — regenerates the 5-project codebase maps via `just refresh-maps`; zero-API + idempotent, so no git churn on unchanged repos), and `com.agent-infra.reflect-eval` (one-shot 2026-06-17 09:00 — grades the session-learning loop's pre-registered tests, then self-unloads).
+The active launchd jobs are local, zero-API: `com.agent-infra.agentlogs-index` (every 2h session-dir indexing), `com.agent-infra.audit-corpus-sync` (daily 04:30 verdict/relation drift + parse-health advisory + outbox drain), `com.agent-infra.corpus-ledger-commit` (daily 05:00 git-commit of the corpus belief-change ledger), `com.agent-infra.test-health` (daily 05:30 suite-completion sentinel), `com.agent-infra.codebase-map-refresh` (daily 06:30 — regenerates the 5-project codebase maps via `just refresh-maps`; zero-API + idempotent, so no git churn on unchanged repos), `com.agent-infra.reflect-eval` (one-shot 2026-06-17 09:00 — grades the session-learning loop's pre-registered tests, then self-unloads), and `com.agent-infra.risky-diff-review` (one-shot 2026-06-21 09:00 — scans the 2-week risky-diff-review SHADOW window from git history, surfaces the promote/cut call to checkpoint.md, then self-unloads).
 
 ## Backlog
 
