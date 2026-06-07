@@ -2,7 +2,7 @@
 
 **Question:** What is Harness-1 (arXiv:2606.02373), and how can agent-infra leverage its core idea?
 **Tier:** Deep | **Date:** 2026-06-07
-**Primary sources:** paper abstract + repo source code (`pat-jj/harness-1`, read directly via `gh`/`curl`). The HTML render of the paper (arxiv.org/html) is not yet available; ablation *magnitudes* below the abstract level are NOT retrieved — flagged `[UNVERIFIED]`.
+**Primary sources:** full paper PDF (arXiv:2606.02373, 21pp, `pdftotext`) + repo source code (`pat-jj/harness-1`, read via `gh`/`curl`). Ablation table (Table 3) and the harness-alone result (Appendix P / Fig 7) are now retrieved and quoted below.
 
 ## TL;DR
 
@@ -48,10 +48,40 @@ The policy emits a *semantic judgment* ("these chunk IDs are irrelevant"); the h
 Reward is **curated recall** (RL optimizes the semantic curate/keep/discard/verify/stop decisions; the bookkeeping is deterministic harness code, so RL never spends gradient on it). Eval metrics computed by the harness, not the policy: `recall, precision, f1, trajectory_recall, final_answer_recall, prune_accuracy, rerank_recall`. [SOURCE: `harness/tasks.py`]
 - `trajectory_recall` (everything traversed) vs `recall` (final curated set) — the gap measures curation quality.
 
-### Headline results [SOURCE: abstract]
-- **0.730 average curated recall** across 8 benchmarks (web, finance, patents, multi-hop QA).
-- **+11.4 points** over the next strongest *open* search subagent; competitive with much larger frontier searchers.
-- **Strongest gains on held-out transfer benchmarks** → "RL over explicit search state can produce retrieval behaviors that generalize beyond the training domains."
+### Headline results [SOURCE: PDF §3.2, Table 2]
+- **0.730 average curated recall** across 8 benchmarks (web, finance, patents, multi-hop QA); higher than GPT-5.4, Sonnet-4.6, Kimi-K2.5, GPT-OSS-120B under the protocol — only Opus-4.6 ahead on average.
+- **+11.4 points** over the next strongest *open* subagent (Tongyi DeepResearch 30B).
+- **Transfer (Fig 3) is the headline mechanism evidence:** mean gain over Context-1 is **+7.9 pts on source-family** benchmarks but **+17.0 pts on held-out transfer** (LongSealQA/Seal0QA/FRAMES/HotpotQA) — a **2.2× larger** gain on data furthest from training. The opposite of the standard ML prior.
+
+### The two numbers that matter for a no-training shop
+
+**(A) Component ablation — Table 3** (BrowseComp+, 100 paired queries, *same trained checkpoint, disabled at inference, no retraining*; ∆ is relative to full):
+
+| Disabled mechanism | ∆Recall | ∆FA |
+|---|---|---|
+| Full Harness-1 (Recall 0.584, FA 0.667) | — | — |
+| − Importance tags (binary curate, FIFO eviction) | −4.1% | −7.9% |
+| − Sentence-BM25 compression (raw chunks) | +0.2% | −7.0% |
+| − Auto-seed on first search | −0.3% | −6.4% |
+| − Evidence graph hidden in observations | −2.6% | −5.4% |
+| − verify returns "unavailable" | −3.1% | −3.9% |
+| − review docs returns "unavailable" | +2.4% | −3.9% |
+| − Content-fingerprint dedup | +4.6% | +1.6% (token-budget mechanism, not recall) |
+| **All harness mechanisms disabled** | **−12.2%** | **−6.4%** |
+
+Key interpretive quote: *"Removing a state mechanism does not just lose information — the trained policy reverts to a wide, shallow, search-dominated mode and never converges... the harness is where per-turn search bandwidth is converted into a discriminative curated set."* (search_corpus calls rise 3–7 pts, read/verify drop 2–6× when state is removed.)
+
+**(B) Harness-alone, FIXED model, ZERO training — Appendix P / Fig 7** (the result that transfers to us). Same LLM (GPT-5.4), swap only the harness:
+
+| Harness | Curated Recall | FA Recall |
+|---|---|---|
+| Naive search-add | 0.511 | 0.612 |
+| Context-1 harness | 0.807 | 0.821 |
+| Harness-1 harness | 0.849 | 0.876 |
+
+*"A +4.2 point recall gain is available to GPT-5.4 simply by switching from Context-1's harness to Harness-1's, without any RL training. This validates the central thesis: the harness is a compute-allocation mechanism that materially changes how much a fixed model can discover."* The bigger jump is naive→structured (**+29.6 pts**): the value of externalizing state *at all*, before any harness sophistication.
+
+> **This is the load-bearing finding for agent-infra.** We run fixed frontier models via prompts and cannot retrain. (B) says harness quality is a *compute-allocation lever on a fixed model* — independent of training — worth tens of recall points. Our leverage is entirely on the harness axis, and the paper proves that axis pays off without touching weights.
 
 **Authors:** Pengcheng Jiang, Zhiyi Shi, Kelly Hong, Xueqiang Xu, Jiashuo Sun, Jimeng Sun, Hammad Bashir, Jiawei Han (UIUC Han group + collaborators). [SOURCE: arxiv]
 
@@ -91,9 +121,14 @@ Candidates from current always-loaded / path-scoped rules (all currently **instr
 - Do **not** start an RL training effort. No verifier-rich training loop exists here; out of scope and out of the autonomy boundary.
 - Do **not** mass-convert instruction rules to scaffolding speculatively. The lens (§2) identifies candidates; each needs the standard demand check (has the problem recurred 2+ sessions? does externalization already exist?) before building. "Inventory before dispatch" is the one with documented recurrence — it clears the bar; the others are hypotheses.
 
-## Gaps / what I did not retrieve
-- `[UNVERIFIED]` Exact **ablation deltas** isolating state-externalization from the policy (the paper has `inference/queue_browsecomp_ablation.py` + `harness/ultra_core.py`, and an ablations section, but the HTML render 404'd and I did not parse the PDF body). The abstract's transfer claim is the strongest evidence retrieved. If the exact ablation table matters for a Constitution evidence trailer, fetch the PDF next.
-- `[UNVERIFIED]` Exact RL algorithm + reward shaping beyond "curated recall" (Tinker-based RL per repo; details in PDF body).
+## Retrieved on PDF read (2026-06-07, fills prior gaps)
+- Ablation deltas: Table 3 above (full PDF §3.2 + Appendix M).
+- Harness-alone-no-training result: Appendix P / Fig 7 above — the directly transferable finding.
+- RL detail [SOURCE: PDF §2, ~line 364]: GRPO-style ("within-group advantage normalization") full-trajectory RL on the SEC train split (3,453 queries); SFT on 899 filtered trajectories. Total 4,352 unique training items — *far less* than Context-1 (~9,159) or Search-R1 (221K). The thesis: moving the behavioral prior into the stateful interface lets small SFT + focused RL transfer.
+- A tool-diversity reward `w_div` is used in RL (Fig 5) to prevent tool-mode collapse — secondary to the state argument.
+
+## Still not retrieved
+- Per-mechanism failure-mode appendices (§M.1.x) read only at summary level; the qualitative case studies (Appendix Q) were skimmed, not fully parsed. Not load-bearing for the leverage claim.
 
 ## Recommended next action
 Single highest-leverage, in-scope move: a **decision-journal entry** proposing the §2 diagnostic lens as a standing review question for new behavioral rules, with **"Inventory before dispatch" → externalized candidate-pool/dedup check** as the one concrete, demand-cleared externalization to scope. Constitution evidence addition is **propose-and-wait** (human-protected). Offered as a plan, not executed.
