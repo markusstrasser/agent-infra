@@ -121,3 +121,17 @@ papering over it — it bounds what harness optimization can ever deliver.
   logged information-gain metric.
 - We ever own a model and the in-weight GA spine becomes reachable (different
   company; not foreseen).
+
+## Revisions
+**2026-06-07** — Smoke-tested the new `interview-prompt` skill on this very thesis
+(route: feedback). Markus **confirmed "Accept it"** on the ceiling — no personal
+GBT side bet, this doc stands. The interview also surfaced a finding sharper than
+the doc assumed: the amplify-vs-automate boundary is **verifiability, not domain**
+— "depends on… if there's a clear verifier/eval; STEM/eng/optimization → agents
+better than me [automate]; art/writing/taste/visuals → is me [amplify]," and the
+same rule governs voice-emulation by register (Q3 "depends on register"). Captured
+as feedback memory `feedback-amplify-automate-by-verifiability`. Implication worth
+flagging (not applied — constitution is human-gated): the Generative Principle's
+unconditional "autonomy is the primary objective" is, per Markus, *conditional on
+a verifier existing* — autonomy-max is correct only where ground-truth eval bounds
+it.
