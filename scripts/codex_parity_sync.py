@@ -34,21 +34,25 @@ Run:
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 import re
+import shlex
+import subprocess
 import sys
 import tomllib
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common.console import con  # noqa: E402
+from common.project_registry import MIRRORED_REPOS  # noqa: E402
 
 HOME = Path.home()
 PROJECTS = HOME / "Projects"
 GLOBAL_CODEX_CONFIG = HOME / ".codex" / "config.toml"
 
-REPOS = ["agent-infra", "intel", "genomics", "phenome"]
+REPOS = list(MIRRORED_REPOS)
 
 # Servers whose .mcp.json definition deliberately differs from the ~/.codex global
 # and where the PROJECT one should win (project-scoped override). Everything else
@@ -99,7 +103,8 @@ LOCAL_PROJECT_MCP = {
     },
 }
 
-SECRET_HINT = re.compile(r"(?:\$\{[^}]+\}|[A-Za-z0-9_-]{24,})")
+ENV_PLACEHOLDER = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+FULL_ENV_PLACEHOLDER = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$")
 
 
 # ── TOML emit (stdlib has no writer; our shape is shallow) ──────────────────
@@ -112,6 +117,79 @@ def _toml_str(s: str) -> str:
 
 def _toml_array(items: list[str]) -> str:
     return "[" + ", ".join(_toml_str(x) for x in items) + "]"
+
+
+def _toml_env_var(item: str | dict[str, str]) -> str:
+    if isinstance(item, str):
+        return _toml_str(item)
+    parts = [f"name = {_toml_str(item['name'])}"]
+    if source := item.get("source"):
+        parts.append(f"source = {_toml_str(source)}")
+    return "{ " + ", ".join(parts) + " }"
+
+
+def _toml_env_vars(items: list[str | dict[str, str]]) -> str:
+    return "[" + ", ".join(_toml_env_var(item) for item in items) + "]"
+
+
+def _env_var_source(item: str | dict[str, str]) -> str:
+    if isinstance(item, str):
+        return item
+    return item.get("source", item["name"])
+
+
+def codex_env_fields(spec: dict) -> tuple[dict[str, str], list[str | dict[str, str]]]:
+    """Split MCP env into literal env values and Codex env_vars pass-throughs."""
+    literal_env: dict[str, str] = {}
+    env_vars: list[str | dict[str, str]] = list(spec.get("env_vars") or [])
+    for key, value in (spec.get("env") or {}).items():
+        if isinstance(value, str) and (match := FULL_ENV_PLACEHOLDER.match(value)):
+            source = match.group(1)
+            env_vars.append(key if key == source else {"name": key, "source": source})
+        else:
+            literal_env[str(key)] = str(value)
+    return literal_env, env_vars
+
+
+def missing_required_env(spec: dict) -> list[str]:
+    _, env_vars = codex_env_fields(spec)
+    return sorted({source for source in map(_env_var_source, env_vars) if not os.environ.get(source)})
+
+
+def keychain_service(env_var: str) -> str:
+    return f"agent-infra/{env_var}"
+
+
+def keychain_has_secret(env_var: str) -> bool:
+    return subprocess.run(
+        ["security", "find-generic-password", "-s", keychain_service(env_var), "-w"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    ).returncode == 0
+
+
+def keychain_wrapped_spec(spec: dict, env_vars: list[str]) -> dict:
+    wrapped = copy.deepcopy(spec)
+    original_cmd = [str(wrapped["command"]), *map(str, wrapped.get("args") or [])]
+    exports = [
+        f"export {var}=$(security find-generic-password -s {shlex.quote(keychain_service(var))} -w)"
+        for var in env_vars
+    ]
+    exports.append("exec " + shlex.join(original_cmd))
+    wrapped["command"] = "zsh"
+    wrapped["args"] = ["-lc", "; ".join(exports)]
+
+    env = {}
+    for key, value in (wrapped.get("env") or {}).items():
+        if isinstance(value, str) and (match := FULL_ENV_PLACEHOLDER.match(value)) and match.group(1) in env_vars:
+            continue
+        env[key] = value
+    if env:
+        wrapped["env"] = env
+    else:
+        wrapped.pop("env", None)
+    return wrapped
 
 
 def emit_mcp_toml(servers: dict[str, dict]) -> str:
@@ -132,7 +210,9 @@ def emit_mcp_toml(servers: dict[str, dict]) -> str:
         for key in ("startup_timeout_sec", "tool_timeout_sec"):
             if key in spec:
                 lines.append(f"{key} = {float(spec[key])}")
-        env = spec.get("env") or {}
+        env, env_vars = codex_env_fields(spec)
+        if env_vars:
+            lines.append(f"env_vars = {_toml_env_vars(env_vars)}")
         # env sub-table must come after the parent's scalar keys
         if env:
             lines.append("")
@@ -157,29 +237,24 @@ def load_global_mcp() -> dict[str, dict]:
 def load_project_mcp(repo_dir: Path) -> dict[str, dict]:
     p = repo_dir / ".mcp.json"
     if not p.exists():
-        return resolve_env_placeholders(LOCAL_PROJECT_MCP.get(repo_dir.name, {}))
+        return LOCAL_PROJECT_MCP.get(repo_dir.name, {})
     project = json.loads(p.read_text()).get("mcpServers", {})
     project.update(LOCAL_PROJECT_MCP.get(repo_dir.name, {}))
-    return resolve_env_placeholders(project)
+    return project
 
 
-def resolve_env_placeholders(value):
-    """Expand ${VAR} placeholders before writing Codex TOML.
-
-    Codex does not expand TOML env values; it passes placeholders literally.
-    Project `.mcp.json` files can keep placeholders as source of truth, while
-    generated `.codex/config.toml` gets the concrete process environment value.
-    """
+def expand_env_placeholders_for_compare(value):
+    """Expand ${VAR} placeholders only in-memory for project/global identity checks."""
     if isinstance(value, dict):
-        return {k: resolve_env_placeholders(v) for k, v in value.items()}
+        return {k: expand_env_placeholders_for_compare(v) for k, v in value.items()}
     if isinstance(value, list):
-        return [resolve_env_placeholders(v) for v in value]
+        return [expand_env_placeholders_for_compare(v) for v in value]
     if isinstance(value, str):
         def repl(match: re.Match[str]) -> str:
             name = match.group(1)
             return os.environ.get(name, match.group(0))
 
-        return re.sub(r"\$\{([^}]+)\}", repl, value)
+        return ENV_PLACEHOLDER.sub(repl, value)
     return value
 
 
@@ -188,6 +263,10 @@ def _sig(spec: dict) -> tuple:
     if "url" in spec:
         return ("http", spec["url"])
     return ("stdio", spec.get("command"), tuple(spec.get("args", [])))
+
+
+def _sig_for_compare(spec: dict) -> tuple:
+    return _sig(expand_env_placeholders_for_compare(spec))
 
 
 # ── Per-repo sync steps ───────────────────────────────────────────────────────
@@ -201,19 +280,36 @@ def compute_mcp_delta(repo: str, repo_dir: Path) -> tuple[dict[str, dict], list[
     emit: dict[str, dict] = {}
     drift: list[str] = []
     for sid, spec in project.items():
+        should_emit = False
         if sid not in glob:
-            emit[sid] = spec
-        elif _sig(spec) != _sig(glob[sid]):
+            should_emit = True
+        elif _sig_for_compare(spec) != _sig_for_compare(glob[sid]):
             if sid in overrides:
-                emit[sid] = spec
+                should_emit = True
             else:
                 drift.append(
                     f"{sid}: .mcp.json differs from ~/.codex global "
-                    f"(project={_sig(spec)} global={_sig(glob[sid])}) — not overriding"
+                    f"(project={_sig_for_compare(spec)} global={_sig_for_compare(glob[sid])}) — not overriding"
                 )
-    # Warn on unresolved ${VAR} in emitted servers (Codex won't expand config.toml vars).
+        if should_emit:
+            missing = missing_required_env(spec)
+            if missing:
+                if "url" not in spec and all(keychain_has_secret(var) for var in missing):
+                    emit[sid] = keychain_wrapped_spec(spec, missing)
+                    drift.append(
+                        f"{sid}: using Keychain fallback for missing env var(s): {', '.join(missing)}"
+                    )
+                else:
+                    drift.append(
+                        f"{sid}: skipped from .codex/config.toml because required env var(s) "
+                        f"are missing: {', '.join(missing)}"
+                    )
+            else:
+                emit[sid] = spec
+    # Warn on unresolved ${VAR} only where Codex cannot pass through env_vars safely.
     for sid, spec in emit.items():
-        blob = json.dumps(spec.get("env", {})) + spec.get("url", "")
+        env, _ = codex_env_fields(spec)
+        blob = json.dumps(env) + spec.get("url", "")
         for m in re.findall(r"\$\{[^}]+\}", blob):
             drift.append(f"{sid}: emitted with unresolved {m} — Codex passes it literally")
     return emit, drift
@@ -234,6 +330,23 @@ def absolutize_hook_command(cmd: str, repo_dir: Path) -> str:
     return out
 
 
+CODEX_HOOK_SHIM = Path(__file__).resolve().parent / "codex_hook_shim.py"
+
+
+def codex_hook_command(cmd: str, repo_dir: Path, event: str) -> str:
+    """Wrap a hook command so its output is translated to Codex's contract.
+
+    Claude-dialect hook output (top-level additionalContext, exit-2 reason on
+    stdout) is reshaped to Codex's shape (hookSpecificOutput.additionalContext,
+    exit-2 reason on stderr) by codex_hook_shim.py at runtime. The hook body and
+    the Claude path are untouched. See the shim module for the full contract.
+    """
+    out = absolutize_hook_command(cmd, repo_dir)
+    if "codex_hook_shim" in out:
+        return out
+    return f"CODEX_HOOK_EVENT={shlex.quote(event)} python3 {shlex.quote(str(CODEX_HOOK_SHIM))} {shlex.quote(out)}"
+
+
 def transform_hooks(settings_hooks: dict, repo_dir: Path) -> dict:
     out: dict = {}
     for event, matchers in settings_hooks.items():
@@ -241,7 +354,7 @@ def transform_hooks(settings_hooks: dict, repo_dir: Path) -> dict:
         for matcher in matchers:
             m = dict(matcher)
             m["hooks"] = [
-                {**h, "command": absolutize_hook_command(h["command"], repo_dir)}
+                {**h, "command": codex_hook_command(h["command"], repo_dir, event)}
                 if h.get("type") == "command" and "command" in h
                 else h
                 for h in matcher.get("hooks", [])
@@ -275,7 +388,7 @@ def ensure_gitignored(repo_dir: Path, entry: str, check: bool) -> bool:
 
 def sync_repo(repo: str, check: bool) -> dict:
     repo_dir = PROJECTS / repo
-    result = {"repo": repo, "mcp": 0, "hooks": 0, "skills": False, "drift": [], "would_update": 0}
+    result = {"repo": repo, "mcp": 0, "hooks": 0, "skills": None, "drift": [], "would_update": 0}
     if not repo_dir.exists():
         con.warn(f"{repo}: repo dir missing — skipped")
         return result
@@ -369,9 +482,10 @@ def main() -> int:
     total_div = 0
     total_stale = 0
     for r in results:
+        skill_state = "none" if r["skills"] is None else ("✓" if r["skills"] else "✗")
         con.kv(
             r["repo"],
-            f"mcp+{r['mcp']}  hooks={r['hooks']}  skills={'✓' if r['skills'] else '✗'}"
+            f"mcp+{r['mcp']}  hooks={r['hooks']}  skills={skill_state}"
             + (f"  divergences={len(r['drift'])}" if r["drift"] else ""),
         )
         total_div += len(r["drift"])
