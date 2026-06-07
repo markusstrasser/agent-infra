@@ -67,6 +67,17 @@ regimes with different metrics —
   declining supervision. Keep the human in the loop by design; measure whether the
   fleet deepened the call, not whether it removed the human.
 
+> **[2026-06-07 — GENERALIZED + APPLIED]** Ratified and generalized into
+> `2026-06-07-verifier-conditional-autonomy` (applied to the constitution with
+> Markus's approval). Changes from the form above: (1) discriminator is **verifier
+> quality, not domain** — keys on whether a clear ground-truth verifier exists,
+> generalizing past investing to writing/art/STEM. (2) **Third regime added**
+> (partial/noisy/delayed → bounded autonomy) — the two-way split was a false binary
+> (cross-model review). (3) The "consumption rate" *maximand* is **replaced** — as
+> worded it incentivizes flooding the human; the live metric is principal-attention
+> *efficiency*, with consumption kept only as a *floor* (no generation without a
+> named consumer). Findings 1 and 3 remain PROPOSED.
+
 ## Finding 3 — Unify: one consume-or-escalate spine, not N detectors-into-void
 The three loops (corpus drift, orphan GC, investing knowability) are one pattern:
 detect divergence → post-mortem (noise / real / knowable) → upgrade the model.
