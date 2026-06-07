@@ -71,6 +71,13 @@ Stage 1 is cheap (~1–2 days), genuinely decisive, and intellectually clean —
 
 **Do NOT** jump to Stage 2 or a "build a CAS verifier service." Frame any work as the offline probe, with the go/no-go gate at the Stage 1 decision rule.
 
+## De-risk results (2026-06-08) — both gates PASS
+
+- **Symbolica:** installs (`uv add symbolica` → v2.0.0, 23 MB), runs **restricted single-core without any license key** (banner only; fine for offline batch). Confirmed `(1+x)^2 − (1+2x+x^2)` expands to `0`. License is **source-available, NOT open** (no redistribution); free hobbyist/academic/non-commercial-single-core tiers.
+- **Dataset:** `zhangchenxu/HardVerify-Math` (TinyV benchmark, 250 rows) has built-in labels — no download needed (HF datasets-server stream). Each row: `ground_truth` + `fn_output` (should be EQUIVALENT — the false-negative traps) + `tn_output` (should be NOT equivalent — the true negatives). **= 500 labeled pairs.**
+- **Early signal that sharpens H2:** the benchmark is dominated by answer *types* where CAS algebra is only partially applicable — functional-equation results (`f(x)=2x`), **unordered sets of integer tuples** (`(6,3),(9,3),...`). Tuple-set equality is set-normalization, not Schwartz–Zippel; `f(x)=2x` vs `f(x)=2 x` is whitespace/parse. So the **coverage ceiling will likely show loudly**: the CAS's algebraic edge may be confined to a small slice (e.g. `1/(1+x)^2` vs `(1+x)^-2`), while sympy + a set/tuple normalizer handles the rest equally. Report coverage per answer-type, not just aggregate.
+- **Revised cost:** 500 pairs (not thousands) → Stage 1 is ~2 hrs agent wall-clock, low single-digit $. The LLM (TinyV) arm over 500 pairs is trivial.
+
 ## Key sources
 - TinyV (FN >38%, +10% from recall-fix) — uw-nsl/TinyV; OpenReview HMGsqApBM3
 - From Accuracy to Robustness (rule vs model verifiers; model verifiers get hacked) — arXiv:2505.22203; hkust-nlp/RL-Verifier-Pitfalls
