@@ -109,3 +109,29 @@ reality is visible each sync (report-only first — Principle 3), and (2) option
 **remaps** a small allowlist of critical Write/Edit guards to `Stop` hooks so they
 actually enforce under Codex. Until then, the firing matrix above is the authoritative
 reference — no per-hook re-derivation.
+
+## CORRECTION 2026-06-07 (same day) — the Revision above is WRONG; primary source overrides
+
+The Revision was built on the bundled `migrate-to-codex/references/differences.md`
+("PreToolUse runs for shell commands only"). **That doc is STALE.** Verifying against the
+shipped Rust **at the exact installed tag `rust-v0.137.0`** (`core/src/tools/hook_names.rs`,
+`registry.rs`, `hook_runtime.rs`) shows the opposite:
+
+- PreToolUse/PostToolUse fire for **all function tools** — `dispatch_any` →
+  `run_pre_tool_use_hooks` for every invocation, not shell-only.
+- Codex ships **built-in Claude-style matcher aliases**: `apply_patch()` →
+  `["Write","Edit"]`, `spawn_agent()` → `["Agent"]`. So `Write|Edit` and `Agent`
+  matchers **DO fire** under Codex 0.137. The change landed in PR #23757
+  ("Default function tools into tool hooks", 2026-05-23); differences.md predates it.
+
+**Net:** the ORIGINAL bridge (copy Claude matchers verbatim) was correct — Codex's own
+aliases handle the translation, so **no capability-aware remap is needed**. The
+LIVE/INERT-report and Write/Edit→Stop proposals above are **withdrawn** (their premise was
+false). Residual genuinely-inert matchers are only `Read`/`WebSearch`/`WebFetch` (Codex has
+no identically-named tool) — minor, not worth a sync change. The corrected firing matrix
+now lives in `scripts/codex_parity_sync.py`'s module docstring.
+
+Lesson (logged): a bundled vendor *doc* lost to the vendor's own *source at the installed
+tag*. Verify hook/runtime behavior against the shipped binary's source, not migration
+guides. This is the `<ai_text_policy>` "verify vendor claims before asserting" rule biting
+in practice.

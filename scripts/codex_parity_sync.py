@@ -23,22 +23,23 @@ Empirically verified (2026-06-02, codex-cli 0.135):
   - project .codex/hooks.json hooks MERGE with ~/.codex/hooks.json (3 SessionStart
     hooks fired = 2 global + 1 project).
 
-CODEX HOOK FIRING MATRIX (authoritative: OpenAI migrate-to-codex/references/
-differences.md, bundled with codex-cli 0.137 — supersedes the earlier ASSUMPTION
-that Write|Edit/Agent matchers "port over"; only the SessionStart merge above was
-ever actually tested):
-  - PreToolUse / PostToolUse fire for SHELL (Bash) commands ONLY. Matchers like
-    Write, Edit, Read, Agent, Skill, WebSearch/WebFetch and mcp__* are COPIED by
-    this sync but are INERT under Codex — the runtime never invokes them. (Codex's
-    subagent tool is `spawn_agent`; no PreToolUse fires for it either.)
-  - LIVE under Codex: Bash PreToolUse/PostToolUse + the matcher-less lifecycle
-    events SessionStart / UserPromptSubmit / Stop.
+CODEX HOOK FIRING MATRIX (authoritative: the shipped Rust at tag rust-v0.137.0 —
+core/src/tools/{hook_names.rs,registry.rs}, hook_runtime.rs; verified 2026-06-07):
+  - PreToolUse/PostToolUse fire for ALL function tools, NOT shell-only. The generic
+    `dispatch_any` path calls `run_pre_tool_use_hooks` for every tool invocation.
+  - Codex ships BUILT-IN Claude-style matcher aliases, so this sync needs NO
+    tool-name translation — copy Claude matchers verbatim and they select:
+      Write, Edit  -> apply_patch   (hook_names.rs::apply_patch matcher_aliases)
+      Agent        -> spawn_agent   (hook_names.rs::spawn_agent matcher_aliases)
+      Bash         -> Bash/shell
+    mcp__* match by flat tool name; Read / WebSearch / WebFetch only fire if Codex
+    exposes an identically-named tool (it largely does not — those stay inert).
+  - Matcher-less lifecycle events (SessionStart / UserPromptSubmit / Stop) fire too.
   - Same $CLAUDE_TOOL_INPUT contract; OUTPUT diverges (exit-2 reason on stderr,
     hookSpecificOutput nesting) and is reshaped by codex_hook_shim.py.
-  - Write/Edit enforcement that must run under Codex has to move to a Stop hook
-    (OpenAI's own guidance). This sync does NOT yet prune/remap inert matchers —
-    see decisions/2026-06-02-codex-cli-project-parity.md for the proposed
-    capability-aware pass.
+  - The bundled migrate-to-codex/differences.md ("PreToolUse = shell only") is
+    STALE (pre-PR #23757, 2026-05-23, "Default function tools into tool hooks").
+    Do not treat it as current; the source at the installed tag is ground truth.
 
 Run:
   uv run python3 scripts/codex_parity_sync.py            # sync all mirrored repos
