@@ -26,6 +26,10 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-05-27-tool-use-mcp-4w.md` | Tool use/MCP — MCP 2026-07-28 RC (breaking, stateless); MCP-Atlas; OSWorld-Verified | MCP server work; fastmcp3-integration-plan; CUA/browser-agent decisions |
 | `2026-05-31-eval-benchmark-methodology-delta.md` | Eval Methodology Delta — last 3 weeks | TODO |
 | `2026-06-04-arena-agent-eval-transfer.md` | Arena.ai Agent Arena — What Transfers to a Single-Operator Setup — Research Memo | TODO |
+| `2026-06-07-biomedical-ontologies-datasets-delta.md` | Biomedical ontologies+datasets 2026 delta: HPO redirects, MONDO axis restructure, ClinVar MAVE, OT 26.03 schema break, CPIC pgkbcalevel RENAME, PharmCAT F2/F5, dismech | phenome HP/MONDO work; CPIC/PGx pipeline; biomedical-mcp data source updates; variant interpretation; supplement evidence |
+| `2026-06-07-biomcp-fastmcp-upstream-delta.md` | BioMCP / FastMCP Upstream Delta — 2026-06-07 | TODO |
+| `2026-06-07-biomedical-ontologies-datasets-delta.md` | Biomedical Ontologies & Datasets — 2026 Delta | TODO |
+| `2026-06-07-dependency-update-audit.md` | Dependency Update Audit — 2026-06-07 | TODO |
 | `2026-06-07-harness1-state-externalization.md` | Harness-1: State-Externalizing Harnesses — Research Memo + Leverage Analysis | TODO |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
 | `adversarial-case-library.md` | Adversarial Case Library: The Best "Calling BS" Reviews | TODO |
