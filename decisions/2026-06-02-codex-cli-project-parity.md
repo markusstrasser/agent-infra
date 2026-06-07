@@ -135,3 +135,44 @@ Lesson (logged): a bundled vendor *doc* lost to the vendor's own *source at the 
 tag*. Verify hook/runtime behavior against the shipped binary's source, not migration
 guides. This is the `<ai_text_policy>` "verify vendor claims before asserting" rule biting
 in practice.
+
+## FINAL — empirical probe supersedes BOTH sections above (2026-06-07)
+
+Source-reading ("aliases are defined → they fire") was itself an over-read. I built a real
+probe harness (`codex exec` against the installed 0.137 binary, hooks swapped into the real
+`~/.codex/hooks.json` at trusted positions, guaranteed restore) and **measured** firing.
+Result: **inconclusive, and what signal there is leans toward the conservative "gap" view.**
+
+Established empirically (these are solid):
+1. **`--dangerously-bypass-approvals-and-sandbox` DISABLES the hook pipeline.** With it, ZERO
+   hooks fire. Hooks only fired when run with `-c approval_policy="never" -c
+   sandbox_mode="danger-full-access"` instead. **Actionable:** anyone running codex in
+   automation with the dangerous-bypass flag gets NO hook enforcement.
+2. **Codex hooks are gated by positional trust+enable state** in `config.toml`, keyed
+   `"<abs-path>:<event>:<group>:<hook>"` with `trusted_hash`/`enabled`. "Present in hooks.json"
+   is NOT sufficient — and the state is path-pinned, so a copied `CODEX_HOME` won't match.
+   The parity sync writes hooks.json but does **not** generate this trust state.
+3. **A Bash/shell PreToolUse hook DID fire at least once** (proves codex *can* fire exec-mode
+   hooks) — but was **NOT reproducible** on an identical re-run. Firing is non-deterministic
+   in my harness (likely trust-persistence interaction with command-swapping).
+4. **A file-edit (apply_patch) hook NEVER fired** across 3 attempts — neither via the
+   `Write|Edit` alias nor the canonical `apply_patch` matcher — even at a proven-enabled
+   position.
+
+NOT established: a clean, reproducible yes/no on whether Write/Edit guards fire under Codex.
+The harness was too non-deterministic to assert the negative with confidence; but apply_patch
+hooks not firing in any attempt, plus the differences.md "shell-only" doc, plus the
+conservative safety posture, all point the same way.
+
+**Operative stance (safety-conservative):** do NOT rely on `Write|Edit`/`Agent`-matched
+PreToolUse hooks to protect Codex sessions. Treat `data/` guards and append-only guards as
+**unverified-to-absent under Codex**. For protection that must hold under Codex, use
+tool-agnostic mechanisms: **git pre-commit hooks**, shell-level guards, or read-only FS perms
+— not Claude PreToolUse hooks. This matches the parallel agent's "protection gap" conclusion;
+my two earlier flips ("Claude-only" then "fires via aliases") are both **withdrawn**. The
+capability exists in source; reliable firing does not, in my testing.
+
+**Open (needs a human or a TTY):** verify firing in *interactive* codex (not exec), and decide
+whether to (a) wire critical guards as git pre-commit hooks for Codex coverage, and/or (b)
+generate the config.toml trust state in the parity sync so generated hooks are actually
+enabled. Both are shared-infra changes — not done unprompted.
