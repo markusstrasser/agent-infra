@@ -144,3 +144,40 @@ targets**, not free-form generated shell (the review's "command injection" frami
 is overstated — it's advisory text an agent reads, not an auto-executor input — but
 the design advice holds). Schema-cache (`db-schema.md`, Tier-2) stays gated: verify
 in agentlogs that agents actually re-introspect schema across turns before building.
+
+### 2026-06-08 — implementation (genomics pilot), measured ground truth
+
+Three items landed + verified in genomics; measurement corrected two plan claims.
+
+- **verify-diff** (item 4) — shipped (`scripts/verify_diff.py`, `just verify-diff`
+  / `verify-diff-deep`). Line-coverage inner loop via diff-cover (maintained dep,
+  not hand-rolled); RED/GREEN/tests-failed paths verified; sysmon confirmed
+  warning-free on LINE coverage but **cannot do branch coverage before coverage
+  3.14** (so `--branch` opts out of the fast core). Genomics' own contract suite
+  (`SUBPROCESS_ALLOWED` ratchet) correctly caught the new `subprocess.run` — used
+  the blessed allowlist, didn't route around it.
+
+- **lint-runner** (item 3, runner half) — shipped (`scripts/lint_runner.py`,
+  `just lint-all`). Auto-discovers the 31 no-arg lint recipes from the justfile,
+  runs them as parallel `sys.executable` subprocesses (one uv resolution, not 31).
+  **Measured: serial 69.7s → parallel 49.6s = only ~1.4x.** The plan over-credited
+  parallelism. Ground truth: the lint phase is dominated by 2-3 **subprocess-storm
+  outliers** — `lint_modal_import_smoke` 18.8s (nested `uv run python3 -c import`
+  per script), `lint_modal` 9.4s — while the other 29 sum to ~41s serial and
+  parallelize to ~6s (~7x). **The real next lever is fixing the outliers**
+  (nested `uv run` → `sys.executable`), not more parallelism. Runner now prints
+  the slowest-3 each run so the targets stay visible.
+
+- **ast-grep** (item 3, structural half) — shipped (`sgconfig.yml`, `lint-rules/`,
+  `lint-rule-tests/` snapshot gate, `just lint-sg` / `lint-sg-test`). Whole-repo
+  scan **~0.8s**. First rule `no-stray-debugger` (global ban, no allowlist) verified
+  catching an injected `breakpoint()`. **The 26-of-80 estimate is too high:** a
+  ground-truth read of the "pure_ast" linters shows nearly all carry allowlists /
+  directory scoping / relational logic (`lint_canonical_json_imports` enforces
+  *which files MAY import a helper*) that ast-grep can't express — that logic is
+  their value, so they stay Python. ast-grep grows one genuinely-global rule at a
+  time; its bigger payoff is as the agent's structural search/replace tool.
+
+Net: the verify-diff idea and the ast-grep-as-edit-tool held up; the "migrate the
+linters to ast-grep for speed" framing did not — speed comes from the runner plus
+killing the nested-`uv run` outliers, and ast-grep's lint role is narrow.
