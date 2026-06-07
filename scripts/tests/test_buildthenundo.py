@@ -22,12 +22,13 @@ def _log(*blocks):
     return "\n".join(reversed(blocks))
 
 
-def _patch(monkeypatch, raw, numstat=None):
+def _patch(monkeypatch, raw, numstat=None, tracked=None):
     monkeypatch.setattr(btu, "read_git_log", lambda days: raw)
     monkeypatch.setattr(
         btu, "read_numstat",
         lambda sha: numstat.get(sha, {}) if numstat else {},
     )
+    monkeypatch.setattr(btu, "tracked_basenames", lambda: tracked or {})
 
 
 def test_same_session_add_then_delete_is_flagged(monkeypatch):
@@ -91,3 +92,50 @@ def test_add_without_delete_is_not_flagged(monkeypatch):
     )
     _patch(monkeypatch, raw)
     assert btu.find_build_then_undo(days=30) == []
+
+
+# --- move-type classification (arXiv 2606.01444 retrieval/search/discovery) ---
+
+def _churn_log(path):
+    return _log(
+        _commit("a" * 40, "s1", "[x] build", [f"A\t{path}"]),
+        _commit("b" * 40, "s1", "[x] drop", [f"D\t{path}"]),
+    )
+
+
+def test_discovery_when_schema_or_rule_surface_touched(monkeypatch):
+    # A .sql / rule / hook deletion is a regime transition, not suspect churn.
+    for path in ("scripts/foo/graph_schema.sql", ".claude/rules/some-rule.md",
+                 "scripts/hooks/pretool-guard.py"):
+        _patch(monkeypatch, _churn_log(path), tracked={})
+        f = btu.find_build_then_undo(days=30)[0]
+        assert f["move_type"] == "discovery", path
+
+
+def test_superseded_when_basename_survives_elsewhere(monkeypatch):
+    # Deleted scripts/papers/ingest.py but corpus/ingest.py survives → work moved.
+    _patch(
+        monkeypatch, _churn_log("scripts/papers/ingest.py"),
+        tracked={"ingest.py": ["scripts/corpus/.../ingest.py"]},
+    )
+    f = btu.find_build_then_undo(days=30)[0]
+    assert f["move_type"] == "superseded"
+    assert "survives" in f["residual"]
+
+
+def test_churn_is_the_default_suspect_class(monkeypatch):
+    # Plain code file, no regime surface, no surviving twin → genuine waste.
+    _patch(monkeypatch, _churn_log("scripts/oneoff.py"), tracked={})
+    f = btu.find_build_then_undo(days=30)[0]
+    assert f["move_type"] == "churn"
+    assert f["residual"]  # non-empty reason
+
+
+def test_classify_move_type_unit():
+    assert btu.classify_move_type("a/b.sql", {})[0] == "discovery"
+    assert btu.classify_move_type("x/dup.py", {"dup.py": ["y/dup.py"]})[0] == "superseded"
+    # the file's own path is not its own twin
+    assert btu.classify_move_type("y/dup.py", {"dup.py": ["y/dup.py"]})[0] == "churn"
+    assert btu.classify_move_type("x/solo.py", {})[0] == "churn"
+    # one-shot migration scripts are intended-deletion regime artifacts
+    assert btu.classify_move_type("scripts/migrate_phenome_x.py", {})[0] == "discovery"

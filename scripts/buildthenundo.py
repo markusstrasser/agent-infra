@@ -13,7 +13,13 @@ and importable:
     findings = find_build_then_undo(days=30)  # list[dict]
 
 Each finding: {pattern, files, add_commit, delete_commit, session,
-               lines_added, lines_deleted, confidence, evidence}
+               lines_added, lines_deleted, confidence, evidence,
+               move_type, residual}
+
+move_type classifies the churn per the retrieval/search/discovery distinction of
+arXiv 2606.01444 (Fig. 1) — COMPUTED from git structure, never a self-reported
+tag — so legitimate supersession (a regime transition with surviving residual,
+e.g. scripts/papers/ -> corpus) stops masking genuinely-suspect rebuild waste.
 
 ALL git reads use `git --no-pager log --no-ext-diff` — external differs inject
 control bytes (~/.claude/CLAUDE.md <environment>).
@@ -85,6 +91,51 @@ def read_numstat(sha: str) -> dict[str, tuple[int, int]]:
     return res
 
 
+def tracked_basenames() -> dict[str, list[str]]:
+    """{basename: [tracked paths]} from `git ls-files`. Isolated for tests."""
+    out = subprocess.run(
+        ["git", "--no-pager", "-C", str(REPO), "ls-files"],
+        capture_output=True, text=True, check=True,
+    )
+    idx: dict[str, list[str]] = {}
+    for p in out.stdout.splitlines():
+        if p:
+            idx.setdefault(Path(p).name, []).append(p)
+    return idx
+
+
+# --- Move-type classification --------------------------------------------
+# arXiv 2606.01444 Fig. 1: retrieval (reuse an existing artifact) / search (new
+# composition in a fixed schema) / discovery (change the schema). Here, computed
+# from git structure to split a regime transition (schema/rule/hook churn,
+# residual survives) from genuinely-suspect fixed-regime build-then-undo.
+_DISCOVERY_RE = re.compile(
+    r"\.sql$|(^|/)migrations?/|(^|/)migrate[_-][^/]*\.(py|sql|sh)$"
+    r"|graph_schema|schema_version"
+    r"|(^|/)\.claude/(rules|hooks)/|(^|/)hooks?/|hook[^/]*\.(py|sh)$"
+    r"|(^|/)settings\.json$|(^|/)CLAUDE\.md$"
+)
+
+
+def classify_move_type(path: str, tracked: dict[str, list[str]]) -> tuple[str, str]:
+    """Classify a build-then-undo path as discovery | superseded | churn.
+
+    discovery  — touched the schema/rule/hook vocabulary: a regime transition,
+                 residual = the changed surface. De-emphasize (legitimate).
+    superseded — a tracked file still carries this basename: work moved/
+                 consolidated, residual survives. ADVISORY — basename only;
+                 AST/symbol fingerprinting deferred (single-signal similarity is
+                 noisy, cross-model review 2026-06-07 #20). De-emphasize.
+    churn      — neither: genuinely-suspect pure build-then-undo. Surface loudest.
+    """
+    if _DISCOVERY_RE.search(path):
+        return "discovery", f"regime surface touched ({path})"
+    twins = [p for p in tracked.get(Path(path).name, []) if p != path]
+    if twins:
+        return "superseded", f"basename survives at {twins[0]} (advisory)"
+    return "churn", "no regime surface, no surviving twin"
+
+
 # --- Parsing --------------------------------------------------------------
 def _parse_commits(raw: str) -> list[dict]:
     """Parse read_git_log output into ordered commit records (newest first)."""
@@ -152,7 +203,12 @@ def _detect(commits: list[dict]) -> list[dict]:
 
 def find_build_then_undo(days: int = 30) -> list[dict]:
     """Scan the last `days` of git history for build-then-undo findings."""
-    return _detect(_parse_commits(read_git_log(days)))
+    findings = _detect(_parse_commits(read_git_log(days)))
+    if findings:
+        tracked = tracked_basenames()
+        for f in findings:
+            f["move_type"], f["residual"] = classify_move_type(f["files"][0], tracked)
+    return findings
 
 
 # --- CLI ------------------------------------------------------------------
@@ -182,13 +238,23 @@ def main() -> int:
         ok("no build-then-undo patterns found")
         return 0
     hi = sum(1 for f in findings if f["confidence"] == "high")
-    warn(f"{len(findings)} finding(s) — {hi} high-confidence")
+    by_type = {"churn": 0, "superseded": 0, "discovery": 0}
     for f in findings:
+        by_type[f.get("move_type", "churn")] = by_type.get(f.get("move_type", "churn"), 0) + 1
+    warn(
+        f"{len(findings)} finding(s) — {hi} high-confidence · "
+        f"{by_type['churn']} churn / {by_type['superseded']} superseded / "
+        f"{by_type['discovery']} discovery"
+    )
+    # Surface genuinely-suspect churn first; de-emphasize regime transitions.
+    rank = {"churn": 0, "superseded": 1, "discovery": 2}
+    for f in sorted(findings, key=lambda f: rank.get(f.get("move_type", "churn"), 0)):
         print(
-            f"  [{f['confidence']}] {f['files'][0]}\n"
+            f"  [{f['confidence']}/{f.get('move_type', 'churn')}] {f['files'][0]}\n"
             f"        +{f['lines_added']} (add {f['add_commit'][:10]})"
             f" -> -{f['lines_deleted']} (del {f['delete_commit'][:10]})"
-            f" session={f['session'] or 'n/a'}"
+            f" session={f['session'] or 'n/a'}\n"
+            f"        ↳ {f.get('residual', '')}"
         )
     return 0
 
