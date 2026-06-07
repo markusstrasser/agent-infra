@@ -176,3 +176,16 @@ capability exists in source; reliable firing does not, in my testing.
 whether to (a) wire critical guards as git pre-commit hooks for Codex coverage, and/or (b)
 generate the config.toml trust state in the parity sync so generated hooks are actually
 enabled. Both are shared-infra changes — not done unprompted.
+
+### Blocking-hook follow-up (2026-06-07, race-immune test)
+The logging-hook probe is vulnerable to an async-hook / process-exit race (cross-model
+review caught this). Re-ran with a RACE-IMMUNE **blocking** hook (`exit 2` + stderr reason —
+changes codex's observable behavior, no log-write dependency), under `approval_policy="never"`:
+an unconditional blocking hook swapped into the Bash position fired **0/4** runs; the
+already-trusted real python-guard also failed to block bare `python3`. So the blocking test
+did NOT overturn the conclusion — it strengthened it. Residual confound: a swapped command's
+`trusted_hash` mismatches and `--dangerously-bypass-hook-trust` behavior may be unreliable, and
+I can't trust a probe hook headlessly (no `codex hooks` CLI; trust is interactive-only). Net:
+firing ranged 0–~20% across configs; **do not depend on Codex PreToolUse hooks for integrity.**
+RESOLUTION: shipped the git pre-commit backstop (option a) across all 4 repos — the protection
+holds regardless of Codex hook firing. Option b (auto-trust) remains declined.
