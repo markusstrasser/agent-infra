@@ -6,6 +6,15 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-06-07] SHIPPED: build-then-undo move-type classifier — separate regime transitions from rebuild waste
+- **Session:** agent-infra (this session). Trigger: read arXiv 2606.01444 (Wang & Buehler, categorical discovery framework), asked how to implement it here. Answer was *recognize, don't rebuild* — we already run the conservative substrate; build one discriminator.
+- **Observed:** `buildthenundo.py` flagged add-then-delete churn but couldn't tell "rebuilt something that already existed" (waste) from "superseded old structure with surviving residual" (a legitimate regime transition, e.g. `scripts/papers/`→`corpus`). The paper's retrieval/search/discovery split (Fig. 1) + residual-as-measure (Prop. 4) *is* that missing discriminator.
+- **Implemented:** COMPUTED classifier in `buildthenundo.py` — `discovery` (schema/rule/hook/migration surface) | `superseded` (basename survives elsewhere, advisory) | `churn` (default = suspect). Computed from git structure, **not** a self-reported tag — cross-model review (Gemini 3.5 Flash + GPT-5.5, 28 findings) killed the original `move_type` frontmatter-tag design as gameable + operator-taxing. Wired into `gov.py` report (the consumer). Excluded `claim_bench/cases` benchmark-fixture churn that was drowning the signal. 10 tests green.
+- **Measured:** full scan **46→18** findings (33→3 churn); gov high-confidence churn **30→2**. Detector now surfaces genuine code churn, not fixture iteration.
+- **Reversibility:** high — report-only detector + a display change; revert the commits.
+- **Status:** [x] shipped (`a7ba365` classifier, `7c228e3` gov consumer, `73c5a01` fixture exclusion). Decision + honest fidelity map (we instantiate ~35-45% of the paper's Kbt, NOT 80% — the review caught the over-claim): `decisions/2026-06-07-categorical-discovery-framework-mapping.md`. **Held (speculative/no-incident):** MDL-graded gov-shrink, outbox coherence gate, AST fingerprinting, CategoryScienceClaw.
+- **Source:** this session; arXiv 2606.01444 (ingested corpus `doi_10_48550_arxiv_2606_01444`).
+
 ### [2026-06-07] PROBED+REJECTED: evolver targets (intel-ER, corpus refs) — verifier-bound thesis reconfirmed 4x
 - **Session:** this one. After mapping `autoresearch.py` (the evolver) targets, probed two new surfaces to depth before building. Both rejected — and the *reason* is the finding.
 - **intel entity-resolution:** OPEN-LOOP eval (`intel/tools/evals/er_eval.py` reads a static `xwalk` table; editing `merge_record` doesn't move the metric) + tiny gold (47 hand-labeled pairs from March, a regression canary not an optimization set). Closing the loop = rebuild 1.3M xwalk rows / 739K entities over a 2.2 GB DuckDB (Splink) per mutation — infeasible at 45 s/eval. **Capital-adjacency note:** even viable, only ER (capital-distant) is eligible; thesis/conviction/sizing stay off the evolver (principal-final regime, verifier-conditioned amendment + invariants #2).
