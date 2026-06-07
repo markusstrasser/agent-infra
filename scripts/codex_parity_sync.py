@@ -331,20 +331,60 @@ def absolutize_hook_command(cmd: str, repo_dir: Path) -> str:
 
 
 CODEX_HOOK_SHIM = Path(__file__).resolve().parent / "codex_hook_shim.py"
+GLOBAL_CODEX_HOOKS = HOME / ".codex" / "hooks.json"
 
 
-def codex_hook_command(cmd: str, repo_dir: Path, event: str) -> str:
-    """Wrap a hook command so its output is translated to Codex's contract.
+def shim_wrap(cmd: str, event: str) -> str:
+    """Route a hook command through codex_hook_shim.py (idempotent).
 
     Claude-dialect hook output (top-level additionalContext, exit-2 reason on
     stdout) is reshaped to Codex's shape (hookSpecificOutput.additionalContext,
-    exit-2 reason on stderr) by codex_hook_shim.py at runtime. The hook body and
-    the Claude path are untouched. See the shim module for the full contract.
+    exit-2 reason on stderr) by the shim at runtime. The hook body and the Claude
+    path are untouched. See the shim module for the full contract.
     """
-    out = absolutize_hook_command(cmd, repo_dir)
-    if "codex_hook_shim" in out:
-        return out
-    return f"CODEX_HOOK_EVENT={shlex.quote(event)} python3 {shlex.quote(str(CODEX_HOOK_SHIM))} {shlex.quote(out)}"
+    if "codex_hook_shim" in cmd:
+        return cmd
+    return f"CODEX_HOOK_EVENT={shlex.quote(event)} python3 {shlex.quote(str(CODEX_HOOK_SHIM))} {shlex.quote(cmd)}"
+
+
+def codex_hook_command(cmd: str, repo_dir: Path, event: str) -> str:
+    """Absolutize then shim-wrap a project hook command."""
+    return shim_wrap(absolutize_hook_command(cmd, repo_dir), event)
+
+
+def sync_global_codex_hooks(check: bool) -> dict:
+    """Shim-wrap every command in the hand-maintained ~/.codex/hooks.json.
+
+    Unlike the per-repo `.codex/hooks.json` mirrors, the global file is authored
+    by hand (Claude global hooks + Codex-specific extras) and is not produced by
+    transform_hooks(), so its commands emit Claude-dialect output that Codex
+    >=0.137 rejects. This wraps each command through the shim in place. Idempotent
+    (skips already-wrapped commands), content-preserving, and re-run by friend-sync.
+    """
+    result = {"path": str(GLOBAL_CODEX_HOOKS), "wrapped": 0, "total": 0, "would_update": False}
+    if not GLOBAL_CODEX_HOOKS.exists():
+        return result
+    original = GLOBAL_CODEX_HOOKS.read_text()
+    data = json.loads(original)
+    for event, groups in data.get("hooks", {}).items():
+        for group in groups:
+            for hook in group.get("hooks", []):
+                if hook.get("type") != "command" or "command" not in hook:
+                    continue
+                result["total"] += 1
+                wrapped = shim_wrap(hook["command"], event)
+                if wrapped != hook["command"]:
+                    hook["command"] = wrapped
+                    result["wrapped"] += 1
+    new_text = json.dumps(data, indent=2) + "\n"
+    result["would_update"] = new_text != original
+    if result["would_update"] and not check:
+        # First-time backup of the hand-maintained, untracked file.
+        backup = GLOBAL_CODEX_HOOKS.with_suffix(".json.prewrap.bak")
+        if not backup.exists():
+            backup.write_text(original)
+        GLOBAL_CODEX_HOOKS.write_text(new_text)
+    return result
 
 
 def transform_hooks(settings_hooks: dict, repo_dir: Path) -> dict:
@@ -478,6 +518,18 @@ def main() -> int:
     repos = args.repo or REPOS
     results = [sync_repo(r, args.check) for r in repos]
 
+    # Global ~/.codex/hooks.json is hand-maintained, not a generated mirror; shim
+    # its commands so they speak Codex's output contract. Skipped with --repo.
+    global_hooks = None
+    if not args.repo:
+        con.step("~/.codex/hooks.json (global)")
+        global_hooks = sync_global_codex_hooks(args.check)
+        verb = "would wrap" if args.check else "wrapped"
+        if global_hooks["would_update"]:
+            con.ok(f"{verb} {global_hooks['wrapped']}/{global_hooks['total']} global hooks through shim")
+        else:
+            con.ok(f"{global_hooks['total']} global hooks already shim-wrapped")
+
     con.header("Summary")
     total_div = 0
     total_stale = 0
@@ -490,6 +542,8 @@ def main() -> int:
         )
         total_div += len(r["drift"])
         total_stale += r["would_update"]
+    if global_hooks and global_hooks["would_update"]:
+        total_stale += 1
     if args.check and total_stale:
         con.warn(f"{total_stale} file(s) out of sync — run without --check to regenerate")
     elif args.check:
