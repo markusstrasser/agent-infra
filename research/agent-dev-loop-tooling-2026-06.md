@@ -107,3 +107,40 @@ lose: terminal/filesystem agents match-or-beat MCP-tool agents at ~5× lower cos
 
 *Inputs: 5 parallel research agents, 2026-06-08. Detail: `.scratch/tooling-research/`.
 All Tier-3 SKIPs carry reasons specifically so they aren't re-proposed.*
+
+---
+
+## Revisions
+
+### 2026-06-08 — cross-model review (Gemini 3.5 Flash + GPT-5.5)
+
+Five corrections to *how* (no work item killed; the plan was right on *what*,
+naive on *how*). Artifacts: `.model-review/2026-06-08-agent-dev-loop-tooling-e2d878/`.
+
+1. **verify-diff is coverage-only in the inner loop.** Diff-scoped line coverage
+   (<5s) is the inner gate; **mutation testing moves to pre-push / explicit deeper
+   command** (convergent with the test-speed agent's "never inner-loop mutation").
+   Tier-1 item #6 amended.
+2. **ast-grep needs a runner, not just rules.** Migrating 26/80 leaves 54 serial
+   `uv run` linters (~100-150ms startup each ≈ most of the 25-40s). The latency win
+   requires a **consolidated lint runner** that calls ast-grep once for the 26 and
+   runs the remaining 54 in **isolated processes** (not threads — shared temp/global
+   state). ast-grep is necessary, not sufficient. Tier-1 #5 amended; this is the
+   real latency lever.
+3. **basedpyright is not a clean drop-in.** It turns on stricter defaults that would
+   flood dynamic code (intel ~590 views). Ship a **locked config reproducing current
+   pyright-basic noise level + pinned version + zero-noise baseline**, then opt into
+   strict incrementally. Tier-1 #2 amended.
+4. **Don't hide failures in JSONL.** Concise traceback on **stdout stays the primary
+   agent channel** (`--tb=line`); pytest-reportlog is supplementary and
+   consumption-gated (add only where an agent demonstrably needs structured parsing).
+   Tier-1 #3 amended; reportlog demoted to opt-in.
+5. **ast-grep rules need a validation gate** — agents hallucinate tree-sitter
+   node-kinds. The pilot includes `ast-grep test` / schema validation before any rule
+   goes live. Tier-1 #5 amended.
+
+Partial-adopt: failure-envelope `fix:` lines reference **deterministic `just`
+targets**, not free-form generated shell (the review's "command injection" framing
+is overstated — it's advisory text an agent reads, not an auto-executor input — but
+the design advice holds). Schema-cache (`db-schema.md`, Tier-2) stays gated: verify
+in agentlogs that agents actually re-introspect schema across turns before building.
