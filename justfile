@@ -300,6 +300,11 @@ install-hooks:
     @echo "    chains no-large-binaries + append-only/protected (from .precommit-guards.env)"
     @echo "  (bypass: GIT_ALLOW_BINARIES=1 / GIT_ALLOW_GUARD_BYPASS=1)"
 
+# Conformance check: is commit-time data/append-only protection LIVE in every repo?
+[group('epistemic')]
+guard-doctor *args:
+    @uv run --no-project python3 scripts/guard_doctor.py {{args}}
+
 # ── Governance ──────────────────────────────────────────────────
 
 # Audit gotchas across all projects (manual prompt / ad-hoc research)
