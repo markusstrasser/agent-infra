@@ -47,12 +47,18 @@ _GENERATED_RE = re.compile(
     r"\.lock$|(^|/)_inventory\.md$|(^|/)(uv|poetry|package-lock)\.lock"
     r"|-index\.md$|_index\.md$|(^|/)__pycache__/"
 )
+# Eval/benchmark FIXTURE data — case sets churn as benchmarks are expanded or
+# reworked (e.g. claim_bench 8->27 cases); that is fixture iteration, not the
+# build-then-undo code anti-pattern. tests/ fixtures are already caught by _TEST_RE.
+_FIXTURE_RE = re.compile(r"(^|/)claim_bench/cases/")
 # Commit messages signalling deliberate revert (NOT build-then-undo)
 _REVERT_RE = re.compile(r"\b(revert|rollback|roll back|undo|back ?out)\b", re.I)
 
 
 def _is_excluded(path: str) -> bool:
-    return bool(_TEST_RE.search(path) or _GENERATED_RE.search(path))
+    return bool(
+        _TEST_RE.search(path) or _GENERATED_RE.search(path) or _FIXTURE_RE.search(path)
+    )
 
 
 # --- Git reading (single isolated fn — monkeypatch this in tests) ---------

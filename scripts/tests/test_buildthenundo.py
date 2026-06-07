@@ -73,6 +73,18 @@ def test_test_files_excluded(monkeypatch):
     assert btu.find_build_then_undo(days=30) == []
 
 
+def test_benchmark_fixture_cases_excluded(monkeypatch):
+    # claim_bench/cases churn as benchmarks expand/rework — not build-then-undo.
+    raw = _log(
+        _commit("g" * 40, "sess-4", "[claim_bench] add case",
+                ["A\tclaim_bench/cases/001_supported.json"]),
+        _commit("h" * 40, "sess-4", "[claim_bench] rework case set",
+                ["D\tclaim_bench/cases/001_supported.json"]),
+    )
+    _patch(monkeypatch, raw)
+    assert btu.find_build_then_undo(days=30) == []
+
+
 def test_cross_session_is_medium_confidence(monkeypatch):
     raw = _log(
         _commit("1" * 40, "sess-A", "[x] Build thing", ["A\tscripts/thing.py"]),
