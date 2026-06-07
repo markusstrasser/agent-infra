@@ -146,3 +146,24 @@ Declared: `duckdb>=1.0`, `jsonschema>=4.20`; extras: `pymupdf>=4.0`, `pymupdf4ll
 ---
 
 *Probe completed 2026-06-07. Versions verified against PyPI JSON API and GitHub changelogs. Installed versions read via `importlib.metadata` in each repo's venv.*
+
+## Correction / resolution (2026-06-08)
+
+All three repos are now on **google-genai 2.8** (agent-infra `6e526d2`, research-mcp `e27ea6b`).
+
+The research-mcp bump was initially **skipped** by the dep-bump pass: the grep gate found
+`client.aio.interactions` in `deep_research.py` and, reading "breaking: Interactions API",
+the agent treated "uses Interactions" as **blocked**. Direct probing of the installed 2.8
+SDK showed the break is narrower than this row described:
+
+- The interactions API is **not removed** — `create/get/cancel` exist with call signatures
+  backward-compatible with our usage. **Call sites do not change.**
+- The *only* break is the **response shape**: 1.x `interaction.outputs` (flat list) → 2.x
+  `interaction.steps` (discriminated union; text+citations now in
+  `ModelOutputStep.content[] → TextContent`, thinking in `ThoughtStep.summary`).
+- Fix was a contained ~20-line extraction rewrite (`_extract_from_steps`), not a block.
+
+**Meta-lesson (for future dep work):** a "breaking if used" flag should trigger *scope the
+break* (probe the actual API delta), not *skip*. Trusting a second-hand "breaks" verdict
+about a **checkable** fact cost a real capability upgrade until re-probed. Audit rows for
+breaking changes should carry the probe that measures the delta, not just the verdict.
