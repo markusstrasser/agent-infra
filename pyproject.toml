@@ -28,6 +28,9 @@ modal-triage-mcp = "modal_triage_mcp:main"
 parallel-mcp = "scripts.parallel_mcp:main"
 
 [tool.pyright]
+# venv resolution so imports resolve (diagnostic-channel hygiene)
+venvPath = "."
+venv = ".venv"
 typeCheckingMode = "basic"
 exclude = ["artifacts/", "downloads/", "bundles/", ".claude/worktrees/"]
 extraPaths = ["src"]
