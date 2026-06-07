@@ -23,23 +23,26 @@ Empirically verified (2026-06-02, codex-cli 0.135):
   - project .codex/hooks.json hooks MERGE with ~/.codex/hooks.json (3 SessionStart
     hooks fired = 2 global + 1 project).
 
-CODEX HOOK FIRING MATRIX (authoritative: the shipped Rust at tag rust-v0.137.0 —
-core/src/tools/{hook_names.rs,registry.rs}, hook_runtime.rs; verified 2026-06-07):
-  - PreToolUse/PostToolUse fire for ALL function tools, NOT shell-only. The generic
-    `dispatch_any` path calls `run_pre_tool_use_hooks` for every tool invocation.
-  - Codex ships BUILT-IN Claude-style matcher aliases, so this sync needs NO
-    tool-name translation — copy Claude matchers verbatim and they select:
-      Write, Edit  -> apply_patch   (hook_names.rs::apply_patch matcher_aliases)
-      Agent        -> spawn_agent   (hook_names.rs::spawn_agent matcher_aliases)
-      Bash         -> Bash/shell
-    mcp__* match by flat tool name; Read / WebSearch / WebFetch only fire if Codex
-    exposes an identically-named tool (it largely does not — those stay inert).
-  - Matcher-less lifecycle events (SessionStart / UserPromptSubmit / Stop) fire too.
+CODEX HOOK FIRING — empirically probed on the installed 0.137 binary (2026-06-07).
+Full record + the two superseded mis-reads: decisions/2026-06-02-codex-cli-project-parity.md
+(§FINAL). Short version — what this sync can and cannot rely on:
+  - Codex CAN fire exec-mode PreToolUse hooks, but ONLY when run WITHOUT
+    `--dangerously-bypass-approvals-and-sandbox` (that flag disables the hook
+    pipeline). Use `-c approval_policy="never"` for hooked automation.
+  - Hooks are gated by POSITIONAL trust+enable state in config.toml
+    (`[hooks.state."<abs-path>:<event>:<group>:<hook>"]`, with trusted_hash/enabled).
+    Presence in hooks.json is NOT enough; this sync does NOT generate that state, so
+    freshly-synced hooks may be untrusted/disabled until codex's trust flow enables them.
+  - Bash/shell PreToolUse fired (non-deterministically); file-edit (apply_patch)
+    PreToolUse did NOT fire in any probe (Write|Edit alias AND canonical apply_patch).
+    => DO NOT assume Write|Edit-matched guards (data-guard, append-only-guard) protect
+       Codex sessions. For must-hold protection under Codex use git pre-commit hooks /
+       FS perms, not PreToolUse hooks.
   - Same $CLAUDE_TOOL_INPUT contract; OUTPUT diverges (exit-2 reason on stderr,
     hookSpecificOutput nesting) and is reshaped by codex_hook_shim.py.
-  - The bundled migrate-to-codex/differences.md ("PreToolUse = shell only") is
-    STALE (pre-PR #23757, 2026-05-23, "Default function tools into tool hooks").
-    Do not treat it as current; the source at the installed tag is ground truth.
+  - Source (hook_names.rs) DEFINES apply_patch/spawn_agent hook names + Write/Edit/Agent
+    aliases, but "defined != reliably invoked" — the probe did not confirm firing. Do not
+    re-derive a "they port over" claim from source alone; verify empirically.
 
 Run:
   uv run python3 scripts/codex_parity_sync.py            # sync all mirrored repos
