@@ -6,6 +6,16 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-06-07] PROBED+REJECTED: evolver targets (intel-ER, corpus refs) — verifier-bound thesis reconfirmed 4x
+- **Session:** this one. After mapping `autoresearch.py` (the evolver) targets, probed two new surfaces to depth before building. Both rejected — and the *reason* is the finding.
+- **intel entity-resolution:** OPEN-LOOP eval (`intel/tools/evals/er_eval.py` reads a static `xwalk` table; editing `merge_record` doesn't move the metric) + tiny gold (47 hand-labeled pairs from March, a regression canary not an optimization set). Closing the loop = rebuild 1.3M xwalk rows / 739K entities over a 2.2 GB DuckDB (Splink) per mutation — infeasible at 45 s/eval. **Capital-adjacency note:** even viable, only ER (capital-distant) is eligible; thesis/conviction/sizing stay off the evolver (principal-final regime, verifier-conditioned amendment + invariants #2).
+- **corpus reference-resolution:** closed-loop ✓ but gold = 9 contract assertions, not a labeled P/R dataset + holdout. No optimization gradient. (Corrected my own over-confident prior-turn rec that "the verifier exists" — an existing eval can be open-loop or contract-only; verify to depth before recommending.)
+- **The pattern (the actual finding):** 4 candidates this session — risky-diff (no labels → shadow), intel-ER, corpus-refs — all fail on the SAME axis: the closed-loop, gold-backed, holdout-able **verifier**, never the mutable surface. Only `claim-bench-rsi` + `skill-routing` clear the bar. Reconfirms `decisions/2026-06-03-verifier-bound-autonomy.md` + `agent-reasoning-fitness-env-ground-truth` memory with fresh evidence. **Implication for the evolver program:** the high-leverage work is verifier *construction* (labeled metric datasets + scoped closed-loop evals), not finding more targets.
+- **Recorded:** `experiments/README.md` "Probed — NOT RSI-ready" table (prevents re-derivation, vetoed-decisions function).
+- **Reversibility:** N/A (doc-only; no experiment built — the point).
+- **Status:** [x] recorded. No build (probe-before-build did its job: did not stand up two dead experiments).
+- **Source:** this session; verifier-conditioned amendment + `decisions/2026-06-03-verifier-bound-autonomy.md`.
+
 ### [2026-06-07] SHADOW: risky-diff-review demand probe (writer/reviewer separation — measure before enforcing)
 - **Session:** this one. Prompted by an X/Twitter thread pitching a 3-agent writer/reviewer/deployer pipeline. Verdict: the writer/reviewer kernel is already integrated 6x (`/code-review`, `/critique model`, `fresh-eyes-review`, `code-reviewer` subagent, `Workflow`, + `posttool-review-check` martingale-guard), and self-review-degeneracy did NOT reproduce on Opus 4.8 (`decisions/2026-06-03-verifier-bound-autonomy.md`). A new reviewer pipeline would be redundant against a partly-disconfirmed premise.
 - **The one real delta:** auto-trigger (vs. remember-to-invoke). Per the verifier-conditioned amendment (this session), that matters ONLY in the no-cheap-verifier / high-irreversibility regime — clear-verifier code already has tests as its reviewer.
