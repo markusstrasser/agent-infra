@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.agent-infra.risky-diff-review</string>
+
+    <!--
+      ONE-SHOT: risky-diff-review SHADOW promote/cut review (improvement-log
+      2026-06-07). Fires once on 2026-06-21 ~09:00 local (StartCalendarInterval
+      has no year field, so the wrapper self-unloads + drops a sentinel to make
+      it one-shot). Scans the 2-week window from local git history, logs +
+      reports, and notifies the human for the promote/cut call. Local, zero-API,
+      zero-quota. Never enables an auto-review gate on its own. Replaces a remote-
+      CCR routine, which can't see local git history / the ~/.claude shadow log.
+    -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/alien/Projects/agent-infra/scripts/risky-diff-review-oneshot.sh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/alien/Projects/agent-infra</string>
+
+    <!-- June 21 at 09:00 local time. Self-unloads after the first fire. -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Month</key>
+        <integer>6</integer>
+        <key>Day</key>
+        <integer>21</integer>
+        <key>Hour</key>
+        <integer>9</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/alien/.claude/logs/risky-diff-review.out</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/alien/.claude/logs/risky-diff-review.err</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/alien/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+</dict>
+</plist>
