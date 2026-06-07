@@ -43,10 +43,9 @@ smoke:
     uv run python3 scripts/mcp_contract_smoke.py
     echo "=== Skill routing locked evals ==="
     uv run python3 scripts/skill-routing.py --cases schemas/skill-routing-cases.json
-    uv run python3 experiments/skill-routing/eval.py
-    uv run python3 experiments/skill-routing/eval.py --holdout
+    uv run python3 experiments/skill-routing/eval.py --locked
     echo "=== Codex parity (.codex/ + .agents/skills mirror Claude assets) ==="
-    uv run --no-project python3 scripts/codex_parity_sync.py --check 2>&1 | tail -6 || true
+    uv run --no-project python3 scripts/codex_parity_sync.py --check 2>&1 | tail -6
     echo "=== Codex hook compatibility ==="
     uv run --no-project python3 scripts/codex_hook_compat.py --timeout 8
     echo "=== Codex project MCP startup ==="
@@ -172,8 +171,7 @@ skill-routing-eval *args:
     #!/usr/bin/env bash
     set -euo pipefail
     uv run python3 scripts/skill-routing.py --cases schemas/skill-routing-cases.json {{args}}
-    uv run python3 experiments/skill-routing/eval.py
-    uv run python3 experiments/skill-routing/eval.py --holdout
+    uv run python3 experiments/skill-routing/eval.py --locked
 
 # Probe filesystem/loader assumptions such as exact SKILL.md casing
 [group('health')]
@@ -183,7 +181,7 @@ skill-loader-probe *args:
 # Validate skill references in hooks, rules, prompts, and workflow docs
 [group('health')]
 skill-reference-closure *args:
-    uv run python3 scripts/skill_reference_validator.py --repo skills --repo agent-infra --repo intel --repo genomics --repo phenome {{args}}
+    uv run python3 scripts/skill_reference_validator.py --repo skills --repo agent-infra --repo intel --repo genomics --repo phenome --repo publishing {{args}}
 
 # Generate skill docs from templates (--dry-run to check drift)
 [group('health')]
@@ -261,6 +259,16 @@ hook-decay *args:
 [group('epistemic')]
 gov-report *args:
     uv run python3 scripts/gov.py report {{args}}
+
+# SHADOW: count high-blast-radius diffs that landed with no test + no review (demand probe for an auto-review gate; promote/cut ~2026-06-21)
+[group('epistemic')]
+risky-diff-shadow *args:
+    uv run python3 scripts/risky_diff_review_shadow.py --days 30 --log {{args}}
+
+# Consumer summary over the accumulated risky-diff shadow log (the promote/cut input)
+[group('epistemic')]
+risky-diff-report *args:
+    uv run python3 scripts/risky_diff_review_shadow.py --report {{args}}
 
 # Learning loop — classify captured session signals into FM dossiers + proposals (add --llm for $0 claude -p enrichment)
 [group('epistemic')]
