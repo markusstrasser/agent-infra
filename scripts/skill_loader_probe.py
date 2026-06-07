@@ -13,11 +13,12 @@ import argparse
 import json
 
 from common.skill_objects import collect_skill_objects, iter_default_roots
+from common.project_registry import SKILL_REPOS
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Probe skill loader assumptions")
-    parser.add_argument("--repo", action="append", choices=["skills", "agent-infra", "genomics", "phenome", "intel"])
+    parser.add_argument("--repo", action="append", choices=list(SKILL_REPOS))
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 

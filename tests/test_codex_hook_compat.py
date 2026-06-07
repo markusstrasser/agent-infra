@@ -66,6 +66,17 @@ class CodexHookCompatTest(unittest.TestCase):
         )
         self.assertEqual(result.status, "pass")
 
+    def test_unknown_json_hook_output_fails(self) -> None:
+        result = self.module.classify_result(
+            "repo",
+            self.ref("PostToolUse"),
+            0,
+            '{"madeUpKey":"ok"}\n',
+            "",
+        )
+        self.assertEqual(result.status, "fail")
+        self.assertIn("no Codex-recognized", result.problem)
+
     def test_hook_specific_event_mismatch_fails(self) -> None:
         result = self.module.classify_result(
             "repo",

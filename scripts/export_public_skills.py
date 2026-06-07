@@ -11,7 +11,10 @@ import argparse
 import shutil
 from pathlib import Path
 
-from common.skill_objects import collect_skill_objects, iter_default_roots, resolve_object_path
+try:
+    from scripts.common.skill_objects import collect_skill_objects, iter_default_roots, resolve_object_path
+except ModuleNotFoundError:  # script execution: python3 scripts/export_public_skills.py
+    from common.skill_objects import collect_skill_objects, iter_default_roots, resolve_object_path
 
 
 BLOCKED_TOKENS = ("/Users/alien", "Markus", "phenome", "genomics", "intel")
