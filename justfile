@@ -292,12 +292,13 @@ reflect-status:
 reflect-eval *args:
     uv run python3 scripts/reflect_eval.py {{args}}
 
-# Install git pre-commit hooks (currently: pre-commit-no-large-binaries)
+# Install git pre-commit hooks (chains no-large-binaries + append-only/protected guards)
 [group('epistemic')]
 install-hooks:
-    @ln -sf "$HOME/Projects/skills/hooks/pre-commit-no-large-binaries.sh" .git/hooks/pre-commit
-    @echo "  ✓ .git/hooks/pre-commit → skills/hooks/pre-commit-no-large-binaries.sh"
-    @echo "  (bypass: GIT_ALLOW_BINARIES=1)"
+    @ln -sf "$HOME/Projects/skills/hooks/pre-commit-guards.sh" .git/hooks/pre-commit
+    @echo "  ✓ .git/hooks/pre-commit → skills/hooks/pre-commit-guards.sh"
+    @echo "    chains no-large-binaries + append-only/protected (from .precommit-guards.env)"
+    @echo "  (bypass: GIT_ALLOW_BINARIES=1 / GIT_ALLOW_GUARD_BYPASS=1)"
 
 # ── Governance ──────────────────────────────────────────────────
 
