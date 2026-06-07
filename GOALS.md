@@ -12,9 +12,17 @@ Maximize autonomous agent capability across all projects while maintaining epist
 
 The deeper dynamic: the better the agent gets, the faster the human must rethink what they actually want next. This is an arms race — agent capability outpaces goal-setting until prediction quality is high enough that the agent can extrapolate what the human would want without asking. The endgame: wake up to 30 great ideas, say yes/no, go back to sleep.
 
+**Verifier-conditioned (see CLAUDE.md constitution).** "Declining supervision" is the objective only where a clear ground-truth verifier exists. Three regimes: *clear verifier* → automate; *partial/noisy/delayed verifier* (the common case) → bounded autonomy; *verifier-is-principal* (taste, voice, conviction) → amplify — reduce *production* supervision while preserving *judgment* supervision. Domain is a prior, not the test. Provenance: `decisions/2026-06-07-verifier-conditional-autonomy.md`.
+
 ## Primary Success Metric
 
-**Ratio of autonomous-to-supervised work across sub-projects.** Measured qualitatively: when reviewing a day's chat logs, there should be no:
+Per-regime, not one ratio (raw "maximize autonomy/consumption" maximands incentivize flooding the human or mislabeling hard work as taste):
+
+- **Clear-verifier autonomy rate** — the autonomous-to-supervised ratio below, scoped to checkable work.
+- **Partial-verifier bounded-autonomy rate** — evidence/option/draft work done per human checkpoint, without skipping risk boundaries.
+- **Principal-attention efficiency** — decision *density* and option *contrast* per human turn; explicitly **not** generation volume. (Consumption as a *floor* — no generation without a named consumer — not a maximand.)
+
+**Autonomous-to-supervised ratio (clear-verifier regime).** Measured qualitatively: when reviewing a day's chat logs, there should be no:
 - Reverted work (build-then-undo)
 - 5-hour runs that should have been 1-hour (missing scaffolding, bad DX)
 - Error branch spirals (bad hooks, missing guards)
