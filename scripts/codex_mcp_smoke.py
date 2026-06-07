@@ -19,9 +19,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from common.project_registry import MIRRORED_REPOS  # noqa: E402
+
 HOME = Path.home()
 PROJECTS = HOME / "Projects"
-REPOS = ("agent-infra", "intel", "genomics", "phenome")
+REPOS = MIRRORED_REPOS
 
 
 @dataclass
@@ -34,12 +37,38 @@ class ServerResult:
     stderr: str = ""
 
 
-def load_project_servers(repo: str) -> dict[str, dict[str, Any]]:
+def load_project_servers(repo: str) -> tuple[Path, dict[str, dict[str, Any]]]:
     path = PROJECTS / repo / ".codex" / "config.toml"
     if not path.exists():
-        return {}
+        return path, {}
     with open(path, "rb") as f:
-        return tomllib.load(f).get("mcp_servers", {})
+        return path, tomllib.load(f).get("mcp_servers", {})
+
+
+def _env_var_binding(item: str | dict[str, str]) -> tuple[str, str]:
+    if isinstance(item, str):
+        return item, item
+    name = item["name"]
+    return name, item.get("source", name)
+
+
+def server_env(spec: dict[str, Any]) -> dict[str, str]:
+    env = os.environ.copy()
+    for item in spec.get("env_vars") or []:
+        name, source = _env_var_binding(item)
+        if source in os.environ:
+            env[name] = os.environ[source]
+    env.update({str(k): str(v) for k, v in (spec.get("env") or {}).items()})
+    return env
+
+
+def missing_env_vars(spec: dict[str, Any]) -> list[str]:
+    missing: list[str] = []
+    for item in spec.get("env_vars") or []:
+        _, source = _env_var_binding(item)
+        if not os.environ.get(source):
+            missing.append(source)
+    return missing
 
 
 def _read_response(
@@ -67,8 +96,7 @@ def _read_response(
 
 def probe_stdio(repo: str, server: str, spec: dict[str, Any], timeout: float) -> ServerResult:
     cmd = [spec["command"], *spec.get("args", [])]
-    env = os.environ.copy()
-    env.update({str(k): str(v) for k, v in (spec.get("env") or {}).items()})
+    env = server_env(spec)
     proc = subprocess.Popen(
         cmd,
         stdin=subprocess.PIPE,
@@ -83,6 +111,7 @@ def probe_stdio(repo: str, server: str, spec: dict[str, Any], timeout: float) ->
     selector = selectors.DefaultSelector()
     selector.register(proc.stdout, selectors.EVENT_READ)
     deadline = time.monotonic() + timeout
+    result: ServerResult
     try:
         init = {
             "jsonrpc": "2.0",
@@ -107,9 +136,9 @@ def probe_stdio(repo: str, server: str, spec: dict[str, Any], timeout: float) ->
         if "error" in tools_response:
             raise RuntimeError(f"tools/list error: {tools_response['error']}")
         tools = tools_response.get("result", {}).get("tools", [])
-        return ServerResult(repo, server, "pass", tools=len(tools))
+        result = ServerResult(repo, server, "pass", tools=len(tools))
     except Exception as exc:  # noqa: BLE001 - report all startup failures uniformly
-        return ServerResult(repo, server, "fail", problem=str(exc))
+        result = ServerResult(repo, server, "fail", problem=str(exc))
     finally:
         try:
             proc.terminate()
@@ -123,6 +152,8 @@ def probe_stdio(repo: str, server: str, spec: dict[str, Any], timeout: float) ->
             except Exception:
                 stderr = ""
         selector.close()
+    result.stderr = stderr.strip()
+    return result
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -137,11 +168,22 @@ def main(argv: list[str] | None = None) -> int:
     results: list[ServerResult] = []
     skipped: list[tuple[str, str, str]] = []
     for repo in wanted_repos:
-        for sid, spec in sorted(load_project_servers(repo).items()):
+        config_path, servers = load_project_servers(repo)
+        if not servers:
+            results.append(ServerResult(repo, "<config>", "fail", problem=f"missing or empty {config_path}"))
+            continue
+        for sid, spec in sorted(servers.items()):
             if wanted_servers and sid not in wanted_servers:
                 continue
             if "url" in spec:
                 skipped.append((repo, sid, "url server"))
+                continue
+            missing = missing_env_vars(spec)
+            if missing and not wanted_servers:
+                skipped.append((repo, sid, "missing env_vars: " + ", ".join(sorted(missing))))
+                continue
+            if missing:
+                results.append(ServerResult(repo, sid, "fail", problem="missing env_vars: " + ", ".join(sorted(missing))))
                 continue
             results.append(probe_stdio(repo, sid, spec, args.timeout))
 
@@ -152,6 +194,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"pass {result.repo}:{result.server} tools={result.tools}")
         else:
             print(f"fail {result.repo}:{result.server} {result.problem}")
+            if result.stderr:
+                print(f"stderr: {result.stderr[:500]}")
     return 1 if any(result.status == "fail" for result in results) else 0
 
 

@@ -16,6 +16,11 @@ from typing import Any, Iterable
 
 import yaml
 
+try:
+    from scripts.common.project_registry import MIRRORED_REPOS
+except ModuleNotFoundError:  # script execution: python3 scripts/foo.py
+    from common.project_registry import MIRRORED_REPOS
+
 
 PROJECTS_ROOT = Path.home() / "Projects"
 META_ROOT = PROJECTS_ROOT / "agent-infra"
@@ -32,25 +37,30 @@ class SkillRoot:
 
 DEFAULT_ROOTS = {
     "skills": SkillRoot("skills", PROJECTS_ROOT / "skills", PROJECTS_ROOT / "skills", True),
-    "agent-infra": SkillRoot(
+    MIRRORED_REPOS[0]: SkillRoot(
         "agent-infra",
         PROJECTS_ROOT / "agent-infra" / ".claude" / "skills",
         PROJECTS_ROOT / "agent-infra",
     ),
-    "genomics": SkillRoot(
+    MIRRORED_REPOS[2]: SkillRoot(
         "genomics",
         PROJECTS_ROOT / "genomics" / ".claude" / "skills",
         PROJECTS_ROOT / "genomics",
     ),
-    "phenome": SkillRoot(
+    MIRRORED_REPOS[3]: SkillRoot(
         "phenome",
         PROJECTS_ROOT / "phenome" / ".claude" / "skills",
         PROJECTS_ROOT / "phenome",
     ),
-    "intel": SkillRoot(
+    MIRRORED_REPOS[1]: SkillRoot(
         "intel",
         PROJECTS_ROOT / "intel" / ".claude" / "skills",
         PROJECTS_ROOT / "intel",
+    ),
+    MIRRORED_REPOS[4]: SkillRoot(
+        "publishing",
+        PROJECTS_ROOT / "publishing" / ".claude" / "skills",
+        PROJECTS_ROOT / "publishing",
     ),
 }
 

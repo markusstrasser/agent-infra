@@ -15,17 +15,32 @@ from pathlib import Path
 import sys
 from typing import Any
 
-from common.skill_objects import (
-    DEFAULT_ROOTS,
-    SkillObject,
-    collect_skill_objects,
-    iter_default_roots,
-    load_object_content,
-    load_manifest,
-    resolve_object_path,
-    resolve_portable_path,
-    write_manifest,
-)
+try:
+    from scripts.common.skill_objects import (
+        DEFAULT_ROOTS,
+        SkillObject,
+        collect_skill_objects,
+        iter_default_roots,
+        load_object_content,
+        load_manifest,
+        resolve_object_path,
+        resolve_portable_path,
+        write_manifest,
+    )
+    from scripts.common.project_registry import SKILL_REPOS
+except ModuleNotFoundError:  # script execution: python3 scripts/skill_manifest.py
+    from common.skill_objects import (
+        DEFAULT_ROOTS,
+        SkillObject,
+        collect_skill_objects,
+        iter_default_roots,
+        load_object_content,
+        load_manifest,
+        resolve_object_path,
+        resolve_portable_path,
+        write_manifest,
+    )
+    from common.project_registry import SKILL_REPOS
 
 
 REQUIRED_FIELDS = {
@@ -198,7 +213,7 @@ def main() -> int:
     parser.add_argument(
         "--repo",
         action="append",
-        choices=["skills", "agent-infra", "genomics", "phenome", "intel"],
+        choices=list(SKILL_REPOS),
         help="Repo to include. Repeatable. Default: all known repos.",
     )
     parser.add_argument("--no-planned", action="store_true", help="Only discovered skill dirs")

@@ -24,10 +24,13 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from common.project_registry import MIRRORED_REPOS  # noqa: E402
+
 HOME = Path.home()
 PROJECTS = HOME / "Projects"
 GLOBAL_CODEX_HOOKS = HOME / ".codex" / "hooks.json"
-REPOS = ("agent-infra", "intel", "genomics", "phenome")
+REPOS = MIRRORED_REPOS
 
 HOOK_SPECIFIC_EVENTS = {
     "SessionStart",
@@ -50,6 +53,17 @@ PLAIN_TEXT_OK_EVENTS = {
 
 BLOCK_RE = re.compile(r"\b(BLOCK(?:ED)?|DENY|DENIED|FORBID|FORBIDDEN|ABORT|STOP)\b", re.I)
 DEFAULT_EVENTS = tuple(sorted(JSON_STDOUT_EVENTS))
+CODEX_OUTPUT_KEYS = {
+    "continue",
+    "decision",
+    "hookSpecificOutput",
+    "permissionDecision",
+    "permissionDecisionReason",
+    "reason",
+    "stopReason",
+    "suppressOutput",
+    "systemMessage",
+}
 
 
 @dataclass
@@ -239,6 +253,8 @@ def _json_stdout_problem(hook: HookRef, stdout: str) -> str | None:
             f"top-level additionalContext is not valid Codex JSON for {hook.event}; "
             "use hookSpecificOutput.additionalContext"
         )
+    if parsed and CODEX_OUTPUT_KEYS.isdisjoint(parsed):
+        return f"JSON stdout has no Codex-recognized hook output keys for {hook.event}"
     hook_specific = parsed.get("hookSpecificOutput")
     if hook_specific is not None:
         if not isinstance(hook_specific, dict):

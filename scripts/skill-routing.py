@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
-"""Classify Skill tool invocations as user-slash vs model-proactive.
+"""Analyze skill usage and run deterministic skill-routing fixtures.
 
-Reads agentlogs.db. For each Skill tool_call, looks at the most recent
-preceding user_message in the same run; if it starts with /skillname
-(possibly after preamble/newlines), it's user-slash; otherwise proactive.
+Without ``--cases``, reads agentlogs.db. For each Skill tool_call, looks at the
+most recent preceding user_message in the same run; if it starts with
+/skillname (possibly after preamble/newlines), it's user-slash; otherwise
+proactive.
 
 Use to validate skillOverrides decisions: a skill with N>0 proactive
 invocations should not be set to user-invocable-only.
 
+With ``--cases``, ranks manifest skill objects against hand-authored routing
+fixtures and fails when the expected visible skill/module/lens is not selected
+or forbidden legacy entrypoints are present.
+
 Usage:
     uv run python3 scripts/skill-routing.py [--days N] [--skill NAME]
+    uv run python3 scripts/skill-routing.py --cases schemas/skill-routing-cases.json [--json] [--explain]
 """
 from __future__ import annotations
 
@@ -19,10 +25,12 @@ import re
 import sqlite3
 from pathlib import Path
 
-from common.skill_objects import collect_skill_objects, iter_default_roots, load_object_content
+try:
+    from scripts.common.skill_objects import collect_skill_objects, iter_default_roots, load_object_content
+except ModuleNotFoundError:  # script execution: python3 scripts/skill-routing.py
+    from common.skill_objects import collect_skill_objects, iter_default_roots, load_object_content
 
 DB = Path.home() / ".claude" / "agentlogs.db"
-DEFAULT_CASES = Path("schemas/skill-routing-cases.json")
 
 QUERY = """
 WITH skill_calls AS (
