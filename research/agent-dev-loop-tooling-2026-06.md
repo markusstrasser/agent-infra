@@ -219,3 +219,25 @@ cause corrected; item 1 measured down to a reasoned skip; item 2 shipped as a
 convention. The durable win was the *measurement* — three plan claims (parallel
 speedup, ast-grep migratability, basedpyright drop-in) were corrected by eating
 the dogfood, exactly the research-is-first-class / measure-before-enforcing loop.
+
+### 2026-06-08 — follow-ups: type-debt gated in intel + phenome
+
+The flagged follow-up was the **ungated** pyright debt (intel 431, phenome 960
+repo-wide errors — only staged/incremental pyright was gating). Resolved with a
+**pyright error-count ratchet** (intel `a1d63928`, phenome `238c61a3`): freezes the
+count + per-rule breakdown in `.pyright-baseline.json`, fails on any increase
+(envelope output), shrinks via `--write` rebaseline. Wired into `make test-integrity`
+/ `just guard-prepush`. Verified RED (injected undefined name → BLOCKED 431→432).
+
+basedpyright `--writebaseline` was tried first (the original "baseline path" idea)
+but is finicky via uvx (no baseline file produced after 3 attempts) — stopped
+rabbit-holing and used a count ratchet over the *existing* pyright, which is more
+robust (version-tolerant, no new toolchain) and uses what the repos already run.
+
+NOT done (deliberately, left to a focused owner session): reducing the backlog.
+The ratchet makes it countable and non-growing; the real-bug-class to fix first is
+intel's 53 `reportOptionalMemberAccess` + 24 `reportPossiblyUnbound` (the 257
+`reportArgumentType` is mostly DataFrame strictness noise). Fixing domain control
+flow blind risks masking real bugs (don't guess) — so the ratchet stops the bleed
+and points at the priority, leaving the fix to the owner. genomics needs no ratchet
+(pyright scoped to 10 files at 0/0, already gated by `type-check-core`).
