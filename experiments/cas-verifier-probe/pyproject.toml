@@ -1,0 +1,11 @@
+[project]
+name = "cas-verifier-probe"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "openai>=2.41.0",
+    "symbolica>=2.0.0",
+    "sympy>=1.14.0",
+]

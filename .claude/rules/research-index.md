@@ -31,12 +31,14 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-06-07-claude-code-codex-feature-delta.md` | Feature Delta: Claude Code & Codex CLI (May–June 2026) | TODO |
 | `2026-06-07-dependency-update-audit.md` | Dependency Update Audit — 2026-06-07 | TODO |
 | `2026-06-07-harness1-state-externalization.md` | Harness-1: State-Externalizing Harnesses — Research Memo + Leverage Analysis | TODO |
+| `2026-06-08-cas-verifier-probe-results.md` | RESULTS: CAS-as-RLVR-Verifier Probe (Stage 1) | TODO |
 | `2026-06-08-cas-verifier-probe-scope.md` | Scope: CAS-as-RLVR-Verifier Probe | TODO |
 | `2026-06-08-genomics-new-biomcp-capabilities.md` | INVESTIGATION IN PROGRESS | TODO |
 | `2026-06-08-symbolic-vs-neural-trajectory.md` | Compression, Program Synthesis, Symbolic AI, Mech Interp — Pragmatic Trajecto... | TODO |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
 | `adversarial-case-library.md` | Adversarial Case Library: The Best "Calling BS" Reviews | TODO |
 | `agent-behavior-refresh-2026-04.md` | Agent Behavior Delta — Memory, Self-Modification, Sycophancy | TODO |
+| `agent-dev-loop-tooling-2026-06.md` | Agent Dev-Loop Tooling Survey — test / lint / debug / explore (2026-06-08) | TODO |
 | `agent-economics-decision-frameworks.md` | Agent Economics: How Near-Zero Dev Cost Changes Decision Frameworks | TODO |
 | `agent-ecosystem-weekly-2026-03-20.md` | Agent Ecosystem Weekly 2026 03 20 | TODO |
 | `agent-ecosystem-weekly-2026-03-26.md` | Agent Ecosystem Weekly 2026 03 26 | TODO |

@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+pairs.jsonl
+results.json
+smoke.py
+dbg.py
+probe_sym.py
+llmtest.py
+main.py
+.python-version
