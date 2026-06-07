@@ -5,7 +5,7 @@ repo: agent-infra
 decision_date: 2026-06-07
 recorded_date: 2026-06-07
 provenance: contemporaneous
-status: proposed
+status: accepted
 initial_leaning: "ratify + sharpen the pending 2026-06-04 AMPLIFY/AUTOMATE split by making the discriminator explicit (verifiability, not domain); REVISED after cross-model review to a three-regime model with domain-as-prior and a non-perverse metric; constitution/GOALS edits human-gated"
 relations:
   - type: branches_from
@@ -16,11 +16,12 @@ relations:
 
 # 2026-06-07: Verifier-conditioned autonomy — amend the Generative Principle
 
-> **Constitution (CLAUDE.md) and GOALS.md are human-protected. The redline in
-> §Proposed amendment is PROPOSED and awaits Markus's explicit yes/no on the
-> actual text. The `interview-prompt` answer MOTIVATES this amendment; it is a
-> preference signal, NOT approval of the redline. The decision-record itself is
-> within meta's autonomy; the principle/metric edits are not.**
+> **APPLIED 2026-06-07 with Markus's explicit approval ("Alright let's go").**
+> The redline is live in CLAUDE.md (Generative Principle → Verifier-conditioned
+> scope) and GOALS.md (Generative Principle + Primary Success Metric). The
+> `interview-prompt` answer *motivated* the amendment; the explicit go-ahead on
+> this record's redline is the approval. Constitution/GOALS remain human-owned —
+> further changes still require sign-off.
 
 ## What prompted this
 Two threads converged:
