@@ -27,7 +27,7 @@ uv run agentlogs stats                   # DB size, per-vendor counts, indexer h
 
 ## Research Index
 
-~201 research memos in `research/`. Full index with topics and "consult before" triggers: `.claude/rules/research-index.md` (path-scoped to `research/**`, `decisions/**`).
+~202 research memos in `research/`. Full index with topics and "consult before" triggers: `.claude/rules/research-index.md` (path-scoped to `research/**`, `decisions/**`).
 
 <constitution>
 > **Human-protected.** Agent may propose changes but must not modify without explicit approval.
@@ -51,7 +51,7 @@ A model-as-judge proxy does **not** make taste work "verifiable" — ground-trut
 
 ### Principles
 
-**1. Architecture over instructions.** Instructions alone = 0% reliable (EoG). If it matters, enforce with hooks/tests/scaffolding. Text is a prototype; architecture is the product. Exception: simple format rules and semantic predicates that can't be expressed as deterministic checks. *Evidence: SlopCodeBench (arXiv:2603.24755, Mar 2026) — quality-aware prompts improve initial code quality but do not reduce degradation rate across iterations. Instructions shift the intercept; architecture shifts the slope.*
+**1. Architecture over instructions.** Instructions alone = 0% reliable (EoG). If it matters, enforce with hooks/tests/scaffolding. Text is a prototype; architecture is the product. Exception: simple format rules and semantic predicates that can't be expressed as deterministic checks. *Evidence: SlopCodeBench (arXiv:2603.24755, Mar 2026) — quality-aware prompts improve initial code quality but do not reduce degradation rate across iterations. Instructions shift the intercept; architecture shifts the slope. Also Harness-1 (arXiv:2606.02373, Jun 2026): on a FIXED model (GPT-5.4, zero retraining), swapping only the harness lifts curated recall 0.511→0.807→0.849 — externalizing recoverable bookkeeping (candidate pool, curated set, verification records, dedup, budget-aware rendering) out of the policy is a compute-allocation lever independent of training, with gains 2.2× larger on held-out transfer. The sharper rule: externalize recoverable state; leave the policy only semantic decisions. See `decisions/2026-06-07-state-externalization-lens.md`.*
 
 **2. Enforce by category.**
 
