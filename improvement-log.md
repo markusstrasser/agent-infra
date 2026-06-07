@@ -6,6 +6,16 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ## Findings
 <!-- session analyst appends below -->
 
+### [2026-06-07] SHADOW: risky-diff-review demand probe (writer/reviewer separation — measure before enforcing)
+- **Session:** this one. Prompted by an X/Twitter thread pitching a 3-agent writer/reviewer/deployer pipeline. Verdict: the writer/reviewer kernel is already integrated 6x (`/code-review`, `/critique model`, `fresh-eyes-review`, `code-reviewer` subagent, `Workflow`, + `posttool-review-check` martingale-guard), and self-review-degeneracy did NOT reproduce on Opus 4.8 (`decisions/2026-06-03-verifier-bound-autonomy.md`). A new reviewer pipeline would be redundant against a partly-disconfirmed premise.
+- **The one real delta:** auto-trigger (vs. remember-to-invoke). Per the verifier-conditioned amendment (this session), that matters ONLY in the no-cheap-verifier / high-irreversibility regime — clear-verifier code already has tests as its reviewer.
+- **Built (shadow, report-only):** `scripts/risky_diff_review_shadow.py` — counts high-blast-radius diffs (constitution/goals, behavioral-rule, hook, schema/contract, settings/mcp) that landed with **no accompanying test AND no review signal** in their session. `just risky-diff-shadow` (scan+log), `just risky-diff-report` (consumer), wired into `gov.py` report. 4 tests green. Body-aware review detection (review often lives in the commit body) cut the naive 30d rate 16→8/54.
+- **Consumer (named, per [[consumption-over-autonomy]]):** the binary "build an auto-review gate, y/n" decision. Shadow log `~/.claude/risky-diff-shadow.jsonl`.
+- **Known FP source for calibration:** path-based reasons over-flag *doc/record* edits to governance files (vetoes, stale-marking) vs. actual behavior/code changes; ~2-3 of 8 are genuine (e.g. `8a0a790` CorpusStore refactor, no test+no review). Distinguishing record-edit from behavior-edit is the 2-week calibration target.
+- **Reversibility:** high — meta-only report-only detector + just recipes + defensive gov import; revert the commit to remove.
+- **Status:** [ ] proposed (SHADOW). **Promote/cut ~2026-06-21:** promote to an auto-review trigger only if it fires often AND unreviewed-risky commits correlate with later fixes; cut if rare (the live hypothesis, given 4.8 self-review). Gov-ID `hook:risky-diff-review-shadow`, blast_radius local.
+- **Source:** this session; `decisions/2026-06-07-guardian-angels-transfer.md`, verifier-conditioned amendment.
+
 ### [2026-06-04] SHIPPED: extract-generators dedup-scope + guard-route + unconditional de-laundering (cross-project extractor pattern)
 - **Session:** intel `aaacd855` review of the prior `/extract-generators` run (commit intel@e0ae7eb1, TEL/ACLS/Zitron session). Operator asked whether the output was too narrow or too generic and whether the skill should improve.
 - **Observed:** the run shipped 3 entries to `memory/thinking_prompts.md`; only 1 (`pundit-three-axis-audit`) was a clean keeper. `hold-vs-named-alternative` restated opportunity cost; `critique-recency-blindspot` restated CLAUDE.md `<ai_text_policy>` Frontier Timeliness. Failure was **over-production toward generic**, not over-fit. Two structural causes, both cross-project (they bite `/social-thread` Phase 5 and `/propose-rule` the same way):
