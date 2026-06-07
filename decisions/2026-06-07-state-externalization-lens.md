@@ -52,3 +52,11 @@ The fork: does this paper change anything we do, or is it just confirmatory read
 - The inventory-before-dispatch scope fails a probe (e.g. the digest is too noisy to be actionable, or agentlogs/git latency makes it stale at dispatch time) → drop to a lighter form or abandon.
 - A *measured* demand signal appears for a broader working-memory harness (≥3 sessions where general agents lose track of curated findings across compaction in a way scaffolding would fix) → reopen Alternative 4.
 - Markus declines the Constitution evidence addition → keep the lens as governance-only, no constitutional status.
+
+## Implementation (2026-06-07, same session)
+All three decision items shipped:
+1. Constitution Principle 1 evidence addition — **applied** with Markus's explicit approval (agent-infra@4275b7a). Harness-1 Appendix P / Fig 7 cited as the fixed-model, zero-training harness-lift data point.
+2. Inventory-before-dispatch — **built** (skills@a6a63b3, wired ~/.claude@c1ac097), not deferred. `~/Projects/skills/hooks/pretool-inventory-dispatch.py`: PreToolUse:Agent advisory, git-log-in-cwd topic match, gated to research/exploration dispatches, skips worktree, fails open, ~0.3s. v1 is git-log-only; agentlogs FTS is the measured v2 enrichment (a single term matched 34k events in the 11GB index → needs recent-run/task-message scoping before it's low-noise). Tests in `test_inventory_dispatch.py`. Logs under `inventory-dispatch` for ROI measurement (Principle 3).
+3. Diagnostic lens — recorded here as the standing rule-authoring review question.
+
+**Measurement window:** revisit after ~2 weeks of `inventory-dispatch` trigger logs. Promote (e.g. add agentlogs v2) if it surfaces real overlaps; demote/retune if it's noise like the brainstorm/single-tool nags the subagent-gate dropped (82 warns/3d, 0 effect).
