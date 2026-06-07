@@ -339,15 +339,26 @@ def render_md(rep: dict) -> str:
     L.append("")
 
     L.append("## Build-then-undo (high-confidence, report-only)")
-    if rep["build_then_undo"]:
-        for f in rep["build_then_undo"][:15]:
-            if "error" in f:
-                L.append(f"- (analyzer error: {f['error']})")
-            else:
-                L.append(f"- {f.get('files')} · add `{str(f.get('add_commit'))[:8]}` → "
-                         f"del `{str(f.get('delete_commit'))[:8]}` · session {str(f.get('session'))[:8]}")
-        if len(rep["build_then_undo"]) > 15:
-            L.append(f"- … +{len(rep['build_then_undo']) - 15} more")
+    btu = rep["build_then_undo"]
+    if btu:
+        errs = [f for f in btu if "error" in f]
+        for f in errs:
+            L.append(f"- (analyzer error: {f['error']})")
+        graded = [f for f in btu if "error" not in f]
+        # move_type splits genuine rebuild waste from legitimate regime
+        # transitions (supersession/discovery) — surface churn, de-emphasize the
+        # rest (arXiv 2606.01444; decisions/2026-06-07-categorical-discovery-*).
+        churn = [f for f in graded if f.get("move_type", "churn") == "churn"]
+        transitions = [f for f in graded if f.get("move_type", "churn") != "churn"]
+        L.append(f"- **churn (suspect): {len(churn)}** · regime transitions "
+                 f"(superseded/discovery, de-emphasized): {len(transitions)}")
+        for f in churn[:15]:
+            L.append(f"- ⚠ {f.get('files')} · add `{str(f.get('add_commit'))[:8]}` → "
+                     f"del `{str(f.get('delete_commit'))[:8]}` · session {str(f.get('session'))[:8]}")
+        if len(churn) > 15:
+            L.append(f"- … +{len(churn) - 15} more churn")
+        if not churn:
+            L.append("- no suspect churn — all high-confidence findings are regime transitions")
     else:
         L.append("- none (or analyzer unavailable)")
     L.append("")
