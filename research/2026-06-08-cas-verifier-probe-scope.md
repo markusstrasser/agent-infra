@@ -2,10 +2,12 @@
 title: "Scope — CAS-as-RLVR-Verifier Probe (does a compiled CAS beat sympy at fixing false negatives?)"
 date: 2026-06-08
 tags: [scope, probe, rlvr, verifier, symbolic, experiment-design]
-status: active
+status: complete
 ---
 
 # Scope: CAS-as-RLVR-Verifier Probe
+
+> **RESOLVED 2026-06-08** — Stage 1 ran. Verdict: CAS is a ~180× throughput win but NOT a recall fix; only the LLM closes the FN gap. H2 not a clean win, H3 strong yes. No build; Stage 2 not warranted. Results: `2026-06-08-cas-verifier-probe-results.md`; code: `experiments/cas-verifier-probe/`.
 
 **Origin:** open seam from `symbolic-engines-in-frontier-training-2026-06-07.md` (claim 12, UNSOURCED) and `2026-06-08-symbolic-vs-neural-trajectory.md`. Thesis to test: a compiled, embeddable CAS doing canonical/Schwartz–Zippel equivalence checking is a better RLVR verifier than the status-quo regex/sympy-lite answer-matcher, by structurally eliminating false negatives.
 
