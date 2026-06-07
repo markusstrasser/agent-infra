@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -49,6 +50,44 @@ def test_generated_hook_commands_do_not_double_wrap(tmp_path: Path) -> None:
 
     assert twice == once
     assert once.count("codex_hook_shim") == 1
+
+
+def test_shim_wrap_is_idempotent_and_carries_event() -> None:
+    module = load_module()
+    wrapped = module.shim_wrap("/abs/path/hook.sh --flag", "Stop")
+    assert wrapped.startswith("CODEX_HOOK_EVENT=Stop python3 ")
+    assert "codex_hook_shim.py" in wrapped
+    assert module.shim_wrap(wrapped, "Stop") == wrapped  # idempotent
+
+
+def test_sync_global_codex_hooks_wraps_and_backs_up(tmp_path: Path, monkeypatch) -> None:
+    module = load_module()
+    hooks_file = tmp_path / "hooks.json"
+    hooks_file.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "PreToolUse": [
+                        {"matcher": "Bash", "hooks": [{"type": "command", "command": "/abs/guard.sh"}]}
+                    ]
+                }
+            }
+        )
+    )
+    monkeypatch.setattr(module, "GLOBAL_CODEX_HOOKS", hooks_file)
+
+    # check mode writes nothing
+    res = module.sync_global_codex_hooks(check=True)
+    assert res["wrapped"] == 1 and res["would_update"] is True
+    assert "codex_hook_shim" not in hooks_file.read_text()
+
+    # apply mode wraps + backs up + is idempotent
+    res = module.sync_global_codex_hooks(check=False)
+    assert res["wrapped"] == 1
+    assert "codex_hook_shim" in hooks_file.read_text()
+    assert hooks_file.with_suffix(".json.prewrap.bak").exists()
+    again = module.sync_global_codex_hooks(check=False)
+    assert again["wrapped"] == 0 and again["would_update"] is False
 
 
 def test_env_placeholders_emit_as_codex_env_vars_not_plaintext() -> None:
