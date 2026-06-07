@@ -497,19 +497,29 @@ wheels = [
 
 [[package]]
 name = "corpus-core"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "packages/corpus-core" }
 dependencies = [
     { name = "duckdb" },
-    { name = "httpx" },
     { name = "jsonschema" },
+]
+
+[package.optional-dependencies]
+all = [
+    { name = "httpx" },
     { name = "pydantic" },
     { name = "pymupdf4llm" },
     { name = "pypdf" },
     { name = "trafilatura" },
 ]
-
-[package.optional-dependencies]
+extract = [
+    { name = "pymupdf4llm" },
+    { name = "pypdf" },
+    { name = "trafilatura" },
+]
+figures = [
+    { name = "pydantic" },
+]
 liteparse = [
     { name = "liteparse" },
 ]
@@ -518,6 +528,9 @@ llm-fallback = [
 ]
 modal = [
     { name = "modal" },
+]
+net = [
+    { name = "httpx" },
 ]
 
 [package.dev-dependencies]
@@ -528,18 +541,19 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "corpus-core", extras = ["extract", "net", "figures"], marker = "extra == 'all'", editable = "packages/corpus-core" },
     { name = "duckdb", specifier = ">=1.0" },
     { name = "google-genai", marker = "extra == 'llm-fallback'", specifier = ">=1.0" },
-    { name = "httpx", specifier = ">=0.27" },
+    { name = "httpx", marker = "extra == 'net'", specifier = ">=0.27" },
     { name = "jsonschema", specifier = ">=4.20" },
     { name = "liteparse", marker = "extra == 'liteparse'", specifier = ">=2.0" },
     { name = "modal", marker = "extra == 'modal'", specifier = ">=1.0,<2.0" },
-    { name = "pydantic", specifier = ">=2.0" },
-    { name = "pymupdf4llm", specifier = ">=0.0.20" },
-    { name = "pypdf", specifier = ">=4.0" },
-    { name = "trafilatura", specifier = ">=2.0" },
+    { name = "pydantic", marker = "extra == 'figures'", specifier = ">=2.0" },
+    { name = "pymupdf4llm", marker = "extra == 'extract'", specifier = ">=0.0.20" },
+    { name = "pypdf", marker = "extra == 'extract'", specifier = ">=4.0" },
+    { name = "trafilatura", marker = "extra == 'extract'", specifier = ">=2.0" },
 ]
-provides-extras = ["llm-fallback", "liteparse", "modal"]
+provides-extras = ["extract", "net", "figures", "all", "llm-fallback", "liteparse", "modal"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -576,7 +590,7 @@ name = "corpus-workspace"
 version = "0"
 source = { virtual = "." }
 dependencies = [
-    { name = "corpus-core" },
+    { name = "corpus-core", extra = ["all"] },
     { name = "corpus-testing" },
 ]
 
@@ -593,7 +607,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "corpus-core", editable = "packages/corpus-core" },
+    { name = "corpus-core", extras = ["all"], editable = "packages/corpus-core" },
     { name = "corpus-core", extras = ["modal"], marker = "extra == 'modal'", editable = "packages/corpus-core" },
     { name = "corpus-testing", editable = "packages/corpus-testing" },
 ]

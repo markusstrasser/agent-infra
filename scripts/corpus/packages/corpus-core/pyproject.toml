@@ -1,20 +1,26 @@
 [project]
 name = "corpus-core"
-version = "0.1.0"
+version = "0.2.0"
 description = "Canonical shared corpus store — PDFs, parses, citances, annotations, graph index"
 readme = "../../README.md"
 requires-python = ">=3.11"
+# Lean base = the read/identity/annotate/outbox core (duckdb + jsonschema). PDF/HTML
+# extraction, network ingest, and figure-parsing deps are extras so downstream
+# read-only consumers (e.g. claimcore in the genome-toolkit cohort) install a thin tree.
+# Full-CLI consumers request `corpus-core[all]`. See module→dep map: pypdf/pymupdf4llm/
+# trafilatura → extract/*; httpx → ingest.py; pydantic → figure_extract.py.
 dependencies = [
     "duckdb>=1.0",
-    "pypdf>=4.0",
     "jsonschema>=4.20",
-    "pymupdf4llm>=0.0.20",
-    "trafilatura>=2.0",
-    "httpx>=0.27",
-    "pydantic>=2.0",
 ]
 
 [project.optional-dependencies]
+extract = ["pypdf>=4.0", "pymupdf4llm>=0.0.20", "trafilatura>=2.0"]
+net = ["httpx>=0.27"]
+figures = ["pydantic>=2.0"]
+# `all` = everything the `corpus` CLI needs to run end-to-end (NOT the heavier
+# opt-in integrations below, which stay separately requestable).
+all = ["corpus-core[extract,net,figures]"]
 llm-fallback = ["google-genai>=1.0"]
 liteparse = ["liteparse>=2.0"]
 modal = [

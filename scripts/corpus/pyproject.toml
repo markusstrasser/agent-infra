@@ -4,7 +4,7 @@ version = "0"
 description = "Workspace root for the corpus toolkit (meta-package; depends on every workspace member so `uv sync` from here installs them all)"
 requires-python = ">=3.11"
 dependencies = [
-    "corpus-core",
+    "corpus-core[all]",
     "corpus-testing",
 ]
 

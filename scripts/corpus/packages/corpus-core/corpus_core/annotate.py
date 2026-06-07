@@ -47,6 +47,7 @@ relation, not a property name (move #4).
 
 Phase E of .claude/plans/2026-05-27-knowledge-infra-next-foundations.md.
 """
+
 from __future__ import annotations
 
 import json
@@ -114,8 +115,10 @@ def _schemas_dir() -> Path:
     # Walk: package dir → corpus_core/ → corpus-core/ → packages/ → corpus/ → schemas/
     here = Path(__file__).resolve().parent
     candidates = [
-        here.parent.parent.parent / "schemas" / "v1",  # editable install
-        here.parent / "schemas" / "v1",                 # wheel-bundled (force-include)
+        here / "schemas" / "v1",  # installed wheel/sdist (packaged under corpus_core/)
+        here.parent.parent.parent
+        / "schemas"
+        / "v1",  # editable install (monorepo: scripts/corpus/schemas/v1)
     ]
     for c in candidates:
         if c.is_dir():
@@ -167,7 +170,9 @@ def validate_relation_body(relation: dict[str, Any]) -> None:
         ) from e
     rel_schema = dict(_load_schema("annotation.v1.json")["properties"]["relation"])
     # Derived at drain — don't require it eagerly (and callers must not set it).
-    rel_schema["required"] = [r for r in rel_schema.get("required", []) if r != "relation_id"]
+    rel_schema["required"] = [
+        r for r in rel_schema.get("required", []) if r != "relation_id"
+    ]
     if "relation_id" in relation:
         raise AnnotationSchemaError(
             "relation must NOT carry relation_id — the substrate derives it at drain"
@@ -241,7 +246,11 @@ def _existing_annotation_record(
 # Lifecycle fields deliberately EXCLUDED from annotation_stable_tuple (so a
 # replayed record keeps its id). A re-append that changes any of these but
 # nothing else is a same-content CORRECTION — it must not be silently dropped.
-_LIFECYCLE_DISCRIMINATORS = ("status", "supersedes_annotation_id", "source_content_hash")
+_LIFECYCLE_DISCRIMINATORS = (
+    "status",
+    "supersedes_annotation_id",
+    "source_content_hash",
+)
 
 
 def _atomic_append(path: Path, payload: bytes) -> None:
@@ -328,6 +337,7 @@ def annotate(
     # (the producer supplies only the semantic body).
     if relation is not None:
         from .identity import relation_content_sha
+
         rel_sha = relation_content_sha(
             relation_class=relation.get("relation_class", ""),
             subject_refs=relation.get("subject_refs", []) or [],
@@ -366,7 +376,11 @@ def annotate(
             "source_content_hash": source_content_hash,
         }
         for field in _LIFECYCLE_DISCRIMINATORS:
-            old = existing.get(field) if field != "status" else existing.get("status", "active")
+            old = (
+                existing.get(field)
+                if field != "status"
+                else existing.get("status", "active")
+            )
             if incoming[field] != old:
                 raise AnnotationError(
                     f"annotation_id {annotation_id} already exists for {source_id} "
@@ -402,7 +416,9 @@ def annotate(
 
     # Build the record. A relation-bearing record advances to schema 1-0-1.
     record: dict[str, Any] = {
-        "schema_version": SCHEMA_VERSION_RELATION if relation is not None else SCHEMA_VERSION,
+        "schema_version": SCHEMA_VERSION_RELATION
+        if relation is not None
+        else SCHEMA_VERSION,
         "conformsTo": CONFORMS_TO_RELATION if relation is not None else CONFORMS_TO,
         "annotation_id": annotation_id,
         "source_id": source_id,
@@ -460,6 +476,7 @@ def annotate(
     # source of truth — DB failure logs and continues; rebuild catches up.
     try:
         from .index import index_annotation
+
         index_annotation(record, store=store)
     except SchemaVersionMismatch:
         raise
