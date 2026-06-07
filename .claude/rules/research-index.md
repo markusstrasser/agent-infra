@@ -28,8 +28,10 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-06-04-arena-agent-eval-transfer.md` | Arena.ai Agent Arena — What Transfers to a Single-Operator Setup — Research Memo | TODO |
 | `2026-06-07-biomcp-fastmcp-upstream-delta.md` | BioMCP / FastMCP Upstream Delta — 2026-06-07: DDInter DDI, GTR diagnostics, EMA, FastMCP 3.4, MCP RC stateless | biomedical-mcp port decisions; FastMCP upgrades; MCP spec compliance |
 | `2026-06-07-biomedical-ontologies-datasets-delta.md` | Biomedical Ontologies & Datasets — 2026 Delta | TODO |
+| `2026-06-07-claude-code-codex-feature-delta.md` | Feature Delta: Claude Code & Codex CLI (May–June 2026) | TODO |
 | `2026-06-07-dependency-update-audit.md` | Dependency Update Audit — 2026-06-07 | TODO |
 | `2026-06-07-harness1-state-externalization.md` | Harness-1: State-Externalizing Harnesses — Research Memo + Leverage Analysis | TODO |
+| `2026-06-08-symbolic-vs-neural-trajectory.md` | Compression, Program Synthesis, Symbolic AI, Mech Interp — Pragmatic Trajecto... | TODO |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
 | `adversarial-case-library.md` | Adversarial Case Library: The Best "Calling BS" Reviews | TODO |
 | `agent-behavior-refresh-2026-04.md` | Agent Behavior Delta — Memory, Self-Modification, Sycophancy | TODO |
