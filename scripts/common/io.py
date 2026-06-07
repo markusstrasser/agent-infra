@@ -18,6 +18,11 @@ def load_jsonl(path: Path, *, since: str | None = None) -> list[dict]:
                 row = json.loads(line)
             except json.JSONDecodeError:
                 continue
+            if not isinstance(row, dict):
+                # Skip bare scalars/arrays — callers expect dict rows. A stray
+                # non-object line (e.g. an unescaped multi-line detail value
+                # written as a bare JSON string) must not crash consumers.
+                continue
             if since and row.get("ts", "") < since:
                 continue
             rows.append(row)
