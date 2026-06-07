@@ -132,9 +132,9 @@ How to verify this constitution is working (check via `/observe sessions` after 
 
 **`/loop` + interactive sessions is primary.** The human runs Claude Code directly, uses `/loop` for recurring tasks (`/improve maintain`, `/research cycle`), and steers in real-time. Subagents handle fan-out within sessions.
 
-## Orchestrator — Manual Invocation
+## Active launchd jobs
 
-Queue-backed task runner. Previously scheduled via `com.agent-infra.orchestrator` launchd plist; removed 2026-04-24 together with the other API-burning daily jobs (`code-review-daily`, `propose-work-daily`, `session-retro-daily`, `hook-roi-daily`). Run manually: `uv run python3 scripts/archived_orchestrator.py --help`. Daily cost cap (when invoked): $25.
+The orchestrator (queue-backed task runner) was fully eradicated 2026-06-07 — its launchd schedule was removed 2026-04-24 (with `code-review-daily`/`propose-work-daily`/`session-retro-daily`/`hook-roi-daily`), and the parked `archived_orchestrator.py` + its dead state path (`agent-state.json`, `stop-failures.jsonl`, the StopFailure backoff/billing writes) were deleted once confirmed it had no live consumer.
 
 The active launchd jobs are local, zero-API: `com.agent-infra.agentlogs-index` (every 2h session-dir indexing), `com.agent-infra.audit-corpus-sync` (daily 04:30 verdict/relation drift + parse-health advisory + outbox drain), `com.agent-infra.corpus-ledger-commit` (daily 05:00 git-commit of the corpus belief-change ledger), `com.agent-infra.test-health` (daily 05:30 suite-completion sentinel), `com.agent-infra.codebase-map-refresh` (daily 06:30 — regenerates the 5-project codebase maps via `just refresh-maps`; zero-API + idempotent, so no git churn on unchanged repos), and `com.agent-infra.reflect-eval` (one-shot 2026-06-17 09:00 — grades the session-learning loop's pre-registered tests, then self-unloads).
 
