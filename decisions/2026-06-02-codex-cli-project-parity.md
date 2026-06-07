@@ -73,3 +73,39 @@ Codex sessions on this machine **stall** when MCP is loaded: `rmcp ... TokenRefr
 ("invalid_grant: Refresh token is invalid or expired")`. The only OAuth remote MCP is
 **scite**; with MCP cleared (`-c 'mcp_servers={}'`) a `codex exec` turn completes in
 seconds. Fix: `codex mcp login scite` (or disable the scite server). Flagged to operator.
+
+## Revision 2026-06-07 — Codex hook firing matrix (corrects an over-claim)
+
+The original note assumed Claude hooks "port over" once tool-name matchers were
+mirrored. **That is wrong**, per OpenAI's own `migrate-to-codex/references/
+differences.md` (bundled with codex-cli **0.137**). The bridge faithfully *copies*
+hooks, but Codex only *fires* a subset:
+
+| Claude hook | Fires under Codex 0.137? | Note |
+|---|---|---|
+| `PreToolUse` matcher `Bash` | ✅ LIVE | shell commands only |
+| `PostToolUse` matcher `Bash` | ✅ LIVE | only Bash matched |
+| `SessionStart` / `UserPromptSubmit` / `Stop` (matcher-less) | ✅ LIVE | matcher ignored |
+| `PreToolUse`/`PostToolUse` matcher `Write`,`Edit`,`Read`,`Agent`,`Skill`,`WebSearch`,`WebFetch`,`mcp__*` | ❌ INERT | **runtime never invokes them** |
+
+Measured on the generated mirrors: intel had **4 LIVE / 13 INERT**, phenome **3 / 3**.
+The inert matchers are copied, pass `codex-hook-compat` (valid JSON / exit codes), and
+still **never run**. So Codex's subagent tool is `spawn_agent`, but there is *no*
+pre-dispatch hook point — `PreToolUse:Agent` (and the new
+`pretool-inventory-dispatch.py`) are **Claude-only by Codex's design**, not a bridging
+gap. Symlinks cannot fix a hook the runtime won't call.
+
+**Consequences for "make tooling work on Codex":**
+- Write/Edit enforcement that must run under Codex has to be re-expressed as a **Stop
+  hook** (OpenAI's explicit guidance) — e.g. the append-only guard, source-remind, and
+  provenance-warn hooks are currently inert under Codex.
+- Subagent-dispatch guards (subagent-gate, inventory-before-dispatch) have **no Codex
+  equivalent** until Codex extends `PreToolUse` beyond shell. Accept as Claude-only.
+
+**Proposed (NOT YET BUILT — shared infra, needs cross-model review per Constitution
+Principle 12):** a *capability-aware* pass in `codex_parity_sync.py` that, instead of
+copying every matcher, (1) emits a per-repo **LIVE/INERT coverage report** so the inert
+reality is visible each sync (report-only first — Principle 3), and (2) optionally
+**remaps** a small allowlist of critical Write/Edit guards to `Stop` hooks so they
+actually enforce under Codex. Until then, the firing matrix above is the authoritative
+reference — no per-hook re-derivation.

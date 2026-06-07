@@ -22,9 +22,23 @@ Empirically verified (2026-06-02, codex-cli 0.135):
   - project .codex/config.toml mcp_servers MERGE with ~/.codex/config.toml (union).
   - project .codex/hooks.json hooks MERGE with ~/.codex/hooks.json (3 SessionStart
     hooks fired = 2 global + 1 project).
-  - Codex normalizes hook tool-name matchers to Claude style (Bash, Write|Edit ->
-    apply_patch, mcp__server__tool) and uses the same $CLAUDE_TOOL_INPUT / exit-2 /
-    additionalContext contract, so Claude project hooks port over.
+
+CODEX HOOK FIRING MATRIX (authoritative: OpenAI migrate-to-codex/references/
+differences.md, bundled with codex-cli 0.137 — supersedes the earlier ASSUMPTION
+that Write|Edit/Agent matchers "port over"; only the SessionStart merge above was
+ever actually tested):
+  - PreToolUse / PostToolUse fire for SHELL (Bash) commands ONLY. Matchers like
+    Write, Edit, Read, Agent, Skill, WebSearch/WebFetch and mcp__* are COPIED by
+    this sync but are INERT under Codex — the runtime never invokes them. (Codex's
+    subagent tool is `spawn_agent`; no PreToolUse fires for it either.)
+  - LIVE under Codex: Bash PreToolUse/PostToolUse + the matcher-less lifecycle
+    events SessionStart / UserPromptSubmit / Stop.
+  - Same $CLAUDE_TOOL_INPUT contract; OUTPUT diverges (exit-2 reason on stderr,
+    hookSpecificOutput nesting) and is reshaped by codex_hook_shim.py.
+  - Write/Edit enforcement that must run under Codex has to move to a Stop hook
+    (OpenAI's own guidance). This sync does NOT yet prune/remap inert matchers —
+    see decisions/2026-06-02-codex-cli-project-parity.md for the proposed
+    capability-aware pass.
 
 Run:
   uv run python3 scripts/codex_parity_sync.py            # sync all mirrored repos
