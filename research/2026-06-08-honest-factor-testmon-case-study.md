@@ -101,6 +101,29 @@ Duration distribution — where the wait actually lives:
 - "Blocking" = not `run_in_background`; an agent could in principle do other work
   while a foreground call runs, but in practice foreground = the turn waits.
 
+## Coda: the biggest suite was the *worst* fit (the sharpest honest-factor lesson)
+
+The three repos finished and inverted the obvious intuition ("biggest, slowest suite
+= biggest testmon win"):
+
+| Repo | Suite | testmon outcome |
+|------|-------|-----------------|
+| **phenome** | ~967 tests, ~121s | **works** — 31–77x warm; cold populate feasible |
+| **intel** | ~1,114 tests | **works** — cold 50s → warm 0.85s (13 sel / 71 desel on an `llr.py` edit); also *repaired a month-broken suite* as a side effect |
+| **genomics** | ~9,000 items, heavy Modal/DB fixtures, ~35min | **does NOT fit** — testmon's per-test coverage instrumentation is ~10x+ on heavy fixtures, so the one-time cold populate (must run the *whole* suite once to know the dependency map) pushes toward **hours** and stalled at 17%. A *partial* `.testmondata` is worse than none — it silently **under-selects** (only knows the tests it instrumented). |
+
+The lesson: testmon's bootstrap cost **scales with suite heaviness**, so the suite
+with the most to gain is exactly where the mechanism can't bootstrap. The per-repo
+win is not a function of "how slow is the suite" — it's "is the cold populate
+affordable." genomics' 35min suite is best attacked by a *different* lever (the
+diff-scoped coverage gate already shipped, or scoped subsets agents already run),
+not testmon. Wiring landed in genomics but is left **dormant + guarded** (the recipe
+must not auto-cold-populate — that's the stall that just happened).
+
+This is the honest-factor rule taken to its conclusion: not only is the per-run
+factor not the session factor — the *win itself doesn't generalize across surfaces*,
+and only measuring each one (not extrapolating from phenome's 31–77x) revealed it.
+
 *Method: `/leverage` step 7 (pilot + MEASURE) and the "honest factor" rule. Source
-data: `~/.claude/agentlogs.db` `tool_calls`. Companion:
-`research/agent-dev-loop-tooling-2026-06.md`.*
+data: `~/.claude/agentlogs.db` `tool_calls`; per-repo agent runs 2026-06-08.
+Companion: `research/agent-dev-loop-tooling-2026-06.md`.*
