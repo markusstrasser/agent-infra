@@ -117,8 +117,9 @@ with the most to gain is exactly where the mechanism can't bootstrap. The per-re
 win is not a function of "how slow is the suite" — it's "is the cold populate
 affordable." genomics' 35min suite is best attacked by a *different* lever (the
 diff-scoped coverage gate already shipped, or scoped subsets agents already run),
-not testmon. Wiring landed in genomics but is left **dormant + guarded** (the recipe
-must not auto-cold-populate — that's the stall that just happened).
+not testmon. testmon was **removed from genomics entirely** (commit 62111ebe — dep,
+recipe, wrapper, allowlist, gitignore) after the cold-populate stall; it stays in
+phenome/intel where the suites are light enough to bootstrap.
 
 This is the honest-factor rule taken to its conclusion: not only is the per-run
 factor not the session factor — the *win itself doesn't generalize across surfaces*,
