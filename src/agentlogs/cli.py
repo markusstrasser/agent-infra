@@ -42,6 +42,10 @@ def _make_parser() -> argparse.ArgumentParser:
                          help="Re-import even if source sha+parser_version already succeeded")
     s_index.add_argument("--no-lock", action="store_true",
                          help="Skip single-writer lock (debug only)")
+    s_index.add_argument("--source-timeout", type=float, default=180.0,
+                         help="Per-source DB-work budget in seconds (sqlite progress-handler "
+                              "watchdog). A source exceeding it is aborted + marked failed rather "
+                              "than hanging the indexer (and its lock) indefinitely. Default 180.")
     s_index.add_argument("--bulk", action="store_true",
                          help="Drop FTS triggers during indexing and rebuild the FTS index at the "
                               "end. Major speedup for large first-pass / catch-up runs (FTS triggers "
@@ -150,6 +154,7 @@ def cmd_index(args) -> int:
             for v in vendors:
                 stats = ix.index_vendor(
                     db, v, limit_sources=args.limit_sources, force=args.force,
+                    source_timeout_s=getattr(args, "source_timeout", 180.0),
                 )
                 # index_vendor catches outer exceptions and writes
                 # indexer_runs.status='error'; check for those vendor-level
