@@ -19,11 +19,44 @@ from __future__ import annotations
 
 import hashlib
 import sqlite3
+import time
 import traceback
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
+
+DEFAULT_SOURCE_TIMEOUT_S = 180.0
+
+
+class _SourceWatchdog:
+    """sqlite3 progress handler that aborts a single source's DB work once it
+    exceeds a wall-clock budget.
+
+    Why a progress handler and not SIGALRM: the failure that motivated this
+    (PID 1897, 18h CPU) was a single `executemany` stuck inside a C-level
+    `sqlite3_step` B-tree walk. A Python signal handler only runs between
+    bytecodes, so SIGALRM cannot preempt a blocked C call — it would never
+    fire. `set_progress_handler` is invoked by SQLite itself every N VM ops and
+    can abort the operation at the C level (raising OperationalError), which the
+    per-source try/except then turns into a 'failed source, continue' instead of
+    an unbounded hang that holds the indexer lock for days.
+    """
+
+    def __init__(self, budget_s: float = DEFAULT_SOURCE_TIMEOUT_S):
+        self.budget_s = budget_s
+        self.deadline: float | None = None
+
+    def arm(self) -> None:
+        self.deadline = time.monotonic() + self.budget_s
+
+    def disarm(self) -> None:
+        self.deadline = None
+
+    def __call__(self) -> int:  # progress-handler callback
+        if self.deadline is not None and time.monotonic() > self.deadline:
+            return 1  # non-zero → SQLite aborts the in-flight statement
+        return 0
 
 from .adapters import ADAPTERS
 from .adapters.common import DiscoveredSource, json_dumps
@@ -565,15 +598,24 @@ def index_vendor(
     limit_sources: int | None = None,
     source_paths: list[Path] | None = None,
     force: bool = False,
+    source_timeout_s: float = DEFAULT_SOURCE_TIMEOUT_S,
 ) -> IndexerStats:
     """Ingest one vendor's sources into the given DB connection.
 
     Returns stats including sources_imported / sources_skipped / events_written.
     Writes an indexer_runs row (success or error).
+
+    Each source's DB work is bounded by `source_timeout_s` via a sqlite progress
+    handler (_SourceWatchdog): a single pathological source aborts and is marked
+    failed rather than hanging the whole indexer (and its lock) indefinitely.
     """
     adapter = ADAPTERS[vendor]
     parser_name, parser_version = adapter.parser_identity()
     stats = IndexerStats()
+    watchdog = _SourceWatchdog(source_timeout_s)
+    # Fire roughly every 50k VM ops — frequent enough to honor a seconds-scale
+    # budget, coarse enough to add no measurable overhead to normal writes.
+    db.set_progress_handler(watchdog, 50_000)
     run_row_id = _start_indexer_run(db, vendor)
     error: Exception | None = None
     try:
@@ -593,6 +635,11 @@ def index_vendor(
         stats.sources_discovered = len(sources)
 
         for source in sources:
+            # Disarm first: the skip-check / sha / _upsert_source below run their
+            # own sqlite statements and must NOT inherit a stale (past) deadline
+            # from the previous source — that would abort them and bubble to the
+            # outer except, killing the whole vendor pass.
+            watchdog.disarm()
             if not source.path.exists():
                 continue
             sha = _sha256_file(source.path)
@@ -605,6 +652,7 @@ def index_vendor(
                 stats.sources_skipped += 1
                 continue
 
+            watchdog.arm()  # bound this source's parse+write to source_timeout_s
             try:
                 parsed = adapter.parse_source(source)
             except Exception as exc:
@@ -638,7 +686,11 @@ def index_vendor(
                 # re-raised, which killed the entire vendor's pass on any single
                 # bad source — turned one corrupt jsonl into a multi-day cascade
                 # (see 2026-04-24 cleanup session, agentlogs.db.indexlock orphan).
-                db.execute("ROLLBACK")
+                # Guard the ROLLBACK: a progress-handler abort (watchdog) already
+                # rolls the txn back, so a blind ROLLBACK raises "no transaction
+                # is active" and masks the real error.
+                if db.in_transaction:
+                    db.execute("ROLLBACK")
                 _write_import(
                     db, source_id=source_id, sha=sha,
                     parser_name=parser_name, parser_version=parser_version,
@@ -655,6 +707,8 @@ def index_vendor(
         error = exc
         traceback.print_exc()
     finally:
+        watchdog.disarm()
+        db.set_progress_handler(None, 0)  # uninstall — leave the connection clean
         _finish_indexer_run(db, run_row_id, stats, error)
     return stats
 
@@ -728,6 +782,14 @@ def _write_parsed(db, parsed, source_id: int, import_id: int, stats: IndexerStat
                 _db_text(ev.parent_event_id), _db_text(ev.correlation_id),
                 _db_text(ev.tool_call_id),
             ))
+        # Dedupe the batch by event_id (PK, element 0). A single source can emit
+        # two events that derive the same stable_id (same run_id+raw_key+suffix —
+        # e.g. a repeated/replayed line), and ONE such collision fails the entire
+        # executemany on the events.event_id PK, because ON CONFLICT below targets
+        # (run_id, seq), not event_id. That failed every post-May-4 codex source
+        # (UNIQUE constraint failed: events.event_id), silently keeping codex dark.
+        # Last-wins; dict preserves insertion order.
+        event_rows = list({row[0]: row for row in event_rows}.values())
         db.executemany(
             """
             INSERT INTO events (
