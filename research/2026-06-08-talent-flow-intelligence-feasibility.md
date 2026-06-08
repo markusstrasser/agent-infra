@@ -105,4 +105,31 @@ workforce. Talent FLOW is intrinsically about volume/concentration, which a top-
 — its `/search` is a panel query (`jobs.started_at` window + `jobs.company`), the right shape for
 flow density. "Too scarce" was wrong: the data is abundant (Coresignal 882M / Live Data 80–160M /
 Revelio 1.1B), just behind a panel API, not a search engine. "Scrape LinkedIn" stays vetoed
-(Proxycurl). Next concrete step unchanged but now evidence-backed: Live Data free beta.
+(Proxycurl).
+
+## Revision 2026-06-08b — Live Data WIRED + first real-panel result
+
+Built `scripts/talent_flow_livedata.py`. Contract resolved by live probing:
+- Auth: `Authorization: Bearer ldtkey_…` (API key direct; OAuth not needed). Org `o_3daf8872`
+  (Synthoria), in `$LIVEDATA_ORG_ID`. Endpoint `POST …/people/v1/{org}/search`. 120 rpm.
+- **`size:0` returns `count` for FREE** (no people downloaded) — cheap denominator/edge counts.
+- **`aggs` is NOT honored on the beta tier** (returns `[]`) — no server-side histograms.
+- Filter semantics: multiple clauses **in one group match the SAME job** (nested); cross-job AND
+  needs **separate filter groups**. Co-occurrence join key must be **`company.linkedin` slug**
+  (`nvidia`✓ 43.5k) — exact `company.name` is fragile (`"Intel"`→283; canonical "Intel Corporation").
+- Beta cap: **500 people-downloads/month**. `count`/`size:0` is free; `--sample N` costs N.
+
+**First result — NVIDIA recent joiners (sample=100, ~105 credits spent):** flow is now *measurable*
+(real panel, real ISO dates, 43.6k NVIDIA records) — the Exa scarcity is gone. BUT whole-company
+inflow is **dispersed by function**: top feeders None(8, sole-job/stealth), Kumo(4), Google(3),
+Adobe/Intel/Zoox(2), then a long tail of 1s spanning sales, PR, interns, AV, finance. NVIDIA hires
+from *everywhere*, so company-level inflow is noisy. Two real takeaways:
+1. **The meaningful signal needs slicing** — filter `jobs.function`/`jobs.title`/`level` to isolate
+   technical-talent flow from generic hiring. Whole-company net-flow ≠ alpha.
+2. **Cluster = acqui-hire signal** — **Kumo→NVIDIA ×4 same window** is almost certainly an
+   acqui-hire/acquisition. Clustered same-time moves from one small company is a genuine,
+   detectable pattern (and the kind of thing intel would want as an alert).
+
+Status: granularity #2 is now *feasible and wired*, signal is *real but needs function/seniority
+slicing or pair-focus*. Next refinement (unspent): function-filtered flows + same-window cluster
+detection. Budget-gated — did not spend further without sign-off. Next concrete step unchanged but now evidence-backed: Live Data free beta.
