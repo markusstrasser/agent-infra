@@ -3507,3 +3507,24 @@ The session-end RSI/bug/bottleneck/dead-infra reflection only happens when the h
 - **Fix (F2, shipped):** the 13 orchestrator-moot items marked `[~] retired` with the eradication anchor.
 - **Root cause:** system-design (overloaded status glyph; behavioral observations conflated with a todo queue, against the constitution's own "append-only calibration ledger" principle).
 - **Status:** [x] implemented — F5 (cadence-as-architecture: a `gov-report` actionable-open>30d line) remains `[ ]`-worthy but depends on this split landing first; defer to a fresh pass.
+
+### [2026-06-08] SHIPPED: agentlogs indexer un-blinded + the orchestrator window (agent-infra + skills)
+- **Session:** agent-infra 4d40085a. Mapped the RSI loop, found its sensor (agentlogs indexer) had hung silently for a month (PID 1897, 18h CPU on one FTS-amplified executemany, holding the fcntl lock; every 2h cron fire since exited 0 on IndexerLockBusy). Operator steered: visible orchestrator window over invisible launchd.
+- **Shipped:** indexer watchdog (sqlite progress handler, `--source-timeout`) + rollback-guard + event-id batch-dedupe (agent-infra@a7b2c9d); doctor `check_agentlogs_indexer` — the first reader `v_indexer_health` ever had, immediately flagged claude/kimi staleness (agent-infra@9e8cc00); `/orchestrator` skill — sweep + one rotating subagent, launchd kept for deterministic jobs, orchestrator watches (skills@28fd28f). Plan + cross-model critique: `.claude/plans/4d40085a-close-the-rsi-loop-sensing-and-closure.md`.
+- **Status:** [x] implemented (the silent-hang class is closed + watched).
+
+### [2026-06-08] CODEX_INDEXING_BLOCKED: cross-file same-session event_id collision (agent-infra)
+Codex sessions that span multiple rollout files share a session_id → same `run_id`; line numbers reset per file, so line-N in file 2 derives the same `stable_id` event_id as line-N in file 1, colliding with an already-committed row. The events executemany `ON CONFLICT(run_id, seq)` does not cover the event_id PK, so the whole source fails (`UNIQUE constraint failed: events.event_id`). Batch-dedupe (shipped) fixes intra-batch collisions but NOT this cross-source case — so **all post-May-4 codex sources still fail to index; codex data stays dark until fixed.** Fix: namespace codex `_record_key` by source-file identity (stem/hash) so cross-file events are distinct, AND verify re-import idempotency holds (`test_ingest_idempotent` analog). Then backfill the ~2005-source codex gap. HIGH — this is the user's actual recent-session data.
+- **Status:** [ ] proposed
+
+### [2026-06-08] INDEXER_NO_RECENCY_BOUND: unbounded DB growth, re-scans all history every run (agent-infra)
+The indexer discovers + sha-checks all 3333 codex rollouts (6.4GB) every run and the DB is 11GB with no prune. For a forward-looking RSI loop a rolling window is enough (operator: "2 months is enough"). Add a `--since` discovery bound + an age-out prune so the working set stays recent and runs stay cheap. Pairs with the codex fix above (only backfill the recent gap, not all history).
+- **Status:** [ ] proposed
+
+### [2026-06-08] INDEXER_POISON_SOURCE_RETRY: failing sources retried every run (agent-infra)
+A source that fails the watchdog (e.g. the oversized `~/.gemini/tmp/{intel,genomics,publishing}/logs.json`, retired-vendor junk) is re-attempted every run, burning the budget repeatedly. Add a poison-source quarantine: after K consecutive failures on the same (path, sha), skip it until it changes. General fix (any vendor), low priority.
+- **Status:** [ ] proposed
+
+### [2026-06-08] AGENTLOGS_EDITABLE_IS_A_COPY: src edits don't take effect without reinstall (agent-infra)
+`pyproject.toml` `packages=[".", "src/agentlogs"]` installs `agentlogs` as a COPY in site-packages even under `-e`, so `src/agentlogs/*.py` edits are inert until `uv pip install -e . --force-reinstall`, and the launchd job runs the stale copy. Drop the dual-package config so the editable install is genuinely editable. Footgun for any agent (incl. the orchestrator's implementor) touching the agentlogs package.
+- **Status:** [ ] proposed
