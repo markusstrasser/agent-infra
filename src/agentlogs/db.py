@@ -37,6 +37,13 @@ def connect(path: Path | str | None = None) -> sqlite3.Connection:
     db.execute("PRAGMA busy_timeout=30000")
     db.execute("PRAGMA foreign_keys=ON")
     db.execute("PRAGMA trusted_schema=ON")
+    # The store is ~11GB / 2.76M events with 7 indexes on `events`; per-source
+    # inserts and the denorm subqueries are disk-bound when the working set spills
+    # the default 2MB page cache (state-UN I/O stalls). A larger cache + memory-
+    # mapped reads keep hot B-tree pages resident — measured the dominant lever on
+    # bulk-import throughput. cache_size is negative = KiB; mmap_size is bytes.
+    db.execute("PRAGMA cache_size=-1048576")   # 1 GiB page cache
+    db.execute("PRAGMA mmap_size=8589934592")  # 8 GiB memory-mapped I/O
 
     apply_migrations(db)
     return db
