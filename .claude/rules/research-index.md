@@ -34,6 +34,9 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-06-08-cas-verifier-probe-results.md` | RESULTS: CAS-as-RLVR-Verifier Probe (Stage 1) | TODO |
 | `2026-06-08-cas-verifier-probe-scope.md` | Scope: CAS-as-RLVR-Verifier Probe | TODO |
 | `2026-06-08-genomics-new-biomcp-capabilities.md` | INVESTIGATION IN PROGRESS | TODO |
+| `2026-06-08-honest-factor-testmon-case-study.md` | Case study: sizing a win honestly — testmon, blocking test time, and the per-... | TODO |
+| `2026-06-08-orphaned-generator-sweep.md` | Orphaned-Generator Sweep — agent-infra/scripts (2026-06-08) | TODO |
+| `2026-06-08-parallel-entity-search-probe.md` | Parallel FindAll Entity Search — Live Probe + Head-to-Head | TODO |
 | `2026-06-08-symbolic-vs-neural-trajectory.md` | Compression, Program Synthesis, Symbolic AI, Mech Interp — Pragmatic Trajecto... | TODO |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
 | `adversarial-case-library.md` | Adversarial Case Library: The Best "Calling BS" Reviews | TODO |
