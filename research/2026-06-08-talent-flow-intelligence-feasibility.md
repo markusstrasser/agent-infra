@@ -75,5 +75,11 @@ pull job-change data for ~5 intel-universe tickers + a couple of AI labs, check 
 and (b) adds signal vs intel's existing 8-K/Form-4 detection. If it clears that bar, *then* a thin
 ingester into intel's alert system. Until then, Exa people search covers individual-move lookups.
 
+**Built (granularity #1):** `scripts/talent_flow_probe.py` — Exa structured-summary → dated
+inbound transitions + flow matrix, stdlib-only, re-runnable. Demo (AI labs, since 2025-01)
+surfaced **OpenAI → Thinking Machines Lab (4×)** plus xAI/DeepMind/FAIR/Mistral → TML — Murati's
+lab pulling frontier talent, the canonical directional signal. SSI returned 0 (stealth profiles —
+recall limit). Snapshot-derived, so it's individual moves, not net-flow volume.
+
 Open decision (Markus's call): pursue the Live Data probe? And is this personal-research-only
 (low compliance risk) or something you'd productize (changes the LinkedIn-data calculus)?
