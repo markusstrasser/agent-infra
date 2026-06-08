@@ -3468,3 +3468,19 @@ The generative principle maximizes declining-supervision (autonomy). It is struc
 ### [2026-06-08] RSI_LOOP: end-of-session self-audit is unhabitual + missing a self-process lens (agent-infra)
 The session-end RSI/bug/bottleneck/dead-infra reflection only happens when the human asks. Pieces exist (/observe capture, /leverage prospective, /improve action, improvement-log) but: (a) no single full-spectrum evidence-grounded end-of-session capture; (b) NO lens for the agent's OWN process failures (e.g. guessing a bottleneck 3x before profiling — wasted ~15 turns this session); (c) no capture-not-fix discipline (fixing at session-end IS the fix-spiral trap). PRIMARY CONSTRAINT: improvement-log is at 141 open vs 189 done — consumption lags capture, so the fix is a `/improve harvest+maintain` CADENCE to drain, NOT a new capture skill. Proposed mechanism: an `/observe session-end` mode (full-spectrum + self-process lens, capture-only) + recurring `/improve` drain. Build FRESH, not at a session tail. Self-process meta-lesson for any agent: profile/measure before optimizing or asserting a cause.
 - **Status:** [ ] proposed
+
+### [2026-06-08] WRONG_TOOL_DRIFT: blamed-before-measuring on API cost (intel 8f440e9a)
+- **Session:** intel 8f440e9a
+- **Evidence:** Agent asserted `generate_overview.py` caused Gemini cost spikes "every session." Only after writing `usage_summary.py` to query `llmx-usage.jsonl` did it find generate_overview is deterministic ($0) and `/critique` (gemini-3.5-flash) was the actual ~$58/mo driver. Classic assert-cause-before-measuring (same class as the doctor.py slow-loop guessing finding).
+- **Failure mode:** WRONG-TOOL DRIFT / blamed-before-measuring (agent self-process)
+- **Proposed fix:** [architectural] Stamp caller/script/skill ID into each `llmx-usage.jsonl` record so billing is programmatically attributable per-spender. Per-call usage is already logged (model, effort, tokens, latency — see `~/.claude/rules/llmx-routing.md`); the caller field is the named gap the agent itself flagged mid-session ("add caller attribution to llmx's usage logging — that's the real leverage"). Checkable: `jq` rollup by caller becomes possible. Touches `~/Projects/llmx` (separate repo) → propose, don't auto-apply.
+- **Root cause:** system-design (no caller attribution) + agent-capability (asserted before measuring)
+- **Status:** [ ] proposed
+
+### [2026-06-08] BROKEN_COMMIT: zsh word-splitting dropped new module from git add → HEAD imports nonexistent module (intel 6c8ccfd2)
+- **Session:** intel 6c8ccfd2
+- **Evidence:** A 31-file ConvictionStamp(StrEnum) migration committed as `2d0bbeda` but the new module `tools/lib/trade_vocab.py` was untracked — multiline shell `git add` variable word-split and dropped it. HEAD imported a nonexistent module. Agent self-caught ("HEAD imports a nonexistent module. Fixing... via xargs not the broken multiline var, amending") and amended. No broken commit persisted, but it was caught by manual cosign, not architecture.
+- **Failure mode:** REASONING-ACTION MISMATCH (committed state diverged from intent)
+- **Proposed fix:** [hook] pre-commit (or commit-time-guard backstop): parse staged Python files for local-module imports (`from tools.lib.X import` / `import tools.lib.X`) and verify each imported local module file is staged or already tracked. Block if a committed file imports a local module that is neither tracked nor staged. Deterministic where manual cosign is not. Aligns with the commit-time-guard backstop pattern (pre-commit-protected-paths.sh) already wired across the 4 repos.
+- **Root cause:** agent-capability (multiline shell var word-splitting — the existing bash-loop-guard targets the symptom but not staged-import integrity)
+- **Status:** [ ] proposed
