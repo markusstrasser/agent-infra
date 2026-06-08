@@ -60,6 +60,17 @@ Append-only; mark state, never delete:
 - **`[~]` retired** — scaffold removed because its verifier passes without it (or it
   decayed). Cite the verifier verdict or decay evidence.
 - **`[>]` superseded-by `<id>`** — replaced by another artifact; link it.
+- **`[obs]` behavioral observation** — an append-only calibration-ledger entry (TOKEN WASTE,
+  SYCOPHANCY, MISSING PUSHBACK, REASONING-ACTION MISMATCH, OVER-ENGINEERING…). Consumer is
+  recurrence→rule promotion, NOT per-item implementation — it can never be `[x]`. **Never tag a
+  behavioral finding `[ ]`** (that inflates the actionable-open count into a panic number; F1
+  2026-06-08). When a rule ships covering a class, bulk-mark its contributors `[>]` superseded-by.
+- **`[-]` rejected** — decided not to do (one-off, low-severity, or out of scope).
+
+**`[ ]` is reserved for genuinely-actionable, still-open infra/tooling/architecture work** —
+the only stream "drain the backlog" applies to, and the only one `gov-report`/`doctor` should
+count. Two streams, one file: the behavioral ledger (`[obs]`, mined for recurrence) and the
+actionable queue (`[ ]`→`[x]`). Backfill tool: `scripts/reclassify_improvement_log.py`.
 
 The subtract verb is the point: governance that only grows is a ratchet. `gov-report`
 surfaces retirement candidates (decayed advisories, shrink-eligible scaffolds); a
