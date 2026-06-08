@@ -103,6 +103,13 @@ doctor:
 test-health *args:
     uv run python3 scripts/test_health.py {{args}}
 
+# Orphaned-generator ratchet (report-only): flag scripts/ generators with no
+# consumer (wired/imported/referenced/invoked). Standing consumer for the
+# generation-without-consumption disease. Re-verify each flag by hand before deleting.
+[group('health')]
+orphan-check *args:
+    uv run python3 scripts/orphan_check.py {{args}}
+
 # Audit verdicts ↔ corpus-annotation drift (substrate-v1, Phase 4 backstop)
 [group('health')]
 audit-corpus-sync *args:
