@@ -24,6 +24,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+import subprocess
 import sys
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -213,6 +214,75 @@ def advisory_noise(days: int) -> list[dict]:
     return out
 
 
+# ── reasoning-quality signals (the gray-zone trio's standing reader) ──────────
+# reasoning-audit / tool-trajectory / thesis-challenge were report-only detectors
+# with NO consumer (orphaned-generator sweep 2026-06-08). This collector is their
+# standing reader: gov-report runs each and folds in a one-line headline so the
+# output is actually read on a cadence. Fail-open subprocess — a broken or slow
+# detector surfaces as an error line (which is itself the signal that it rotted),
+# never crashes the report.
+REASONING_DETECTORS = (
+    ("tool-trajectory", ["--json"], "tool_utilization"),
+    ("thesis-challenge", [], "thesis_challenge"),
+    ("reasoning-audit", ["--top", "10"], "fast_mode_savings"),
+)
+
+
+def reasoning_signals(days: int) -> list[dict]:
+    out: list[dict] = []
+    for name, extra, kind in REASONING_DETECTORS:
+        script = REPO / "scripts" / f"{name}.py"
+        if not script.exists():
+            out.append({"detector": name, "kind": kind, "error": "script missing"})
+            continue
+        cmd = ["uv", "run", "python3", str(script), "--days", str(days), *extra]
+        try:
+            p = subprocess.run(cmd, capture_output=True, text=True, timeout=120, cwd=REPO)
+        except subprocess.TimeoutExpired:
+            out.append({"detector": name, "kind": kind, "error": "timeout (120s)"})
+            continue
+        except Exception as e:  # noqa: BLE001
+            out.append({"detector": name, "kind": kind, "error": str(e)[:120]})
+            continue
+        stdout = (p.stdout or "").strip()
+        if p.returncode != 0 or not stdout:
+            err = (p.stderr or "").strip().splitlines()
+            out.append({"detector": name, "kind": kind,
+                        "error": (err[-1][:120] if err else f"exit {p.returncode}, no output")})
+            continue
+        out.append(_summarize_reasoning(name, kind, stdout))
+    return out
+
+
+def _summarize_reasoning(name: str, kind: str, stdout: str) -> dict:
+    """Collapse a detector's stdout into one report headline. Fail-open: any parse
+    miss degrades to a raw first-line snippet, never an exception."""
+    rec: dict = {"detector": name, "kind": kind}
+    try:
+        if name == "tool-trajectory":
+            data = json.loads(stdout)
+            n = data.get("total_sessions", 0)
+            tips = data.get("tipping_signals") or data.get("tips") or []
+            rec["headline"] = (f"{n} sessions over window · "
+                               f"{len(tips)} task-type tipping signal(s) (>20% util drop)")
+            rec["detail"] = tips[:5]
+        elif name == "thesis-challenge":
+            recs = [json.loads(ln) for ln in stdout.splitlines() if ln.strip().startswith("{")]
+            theses = sum(r.get("thesis_count", 0) for r in recs)
+            challenged = sum(r.get("challenged_count", 0) for r in recs)
+            rate = (challenged / theses) if theses else None
+            rec["headline"] = (f"{theses} investment theses across {len(recs)} intel session(s) · "
+                               f"challenge rate {rate:.0%}" if rate is not None
+                               else f"{len(recs)} session(s) scanned · no theses found")
+            rec["detail"] = [r["session_id"][:8] for r in recs if r.get("challenge_rate") == 0.0][:5]
+        else:  # reasoning-audit
+            rec["headline"] = stdout.splitlines()[0][:160]
+    except Exception as e:  # noqa: BLE001
+        rec["headline"] = f"(unparsed) {stdout.splitlines()[0][:120] if stdout else ''}"
+        rec["parse_error"] = str(e)[:80]
+    return rec
+
+
 # ── gov-shrink dry-run ────────────────────────────────────────────────────────
 def gov_shrink_dryrun(artifacts: list[dict]) -> dict:
     """A scaffold is shrink-eligible iff it has a verifier (re-run with scaffold
@@ -286,6 +356,7 @@ def build_report(days: int, write_snapshot: bool) -> dict:
         "advisory_noise": noise, "shrink": shrink, "build_then_undo": btu,
         "unreviewed_risky": unreviewed_risky,
         "corrections": corrections,
+        "reasoning_signals": reasoning_signals(days),
         "coverage_note": gov_invariants.coverage_note() if gov_invariants else "",
     }
 
@@ -377,6 +448,22 @@ def render_md(rep: dict) -> str:
         L.append("- _shadow only — promote/cut ~2026-06-21 (`just risky-diff-report`)_")
     else:
         L.append("- none (or analyzer unavailable)")
+    L.append("")
+
+    L.append("## Reasoning-quality signals (report-only — gray-trio standing reader)")
+    rs = rep.get("reasoning_signals", [])
+    if rs:
+        for s in rs:
+            if s.get("error"):
+                L.append(f"- ⚠ `{s['detector']}` — analyzer error: {s['error']}")
+            else:
+                L.append(f"- `{s['detector']}` ({s['kind']}): {s.get('headline', '(no headline)')}")
+                for d in (s.get("detail") or [])[:5]:
+                    L.append(f"    - {d}")
+        L.append("- _kept by decision 2026-06-04 (reasoning-quality-signal); this section is the "
+                 "consumer the sweep flagged was missing. Detectors run report-only on the gov cadence._")
+    else:
+        L.append("- none (detectors unavailable)")
     L.append("")
 
     L.append("## Pending corrections (`#f governance:` quarantine)")
