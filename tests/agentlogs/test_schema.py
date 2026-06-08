@@ -12,7 +12,7 @@ from agentlogs import index as ix
 
 def test_fresh_db_reaches_head_version(tmp_path: Path) -> None:
     db = agentlogs.connect(tmp_path / "new.db")
-    assert agentlogs.current_version(db) == 3
+    assert agentlogs.current_version(db) == 4
     db.close()
 
 
@@ -83,7 +83,7 @@ def test_migrations_idempotent_on_reopen(tmp_path: Path) -> None:
     db1 = agentlogs.connect(path)
     db1.close()
     db2 = agentlogs.connect(path)
-    assert agentlogs.current_version(db2) == 3
+    assert agentlogs.current_version(db2) == 4
     db2.close()
 
 
