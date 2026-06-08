@@ -43,7 +43,6 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
-import subprocess
 import sys
 from pathlib import Path
 
@@ -111,7 +110,7 @@ def wiring_corpus() -> str:
 
 def consumer_corpus() -> dict[str, str]:
     """Real-consumer surfaces, keyed by area, with inventories filtered out."""
-    out: dict[str, list[str]] = {}
+    out: dict[str, str] = {}
     roots = {
         "skills": [Path.home() / "Projects" / "skills"],
         "rules": [REPO / ".claude" / "rules"],
@@ -147,11 +146,16 @@ def importer_corpus() -> str:
     for f in SCRIPTS.rglob("*.py"):
         if "__pycache__" in f.parts:
             continue
+        # Skip the vendored corpus-core package: it's a standalone library that
+        # cannot import agent-infra's scripts/ generators, and it's the bulk of the
+        # blob (~35MB) that made the per-script regex scan slow.
+        if "packages" in f.parts:
+            continue
         parts.append(_read(f))
     return "\n".join(parts)
 
 
-def invocation_counts(days: int) -> dict[str, int]:
+def invocation_counts(days: int) -> dict[str, str]:
     if not AGENTLOGS_DB.exists() or AGENTLOGS_DB.stat().st_size == 0:
         return {}
     try:
@@ -191,30 +195,33 @@ def module_aliases(name: str) -> list[str]:
     return sorted({name, stem, underscore})
 
 
-def imported_by_someone(name: str, importers: str) -> bool:
+def imported_targets(importers: str) -> set[str]:
+    """All module/script names referenced as an import target, extracted in ONE
+    pass over the corpus. Replaces a per-script 5-regex scan (389 searches × 0.2s
+    ≈ 78s) with a handful of findall passes + O(1) membership — the difference
+    between ~80s and ~1s. Covers static imports (incl. a dotted `scripts.` prefix)
+    and the dynamic-import idioms (import_hyphenated / spec_from_file_location /
+    with_name)."""
+    names: set[str] = set()
+    names |= set(re.findall(r'(?:^|\n)\s*import\s+(?:[\w.]+\.)?(\w+)', importers))
+    names |= set(re.findall(r'(?:^|\n)\s*from\s+(?:[\w.]+\.)?(\w+)\s+import\b', importers))
+    names |= set(re.findall(r'import_hyphenated\(\s*["\']([\w-]+)["\']', importers))
+    names |= set(re.findall(r'spec_from_file_location\([^)]*["\']([\w.]+)', importers))
+    names |= set(re.findall(r'with_name\(\s*["\']([\w.-]+)["\']', importers))
+    return names
+
+
+def imported_by_someone(name: str, imported: set[str]) -> bool:
     stem = name.rsplit(".", 1)[0]
-    underscore = stem.replace("-", "_")
-    # Allow an optional dotted package prefix (e.g. `from scripts.mcp_middleware
-    # import ...`, `import scripts.mcp_middleware`) — the root MCP imports modules
-    # under the `scripts.` package, not bare.
-    mod = re.escape(underscore)
-    pats = [
-        rf'import_hyphenated\(\s*["\']{re.escape(stem)}["\']\s*\)',
-        rf'(?:^|\n)\s*import\s+(?:[\w.]+\.)?{mod}\b',
-        rf'(?:^|\n)\s*from\s+(?:[\w.]+\.)?{mod}\s+import\b',
-        rf'spec_from_file_location\([^)]*["\']{mod}',
-        rf'with_name\(\s*["\']{re.escape(name)}["\']\s*\)',
-    ]
-    return any(re.search(p, importers, re.MULTILINE) for p in pats)
+    return name in imported or stem in imported or stem.replace("-", "_") in imported
 
 
 def check_script(path: Path, *, wiring: str, consumers: dict[str, str],
-                 importers: str, inv_blob: str) -> dict:
+                 imported_set: set[str], inv_blob: str) -> dict:
     name = path.name
-    aliases = module_aliases(name)
 
     wired = any(a in wiring for a in (name, name.rsplit(".", 1)[0]))
-    imported = imported_by_someone(name, importers)
+    imported = imported_by_someone(name, imported_set)
 
     ref_areas = [area for area, blob in consumers.items()
                  if any(a in blob for a in (name, name.rsplit(".", 1)[0]))]
@@ -238,12 +245,16 @@ def check_script(path: Path, *, wiring: str, consumers: dict[str, str],
     }
 
 
-def scan(days: int = 90) -> dict:
+def scan(days: int = 90, with_invocations: bool = False) -> dict:
     wiring = wiring_corpus()
     consumers = consumer_corpus()
-    importers = importer_corpus()
-    inv = invocation_counts(days)
-    inv_blob = inv.get("__blob__", "")
+    imported_set = imported_targets(importer_corpus())  # one pass, not per-script
+    # The invocation signal scans the whole agentlogs args_json (11GB / ~500K rows)
+    # into memory — seconds-to-minutes. It is the WEAKEST signal (it only RESCUES a
+    # statically-orphaned script that's actually run directly) and report-only output
+    # is hand-verified before any deletion, so it is OFF by default to keep `just
+    # orphan-check` / doctor instant. Opt in with --with-invocations for the rescue pass.
+    inv_blob = invocation_counts(days).get("__blob__", "") if with_invocations else ""
 
     results: list[dict] = []
     for f in sorted(SCRIPTS.glob("*.py")) + sorted(SCRIPTS.glob("*.sh")):
@@ -251,7 +262,7 @@ def scan(days: int = 90) -> dict:
             continue
         results.append(check_script(
             f, wiring=wiring, consumers=consumers,
-            importers=importers, inv_blob=inv_blob))
+            imported_set=imported_set, inv_blob=inv_blob))
 
     flagged = [r for r in results if r["flagged"]]
     suppressed = [r for r in results
@@ -295,7 +306,7 @@ def main() -> int:
     days = 90
     if "--days" in args:
         days = int(args[args.index("--days") + 1])
-    rep = scan(days)
+    rep = scan(days, with_invocations="--with-invocations" in args)
     if "--json" in args:
         print(json.dumps(rep, indent=2, default=str))
         return 0
