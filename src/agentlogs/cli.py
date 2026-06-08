@@ -46,6 +46,10 @@ def _make_parser() -> argparse.ArgumentParser:
                          help="Per-source DB-work budget in seconds (sqlite progress-handler "
                               "watchdog). A source exceeding it is aborted + marked failed rather "
                               "than hanging the indexer (and its lock) indefinitely. Default 180.")
+    s_index.add_argument("--since-days", type=float, default=None,
+                         help="Only index sources modified within the last N days (rolling recency "
+                              "window). Keeps runs cheap and avoids re-touching legacy sources. "
+                              "Default: all history.")
     s_index.add_argument("--bulk", action="store_true",
                          help="Drop FTS triggers during indexing and rebuild the FTS index at the "
                               "end. Major speedup for large first-pass / catch-up runs (FTS triggers "
@@ -151,10 +155,15 @@ def cmd_index(args) -> int:
         try:
             total_imported = total_skipped = total_failed = 0
             vendor_errors = 0
+            since_ts = None
+            if getattr(args, "since_days", None) is not None:
+                import time as _time
+                since_ts = _time.time() - args.since_days * 86400
             for v in vendors:
                 stats = ix.index_vendor(
                     db, v, limit_sources=args.limit_sources, force=args.force,
                     source_timeout_s=getattr(args, "source_timeout", 180.0),
+                    since_ts=since_ts,
                 )
                 # index_vendor catches outer exceptions and writes
                 # indexer_runs.status='error'; check for those vendor-level

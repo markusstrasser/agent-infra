@@ -599,6 +599,7 @@ def index_vendor(
     source_paths: list[Path] | None = None,
     force: bool = False,
     source_timeout_s: float = DEFAULT_SOURCE_TIMEOUT_S,
+    since_ts: float | None = None,
 ) -> IndexerStats:
     """Ingest one vendor's sources into the given DB connection.
 
@@ -630,6 +631,12 @@ def index_vendor(
             ]
         else:
             sources = adapter.discover_sources()
+        if since_ts is not None:
+            # Recency bound: a forward-looking RSI loop only needs a rolling recent
+            # window. Skipping older files keeps runs cheap on the 11GB DB and avoids
+            # re-touching never-indexed legacy sources whose re-import/continuation
+            # collides on the events.event_id PK. Older already-indexed data stays put.
+            sources = [s for s in sources if s.path.stat().st_mtime >= since_ts]
         if limit_sources:
             sources = sources[:limit_sources]
         stats.sources_discovered = len(sources)
@@ -783,15 +790,10 @@ def _write_parsed(db, parsed, source_id: int, import_id: int, stats: IndexerStat
                 _db_text(ev.tool_call_id),
             ))
         # Dedupe the batch by event_id (PK, element 0). A single source can emit
-        # two events that derive the same stable_id (same run_id+raw_key+suffix —
-        # e.g. a repeated/replayed line), and ONE such collision fails the entire
-        # executemany on the events.event_id PK, because ON CONFLICT below targets
-        # (run_id, seq), not event_id. That failed every post-May-4 codex source
-        # (UNIQUE constraint failed: events.event_id), silently keeping codex dark.
-        # Last-wins; dict preserves insertion order.
+        # two events that derive the same stable_id; one collision fails the whole
+        # executemany. Last-wins; dict preserves insertion order.
         event_rows = list({row[0]: row for row in event_rows}.values())
-        db.executemany(
-            """
+        events_sql = """
             INSERT INTO events (
                 event_id, run_id, import_id, seq, ts, kind, vendor_kind, vendor_event_id,
                 role, text, payload_json, record_ref_id, parent_event_id, correlation_id, tool_call_id
@@ -811,10 +813,35 @@ def _write_parsed(db, parsed, source_id: int, import_id: int, stats: IndexerStat
                 parent_event_id = COALESCE(excluded.parent_event_id, events.parent_event_id),
                 correlation_id = COALESCE(excluded.correlation_id, events.correlation_id),
                 tool_call_id = COALESCE(excluded.tool_call_id, events.tool_call_id)
-            """,
-            event_rows,
-        )
-        stats.events_written += len(event_rows)
+            """
+        try:
+            db.executemany(events_sql, event_rows)
+            stats.events_written += len(event_rows)
+        except sqlite3.IntegrityError:
+            # The (run_id, seq) UPDATE branch sets event_id = excluded.event_id; on a
+            # re-import / cross-May-4 session continuation the seq↔event_id mapping
+            # shifts, so the UPDATE tries to assign an event_id that ALREADY exists on
+            # another (run_id, seq) row → PK violation, aborting the entire source's
+            # executemany (this is what kept codex dark post-May-4). Fall back to
+            # per-row so one colliding event is skipped instead of failing the source;
+            # log the first collision so the cause stays learnable. A failed-constraint
+            # statement does not abort the surrounding txn in sqlite, so this is safe.
+            written = skipped = 0
+            for r in event_rows:
+                try:
+                    db.execute(events_sql, r)
+                    written += 1
+                except sqlite3.IntegrityError:
+                    skipped += 1
+                    if skipped == 1:
+                        loc = db.execute(
+                            "SELECT run_id, seq FROM events WHERE event_id = ?", (r[0],)
+                        ).fetchone()
+                        print(f"[events] event_id collision: new (run={r[1]} seq={r[3]}) "
+                              f"id={r[0]} already at {tuple(loc) if loc else '?'} — skipping event")
+            stats.events_written += written
+            if skipped:
+                print(f"[events] per-row fallback: {written} written, {skipped} skipped (event_id collisions)")
 
     # Tool calls
     for tc in parsed.tool_calls:
