@@ -132,4 +132,29 @@ from *everywhere*, so company-level inflow is noisy. Two real takeaways:
 
 Status: granularity #2 is now *feasible and wired*, signal is *real but needs function/seniority
 slicing or pair-focus*. Next refinement (unspent): function-filtered flows + same-window cluster
-detection. Budget-gated — did not spend further without sign-off. Next concrete step unchanged but now evidence-backed: Live Data free beta.
+detection. Budget-gated — did not spend further without sign-off.
+
+## Revision 2026-06-08c — Acqui-hire cluster detector VALIDATED
+
+Built `scripts/acqui_hire_scan.py` (option 2): pull recency-sorted joiners per target, group by
+source company, flag clusters that are (a) ≥N from one source, (b) within a tight month-window,
+(c) from a SMALL source (headcount gate via `company.employee_count`). Downloads cached to
+`.scratch/livedata/` → re-analysis is free.
+
+**Result (Databricks + NVIDIA, since 2024-01, sample 80 each, ~160 credits):**
+- ✅ **TRUE POSITIVE:** `NVIDIA ← Kumo 4× [71 emp] span=0mo (all 2026-05) ★` — a 71-person startup's
+  team landing the same month. Textbook acqui-hire, correctly flagged.
+- ✅ **TRUE NEGATIVE (size gate works):** `Databricks ← Google 5× / AWS 4×` classified
+  "big-source pipeline", NOT acqui-hire — 5 from a 325k-co is normal flow. No false positive.
+- ✅ Null-source (stealth/sole-job) clusters tagged "dispersed", span 26-28mo, not flagged.
+
+**Verdict:** the acqui-hire cluster is the **cleanest, most intel-shaped** talent-flow signal —
+discrete, rare, verifiable, and it sidesteps the whole-company function-dispersion problem. The
+discriminator (small source + tight window) is sound: it caught the real cluster and rejected
+big-company pipeline flow. **Recall is sample-depth-bound** (recency-sorted 80 missed any deeper
+Databricks acqui-hires, e.g. Tabular ~40 ppl Jun-2024); discovery of *older* clusters needs larger
+pulls (more credits) or aggs (unavailable on beta). **Cheap follow-up (free, unspent):** a targeted
+verify mode — given (acquirer, suspected startup), FREE size:0 cross-job co-occurrence (separate
+groups + `company.linkedin` slug) confirms/quantifies a specific acqui-hire with zero download credits.
+
+**Session credit spend: ~265 / 500 monthly (105 NVIDIA flow probe + 160 cluster scan). ~235 left.** Next concrete step unchanged but now evidence-backed: Live Data free beta.
