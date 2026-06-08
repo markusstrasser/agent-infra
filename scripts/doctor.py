@@ -471,6 +471,27 @@ def check_telemetry_freshness() -> list[Check]:
 # --- Main ---
 
 
+def check_orphaned_generators() -> list[Check]:
+    """Report-only ratchet: flag scripts/ generators with no consumer.
+
+    Standing consumer for the orphaned-generator disease (generation-without-
+    consumption). Advisory — never fails the suite; a flag means re-verify by hand
+    via `just orphan-check`. See research/2026-06-08-orphaned-generator-sweep.md."""
+    c = Check("global:orphan-generators", "global")
+    try:
+        import orphan_check
+        rep = orphan_check.scan()
+    except Exception as e:  # noqa: BLE001 — advisory, fail open
+        return [c.warn(f"orphan_check unavailable: {str(e)[:80]}")]
+    flagged = rep["flagged"]
+    if not flagged:
+        return [c.ok(f"{rep['total_generators']} generators, 0 orphaned")]
+    names = ", ".join(r["script"] for r in flagged[:6])
+    extra = f" (+{len(flagged) - 6})" if len(flagged) > 6 else ""
+    return [c.warn(f"{len(flagged)} candidate orphan(s): {names}{extra} — "
+                   f"re-verify via `just orphan-check`")]
+
+
 def run_all_checks(project_filter: str | None = None) -> list[Check]:
     """Run all checks, optionally filtered to one project."""
     all_checks: list[Check] = []
@@ -482,6 +503,7 @@ def run_all_checks(project_filter: str | None = None) -> list[Check]:
         all_checks.extend(check_stale_agents())
         all_checks.extend(check_telemetry_freshness())
         all_checks.extend(check_test_health())
+        all_checks.extend(check_orphaned_generators())
 
         # Global CLAUDE.md
         gc = Check("global:CLAUDE.md", "global")
