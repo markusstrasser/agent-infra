@@ -83,3 +83,26 @@ recall limit). Snapshot-derived, so it's individual moves, not net-flow volume.
 
 Open decision (Markus's call): pursue the Live Data probe? And is this personal-research-only
 (low compliance risk) or something you'd productize (changes the LinkedIn-data calculus)?
+
+## Revision 2026-06-08 — Exa falsified for flow MEASUREMENT (granularity #2)
+
+Ran the probe on semiconductors to test the AI-lab scarcity. Result **falsifies Exa as a
+flow-measurement substrate** — and the cause is tool-fit, not data scarcity:
+
+- **Chip incumbents** (NVIDIA/AMD/Intel/Qualcomm/Broadcom, N=50 each = 250 profiles): **7 moves
+  total**, NVIDIA=2, Intel=0, Broadcom=0. **Every flow edge = count 1.**
+- **Chip startups** (Cerebras/Groq/Tenstorrent/SambaNova/Etched, N=50 = 250): 18 moves, still
+  **every edge = count 1** — no directional concentration anywhere.
+
+The tell: **NVIDIA (~30K employees) yielded FEWER moves than a stealth startup.** If this were
+data scarcity, incumbents would dominate. They didn't. Exa is a **relevance** engine — "joined
+NVIDIA" returns the top-N most *findable* profiles, a semantically-skewed micro-sample, not the
+workforce. Talent FLOW is intrinsically about volume/concentration, which a top-N relevance sample
+**cannot** represent. More queries / bigger N / bigger companies do not fix this — it's structural.
+
+**Conclusion:** Exa is good for granularity #1 (verify a named move happened) and useless for #2
+(measure a flow). The cheap path is now *falsified*, which **justifies the Live Data beta probe**
+— its `/search` is a panel query (`jobs.started_at` window + `jobs.company`), the right shape for
+flow density. "Too scarce" was wrong: the data is abundant (Coresignal 882M / Live Data 80–160M /
+Revelio 1.1B), just behind a panel API, not a search engine. "Scrape LinkedIn" stays vetoed
+(Proxycurl). Next concrete step unchanged but now evidence-backed: Live Data free beta.
