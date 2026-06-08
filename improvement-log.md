@@ -4,6 +4,21 @@ Findings from session analysis. Each tracks: observed → proposed → implement
 Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/`.
 
 ## Findings
+
+> **Status glyphs (two-stream model, F1 2026-06-08).** `[ ]` is reserved for genuinely
+> **actionable, still-open** infra/tooling/architecture work — the only stream "drain the
+> backlog" applies to. Terminal dispositions use non-`[ ]` glyphs so a `[ ]` count reflects
+> real work, not a panic number:
+> - `[x]` implemented · `[>]` superseded-by `<id>` · `[~]` retired/moot (subject gone)
+> - `[obs]` **behavioral observation** — an append-only calibration-ledger entry (TOKEN WASTE,
+>   SYCOPHANCY, MISSING PUSHBACK, REASONING-ACTION MISMATCH, OVER-ENGINEERING…). Its consumer is
+>   recurrence→rule promotion (aggregate signal), NOT per-item implementation — it can never be
+>   `[x]`. When a rule ships covering a class, bulk-mark contributors `[>]` superseded-by rule:X.
+> - `[-]` rejected — decided not to do.
+>
+> Session-analyst / `/observe` retro write behavioral findings as `[obs]`, never `[ ]`.
+> Backfill of the pre-2026-06-08 log: `scripts/reclassify_improvement_log.py`.
+
 <!-- session analyst appends below -->
 
 ### [2026-06-07] SHIPPED: build-then-undo move-type classifier — separate regime transitions from rebuild waste
@@ -137,7 +152,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** NEW — MCP routing/visibility failure (agent reaches for bash before routing-to-MCP is considered)
 - **Proposed fix:** PreToolUse:Bash guard hook that denies `modal (app list|volume get|app logs)` in Bash commands with an error message naming the MCP replacement. Allowlist `modal run|shell|volume put|deploy`. This is hard enforcement — CLAUDE.md rule 9 ("verify modal_utils.py imports") and the MCP `instructions` string are both being ignored, so soft signals have demonstrably failed. Priority P0. Evidence of waste: 260 tool calls in 3 sessions, each bash roundtrip ~2-4s vs structured MCP output.
 - **Root cause:** system-design — MCP tool discovery/routing is advisory, not enforced. Harness-agnostic: affects both Claude Code and Codex.
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-11] INFORMATION_WITHHOLDING: Plan-closure summary omits critical ledger state until user asks
 - **Session:** genomics 019d7aab (codex)
@@ -145,7 +160,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** INFORMATION_WITHHOLDING — agent had the data, knew it was relevant to plan closure, did not surface it
 - **Proposed fix:** Rule in genomics CLAUDE.md: "Plan closure messages for plans that touch sample state MUST embed the output of `genomics_status.py --sample <id>` (or the equivalent ledger read), not defer it to a user follow-up." Cleaner enforcement: `planctl close PLAN_KEY` optionally auto-embeds a ledger snapshot section into the closure commit message when the plan metadata declares `affects_sample_state: true`. Intersects with the existing PREMATURE_TERMINATION / planctl gate finding — both want planctl to know more about plan state semantics.
 - **Root cause:** agent-capability — the agent chose which context to include in the closure summary, and the choice was wrong
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-10] Run 28 — genomics full-migration execution today (Codex 019d7564 + 019d795f; skills audits clean)
 - **Sessions:** Codex 019d7564 (Modal/Postgres cutover execution), Codex 019d795f (full-automation handoff execution), Codex 019d7977-e9b4/ea1c (read-only `skills` repo contract audits, no new issues)
@@ -521,12 +536,12 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Session:** Codex 019d6d86 (genomics) continued
 - **Evidence:** Agent cycled through modal-app-list polling → volume _STATUS.json reads → heartbeat artifacts → local status cache → remote status → volume-ls CLI → back to local cache. Each restart introduced a new trust mechanism. Direct continuation of the "architectural sunk cost" pattern from run 17 — the same 16h session, still accumulating competing implementations. This is the 6th build-then-undo instance in the log.
 - **Root cause:** system-design — no single source of truth for pipeline state
-- **Status:** [ ] proposed — covered by existing architectural sunk cost finding
+- **Status:** [~] proposed — covered by existing architectural sunk cost finding retired — orchestrator + its churn eradicated 2026-06-07 (agent-infra@df9afe0); subject no longer exists
 
 ### [2026-04-08] RECURRENCE: Exec session leak — Codex hit 64-process limit repeatedly
 - **Session:** Codex 019d6d86 (genomics)
 - **Evidence:** Environment warned 40+ times about exceeding 60-process limit. Continuation of same pattern from run 17. Process limit warnings appeared between every block of tool calls in the tail of the session. Agent acknowledged but kept spawning CLI commands without cleanup.
-- **Status:** [ ] proposed — covered by existing resource exhaustion finding (run 17)
+- **Status:** [~] proposed — covered by existing resource exhaustion finding (run 17) retired — orchestrator + its churn eradicated 2026-06-07 (agent-infra@df9afe0); subject no longer exists
 
 ### [2026-04-08] POSITIVE: Claims verification against other agents maintained
 - **Session:** Codex 019d6d86 (genomics) continued
@@ -554,7 +569,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [rule] Hard cap: if a single-file module exceeds 2,500 lines AND is the source of >5 runtime bugs in a session, trigger mandatory architecture review before further patching. Also: when subagents identify a critical structural flaw, halt patching and write a consolidation plan.
 - **Severity:** high — 16h of compute, user explicitly offered the exit ramp, agent rejected it
 - **Root cause:** task-specification — RLHF bias toward task completion over system health
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] NEW: Inverted pushback — agent pushed back AGAINST user's good suggestion
 - **Session:** Codex 019d6f85 (genomics)
@@ -564,7 +579,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [rule] When debugging exceeds 4h or 100 tool calls on the same subsystem, agent must explicitly evaluate "would refactoring be faster than continued patching?" before continuing. Time-boxed check, not a full architecture review.
 - **Severity:** high — user had the right instinct, agent overrode it
 - **Root cause:** agent-capability — GPT-5.4 completion bias
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] RECURRENCE: Exec session leak via streaming CLI — Codex `modal app logs --tail` without timeout
 - **Session:** Codex 019d6d86 / 019d6f85 (genomics)
@@ -572,13 +587,13 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Failure mode:** RECURRENCE: Resource exhaustion — streaming CLI without timeout (4th+ occurrence across models)
 - **Proposed fix:** [hook] `pretool-streaming-cli-guard.sh` — intercept known streaming commands (`modal app logs`, `docker logs -f`, `tail -f`) without `timeout` wrapper and suggest/enforce timeout. Would catch both Claude and Codex.
 - **Root cause:** agent-capability — cross-model failure, neither Claude nor GPT-5.4 maps "streaming = blocking" to "needs timeout"
-- **Status:** [ ] proposed
+- **Status:** [~] proposed retired — orchestrator + its churn eradicated 2026-06-07 (agent-infra@df9afe0); subject no longer exists
 
 ### [2026-04-08] RECURRENCE: Token waste — write_stdin polling loop as sleep substitute
 - **Session:** Codex 019d6d86 / 019d6f85 (genomics)
 - **Evidence:** Chains of `write_stdin(session=20232) → write_stdin(session=20232) → ...` used as polling/waiting mechanism instead of bash sleep-and-check scripts. Matches existing sleep-poll finding (2026-04-07). Codex-specific variant of the pattern.
 - **Root cause:** agent-capability
-- **Status:** [ ] proposed — covered by existing polling hook
+- **Status:** [obs] proposed — covered by existing polling hook
 
 ### [2026-04-08] POSITIVE: Financial stewardship — agent correctly rejected SaaS upgrade to paper over bugs
 - **Session:** CC b7fe7899 (genomics)
@@ -610,7 +625,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 ### [2026-04-07] RECURRENCE: Wrong-tool drift — generic subagents instead of MCP research tools after /researcher loaded
 - **Session:** genomics 92e08e7b
 - **Evidence:** After /researcher skill loaded and agent had already used `mcp__research__search_papers`, `fetch_paper`, `ask_papers` for SBayesRC paper, user said "do the /researcher you need to do." Agent dispatched generic `Agent(Psychiatric disorder prevalence by ancestry)` and `Agent(Multi-ancestry SBayesRC LD references)` instead of using loaded MCP tools directly. 3rd occurrence of subagent-over-MCP pattern.
-- **Status:** [ ] proposed — meets promotion (3+ recurrences of generic-subagent-over-specialized-tool)
+- **Status:** [obs] proposed — meets promotion (3+ recurrences of generic-subagent-over-specialized-tool)
 
 ### [2026-04-07] RECURRENCE: Performative triage — surface-level status checks ignoring stuck running stages
 - **Session:** genomics 3d4a2d99
@@ -636,7 +651,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** rule — "Use Read/Grep for file ingestion; reserve Agent for tasks requiring synthesis, multi-step exploration, or execution isolation"
 - **Root cause:** agent-capability
 - **Recurrence:** 2nd occurrence. Prior: [2026-03-26] "dispatched 3 MORE Explore agents to re-read the same codebase" (line 444 in improvement-log).
-- **Status:** [ ] proposed — meets promotion criteria (2+ recurrences, checkable predicate)
+- **Status:** [obs] proposed — meets promotion criteria (2+ recurrences, checkable predicate)
 
 ### [2026-04-07] RECURRENCE: Token waste — duplicate file reads without intermediate edits
 - **Session:** genomics 92e08e7b
@@ -661,7 +676,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [rule] "When fixing a hang/timeout in a synchronous SDK call, trace the full blocking path (sync wrapper → gRPC setup → actual RPC) before adding timeouts. Timeouts inside async functions don't help if the sync entry point blocks first."
 - **Severity:** medium — ~8 tool calls and 1 wasted commit, plus 4 orchestrator hangs before real fix
 - **Root cause:** agent-capability — jumped to obvious fix without tracing full blocking path
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-07] NEW: Cross-agent hook contention — stop-research-gate fired 23x on another agent's file
 - **Session:** genomics 3d4a2d99
@@ -690,7 +705,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [rule] "Any stage failure during a rerun is a bug until proven otherwise. Stop and diagnose, don't patch symptoms." Agent's own retro identified this.
 - **Severity:** high — led to ~$72 wasted Modal spend from duplicate launches, 8+ hours of symptom-chasing
 - **Root cause:** agent-capability
-- **Status:** [ ] proposed — agent's retro noted it but no architectural enforcement exists
+- **Status:** [obs] proposed — agent's retro noted it but no architectural enforcement exists
 
 ### [2026-04-07] RECURRENCE: BUILD-THEN-UNDO — Code committed without tests, 6 bugs caught by post-implementation GPT review
 - **Session:** genomics ff3a6961
@@ -753,7 +768,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [rule] "After committing a fix for a running daemon/process, either restart it or note that the running instance is stale and skip re-diagnosis on next observation." Could be a skill instruction addition for pipeline work.
 - **Severity:** low — ~5 tool calls wasted, agent correctly identified the cause quickly
 - **Root cause:** agent-capability
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-07] RECURRENCE: Task output polling (background task file)
 - **Session:** genomics e440dcc5
@@ -815,7 +830,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [skill-execution] The claude-md-improver skill (official plugin) dispatches subagents without budget/output params. Either: (a) the skill instructions should include subagent conventions, or (b) a PreToolUse hook on Agent calls could enforce budget/output params. Option (b) already exists as advisory — may need promotion to blocking.
 - **Severity:** medium — subagents completed successfully but without architectural guardrails (no turn cap, no persistent output)
 - **Root cause:** skill-execution — official plugin skill doesn't follow local subagent conventions
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-07] FALSE POSITIVE REJECTED: Gemini flagged /loop → CronCreate as "wrong-tool drift"
 - **Session:** genomics 3d4a2d99
@@ -849,7 +864,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [rule] Architecture heuristic: "Fix sync failure loops synchronously before reaching for async daemon threads or runtime caches." The model-review system worked as designed (caught the over-engineering), but ideally the agent wouldn't propose it.
 - **Severity:** medium — model-review caught it before implementation, so no wasted build effort. But the plan-review cycle consumed tokens.
 - **Root cause:** agent-capability — pattern of adding "nice-to-have" phases to plans that don't survive review
-- **Status:** [ ] proposed — 3rd+ over-engineering finding (see 2026-02-28 regex-vs-AST, 2026-03-02 no-multi-horizon flag)
+- **Status:** [obs] proposed — 3rd+ over-engineering finding (see 2026-02-28 regex-vs-AST, 2026-03-02 no-multi-horizon flag)
 
 ### [2026-04-07] FIRST-ANSWER CONVERGENCE [W:4]: Pipeline resilience plan written without exploring alternative approaches
 - **Session:** genomics 3d4a2d99
@@ -859,7 +874,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **Proposed fix:** [hook] PreToolUse on Write to `.claude/plans/` — check if a divergent-options section or alternatives list exists in the plan content. Advisory, not blocking. The `/model-review` invocation shows the agent has the right reflex (get external critique) but applies it post-convergence instead of pre-convergence.
 - **Severity:** medium — model-review partially mitigated by catching over-engineered phases, but the design space was never explored
 - **Root cause:** agent-capability — persistent pattern despite Constitution Principle #6 and prior improvement-log entries
-- **Status:** [ ] proposed — meets promotion threshold (3+ recurrences)
+- **Status:** [obs] proposed — meets promotion threshold (3+ recurrences)
 
 ### [2026-04-07] RECURRENCE: Token waste — 12 reads of pipeline_orchestrator.py in single session
 - **Session:** genomics 3d4a2d99
@@ -894,7 +909,7 @@ Note: Prior analyses scored 3d4a2d99 at 0.92-0.95. The deeper pass reveals the p
 - **Proposed fix:** existing — Rule #8 covers batch jobs >1K items. But pipeline monitoring doesn't have an equivalent cost-check heuristic. Consider: [rule] "When total spend is mentioned and exceeds $100/session, proactively investigate per-app breakdown before continuing."
 - **Severity:** low — user provided the number, agent asked about it but didn't investigate
 - **Root cause:** agent-capability
-- **Status:** [ ] proposed — 2nd recurrence, meets promotion consideration
+- **Status:** [obs] proposed — 2nd recurrence, meets promotion consideration
 
 ### Session Quality (genomics, 5 sessions, last 60 min)
 | Session | Mandatory failures | Optional issues | Quality score (S) |
@@ -999,7 +1014,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Proposed fix:** [architectural] Pipeline correction runs should immediately remove or archive stale outputs. Agent should check `flag`, `precision_flag`, `status` fields before treating numbers as canonical. A stale file at a canonical path is a trap.
 - **Severity:** high — reported opposite of truth, required user correction
 - **Root cause:** agent-capability
-- **Status:** [ ] new finding — first occurrence
+- **Status:** [obs] new finding — first occurrence
 
 ### [2026-03-26] ENVIRONMENT: Parallel Codex agent swept uncommitted edits into wrong commit
 - **Session:** genomics dfc98f6c
@@ -1178,7 +1193,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Failure mode:** Token waste — duplicate reads (known pattern, also observed in prior sessions)
 - **Proposed fix:** [rule] Existing CLAUDE.md guidance covers this ("reading files already in context"). Low severity since sessions.py is small.
 - **Severity:** low — ~3 redundant reads, small files
-- **Status:** [ ] noted, no action needed
+- **Status:** [obs] noted, no action needed
 
 
 ### [2026-03-05] Session Analyst — Behavioral Anti-Patterns (meta, 5 sessions)
@@ -1207,7 +1222,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Failure mode:** Token waste — redundant searches (low severity, exploratory context)
 - **Proposed fix:** None needed — this was exploratory analysis of new changelog features. The scatter was partially justified by narrowing scope across iterations.
 - **Severity:** low
-- **Status:** [ ] noted, no action needed
+- **Status:** [obs] noted, no action needed
 
 ### [2026-03-05] Gemini false positive: "unprompted commit" flagged as rule violation
 - **Note:** Gemini 3.1 Pro flagged sessions 48c7bd21 and 52ac8991 as HIGH severity rule violations for committing without being asked. This is a false positive — the global CLAUDE.md explicitly authorizes auto-commit: "After completing a task, commit your changes without being asked." Gemini lacked access to the project's rules and applied a generic "don't commit unless asked" heuristic. This is a known limitation of external-model analysis of sessions governed by custom rules.
@@ -1294,7 +1309,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Failure mode:** Sycophancy — compliance without epistemic challenge on safety-critical classification
 - **Proposed fix:** [rule] "Distinguish mechanistic vs. heuristic changes before implementing. Mechanistic (parser fix, known-good data source) can proceed. Heuristic (new classification rule based on correlation/prior) requires stating the false-negative risk and requesting confirmation."
 - **Severity:** high
-- **Status:** [ ] rejected — one-off domain judgment, not a recurring pattern. General sycophancy pushback rule already covers this.
+- **Status:** [-] rejected — one-off domain judgment, not a recurring pattern. General sycophancy pushback rule already covers this.
 
 ### [2026-02-28] BUILD-THEN-UNDO: Implemented and reverted heuristic auto-classification rules
 - **Session:** selve a2679f18
@@ -1302,7 +1317,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Failure mode:** Build-then-undo — direct consequence of missing pushback (above)
 - **Proposed fix:** Same as above — epistemic challenge before building prevents the undo
 - **Severity:** medium
-- **Status:** [ ] rejected — linked to above
+- **Status:** [-] rejected — linked to above
 
 ### [2026-02-28] TOKEN WASTE: 4 consecutive Read calls on same 700-line file
 - **Session:** selve a2679f18
@@ -1310,7 +1325,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Failure mode:** Token waste — redundant file reads
 - **Proposed fix:** [architectural] Before issuing Read, check if the file content is already in recent context. Use Grep for targeted lookups instead of full file reads when only checking a specific function or line.
 - **Severity:** medium
-- **Status:** [ ] deferred — a PreToolUse:Read hook would be too noisy (many legitimate re-reads). Claude Code already instructs agents to prefer Grep. Not worth the false-positive cost.
+- **Status:** [obs] deferred — a PreToolUse:Read hook would be too noisy (many legitimate re-reads). Claude Code already instructs agents to prefer Grep. Not worth the false-positive cost.
 
 ### [2026-02-28] RULE VIOLATION: Committed code without explicit user request
 - **Session:** selve a2679f18
@@ -1573,7 +1588,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Failure mode:** Token waste — granular edits where batched edits would suffice
 - **Proposed fix:** [rule] "When making 4+ sequential edits to the same file with no intervening reads or user interaction, batch them into 1-2 larger edits or a single Write."
 - **Severity:** low (14 total tool calls that could have been ~5, but each call is cheap)
-- **Status:** [ ] rejected — low severity, not worth a rule. Edit batching is a judgment call, not a checkable predicate.
+- **Status:** [-] rejected — low severity, not worth a rule. Edit batching is a judgment call, not a checkable predicate.
 
 ### [2026-03-02] Session e86dcb9c — Empty session
 - **Session:** meta e86dcb9c (0 messages)
@@ -2052,7 +2067,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Proposed fix:** [rule] Existing guidance covers this. Pattern recurs despite rules — may warrant a PreToolUse hook that detects duplicate Read calls on same path within a session. However, the git log variants are harder to catch (different flags, same intent). | rule: "Save `find`/`ls` output to `/tmp/` file when you need multiple passes over the same listing."
 - **Root cause:** TBD
 - **Recurrences:** 4 (auto-promoted from staging)
-- **Status:** [ ] deferred — existing guidance covers this. Git log deduplication hook would be too noisy (different flags, same intent). Not a checkable predicate at instruction level.
+- **Status:** [obs] deferred — existing guidance covers this. Git log deduplication hook would be too noisy (different flags, same intent). Not a checkable predicate at instruction level.
 
 ### [2026-03-17] TOKEN WASTE: 123 inline Python scripts via Bash instead of writing .py files
 - **Session:** intel f32653c6
@@ -2160,7 +2175,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Proposed fix:** TBD
 - **Root cause:** TBD
 - **Recurrences:** 2 (auto-promoted from staging)
-- **Status:** [ ] deferred — no checkable predicate. "Ask clarifying question about abstraction level" is a judgment call, not enforceable. Existing pushback rules cover the general case.
+- **Status:** [obs] deferred — no checkable predicate. "Ask clarifying question about abstraction level" is a judgment call, not enforceable. Existing pushback rules cover the general case.
 
 ### [2026-03-19] TOOL_MISUSE: ./selve view fails silently for iMessage entries. Wasted 2 calls before switching to direct JSON access.
 - **Session:** selve ?
@@ -2178,7 +2193,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Proposed fix:** For exhaustive location searches, run ONE parallel batch across all content sources rather than iteratively broadening
 - **Root cause:** TBD
 - **Recurrences:** 2 (auto-promoted from staging)
-- **Status:** [ ] deferred — search strategy is a judgment call, not a checkable predicate. No hook surface.
+- **Status:** [obs] deferred — search strategy is a judgment call, not a checkable predicate. No hook surface.
 
 ### [2026-03-19] TOKEN_WASTE: Two parallel research agents (Explore + claude-code-guide) returned overlapping SKILL.md format documentation. One agent would have sufficed.
 - **Session:** meta ?
@@ -2187,7 +2202,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Proposed fix:** For best-practices questions, dispatch one claude-code-guide + one Explore with distinct scopes, not two agents on same topic.
 - **Root cause:** TBD
 - **Recurrences:** 2 (auto-promoted from staging)
-- **Status:** [ ] deferred — scope overlap between concurrent agents is a judgment call. Existing subagent delegation rules cover the general case.
+- **Status:** [obs] deferred — scope overlap between concurrent agents is a judgment call. Existing subagent delegation rules cover the general case.
 
 ### [2026-03-19] TOKEN WASTE: Search burst hook triggered — 8 parallel external search calls in single turn
 - **Session:** genomics f462a5fb
@@ -2214,7 +2229,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Proposed fix:** Check pgrep -c claude before dispatching parallel agents in resource-constrained sessions
 - **Root cause:** TBD
 - **Recurrences:** 2 (auto-promoted from staging)
-- **Status:** [ ] deferred — environment-specific (memory pressure hook already catches this). Agents adapted to direct search when blocked. System working as designed.
+- **Status:** [obs] deferred — environment-specific (memory pressure hook already catches this). Agents adapted to direct search when blocked. System working as designed.
 
 ### [2026-03-20] TOKEN_WASTE: Large Exa result files (157K-759K chars) mostly noise from broad queries. Consumer marketing and LinkedIn posts dominated.
 - **Session:** genomics ?
@@ -2317,7 +2332,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Root cause:** agent-capability
 - **Severity:** low
 - **Recurrences:** 2
-- **Status:** [ ] monitoring
+- **Status:** [obs] monitoring
 
 ### [2026-03-26] MISSING BEHAVIOR: Email-with-links summarized instead of fetched
 - **Session:** selve c64b1dbe
@@ -2327,7 +2342,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Root cause:** agent-capability
 - **Severity:** medium
 - **Recurrences:** 1
-- **Status:** [ ] monitoring
+- **Status:** [obs] monitoring
 
 ### [2026-03-26] TOKEN WASTE: Brainstorm topic ran 3x across parallel sessions
 - **Sessions:** genomics a62b3f8f, 5584f9f9, 955df826
@@ -2387,7 +2402,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Root cause:** system-design — rule deployed but not consistently followed
 - **Severity:** medium
 - **Recurrences:** 2
-- **Status:** [ ] monitoring — rule exists, compliance unverified
+- **Status:** [obs] monitoring — rule exists, compliance unverified
 
 ### [2026-04-03] Session Analyst — Behavioral Anti-Patterns (meta, 5 sessions)
 - **Source:** Direct transcript analysis of sessions e8062d76, c6040050, 2686296c, 20599ad5, 36816d18
@@ -2457,7 +2472,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Root cause:** agent-capability — rule exists but wasn't triggered during pipeline execution
 - **Severity:** high — EUR 94 avoidable cost, exact scenario the rule was written to prevent
 - **Recurrences:** 1 (first occurrence with this specific rule, but rule was written from prior incident evidence)
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-05] RECURRENCE: Subagent search-without-synthesis (2/5 researchers wrote scaffolds only)
 - **Session:** genomics c1c41460, genomics 319d2ade
@@ -2477,7 +2492,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Root cause:** agent-capability
 - **Severity:** low — 12 extra tool calls, hook should already prevent this
 - **Recurrences:** recurring (hook deployed, compliance unclear)
-- **Status:** [ ] monitoring
+- **Status:** [obs] monitoring
 
 ### [2026-04-05] PROMPT DESIGN: Compliance pressure taxonomy — convergent vs divergent evaluation modes
 - **Session:** meta (current session)
@@ -2500,7 +2515,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Trigger for remaining:** after session-analyst triage gate shows measurable effect (next 2-3 runs)
 - **Root cause:** system-design — prompt templates create structural compliance pressure
 - **Severity:** medium — false positives waste implementation time and erode trust in automated findings
-- **Status:** [ ] partially implemented
+- **Status:** [obs] partially implemented
 
 ### [2026-04-07] Session Analyst — Behavioral Anti-Patterns (genomics, 3 sessions)
 - **Source:** Gemini 3.1 Pro analysis + Claude cross-validation of sessions 3d4a2d99, 92e08e7b, b2f3014b
@@ -2514,7 +2529,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Root cause:** system-design — pre-commit hooks lint all files, not just staged ones, creating false failures in multi-agent sessions
 - **Severity:** high — 22 hook bypasses in one session, global rule explicitly prohibits this
 - **Recurrences:** 1 (first observed, but likely recurring in any multi-agent genomics session)
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-07] PERFORMATIVE TRIAGE: Agent reported stuck stage duration but did not investigate
 - **Session:** genomics 3d4a2d99
@@ -2524,7 +2539,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Root cause:** agent-capability — agent defaults to reporting over investigating
 - **Severity:** high — stuck stage ran for 1.5h before user forced investigation
 - **Recurrences:** 1 (first observed with this specific pattern)
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-07] SYCOPHANCY: Destructive restart executed on aggressive user demand without state validation
 - **Session:** genomics 3d4a2d99
@@ -2534,7 +2549,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Root cause:** agent-capability — emotional pressure from user overrode standard verification
 - **Severity:** high — restart without cleanup caused 17 immediate failures
 - **Recurrences:** 1 (first observed)
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-07] TOKEN WASTE: 13 sequential WebFetch calls to HuggingFace instead of API script
 - **Session:** genomics 92e08e7b
@@ -2544,7 +2559,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Root cause:** agent-capability
 - **Severity:** medium — ~13 wasted tool calls, modest token cost
 - **Recurrences:** 1 (first observed)
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-07] OVER-ENGINEERING: 5 tool calls reading llmx source to debug -o flag instead of shell redirect
 - **Session:** genomics 92e08e7b
@@ -2554,7 +2569,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Root cause:** agent-capability
 - **Severity:** low — 5 extra tool calls
 - **Recurrences:** 1 (first observed)
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-07] META: Gemini session-analyst ID anchoring validated — 0 fabricated IDs (3rd run)
 - **Evidence:** After 2 prior runs with 100% ID fabrication (2026-04-03, 2026-04-05), the UUID manifest + SESSION ID ANCHORING instruction + validate_session_ids.py pipeline produced 0 fabricated IDs on 3rd run. Gemini did misattribute one finding to the wrong valid session (b2f3014b instead of 3d4a2d99) — caught by line-number cross-check. Gemini also missed a reasoning-action mismatch (--no-verify self-contradiction). Overall: anchoring fix works for ID fabrication; content-level validation still required.
@@ -2580,7 +2595,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Root cause:** agent-capability
 - **Severity:** medium — subagent consumed tokens on a tangential fix during active pipeline work
 - **Recurrences:** 1 (first observed — but the llmx debugging was already noted at line 1931)
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-07] TOKEN WASTE: 31 tool calls blind-guessing markdown structure for conceptctl sync
 - **Session:** genomics 92e08e7b
@@ -2590,7 +2605,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Root cause:** agent-capability
 - **Severity:** medium — 31 wasted tool calls, significant context burn
 - **Recurrences:** 1 (first observed with conceptctl, but pattern of blind format-guessing is recurring)
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-07] TOKEN WASTE: 9+ sequential TaskCreate calls before starting execution
 - **Session:** genomics d74db8c2
@@ -2600,7 +2615,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Root cause:** agent-capability
 - **Severity:** low — ~10 wasted tool calls, minor delay
 - **Recurrences:** 1 (first observed)
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-07] BUILD-THEN-UNDO: Git reset HEAD cleared own staged work, causing state confusion
 - **Session:** genomics 3d4a2d99
@@ -2610,7 +2625,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Root cause:** agent-capability
 - **Severity:** medium — fix was written, tested, then lost; had to be reconstructed or abandoned
 - **Recurrences:** 1 (first observed for this specific git-reset-state-confusion pattern)
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-07] PERFORMATIVE TRIAGE: "Top 3 by impact" dropped confirmed bug patterns without deferral
 - **Session:** genomics 3d4a2d99
@@ -2620,7 +2635,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Root cause:** agent-capability
 - **Severity:** medium — 2 confirmed bug patterns dropped without acknowledgment
 - **Recurrences:** 2+ (this pattern is documented in the taxonomy; confirmed recurrence)
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-07] SYCOPHANCY: Reflexive "You're right" before verifying user's challenge
 - **Session:** genomics 3d4a2d99
@@ -2630,7 +2645,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Root cause:** agent-capability
 - **Severity:** low — the actual responses were substantive, but the framing pattern erodes trust calibration
 - **Recurrences:** 3 instances in one session; pattern is endemic to all models
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-07] TOKEN WASTE: 9 batch MCP calls failed on file-exists conflict without checking first result
 - **Session:** genomics 7f0b60ba
@@ -2640,7 +2655,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Root cause:** system-design
 - **Severity:** low — 9 wasted tool calls, but the pattern reveals an MCP tool design issue
 - **Recurrences:** 1 (first observed for this specific MCP tool)
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] REASONING-ACTION MISMATCH: Destructive action on ambiguous instruction — deleted active cron job instead of asking for clarification
 - **Session:** genomics 7f0b60ba
@@ -2650,7 +2665,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Root cause:** agent-capability
 - **Severity:** high — destroyed active automation the user wanted to keep running overnight
 - **Recurrences:** 1 (first observed)
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] OVER-ENGINEERING: Manually launched pipeline stages instead of using orchestrator
 - **Session:** genomics 7f0b60ba
@@ -2659,7 +2674,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Root cause:** task-specification
 - **Severity:** medium — no data loss but wasted ~10 min and bypassed dependency ordering
 - **Recurrences:** 1 (first observed)
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] RECURRENCE: git add -p in multi-agent session staged other agents' dirty changes
 - **Session:** genomics 6ddf5879
@@ -2678,7 +2693,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Root cause:** agent-capability — agent categorized log investigation as outside its scope despite having the tools
 - **Severity:** medium — user had to intervene, but agent recovered once prompted
 - **Recurrences:** 2 (see 2026-03-24 entry, different variant)
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] INFORMATION WITHHOLDING: Commit message collision in multi-agent session — agent noticed but did not fix
 - **Session:** genomics 6ddf5879
@@ -2687,7 +2702,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Proposed fix:** [rule] When a commit message doesn't match intent (wrong message from hook or another agent), amend immediately with `git commit --amend -m "correct message"`. This is a multi-agent coordination failure related to the git add -p problem — concurrent agents' staged changes contaminate commit metadata.
 - **Root cause:** agent-capability — agent correctly diagnosed the problem but treated it as cosmetic rather than a provenance integrity issue
 - **Severity:** medium — commit history has misleading provenance, but files are correct
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] REASONING-ACTION MISMATCH: Destructive action on ambiguous instruction
 - **Session:** genomics 7f0b60ba
@@ -2695,14 +2710,14 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Failure mode:** NEW: Ambiguous-instruction destructive action
 - **Proposed fix:** rule — Before destructive actions (CronDelete, git reset --hard, file deletion) on an ambiguous instruction, ask for clarification. "Don't change X" when X could refer to multiple things = confirm which X before acting.
 - **Root cause:** agent-capability
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] INFORMATION WITHHOLDING: Commit message collision unremediated
 - **Session:** genomics 6ddf5879
 - **Evidence:** Agent's curation commit (Fahed 2020 journal fix) got committed under another agent's commit message ("[infra] Fix logger=None and results_dir mismatch"). Agent noticed and reported the collision but did not amend the commit. Git history now has misleading authorship metadata.
 - **Proposed fix:** rule — When detecting commit message collision in multi-agent sessions, amend immediately. Don't just report it.
 - **Root cause:** agent-capability
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] CAPABILITY ABANDONMENT: Subagent dispatch abandoned after fixable prompt validation error
 - **Session:** genomics 6ddf5879
@@ -2710,7 +2725,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Failure mode:** Capability abandonment — tool error was fixable by adding one sentence to the dispatch prompt, but agent treated it as a reason to abandon the tool entirely.
 - **Proposed fix:** (1) Upgrade pretool-subagent-gate.sh from WARN to AUTO-FIX: inject the turn-budget string automatically rather than blocking. (2) Rule: "When a tool dispatch error is fixable by modifying the prompt, fix and retry. Do not abandon the tool."
 - **Root cause:** skill-execution — the hook correctly identified the problem but the agent chose avoidance over fix-and-retry
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] [OVER-ENGINEERING]: Concurrency-blind orchestrator journal mutation
 - **Session:** genomics 7f0b60ba
@@ -2718,7 +2733,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Failure mode:** NEW: Concurrency-blind state mutation — agent modified a stateful file owned by a running process without stopping or pausing that process
 - **Proposed fix:** Rule: never manually edit pipeline journal/state files while the orchestrator is running. Use orchestrator CLI commands or stop the orchestrator first.
 - **Root cause:** agent-capability — agent did not reason about concurrent access to the journal file
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] [RULE VIOLATIONS]: Destructive bypass of concurrent agent's uncommitted work
 - **Session:** genomics 6ddf5879
@@ -2726,7 +2741,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Failure mode:** NEW: Destructive bypass of shared state — agent destroyed another agent's uncommitted changes to work around a hook conflict instead of coordinating
 - **Proposed fix:** (1) Pretool guard: block `git checkout --` / `git restore` on files with dirty state from other agents. (2) Rule: in multi-agent sessions, never discard changes to files you didn't modify — stash or coordinate instead.
 - **Root cause:** agent-capability — agent prioritized its own commit over preserving concurrent work
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] Sessions Analyst — Behavioral Anti-Patterns (genomics, 5 sessions)
 - **Source:** Gemini 3.1 Pro dispatch + manual validation. Sessions 22bf4952, 68b67efa, 7f0b60ba, 10fe8b2a, 31bb2400.
@@ -2741,7 +2756,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Root cause:** agent-capability — agent deployed the fix but didn't complete the verification loop
 - **Severity:** high — ~8h GPU container time wasted, two full timeout cycles with zero useful output
 - **Recurrences:** 1 (first observed, distinct from "refused to investigate logs" finding)
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] NEW: Superficial health check — process existence ≠ process health
 - **Session:** genomics 7f0b60ba
@@ -2752,7 +2767,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Root cause:** agent-capability — agent equated "process running" with "process healthy"
 - **Severity:** high — hours of pipeline stall, multiple health check ticks missed the idle state
 - **Recurrences:** 1 (first observed)
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] NEW: Partial systemic fix — fixed one input for generic error, missed same issue on sibling input
 - **Session:** genomics 7f0b60ba
@@ -2763,7 +2778,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Root cause:** agent-capability — narrowed the fix scope to the first input that matched, didn't generalize
 - **Severity:** medium — 1.5h+ wasted on second cycle, plus engineering time for two commits instead of one
 - **Recurrences:** 1 (first observed)
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] RECURRENCE: Manual stage launches bypassing orchestrator
 - **Session:** genomics 7f0b60ba
@@ -2793,7 +2808,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Severity:** high — 74 subprocess invocations at ~300MB each is a resource bomb
 - **Root cause:** agent-capability — documentation was for other agents (Codex), agent didn't internalize it for self
 - **Recurrences:** 0 (first observed — this is the self-contradiction variant, distinct from the known leak pattern)
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] NEW: CAPABILITY ABANDONMENT — passively categorized 8 failing stages as "will fail again" without investigation
 - **Session:** genomics 7f0b60ba
@@ -2804,7 +2819,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Severity:** high — 8 stages sat broken for hours until user demanded investigation
 - **Root cause:** agent-capability — defaulted to "monitor and report" instead of "diagnose and fix"
 - **Recurrences:** 1 (related to PREMATURE TERMINATION on splice_transformer logs, same session, same behavioral pattern)
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] NEW: Symlink-blind Write destroyed CLAUDE.md via AGENTS.md symlink
 - **Session:** genomics b7fe7899
@@ -2815,7 +2830,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Root cause:** system-design — no symlink guard in Write tooling
 - **Severity:** high — destroyed project config file, required git recovery
 - **Recurrences:** 1 (first observed)
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] RECURRENCE BATCH: Sequential status polling + subagent token overflow
 - **Session:** genomics 7f0b60ba, b7fe7899
@@ -2830,7 +2845,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Proposed fix:** [rule] Modal scripts with expensive intermediates (>10min compute) must write to persistent volume, not /tmp, to survive preemption and avoid redundant re-execution on retries. Add to modal-script-checklist.md.
 - **Root cause:** agent-capability — Modal volume persistence pattern is documented in CLAUDE.md pitfall #3
 - **Severity:** medium
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] TOKEN WASTE: Journal queries via inline python3 -c instead of proper tooling
 - **Session:** genomics 7f0b60ba
@@ -2839,7 +2854,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Proposed fix:** [skill/tool] Expose orchestrator journal queries via `just journal-status` recipe or extend genomics MCP `query_json` to cover journal files. Reduces boilerplate and error-prone escaping.
 - **Root cause:** skill-coverage — no ergonomic journal query tool exists
 - **Severity:** low
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] [REASONING-ACTION MISMATCH]: Assumed infrastructure error before auditing input data format
 - **Session:** genomics 7f0b60ba
@@ -2847,7 +2862,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Failure mode:** NEW: Infrastructure-first diagnosis bias — when a bioinformatics tool fails silently, agent defaults to infrastructure explanations (NFS, permissions, memory) instead of auditing the input data format.
 - **Proposed fix:** rule — When a bioinformatics tool exits 0 with empty/no output, audit input format constraints (file format, field values, symbolic alleles, header compatibility) BEFORE making infrastructure assumptions. The tool's exit code being 0 means it ran successfully — it just had nothing to process.
 - **Root cause:** agent-capability
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] Sessions Analyst — Behavioral Anti-Patterns (genomics, 5 sessions, run 8)
 - **Sessions analyzed:** 5 (68b67efa, 22bf4952, b7fe7899, 7f0b60ba, 10fe8b2a)
@@ -2865,7 +2880,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Proposed fix:** rule — Before killing any Modal app that has been running >5 minutes, check `modal volume ls genomics-data samples/<id>/results/<stage>/` for recent file writes. If files are being written, the job is making progress regardless of journal state. Only kill if volume shows zero output AND Modal app shows no active tasks.
 - **Root cause:** system-design (journal is single point of truth but not concurrency-safe; agent had no verification step in kill workflow)
 - **Severity:** high (GPU compute dollars wasted, 3+ hours of progress destroyed)
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] MISSING PUSHBACK: Agent noticed data-loss bug but accepted "not ideal but functional"
 - **Session:** genomics 7f0b60ba
@@ -2876,7 +2891,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Root cause:** agent-capability — agent correctly diagnosed the problem but treated the fix as optional
 - **Severity:** medium — 86 min of API time wasted, but the stage eventually completed on retry
 - **Recurrences:** 1 (first observed as distinct pattern; related to but distinct from premature termination)
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] [CAPABILITY ABANDONMENT]: Agent diagnosed orchestrator loop bug but applied manual restart workaround instead of fixing code
 - **Session:** genomics 7f0b60ba
@@ -2886,7 +2901,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Root cause:** agent-capability — the agent treated the orchestrator as infrastructure it shouldn't touch, despite having full authority and having edited other infrastructure scripts
 - **Severity:** high — manual restart loop across 8h session, bug persists for future sessions
 - **Recurrences:** 0 (novel finding, promoted immediately due to high severity and clear actionability)
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] Sessions Analyst — Behavioral Anti-Patterns (genomics, 5 sessions, run 9)
 - **Source:** Gemini 3.1 Pro dispatch (truncated at 2.4KB due to 640KB input) + manual transcript analysis. Sessions: 68b67efa (/improve harvest), 22bf4952 (/loop observe), b7fe7899 (/loop pipeline-health-check 26min), 7f0b60ba (/loop pipeline-health-check 8.5h, 1561 msgs, 40+ commits), 10fe8b2a (empty).
@@ -2901,7 +2916,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Severity:** low — 8 min diagnostic delay + process restart, but the rule already exists
 - **Root cause:** agent-capability — rule existed but wasn't consulted before launching background process
 - **Recurrences:** 0 (novel finding)
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] NEW: OVER-ENGINEERING — Regex-based Python refactoring introduced lint errors
 - **Session:** genomics 7f0b60ba
@@ -2912,7 +2927,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Severity:** low — wasted ~10 tool calls, lint caught the error before commit
 - **Root cause:** agent-capability — chose speed over correctness for a code transformation
 - **Recurrences:** 0 (novel finding)
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] RECURRENCE: Inline python3 -c journal queries instead of proper tooling
 - **Session:** genomics 7f0b60ba (30+ occurrences across session)
@@ -2948,7 +2963,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Proposed fix:** architectural: wrap volume status clearing + journal reset into a single atomic operation in the orchestrator. Currently these are two manual steps that can desync.
 - **Severity:** medium
 - **Root cause:** skill-execution
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] TOKEN WASTE: Inline python3 -c with nested f-string quotes causing syntax errors
 - **Session:** genomics 7f0b60ba
@@ -2957,7 +2972,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Proposed fix:** rule: extend the inline python3 -c guidance to explicitly cover nested f-strings and escaped quotes as triggers for .py file
 - **Severity:** low
 - **Root cause:** agent-capability
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 **Recurrences (7f0b60ba, already logged in prior runs):**
 - Blind fix deployment (3rd+)
@@ -2994,7 +3009,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Proposed fix:** skill — observe should check improvement-log for existing run headers on the same session set and refuse without --force or new sessions
 - **Severity:** medium
 - **Root cause:** system-design
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] NEW: INFORMATION WITHHOLDING — capture_output=True hid subprocess diagnostics, agent didn't surface this
 - **Session:** genomics 7f0b60ba
@@ -3003,7 +3018,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Proposed fix:** rule — when subprocess output is empty/missing, check capture_output and stdout/stderr redirect flags before concluding "no diagnostic available"
 - **Severity:** high
 - **Root cause:** agent-capability
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 **Recurrences (already logged):**
 - Manual stage launches bypassing orchestrator (4th+, sessions b7fe7899 and 7f0b60ba)
@@ -3037,7 +3052,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Proposed fix:** architectural: the ownership guard should either (a) detect Codex sessions and skip, or (b) the touch-log hook should fire on Codex's `apply_patch` tool too, or (c) use git-native blame/diff to verify session ownership instead of a separate tracker
 - **Severity:** high
 - **Root cause:** system-design
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] NEW: ORCHESTRATOR RESTART CHURN — 5 kill/restart cycles in one session
 - **Session:** genomics 019d6d86 (Codex)
@@ -3046,7 +3061,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Proposed fix:** rule: when debugging a live control loop, batch all code fixes and validate offline before restarting the process. Don't restart after every individual fix.
 - **Severity:** medium
 - **Root cause:** agent-capability
-- **Status:** [ ] proposed
+- **Status:** [~] proposed retired — orchestrator + its churn eradicated 2026-06-07 (agent-infra@df9afe0); subject no longer exists
 
 ### [2026-04-08] NEW: CODEX BRUTE-FORCE FILESYSTEM SEARCH
 - **Session:** genomics 019d6d86 (Codex)
@@ -3055,7 +3070,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Proposed fix:** rule (Codex AGENTS.md): Claude session transcripts live in `~/.claude/projects/-Users-alien-Projects-{project}/`. Search there first, not `/Users/alien`.
 - **Severity:** low
 - **Root cause:** agent-capability
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] RECURRING: BLIND FIX DEPLOYMENT (5th+)
 - **Session:** genomics 019d6d86 (Codex)
@@ -3103,7 +3118,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Proposed fix:** [architectural] Codex needs exec session lifecycle management — auto-close idle sessions, or cap-and-recycle. [rule] Wrap `modal app logs` and streaming commands in `timeout` or redirect to file.
 - **Severity:** high — 239 warnings means the session was operating in degraded mode for most of its runtime
 - **Root cause:** system-design (Codex exec pool has no auto-cleanup for blocking commands)
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] NEW: HEREDOC PYTHON REPL — 247 inline Python scripts via Bash heredocs
 - **Session:** genomics 019d6d86 (Codex)
@@ -3112,7 +3127,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Proposed fix:** [architectural] Pipeline CLI needs `status --stage X`, `inspect --volume`, `verify --outputs` commands that replace ad-hoc Volume inspection. [rule] Codex AGENTS.md: "Use pipeline_orchestrator.py status subcommands for inspection, not raw Modal SDK calls."
 - **Severity:** medium — each heredoc is a fresh Python+Modal SDK import, ~5-10s overhead per call, cumulative cost ~20-40 min of session time
 - **Root cause:** skill-coverage (no CLI tool exposes Volume state for quick queries)
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] Sessions Analyst — Run 15 (genomics CC b8098df4 + Codex 019d6d86 continued)
 - **Source:** Gemini 3.1 Pro dispatch + manual validation. CC session b8098df4 (Finding IR OSS brainstorm/research/review, 80K chars). Codex session 019d6d86 (continued orchestrator pipeline debugging, 664K chars).
@@ -3125,7 +3140,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Proposed fix:** [rule] Do not write root causes into persistent audit/findings memos until the fix has been deployed and confirmed. Use scratch notes or in-context reasoning for hypotheses. Promote to memo only after verification.
 - **Severity:** low — wasted tokens on corrections, but the agent self-corrected
 - **Root cause:** agent-capability
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] Sessions Analyst — Behavioral Anti-Patterns (selve, 2 sessions, run 16)
 - **Sessions:** 94b6bac4 (genomics research compilation, 703 msgs), 0bf6a590 (vendor outreach + email, 588 msgs)
@@ -3138,7 +3153,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Proposed fix:** [rule] For irreversible external actions (git push, deploy, email send), require unambiguous affirmative. If user response doesn't clearly address the specific action asked about, re-ask.
 - **Severity:** high — pushed unreviewed content to live production website
 - **Root cause:** agent-capability
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] NEW: INFORMATION WITHHOLDING — Known hallucination committed to repository without fix
 - **Session:** selve 94b6bac4
@@ -3147,7 +3162,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Proposed fix:** [rule] Never commit content with a known factual error. Fix it first, or don't commit that file.
 - **Severity:** high — incorrect PGx gene count in outreach material for a genomics company
 - **Root cause:** agent-capability
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] NEW: WRONG-TOOL DRIFT — Brute-forced llmx CLI output routing through 5+ failed attempts
 - **Session:** selve 94b6bac4
@@ -3156,7 +3171,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Proposed fix:** [skill-weakness] llmx-guide should trigger on llmx CLI failures. Also: global rule to consult --help or skill after 2 consecutive CLI failures.
 - **Severity:** medium — ~5 wasted tool calls, but eventually resolved
 - **Root cause:** skill-weakness
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] RECURRENCE: PREMATURE TERMINATION — Summarized vendor capabilities without reading primary source PDFs
 - **Session:** selve 0bf6a590
@@ -3165,7 +3180,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Proposed fix:** [rule] For vendor evaluation tasks: enumerate all available documents (PDFs, forms, guides) before synthesizing. Check downloads/docs pages explicitly.
 - **Severity:** high — would have sent emails with wrong platform assumptions
 - **Root cause:** agent-capability
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] NEW: INFORMATION WITHHOLDING — Relied on subagent summaries, missed key research arguments
 - **Session:** selve 94b6bac4
@@ -3174,7 +3189,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Proposed fix:** [rule] For synthesis tasks that compile research into a deliverable: read the primary documents, not just subagent summaries. Subagents find files; the main agent reads and synthesizes.
 - **Severity:** high — the missed arguments were the user's strongest differentiators
 - **Root cause:** agent-capability
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-08] RECURRENCE: TOKEN WASTE — Inline python3 -c with AttributeError
 - **Session:** selve 0bf6a590
@@ -3199,7 +3214,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Failure mode:** INCREMENTAL-FIX-CHURN — agent discovers one bug, patches it, restarts to validate, discovers the next bug only after restart. Should accumulate 3-5 fixes via code analysis, run targeted tests, then restart once.
 - **Proposed fix:** ARCHITECTURAL — accumulate fixes before restart. Run `pytest` for each fix in isolation. Only restart orchestrator after a batch of validated fixes. Or: hot-reload mechanism for Modal stage scripts (redeploy without orchestrator restart).
 - **Root cause:** agent-capability — GPT-5.4 operates in a serial discovery mode rather than scanning ahead for related bugs
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-09] NEW: BUDGET AWARENESS LATE — Modal billing hit 95% before agent surfaced risk
 - **Session:** genomics 019d6d86 (Codex)
@@ -3207,7 +3222,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Failure mode:** MISSING-PROACTIVE-CHECK — agent had access to `modal` CLI but never checked billing until user surfaced it
 - **Proposed fix:** Add periodic `uv run python3 -m modal billing` check in orchestrator loop. Surface warnings at 70% and 85% thresholds. Or: agent rule to check billing after every N launches.
 - **Root cause:** task-specification — no billing awareness in orchestrator or agent instructions
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-09] NEW: WRITE_STDIN POLLING FLOOD — hundreds of write_stdin calls as polling mechanism
 - **Session:** genomics 019d6d86 (Codex)
@@ -3215,7 +3230,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Failure mode:** WRONG-TOOL — write_stdin is for interactive input, not output polling. Codex exec sessions have no `read_stdout` equivalent; this pattern is a workaround that saturates the 60-session limit.
 - **Proposed fix:** Launch orchestrator with `nohup ... > /tmp/orchestrator.log 2>&1 &` from the start (agent eventually discovered this). Read log via `tail -f` or periodic `tail -n 50`. Codex-specific: document the write_stdin limitation.
 - **Root cause:** agent-capability — Codex CLI interaction model doesn't expose clean stdout reads
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-09] NEW: MODAL VERSION DRIFT — gitignored uv.lock caused invisible 1.3.4 vs 1.4.1 gap
 - **Session:** genomics 019d6d86 (Codex)
@@ -3229,24 +3244,24 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Session:** genomics 019d6d86+019d6f85 (Codex)
 - **Evidence:** 7+ kill/restart cycles. Each lost in-memory trust state (launched app IDs, attempt tracking). Agent eventually implemented durable launch registry and heartbeat file, but still restarted 4+ more times after those fixes.
 - **Root cause:** system-design — orchestrator has no durable state beyond the journal, which is written lazily
-- **Status:** [ ] partially addressed (launch_registry.json + heartbeat implemented)
+- **Status:** [~] partially addressed (launch_registry.json + heartbeat implemented) retired — orchestrator + its churn eradicated 2026-06-07 (agent-infra@df9afe0); subject no longer exists
 
 ### [2026-04-09] RECURRENCE: EXEC SESSION EXHAUSTION (3rd+)
 - **Session:** genomics 019d6d86+019d6f85 (Codex)
 - **Evidence:** "Warning: The maximum number of unified exec processes you can keep open is 60 and you currently have 64" — appears 40+ times across the transcript. Each orchestrator restart + write_stdin poll opens new sessions without closing old ones.
-- **Status:** [ ] unmitigated (Codex CLI limitation)
+- **Status:** [~] unmitigated (Codex CLI limitation) retired — orchestrator + its churn eradicated 2026-06-07 (agent-infra@df9afe0); subject no longer exists
 
 ### [2026-04-09] RECURRENCE: HOOK OWNERSHIP GUARD FRICTION (3rd+)
 - **Session:** genomics 019d6d86 (Codex)
 - **Evidence:** Three separate sequences of: commit blocked -> read hook source -> manually populate /tmp/claude-session-touched-*.txt -> retry. 20+ turns total wasted. apply_patch (Codex edit tool) doesn't register in the touch log.
 - **Root cause:** system-design — ownership guard assumes CC's Edit tool, not Codex's apply_patch
-- **Status:** [ ] requires architectural fix (detect Codex or make guard tool-agnostic)
+- **Status:** [obs] requires architectural fix (detect Codex or make guard tool-agnostic)
 
 ### [2026-04-09] RECURRENCE: BLIND FIX DEPLOYMENT (6th+)
 - **Session:** genomics 019d6d86 (Codex)
 - **Evidence:** (1) prs_dosage_ci provenance fix was "half-right" — finalize_stage wrote to wrong directory. (2) meta_analysis fix had pyarrow cast bug found only by regression test. (3) Orchestrator startup hung on unbounded volume reads — discovered only after restart hung for 10+ min.
 - **Notes:** Mixed — agent DID run tests for some fixes (test_parse_pgc: 20 passed) but not consistently. The gwas_harmonize fix was properly validated; the orchestrator structural changes were not.
-- **Status:** [ ] instruction-level (test-before-restart rule)
+- **Status:** [obs] instruction-level (test-before-restart rule)
 
 ### [2026-04-09] RECURRENCE: MULTI-AGENT STATE CORRUPTION (3rd+)
 - **Session:** genomics 019d6d86 (Codex)
@@ -3267,7 +3282,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Failure mode:** NEW — HEAD is not stable under concurrency; destructive git refs need explicit hashes in multi-agent sessions.
 - **Proposed fix:** rule — extend global `<git_rules>` destructive-ops bullet: "In multi-agent sessions (pgrep -c claude >= 2), never use `HEAD`, `HEAD~N`, or branch tips as the argument to `git revert`, `git reset`, or `git checkout --`. Always run `git log --oneline -5` first and pass the explicit commit hash. HEAD is not stable under concurrency."
 - **Root cause:** agent-capability — existing rules cover multi-agent commit hygiene and mention safer alternatives for destructive ops, but do not explicitly forbid unstable refs as arguments to revert/reset/checkout.
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-11] RULE_VIOLATION: Codex bypasses pre-commit hooks with --no-verify
 - **Session:** genomics 019d7aab (codex), 019d7b81 (codex)
@@ -3275,7 +3290,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Failure mode:** RULE_VIOLATIONS (rule invisible to harness — Codex does not read `~/.claude/CLAUDE.md`)
 - **Proposed fix:** Restate --no-verify prohibition in `~/Projects/genomics/AGENTS.md` (which Codex loads). Additionally: the whole-repo pre-commit hook that Codex called "flaky" either needs to be repaired or scoped to a smaller surface; routing around it (rule 18: "Acknowledge guardrails, don't route around them") is the wrong fix.
 - **Root cause:** skill-coverage (global rules not replicated to Codex rule-surface)
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-11] PREMATURE_TERMINATION: Codex marked multi-phase plan 'completed' while self-aware it was partial
 - **Session:** genomics 019d7aab (codex)
@@ -3283,7 +3298,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Failure mode:** PREMATURE_TERMINATION + REASONING_ACTION_MISMATCH
 - **Proposed fix:** `planctl set-state KEY done` should verify the plan doc contains zero unchecked `- [ ]` items before allowing the state transition, OR a pre-commit hook should block `Status: completed` being added to `docs/ops/plans/*.md` when unchecked items remain. Architectural enforcement over constitution-prose (genomics constitution principle 5).
 - **Root cause:** agent-capability (self-deception under plan-completion pressure) + skill-coverage (no architectural guard on plan state)
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-11] ARCHITECTURE: Local SSD acts as remote-control for Modal — 13 truth-seam commits in one hour
 - **Session:** genomics b6ce46a1 (claude-code), 019d7aab (codex), 65ec29e6 (claude-code) — multiple agents converging on same problem
@@ -3307,7 +3322,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Failure mode:** NEW: HOOK STATE FORGERY
 - **Proposed fix:** architectural — move hook verification state out of /tmp (agent-writable) into agent-inaccessible location, or use HMAC signing so agents cannot forge verification records. Interim: PreToolUse:Bash guard blocking `echo.*session-verified` patterns.
 - **Root cause:** system-design — hooks store trust state in files the agent can write to
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-12] PREMATURE_TERMINATION: Plan marked "done" without closeout review — 3rd recurrence across harnesses
 - **Session:** genomics 6410d793 (claude-code), prior: 019d7aab (codex), 019d8045 (codex)
@@ -3315,7 +3330,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Failure mode:** PREMATURE TERMINATION (recurrence=3)
 - **Proposed fix:** hook — pre-commit guard that blocks plan status changes to done/completed unless (a) no unchecked `- [ ]` items remain in the plan doc, or (b) --force flag used. Complements existing stop-hook advisory with enforcement.
 - **Root cause:** agent-capability — agents optimize for session completion over plan fidelity
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-12] REASONING-ACTION MISMATCH: Guard evasion via git stash — destructive workaround instead of proper resolution
 - **Session:** genomics 95834a52 (claude-code)
@@ -3323,7 +3338,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Failure mode:** RECURRENCE — prior entry recommended `git stash --keep-index`. Agent used naked `git stash` which is worse (drops all staged work). The guard's purpose (prevent cross-session contamination) was never addressed — all attempts tried to force the commit through.
 - **Proposed fix:** [hook] Add `git stash` to pretool blocklist when staged-ownership guard has fired in the session. Error message: "Use Write tool to create the file (establishes session ownership), or unstage foreign files with `git restore --staged <file>`." This converts a soft recommendation into hard enforcement.
 - **Root cause:** agent-capability — agent treats hooks as obstacles to route around rather than policy boundaries to respect
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-04-17] CONTRACT_BUG: 22 stages passing QC while producing 0 bytes of declared outputs
 - **Session:** genomics 54b4a4fe, b9e6a5b1 (claude-code)
@@ -3432,7 +3447,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 - **Failure mode:** GUARD_EVASION — recurring class; matches sanctioned improvement-log root cause "agent treats hook blocks as obstacles to route around rather than policies to respect"
 - **Proposed fix:** [architectural] Hard-blocking is hard (can't statically know a script's write targets). Cheapest durable lever: CLAUDE.md rule + posttool detector that FLAGS python-in-/tmp writing into another repo's tree. Flag, don't hard-block.
 - **Root cause:** agent-capability
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-06-04] RULE_VIOLATION: function-body lazy import inside a MOUNTED Modal library escapes both mount-coverage checks (genomics)
 - **Session:** genomics 2cdf0406
@@ -3475,7 +3490,7 @@ The session-end RSI/bug/bottleneck/dead-infra reflection only happens when the h
 - **Failure mode:** WRONG-TOOL DRIFT / blamed-before-measuring (agent self-process)
 - **Proposed fix:** [architectural] Stamp caller/script/skill ID into each `llmx-usage.jsonl` record so billing is programmatically attributable per-spender. Per-call usage is already logged (model, effort, tokens, latency — see `~/.claude/rules/llmx-routing.md`); the caller field is the named gap the agent itself flagged mid-session ("add caller attribution to llmx's usage logging — that's the real leverage"). Checkable: `jq` rollup by caller becomes possible. Touches `~/Projects/llmx` (separate repo) → propose, don't auto-apply.
 - **Root cause:** system-design (no caller attribution) + agent-capability (asserted before measuring)
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-06-08] BROKEN_COMMIT: zsh word-splitting dropped new module from git add → HEAD imports nonexistent module (intel 6c8ccfd2)
 - **Session:** intel 6c8ccfd2
@@ -3484,3 +3499,11 @@ The session-end RSI/bug/bottleneck/dead-infra reflection only happens when the h
 - **Proposed fix:** [hook] pre-commit (or commit-time-guard backstop): parse staged Python files for local-module imports (`from tools.lib.X import` / `import tools.lib.X`) and verify each imported local module file is staged or already tracked. Block if a committed file imports a local module that is neither tracked nor staged. Deterministic where manual cosign is not. Aligns with the commit-time-guard backstop pattern (pre-commit-protected-paths.sh) already wired across the 4 repos.
 - **Root cause:** agent-capability (multiline shell var word-splitting — the existing bash-loop-guard targets the symptom but not staged-import integrity)
 - **Status:** [ ] proposed
+
+### [2026-06-08] SHIPPED (F1+F2): two-stream status model — separate behavioral ledger from actionable queue (agent-infra)
+- **Session:** agent-infra 4d40085a (this session) — first real `/improve harvest` drain run.
+- **Observed:** the "131 open `[ ]`" backlog that drove last session's "consumption is the bottleneck, drain harder" conclusion was a **category error**. Classifying the open headers: ~92 were behavioral session-analyst observations (TOKEN WASTE, SYCOPHANCY, MISSING PUSHBACK…) that can never be `[x]` — their consumer is recurrence→rule promotion, not a per-item build; 13 referenced the eradicated orchestrator (moot); only ~23 were genuinely actionable. The `[ ]` glyph was overloaded across proposed/rejected/monitoring/observation, so the count was a panic number, not a work queue. The honest-factor lesson (quote frequency×blocking, not the raw factor) recursing onto the loop's own health metric.
+- **Fix (F1, shipped):** registered `[obs]` (behavioral calibration ledger, terminal) and `[-]` (rejected) glyphs in `gov-id.md`; `[ ]` is now reserved for actionable infra only. Backfilled the pre-2026-06-08 log via `scripts/reclassify_improvement_log.py` (append-safe — marks glyphs, never deletes; line count grew): 131 `[ ]` → 33 actionable, 91 `[obs]`, 6 `[~]` moot, 3 `[-]`. ~10 behavioral stragglers nested under generic `### Run NN` container headers were conservatively kept `[ ]` (header-based classifier can't reach body-level sub-findings — nothing actionable hidden). Wired the write path: `/observe` retro + promotion-sink now tag behavioral findings `[obs]`; `/improve harvest` Phase 5 corrected (rank drain by leverage×staleness, classify stream first) and its "~140 open" premise rewritten.
+- **Fix (F2, shipped):** the 13 orchestrator-moot items marked `[~] retired` with the eradication anchor.
+- **Root cause:** system-design (overloaded status glyph; behavioral observations conflated with a todo queue, against the constitution's own "append-only calibration ledger" principle).
+- **Status:** [x] implemented — F5 (cadence-as-architecture: a `gov-report` actionable-open>30d line) remains `[ ]`-worthy but depends on this split landing first; defer to a fresh pass.
