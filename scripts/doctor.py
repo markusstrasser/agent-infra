@@ -492,6 +492,67 @@ def check_orphaned_generators() -> list[Check]:
                    f"re-verify via `just orphan-check`")]
 
 
+def check_agentlogs_indexer() -> list[Check]:
+    """Surface a stalled cross-vendor session indexer.
+
+    The agentlogs indexer (launchd, every 2h) is the substrate for the agentlogs
+    CLI, /leverage's measure step, and the tool-friction back-edge. It can stall
+    silently: a single hung `executemany` holds the fcntl lock, every later cron
+    fire hits IndexerLockBusy and exits 0, and the vendor's `indexer_runs` row
+    sits 'running' forever — which is exactly how Codex went dark for a month
+    (PID 1897, 18h CPU). `v_indexer_health` recorded it the whole time but had
+    zero readers. This is that reader: warn if a vendor hasn't had a successful
+    index in 48h, or if a run has been 'running' for >2h (a dead/hung holder).
+    """
+    import sqlite3
+
+    checks: list[Check] = []
+    db_path = CLAUDE_DIR / "agentlogs.db"
+    if not db_path.exists():
+        return [Check("indexer", "global").warn("agentlogs.db not found")]
+    try:
+        # mode=ro (not immutable=1) — the DB is live/WAL; immutable would risk
+        # stale reads while the indexer writes. ro respects WAL + locks.
+        con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=5)
+    except sqlite3.Error as exc:
+        return [Check("indexer", "global").warn(f"cannot open agentlogs.db: {exc}")]
+    try:
+        rows = con.execute(
+            "SELECT vendor, last_success_at, success_7d FROM v_indexer_health"
+        ).fetchall()
+        stuck = con.execute(
+            "SELECT vendor, count(*) FROM indexer_runs "
+            "WHERE status='running' AND started_at < datetime('now','-2 hours') "
+            "GROUP BY vendor"
+        ).fetchall()
+    except sqlite3.Error as exc:
+        return [Check("indexer", "global").warn(f"query failed: {exc}")]
+    finally:
+        con.close()
+
+    now = datetime.now(timezone.utc)
+    for vendor, last_success_at, success_7d in rows:
+        c = Check(f"indexer:{vendor}", "global")
+        if not last_success_at:
+            checks.append(c.warn("no successful index on record"))
+            continue
+        try:
+            last = datetime.fromisoformat(last_success_at.replace("Z", "+00:00"))
+            age_h = (now - last).total_seconds() / 3600
+        except (ValueError, AttributeError):
+            checks.append(c.warn(f"unparseable last_success_at={last_success_at!r}"))
+            continue
+        if age_h > 48:
+            checks.append(c.warn(f"stale: last success {age_h:.0f}h ago (>48h), {success_7d} ok/7d"))
+        else:
+            checks.append(c.ok(f"fresh ({age_h:.0f}h ago)"))
+
+    for vendor, n in stuck:
+        checks.append(Check(f"indexer:{vendor}", "global").warn(
+            f"{n} run(s) stuck 'running' >2h — likely a hung/dead holder; reap + investigate"))
+    return checks
+
+
 def run_all_checks(project_filter: str | None = None) -> list[Check]:
     """Run all checks, optionally filtered to one project."""
     all_checks: list[Check] = []
@@ -504,6 +565,7 @@ def run_all_checks(project_filter: str | None = None) -> list[Check]:
         all_checks.extend(check_telemetry_freshness())
         all_checks.extend(check_test_health())
         all_checks.extend(check_orphaned_generators())
+        all_checks.extend(check_agentlogs_indexer())
 
         # Global CLAUDE.md
         gc = Check("global:CLAUDE.md", "global")
