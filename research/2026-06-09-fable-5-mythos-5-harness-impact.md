@@ -170,3 +170,51 @@ card's own diligence **regressions** say: trim **instructional verbosity** (Sect
 two newly-counterproductive instruction patterns** (Section A — reasoning-recitation + budget countdowns), and
 **keep every architectural guard** (Section D). The one change that reaches outside meta's own files
 (reasoning-recitation audit on global/shared config) is a propose-and-wait, flagged here for sign-off.
+
+---
+
+## 6. Addendum (2026-06-09, same day) — the system-prompt layer, verified against this session
+
+**New primary source.** A web-request diff of Claude Code 2.1.170 for `claude-fable-5` vs `claude-opus-4-8`
+surfaced the Fable-specific **system prompt** — the harness behavioral layer, distinct from the System Card this
+memo was built on. Unusually for an external source it is **partly verifiable against the prompt this session is
+running under**, so the load-bearing claims are checked rather than trusted. Source: Twelve Tables blog (Barding
+Defense), "Comparing Claude Fable 5's system prompt to Opus 4.8." Grade the blog's *paraphrase/inference*
+("Fable can run for days"; the safety-header downgrade research angle) as ungraded opinion; the *transcribed
+prompt text and request fields* are the verifiable part.
+
+**What it confirms (sharpens §4.B from prediction to fact).** Anthropic shipped, Fable-only, the exact behaviors
+this memo predicted capability would absorb — moving them out of *our* instructions and into *their* system
+prompt: a **"Communicating with the user"** block (lead with the outcome, readable > concise, no
+arrow-chains/jargon/fragments, prose over headers, tables only for short enumerable facts); an **autonomy** block
+("operating autonomously… proceed without asking for reversible actions that follow from the request; stop only
+for destructive actions or genuine scope changes"); the **assess-don't-fix exception** ("when the user is
+describing a problem / thinking out loud… report findings and stop; don't apply a fix until asked"); an
+**anti-dangling-promise** guard ("check your last paragraph; if it's an 'I'll…' promise, do the work now"); an
+**evidence-before-destructive** line ("before a command that changes system state — restarts, deletes, config
+edits — check the evidence supports that specific action"); and a **code-comment** rule (comment only to state a
+constraint the code can't show). Implication: the §4.B "trim instructional verbosity" candidates are now **doubly
+redundant** — the prompting guide *recommended* brevity AND the model's own prompt now *does* the communicating
+and the autonomy-gating. The global-CLAUDE.md "Communicating with the user" enumeration, the permission-asking
+coaching, and the assess-vs-fix framing graduate from "speculative trim" to **gov-shrink candidates** whose goal
+is met upstream. (Still propose-and-wait — global/shared config; A/B via `~/Projects/evals/` before cutting.)
+
+**Fallback, refined (§1).** Confirmed `"fallbacks":[{"model":"claude-opus-4-8"}]` with two new beta flags —
+`server-side-fallback-2026-06-01` and `fallback-credit-2026-06-01` (the latter = billing/cache-switch refund on
+fallback). `redact-thinking-2026-02-12` is also present: the mechanism behind "raw CoT never returned" and the
+`reasoning_extraction` risk in §4.A.
+
+**Tool-surface delta.** Fable's CC build **removed `Glob` and `Grep` as tools outright** (not deferred), moved
+`WebFetch`/`WebSearch` to ToolSearch-deferred, and added a `claude-code-guide` agent + a `fable` model-enum value.
+Net: search routes through `Bash`/`git grep` now — which `native-patterns.md` already prefers, so the harness
+moved *toward* our standing rule, not against it.
+
+**Verification caveat — the prompt is version/variant-gated, so "Anthropic covers this now" is build-specific.**
+This session runs `claude-fable-5[1m]`, and the prompt it is running under is a **different rollout point** than
+the blog's vanilla 2.1.170: it *has* the tool/agent changes (no Glob/Grep, WebFetch/WebSearch deferred,
+`claude-code-guide`, `fable` enum) and the short "When you have enough information to act, act" paragraph, but it
+does **not** contain the fuller "Communicating with the user" or autonomy prose blocks. So the §4.B redundancy is
+real on the build the blog captured but not guaranteed on every Fable build. Do not cut a rule on the assumption
+the system prompt covers it — the gov-shrink test stays "re-run the grader with the scaffold removed," not "the
+system prompt probably does it now." (This is itself an instance of [[checkable-claims-carry-probes]]: the probe
+is "read the prompt the target build actually ships.")
