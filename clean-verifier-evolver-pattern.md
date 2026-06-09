@@ -105,6 +105,11 @@ playbook entirely (corpus/attestation substrates, cross-model critique).
 - **Trailing `&` swallowing a verification chain** — `fix && verify && launch & echo OK`
   backgrounds ALL of it; the echo lies. Verify synchronously, launch detached separately.
 - **Two grinders / shared tree** — corrupts variant attribution and the ledger. Hard invariant.
+- **Source reverted, binary stale** — a dispatch that edits/reverts source but skips the rebuild
+  runs the PREVIOUS config and writes a mislabeled ledger row (hutter box Move-0: "baseline-stock"
+  ran the capped binary; caught because the S exactly reproduced the other config's number).
+  Every config-change dispatch rebuilds before eval; ledger rows should carry binary provenance
+  (binary hash), not just source SHA.
 - **Building the corpus/substrate reflex** — a clean-verifier domain needs NO claim graph; the
   ledger + bus already are the epistemics (see `decisions/`-vetoed knowledge-substrate pattern:
   generation without consumption). Re-check C1 before reaching for the usual infrastructure.
