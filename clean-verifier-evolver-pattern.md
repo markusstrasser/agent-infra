@@ -83,7 +83,12 @@ playbook entirely (corpus/attestation substrates, cross-model critique).
   untouched subsystem → external frontier scan → pretraining-dedupe (grep the idea stock BEFORE
   claiming novelty) → only then divergent volume. Idea stock carries provenance + grade +
   consumption status (`CONSUMED → queue id` / `DEAD → gate evidence`) to block cross-session
-  re-generation of refuted ideas.
+  re-generation of refuted ideas. **Rotate FRAMES, not just sources** — the move vocabulary
+  itself inherits corpus blind spots (FM27-31 one level up): audit which dimension no move
+  touches (time/order/phase), write each constraint's quantifier (a max-over-X invites
+  scheduling over X), invert the data exhaust (owned measurements ⇒ unasked questions), and
+  steelman naive outsider questions. Evidence: hutter's mid-run-retirement miss (2026-06-10) —
+  three stated facts composable into a new move axis, found by the human, not the loop.
 - **Single-writer trees.** One grinder per working tree, ever. Dreamer experiments happen on a
   separate clone/box; analysis subagents are read-only; results route back through the bus.
 - **Verify the edit before believing the result.** A silent no-op edit produces a prediction-
