@@ -65,6 +65,19 @@ playbook entirely (corpus/attestation substrates, cross-model critique).
    compliance recipe; diff its constants, don't bisect your own (one knob probed: pool 14000→2500
    = +5B @100KB, −64B @1MB — noise-scale both directions, 11.2 GiB freed). Out-invent the
    frontier on the LOOP, not on 20 years of domain tuning.
+6. **Mine the ledger for free differences before dispatching.** When one measured config is a
+   SUPERSET of another (same base, same tier), their difference prices the delta-component at
+   zero cost — check for embedded supersets before any new run. (hutter: move1's patch embedded
+   move2 ⇒ rows 9−11 priced verification at +20; a planned 3 h probe cancelled by subtraction.)
+7. **Redundancy is created by improvement — re-ablate neighbors after every structural win.**
+   In an adaptive ensemble, strengthening one component makes others deletable that weren't
+   before (four-candidate strengthened Word's embedded matches ⇒ the AddMatch family became a
+   FREE deletion worth 1.85 GB, hours after winning −54 through it). Deletion opportunities are
+   downstream of wins; a static prune list goes stale the moment you accept a change.
+8. **Cheap-tier ablations are sign-and-existence screens, NOT prices.** Value magnitudes scale
+   ×3-10 (heterogeneous) from lab-slice to truth tier (paq8: +347 @100KB → ~+3,568 @1MB; Direct:
+   −14 → −38). Never budget a trade from small-tier numbers; only direction and existence survive
+   the tier jump.
 
 ## Operational patterns that earned their keep
 
