@@ -24,6 +24,11 @@ playbook entirely (corpus/attestation substrates, cross-model critique).
   `propose → build → verify → ratchet → ledger` loop. **No skills, no LLM-judge, no memory
   beyond the ledger.** The verifier IS the judge; the ledger IS the memory. Restart-loop
   wrapper (rc-aware backoff), never a watcher process; a long session's context is disposable.
+  *Smarter generation is always fine — checklists, profile/ledger context, ranking candidate
+  moves before measuring all belong in the proposer's prompt. Self-**verification** ("is this a
+  win") is barred: when a clean gate owns correctness, a model judging its own output adds zero
+  calibration information, invites Goodhart on the visible check, and (empirically) lowers
+  accuracy under self-correction. Improve what it proposes, never what it grades.*
 - **Dreamer** (frontier model, skilled): steers via the bus only — diagnoses stalls, refills the
   queue with SHARP grounded moves, gates discovery-tier jumps, builds harness/instrumentation.
   Decides+acts autonomously on technical/strategy; escalates only money / taste / irreversible /
@@ -74,10 +79,15 @@ playbook entirely (corpus/attestation substrates, cross-model critique).
    before (four-candidate strengthened Word's embedded matches ⇒ the AddMatch family became a
    FREE deletion worth 1.85 GB, hours after winning −54 through it). Deletion opportunities are
    downstream of wins; a static prune list goes stale the moment you accept a change.
-8. **Cheap-tier ablations are sign-and-existence screens, NOT prices.** Value magnitudes scale
-   ×3-10 (heterogeneous) from lab-slice to truth tier (paq8: +347 @100KB → ~+3,568 @1MB; Direct:
-   −14 → −38). Never budget a trade from small-tier numbers; only direction and existence survive
-   the tier jump.
+8. **Cheap-tier ablations are existence screens, NOT prices — and direction can INVERT.** Value
+   magnitudes scale ×3-10 (heterogeneous) from lab-slice to truth tier (paq8: +347 @100KB →
+   ~+3,568 @1MB; Direct: −14 → −38). Never budget a trade from small-tier numbers. **Existence is
+   the only reliable survivor of the tier jump; direction usually survives but can flip sign for
+   components dominated by adaptive interactions** — the match family scored tie/worse @enwik5 and
+   WON @enwik6 (−44/−54/−34), so the settled "candidate count saturates at 2" was a small-tier
+   artifact (enwik5 is an *anti-signal* tier for that family). Consequence: a null or negative
+   cheap-tier result is a hypothesis, not a verdict — re-test one tier up at the predicted
+   condition before writing a DEAD annotation, or you annotate a live lever as dead.
 
 ## Operational patterns that earned their keep
 
@@ -118,11 +128,25 @@ playbook entirely (corpus/attestation substrates, cross-model critique).
   the opposite. Wait for the row, then speak.
 - **% thresholds on fixed-absolute overheads** — a 38-byte constant read as "1.35% BROKEN" at
   2.7KB scale. Validate in the unit the mechanism lives in.
+- **Screen metric in the wrong unit for length-/shape-changing moves** — the higher-stakes
+  sibling of the above. A screen scored in a normalized unit (bpc, per-token) rewards a transform
+  that *shrinks length* even when total shipped bytes GROW; the screen then declares a whole
+  move-CLASS dead. QUEUE_006 ruled "word/dict preprocessing is DEAD vs cmix" off a bpc screen and
+  was retracted hours later — the metric was the bug, not the lever. The screen's unit must match
+  the objective's unit (total bytes), or the screen lies about the strategy, not just a number.
 - **pgrep -f with a pattern your own wrapper's cmdline contains** — self-match deadlock (a
   heredoc dispatch carrying the literal string it later greps for). Use `pgrep -x`.
 - **Trailing `&` swallowing a verification chain** — `fix && verify && launch & echo OK`
   backgrounds ALL of it; the echo lies. Verify synchronously, launch detached separately.
 - **Two grinders / shared tree** — corrupts variant attribution and the ledger. Hard invariant.
+- **Transport/quota stall mistaken for an idea stall** — distinct from QUEUE_LOW (an *idea*
+  stall, diagnosed above). The Grinder starved on codex's *weekly* usage cap; every relaunch
+  errored "usage limit, try again <date>" and the restart-wrapper bailed. A budget ramp cannot
+  lift a weekly ceiling, and the silent fallback was the frontier Dreamer hand-driving the object
+  loop — the exact cost asymmetry the two-loop split exists to avoid. The restart-loop must
+  distinguish quota-exhaustion (long backoff to the reset time + alert) from transient rc, and
+  must NOT silently degrade into Dreamer-hand-driving. Maps to `llmx-routing` exit-6 (billing
+  exhausted) vs exit-3 (rate limit): permanent-for-the-window, not retryable.
 - **Source reverted, binary stale** — a dispatch that edits/reverts source but skips the rebuild
   runs the PREVIOUS config and writes a mislabeled ledger row (hutter box Move-0: "baseline-stock"
   ran the capped binary; caught because the S exactly reproduced the other config's number).
