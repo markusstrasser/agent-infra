@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.agent-infra.reclaim-rotate</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/alien/Projects/agent-infra/scripts/reclaim-rotate-cron.sh</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>4</integer>
+    <key>Minute</key>
+    <integer>10</integer>
+  </dict>
+  <key>Nice</key>
+  <integer>5</integer>
+  <key>LowPriorityIO</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/alien/.cache/reclaim/rotate-cron.out</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/alien/.cache/reclaim/rotate-cron.err</string>
+</dict>
+</plist>

@@ -16,7 +16,8 @@
 # Aware of THIS machine's real hogs: uv cache (~50 GB), HuggingFace, datalab,
 # the sudo-gated queue (Previously Relocated Items, Claude vm_bundles).
 #
-# Usage:  reclaim [report|preview|caches|venvs|big|rosetta|ssd|tm-off|sudo-items|all] [--yes] [--days N] [--gb N]
+# Usage:  reclaim [report|preview|caches|rotate|venvs|big|rosetta|ssd|tm-off|sudo-items|all] [--yes] [--days N] [--gb N]
+#         rotate = prune agentlogs.db to last ALOG_KEEP_DAYS (21) of sessions + VACUUM (the unbounded append-only store).
 #         preview = force dry-run of every destructive action (caches+venvs+sudo-items); never deletes.
 # Safe by default — destructive subcommands print a dry-run unless you pass --yes (alias --force, -y).
 
@@ -103,6 +104,7 @@ cmd_report() {
   sect "Reclaim hints"
   info "preview ALL → reclaim preview     (dry-run everything; deletes nothing)"
   info "caches      → reclaim caches      (uv/brew/hf/playwright/quicklook/crashes)"
+  info "rotate logs → reclaim rotate      (agentlogs.db → last ${ALOG_KEEP_DAYS:-21}d + VACUUM)"
   info "stale venvs → reclaim venvs       (git-dormant > ${DAYS}d, skips live agents)"
   info "big files   → reclaim big --gb 2"
   info "sudo queue  → reclaim sudo-items  (relocated items, Claude vm_bundles)"
@@ -261,10 +263,26 @@ cmd_sudo_items() {
   if [ -e "$img" ]; then info "quit Claude Desktop first."; del "$img"; else info "already gone"; fi
 }
 
+# ============================================================ rotate (append-only store retention)
+# The cache subcommands delete regenerable files; `rotate` shrinks the
+# UNBOUNDED append-only stores that have no built-in retention. Today that is
+# agentlogs.db (grew to 14 GB / 3.3M events with no prune path). Codex sessions
+# are deliberately NOT rotated (user: they're the only copy, not re-derivable).
+ALOG_KEEP_DAYS="${ALOG_KEEP_DAYS:-21}"
+cmd_rotate() {
+  printf "${B}reclaim rotate${N}  "; mode_banner
+  local al="$HOME/Projects/agent-infra/.venv/bin/agentlogs"
+  sect "agentlogs.db — keep last ${ALOG_KEEP_DAYS}d of sessions (rebuilds FTS, VACUUMs)"
+  if [ ! -x "$al" ]; then warn "agentlogs not found at $al"; return; fi
+  if [ "$YES" = 1 ]; then "$al" prune --keep-days "$ALOG_KEEP_DAYS" --yes
+  else "$al" prune --keep-days "$ALOG_KEEP_DAYS"; fi
+}
+
 # ============================================================ dispatch
 case "$SUB" in
   report)      cmd_report ;;
   caches)      cmd_caches ;;
+  rotate)      cmd_rotate ;;
   venvs)       cmd_venvs ;;
   big)         cmd_big ;;
   rosetta)     cmd_rosetta ;;
