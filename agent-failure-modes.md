@@ -745,6 +745,30 @@ preregister-triggers-beat-elegant-theses, 3 refuted elegant theses); pre-registe
 narrate. **Evidence:** hutter — "deletion beats tuning" headline at 01:30 bent the next two
 ablation predictions toward ~0 bands; both missed high.
 
+### FM32: Subagent-Reported Quantity Prior (delegation laundering)
+<!--
+FM-ID: fm32
+signature: a load-bearing number arrives via subagent/tool summary, not primary measurement; parent adopts it because it came from "a search of the actual code/data"; the number then drives recommendations for multiple turns before anyone re-derives it
+target_surface: any quantity that ranks or gates a recommendation must be re-derived from its primary source (file, db, command) by the parent before entering a memo/plan; the memo must embed the re-derivation command
+status: active
+evidence_count: 1
+-->
+```
+IF a quantity enters context through a subagent's prose summary
+THEN it carries the subagent's errors with the PARENT's confidence
+(the delegation step launders "I think" into "the codebase says"),
+AND downstream artifacts inherit it without re-derivation because it
+feels measured, not estimated
+```
+**Counter:** before a number ranks recommendations, run the one-line primary probe yourself
+(`cat metadata.json`, `wc -l`, `du`); embed that command in the artifact so the next reader
+re-derives instead of trusting. Same rule as plan-review-gate's stale-state-values clause,
+extended to subagent returns. **Evidence:** emb 2026-06-10 — Explore agent reported phenome's
+unified index as "2.3M entries"; `metadata.json` said 72,045 (30× off). The wrong number was
+written into a committed research memo and made ANN indexing the #1 plan recommendation; a
+later CAG cost question forced first-hand measurement, demoting the rec and requiring a
+correction commit (emb 4be4584).
+
 ---
 
 ## MAST Cross-Reference (NeurIPS 2025, arXiv:2503.13657)
