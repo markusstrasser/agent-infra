@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import sqlite3
+import sys
 import time
 import traceback
 from dataclasses import dataclass
@@ -600,15 +601,23 @@ def index_vendor(
     force: bool = False,
     source_timeout_s: float = DEFAULT_SOURCE_TIMEOUT_S,
     since_ts: float | None = None,
+    deadline: float | None = None,
 ) -> IndexerStats:
     """Ingest one vendor's sources into the given DB connection.
 
     Returns stats including sources_imported / sources_skipped / events_written.
     Writes an indexer_runs row (success or error).
 
-    Each source's DB work is bounded by `source_timeout_s` via a sqlite progress
-    handler (_SourceWatchdog): a single pathological source aborts and is marked
-    failed rather than hanging the whole indexer (and its lock) indefinitely.
+    Two layered time bounds keep one run from pinning the lock + RAM for hours
+    (witnessed: an 80-min run on a 14 GB DB blocking everything, 2026-06-10):
+      - `source_timeout_s` bounds each source's DB work via a sqlite progress
+        handler (_SourceWatchdog) — one pathological source aborts, not the run.
+      - `deadline` (absolute time.monotonic() value, shared across vendors by the
+        caller) caps TOTAL wall-clock: checked between sources, the loop stops
+        cleanly and defers the rest to the next run. The per-source watchdog
+        alone left a 40-source × 180s = 2 h worst case; this closes it. A hard
+        SIGALRM backstop in cmd_index covers a hang INSIDE a single source
+        (pure-Python parse, which the sqlite progress handler can't interrupt).
     """
     adapter = ADAPTERS[vendor]
     parser_name, parser_version = adapter.parser_identity()
@@ -641,7 +650,14 @@ def index_vendor(
             sources = sources[:limit_sources]
         stats.sources_discovered = len(sources)
 
-        for source in sources:
+        for idx, source in enumerate(sources):
+            if deadline is not None and time.monotonic() > deadline:
+                print(
+                    f"[agentlogs] run deadline reached during {vendor}: "
+                    f"{len(sources) - idx} source(s) deferred to next run (lock released)",
+                    file=sys.stderr,
+                )
+                break
             # Disarm first: the skip-check / sha / _upsert_source below run their
             # own sqlite statements and must NOT inherit a stale (past) deadline
             # from the previous source — that would abort them and bubble to the

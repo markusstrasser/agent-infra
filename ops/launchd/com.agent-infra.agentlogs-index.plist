@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+	</dict>
+	<key>Label</key>
+	<string>com.agent-infra.agentlogs-index</string>
+	<key>LowPriorityIO</key>
+	<true/>
+	<key>Nice</key>
+	<integer>5</integer>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/alien/Projects/agent-infra/.venv/bin/agentlogs</string>
+		<string>index</string>
+		<string>--since-days</string>
+		<string>60</string>
+		<string>--limit-sources</string>
+		<string>40</string>
+		<string>--source-timeout</string>
+		<string>180</string>
+		<string>--max-run-seconds</string>
+		<string>600</string>
+	</array>
+	<key>StandardErrorPath</key>
+	<string>/Users/alien/.claude/logs/agentlogs/index.err</string>
+	<key>StandardOutPath</key>
+	<string>/Users/alien/.claude/logs/agentlogs/index.out</string>
+	<key>StartInterval</key>
+	<integer>7200</integer>
+	<key>ThrottleInterval</key>
+	<integer>60</integer>
+	<key>WatchPaths</key>
+	<array>
+		<string>/Users/alien/.claude/projects</string>
+		<string>/Users/alien/.codex/sessions</string>
+		<string>/Users/alien/.gemini/tmp</string>
+		<string>/Users/alien/.kimi/sessions</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>/Users/alien/Projects/agent-infra</string>
+</dict>
+</plist>

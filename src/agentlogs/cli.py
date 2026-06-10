@@ -42,6 +42,11 @@ def _make_parser() -> argparse.ArgumentParser:
                          help="Re-import even if source sha+parser_version already succeeded")
     s_index.add_argument("--no-lock", action="store_true",
                          help="Skip single-writer lock (debug only)")
+    s_index.add_argument("--max-run-seconds", type=float, default=600.0,
+                         help="Total wall-clock budget for the whole run. Checked "
+                              "between sources (defers the rest to the next run); a "
+                              "hard SIGALRM backstop at +60s covers an in-source hang. "
+                              "0 disables. Default 600 (10 min).")
     s_index.add_argument("--source-timeout", type=float, default=180.0,
                          help="Per-source DB-work budget in seconds (sqlite progress-handler "
                               "watchdog). A source exceeding it is aborted + marked failed rather "
@@ -107,6 +112,18 @@ def _make_parser() -> argparse.ArgumentParser:
     s_disp.add_argument("--model", default="gemini-3.1-pro-preview")
     s_disp.add_argument("--timeout", type=int, default=300)
 
+    # prune ---------------------------------------------------------------
+    s_prune = sub.add_parser(
+        "prune",
+        help="Delete sessions older than --keep-days and reclaim space (dry-run by default)",
+    )
+    s_prune.add_argument("--keep-days", type=int, default=21,
+                         help="Retain sessions newer than this many days (default: 21)")
+    s_prune.add_argument("--yes", "--apply", dest="apply", action="store_true",
+                         help="Execute the prune (default: dry-run preview, deletes nothing)")
+    s_prune.add_argument("--no-lock", action="store_true",
+                         help="Skip the single-writer indexer lock (debug only)")
+
     return p
 
 
@@ -159,11 +176,33 @@ def cmd_index(args) -> int:
             if getattr(args, "since_days", None) is not None:
                 import time as _time
                 since_ts = _time.time() - args.since_days * 86400
+            # Total wall-clock budget shared across all vendors (absolute
+            # monotonic deadline). index_vendor checks it between sources and
+            # defers the rest to the next run when exceeded.
+            import time as _time2
+            max_run_s = getattr(args, "max_run_seconds", 600.0) or 0.0
+            run_deadline = (_time2.monotonic() + max_run_s) if max_run_s > 0 else None
+            if max_run_s > 0:
+                # Hard backstop for a hang INSIDE one source (pure-Python parse,
+                # which the sqlite progress handler can't interrupt): SIGALRM
+                # hard-exits so the flock + RAM are released. WAL rolls back any
+                # open txn on next open; the run resumes next cycle. exit 75 and
+                # no launchd KeepAlive => no crash-loop.
+                import os as _os
+                import signal as _signal
+                def _hard_deadline(_sig, _frm):
+                    _os.write(2, b"[agentlogs] HARD run deadline exceeded -- exiting 75\n")
+                    _os._exit(75)
+                try:
+                    _signal.signal(_signal.SIGALRM, _hard_deadline)
+                    _signal.setitimer(_signal.ITIMER_REAL, max_run_s + 60.0)
+                except (ValueError, OSError):
+                    pass  # not main thread / unsupported — soft deadline still applies
             for v in vendors:
                 stats = ix.index_vendor(
                     db, v, limit_sources=args.limit_sources, force=args.force,
                     source_timeout_s=getattr(args, "source_timeout", 180.0),
-                    since_ts=since_ts,
+                    since_ts=since_ts, deadline=run_deadline,
                 )
                 # index_vendor catches outer exceptions and writes
                 # indexer_runs.status='error'; check for those vendor-level
@@ -308,8 +347,8 @@ def cmd_query(args) -> int:
 
     if not args.name:
         for name in q.list_queries():
-            params = q.query_params(name)
-            suffix = f"  params: {', '.join(params)}" if params else ""
+            qparams = q.query_params(name)
+            suffix = f"  params: {', '.join(qparams)}" if qparams else ""
             print(f"  {name}{suffix}")
         return 0
 
@@ -409,8 +448,49 @@ def cmd_git_import(args) -> int:
         db.close()
 
 
+def cmd_prune(args) -> int:
+    from . import prune as pr
+    from .locks import IndexerLockBusy, indexer_lock
+    from .paths import AGENTLOGS_LOCK
+
+    def _run() -> int:
+        db = connect(_resolve_db_path(args))
+        try:
+            if not args.apply:
+                plan = pr.plan_prune(db, args.keep_days)
+                print(f"[dry-run] keep_days={plan.keep_days}  cutoff={plan.cutoff}")
+                print(f"  would delete: sessions={plan.sessions:,} runs={plan.runs:,} "
+                      f"events={plan.events:,} tool_calls={plan.tool_calls:,} "
+                      f"file_touches={plan.file_touches:,} record_refs≈{plan.record_refs:,}")
+                print(f"  db size now: {plan.size_before_mb:,.0f} MB "
+                      f"(VACUUM reclaims free pages on --yes)")
+                print("  re-run with --yes to execute")
+                return 0
+            plan = pr.apply_prune(db, args.keep_days)
+            reclaimed = plan.size_before_mb - (plan.size_after_mb or plan.size_before_mb)
+            print(f"[pruned] keep_days={plan.keep_days}  cutoff={plan.cutoff}")
+            print(f"  deleted: sessions={plan.sessions:,} runs={plan.runs:,} "
+                  f"events={plan.events:,} tool_calls={plan.tool_calls:,} "
+                  f"file_touches={plan.file_touches:,} record_refs={plan.record_refs:,}")
+            print(f"  db size: {plan.size_before_mb:,.0f} MB -> "
+                  f"{plan.size_after_mb:,.0f} MB (reclaimed {reclaimed:,.0f} MB)")
+            return 0
+        finally:
+            db.close()
+
+    if args.no_lock:
+        return _run()
+    try:
+        with indexer_lock(AGENTLOGS_LOCK, timeout_s=30.0):
+            return _run()
+    except IndexerLockBusy:
+        print("another indexer/prune is running; exiting cleanly", file=sys.stderr)
+        return 0
+
+
 _COMMANDS = {
     "index": cmd_index,
+    "prune": cmd_prune,
     "search": cmd_search,
     "show": cmd_show,
     "recent": cmd_recent,
