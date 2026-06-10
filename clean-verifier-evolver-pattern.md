@@ -113,6 +113,12 @@ playbook entirely (corpus/attestation substrates, cross-model critique).
 - **Building the corpus/substrate reflex** — a clean-verifier domain needs NO claim graph; the
   ledger + bus already are the epistemics (see `decisions/`-vetoed knowledge-substrate pattern:
   generation without consumption). Re-check C1 before reaching for the usual infrastructure.
+- **Predicting from text priors instead of the ledger** — the model's pre-registrations run
+  systematically hot: corpus over-reports successes, under-reports interactions, mis-prices
+  selected systems, and presents toy-scale lessons as general. Band-set from the project's own
+  calibration views (reference class FIRST), apply measured correction factors, and treat
+  small-tier verdicts as hypotheses. Full catalog with evidence: `agent-failure-modes.md`
+  FM27-FM31 (hutter calibration night: 4/11 hits, all misses in the predicted directions).
 
 ## Bootstrap checklist for evolver #2
 
