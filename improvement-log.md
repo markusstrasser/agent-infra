@@ -3537,3 +3537,33 @@ A source that fails the watchdog (e.g. the oversized `~/.gemini/tmp/{intel,genom
 ### [2026-06-08] AGENTLOGS_EDITABLE_IS_A_COPY: src edits don't take effect without reinstall (agent-infra)
 `pyproject.toml` `packages=[".", "src/agentlogs"]` installs `agentlogs` as a COPY in site-packages even under `-e`, so `src/agentlogs/*.py` edits are inert until `uv pip install -e . --force-reinstall`, and the launchd job runs the stale copy. Drop the dual-package config so the editable install is genuinely editable. Footgun for any agent (incl. the orchestrator's implementor) touching the agentlogs package.
 - **Status:** [ ] proposed
+
+### [2026-06-10] INFRA: shadow-cljs stale compile cache — silent false-green/phantom-error on non-source inputs (evo)
+- **Session:** evo e24a68d3
+- **Evidence:** Two incidents in one session. (1) 06:31 — `:ns-regexp` change in shadow-cljs.edn "didn't take" until cache purge. (2) 07:28-07:30 — `resources/specs.edn` is slurped at macroexpansion (`src/spec/registry_macros.clj:6`); after restoring deleted code the compiled suite showed phantom errors until manual `rm -rf .shadow-cljs/builds/test* out/tests*.js`. Failure is silent both directions: false-green after specs.edn edits, phantom errors after restores.
+- **Failure mode:** stale-build false-green (environment)
+- **Proposed fix:** evo `bb.edn` pre-compile fingerprint guard — hash shadow-cljs.edn + resources/specs.edn + resources/failure_modes.edn into `.shadow-cljs/inputs.fingerprint`; purge `.shadow-cljs/builds/*` on mismatch. ~10 lines, deterministic, zero-FP. Complement: `:compiler-options {:cache-blockers #{spec.registry}}` (native shadow option, specs.edn case only — verify it propagates to macro-consumers).
+- **Root cause:** system-design
+- **Status:** [ ] proposed
+
+### [2026-06-10] INFRA: bb check missing lint:specs — dangling intent refs only surface via compiled test run (evo)
+- **Session:** evo e24a68d3
+- **Evidence:** 07:28 — deletion sweep left specs.edn scenario actions pointing at unregistered intents; errors surfaced only in `bb test` (compiled, and tangled with the stale-cache trap above). `scripts/lint_specs.clj:77` already validates action `:type` against registered intents, fast, no compile — but `bb check` (bb.edn:19-28) doesn't run it.
+- **Failure mode:** gate exists but not wired into the gate runner
+- **Proposed fix:** add `(run 'lint:specs)` to `bb check`. One line, zero-FP.
+- **Root cause:** system-design
+- **Status:** [ ] proposed
+
+### [2026-06-10] HOOK FALSE POSITIVE: pretool-bash-loop-guard scans heredoc bodies
+- **Session:** evo e24a68d3
+- **Evidence:** 06:30:08 — legitimate `uv run python3 - <<'EOF'` blocked because `\b(do|then)\s*\n` (hook line 29) matched text inside the Python heredoc. Guard's purpose is zsh control-structure parse errors; heredoc bodies are opaque to zsh.
+- **Failure mode:** hook over-matching
+- **Proposed fix:** in `~/Projects/skills/hooks/pretool-bash-loop-guard.sh`, strip `<<['"]?MARKER … MARKER` spans before the do/then scan. Strictly fewer false positives; true positives unaffected.
+- **Root cause:** system-design
+- **Status:** [ ] proposed
+
+### [2026-06-10] [obs] BENCHMARK FLAKE: structural fix over threshold-relaxation (evo)
+- **Session:** evo e24a68d3
+- **Evidence:** wall-clock benchmark thresholds flaked under parallel-agent load; agent root-caused via clean baseline worktree at pre-session commit (reproduced worse there), then moved benchmarks to dedicated `bb test:bench` tier (c7b1fc35) instead of re-relaxing thresholds (prior fix 29a292a3 had relaxed). Side discovery: shadow node-test has NO `:ns-exclude-regexp` option — repo's old key was a silent no-op, now documented inline in shadow-cljs.edn:32. Patterns to reuse: baseline-worktree flake attribution; load-sensitive wall-clock asserts never belong in the default gate.
+- **Root cause:** agent-capability (positive calibration entry)
+- **Status:** [obs]
