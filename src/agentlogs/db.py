@@ -37,12 +37,16 @@ def connect(path: Path | str | None = None) -> sqlite3.Connection:
     db.execute("PRAGMA busy_timeout=30000")
     db.execute("PRAGMA foreign_keys=ON")
     db.execute("PRAGMA trusted_schema=ON")
-    # The store is ~11GB / 2.76M events with 7 indexes on `events`; per-source
-    # inserts and the denorm subqueries are disk-bound when the working set spills
-    # the default 2MB page cache (state-UN I/O stalls). A larger cache + memory-
-    # mapped reads keep hot B-tree pages resident — measured the dominant lever on
-    # bulk-import throughput. cache_size is negative = KiB; mmap_size is bytes.
-    db.execute("PRAGMA cache_size=-1048576")   # 1 GiB page cache
+    # A larger-than-default cache + memory-mapped reads keep hot B-tree pages
+    # resident across per-source inserts and the denorm subqueries (otherwise
+    # disk-bound, state-UN I/O stalls). cache_size negative = KiB; mmap = bytes.
+    # Sized DOWN from 1 GiB to 512 MiB on 2026-06-10: the store was pruned 14 GB
+    # -> 3.2 GB (retention now caps it), so 512 MiB covers the hot set, and on
+    # this 18 GB / swap-bound machine a 1 GiB private cache PER connection was a
+    # needless memory draw (the indexer hit 2.5 GB RSS). Bump back toward 1 GiB
+    # if bulk-import throughput on a re-grown DB regresses. mmap stays large but
+    # is file-backed (reclaimable, not swap pressure).
+    db.execute("PRAGMA cache_size=-524288")    # 512 MiB page cache
     db.execute("PRAGMA mmap_size=8589934592")  # 8 GiB memory-mapped I/O
 
     apply_migrations(db)
