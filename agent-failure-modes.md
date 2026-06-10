@@ -796,3 +796,69 @@ The MAST taxonomy (1600+ annotated traces, 7 MAS frameworks, κ=0.88) identifies
 
 *Evaluated 2026-02-27, updated 2026-02-28, updated 2026-03-01, updated 2026-03-03, updated 2026-03-04, updated 2026-03-10. Research sweep findings (40+ primary sources), community pattern analysis, snippet/workflow audit, sycophancy audit, session-analyst findings, 2026-03-01 research update (6 new papers on agent scaling, CoT faithfulness, and sycophancy), 2026-03-03 update (causal reasoning evidence: arXiv:2602.11675, arXiv:2506.21215, arXiv:2506.07106, arXiv:2502.09061; prompt interventions: LessWrong n=900 hedging study, arXiv:2602.23971). 2026-03-10 update: MAST cross-reference (arXiv:2503.13657), 5 new failure modes added to session-analyst detection.*
 *Sources: `~/Projects/selve/docs/universal_contracts.md`, `~/Projects/selve/docs/AGENT_PROTOCOLS.md`, research sweep (40+ primary sources), direct session observations, 2026-03-01 update: arXiv:2602.03794, arXiv:2602.11201, arXiv:2601.06423, arXiv:2602.14270, SycEval (DOI:10.1609/aies.v8i1.36598), ELEPHANT (ICLR 2026 submission). 2026-03-03 update: see `research/causal-reasoning-evidence.md`, `research/anti-sycophancy-process-supervision.md`.*
+
+### FM: Agent Vision as Verifier of Its Own Visual Output
+<!--
+FM-ID: agent-vision-self-verify
+signature: agent presents an image/render/plot as "fixed/clean/verified" based on its own multimodal read of a downscaled preview; user finds the defect at full resolution
+target_surface: VLM-judge localizer as primary verification (schema-constrained, severity-scored, box-localized) + send-gated-on-Read hook; agent eyes secondary
+status: active
+evidence_count: 6
+-->
+Agent multimodal reads operate on downsampled renders and systematically miss soft
+large-scale artifacts (halos, tonal washes, gradients). One session: six "verified"
+claims, four user-caught defects; gemini-3-flash saw every one. **Contract: a cheap
+VLM judge with a constrained schema (findings + severity + box_2d, temperature 0) is
+the PRIMARY verifier for produced visual artifacts; the agent's own Read is the
+secondary check.** Corollary for thinking-model judges: free-form JSON gets truncated
+by the thinking budget — `response_schema` is load-bearing, and `max_output_tokens`
+caps thinking too (omit it). Reference impl: `imagegen/src/imagegen/inspect_vlm.py`.
+Source: imagegen@6da21f3 (2026-06-10).
+
+### FM: Repair-Stacking Without Stage Bisection
+<!--
+FM-ID: repair-stacking-no-bisect
+signature: pipeline produces a defect; agent ships fix-on-fix at the suspected stage without isolating which stage introduces the defect; each fix creates a new artifact
+target_surface: bisect protocol — score each stage's output with the same judge before writing any fix
+status: active
+evidence_count: 3
+-->
+Three consecutive "fixes" (sky inpaint, throat ellipse v1, v2) each created a new
+defect because the defective STAGE was never isolated. The eventual 20-minute
+bisection (same judge, same metric, one stage varied at a time: gen 5 → swap 5 →
+crop-only 5 → finish-no-X 4 → finish-with-X 16) found the root cause on the first
+pass — a compensation stage (color match) whose reason-to-exist had been obsoleted
+by an upstream upgrade. **Contracts: (1) bisect with a fixed judge before fixing;
+(2) when an upstream stage is upgraded, re-A/B every downstream compensation —
+compensations outlive their causes and turn into artifact generators.**
+Source: imagegen@2b73120 (2026-06-10).
+
+### FM: Stale Canonical-Named Artifacts After a Pipeline Fix
+<!--
+FM-ID: stale-canonical-artifacts
+signature: code fix lands; previously-generated defective outputs keep their canonical filenames while fixes accumulate in suffixed siblings; user keeps opening the stale file
+target_surface: regenerate canonical-named outputs in place after any pipeline fix; embed provenance (git rev + config) in output metadata
+status: active
+evidence_count: 1
+-->
+The user opens the plain-named file. Half a debugging session lost to an agent
+analyzing `_v3`/`_fixed` siblings while the user looked at the stale pre-fix
+`*_final.png`. **Contracts: (1) after a pipeline fix, regenerate every
+canonical-named output in place and archive debug variants; (2) stamp outputs with
+provenance (git rev + spec) so "which pipeline made this file" is answerable —
+PNG text chunks / EXIF cost nothing.** Source: imagegen@6da21f3 (2026-06-10).
+
+### FM: Background `timeout … | tail` Masks Kills as Success
+<!--
+FM-ID: timeout-pipe-exit0
+signature: backgrounded `timeout N cmd | tail` killed at the deadline reports exit 0 with empty output; agent reads it as success with no output
+target_surface: don't pipe backgrounded long jobs; write progress to files (-o/teed log); check artifacts not exit codes
+status: active
+evidence_count: 2
+-->
+`timeout`'s kill lands on the pipeline whose exit status is the LAST command
+(`tail`), which exits 0 — and the pipe buffer swallows all partial output. Twice in
+one session a killed multi-stage job read as "completed, no output". **Contract:
+long backgrounded jobs write their own progress/output files (`-o`, tee) and are
+judged by artifacts on disk, never by piped exit codes.** (Same family as
+llmx-guide §3.5, generalized beyond llmx.) Source: imagegen 2026-06-10 session.
