@@ -35,7 +35,7 @@ dev = [
 requires-dist = [
     { name = "anthropic", specifier = ">=0.105.0" },
     { name = "claude-agent-sdk", specifier = ">=0.1.44" },
-    { name = "corpus-core", extras = ["all"], editable = "scripts/corpus/packages/corpus-core" },
+    { name = "corpus-core", extras = ["all"], editable = "../substrate/packages/corpus-core" },
     { name = "duckdb", specifier = ">=1.1" },
     { name = "exa-py", specifier = ">=2.6.1" },
     { name = "fastmcp", specifier = ">=3.4.2,<4.0" },
@@ -653,7 +653,7 @@ wheels = [
 [[package]]
 name = "corpus-core"
 version = "0.2.0"
-source = { editable = "scripts/corpus/packages/corpus-core" }
+source = { editable = "../substrate/packages/corpus-core" }
 dependencies = [
     { name = "duckdb" },
     { name = "jsonschema" },
@@ -670,7 +670,7 @@ all = [
 
 [package.metadata]
 requires-dist = [
-    { name = "corpus-core", extras = ["extract", "net", "figures"], marker = "extra == 'all'", editable = "scripts/corpus/packages/corpus-core" },
+    { name = "corpus-core", extras = ["extract", "net", "figures"], marker = "extra == 'all'", editable = "../substrate/packages/corpus-core" },
     { name = "duckdb", specifier = ">=1.0" },
     { name = "google-genai", marker = "extra == 'llm-fallback'", specifier = ">=1.0" },
     { name = "httpx", marker = "extra == 'net'", specifier = ">=0.27" },

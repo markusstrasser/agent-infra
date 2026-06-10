@@ -85,8 +85,8 @@ uv run python3 -c "import corpus_core; print(corpus_core.__file__)"
 uv run python3 -c "import claimcore; print(claimcore.__file__)"
 uv run python3 -c "import genomics_read; print(genomics_read.__file__)"
 uv run python3 -c "import clinical_profile; print(clinical_profile.__file__)"
-uv run pytest scripts/corpus/packages/corpus-core/tests
-uv run pytest packages/claimcore/tests packages/genomics_read/tests packages/clinical_profile/tests
+cd /Users/alien/Projects/substrate && uv run pytest packages/corpus-core/tests packages/corpus-testing/tests
+cd /Users/alien/Projects/substrate && uv run pytest packages/claimcore/tests packages/genomics-read/tests packages/clinical-profile/tests
 ```
 
 Adjust test paths after package moves.
