@@ -1,7 +1,7 @@
-"""Tests for the governance correction intake hook (scripts/gov_intake.py).
+"""Tests for the feedback intake hook (scripts/gov_intake.py).
 
-Feeds synthetic UserPromptSubmit hook JSON with and without `#f governance:`
-and asserts: capture only when tagged, dedupe on repeat, quarantine file
+Feeds synthetic UserPromptSubmit hook JSON with and without the `#f` feedback
+tag and asserts: capture only when tagged, dedupe on repeat, quarantine file
 written, exit 0 in all cases.
 """
 
@@ -54,7 +54,7 @@ def test_empty_prompt_exit_0(tmp_path):
 def test_tagged_prompt_captures(tmp_path):
     home = tmp_path
     payload = {
-        "prompt": "ok thanks. #f governance: never auto-commit research memos without a body.",
+        "prompt": "ok thanks. #f never auto-commit research memos without a body.",
         "session_id": "s2",
         "cwd": "/proj",
     }
@@ -79,7 +79,7 @@ def test_case_insensitive_and_multiline_body(tmp_path):
     # Contract (revised post-/critique close): capture the FULL body below the
     # tag, not just the first line — a multi-line correction must survive.
     payload = {
-        "prompt": "#F GOVERNANCE: Always tag sources.\nand cite the incident",
+        "prompt": "#F Always tag sources.\nand cite the incident",
         "session_id": "s3",
         "cwd": "/proj",
     }
@@ -93,14 +93,14 @@ def test_case_insensitive_and_multiline_body(tmp_path):
 def test_dedupe_on_repeat(tmp_path):
     home = tmp_path
     payload = {
-        "prompt": "#f governance: prefer SQLite views over CLI wrappers",
+        "prompt": "#f prefer SQLite views over CLI wrappers",
         "session_id": "s4",
         "cwd": "/proj",
     }
     _run_hook(payload, home)
     _run_hook(payload, home)  # identical repeat
     # whitespace/case variant — normalizes to same hash
-    payload2 = dict(payload, prompt="#f GOVERNANCE:   Prefer SQLite Views Over CLI Wrappers  ")
+    payload2 = dict(payload, prompt="#f   Prefer SQLite Views Over CLI Wrappers  ")
     _run_hook(payload2, home)
     recs = [json.loads(l) for l in _quarantine(home, "s4").read_text().splitlines() if l.strip()]
     assert len(recs) == 1
@@ -108,7 +108,7 @@ def test_dedupe_on_repeat(tmp_path):
 
 def test_max_one_capture_per_prompt(tmp_path):
     payload = {
-        "prompt": "#f governance: first rule\n#f governance: second rule",
+        "prompt": "#f first rule\n#f second rule",
         "session_id": "s5",
         "cwd": "/proj",
     }
@@ -134,8 +134,8 @@ def test_load_pending(tmp_path, monkeypatch):
     mod = _load_module()
     monkeypatch.setenv("HOME", str(tmp_path))
     # capture via the module's own dir resolution (honors HOME)
-    mod.capture({"prompt": "#f governance: rule A", "session_id": "sx", "cwd": "/p"})
-    mod.capture({"prompt": "#f governance: rule B", "session_id": "sy", "cwd": "/p"})
+    mod.capture({"prompt": "#f rule A", "session_id": "sx", "cwd": "/p"})
+    mod.capture({"prompt": "#f rule B", "session_id": "sy", "cwd": "/p"})
     all_pending = mod.load_pending()
     assert len(all_pending) == 2
     one = mod.load_pending(session="sx")

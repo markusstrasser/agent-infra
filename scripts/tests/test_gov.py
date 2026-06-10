@@ -61,7 +61,7 @@ def test_gov_id_ignores_bullet_goal(tmp_path):
 def test_intake_multiline_capture():
     # A correction spanning multiple lines below the tag. Pre-fix `(.+?)(?:\n|$)`
     # captured only the FIRST line; the DOTALL fix captures the whole body.
-    prompt = ("fix the thing\n#f governance:\n"
+    prompt = ("fix the thing\n#f\n"
               "always grep vetoed-decisions before consolidating\n"
               "and cite the incident that drives the rule")
     c = gov_intake._extract_correction(prompt)
@@ -70,7 +70,7 @@ def test_intake_multiline_capture():
 
 
 def test_intake_same_line_still_works():
-    c = gov_intake._extract_correction("#f governance: put routing in the skill")
+    c = gov_intake._extract_correction("#f put routing in the skill")
     assert c == "put routing in the skill"
 
 

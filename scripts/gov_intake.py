@@ -1,23 +1,26 @@
 #!/usr/bin/env python3
-"""Governance correction intake — UserPromptSubmit hook.
+"""Feedback intake — UserPromptSubmit hook.
 
-Captures explicit ground-truth governance corrections marked with the literal
-tag `#f governance:` so they become first-class proposals in the governance
-system instead of being lost as ad-hoc conversation.
+Captures explicit ground-truth feedback marked with the literal `#f` tag (the
+operator's general steering marker — see global CLAUDE.md) so corrections,
+preferences, and steerings become first-class proposals in the governance system
+instead of being lost as ad-hoc conversation.
 
 Design constraints (deliberate, do not relax):
-- Explicit tag ONLY. No semantic detection of "pushback"/"stance flips" — that
-  is a known false-positive factory (depth-nudge classifier hit 67% FP).
+- Explicit tag ONLY (`#f` followed by whitespace). No semantic detection of
+  "pushback"/"stance flips" — that is a known false-positive factory (depth-nudge
+  classifier hit 67% FP).
 - Writes to a QUARANTINE file, never to git, never to improvement-log directly.
 - Fail open: any error → exit 0, never block the prompt. Exit 0 always.
 - Safe with no tag present (the common case): exit 0 silently, write nothing.
 
-Run as hook command:
-    cd /Users/alien/Projects/agent-infra && uv run python3 scripts/gov_intake.py
+Run as hook command (a `grep -qi '#f'` prefilter in settings.json skips Python
+entirely unless the marker is present; stdlib-only, no uv needed):
+    python3 scripts/gov_intake.py   # stdin = UserPromptSubmit event JSON
 """
 
 # Gov-ID: hook:gov_intake
-# goal: capture #f governance corrections to quarantine
+# goal: capture #f feedback/steering corrections to quarantine
 # verifier: null
 # blast_radius: local
 
@@ -32,13 +35,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-# Case-insensitive. Capture from the marker to END OF PROMPT (DOTALL) so a
+# Case-insensitive. Capture from the `#f` marker to END OF PROMPT (DOTALL) so a
 # multi-line correction below the tag is not silently dropped, but STOP at a
-# second `#f governance:` tag so two tags yield one clean capture each (we take
-# the first). The quarantine is human-reviewed, so mild over-capture is safe;
-# losing the body is not. Length-capped in _extract_correction.
+# second `#f` tag so two tags yield one clean capture each (we take the first).
+# Require a boundary before `#f` and whitespace after it, so hex colors (#f00)
+# and words (#feature) don't trigger. The quarantine is human-reviewed, so mild
+# over-capture is safe; losing the body is not. Length-capped in _extract_correction.
 _TAG_RE = re.compile(
-    r"#f\s+governance:\s*(.+?)\s*(?=\n\s*#f\s+governance:|$)",
+    r"(?:^|\s)#f\s+(.+?)\s*(?=\n\s*#f\s+|$)",
     re.IGNORECASE | re.DOTALL,
 )
 _MAX_CORRECTION_CHARS = 2000  # cap over-capture of a long trailing prompt
@@ -58,7 +62,7 @@ def _dedupe_hash(text: str) -> str:
 
 
 def _extract_correction(prompt: str) -> str | None:
-    """Return the first `#f governance:` span, or None. Max 1 per prompt."""
+    """Return the first `#f` feedback span, or None. Max 1 per prompt."""
     if not prompt:
         return None
     m = _TAG_RE.search(prompt)
