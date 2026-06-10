@@ -19,9 +19,6 @@ dev = [
     "rfc8785>=0.1.4",
 ]
 
-[tool.uv.workspace]
-members = ["packages/*"]
-
 [tool.uv.sources]
-corpus-core = { workspace = true }
-corpus-testing = { workspace = true }
+corpus-core = { path = "../../../substrate/packages/corpus-core", editable = true }
+corpus-testing = { path = "../../../substrate/packages/corpus-testing", editable = true }

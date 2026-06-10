@@ -636,7 +636,7 @@ lint-no-bare-annotations *args:
 # spawn because uv resolves to the wrong project).
 [group('corpus')]
 test-corpus *args:
-    cd scripts/corpus && uv run pytest packages/corpus-core/tests/ {{args}}
+    cd ../substrate && uv run pytest packages/corpus-core/tests/ {{args}}
 
 # ── Knowledge ──────────────────────────────────────────────────────
 
