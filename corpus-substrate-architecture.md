@@ -18,13 +18,14 @@ humans.
 | Repo | Role | Git |
 |---|---|---|
 | `~/Projects/corpus` | **DATA**: one dir per source + `graph.duckdb`. | no (377M; see §10 seam) |
-| `~/Projects/agent-infra` | Substrate **CODE**: the `corpus-core` package, `corpus_mcp.py`, `audit_corpus_sync.py`. | yes |
+| `~/Projects/substrate` | Substrate **CODE**: the `corpus-core` package and shared corpus schemas. | yes |
+| `~/Projects/agent-infra` | Meta/governance code: `corpus_mcp.py`, `audit_corpus_sync.py`, dashboards, hooks. | yes |
 | `~/Projects/research-mcp` | Discovery + retrieval MCP (`fetch_paper`, RAG). Depends on `corpus-core`. | yes |
 | `~/Projects/genomics`, `~/Projects/phenome` | Domain repos with per-repo claim layers; coupled directly by **the bridge**. | yes |
 | `~/Projects/intel` | Separate (market/AI-narrative; 0 DOIs — deliberately not paper-shaped). | yes |
 
 `corpus-core` is editable-installed into all four code repos from
-`agent-infra/scripts/corpus/packages/corpus-core` (see §10 seam).
+`substrate/packages/corpus-core` (see §10 seam).
 
 ## 3. The store (`~/Projects/corpus`)
 **Filesystem is the source of truth; `graph.duckdb` is a rebuildable projection.**
