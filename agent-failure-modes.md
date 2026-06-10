@@ -645,6 +645,108 @@ THEN agent retries same command without checking stderr, exit code, or error typ
 
 ---
 
+## Corpus Priors — systematic text→reality deltas (2026-06-10)
+
+The training corpus differs from reality in *measurable, directional* ways; each delta becomes a
+behavioral prior. Distinct from FM25/26 (belief-consistency is per-session momentum; these are
+baked-in offsets active in every fresh prediction). First measured cleanly in the hutter
+calibration ledger: 11 pre-registered predictions in one night, 4 hits / 7 misses, **all 7 misses
+in the directions these priors predict.** Countermeasure family: reference-class forecasting from
+own ledgers (outside view BEFORE mechanism story), standing correction factors, bands that
+straddle 0 absent a written mechanism sentence.
+
+### FM27: Publication / Survivorship Prior
+<!--
+FM-ID: fm27
+signature: agent's success-probability or iteration-count estimate for an intervention assumes text-corpus base rates; no reference-class query of own/project ledger before predicting
+target_surface: pre-registration discipline (predicted_ds + band from v_calibration-style views); /critique verify mode
+status: active
+evidence_count: 1
+-->
+```
+IF the corpus reports outcomes (papers, blogs, changelogs) it reports SUCCESSES
+THEN interventions-in-text succeed and compose far more cleanly than interventions-in-reality,
+AND an agent reasoning from text priors overestimates P(works) and underestimates iterations-to-win
+```
+**Counter:** the agent's own attempt ledger is the only debiased reference class — failed attempts
+are recorded at the same rate as wins. Predict from it first; mechanism stories second.
+**Evidence:** hutter 2026-06-09→10 (11 graded predictions; systematic optimistic miss).
+
+### FM28: Independence / Additivity Prior (interaction blindness)
+<!--
+FM-ID: fm28
+signature: agent predicts a combination's value as (sum of solo deltas) or near it, without measured interaction terms
+target_surface: bundle/arc endpoint measurement (never sum solos); standing correction factors in pre-registration
+status: active
+evidence_count: 2
+-->
+```
+IF published ablation tables and feature-importance studies under-report interaction terms
+THEN agents default to "components contribute independently"
+AND stacked interventions deliver less than predicted — same-axis combinations can REGRESS
+```
+**Counter:** measure every endpoint (arc protocol); empirical correction factors — hutter measured
+cross-family composition ≈ ×0.6 of additive, within-family (same-axis levers = substitutes) ≈ ×0
+to negative. **Evidence:** COMPO2 (pred −85 additive, actual −30), COMPO3 (threshold32 −44 solo →
++22 in stack).
+
+### FM29: Selection-Blindness (tech-debt prior on selected systems)
+<!--
+FM-ID: fm29
+signature: agent predicts components of a MATURE, gate-selected system are removable bloat, without asking what selection pressure each part survived
+target_surface: ablate-before-assuming; "did this survive a gate?" check in review/refactor proposals
+status: active
+evidence_count: 1
+-->
+```
+IF refactoring lore over-represents "legacy code = dead weight" narratives
+THEN agents under-price components of selected ensembles (codebases that survived years of tuning)
+AND deletion proposals look safer than they are — Chesterton's fence, quantified
+```
+**Counter:** in a selected system, default assumption is components EARN (they survived someone's
+gate); the exceptions are findable only by measurement. Inverse trap also real: unaudited code is
+NOT selected — apply the prior only where a gate existed. **Evidence:** hutter ablations — agent
+predicted Bracket ~0/Word ±20 (bloat prior); actual +14/+52 earned. The one true deletion win
+(Direct −14→−38) was the exception that then over-generalized within hours.
+
+### FM30: Scale-Invariance Prior
+<!--
+FM-ID: fm30
+signature: agent treats a small-slice/toy-tier verdict as the system's verdict; promotes lab results without a truth-tier CONFIRM
+target_surface: truth-tier ladders; "lab verdicts are hypotheses" framing in queue/eval protocols
+status: active
+evidence_count: 1
+-->
+```
+IF text presents lessons from toy examples as general (tutorials, papers with small-n benchmarks)
+THEN agents trust small-scale verdicts to transfer
+AND sign FLIPS at scale go unnoticed until the expensive tier
+```
+**Counter:** cheap tiers SCREEN, they never decide; every accepted direction needs one
+confirmation at the deciding scale. **Evidence:** hutter enwik5→enwik6 — three match variants
+scored tie/worse/untested at 100KB, ALL won at 1MB (−44/−54/−34); a settled "saturates at 2"
+conclusion was a small-scale artifact.
+
+### FM31: Confident-Narrator Prior (fluency ≠ calibration)
+<!--
+FM-ID: fm31
+signature: prose confidence uncorrelated with evidence state; hedges absent because text-genre style, not because uncertainty is resolved; in-session variant: predictions bend toward the session's emerging narrative arc
+target_surface: pre-registration BEFORE narration ("wait for the row, then speak"); confident-foreclosure-claim as probe trigger
+status: active
+evidence_count: 1
+-->
+```
+IF authors resolve uncertainty before writing (hedges edited out; arcs get closure)
+THEN model confidence is a learned STYLE, decoupled from internal evidence state,
+AND mid-session predictions drift toward whatever makes the session's story cohere
+```
+**Counter:** a confident foreclosure claim is the tell that a probe is overdue (hutter memory:
+preregister-triggers-beat-elegant-theses, 3 refuted elegant theses); pre-register the number, then
+narrate. **Evidence:** hutter — "deletion beats tuning" headline at 01:30 bent the next two
+ablation predictions toward ~0 bands; both missed high.
+
+---
+
 ## MAST Cross-Reference (NeurIPS 2025, arXiv:2503.13657)
 
 The MAST taxonomy (1600+ annotated traces, 7 MAS frameworks, κ=0.88) identifies 14 failure modes in 3 categories. Cross-reference with our modes:
