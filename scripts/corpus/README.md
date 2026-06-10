@@ -6,14 +6,12 @@ citation contexts, annotations, and a DuckDB-backed graph index.
 Workspace layout:
 
 ```
-scripts/corpus/
-├── pyproject.toml              # workspace root (tool.uv.workspace = packages/*)
+~/Projects/substrate/
+├── pyproject.toml
 ├── packages/
-│   └── corpus-core/            # corpus_core package (CLI + library)
-│       ├── pyproject.toml
-│       ├── corpus_core/
-│       └── tests/
-└── schemas/                    # JSON Schemas (populated in Phase 1)
+│   ├── corpus-core/            # corpus_core package (CLI + library)
+│   └── corpus-testing/         # shared corpus test fixtures
+└── schemas/                    # JSON Schemas
 ```
 
 See `~/Projects/corpus/SCHEMA.md` for the per-source directory layout.
@@ -21,7 +19,7 @@ See `~/Projects/corpus/SCHEMA.md` for the per-source directory layout.
 ## Install
 
 ```bash
-uv tool install --editable ~/Projects/agent-infra/scripts/corpus/packages/corpus-core
+uv tool install --editable ~/Projects/substrate/packages/corpus-core
 ```
 
 Then `corpus --help` from any directory.
