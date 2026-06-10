@@ -137,7 +137,7 @@ How to verify this constitution is working (check via `/observe sessions` after 
 
 ## Execution Model
 
-**`/loop` + interactive sessions is primary.** The human runs Claude Code directly, uses `/loop` for recurring tasks (`/improve maintain`, `/research cycle`), and steers in real-time. Subagents handle fan-out within sessions.
+**`/loop` + interactive sessions is primary.** The human runs Claude Code directly, uses `/loop` for recurring tasks (`/improve maintain`, `/research-ops cycle`), and steers in real-time. Subagents handle fan-out within sessions.
 
 ## Active launchd jobs
 
