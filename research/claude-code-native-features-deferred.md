@@ -33,6 +33,8 @@
 
 **Trigger to revisit:** When #32105 ships (subscribe to github.com/anthropics/claude-code/issues/32105).
 
+> **[STATUS 2026-06-11, trending-scout]** #32105 was CLOSED in the 2026-05/06 window, but no built-in tool compression appears in any 2.1.145–2.1.170 changelog entry — most likely closed-declined/stale, NOT shipped (closing comment inaccessible; unverified). Trigger NOT met. Watch for a successor issue/feature.
+
 ## 3. Scoped Write-Access MCP Tools
 
 **What:** Cookbook SRE agent pattern — MCP tools with built-in safety scoping: restricted directories, command allowlists, result validation. Pattern: "provide write access through narrow MCP tools with built-in safety checks, not broad permissions."

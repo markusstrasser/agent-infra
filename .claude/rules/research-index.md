@@ -226,5 +226,6 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `trending-scout-2026-04-21-claude-code-codex.md` | Trending Scout — Claude Code + Codex CLI (2026-04-21) | TODO |
 | `trending-scout-2026-04-21-kimi-cli.md` | Kimi CLI Update Sweep + Parity Check (2026-04-21) | TODO |
 | `trending-scout-2026-05-19.md` | Trending Scout — 2026-05-19 | TODO |
+| `trending-scout-2026-06-11.md` | Trending Scout — 2026-06-11 | TODO |
 | `weekly-agent-infra-sweep-2026-04-02.md` | Weekly Agent Infra Sweep 2026 04 02 | TODO |
 | `wiki-vs-flat-for-agents.md` | Wiki Vs Flat For Agents | TODO |

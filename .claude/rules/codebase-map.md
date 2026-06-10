@@ -11,7 +11,7 @@ verifier: null
 blast_radius: style
 -->
 
-# 183 Python files — generated 2026-06-09
+# 120 Python files — generated 2026-06-10
 # Edge annotations: → imports  ← imported-by-N-files
 
 ## scripts/
@@ -127,87 +127,6 @@ blast_radius: style
   paths.py            Env-aware path constants for ~/.claude resources.
   project_registry.py Shared project registries for cross-repo agent-infra ch
   skill_objects.py    Shared skill-object inventory and manifest h…  → common
-
-## scripts/corpus/packages/corpus-core/corpus_core/
-
-  __init__.py           Canonical corpus store — single cross-repo cache of sou
-  annotate.py           Sole writer for ``<corpus-root>/<source_id>/annotations
-  annotate_cli.py       `corpus annotate ...` subcommand wiring.
-  batch.py              Batch-ingest PDFs in parallel — fan out to Modal extrac
-  canonical.py          Versioned canonical JSON for the corpus substrate.
-  cli.py                `corpus` console script entry point.
-  extract_citances.py   Phase C of the graph layer — extract normalized citance
-  figure_extract.py     On-demand figure-DATA extraction → `figure_extraction`
-  graph_cli.py          Graph query CLI — `corpus cites|cited-by|ego|path|simil
-  identity.py           Content-addressed identity primitives for the corpus.
-  identity_crosswalk.py Cross-repo source identity crosswalk.
-  index.py              Derived `annotations` table in graph.duckdb.
-  ingest.py             Ingest a source (PDF, HTML/URL) into the canonical stor
-  lookup.py             Read-side helpers: source records, annotations.
-  maintain.py           Store maintenance — stats, verify, rebuild indexes/cita
-  outbox.py             Cross-repo outbox primitive for the substrate-v2 cross-
-  parse_health.py       Parse-state derivation + an empty-parse health flag ove
-  replay.py             Replay verifier: rebuild graph.duckdb from annotations.
-  resolve_references.py Phase B of the graph layer — resolve reference-section
-  schema_version.py     DB-resident schema version + preflight for the corpus s
-  store.py              Canonical corpus store helper module.
-  sync.py               Best-effort bootstrap from upstream — NOT a backup mech
-  uri.py                Portable URIs for cross-repo references.
-
-## scripts/corpus/packages/corpus-core/corpus_core/extract/
-
-  __init__.py         Extractor dispatch for the corpus.
-  _common.py          Shared helpers for extractors.
-  html_trafilatura.py trafilatura — HTML → markdown.
-  pdf_lightweight.py  pymupdf4llm — fast native-text PDF extraction.
-  pdf_liteparse.py    liteparse — fast, model-free PDF/office/image text extr
-  pdf_llm.py          LLM-fallback PDF extraction via Gemini Flash-Lite.
-  pdf_marker.py       Marker — LLM-enhanced PDF extraction (opt-in, GPL-licen
-  pdf_marker_modal.py Marker-on-Modal extractor — calls the deployed corpus-m
-  pdf_mineru.py       MinerU 3.x — high-fidelity scientific-PDF parser.
-
-## scripts/corpus/packages/corpus-core/corpus_core/util/
-
-  __init__.py
-  stdio_guard.py Reject stray stdout writes when running as a stdio MCP.
-
-## scripts/corpus/packages/corpus-core/tests/
-
-  conftest.py                      Test fixtures — every test gets an explicit temp Corpus
-  test_annotate.py                 Annotation writer: schema validation, idempotency, atom
-  test_annotations_index.py        Phase 2: annotations table in graph.duckdb — projection
-  test_bitemporal.py               Phase A — bitemporal valid_from + chain-aware annotatio
-  test_canonical.py                Phase F — versioned canonical JSON.
-  test_claim_relations.py          Epistemic core: inline claim_relation annotations + the
-  test_extract.py                  Extractor dispatch + per-tool smoke tests.
-  test_figure_extract.py           Figure-extraction tests. The live vision call is valida
-  test_graph_rebuild_idempotent.py Rebuilding the graph twice produces the same edge set.
-  test_identity.py                 Identity primitives: byte-stable canonical_json + sha25
-  test_identity_crosswalk.py       Phase B — source identity crosswalk.
-  test_ingest_idempotent.py        Ingest is a no-op on re-run with same PDF + parser.
-  test_ingest_jats.py              JATS full-text ingest preserves paper identity and writ
-  test_outbox.py                   Cross-repo outbox primitive — schema, lifecycle migrati
-  test_paper_id_derivation.py      DOI > PMID > SHA precedence, slug normalization, collis
-  test_papers_cli_smoke.py         `corpus stats` works on an empty store + after one inge
-  test_parse_health.py             Parse-state (C0) + empty-parse health seed tests.
-  test_public_api_contract.py      Consumer-facing public API contract for corpus_core.
-  test_read_loop.py                Read-loop: `active_annotations_for_source` surfaces ver
-  test_register_revision.py        Revision flow archives prior PDF + active parse, update
-  test_replay.py                   Phase F — replay verifier.
-  test_resolve_references.py       Reference-section + entry extraction against marker's r
-  test_schema_version.py           Phase G0 — DB-resident schema version + preflight.
-
-## scripts/corpus/packages/corpus-testing/corpus_testing/
-
-  __init__.py            Test utilities for downstream consumers of corpus-core.
-  annotation_fixtures.py Sample annotation factories for tests.
-  conftest_template.py   Drop-in conftest.py template for downstream consumers.
-  corpus_fixtures.py     Pytest fixtures providing an isolated corpus root per t
-  mcp_fixtures.py        FastMCP-native test fixtures.
-
-## scripts/corpus/packages/corpus-testing/tests/
-
-  test_fixtures_smoke.py Smoke test: corpus-testing fixtures actually work end-t
 
 ## scripts/tests/
 
