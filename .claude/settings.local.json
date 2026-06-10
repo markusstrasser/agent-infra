@@ -37,7 +37,10 @@
       "Bash(sqlite3 -cmd \".timeout 10000\" ~/.claude/agentlogs.db \"SELECT s.vendor, COUNT\\(*\\) AS sources, SUM\\(CASE WHEN i.success=1 THEN 1 ELSE 0 END\\) AS imported_ok FROM sources s LEFT JOIN imports i ON i.source_id = s.source_id AND i.import_id = \\(SELECT MAX\\(import_id\\) FROM imports WHERE source_id = s.source_id\\) GROUP BY s.vendor;\")",
       "Bash(sqlite3 -cmd \".timeout 10000\" ~/.claude/agentlogs.db \"SELECT s.vendor, COUNT\\(*\\) AS pending FROM sources s WHERE NOT EXISTS \\(SELECT 1 FROM imports i WHERE i.source_id = s.source_id AND i.success = 1\\) GROUP BY s.vendor;\")",
       "Bash(rm ~/Projects/intel/.claude/skills/review)",
-      "Read(//Users/alien/Projects/intel/.claude/skills/**)"
+      "Read(//Users/alien/Projects/intel/.claude/skills/**)",
+      "Read(//Users/alien/Projects/hutter/**)",
+      "Bash(rm -f data/enwik3 /tmp/_g/*)",
+      "Bash(sqlite3 -header -column ledger.db \"SELECT id,substr\\(ts,12,8\\) t,variant,slice,s_bytes,d_s,verdict FROM experiments WHERE id>=31 ORDER BY id;\")"
     ]
   }
 }
