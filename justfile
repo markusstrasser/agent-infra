@@ -4,6 +4,11 @@
 
 # ── Dashboard ──────────────────────────────────────────────────────
 
+# Live Claude sessions: state · cost · ctx% · armed /loop · last tool
+[group('dashboard')]
+fleet:
+    bash scripts/fleet.sh
+
 # Session cost/activity dashboard (default: last 7 days)
 [group('dashboard')]
 dashboard *args:
