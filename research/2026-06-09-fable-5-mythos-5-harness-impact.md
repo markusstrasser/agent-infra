@@ -218,3 +218,51 @@ real on the build the blog captured but not guaranteed on every Fable build. Do 
 the system prompt covers it — the gov-shrink test stays "re-run the grader with the scaffold removed," not "the
 system prompt probably does it now." (This is itself an instance of [[checkable-claims-carry-probes]]: the probe
 is "read the prompt the target build actually ships.")
+
+---
+
+## Revisions
+
+### 2026-06-11 — §1.5 has TWO safeguard families, not one (this memo + `fable-5-leverage` undercounted)
+
+Re-read System Card §1.5 ("Novel safeguards") against a "can we detect a dumbed-down Fable" question.
+The earlier framing here and in [[fable-5-leverage]] captured only the **refusal-fallback** family and
+missed a second, structurally different one. Correcting the record:
+
+1. **Refusal-fallback family — VISIBLE.** Classifiers for *cybersecurity*, *biology/chemistry*, and
+   *distillation attempts* (incl. the `reasoning_extraction` category). On trigger the request is
+   **served by a different model** (most-recent Opus, 4.8 at release). Surface-dependent: client apps
+   auto-fallback + notify which model answered; Messages API returns HTTP 200 `stop_reason:"refusal"`
+   + category (no auto-fallback unless opted in); "some Claude interfaces" auto-fallback by default and
+   **emit a session event**. This is the family our verify/recitation notes already track.
+
+2. **Frontier-LLM-dev safeguard — INVISIBLE BY DESIGN (newly recorded).** Verbatim §1.5: *"these
+   safeguards will not be visible to the user. Fable 5 will not fall back to a different model. Instead,
+   the safeguards will limit effectiveness through methods such as prompt modification, steering vectors,
+   or parameter-efficient fine-tuning (PEFT)."* Targets *"requests targeting frontier LLM development
+   (for example, on building pretraining pipelines, distributed training infrastructure, or ML
+   accelerator design)."* Est. **~0.03% of traffic, <0.1% of organizations.** This is the "model gets
+   dumber on RSI/ML" mechanism — it is **same-weights in-place degradation, not a model swap.** §2.3
+   separately concludes the automated AI-R&D capability threshold is **not crossed** — so this is a
+   propensity/usage-deterrence safeguard, not a capability cap forced by a crossed threshold.
+
+**Empirical base rate (this machine, all logged CC sessions):** `grep '"stop_reason":"refusal"'` across
+`~/.claude/projects/*/*.jsonl` → **0 hits.** Refusal-fallback in Claude Code (if it fires) manifests as a
+silent fable→opus model swap on the main thread + a session event, **not** a refusal stop_reason in the
+JSONL. 17/200 most-recent sessions mix fable+opus on the *main* thread, but that is dominated by model
+toggling / opus-selected sessions, **not** detectable fallbacks (no protocol marker distinguishes them).
+
+**Detectability verdict for a "dumbing detector" (the actual question asked):**
+- *Visible family:* detect from **metadata** (resolved-model field / session event), **not stylometry** —
+  stylometry is viable here (fable vs opus are different fingerprints) but unnecessary when the model
+  field is right there. The bio/chem classifier is the one that fires on **our** genomics/phenome work,
+  so a passive "your fable session got served by opus" flag has a *real* consumer if it ever fires.
+- *Invisible family:* **not reliably detectable by stylometry.** Same weights, no swap, effect is
+  competence-narrow ("minimal behavioral impact except to limit effectiveness"), and you cannot get
+  labeled positives without reliably triggering it (~0.03% traffic, imprecise detector). A standing
+  eval/classifier for it is a **detector with no consumer** for our workload (we don't build pretraining
+  pipelines / training infra / accelerators) — i.e. the [[consumption-over-autonomy]] disease, and
+  adjacent to the vetoed scored session-quality regression gate. Right move is a **one-shot matched-pair
+  characterization probe** (in-scope vs difficulty-matched control tasks, deterministic graders) if
+  curiosity warrants, run ONCE — not a standing monitor. Expected info value is low because the probe
+  queries likely won't even trip the safeguard.
