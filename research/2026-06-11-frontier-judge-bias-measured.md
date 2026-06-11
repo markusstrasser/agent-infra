@@ -40,8 +40,12 @@ Claude Fable 5) are biased. The only frontier-valid evidence is measuring the li
    (opus, fable) judges do the **opposite — prefer concise 9–10/10**; Fable's own rationale named the
    padding "sycophantic filler, a genuine quality defect." So the bias is not gone — it **inverts by
    lab**. This **refutes tournament-mcp's headline** ("all 5 models 100% identical, 100% prefer
-   concise") — wrong even in direction on current models. Caveat: gpt-5.5 was `-e low`; higher effort
-   may differ. N=5 pairs ⇒ direction is solid, the exact rate is not.
+   concise") — wrong even in direction on current models.
+   - **Effort confound RULED OUT (the key robustness check):** gpt-5.5 was `-e low` in the main run, so
+     the obvious objection is "low effort → longer-looks-more-thorough heuristic." Re-ran the 10
+     verbosity judgments at **`-e high`: still 9/10 verbose** (identical). gemini reproduced 8/10 across
+     two runs. The verbosity bias is intrinsic, not a reasoning-budget artifact. N=5 pairs ⇒ direction
+     is solid and effort-robust; the exact rate is screening-grade.
 
 3. **Homogeneity, measured.** The verbosity preference is **lab-clustered**: a panel of [gpt-5.5 +
    gemini-3.5-flash] is NOT two independent votes — they share the verbose bias (correlated). A
