@@ -1,5 +1,24 @@
 # Frontier judge bias — MEASURED on current models (not papers)
 
+> **⚠️ CONTESTED — correction appended 2026-06-12 (do not cite the verbosity result as-is).**
+> A prior-art check found a rigorous contemporary paper that **contradicts finding #2**.
+> `arXiv:2604.23178` ("Judging the Judges," 2026) controlled the length RATIO and found **all five
+> judges prefer concise** on filler-expansion pairs (Claude Sonnet 4 −0.76, GPT-4o −0.24, Gemini
+> Flash −0.36, Pro −0.24), with truncation controls confirming they reward *genuine* completeness —
+> i.e. quality-sensitive, NOT verbose-biased. That is the opposite of our "GPT/Gemini prefer padded
+> filler 8–9/10," at n=825 vs our n=5 and with a controlled ≤2× ratio vs our uncontrolled 3–4×
+> padding. **Most likely our result is a length-RATIO artifact** (3–4× padding read as added
+> hedging/completeness), not a true verbosity preference. It *could* be a real GPT-4o→GPT-5.5
+> generational flip (their models are prior-gen; ours are current) — but n=5 with uncontrolled ratio
+> cannot establish that against their controlled n=825. **Unresolved; needs their controlled design
+> (length-ratio ≤2 + truncation controls) re-run on the current frontier before any claim.** The
+> *position-solved* finding (#1) is independently corroborated by 2604.23178 (position bias ≤0.04,
+> "style is the dominant bias"). Self-preference (the planned "keystone") is already covered on
+> near-frontier: `arXiv:2604.22891` (PIR vs Null-PIR quality-controlled framework, 20 models, $77),
+> `arXiv:2604.06996` (GPT-5 + Claude 4.5), AI Village 2026-05 (GPT-5.5 directly). A taxonomic
+> benchmark already exists: `arXiv:2603.08091` JudgeBiasBench. See the reconciliation note below this
+> file's date in the repo log.
+
 **Date:** 2026-06-11 · **Method:** direct probe, not literature. **Why:** published judge-bias
 studies (2025–26) were run on GPT-4o / Claude-3.5-era models; by publication lag they *structurally
 cannot* tell you whether the judges we actually use (GPT-5.5, Gemini 3.5 Flash, Claude Opus 4.8,
