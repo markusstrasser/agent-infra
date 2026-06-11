@@ -60,6 +60,15 @@ secret-scanned.
 **Status 2026-06-11: acquisition code move DONE** (ext@2b53dff / phenome@08b7c0d0):
 X bookmark suite, dwarkesh/huberman/voxtral, gwern, auto-captions, chrome-cookie
 helper — paths pinned to `phenome/data` until the (still-deferred) corpus move.
+
+**Data location RESOLVED 2026-06-11 (ext@aa7a4df):** the "corpus move" was already
+physically done — all consumed-media payloads live on the SSD (`/Volumes/2TBPNY/exports/`);
+`phenome/data/*` was only a symlink surface. ext now has its own `data/` symlink surface
+over the same SSD targets; scripts repointed to it. Phenome keeps its surface (its
+index/serve consumers read it). Own-record exports (`instagram`, `twitter_social_graph`)
+point at `~/Documents/exports` and stay phenome-only. No payloads enter git → the
+secret-scan gate is moot. Residual risk: SSD is a single point of failure — backup
+story for `/Volumes/2TBPNY/exports` is unowned.
 Stayed in phenome: `unify_twitter_exports` (own-archive ingest, live CLI caller),
 `parse_twitter_social_graph` (own graph). Criterion: curation *edges* are own-record
 (phenome); content *objects* are consumed (ext).
