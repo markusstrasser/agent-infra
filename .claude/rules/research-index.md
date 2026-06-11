@@ -41,6 +41,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-06-08-symbolic-vs-neural-trajectory.md` | Compression, Program Synthesis, Symbolic AI, Mech Interp — Pragmatic Trajecto... | TODO |
 | `2026-06-08-talent-flow-intelligence-feasibility.md` | Talent-Flow Intelligence — Feasibility + Buy-vs-Build | TODO |
 | `2026-06-09-fable-5-mythos-5-harness-impact.md` | Claude Fable 5 / Mythos 5 — model facts + harness-impact assessment | TODO |
+| `2026-06-11-eval-skill-and-evals-repo-improvements.md` | /eval Skill + evals Repo Improvements — Research Memo | TODO |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
 | `adversarial-case-library.md` | Adversarial Case Library: The Best "Calling BS" Reviews | TODO |
 | `agent-behavior-refresh-2026-04.md` | Agent Behavior Delta — Memory, Self-Modification, Sycophancy | TODO |
