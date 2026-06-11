@@ -43,6 +43,9 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-06-09-fable-5-mythos-5-harness-impact.md` | Claude Fable 5 / Mythos 5 — model facts + harness-impact assessment | TODO |
 | `2026-06-11-aa-benchmark-instrument-validity.md` | AA Benchmark Suite — Instrument Validity Read | TODO |
 | `2026-06-11-eval-skill-and-evals-repo-improvements.md` | /eval Skill + evals Repo Improvements — Research Memo | TODO |
+| `2026-06-11-frontier-judge-bias-measured.md` | Frontier judge bias — MEASURED on current models (not papers) | TODO |
+| `2026-06-11-intel-hook-retirement-audit.md` | Intel Hook Retirement Audit (coverage-verified) | TODO |
+| `2026-06-11-llm-judge-bias-frontier-state.md` | LLM-Judge Bias — Frontier State (2026) | TODO |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
 | `adversarial-case-library.md` | Adversarial Case Library: The Best "Calling BS" Reviews | TODO |
 | `agent-behavior-refresh-2026-04.md` | Agent Behavior Delta — Memory, Self-Modification, Sycophancy | TODO |
