@@ -49,6 +49,17 @@
 # stop-unsupported-completion.sh promotion bar).
 #
 # Precedent: stop-unsupported-completion.sh — same shadow-mode pattern.
+#
+# Gov-ID: hook:stance-flip-shadow
+# goal: detect sycophantic stance flips — pushback → capitulation with no new
+#       evidence cited and no PUSHBACK SELF-CHECK block (enforces global
+#       CLAUDE.md "Mind-change discipline" that is instruction-only today).
+# verifier: null — the behavioral goal's grader is the 14-day shadow-log
+#       precision check (>=60% on sampled fires); not yet an automated grader in
+#       evals/graders/governance/. test_stance_flip_shadow.py verifies the
+#       predicate mechanics (7/7), not the goal. On the generative backlog.
+# blast_radius: local — wired in agent-infra only; promotion to shared + multi-
+#       project wiring is human-gated.
 
 trap 'exit 0' ERR
 

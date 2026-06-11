@@ -3612,3 +3612,11 @@ A source that fails the watchdog (e.g. the oversized `~/.gemini/tmp/{intel,genom
 - **Evidence:** A3 estimated ~330 lines saved, actual −123; A4 (defhandler macro) premise falsified by pilot before rollout — probe-before-build worked. Self-acknowledged in-session and recorded in repo memo (`721d6d7e` "actuals vs estimates, A4 falsified").
 - **Root cause:** agent-capability (calibration ledger)
 - **Status:** [obs]
+
+### [2026-06-11] [x] SHIPPED: stance-flip shadow detector (sycophantic-capitulation base-rate measurement)
+- **Session:** 85c408db
+- **What:** `hook:stance-flip-shadow` (`.claude/hooks/stop-stance-flip-shadow.sh`) — lexical Stop detector logging would-fire when the last user→assistant pair shows pushback + capitulation with no new evidence and no PUSHBACK SELF-CHECK block. Shadow-only (logs, never blocks). Provides the architectural backing for global CLAUDE.md "Mind-change discipline", which is instruction-only.
+- **Origin:** intel/emb metatooling review — the one genuinely-missing global enforcement (stance-flip) absent from the shared layer; user approved a trial.
+- **blast_radius:** local (agent-infra-only wiring). Promotion to shared + multi-project is human-gated.
+- **Verifier:** `test_stance_flip_shadow.py` 7/7 (predicate mechanics). Behavioral goal verifier = 14-day shadow-log precision check (>=60% on sampled fires) → then propose advisory. Mirrors `stop-unsupported-completion.sh`.
+- **Status:** [x] implemented (shadow)
