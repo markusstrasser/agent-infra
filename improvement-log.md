@@ -3575,3 +3575,40 @@ A source that fails the watchdog (e.g. the oversized `~/.gemini/tmp/{intel,genom
 - **Evidence:** wall-clock benchmark thresholds flaked under parallel-agent load; agent root-caused via clean baseline worktree at pre-session commit (reproduced worse there), then moved benchmarks to dedicated `bb test:bench` tier (c7b1fc35) instead of re-relaxing thresholds (prior fix 29a292a3 had relaxed). Side discovery: shadow node-test has NO `:ns-exclude-regexp` option — repo's old key was a silent no-op, now documented inline in shadow-cljs.edn:32. Patterns to reuse: baseline-worktree flake attribution; load-sensitive wall-clock asserts never belong in the default gate.
 - **Root cause:** agent-capability (positive calibration entry)
 - **Status:** [obs]
+
+### [2026-06-11] INFRA: stop-hook auto-commit swept an in-flight subagent refactor onto main 3x, twice non-compiling (evo)
+- **Session:** evo bccf8a8e
+- **Evidence:** Reflog 12:27/12:31/12:38 — `74108019`, `d97f6759`, `21068fdc` "[src/multi] Auto-commit N files at session end" landed while the A3 view-state refactor subagent was mid-flight; the first two left main non-compiling (`editor.cljs` still called deleted `vs/sidebar-visible?`/`hotkeys-visible?`/`reading-mode?`). Agent recovered cleanly: waited for the agent's manifest, gated (`bb check`+`bb test`+smoke), `reset --soft` to `d7c388d2`, squashed into one gated commit `ba7bc2ae`. Nothing was pushed. Root cause is structural, not the grouping: (1) Stop fires at every main-agent **turn end**, not session end — with a background subagent running, each turn-end sweeps its half-finished edits; (2) the subagent shares the parent session id, so the hook's sibling-ledger exclusion can't distinguish it (and evo has no `.claude/sessions/*.touched-files` ledgers at all); (3) the auto-commit path has no compile/in-flight gate. Aggravator: the hook went live TODAY (SyntaxError fix skills@af5d7f3/9a8678c) — first active day, first incident.
+- **Failure mode:** Multi-agent commit contamination, NEW mechanism — the contaminator is the Stop hook itself, not a sibling `git add` (cf. 1030-line entry).
+- **Proposed fix:** [hook] `stop-uncommitted-warn.sh`: before auto-committing, detect in-flight work — principal check: active background task/teammate for this session if discoverable from Stop input; fallback proxy (explicit, labeled): any candidate file mtime < 120s. On in-flight, take the existing advisory-block path ("files modified seconds ago — likely in-flight; verify no background agents, then commit manually") instead of committing. Deferral-safe, converts a silent broken commit into a one-turn prompt, zero new false-commit modes.
+- **Root cause:** system-design
+- **Status:** [ ] proposed
+
+### [2026-06-11] [obs] RULE VIOLATION: code-touching subagent dispatched without worktree isolation (evo)
+- **Session:** evo bccf8a8e
+- **Evidence:** A3 refactor subagent edited `src/shell/*.cljs` in the shared repo; global subagent rule and /execute both mandate `isolation: "worktree"` for code-touching subagents. Worktree isolation would have fully prevented the stop-hook sweep above.
+- **Failure mode:** RECURRING — matches 2026 multi-agent contamination entry (rule at improvement-log:1031) and the Check-10 escalation proposal (improvement-log:116). Cosign the Check-10 BLOCK escalation rather than building anything new.
+- **Root cause:** agent-capability
+- **Status:** [obs]
+
+### [2026-06-11] INFRA: dead-hook observability — Stop hooks can be silently broken for weeks
+- **Session:** evo bccf8a8e (discovered via skills@9a8678c/af5d7f3)
+- **Evidence:** The auto-commit hook was silently dead from a SyntaxError (single-quote-in-f-string inside a bash single-quoted program) hidden by the fail-open `trap` + `2>/dev/null`; three other Stop advisories were silently dead from an invalid output shape (top-level `additionalContext` on Stop was never delivered). Both classes are invisible in normal operation — the hook "runs", emits nothing, nobody notices.
+- **Failure mode:** silent proxy-as-truth for hook health (absence of output ≠ healthy no-op)
+- **Proposed fix:** [infra] (1) route hook stderr to `hook-trigger-log.sh` instead of `/dev/null`; (2) `just hooks-smoke` recipe: pipe canned event JSON (Stop, PreToolUse) through every registered hook, assert exit 0 and valid-JSON-or-empty stdout. Catches SyntaxErrors and shape regressions at edit time, zero runtime cost.
+- **Root cause:** system-design
+- **Status:** [ ] proposed
+
+### [2026-06-11] [obs] WASTED EFFORT: memo re-proposed an already-declined design fork (evo textarea spike)
+- **Session:** evo bccf8a8e
+- **Evidence:** LOC-reduction memo proposed a textarea editing-substrate spike; user flagged "didn't we have adrs and docs/commits deciding against it? we tried back and forth" (10:24). Prior cursor-reset history existed (`bba473a7`, `51b2d275`); fork was re-litigated and re-declined (`6e335297`). Cost: one re-litigation round.
+- **Failure mode:** decision-history blindness — Pre-Build check #1 covers DEFERRED plans but memo-route generation didn't query `git log --grep`/`just discarded`/docs per candidate route.
+- **Proposed fix (if recurrence):** /decide diverge step gains "per candidate route, grep commit log + Rejected: trailers + docs for prior verdicts before presenting".
+- **Root cause:** skill-weakness
+- **Status:** [obs]
+
+### [2026-06-11] [obs] CALIBRATION: file-level LOC estimates ran ~2x hot (evo Route A)
+- **Session:** evo bccf8a8e
+- **Evidence:** A3 estimated ~330 lines saved, actual −123; A4 (defhandler macro) premise falsified by pilot before rollout — probe-before-build worked. Self-acknowledged in-session and recorded in repo memo (`721d6d7e` "actuals vs estimates, A4 falsified").
+- **Root cause:** agent-capability (calibration ledger)
+- **Status:** [obs]
