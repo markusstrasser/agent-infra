@@ -6,6 +6,8 @@ verifier: null
 blast_radius: local
 -->
 
+- Clean-room repro: `claude --safe-mode` (or `CLAUDE_CODE_SAFE_MODE=1`, ≥2.1.169) disables ALL CLAUDE.md/plugins/skills/hooks/MCP — first move for "is the harness causing this?"; pairs with single-variable harness commits
+- Codex hook ground truth: `~/.codex/log/hook_shim_invocations.jsonl` (one JSONL line per shim-wrapped hook fire; codex#25875-class no-fire regressions become a grep)
 - Chat histories: `~/.claude/projects/-Users-alien-Projects-*/UUID.jsonl`
 - Compaction log: `~/.claude/compact-log.jsonl`
 - Session receipts: `~/.claude/session-receipts.jsonl`

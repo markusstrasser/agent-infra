@@ -159,6 +159,28 @@ def main(argv: list[str]) -> int:
 
     stdout, stderr, rc = proc.stdout, proc.stderr, proc.returncode
 
+    # Invocation log — the only ground truth that Codex actually fired the hook
+    # (codex#25875 shipped a silent no-fire regression; this makes the next one
+    # a one-line grep instead of a debugging session). Fail open.
+    try:
+        import time
+
+        log_path = os.path.expanduser("~/.codex/log/hook_shim_invocations.jsonl")
+        with open(log_path, "a") as f:
+            f.write(
+                json.dumps(
+                    {
+                        "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+                        "event": event,
+                        "cmd": command.split()[0] if command.split() else "",
+                        "rc": rc,
+                    }
+                )
+                + "\n"
+            )
+    except Exception:
+        pass
+
     try:
         out_norm = _normalize_stdout(stdout, event)
         err_norm = stderr
