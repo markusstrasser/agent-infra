@@ -57,6 +57,17 @@ Receives external consumed-media acquisition code where practical. Do not move
 the full media index/data corpus in this pass unless explicitly scoped and
 secret-scanned.
 
+**Status 2026-06-11: acquisition code move DONE** (ext@2b53dff / phenome@08b7c0d0):
+X bookmark suite, dwarkesh/huberman/voxtral, gwern, auto-captions, chrome-cookie
+helper — paths pinned to `phenome/data` until the (still-deferred) corpus move.
+Stayed in phenome: `unify_twitter_exports` (own-archive ingest, live CLI caller),
+`parse_twitter_social_graph` (own graph). Criterion: curation *edges* are own-record
+(phenome); content *objects* are consumed (ext).
+
+Search reconciliation (resolves final-layout tension with ext CLAUDE.md): ONE
+emb-backed index, entries provenance-tagged own vs consumed, filtered at query
+time. Physical repo split, logical index split, single search surface.
+
 ### `intel`
 
 Receives executable/read-only portfolio code from `phenome`, not unrelated
