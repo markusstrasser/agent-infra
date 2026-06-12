@@ -8,7 +8,7 @@ exposure. The report separates:
 - on-invoke surface: skill bodies
 - on-demand surface: referenced companion files
 
-It also reads runlogs.db when available to show whether enabled MCP servers are
+It also reads agentlogs.db when available to show whether enabled MCP servers are
 actually used in recent sessions.
 
 Usage:
