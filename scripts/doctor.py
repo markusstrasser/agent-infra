@@ -492,6 +492,28 @@ def check_orphaned_generators() -> list[Check]:
                    f"re-verify via `just orphan-check`")]
 
 
+def check_decisions_pending() -> list[Check]:
+    """Surface the escalation queue so it isn't write-only.
+
+    decisions-pending/ holds sign-off-ready items the loop escalated (taste/money/
+    irreversible/shared/discovery). Nothing else notifies the human, so an unread
+    item ages silently — defeating the 'wake up to N ideas, say yes/no' point.
+    Advisory: report the count + flag any item older than 7 days."""
+    c = Check("global:decisions-pending", "global")
+    d = PROJECTS_DIR / "agent-infra" / "decisions-pending"
+    if not d.is_dir():
+        return [c.ok("no escalation queue")]
+    items = [p for p in d.glob("*.md") if p.name != "README.md"]
+    if not items:
+        return [c.ok("0 pending decisions")]
+    import time
+    stale = [p for p in items if (time.time() - p.stat().st_mtime) > 7 * 86400]
+    names = ", ".join(p.stem for p in items[:5])
+    if stale:
+        return [c.warn(f"{len(items)} pending decision(s) — {len(stale)} >7d unread: {names} — review/disposition")]
+    return [c.warn(f"{len(items)} pending decision(s) awaiting sign-off: {names}")]
+
+
 def check_agentlogs_indexer() -> list[Check]:
     """Surface a stalled cross-vendor session indexer.
 
@@ -565,6 +587,7 @@ def run_all_checks(project_filter: str | None = None) -> list[Check]:
         all_checks.extend(check_telemetry_freshness())
         all_checks.extend(check_test_health())
         all_checks.extend(check_orphaned_generators())
+        all_checks.extend(check_decisions_pending())
         all_checks.extend(check_agentlogs_indexer())
 
         # Global CLAUDE.md
