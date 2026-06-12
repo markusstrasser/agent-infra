@@ -3620,3 +3620,11 @@ A source that fails the watchdog (e.g. the oversized `~/.gemini/tmp/{intel,genom
 - **blast_radius:** local (agent-infra-only wiring). Promotion to shared + multi-project is human-gated.
 - **Verifier:** `test_stance_flip_shadow.py` 7/7 (predicate mechanics). Behavioral goal verifier = 14-day shadow-log precision check (>=60% on sampled fires) → then propose advisory. Mirrors `stop-unsupported-completion.sh`.
 - **Status:** [x] implemented (shadow)
+
+### [2026-06-12] INFRA: agentlogs indexer watchdog fires on lock contention, not size — same sources fail every 2h run
+- **Session:** 15ff80cc (/improve maintain tick)
+- **Evidence:** 848 `sqlite3.OperationalError: interrupted` in `~/.claude/logs/agentlogs/index.err`. Repeat offenders never index: genomics `15bb89f2` (42MB) failed 29×, agent-infra `078ec1d8` (992KB!) failed 14× since 2026-06-09. A 992KB transcript cannot legitimately exceed a 180s parse+write budget — the `_SourceWatchdog` (index.py:33) measures wall-clock via sqlite progress handler, so time spent blocked on the DB write lock (concurrent index invocations — `indexer_runs` shows overlapping vendor runs at 11:14/11:17/11:19/11:24, plus a stale `running` row never closed) counts against the source's budget. launchd job `com.agent-infra.agentlogs-index` exits red every contended run.
+- **Failure mode:** watchdog conflates "source too big" with "writer lock held by sibling invocation"; per-source retry never converges because contention recurs each tick.
+- **Proposed fix:** [infra] single-flight the indexer (flock on a lockfile in the wrapper, or detect+exit-0 like `reclaim rotate` already does); optionally exclude lock-wait time from the watchdog budget (arm after first successful write). Also close stale `running` indexer_runs rows on startup.
+- **Root cause:** system-design
+- **Status:** [ ] proposed
