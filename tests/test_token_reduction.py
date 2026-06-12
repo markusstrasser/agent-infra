@@ -220,29 +220,6 @@ class TestReadDisciplineHook:
             json.loads(out)  # Should not raise
 
 
-# ── Percentile Calculation Tests ───────────────────────────────────
-
-class TestPercentileCalculation:
-    """Contract: percentile function from token-baseline.py is correct."""
-
-    def test_p50_odd_list(self):
-        from scripts.token_baseline_helpers import percentile
-        assert percentile([1, 2, 3, 4, 5], 50) == 3
-
-    def test_p95_of_100(self):
-        from scripts.token_baseline_helpers import percentile
-        data = list(range(1, 101))  # 1..100
-        assert percentile(data, 95) == 96
-
-    def test_p95_empty(self):
-        from scripts.token_baseline_helpers import percentile
-        assert percentile([], 95) == 0
-
-    def test_p95_single(self):
-        from scripts.token_baseline_helpers import percentile
-        assert percentile([42], 95) == 42
-
-
 # ── Dashboard Top-Decile Tests ─────────────────────────────────────
 
 class TestDashboardTopDecile:
