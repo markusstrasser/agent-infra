@@ -673,3 +673,12 @@ propagate term:
 [group('knowledge')]
 scan-corrections:
     rg -n '^>\s*\*\*(CORRECTION|RETRACTION|REVISED|UPDATE)\b' --type md /Users/alien/Projects/phenome /Users/alien/Projects/agent-infra /Users/alien/Projects/intel
+
+# Extract embedded skill/workflow prompts from the current Claude Code binary
+# and show the diff vs the last extracted version. The inter-version prompt
+# diff is an unpublished vendor changelog — run after each Claude Code update.
+# Provenance: research/2026-06-12-vendor-binary-skill-archaeology.md
+[group('knowledge')]
+binary-skills-diff:
+    uv run python3 scripts/binary_skills_extract.py
+    @ls research/binary-extracts/*.md | tail -2 | xargs -n2 sh -c 'test "$$0" != "$$1" && git --no-pager diff --no-index --stat "$$0" "$$1" || echo "(single extraction — baseline)"' 2>/dev/null || true
