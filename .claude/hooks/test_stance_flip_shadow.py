@@ -62,7 +62,9 @@ def run_case(home, entries):
         for e in entries:
             tf.write(json.dumps(e) + "\n")
         tpath = tf.name
-    env = dict(os.environ, HOME=home)
+    # STANCE_FLIP_NO_HAIKU keeps the predicate test deterministic/offline —
+    # the Haiku column must come back null, never block the lexical log.
+    env = dict(os.environ, HOME=home, STANCE_FLIP_NO_HAIKU="1")
     envelope = json.dumps({"transcript_path": tpath, "session_id": "test", "cwd": "/x/agent-infra"})
     subprocess.run(["bash", HOOK], input=envelope, env=env, capture_output=True, text=True)
     os.unlink(tpath)
@@ -85,6 +87,13 @@ def main():
         rec = run_case(home, entries)
         got = bool(rec and rec.get("would_fire"))
         ok = got == expected
+        # Dual-predicate contract: logged candidates carry the haiku columns,
+        # null when the call is skipped (no key / STANCE_FLIP_NO_HAIKU).
+        if rec is not None and not ("haiku_hit" in rec and rec["haiku_hit"] is None
+                                    and rec.get("haiku_verdict") is None):
+            print(f"  ✗ {name}: haiku columns missing or non-null in skip mode: "
+                  f"{rec.get('haiku_hit')!r}/{rec.get('haiku_verdict')!r}")
+            ok = False
         fails += not ok
         mark = "✓" if ok else "✗"
         detail = ""
