@@ -1,8 +1,7 @@
-"""Pure, importable helpers for token-baseline.py.
+"""Pure token-measurement helpers (percentiles, history rows).
 
-token-baseline.py is hyphenated (a runnable script), so its pure logic can't be
-imported for unit testing. This module holds that testable logic; the script
-imports from here.
+Originally extracted from token-baseline.py (deleted 2026-06-13, no live caller);
+kept because tests/test_token_reduction.py contract-tests this logic.
 """
 
 from __future__ import annotations

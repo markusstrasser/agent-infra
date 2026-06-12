@@ -63,7 +63,7 @@ INVENTORY_DIRS = ("overviews",)
 OCCASIONAL_MANUAL = {
     # manual convenience
     "reclaim.sh", "git-push-all.sh", "daily-recon.sh", "best-sync.py",
-    "ts-replace.py", "usage-check.py", "token-baseline.py",
+    "ts-replace.py", "usage-check.py",
     # corpus ingest (manual, recent)
     "corpus_ingest_gwern.py", "corpus_ingest_lesswrong.py",
     "corpus_reference_search.py",

@@ -11,7 +11,7 @@ verifier: null
 blast_radius: style
 -->
 
-# 127 Python files — generated 2026-06-12
+# 123 Python files — generated 2026-06-13
 # Edge annotations: → imports  ← imported-by-N-files
 
 ## scripts/
@@ -72,7 +72,6 @@ blast_radius: style
   mcp_contract_smoke.py             $0 in-process contract …  → agent_infra_mcp, corpus_mcp
   mcp_middleware.py                 Shared MCP telemetry middleware for meta pro…  → common
   migrate_skills.py                 Dry-run skill migration planner from manifes…  → common
-  ops.py                            Operational state CLI over ru…  → common, session_store
   orphan_check.py                   orphan_check.py — the orphaned-generator ratchet (repor
   parallel_mcp.py                   Parallel Task API — MCP server for deep web research.
   parallel_search.py                Parallel Task API — CLI wrapper for deep web research.
@@ -81,7 +80,6 @@ blast_radius: style
   postwrite-knowledge-index.py      PostToolUse hook: extract knowledge index from written/
   propose-work.py                   Propose ranked work items from cross-project…  → common
   pushback-index.py                 Pushback Index — cheapest sycophancy…  → common, config
-  reasoning-audit.py                Reasoning audit — identify expensive session…  → common
   reclassify_improvement_log.py     Reclassify improvement-log open `[ ]` statuses into the
   reflect.py                        reflect.py — the deep pass of the recursive lear…  → fm
   reflect_capture.py                reflect_capture.py — zero-LLM session-end capture for t
@@ -97,7 +95,6 @@ blast_radius: style
   selve-frontmatter-backfill.py     Backfill YAML frontmatter on selve research memos that
   session-features.py               Extract structure…  → common, config, session_detectors
   session_detectors.py              Deterministic session-quality de…  → _detector_patterns
-  session_store.py                  Runlogs-backed session metadata helpers.  → common
   skill-routing.py                  Analyze skill usage and run deterministic sk…  → common
   skill-validator.py                Skill Validator — static checks for ~/Projec…  → common
   skill_description_budget.py       Report always-loaded skill description budge…  → common
@@ -111,7 +108,6 @@ blast_radius: style
   talent_flow_probe.py              Talent-flow tracker (Exa prototype) — dated A→B job tra
   test_health.py                    Test-health sentinel — watch whether each repo's test s
   thesis-challenge.py               Thesis Challenge Metric — measures w…  → common, config
-  token-baseline.py                 Token baseline measurements …  → token_baseline_helpers
   token_baseline_helpers.py         Pure, importable helpers for token-baseline.py.
   tool-trajectory.py                Tool-opportunity utilization model —…  → common, config
   tool_hallucination_probe.py       One-time characterization of tool-hallucination events
@@ -124,7 +120,7 @@ blast_radius: style
 
 ## scripts/common/
 
-  __init__.py         Shared utilities for meta scripts.  ← 96 files
+  __init__.py         Shared utilities for meta scripts.  ← 91 files
   console.py          Minimal console output utilities — colors, progress, ta
   db.py               SQLite connection policy defaults.
   event_log.py        Operational event-log helpers.

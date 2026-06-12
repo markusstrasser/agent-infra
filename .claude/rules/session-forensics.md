@@ -19,6 +19,7 @@ blast_radius: local
 
 > NOTE: `runlogs.db` / `runlog.py` / `meta/runlog.md` are **dead** — runlogs.db has been
 > 0 bytes since 2026-04 and runlog.py no longer exists; the live store is `agentlogs.db`.
-> A few scripts (`reasoning-audit.py`, `ops.py`, `token-baseline.py`, `agent_surface.py`)
-> still read the dead `runlogs.db` and silently produce nothing — they need a schema-aware
-> repoint to `agentlogs.db` or retirement (scoped task; don't blind-repoint, the schemas differ).
+> `reasoning-audit.py`, `ops.py` (+ its `session_store.py`), and `token-baseline.py` were
+> deleted 2026-06-13 (no live callers). One dead-DB reader remains: `agent_surface.py` reads
+> `runlogs.db` but has live callers (justfile `context-health` + tests) — needs a schema-aware
+> repoint to `agentlogs.db` or retirement (don't blind-repoint, the schemas differ).

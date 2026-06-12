@@ -214,17 +214,17 @@ def advisory_noise(days: int) -> list[dict]:
     return out
 
 
-# ── reasoning-quality signals (the gray-zone trio's standing reader) ──────────
-# reasoning-audit / tool-trajectory / thesis-challenge were report-only detectors
-# with NO consumer (orphaned-generator sweep 2026-06-08). This collector is their
-# standing reader: gov-report runs each and folds in a one-line headline so the
-# output is actually read on a cadence. Fail-open subprocess — a broken or slow
-# detector surfaces as an error line (which is itself the signal that it rotted),
-# never crashes the report.
+# ── reasoning-quality signals (the gray-zone pair's standing reader) ──────────
+# tool-trajectory / thesis-challenge were report-only detectors with NO consumer
+# (orphaned-generator sweep 2026-06-08). This collector is their standing reader:
+# gov-report runs each and folds in a one-line headline so the output is actually
+# read on a cadence. Fail-open subprocess — a broken or slow detector surfaces as
+# an error line (which is itself the signal that it rotted), never crashes the
+# report. reasoning-audit was the trio's third member; deleted 2026-06-13 — it
+# read the dead runlogs.db and only ever produced error lines here.
 REASONING_DETECTORS = (
     ("tool-trajectory", ["--json"], "tool_utilization"),
     ("thesis-challenge", [], "thesis_challenge"),
-    ("reasoning-audit", ["--top", "10"], "fast_mode_savings"),
 )
 
 
@@ -266,7 +266,7 @@ def _summarize_reasoning(name: str, kind: str, stdout: str) -> dict:
             rec["headline"] = (f"{n} sessions over window · "
                                f"{len(tips)} task-type tipping signal(s) (>20% util drop)")
             rec["detail"] = tips[:5]
-        elif name == "thesis-challenge":
+        else:  # thesis-challenge
             recs = [json.loads(ln) for ln in stdout.splitlines() if ln.strip().startswith("{")]
             theses = sum(r.get("thesis_count", 0) for r in recs)
             challenged = sum(r.get("challenged_count", 0) for r in recs)
@@ -275,8 +275,6 @@ def _summarize_reasoning(name: str, kind: str, stdout: str) -> dict:
                                f"challenge rate {rate:.0%}" if rate is not None
                                else f"{len(recs)} session(s) scanned · no theses found")
             rec["detail"] = [r["session_id"][:8] for r in recs if r.get("challenge_rate") == 0.0][:5]
-        else:  # reasoning-audit
-            rec["headline"] = stdout.splitlines()[0][:160]
     except Exception as e:  # noqa: BLE001
         rec["headline"] = f"(unparsed) {stdout.splitlines()[0][:120] if stdout else ''}"
         rec["parse_error"] = str(e)[:80]
@@ -450,7 +448,7 @@ def render_md(rep: dict) -> str:
         L.append("- none (or analyzer unavailable)")
     L.append("")
 
-    L.append("## Reasoning-quality signals (report-only — gray-trio standing reader)")
+    L.append("## Reasoning-quality signals (report-only — gray-zone standing reader)")
     rs = rep.get("reasoning_signals", [])
     if rs:
         for s in rs:
