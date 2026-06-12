@@ -170,6 +170,9 @@ def main(argv: list[str] | None = None) -> int:
     for repo in wanted_repos:
         config_path, servers = load_project_servers(repo)
         if not servers:
+            if not (PROJECTS / repo / ".mcp.json").exists():
+                skipped.append((repo, "<config>", "no .mcp.json — repo has no project MCP servers"))
+                continue
             results.append(ServerResult(repo, "<config>", "fail", problem=f"missing or empty {config_path}"))
             continue
         for sid, spec in sorted(servers.items()):
