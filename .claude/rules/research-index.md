@@ -47,6 +47,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-06-11-intel-hook-retirement-audit.md` | Intel Hook Retirement Audit (coverage-verified) | TODO |
 | `2026-06-11-llm-judge-bias-frontier-state.md` | LLM-Judge Bias — Frontier State (2026) | TODO |
 | `2026-06-12-agents-rsi-gap-sweep.md` | Agents+RSI gap sweep — PACE self-p-hacking accept-gates, weight-level RSI dead at frontier, harness-opt sub-field crystallized, constitution-learning validates our composite | Designing any self-improvement loop (hutter, /improve); skill-rewrite/slimming (tail collapse); constitution amendment mechanics; prompt-level meta-tuning proposals |
+| `2026-06-12-vendor-binary-skill-archaeology.md` | Vendor Binary Skill Archaeology — code-review/verify pipelines extracted from binary v2.1.175; partition-not-compete verdict vs critique | Editing critique/execute/review skills; proposing new review tooling; each Claude Code release (re-extract + diff embedded prompts) |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
 | `adversarial-case-library.md` | Adversarial Case Library: The Best "Calling BS" Reviews | TODO |
 | `agent-behavior-refresh-2026-04.md` | Agent Behavior Delta — Memory, Self-Modification, Sycophancy | TODO |
