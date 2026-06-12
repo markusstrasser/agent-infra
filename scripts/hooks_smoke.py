@@ -285,13 +285,30 @@ def main(argv: list[str] | None = None) -> int:
     # and the maintain loop re-runs this every tick. Sandboxing HOME covers
     # ~/.claude but NOT $CLAUDE_PROJECT_DIR writes. Snapshot each real root's git
     # state before/after and fail loudly if the smoke dirtied a real repo.
-    def porcelain(root: Path) -> set[str]:
+    def porcelain(root: Path) -> set[str] | None:
+        """Dirty PATHS in the working tree, or None if git failed/timed out.
+
+        Paths, not raw porcelain lines: a pre-existing dirty file whose index
+        state shifts during the smoke window (' M' -> 'MM', unstaged -> staged
+        by a concurrent session) must not read as a new write. And None — not
+        an empty set — on failure: a timed-out BEFORE snapshot returning set()
+        manufactures a 'leak' out of every pre-existing dirty file (false
+        positive observed 2026-06-12: a live phenome session's +176-line WIP
+        on canonicalize.py flagged as a hook write).
+        """
         try:
-            out = subprocess.run(["git", "-C", str(root), "status", "--porcelain"],
-                                 capture_output=True, text=True, timeout=10).stdout
-            return set(out.splitlines())
+            proc = subprocess.run(["git", "-C", str(root), "status", "--porcelain"],
+                                  capture_output=True, text=True, timeout=10)
+            if proc.returncode != 0:
+                return None
+            paths = set()
+            for line in proc.stdout.splitlines():
+                # porcelain v1: XY <path>, renames as XY <old> -> <new>
+                path = line[3:]
+                paths.add(path.split(" -> ", 1)[-1] if " -> " in path else path)
+            return paths
         except Exception:
-            return set()
+            return None
 
     with tempfile.TemporaryDirectory(prefix="hooks-smoke-") as tmpdir:
         tmp = Path(tmpdir)
@@ -302,10 +319,13 @@ def main(argv: list[str] | None = None) -> int:
         with ThreadPoolExecutor(max_workers=args.jobs) as pool:
             results = list(pool.map(lambda h: run_hook(h, tmp, args.timeout, async_hooks), hooks))
         for r in real_roots:
-            # Only NEW status lines (in after, not before) are smoke-caused; pre-existing
+            # Only NEW paths (in after, not before) are smoke-caused; pre-existing
             # dirty/untracked files are in both and must not be flagged (else the guard
             # cries wolf every run and gets ignored — the habituation failure).
-            new_lines = sorted(porcelain(r) - before[r])
+            pre, after = before[r], porcelain(r)
+            if pre is None or after is None:
+                continue  # snapshot failed — can't attribute, don't fabricate a leak
+            new_lines = sorted(after - pre)
             if new_lines:
                 # Report-only (status 'leak', non-failing) for now — measure before
                 # enforcing. Failing the build on every benign write would keep
