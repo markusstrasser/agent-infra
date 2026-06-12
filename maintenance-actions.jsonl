@@ -1,2 +1,6 @@
 {"ts":"2026-04-07T21:02:18","action":"noop","target":"state-unchanged","result":"ok","detail":"hash match"}
 {"ts":"2026-04-18T02:42","action":"init","target":"MAINTAIN.md","result":"ok","detail":"first-run; archived 4 implemented proposals; populated with 3 new findings + 10 open proposals"}
+{"ts":"2026-06-12T11:34","action":"sweep-fix","target":"corpus-launchd-plists","result":"ok","detail":"audit-corpus-sync + corpus-ledger-commit red since 06-04 fail-closed; reinstalled with CORPUS_ROOT, kickstarted, ledger exit 0"}
+{"ts":"2026-06-12T11:34","action":"sweep-fix","target":"hooks-smoke-timeout","result":"ok","detail":"8s->15s; phenome sessionstart 5.75s solo flaked under 8-worker pool"}
+{"ts":"2026-06-12T11:34","action":"sweep-fix","target":"reclaim-rotate-exit","result":"ok","detail":"uv prune lock-timeout no longer flips job red; rotate rc drives exit"}
+{"ts":"2026-06-12T11:34","action":"finding","target":"agentlogs-index-contention","result":"logged","detail":"improvement-log [ ] proposed: single-flight indexer; 992KB source failing 180s budget = lock-wait"}

@@ -159,10 +159,11 @@ def run_hook(hook: HookRef, tmp: Path, timeout: float, async_hooks: set[tuple[st
     root = hook_root(hook.source, tmp)
     payload = claude_payload(hook.event, hook, tmp)
     payload_text = json.dumps(payload)
-    # HOME is sandboxed below, so pre-expand `~/` to the real home — in
-    # production hook commands resolve against the user's home, and the
-    # sandbox must not change which script gets executed.
-    command = hook.command.replace("~/", f"{HOME}/")
+    # HOME is sandboxed below, so pre-expand `~/` AND `$HOME/` to the real home —
+    # in production these resolve against the user's home, and the sandbox must not
+    # change which script gets executed (a $HOME/ command would otherwise point at
+    # the empty sandbox home → spurious "no such file" failure).
+    command = hook.command.replace("~/", f"{HOME}/").replace("$HOME/", f"{HOME}/").replace("${HOME}/", f"{HOME}/")
     env = os.environ.copy()
     env.update(
         {
@@ -278,11 +279,34 @@ def main(argv: list[str] | None = None) -> int:
         print("no hooks found")
         return 1
 
+    # Production-write guard: per-repo hooks run with cwd + CLAUDE_PROJECT_DIR at
+    # the REAL repo root (so $CLAUDE_PROJECT_DIR/... scripts resolve), so an
+    # unguarded hook that writes there or runs git in cwd can mutate production —
+    # and the maintain loop re-runs this every tick. Sandboxing HOME covers
+    # ~/.claude but NOT $CLAUDE_PROJECT_DIR writes. Snapshot each real root's git
+    # state before/after and fail loudly if the smoke dirtied a real repo.
+    def porcelain(root: Path) -> str:
+        try:
+            return subprocess.run(["git", "-C", str(root), "status", "--porcelain"],
+                                  capture_output=True, text=True, timeout=10).stdout
+        except Exception:
+            return ""
+
     with tempfile.TemporaryDirectory(prefix="hooks-smoke-") as tmpdir:
         tmp = Path(tmpdir)
         seed_tmp_repo(tmp)
+        # hook_root returns the real repo root for per-repo hooks, tmp for global ones.
+        real_roots = sorted({hook_root(h.source, tmp) for h in hooks if hook_root(h.source, tmp) != tmp})
+        before = {r: porcelain(r) for r in real_roots}
         with ThreadPoolExecutor(max_workers=args.jobs) as pool:
             results = list(pool.map(lambda h: run_hook(h, tmp, args.timeout, async_hooks), hooks))
+        for r in real_roots:
+            if porcelain(r) != before[r]:
+                results.append(SmokeResult(
+                    source=str(r / ".claude/settings.json"), event="(post-run guard)", matcher="<all>",
+                    command="git status diff", returncode=0, status="fail",
+                    problem=f"a hook MUTATED the real repo {r.name} during smoke — sandbox leak (a hook wrote to $CLAUDE_PROJECT_DIR or ran git in cwd). Review which hook touches project files unguarded.",
+                ))
 
     if args.json:
         print(json.dumps([asdict(r) for r in results], indent=2))
