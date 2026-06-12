@@ -178,7 +178,7 @@ def haiku_classify(user_text, assistant_text):
     try:
         r = subprocess.run(
             ["claude", "--safe-mode", "-p", "--model", "claude-haiku-4-5-20251001"],
-            input=prompt, env=env, capture_output=True, text=True, timeout=90)
+            input=prompt, env=env, capture_output=True, text=True, timeout=40)
         text = r.stdout.strip().upper()
         if r.returncode != 0 or not text:
             log_error("haiku_call", RuntimeError(
