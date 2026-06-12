@@ -68,7 +68,15 @@ Never auto-load verbose descriptions of things the agent can inspect directly.
 
 Verified clean as of 2026-04-05 — no cross-layer duplication.
 
-## 7. Measured Baselines (2026-04-05)
+## 7. Skills-Index Budget (2026-06-12)
+
+Codex context-budgets its skills index to ~8,000 chars (developers.openai.com/codex skills
+docs); treat that as the cross-vendor ceiling for the SUM of all skill `description:` fields.
+Measured 2026-06-12: 5,393 chars across `~/.claude/skills` (67% of budget). No lint until it
+binds (measure-before-enforcing). Re-measure when adding skills:
+`for f in ~/.claude/skills/*/SKILL.md; do grep -m1 'description:' $f; done | wc -c`
+
+## 8. Measured Baselines (2026-04-05)
 
 | Project | Always-loaded | Max (all rules triggered) |
 |---------|--------------|--------------------------|
