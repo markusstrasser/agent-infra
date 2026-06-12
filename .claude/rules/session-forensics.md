@@ -13,6 +13,7 @@ blast_radius: local
 - Session receipts: `~/.claude/session-receipts.jsonl`
 - Session/run/tool-call DB: `~/.claude/agentlogs.db` (cross-vendor: Claude+Codex+Gemini+Kimi)
 - Session/run CLI: `uv run agentlogs recent|search|stats|query <name>` — the live tool
+- agentlogs ships INSIDE the agent-infra wheel (hatch force-include; no own dist, non-editable install) — after editing `src/agentlogs/`, `uv sync --reinstall-package agent-infra`; `--reinstall-package agentlogs` is a silent no-op
 - Session search: `uv run python3 scripts/sessions.py search <query>` (FTS5, faster than bash/grep)
 - Run `just hook-telemetry` for current error sources
 
