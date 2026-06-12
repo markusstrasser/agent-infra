@@ -11,7 +11,7 @@ verifier: null
 blast_radius: style
 -->
 
-# 125 Python files — generated 2026-06-12
+# 126 Python files — generated 2026-06-12
 # Edge annotations: → imports  ← imported-by-N-files
 
 ## scripts/
@@ -25,6 +25,7 @@ blast_radius: style
   audit_corpus_sync.py              audit_corpus_sync — verdicts ↔ corpus-annotations drift
   autoresearch.py                   Autoresearch — evolutionary code search with LLM-as-mut
   best-sync.py                      Daily git fetch for key OSS reference repos in ~/Projec
+  binary_skills_extract.py
   buildthenundo.py                  Build-then-undo detector — REPORT-ONLY git-h…  → common
   calibration-canary.py             Run canary set for answer-confidence calibra…  → config
   claims-reader.py                  Claims Table Reader — extract structured epi…  → config
