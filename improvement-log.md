@@ -3597,7 +3597,7 @@ A source that fails the watchdog (e.g. the oversized `~/.gemini/tmp/{intel,genom
 - **Failure mode:** silent proxy-as-truth for hook health (absence of output ≠ healthy no-op)
 - **Proposed fix:** [infra] (1) route hook stderr to `hook-trigger-log.sh` instead of `/dev/null`; (2) `just hooks-smoke` recipe: pipe canned event JSON (Stop, PreToolUse) through every registered hook, assert exit 0 and valid-JSON-or-empty stdout. Catches SyntaxErrors and shape regressions at edit time, zero runtime cost.
 - **Root cause:** system-design
-- **Status:** [ ] proposed
+- **Status:** [x] implemented (fix 2) — `just hooks-smoke` / `scripts/hooks_smoke.py` @5654e7e (2026-06-12): 236 hooks smoked in ~15s, negative-control tests prove SyntaxError/missing-file/bad-JSON detection; wired into `just smoke`. Fix 1 (stderr → hook-trigger-log) still open — partially obviated since the smoke gate catches the same class at edit time.
 
 ### [2026-06-11] [obs] WASTED EFFORT: memo re-proposed an already-declined design fork (evo textarea spike)
 - **Session:** evo bccf8a8e
