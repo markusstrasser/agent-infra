@@ -3652,3 +3652,8 @@ A source that fails the watchdog (e.g. the oversized `~/.gemini/tmp/{intel,genom
 - **Propagated:** /execute executor-tier table (design REVIEW → fable-low; design SYNTHESIS → high), /critique (fable-subagent axis at low; 2× GPT-5.5 medium split-lens over 1× high, with revocation trigger), /llmx-guide §5.5 (headless key-stripped Fable path + functional effort knob, llmx-transport note corrected as transport-specific), evals/DECISIONS.md `cc-dispatch-tier`, anim-workbench memory `dispatch-tier-routing.md`.
 - **Root cause:** n/a (instrument finding)
 - **Status:** [obs] — routing live; revocation triggers recorded per skill (first missed-finding attributable to depth → revert that leg)
+
+### [2026-06-13] [ ] agent_surface.py reads dead runlogs.db — repoint to agentlogs.db or retire
+- **Context:** launchd/script rationalization (plan 556eabde) deleted 3 dead runlogs-era scripts (ops.py, token-baseline.py, reasoning-audit.py) + the orphaned token_baseline_helpers pair. `agent_surface.py` survived the liveness probe — it IS wired (justfile `context-health` line 137 + a validation recipe + `tests.test_agent_surface`) — but it reads the 0-byte `runlogs.db`, so it silently produces nothing on real data.
+- **Decision needed:** repoint to `agentlogs.db` (schemas differ — NOT a blind find/replace; `session-forensics.md` warns) vs retire if `context-health` no longer needs it. Scoped task, own probe required.
+- **Status:** [ ] open — deferred from plan 556eabde Phase 4.

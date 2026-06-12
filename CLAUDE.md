@@ -7,10 +7,8 @@ This repo plans and tracks improvements to agent infrastructure across projects 
 
 ```bash
 just --list                              # all recipes, grouped
-just preflight                           # fast prereq check (<10s)
 just smoke                               # minimal functional test (<1m)
-just health                              # full validation suite (<5m)
-uv run python3 scripts/doctor.py         # cross-project health check
+uv run python3 scripts/doctor.py         # cross-project health check (full validation)
 uv run python3 scripts/dashboard.py      # agent ops dashboard
 uv run agentlogs recent                  # recent runs across vendors (Claude+Codex+Gemini)
 uv run agentlogs search <query>          # FTS5 search across all vendors
@@ -143,7 +141,7 @@ How to verify this constitution is working (check via `/observe sessions` after 
 
 The orchestrator (queue-backed task runner) was fully eradicated 2026-06-07 — its launchd schedule was removed 2026-04-24 (with `code-review-daily`/`propose-work-daily`/`session-retro-daily`/`hook-roi-daily`), and the parked `archived_orchestrator.py` + its dead state path (`agent-state.json`, `stop-failures.jsonl`, the StopFailure backoff/billing writes) were deleted once confirmed it had no live consumer.
 
-The active launchd jobs are local, zero-API: `com.agent-infra.agentlogs-index` (every 2h session-dir indexing), `com.agent-infra.audit-corpus-sync` (daily 04:30 verdict/relation drift + parse-health advisory + outbox drain), `com.agent-infra.corpus-ledger-commit` (daily 05:00 git-commit of the corpus belief-change ledger), `com.agent-infra.test-health` (daily 05:30 suite-completion sentinel), `com.agent-infra.codebase-map-refresh` (daily 06:30 — regenerates the 5-project codebase maps via `just refresh-maps`; zero-API + idempotent, so no git churn on unchanged repos), `com.agent-infra.skill-usage-watch` (every 2h — `scripts/skill_usage_watch.py` collects NEW /execute + /critique invocations from agentlogs.db into the gitignored `.claude/skill-usage-watch.json` `pending` list; zero-API deterministic half of the skim, semantic audit happens in interactive sessions), `com.agent-infra.reflect-eval` (one-shot 2026-06-17 09:00 — grades the session-learning loop's pre-registered tests, then self-unloads), and `com.agent-infra.risky-diff-review` (one-shot 2026-06-21 09:00 — scans the 2-week risky-diff-review SHADOW window from git history, surfaces the promote/cut call to checkpoint.md, then self-unloads).
+The active launchd jobs are local, zero-API: `com.agent-infra.agentlogs-index` (every 2h session-dir indexing), `com.agent-infra.audit-corpus-sync` (daily 04:30 verdict/relation drift + parse-health advisory + outbox drain), `com.agent-infra.reclaim-rotate` (daily 04:10 log/artifact retention rotation), `com.agent-infra.corpus-ledger-commit` (WatchPaths on the corpus root + daily 05:00 backstop — git-commits the corpus belief-change ledger; the watch catches new-source ingests same-day, the clock catches in-place re-annotation the non-recursive watch misses), `com.agent-infra.test-health` (daily 05:30 suite-completion sentinel), `com.agent-infra.codebase-map-refresh` (WatchPaths on the 7 mapped source dirs + weekly backstop — regenerates the 5-project codebase maps via `just refresh-maps`; zero-API + idempotent, so no git churn on unchanged repos), `com.agent-infra.skill-usage-watch` (every 2h — `scripts/skill_usage_watch.py` collects NEW /execute + /critique invocations from agentlogs.db into the gitignored `.claude/skill-usage-watch.json` `pending` list; zero-API deterministic half of the skim, semantic audit happens in interactive sessions), `com.agent-infra.reflect-eval` (one-shot 2026-06-17 09:00 — grades the session-learning loop's pre-registered tests, then self-unloads), and `com.agent-infra.risky-diff-review` (one-shot 2026-06-21 09:00 — scans the 2-week risky-diff-review SHADOW window from git history, surfaces the promote/cut call to checkpoint.md, then self-unloads).
 
 ## Backlog
 
