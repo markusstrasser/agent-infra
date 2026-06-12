@@ -25,20 +25,44 @@ def db_size_bytes(path: Path) -> int:
 
 
 def vendor_stats(db: sqlite3.Connection) -> list[VendorStat]:
+    # Aggregate each child table separately: events and tool_calls both fan out
+    # from runs, so a single joined query materializes events x tool_calls rows
+    # PER RUN before COUNT(DISTINCT) — minutes of temp-spill at ~500K events
+    # ("database or disk is full" on large DBs).
     sql = """
+        WITH session_counts AS (
+            SELECT vendor, COUNT(*) AS sessions, MAX(start_ts) AS last_session_at
+            FROM sessions GROUP BY vendor
+        ),
+        run_counts AS (
+            SELECT s.vendor, COUNT(*) AS runs
+            FROM runs r JOIN sessions s ON s.session_pk = r.session_pk
+            GROUP BY s.vendor
+        ),
+        event_counts AS (
+            SELECT s.vendor, COUNT(*) AS events
+            FROM events e JOIN runs r ON r.run_id = e.run_id
+            JOIN sessions s ON s.session_pk = r.session_pk
+            GROUP BY s.vendor
+        ),
+        tc_counts AS (
+            SELECT s.vendor, COUNT(*) AS tool_calls
+            FROM tool_calls tc JOIN runs r ON r.run_id = tc.run_id
+            JOIN sessions s ON s.session_pk = r.session_pk
+            GROUP BY s.vendor
+        )
         SELECT
-            s.vendor,
-            COUNT(DISTINCT s.session_pk) AS sessions,
-            COUNT(DISTINCT r.run_id)     AS runs,
-            COUNT(DISTINCT e.event_id)   AS events,
-            COUNT(DISTINCT tc.tool_call_id) AS tool_calls,
-            MAX(s.start_ts)              AS last_session_at
-        FROM sessions s
-        LEFT JOIN runs r       ON r.session_pk = s.session_pk
-        LEFT JOIN events e     ON e.run_id = r.run_id
-        LEFT JOIN tool_calls tc ON tc.run_id = r.run_id
-        GROUP BY s.vendor
-        ORDER BY s.vendor
+            sc.vendor,
+            sc.sessions,
+            COALESCE(rc.runs, 0)        AS runs,
+            COALESCE(ec.events, 0)      AS events,
+            COALESCE(tcc.tool_calls, 0) AS tool_calls,
+            sc.last_session_at
+        FROM session_counts sc
+        LEFT JOIN run_counts rc   ON rc.vendor = sc.vendor
+        LEFT JOIN event_counts ec ON ec.vendor = sc.vendor
+        LEFT JOIN tc_counts tcc   ON tcc.vendor = sc.vendor
+        ORDER BY sc.vendor
     """
     health_rows = {
         row["vendor"]: row
