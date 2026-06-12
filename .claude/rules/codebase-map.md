@@ -11,7 +11,7 @@ verifier: null
 blast_radius: style
 -->
 
-# 120 Python files — generated 2026-06-10
+# 125 Python files — generated 2026-06-12
 # Edge annotations: → imports  ← imported-by-N-files
 
 ## scripts/
@@ -32,7 +32,7 @@ blast_radius: style
   code-review-scout.py              Continuous code review scout — dispatches code chunks t
   codebase-map.py                   Generate a compact codebase map for agent context.
   codex_dispatch.py                 Codex dispatch wrapper — lifecycle management for paral
-  codex_hook_compat.py              Codex hook compatibility checker.  → common
+  codex_hook_compat.py              Codex hook compatibility checker.  → common  ← 5 files
   codex_hook_shim.py                codex_hook_shim.py — normalize Claude-dialect hook outp
   codex_mcp_smoke.py                Smoke-test project-scoped Codex stdio MCP de…  → common
   codex_parity_sync.py              codex_parity_sync.py — mirror per-repo Claud…  → common
@@ -52,18 +52,21 @@ blast_radius: style
   epistemic-lint.py                 Epistemic Lint — static analysis for unsourc…  → config
   export_public_skills.py           Allowlisted public export for shared skills.  → common
   extract_intel_entity_citations.py Intel entity citation extraction (manual corpus annotat
+  fable_speedup_probe.py            fable_speedup_probe.py — throttle detector with STRUCTU
+  fable_throttle_probe.py           fable_throttle_probe.py — tell when Claude Fable 5 is b
   fail_open.py                      Fail-open decorator for epistemic measurement functions
   fm.py                             fm.py — machine-addressable spine for the failure-mode
   fold-detector.py                  Fold detector: measures behavioral s…  → common, config
   gen-skill-docs.py                 Generate SKILL.md from .tmpl templates with …  → common
   generate-indexes.py               Generate and validate index files across meta project.
   gov.py                            gov.py — governance self-revision orchestrator (report-  → buildthenundo, common, gov_intake, gov_invariants, risky_diff_review_shadow
-  gov_intake.py                     Governance correction intake — UserPromptSubmit hook.
+  gov_intake.py                     Feedback intake — UserPromptSubmit hook.
   gov_invariants.py                 Curated contradiction-invariant registry.
   guard_doctor.py                   guard_doctor.py — is tool-agnostic commit-time protecti
   hook-outcome-correlator.py        Hook outcome correlator — join hook triggers…  → common
   hook-roi.py                       Hook ROI telemetry — analyze hook trigger pa…  → common
   hook-telemetry-report.py          Hook telemetry report — reads ~/.claude/hook…  → common
+  hooks_smoke.py                      → codex_hook_compat, common
   lint_no_bare_annotations_read.py  Caller-migration lint — Phase A.
   mcp_contract_smoke.py             $0 in-process contract …  → agent_infra_mcp, corpus_mcp
   mcp_middleware.py                 Shared MCP telemetry middleware for meta pro…  → common
@@ -113,12 +116,13 @@ blast_radius: style
   trace-faithfulness.py             Tool-Trace Faithfulness — detect mis…  → common, config
   ts-replace.py                     TS/JS-aware string replacement for fix scripts.
   usage-check.py                    Session cost meter — reads ~/.claude/llmx-usage.jsonl a
+  validate_probe_tasks.py           validate_probe_tasks.py — prov…  → fable_throttle_probe
   verify-audit.py                   Audit Haiku orchestrator verification accura…  → common
   verify-subagent-claims.py         Random-sample re-verifier for subagent verdict files.
 
 ## scripts/common/
 
-  __init__.py         Shared utilities for meta scripts.  ← 95 files
+  __init__.py         Shared utilities for meta scripts.  ← 96 files
   console.py          Minimal console output utilities — colors, progress, ta
   db.py               SQLite connection policy defaults.
   event_log.py        Operational event-log helpers.
@@ -135,8 +139,9 @@ blast_radius: style
   test_buildthenundo.py            Tests for the build-then-undo detecto…  → buildthenundo
   test_codex_hook_shim.py          Tests for codex_hook_shim.py — Claude-dialect hook outp
   test_gov.py                      Regression tests for gov.py + gov_i…  → gov, gov_intake
-  test_gov_intake.py               Tests for the governance correction intake hook (script
+  test_gov_intake.py               Tests for the feedback intake hook (scripts/gov_intake.
   test_harness_infra.py            Tests for agent-infra harness infrastructure — trace in
+  test_hooks_smoke.py
   test_lint_no_bare_annotations.py Phase A — Caller-migr…  → lint_no_bare_annotations_read
   test_propose_work.py
   test_risky_diff_review_shadow.py Tests for the risky-diff-r…  → risky_diff_review_shadow

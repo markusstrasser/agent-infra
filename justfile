@@ -51,6 +51,8 @@ smoke:
     uv run python3 experiments/skill-routing/eval.py --locked
     echo "=== Codex parity (.codex/ + .agents/skills mirror Claude assets) ==="
     uv run --no-project python3 scripts/codex_parity_sync.py --check 2>&1 | tail -6
+    echo "=== Claude hook smoke (silently-dead hook gate) ==="
+    uv run --no-project python3 scripts/hooks_smoke.py --timeout 8
     echo "=== Codex hook compatibility ==="
     uv run --no-project python3 scripts/codex_hook_compat.py --timeout 8
     echo "=== Hook input contract (stdin/.tool_input — all surfaces) ==="
@@ -62,6 +64,12 @@ smoke:
 [group('health')]
 codex-parity *args:
     uv run --no-project python3 scripts/codex_parity_sync.py {{args}}
+
+# Smoke every registered Claude hook (global + per-repo) with canned event JSON —
+# catches silently-dead hooks (SyntaxError behind fail-open traps, missing files, bad JSON)
+[group('health')]
+hooks-smoke *args:
+    uv run --no-project python3 scripts/hooks_smoke.py {{args}}
 
 # Smoke generated Codex hook mirrors for JSON stdout and benign-input exit codes
 [group('health')]
