@@ -681,4 +681,7 @@ scan-corrections:
 [group('knowledge')]
 binary-skills-diff:
     uv run python3 scripts/binary_skills_extract.py
-    @ls research/binary-extracts/*.md | tail -2 | xargs -n2 sh -c 'test "$$0" != "$$1" && git --no-pager diff --no-index --stat "$$0" "$$1" || echo "(single extraction — baseline)"' 2>/dev/null || true
+    @files=$(ls research/binary-extracts/*.md | tail -2); \
+    set -- $files; \
+    if [ "$#" -lt 2 ]; then echo "(single extraction — baseline)"; \
+    else git --no-pager diff --no-index "$1" "$2" || true; fi
