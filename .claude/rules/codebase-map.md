@@ -11,7 +11,7 @@ verifier: null
 blast_radius: style
 -->
 
-# 126 Python files — generated 2026-06-12
+# 127 Python files — generated 2026-06-12
 # Edge annotations: → imports  ← imported-by-N-files
 
 ## scripts/
@@ -105,6 +105,7 @@ blast_radius: style
   skill_loader_probe.py             Probe skill-loader filesystem assumptions.  → common
   skill_manifest.py                 Generate and validate cross-project skill ma…  → common
   skill_reference_validator.py      Validate skill reference closure across hook…  → common
+  skill_usage_watch.py
   supervision-kpi.py                Supervision KPI — measure human supe…  → common, config
   talent_flow_livedata.py           Talent-flow measurement via Live Data Technologies work
   talent_flow_probe.py              Talent-flow tracker (Exa prototype) — dated A→B job tra
