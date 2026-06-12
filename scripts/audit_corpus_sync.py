@@ -468,6 +468,10 @@ def main(argv: list[str] | None = None) -> int:
                         help="Report drift; skip outbox drain (read-only)")
     parser.add_argument("--corpus-root", required=True, type=Path,
                         help="Explicit corpus store root")
+    parser.add_argument("--parse-health", action="store_true",
+                        help="Include the full per-source unhealthy-parse list "
+                             "(default: headline counts only — the scheduled run "
+                             "has no consumer for the row dump)")
     args = parser.parse_args(argv)
     _ensure_corpus_core_importable()
     from corpus_core.store import CorpusStore
@@ -509,6 +513,10 @@ def main(argv: list[str] | None = None) -> int:
     report["relations"] = audit_relations()
     # C0/C2: parse-state + parse-health (advisory — does NOT affect exit code).
     report["parse_health"] = parse_health_section(corpus_store)
+    if not args.parse_health:
+        # Headline counts only — the scheduled daily run has no consumer for the
+        # full per-source row dump; pass --parse-health to get it on demand.
+        report["parse_health"].pop("unhealthy", None)
 
     if args.json:
         print(json.dumps(report, indent=2, default=str))
