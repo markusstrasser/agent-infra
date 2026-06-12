@@ -76,13 +76,23 @@ Measured 2026-06-12: 5,393 chars across `~/.claude/skills` (67% of budget). No l
 binds (measure-before-enforcing). Re-measure when adding skills:
 `for f in ~/.claude/skills/*/SKILL.md; do grep -m1 'description:' $f; done | wc -c`
 
-## 8. Measured Baselines (2026-04-05)
+## 8. Measured Baselines
 
-| Project | Always-loaded | Max (all rules triggered) |
-|---------|--------------|--------------------------|
-| Meta | 18.7K tokens | 29.5K tokens |
-| Selve | 21K | 33.6K |
-| Genomics | 32.9K | 37.7K |
+2026-06-13 (post context-rot slim — global CLAUDE.md 8.1K→3.9K tok, vetoed-decisions
+11.8K→4.4K chars, MEMORY.md 10.3K→5.6K chars, 3 rules path-scoped, 1 deleted):
 
-Prompt caching reduces ongoing cost of static prefixes. Budget new always-loaded
-content against these baselines — each 1K token addition is permanent.
+| Component (meta session) | Chars | ≈Tokens |
+|---|---|---|
+| Global CLAUDE.md + non-scoped global rules | 23.6K | 5.9K |
+| Project CLAUDE.md + non-scoped project rules | 37.4K | 9.4K |
+| MEMORY.md index | 5.6K | 1.4K |
+| **Total always-loaded** | **66.6K** | **~16.7K** |
+
+Measure: sum `wc -c` over CLAUDE.md + rules without `paths:` frontmatter + MEMORY.md.
+Every subagent spawn pays this too — budget new always-loaded content against it.
+Historical (2026-04-05): Meta 18.7K / Selve 21K / Genomics 32.9K tokens always-loaded.
+
+Context-rot grounding (Chroma 2025, pre-frontier but mechanism-robust): performance
+degrades non-uniformly with input length; topically-close-but-stale text (distractors)
+hurts MORE than irrelevant bulk. So prune for staleness first, size second — a wrong
+one-liner is worse than a long correct one.
