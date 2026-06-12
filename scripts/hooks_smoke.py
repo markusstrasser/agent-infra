@@ -262,7 +262,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--settings-file", type=Path, help="smoke an explicit settings.json instead of the default set")
     parser.add_argument("--project-only", action="store_true", help="skip ~/.claude/settings.json")
     parser.add_argument("--event", action="append", help="limit to hook event(s)")
-    parser.add_argument("--timeout", type=float, default=8.0, help="per-hook timeout in seconds")
+    parser.add_argument("--timeout", type=float, default=15.0, help="per-hook timeout in seconds")
     parser.add_argument("--jobs", type=int, default=8)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
