@@ -20,6 +20,17 @@
     </dict>
     <key>WorkingDirectory</key>
     <string>/Users/alien/Projects/corpus</string>
+    <!-- Event-tie + clock backstop. WatchPaths fires on a new source dir landing
+         under the corpus root (a new sha_*/ child bumps the root's mtime) — the
+         bulk of ledger changes are fresh ingests, now committed same-day. It does
+         NOT catch in-place re-annotation of an existing source: annotations.jsonl
+         sits at depth 2 (corpus/sha_*/annotations.jsonl) and WatchPaths is
+         non-recursive. The daily 05:00 clock stays as the backstop for those.
+         Idempotent (git diff --cached --quiet → exit 0), so extra fires are free. -->
+    <key>WatchPaths</key>
+    <array>
+        <string>/Users/alien/Projects/corpus</string>
+    </array>
     <key>StartCalendarInterval</key>
     <dict>
         <key>Hour</key>
@@ -27,6 +38,8 @@
         <key>Minute</key>
         <integer>0</integer>
     </dict>
+    <key>ThrottleInterval</key>
+    <integer>600</integer>
     <key>StandardOutPath</key>
     <string>/Users/alien/.claude/logs/corpus/corpus-ledger-commit.out</string>
     <key>StandardErrorPath</key>
