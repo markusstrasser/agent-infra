@@ -166,3 +166,63 @@ def test_missing_env_placeholder_uses_keychain_wrapper(monkeypatch, tmp_path: Pa
     assert "security find-generic-password" in emit["fmp"]["args"][1]
     assert "FMP_API_KEY" not in emit["fmp"].get("env", {})
     assert any("Keychain fallback" in note for note in drift)
+
+
+def test_stale_hook_scripts_flags_missing_absolute(tmp_path: Path) -> None:
+    module = load_module()
+    gone = tmp_path / "hooks" / "deleted-hook.sh"  # never created
+    shim = str(module.CODEX_HOOK_SHIM)
+
+    # bare absolute path to a missing hook script → flagged
+    assert module.stale_hook_scripts(str(gone)) == [str(gone)]
+    # shim-wrapped form (the real on-disk shape) → flagged once, not duplicated
+    wrapped = f"CODEX_HOOK_EVENT=PreToolUse python3 {shim} {gone}"
+    assert module.stale_hook_scripts(wrapped) == [str(gone)]
+
+
+def test_stale_hook_scripts_ignores_live_relative_and_shim(tmp_path: Path) -> None:
+    module = load_module()
+    live = tmp_path / "hooks" / "live-hook.sh"
+    live.parent.mkdir(parents=True)
+    live.write_text("#!/bin/bash\nexit 0\n")
+    shim = str(module.CODEX_HOOK_SHIM)
+
+    # existing script → not flagged
+    assert module.stale_hook_scripts(f"python3 {shim} {live}") == []
+    # relative path (cwd-dependent) → never flagged
+    assert module.stale_hook_scripts("cd /repo && uv run python3 scripts/x.py") == []
+    # the shim itself is plumbing, not a hook script → never flagged
+    assert module.stale_hook_scripts(shim) == []
+
+
+def test_sync_global_codex_hooks_prunes_stale(tmp_path: Path, monkeypatch) -> None:
+    module = load_module()
+    live = tmp_path / "hooks" / "live.sh"
+    live.parent.mkdir(parents=True)
+    live.write_text("#!/bin/bash\nexit 0\n")
+    gone = tmp_path / "hooks" / "gone.sh"  # never created
+    hooks_file = tmp_path / "hooks.json"
+    hooks_file.write_text(json.dumps({
+        "hooks": {
+            "PreToolUse": [
+                {"hooks": [
+                    {"type": "command", "command": str(live)},
+                    {"type": "command", "command": str(gone)},
+                ]},
+                {"hooks": [{"type": "command", "command": str(gone)}]},  # becomes empty
+            ]
+        }
+    }))
+    monkeypatch.setattr(module, "GLOBAL_CODEX_HOOKS", hooks_file)
+
+    result = module.sync_global_codex_hooks(check=False)
+    assert result["pruned"] == 2
+    assert result["stale"] == [str(gone), str(gone)]
+
+    data = json.loads(hooks_file.read_text())
+    groups = data["hooks"]["PreToolUse"]
+    assert len(groups) == 1  # the all-stale group was dropped
+    remaining = [h["command"] for g in groups for h in g["hooks"]]
+    assert len(remaining) == 1
+    assert str(gone) not in remaining[0]
+    assert "codex_hook_shim" in remaining[0]  # live one got shim-wrapped

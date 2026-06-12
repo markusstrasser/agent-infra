@@ -370,30 +370,76 @@ def codex_hook_command(cmd: str, repo_dir: Path, event: str) -> str:
     return shim_wrap(absolutize_hook_command(cmd, repo_dir), event)
 
 
+def stale_hook_scripts(command: str) -> list[str]:
+    """Absolute .sh/.py hook-script paths referenced by a command that no longer
+    exist on disk. The command may be shim-wrapped (the original is shlex-quoted
+    as the shim's last arg) — unwrap that first. Only ABSOLUTE paths are checked:
+    relative `scripts/foo.py` tokens depend on the (unknown) runtime cwd, so
+    flagging them would false-positive. The stale case in practice is always an
+    absolute hooks-dir path left behind when its script was deleted.
+    """
+    try:
+        toks = shlex.split(command)
+    except ValueError:
+        return []
+    if "codex_hook_shim" in command and toks:
+        # Re-tokenize the wrapped original (the shim's final argument).
+        try:
+            toks = toks + shlex.split(toks[-1])
+        except ValueError:
+            pass
+    shim = str(CODEX_HOOK_SHIM)
+    missing = []
+    for tok in toks:
+        if tok == shim:
+            continue  # the shim is plumbing, not a hook script
+        if tok.startswith("/") and tok.endswith((".sh", ".py")) and "hook" in tok.lower():
+            if not Path(tok).exists() and tok not in missing:
+                missing.append(tok)
+    return missing
+
+
 def sync_global_codex_hooks(check: bool) -> dict:
-    """Shim-wrap every command in the hand-maintained ~/.codex/hooks.json.
+    """Shim-wrap every command in the hand-maintained ~/.codex/hooks.json, and
+    drop entries whose target hook script no longer exists.
 
     Unlike the per-repo `.codex/hooks.json` mirrors, the global file is authored
     by hand (Claude global hooks + Codex-specific extras) and is not produced by
     transform_hooks(), so its commands emit Claude-dialect output that Codex
     >=0.137 rejects. This wraps each command through the shim in place. Idempotent
     (skips already-wrapped commands), content-preserving, and re-run by friend-sync.
+
+    Pruning: a hook command pointing at a deleted script fails with exit 127 on
+    every fire (and reds `just smoke`). Such entries are removed — the script is
+    already broken, so dropping it is strictly corrective. Reported in --check.
     """
-    result = {"path": str(GLOBAL_CODEX_HOOKS), "wrapped": 0, "total": 0, "would_update": False}
+    result = {"path": str(GLOBAL_CODEX_HOOKS), "wrapped": 0, "total": 0,
+              "pruned": 0, "stale": [], "would_update": False}
     if not GLOBAL_CODEX_HOOKS.exists():
         return result
     original = GLOBAL_CODEX_HOOKS.read_text()
     data = json.loads(original)
     for event, groups in data.get("hooks", {}).items():
         for group in groups:
+            kept = []
             for hook in group.get("hooks", []):
                 if hook.get("type") != "command" or "command" not in hook:
+                    kept.append(hook)
                     continue
                 result["total"] += 1
+                missing = stale_hook_scripts(hook["command"])
+                if missing:
+                    result["pruned"] += 1
+                    result["stale"].extend(missing)
+                    continue  # drop the entry — its script is gone
                 wrapped = shim_wrap(hook["command"], event)
                 if wrapped != hook["command"]:
                     hook["command"] = wrapped
                     result["wrapped"] += 1
+                kept.append(hook)
+            group["hooks"] = kept
+        # Drop now-empty groups so the file doesn't accumulate husks.
+        data["hooks"][event] = [g for g in groups if g.get("hooks")]
     new_text = json.dumps(data, indent=2) + "\n"
     result["would_update"] = new_text != original
     if result["would_update"] and not check:
@@ -547,6 +593,11 @@ def main() -> int:
             con.ok(f"{verb} {global_hooks['wrapped']}/{global_hooks['total']} global hooks through shim")
         else:
             con.ok(f"{global_hooks['total']} global hooks already shim-wrapped")
+        if global_hooks["pruned"]:
+            pverb = "would prune" if args.check else "pruned"
+            con.warn(f"{pverb} {global_hooks['pruned']} stale hook(s) — script missing:")
+            for s in global_hooks["stale"]:
+                con.warn(f"    {s}")
 
     con.header("Summary")
     total_div = 0
