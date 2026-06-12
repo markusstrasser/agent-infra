@@ -125,6 +125,12 @@ def claude_payload(event: str, hook: HookRef, tmp: Path) -> dict[str, Any]:
 
 
 def seed_tmp_repo(tmp: Path) -> None:
+    # Sandboxed HOME so hooks that append to ~/.claude state files
+    # (compact-log.jsonl, hook-trigger logs, session ledgers) write here,
+    # not into production telemetry. Discovered the hard way: the first
+    # live run added 4 event:null rows to the real compact-log.jsonl.
+    home = tmp / "home"
+    (home / ".claude").mkdir(parents=True)
     (tmp / "smoke.md").write_text("hooks smoke\n")
     # Minimal plausible transcript for hooks that read transcript_path.
     lines = [
@@ -153,6 +159,10 @@ def run_hook(hook: HookRef, tmp: Path, timeout: float, async_hooks: set[tuple[st
     root = hook_root(hook.source, tmp)
     payload = claude_payload(hook.event, hook, tmp)
     payload_text = json.dumps(payload)
+    # HOME is sandboxed below, so pre-expand `~/` to the real home — in
+    # production hook commands resolve against the user's home, and the
+    # sandbox must not change which script gets executed.
+    command = hook.command.replace("~/", f"{HOME}/")
     env = os.environ.copy()
     env.update(
         {
@@ -161,11 +171,18 @@ def run_hook(hook: HookRef, tmp: Path, timeout: float, async_hooks: set[tuple[st
             "CODEX_HOOK_COMPAT_SMOKE": "1",  # existing opt-out convention in hooks
             "CLAUDE_HOOK_SMOKE": "1",
             "SPIN_STATE_OVERRIDE": str(tmp / "spinning-state"),
+            # Sandbox $HOME-relative state writes; keep tool caches real so
+            # uvx/uv-run hooks don't re-resolve environments per smoke run.
+            "HOME": str(tmp / "home"),
+            "UV_CACHE_DIR": os.environ.get("UV_CACHE_DIR", str(HOME / ".cache" / "uv")),
+            "UV_PYTHON_INSTALL_DIR": os.environ.get(
+                "UV_PYTHON_INSTALL_DIR", str(HOME / ".local" / "share" / "uv" / "python")
+            ),
         }
     )
     try:
         proc = subprocess.run(
-            hook.command,
+            command,
             input=payload_text,
             text=True,
             capture_output=True,
