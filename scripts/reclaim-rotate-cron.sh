@@ -16,6 +16,10 @@ mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
 {
   printf '\n===== %s =====\n' "$(date '+%F %T')"
   "$HOME/.local/bin/reclaim" rotate --yes
+  ROTATE_RC=$?
   printf -- '--- uv cache prune ---\n'
-  "$HOME/.local/bin/uv" cache prune
+  # Best-effort: lock contention with live uv procs is expected and benign —
+  # don't let it flip the job red (it masked rotate's status as the last cmd).
+  "$HOME/.local/bin/uv" cache prune || printf '[warn] uv cache prune skipped (lock contention)\n'
+  exit "$ROTATE_RC"
 } >> "$LOG" 2>&1
