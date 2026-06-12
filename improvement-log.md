@@ -20,6 +20,12 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 > Backfill of the pre-2026-06-08 log: `scripts/reclassify_improvement_log.py`.
 
 <!-- session analyst appends below -->
+### [2026-06-12] Vendor-skill integration plan FINAL — three follow-up tasks spun out
+- **Session:** agent-infra. Pipeline: binary archaeology (research/2026-06-12-vendor-binary-skill-archaeology.md) + anthropics-org survey + openai/codex survey → full plan → Fable repo-grounded premise review (10/12 CONFIRMED, 1 REFUTED) → Fable high-effort synthesis. Plan: `.claude/plans/2026-06-12-vendor-skill-integration.md` (FINAL, awaiting skills-repo deployment sign-off).
+- [ ] **Claude Code 2.1.1xx native-feature adoption** (separate from the review-architecture plan, per isolate-harness-changes): `disallowedTools` skill frontmatter (replace prose/hook tool bans on analysis skills), Stop-hook `additionalContext` for the advisory epistemic hooks, `context: fork` on heavy skills (upgrade/deep-research/sweep), `skills:` preload in execute subagent briefs, Codex-derived ~8K-char skills-index budget lint. All confirmed present in binary 2.1.175 (Fable probe, literal strings). Also record in vetoed-decisions context: native dynamic workflows likely subsume any future queue-runner impulse — check before re-deriving orchestrator.
+- [ ] **Mine `anthropics/defending-code-reference-harness`** (pushed 2026-06-02): packaged find→grade→judge→novelty→dedup→patch pipeline with executable oracle (ASAN PoC) + fresh-container verifier isolation + two-tier deterministic-grade→LLM-judge gating. Consumer: hutter Grinder/Dreamer verifier loop + evals graders, NOT the skills cluster. Mine `judge.py`, `docs/pipeline.md`, the grade↔judge contract. Source: .scratch/anthropic-github-survey.md.
+- [ ] **skill-usage-watch collects nothing — diagnose**: `skill-usage-watch.json` has `audited: []`, `empty_streak: 2` (Fable probe 2026-06-12). The 2026-06-06 composition plan pre-registered a consolidation-verification check that is blocked on this data. Fix the watcher first; the check waits.
+
 
 ### [2026-06-10] SHIPPED: 2-day transcript-gem promotion — 14 candidates → 4 survived the gate
 - **Session:** agent-infra (this session). Trigger: "check the transcripts of the last 2 days and tell me what the gems are." Four parallel mining agents over ~40 sessions / 5 projects (agent-infra·evals·hutter·phenome·intel) → a promotion plan → cross-model critique (Gemini 3.5 Flash + GPT-5.5 packet + Fable repo-access premise-falsification axis).
