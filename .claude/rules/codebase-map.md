@@ -11,7 +11,7 @@ verifier: null
 blast_radius: style
 -->
 
-# 123 Python files — generated 2026-06-13
+# 122 Python files — generated 2026-06-13
 # Edge annotations: → imports  ← imported-by-N-files
 
 ## scripts/
@@ -25,7 +25,7 @@ blast_radius: style
   audit_corpus_sync.py              audit_corpus_sync — verdicts ↔ corpus-annotations drift
   autoresearch.py                   Autoresearch — evolutionary code search with LLM-as-mut
   best-sync.py                      Daily git fetch for key OSS reference repos in ~/Projec
-  binary_skills_extract.py
+  binary_skills_extract.py          Extract embedded skill/workflow prompts from the Claude
   buildthenundo.py                  Build-then-undo detector — REPORT-ONLY git-h…  → common
   calibration-canary.py             Run canary set for answer-confidence calibra…  → config
   claims-reader.py                  Claims Table Reader — extract structured epi…  → config
@@ -67,7 +67,7 @@ blast_radius: style
   hook-outcome-correlator.py        Hook outcome correlator — join hook triggers…  → common
   hook-roi.py                       Hook ROI telemetry — analyze hook trigger pa…  → common
   hook-telemetry-report.py          Hook telemetry report — reads ~/.claude/hook…  → common
-  hooks_smoke.py                      → codex_hook_compat, common
+  hooks_smoke.py                    Claude hook smoke — catch…  → codex_hook_compat, common
   lint_no_bare_annotations_read.py  Caller-migration lint — Phase A.
   mcp_contract_smoke.py             $0 in-process contract …  → agent_infra_mcp, corpus_mcp
   mcp_middleware.py                 Shared MCP telemetry middleware for meta pro…  → common
@@ -102,13 +102,12 @@ blast_radius: style
   skill_loader_probe.py             Probe skill-loader filesystem assumptions.  → common
   skill_manifest.py                 Generate and validate cross-project skill ma…  → common
   skill_reference_validator.py      Validate skill reference closure across hook…  → common
-  skill_usage_watch.py
+  skill_usage_watch.py              skill-usage-watch collector — deterministic half of the
   supervision-kpi.py                Supervision KPI — measure human supe…  → common, config
   talent_flow_livedata.py           Talent-flow measurement via Live Data Technologies work
   talent_flow_probe.py              Talent-flow tracker (Exa prototype) — dated A→B job tra
   test_health.py                    Test-health sentinel — watch whether each repo's test s
   thesis-challenge.py               Thesis Challenge Metric — measures w…  → common, config
-  token_baseline_helpers.py         Pure, importable helpers for token-baseline.py.
   tool-trajectory.py                Tool-opportunity utilization model —…  → common, config
   tool_hallucination_probe.py       One-time characterization of tool-hallucination events
   trace-faithfulness.py             Tool-Trace Faithfulness — detect mis…  → common, config
@@ -139,7 +138,7 @@ blast_radius: style
   test_gov.py                      Regression tests for gov.py + gov_i…  → gov, gov_intake
   test_gov_intake.py               Tests for the feedback intake hook (scripts/gov_intake.
   test_harness_infra.py            Tests for agent-infra harness infrastructure — trace in
-  test_hooks_smoke.py
+  test_hooks_smoke.py              Negative controls for hooks_smoke.py — prove the detect
   test_lint_no_bare_annotations.py Phase A — Caller-migr…  → lint_no_bare_annotations_read
   test_propose_work.py
   test_risky_diff_review_shadow.py Tests for the risky-diff-r…  → risky_diff_review_shadow

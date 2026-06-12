@@ -18,14 +18,25 @@
     </dict>
     <key>WorkingDirectory</key>
     <string>/Users/alien/Projects/agent-infra</string>
-    <!-- 06:30 — after friend-sync's 06:00 repo pull, so maps reflect fresh code. -->
-    <key>StartCalendarInterval</key>
-    <dict>
-        <key>Hour</key>
-        <integer>6</integer>
-        <key>Minute</key>
-        <integer>30</integer>
-    </dict>
+    <!-- Event-triggered: WatchPaths on the mapped source dirs (fires on direct
+         child add/remove/rename — content-only edits don't bump a dir's mtime,
+         and agent-infra's own PostToolUse index hook covers those for this repo).
+         Weekly StartInterval backstop catches what the watch misses; the refresh
+         is idempotent, so extra fires produce no git churn. -->
+    <key>WatchPaths</key>
+    <array>
+        <string>/Users/alien/Projects/agent-infra/scripts</string>
+        <string>/Users/alien/Projects/intel/tools</string>
+        <string>/Users/alien/Projects/intel/analysis</string>
+        <string>/Users/alien/Projects/research-mcp/src</string>
+        <string>/Users/alien/Projects/genomics/scripts</string>
+        <string>/Users/alien/Projects/phenome/scripts</string>
+        <string>/Users/alien/Projects/phenome/src</string>
+    </array>
+    <key>StartInterval</key>
+    <integer>604800</integer>
+    <key>ThrottleInterval</key>
+    <integer>600</integer>
     <key>StandardOutPath</key>
     <string>/Users/alien/.claude/logs/codebase-map-refresh.out</string>
     <key>StandardErrorPath</key>
