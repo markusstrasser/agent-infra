@@ -16,16 +16,11 @@ trap 'exit 0' ERR
 
 INPUT=$(cat)
 
-# Extract file path from tool input
-FILE_PATH=$(echo "$INPUT" | python3 -c "
-import sys, json
-try:
-    data = json.load(sys.stdin)
-    result = data.get('tool_input', {}).get('file_path', '')
-    print(result)
-except Exception:
-    pass
-" 2>/dev/null)
+# Extract file path from tool input.
+# jq (not python3) on this hot path: hook fires on EVERY Write/Edit globally,
+# then almost always exits via the case filter below — avoid a per-Write/Edit
+# interpreter spawn just to read one field. Fails open (empty) like the old code.
+FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // ""' 2>/dev/null)
 
 # Only check research files
 case "$FILE_PATH" in
