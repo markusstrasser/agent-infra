@@ -187,6 +187,13 @@ skill-health *args:
 skill-manifest *args:
     uv run python3 scripts/skill_manifest.py {{args}}
 
+# Collect NEW /execute + /critique invocations into the skill-usage-watch
+# state file (deterministic half of the 2h skim). Normally runs via launchd
+# com.agent-infra.skill-usage-watch; run manually to refresh `pending` now.
+[group('health')]
+skill-usage-watch:
+    uv run python3 scripts/skill_usage_watch.py
+
 # Evaluate hand-authored skill routing fixtures
 [group('health')]
 skill-routing-eval *args:
