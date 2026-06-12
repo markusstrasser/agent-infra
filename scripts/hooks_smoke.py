@@ -285,12 +285,13 @@ def main(argv: list[str] | None = None) -> int:
     # and the maintain loop re-runs this every tick. Sandboxing HOME covers
     # ~/.claude but NOT $CLAUDE_PROJECT_DIR writes. Snapshot each real root's git
     # state before/after and fail loudly if the smoke dirtied a real repo.
-    def porcelain(root: Path) -> str:
+    def porcelain(root: Path) -> set[str]:
         try:
-            return subprocess.run(["git", "-C", str(root), "status", "--porcelain"],
-                                  capture_output=True, text=True, timeout=10).stdout
+            out = subprocess.run(["git", "-C", str(root), "status", "--porcelain"],
+                                 capture_output=True, text=True, timeout=10).stdout
+            return set(out.splitlines())
         except Exception:
-            return ""
+            return set()
 
     with tempfile.TemporaryDirectory(prefix="hooks-smoke-") as tmpdir:
         tmp = Path(tmpdir)
@@ -301,19 +302,20 @@ def main(argv: list[str] | None = None) -> int:
         with ThreadPoolExecutor(max_workers=args.jobs) as pool:
             results = list(pool.map(lambda h: run_hook(h, tmp, args.timeout, async_hooks), hooks))
         for r in real_roots:
-            if porcelain(r) != before[r]:
+            # Only NEW status lines (in after, not before) are smoke-caused; pre-existing
+            # dirty/untracked files are in both and must not be flagged (else the guard
+            # cries wolf every run and gets ignored — the habituation failure).
+            new_lines = sorted(porcelain(r) - before[r])
+            if new_lines:
                 # Report-only (status 'leak', non-failing) for now — measure before
-                # enforcing. Failing the build on every benign marker-write would
-                # keep `just smoke` permanently red; auto-revert is unsafe with other
-                # agents active. Surfaces the leak loudly so the offending hook gets
-                # a CLAUDE_HOOK_SMOKE guard; promote to 'fail' once the known leakers
-                # are fixed.
-                changed = subprocess.run(["git", "-C", str(r), "status", "--porcelain"],
-                                         capture_output=True, text=True).stdout.strip()
+                # enforcing. Failing the build on every benign write would keep
+                # `just smoke` permanently red; auto-revert is unsafe with other agents
+                # active. Surfaces the leak so the offending hook gets a
+                # CLAUDE_HOOK_SMOKE guard; promote to 'fail' once known leakers are fixed.
                 results.append(SmokeResult(
                     source=str(r / ".claude/settings.json"), event="(post-run guard)", matcher="<all>",
                     command="git status diff", returncode=0, status="leak",
-                    problem=f"a hook wrote to the real repo {r.name} during smoke (sandbox leak — $CLAUDE_PROJECT_DIR write or git-in-cwd). Add CLAUDE_HOOK_SMOKE guard to the offending hook. Changed:\n{changed[:400]}",
+                    problem=f"a hook wrote to the real repo {r.name} during smoke (sandbox leak — $CLAUDE_PROJECT_DIR write or git-in-cwd). Add CLAUDE_HOOK_SMOKE guard to the offending hook. New changes:\n" + "\n".join(new_lines[:10]),
                 ))
 
     if args.json:
