@@ -33,12 +33,20 @@ genuinely-live ones to [ ] (Watch/Ignore/done-inline/stale stay out). The
 going-forward fix is finding-side routing (trending-scout Pipeline Output step 3
 + improve harvest), which makes citation the norm so this signal stays clean.
 
-KNOWN LIMITATIONS (deliberately un-fixed — measured ~0 backlog at build time, so
-heavier machinery would be over-engineering; revisit on the stated trigger):
-  - Partial-citation: a memo clears when its stem appears ANYWHERE in the log, so
-    promoting one finding from a multi-finding memo silences the rest. Trigger to
-    add finding-level tracking: a multi-finding memo ships an un-triaged actionable
-    finding, OR orphaned_findings stays >0 for >14d (findings actually accruing).
+ROUTED is finding-level (fixed 2026-06-14 after cross-model critique flagged that
+memo-level clearing + source-routing = a false-all-clear generator: citing one
+finding cleared the whole memo). A finding is routed iff EITHER its memo is in an
+explicit RECONCILIATION log entry (bulk-triage assertion — the only whole-memo
+clear) OR ≥2 distinctive tokens of its title appear in the (small, curated)
+improvement-log. Title-token matching is scoped to the log ONLY — never the whole
+git/decisions corpus (that gave false negatives; see git note below).
+
+KNOWN LIMITATIONS (deliberately un-fixed — measured ~0 backlog, one operator, so
+heavier machinery is over-engineering; revisit on the stated trigger). The
+cross-model panel (2026-06-14) proposed stable finding IDs + a consumption ledger
++ auto-ingestion; DECLINED — finding-level token-match against the curated log
+closes the silent-recurrence hole without new ID grammar, and auto-promotion
+would reintroduce the F1 [ ]-inflation risk (promotion needs judgment):
   - Scope = trending-scout only (the one generator we KNOW leaked). Other
     generators (sweeps deliberately excluded; /leverage; research proposals) are
     not covered. Trigger to generalize: a second generator is found leaking.
@@ -69,6 +77,31 @@ LOG = REPO / "improvement-log.md"
 ACTIONABLE = ("adopt", "act now", "extract", "evaluate")  # verdict substrings
 NONACTIONABLE = ("watch", "ignore", "fyi")
 DATE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
+_STOP = set(
+    "the a an and or of to in for on with new now via and/or claude code anthropic "
+    "openai google sdk cli api mode default model paper cluster deltas release".split()
+)
+
+
+def title_tokens(title: str) -> set[str]:
+    """Distinctive lowercase tokens from a finding title (drop versions/stopwords)."""
+    t = re.sub(r"\(.*?\)", " ", title.lower())   # drop parentheticals (versions/scores)
+    t = re.sub(r"\bv?\d[\d.]*\b", " ", t)         # version numbers
+    t = re.sub(r"[`*/_,.:→—–-]", " ", t)
+    return {w for w in t.split() if len(w) >= 4 and w not in _STOP}
+
+
+def reconciled_stems(log_text: str, memos: list[Path]) -> set[str]:
+    """Memo stems explicitly bulk-triaged: mentioned inside a RECONCILIATION entry.
+    This is the ONLY whole-memo clear — an explicit assertion that every finding was
+    dispositioned. Incidental [ ] citations clear only the specific finding (below)."""
+    out: set[str] = set()
+    for entry in re.split(r"(?m)^#{2,4}\s", log_text):
+        header = entry.split("\n", 1)[0].lower()
+        if "reconcil" in header:
+            el = entry.lower()
+            out.update(m.stem.lower() for m in memos if m.stem.lower() in el)
+    return out
 
 
 def extract_findings(memo: Path) -> list[dict]:
@@ -108,10 +141,12 @@ def scan(since_days: int = 90, all_memos: bool = False) -> dict:
             mm = DATE_RE.search(m.name)
             return mm.group(1) if mm else "0"
         memos = [m for m in memos if _date(m) >= cutoff]
-    log_low = LOG.read_text(errors="ignore").lower() if LOG.exists() else ""
+    log_text = LOG.read_text(errors="ignore") if LOG.exists() else ""
+    log_low = log_text.lower()
+    reconciled = reconciled_stems(log_text, memos)
 
     total = actionable = 0
-    flagged: list[dict] = []  # one entry per un-harvested memo
+    flagged: list[dict] = []  # one entry per memo with ≥1 un-routed finding
     for memo in memos:
         findings = extract_findings(memo)
         acts = [f for f in findings if f["actionable"]]
@@ -119,13 +154,23 @@ def scan(since_days: int = 90, all_memos: bool = False) -> dict:
         actionable += len(acts)
         if not acts:
             continue
-        routed = memo.stem.lower() in log_low  # deterministic: memo cited in log (stem, .md-agnostic)
-        if not routed:
+        bulk = memo.stem.lower() in reconciled  # whole-memo clear ONLY via explicit reconciliation
+        unrouted = []
+        for f in acts:
+            if bulk:
+                continue
+            # finding-level: ≥2 distinctive title tokens present in the (small, curated) log.
+            # Closes the partial-citation hole — citing one finding no longer clears siblings.
+            toks = title_tokens(f["title"])
+            if len(toks) >= 2 and sum(1 for t in toks if t in log_low) >= 2:
+                continue
+            unrouted.append(f)
+        if unrouted:
             flagged.append(
                 {
                     "memo": memo.name,
-                    "actionable_count": len(acts),
-                    "findings": [{"title": f["title"], "verdict": f["verdict"]} for f in acts],
+                    "actionable_count": len(unrouted),
+                    "findings": [{"title": f["title"], "verdict": f["verdict"]} for f in unrouted],
                 }
             )
     return {
