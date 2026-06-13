@@ -296,8 +296,24 @@ design correction:
   *trace* (phenome KG-verifier pattern; structure-checking verifiers block reward-hacking output checks
   miss). Recommended, not built in Phase 2.
 
-Revised Phase 2 = intel + genomics (staged consumed-gate, paused at ENFORCE) + hutter authoritative
-deploy. Phase 3 = agent-infra conductor + science deploy.
+- **CORRECTION (verify-before-fold caught a stale premise in THIS ADR) — intel/genomics gates ARE
+  consumed.** The instance table + operating-point-3 called intel/genomics "report-not-gate /
+  not-consumed," sourced from `intel-genomics-verifier-diagnosis.md`. Probed at the primary source
+  (2026-06-13): **both gates block today.** genomics `canary_gate.py` exit-2-blocks commits on
+  classification regression since **2026-03-23**; intel `pretool-tier1-pipeline-liveness-gate.py`
+  `exit_block`s Tier-1 writes on a dead pipeline/resolve-loop since **2026-06-03** (its docstring
+  literally credits the diagnosis memo as the thing it fixes, and it ships a `shadow|warn|block`
+  staging mode defaulted to `block`). The memo was accurate WHEN WRITTEN and DROVE the intel fix; the
+  ADR (2026-06-13) cited its premise as current without checking the fix had shipped 10 days earlier.
+  **Consequence:** intel + genomics are **faithful ports** (author the contract around the existing
+  consumed gate), NOT the high-risk staged behavior change — the "enforce boundary" is moot, both
+  already enforce. genomics's real open issue is the one the ADR got right: the canary is
+  **same-lineage** (green-and-wrong possible) — a `gate_independence` concern (differential count-delta
+  = the deferred upgrade), not a consumption one. Evidence: gate ground-truth probe
+  `research/scratch/2026-06-13-intel-genomics-gate-ground-truth.md` + the two hooks read directly.
+
+Revised Phase 2 (de-risked) = intel + genomics **faithful-port contracts** (gates already consumed;
+no staged behavior change) + hutter authoritative deploy. Phase 3 = agent-infra conductor + science deploy.
 
 ## Deferred / open (tracker)
 - ~~Skill name: `outer-loop` vs `rsi-loop`~~ → **RESOLVED: `outer-loop`** (built). | ~~Ledger home:
