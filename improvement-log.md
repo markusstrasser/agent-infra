@@ -3283,7 +3283,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 ### [2026-04-09] RECURRENCE: MULTI-AGENT STATE CORRUPTION (3rd+)
 - **Session:** genomics 019d6d86 (Codex)
 - **Evidence:** Agent explicitly identified: "The hook/session setup is not multi-agent safe. Repo-local .claude/current-session-id keeps moving." Proposed parallel split with CC health-check agent but repo infrastructure didn't support it.
-- **Status:** [ ] requires worktree isolation or per-process session ID
+- **Status:** [x] resolved 2026-06-13 — worktree isolation shipped (global CLAUDE.md `claude --worktree` convention + `skills/hooks/sessionstart-peer-session-warn.sh`, skills@4eee651). Closeout: `decisions/2026-06-13-multiagent-shared-state-event-sourcing.md`. See the [2026-06-13] CONCURRENCY drift entry below for the full disposition (isolation-first chosen over per-process ID-scoping).
 
 ### [2026-04-09] POSITIVE: Diagnostic rigor on external claims
 - **Session:** genomics 019d6d86 (Codex)
@@ -3658,12 +3658,13 @@ A source that fails the watchdog (e.g. the oversized `~/.gemini/tmp/{intel,genom
 - **Finding (probed):** stale flag. `agent_surface.py:348` already connects to `AGENTLOGS_DB` and queries the live `tool_calls`/`runs`/`sessions` schema; `just context-health` runs and produces real output. Only the module docstring still said "runlogs.db." Fixed the docstring + the session-forensics note in the same commit.
 - **Status:** [-] rejected — nothing to do; the repoint predated this plan.
 
-### [2026-06-13] [ ] CONCURRENCY: multi-agent clobbers shared state — 2-month-old fix recurring across ALL 5 projects (drift)
+### [2026-06-13] [x] CONCURRENCY: multi-agent clobbers shared state — 2-month-old fix recurring across ALL 5 projects (drift)
 - **Drift run:** artifacts/observe/2026-06-13-drift-21d/ (21d, ~145 sessions, 5 projects; per-project gemini-3.5-flash). Candidates: candidates.jsonl. Digest: drift-digest.md.
 - **Evidence:** #1 recurrence AND #1 proposed-but-never-built, simultaneously. 13+ distinct sessions, all 5 projects independently: agent-infra (e29014d6, 556eabde, c80f2572 — stop-hooks/checkpoint.md clobbered by peer sessions), intel (fa7bbb68, 23763a22, f0128e83 — parallel writes to shared trackers → path-scoped commit blocks), phenome (136236fa, adfa97e4 — shared stop-hook crashed mid-edit by peer), genomics (1c094e24, 07992a15 — git index contention, manual pathspec exclusions to avoid sweeping sibling work), hutter (f94e5339, 79c6963a, 897a2209 — checkpoint.md gutted, 500+ lines of state lost to a parallel session's compaction). All session IDs verified on disk.
 - **Silent drop:** improvement-log [2026-04-09] MULTI-AGENT-HOOK-ASSUMPTION already proposed "scope poll tracking by invocation ID; session-touch-log multi-agent awareness." No landing commit in 2 months; pattern generalized from one repo to every active repo.
 - **Failure mode:** system-design — hooks/state files assume single agent per workspace.
 - **Proposed fix:** [architectural] session-ID-namespaced isolation for shared state/lock/checkpoint files; worktree-default for concurrent agents; append-only tracker updates. Extends the existing worktree-isolation nudge (currently code-only) to STATE files.
+- **Resolved 2026-06-13 (same day, shipped 56 min after this drift run promoted it):** isolation-first won over per-file ID-namespacing. Shipped `skills/hooks/sessionstart-peer-session-warn.sh` (skills@4eee651, warns when a peer session shares the checkout) + global CLAUDE.md `claude --worktree` convention for concurrent peer sessions; the agentlogs.db residue was already WAL+busy_timeout=30s, so no event-sourcing/OCC/atomic-rename/flock build was needed. Reframe + closeout: `decisions/2026-06-13-multiagent-shared-state-event-sourcing.md` (commits 9d16047 reframe, 248c50f closeout). The [2026-04-09] ID-scoping proposal is explicitly dispositioned as unnecessary by the isolation-first root-cause fix. Reconciled by the 16:47 maintain tick (drift run had promoted it `[ ]` at 15:50, before the closeout landed).
 - **Root cause:** system-design
 - **Status:** [ ] proposed
 
