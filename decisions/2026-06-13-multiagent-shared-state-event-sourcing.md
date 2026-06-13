@@ -88,3 +88,11 @@ Fresh 2026-06-13 landscape pass (`artifacts/research/2026-06-13-orchestrator-too
 **Provenance caveat:** the fresh landscape pass leaned on blog/vendor sources; specific product claims (tool "EOL Q2 2026", successor naming, funding/version specifics, "Nx PR velocity") are UNVERIFIED vendor-slop and are not relied upon here. The load-bearing claim — isolate-per-agent+merge is the industry standard — is trusted only because it converges across 4 independent agents AND matches CAID (verified paper) AND the Symphony memo.
 
 **Net:** the original five-primitive plan AND the event-sourcing escalation were both solving a self-inflicted problem (sharing mutable files across peers). Fix the architecture (isolate), then apply WAL/append-only only to the small irreducible-shared residue.
+
+### 2026-06-13 — SHIPPED + residue confirmed already-handled
+
+Alignment scan: the harness was already ~90% isolation-aligned (global `worktree.baseRef: head`, staleness guard, CLAUDE.md L178 CAID subagent rule, skills using worktree). The ONE gap — peer interactive sessions — is now closed:
+- **Convention:** added to global `~/.claude/CLAUDE.md` (git_rules): concurrent peer sessions → `claude --worktree`.
+- **Enforcement:** `skills/hooks/sessionstart-peer-session-warn.sh` (skills@4eee651), wired into global SessionStart. Counts `claude` PIDs sharing the checkout via one `lsof` call; warns at ≥2. Advisory/fail-open, `PEER_SESSION_WARN_OFF=1`. Self-test caught 3 live sessions sharing the agent-infra checkout.
+
+**Irreducible-shared residue is ALREADY handled — no event-sourcing/OCC build needed:** the only by-design cross-session store is `agentlogs.db`, and `src/agentlogs/db.py:30-37` already sets `timeout=30.0` + `PRAGMA journal_mode=WAL` + `PRAGMA busy_timeout=30000`. (The CLI `PRAGMA busy_timeout`=0 was a per-connection artifact, not the principal check.) launchd job state is single-writer; orchestrator.db/runlogs.db are dead. So the WAL/append-only "fallback" required zero new work. The entire multi-turn investigation resolves to: one convention + one advisory hook. checkpoint.md namespacing / atomic-rename helper / OCC frontmatter / flock — all UNNEEDED.
