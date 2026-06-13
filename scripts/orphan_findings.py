@@ -63,6 +63,18 @@ Usage:
 """
 from __future__ import annotations
 
+# Gov-ID: tool:orphan-findings
+# goal: prevent silent generation-without-consumption — an adopt-grade research
+#       finding that never reaches the loop's read path (improvement-log).
+# verifier: scripts/tests/test_orphan_findings.py
+# blast_radius: local
+# kill-criterion: this is a SCAFFOLD, not durable infra. The disease it guards had
+#   measured backlog ≈ 0 at build (2026-06-13); it earns its place only while it
+#   catches real un-routed findings. Retire (delete tool + harvest 2f + the doctor
+#   check, revert to documenting the gap) if `global:orphan-findings` produces ZERO
+#   genuine promotions by 2026-08-13 (60d). gov-shrink owns the re-check; do not let
+#   a report-only ratchet become a permanent ignored line (the alert-fatigue trap).
+
 import argparse
 import json
 import re
