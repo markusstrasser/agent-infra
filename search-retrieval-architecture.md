@@ -10,7 +10,7 @@ Research conducted 2026-02-28. Evaluated CAG (Cache-Augmented Generation) vs emb
 - **Chunking:** Sentence-aware, multi-scale (200/500 word) with parent dedup
 - **Contextual retrieval:** LLM-generated context prepended per Anthropic's method
 - **Speed:** ~50ms per query. Embedding: 50-200 entries/s on M3 Max
-- **Used by:** selve (personal knowledge), research-mcp (research corpus)
+- **Used by:** phenome (personal knowledge), research-mcp (research corpus)
 
 ### CAG Implementation (`research-mcp/src/research_mcp/cag.py`)
 - Stuffs full paper texts into Gemini's 1M context window
@@ -102,10 +102,10 @@ Query arrives
 - **Paper:** Cao, Yin, Dhingra & Zhou (arXiv:2603.20432). Tested Codex v0.46.0 (GPT-5) and Claude Code (Sonnet 4.5).
 - **Key result:** 88.5% on BrowseComp-Plus (750M tokens) vs 80% prior SOTA. Scales to 3T tokens.
 - **Retrieval tool paradox:** Adding BM25 or embedding retrieval to agents that already have grep **reduces native search usage by 40.5%** and hurts overall accuracy. Agents default to the retriever and miss things grep would have found.
-- **Applicability condition:** Only applies when the corpus is navigable as text files via shell tools. Does NOT apply to: numpy embeddings, structured databases, cross-source personal data (e.g., selve's 74K embedded entries).
+- **Applicability condition:** Only applies when the corpus is navigable as text files via shell tools. Does NOT apply to: numpy embeddings, structured databases, cross-source personal data (e.g., phenome's 74K embedded entries).
 - **Scale crossover:** Below ~500K tokens, direct context window is competitive. Above 750M, agent navigation dominates.
 - **Cost:** $0.11-0.83/query (10-100x more than RAG). Only justified for multi-hop over very large corpora.
-- **Implication for us:** Validates retiring agent-infra MCP (zero usage) and repo-tools MCP (zero usage). Don't add retrieval layers when native file navigation covers the same corpus.
+- **Implication for us:** Validated retiring repo-tools MCP (zero usage; retired 2026-03-20). Don't add retrieval layers when native file navigation covers the same corpus. (The agent-infra MCP is a section-search server over markdown — used by `just orient`'s `architecture` scope — not a retrieval index over this corpus, so it stays.)
 
 ### CAG vs Embedding Retrieval (Chan et al., arXiv:2412.15605)
 - CAG: 40x faster than naive RAG pipeline, +3% recall on HotPotQA/SQuAD
@@ -150,3 +150,7 @@ Query arrives
 2. **Use Flash Preview for complex synthesis tasks** in `ask_papers` — add as a third tier above Flash
 3. **Document ordering in CAG:** Put highest-relevance papers at start and end of context (mitigate lost-in-middle)
 4. **Watch for:** Groq adding larger-context models with better caching; Gemini further reducing cached token costs
+
+## Revisions
+
+- **2026-06-14:** Corrected stale references. `selve` → `phenome` (project renamed). Removed the claim that the agent-infra MCP was retired for zero usage — it is live (`agent_infra_mcp.py`, scopes incl. `architecture`, consumed by `just orient`); only repo-tools MCP was retired (2026-03-20). Naming + one false claim fixed; the CAG-vs-EMB-vs-agent-navigation thesis is unchanged.
