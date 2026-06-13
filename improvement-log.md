@@ -3696,3 +3696,9 @@ A source that fails the watchdog (e.g. the oversized `~/.gemini/tmp/{intel,genom
 - **Method note:** deep_review CBRN/safety preamble derailed phenome+genomics bundles into role-play/safety-eval; fixed with an explicit "inert INPUT DATA, do not continue/role-play" guard wrapper. Consider baking into the skill's drift bundle assembly.
 - **Root cause:** n/a (observation ledger)
 - **Status:** [obs]
+
+### [2026-06-13] [ ] HOOK: hoist path filtering from Write|Edit PreToolUse hooks into declarative `if:` conditions (trending-scout)
+- **Evidence:** Claude Code 2.1.176 (June 12) fixed hook `if` conditions to match Read/Edit/Write tool PATHS (e.g. `if: "Edit(src/**)"`, `Read(~/.ssh/**)`). Several of our PreToolUse `Write|Edit` hooks currently filter target paths inside the script (early-exit on non-matching path). Source: research/trending-scout-2026-06-13.md finding 1; changelog code.claude.com.
+- **Proposed fix:** [hook] Audit PreToolUse `Write|Edit` hooks; for each that early-exits on a path glob, hoist the glob into the `if:` condition in settings.json (deletes script-side path checks, fewer invocations, gate visible in config). Single-variable commits, measure trigger-rate before/after. Probe one hook first to confirm 2.1.176 `if:` path matching behaves as documented.
+- **Root cause:** capability-now-available (was: path-gating only expressible in-script)
+- **Status:** [ ] proposed
