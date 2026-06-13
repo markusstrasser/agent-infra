@@ -312,8 +312,35 @@ design correction:
   = the deferred upgrade), not a consumption one. Evidence: gate ground-truth probe
   `research/scratch/2026-06-13-intel-genomics-gate-ground-truth.md` + the two hooks read directly.
 
-Revised Phase 2 (de-risked) = intel + genomics **faithful-port contracts** (gates already consumed;
-no staged behavior change) + hutter authoritative deploy. Phase 3 = agent-infra conductor + science deploy.
+- **FINDING 4 (the biggest — RE-CONCEIVES the migration). There is exactly ONE standalone autonomous
+  outer loop: hutter.** Probed intel + genomics loops directly + verified the absence: neither has a
+  standalone propose→gate→ratchet loop (no OUTER-LOOP.md / dream skill / Claude-loop launchd job —
+  their launchd jobs are DATA pipelines: daily-update, quarterly-update, genomics-resync). Both are
+  partial-regime systems improved by the **`/improve maintain` conductor pattern** (per-project) +
+  human-gated domain pipelines (intel rule-evolution gated by Constitution Law 6; genomics knowledge
+  cascade). science is likewise a conductor worker (Finding 1). **THE DEEP INSIGHT: the verifier
+  regime determines whether a standalone autonomous loop is even POSSIBLE.** Clean verifier (hutter
+  bit-exact) → a standalone auto-ratcheting loop can run unsupervised. Partial verifier
+  (intel/genomics/science) → NO standalone auto-loop is possible; improvement is conductor-driven +
+  human-gated. This is the constitution's verifier-conditioned autonomy manifested as **architecture,
+  not policy** — and it's why hutter could be migrated standalone and the others cannot.
+
+  **Consequence — the "5 standalone instances" framing (instance table) was wrong.** The migration is:
+  **hutter** (standalone clean loop — DONE) **+ the `/improve maintain` CONDUCTOR** (the partial/mixed
+  loop — Phase 3, meta-circular, guarded). intel/genomics/science do NOT get standalone LOOP.md
+  contracts; they are **domains the conductor works on**, their consumed gates (canary / liveness /
+  verify_claim / intel-harness backtest) referenced as the per-domain accept-gate. The science-LOOP.md
+  built this turn is re-framed as the partial-regime **domain gate-spec reference** (it proved the
+  route.py partial fix), not a standalone loop. The extraction still stands — route.py + the ledger
+  schema + the contract are the shared autonomy kit BOTH real consumers (hutter + the conductor) need;
+  the "5 loops" was framing, the 2-consumer kit is sound (passes the proven-common ≥2 bar).
+
+**REVISED PLAN (Phase 2 standalone migrations REMOVED — they don't exist):**
+- Remaining Phase 2 = **hutter authoritative deploy** only (archive OUTER-LOOP.md; small).
+- Phase 3 = the **`/improve maintain` conductor migration** — the real remaining substance, meta-circular
+  + guarded (may not self-authorize; independent review). intel/genomics/science enter HERE as gate-
+  referenced domains, not standalone ports. Evidence: loop-map probes
+  `research/scratch/2026-06-13-{intel,genomics}-loop-map.md` + verified absence of standalone drivers.
 
 ## Deferred / open (tracker)
 - ~~Skill name: `outer-loop` vs `rsi-loop`~~ → **RESOLVED: `outer-loop`** (built). | ~~Ledger home:
