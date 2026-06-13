@@ -1,218 +1,145 @@
 # System Architecture
 
-How the agent infrastructure works, end to end. One doc, no indirection.
+How the agent infrastructure works, end to end — the **durable narrative**: the
+layer model, how a session loads, the self-improvement loop, the memory problem.
+
+**For the live inventory — repos, launchd loops, hooks, MCP servers, skills,
+doc freshness — run `just orient`.** That reads the source of truth each time and
+cannot go stale. This doc deliberately holds NO hand-listed inventory: every count,
+job name, and server name moved to `orient` precisely because this file once
+described a deleted orchestrator as "live" for two months. Prose explains *why* the
+layers exist; `orient` reports *what* is currently wired.
+
+```
+just orient      → what IS the system right now   (live map)
+just doctor      → is it HEALTHY                   (validation)
+just dashboard   → what HAPPENED recently          (activity / cost)
+this doc         → WHY it is shaped this way        (durable narrative)
+```
 
 ---
 
 ## 1. What This Is
 
-A personal agent infrastructure spanning 5 core projects (meta, intel, selve, genomics, skills) plus ~60 auxiliary repos. Claude Code is the primary agent runtime. The system adds layers on top: hooks for guardrails, skills for capabilities, MCP servers for tool access, an orchestrator for automation, and measurement scripts for self-improvement.
+A personal agent infrastructure spanning a hub repo (**agent-infra**) plus the
+project repos it serves (intel, genomics, phenome, …) and shared layers
+(`skills/`, `research-mcp/`, `llmx/`). Claude Code is the primary agent runtime;
+Codex/Gemini/Kimi CLIs act as sub-agents and alternate interfaces. The system
+layers on top of the runtime: hooks for guardrails, skills for capabilities, MCP
+servers for tool access, launchd jobs for unattended loops, and measurement
+scripts for self-improvement.
 
-The goal: agents get more autonomous over time, measured by declining supervision.
+The goal (GOALS.md, constitution): agents get more autonomous over time, measured
+by declining supervision — conditioned on whether the work has a clear verifier.
 
 ---
 
 ## 2. Layer Model
 
-Six layers, loaded bottom-up into every Claude Code session. Each layer is a different file-system location with different scope and governance.
+Six layers, loaded bottom-up into every session. Each is a different filesystem
+location with different scope and governance. (`just orient` lists what currently
+populates each.)
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  6. MCP Servers          (external tool access)         │
+│  6. MCP Servers          (external tool access)          │
 ├─────────────────────────────────────────────────────────┤
-│  5. Orchestrator         (cron automation)              │
+│  5. Recurring loops      (launchd jobs + /loop sessions) │
 ├─────────────────────────────────────────────────────────┤
-│  4. Project Config       (per-repo rules + hooks)       │
+│  4. Project Config       (per-repo rules + hooks)        │
 ├─────────────────────────────────────────────────────────┤
-│  3. Skills               (shared capabilities)          │
+│  3. Skills               (shared capabilities)           │
 ├─────────────────────────────────────────────────────────┤
-│  2. Shared Hooks         (cross-project guardrails)     │
+│  2. Shared Hooks         (cross-project guardrails)      │
 ├─────────────────────────────────────────────────────────┤
-│  1. Global Config        (universal rules + settings)   │
+│  1. Global Config        (universal rules + settings)    │
 └─────────────────────────────────────────────────────────┘
 ```
 
-### Layer 1: Global Config (`~/.claude/`)
+**Layer 1 — Global Config (`~/.claude/`).** Loaded in every project, every
+session: `CLAUDE.md` (universal rules), `settings.json` (hook wiring for all
+events, status line, enabled plugins, env), `rules/` (auto-loaded operational
+gotchas), `statusline.sh`, and `projects/<path>/memory/MEMORY.md` (the per-project
+auto-memory index). MCP servers are configured here too, in `~/.claude.json`.
 
-Loaded in every project, every session. The foundation.
+**Layer 2 — Shared Hooks (`~/Projects/skills/hooks/`).** Shell scripts referenced
+by path from both global and per-project `settings.json`. Change once, affects
+everywhere — which is exactly why deploying one that touches 3+ projects is a
+human-gated boundary. Convention: exit 0 (pass), exit 2 (block with message),
+stderr (advisory). Fail open unless on the explicit fail-closed list (protected
+data writes, multiline bash, repeated-failure loops). `just orient` shows the live
+event→count breakdown; `just hook-telemetry` shows what's actually firing.
 
-| File/Dir | What it does |
-|----------|-------------|
-| `CLAUDE.md` | Universal rules: git workflow, Python/uv conventions, pushback protocol, reasoning routing, subagent policy, context management, execution policy. ~400 lines. |
-| `settings.json` | Global hooks (all 12 events), status line, enabled plugins, env vars. The hook wiring diagram. |
-| `rules/` | Auto-loaded rule files. Currently: `research-tool-gotchas.md`, `research-api-routing.md`. |
-| `hooks/` | Hook scripts owned by global config (8 scripts): `session-init.sh`, `spinning-detector.sh`, `stop-debrief.sh`, `stop-notify.sh`, `tab-color.sh`, `tool-tracker.sh`, `pretool-modal-cost-guard.sh`, `pretool-shared-infra-guard.sh`. |
-| `statusline.sh` | Terminal status bar: model, branch, cost, context usage. |
-| `active-agents.json` | Cross-session awareness — which Claude instances are running where. Written by `session-init.sh`. |
-| `mcp.json` | User-scope MCP servers (loaded in all projects). |
-| `projects/` | Per-project memory directories. Each has `MEMORY.md` (index) + topic files. Auto-loaded by Claude Code's memory system. |
+**Layer 3 — Skills (`~/Projects/skills/`).** Each a `SKILL.md` with optional
+`references/`. Symlinked into the global skills dir by `friend-sync.sh` so they load
+in every project. Descriptions appear in the system-prompt skill list (budgeted —
+see `context-budget-principles.md` §7); the body loads on `/invoke`. agent-infra
+owns skill *quality* (authoring, testing, propagation) even though the directory
+is separate.
 
-### Layer 2: Shared Hooks (`~/Projects/skills/hooks/`)
+**Layer 4 — Project Config (per-repo `.claude/`).** `CLAUDE.md` (domain identity +
+constitution), `settings.json` (project hooks), `rules/` (domain indexes/checklists,
+often path-scoped so they load only when relevant files are touched), `skills/`
+(symlinks), `overviews/` (generated codebase summaries injected at start),
+`plans/` + `checkpoint.md` (ephemeral handoff). `AGENTS.md`/`GEMINI.md` symlink to
+`CLAUDE.md` for cross-vendor instruction parity.
 
-~50 shell scripts. Referenced by path in `~/.claude/settings.json` (global) and per-project `settings.json` files. Shared across all projects — change once, affects everywhere.
+**Layer 5 — Recurring loops.** The orchestrator (a cron task-runner) was
+**eradicated 2026-06-07** — it ran unreliably and opaquely. Unattended work is now
+two things: **local launchd jobs** (zero-API, deterministic — indexing, corpus
+sync, retention, map refresh, etc.) and **`/loop` interactive sessions** (the human
+runs Claude Code and loops recurring tasks like `/improve maintain`). Truly
+unattended cloud work uses `/schedule` (Claude Code native cron). `just orient`
+lists the live launchd jobs with their last-exit status; the canonical descriptions
+live in CLAUDE.md's "Active launchd jobs".
 
-**Categories:**
-- **PreToolUse blockers**: `bash-loop-guard`, `llmx-guard`, `cost-guard`, `ast-precommit`, `commit-check`, `search-burst`, `consensus-search`, `subagent-gate`, `source-remind`, `regression-dag-gate`, `goal-drift`, `companion-remind`
-- **PostToolUse checks**: `bash-failure-loop`, `review-check`, `verify-before-expand`, `research-reformat`, `source-check`, `frontier-timeliness`, `l3-telemetry`, `propagate-check`
-- **Lifecycle**: `precompact-log`, `postcompact-verify`, `sessionend-log`, `sessionend-overview-trigger`, `sessionend-index-sessions`, `subagent-start-log`, `subagent-epistemic-gate`, `userprompt-context-warn`, `posttool-failure-log`
-- **Stop hooks**: `plan-status`, `verify-plan`, `uncommitted-warn`
-
-**Convention**: Scripts exit 0 (pass), exit 2 (block with message), or write to stderr (advisory). All fail open unless on the explicit fail-closed list.
-
-### Layer 3: Skills (`~/Projects/skills/`)
-
-35 skills, each a `SKILL.md` file with optional `references/` directory. Invoked via `/skill-name` in conversation. Symlinked into per-project `.claude/skills/` dirs.
-
-**Current inventory** (grouped):
-- **Reasoning**: `causal-check`, `causal-dag`, `causal-robustness`, `competing-hypotheses`, `brainstorm`
-- **Research**: `researcher`, `epistemics`, `knowledge-diff`, `investigate`, `data-acquisition`
-- **Review**: `model-review`, `session-analyst`, `design-review`, `supervision-audit`, `de-slop`, `source-grading`, `code-review`
-- **Writing**: `coedit`, `entity-management`
-- **Infrastructure**: `claude-api`, `modal`, `llmx-guide`, `debug-mcp-servers`, `model-guide`, `google-workspace`, `browse`, `qa`
-- **Meta**: `retro`, `suggest-skill`, `skill-authoring`, `agent-pliability`, `constitution`, `project-upgrade`, `dispatch-research`
-- **Archived**: `architect` (in `archive/`)
-
-Skills are loaded on-demand when invoked. Their descriptions appear in the system prompt skill list, consuming ~2K tokens total.
-
-### Layer 4: Project Config (per-repo `.claude/`)
-
-Each project has its own `.claude/` directory:
-
-```
-.claude/
-├── CLAUDE.md          # Project-specific rules (checked into git)
-├── settings.json      # Project-specific hooks (checked in)
-├── settings.local.json # Local overrides (gitignored)
-├── rules/             # Auto-loaded rule files (checked in)
-├── skills/            # Symlinks to ~/Projects/skills/ entries
-├── overviews/         # Auto-generated codebase summaries (source-overview.md, tooling-overview.md)
-├── plans/             # Ephemeral work plans (gitignored)
-├── checkpoint.md      # Compaction handoff doc
-├── current-session-id # Written by session-init hook
-├── overview.conf      # Overview generation config
-└── overview-marker    # Staleness tracking for overviews
-```
-
-**Core projects and their focus:**
-
-| Project | Purpose | Unique config |
-|---------|---------|---------------|
-| `meta` | Agent infrastructure, self-improvement | Constitution, orchestrator, measurement scripts, 64 research memos |
-| `intel` | Investment research | DuckDB MCP, intelligence MCP, entity management, prediction tracking |
-| `selve` | Personal knowledge | Selve MCP, runbooks, personal data rules |
-| `genomics` | Genomics pipeline | Cache dir, prompts, runbooks, bioinformatics tools |
-| `skills` | Shared skill library | Skill validation hooks |
-
-### Layer 5: Orchestrator (`scripts/orchestrator.py`)
-
-Cron-driven task runner. Submits and executes tasks via `claude -p` (LLM) or `subprocess` (deterministic scripts).
-
-```
-launchd (every 15 min)
-  → orchestrator.py tick
-    → picks highest-priority pending task from SQLite queue
-    → executes via claude -p (with --allowedTools, project context)
-    → logs result, updates status
-    → checks scheduled_runs for auto-submitted pipelines
-```
-
-**Pipeline templates** (`pipelines/*.json`): Define multi-step workflows with variable substitution, approval gates, and scheduling.
-
-**Scheduling agents** (launchd):
-- `com.agent-infra.orchestrator.plist` — tick every 15 min
-- `com.agent-infra.session-retro-daily.plist` — session-retro at 22:00
-- `com.agent-infra.hook-roi-daily.plist` — hook ROI report at 22:30
-- `com.agent-infra.propose-work-daily.plist` — morning brief at 05:00
-
-**Constraints**: $25/day cost cap, `fcntl.flock` prevents concurrent ticks, 600s stall timeout, max 3 concurrent tasks per pipeline.
-
-### Layer 6: MCP Servers
-
-External tool access. Configured per-project in `.mcp.json` (project-scope) and `~/.claude/mcp.json` (user-scope).
-
-**User-scope** (available everywhere via `~/.claude/mcp.json` or system config):
-- `exa` — Neural web search, entity enrichment, deep research
-- `research` (research-mcp) — S2 paper discovery, full-text fetch, evidence preparation, citation traversal
-- `brave-search` — Independent web search index
-- `perplexity` — Grounded LLM search/reasoning
-- `firecrawl` — Web scraping and extraction
-- `context7` — Library documentation lookup
-- `agent-infra` — Section-based search over meta, selve, and genomics .md files
-- `repo-tools` — Tiered code navigation (summary, outline, callgraph, imports, deps, changes)
-- `claude-in-chrome` — Browser automation
-- `paper-search` — arXiv/PubMed/bioRxiv search
-
-**Project-scope** (per-repo `.mcp.json`):
-- `intel`: DuckDB, intelligence MCP, selve MCP, FMP (financial data)
-- `selve`: Selve MCP
-- `genomics`: (none active)
+**Layer 6 — MCP Servers.** External tool access, configured in `~/.claude.json`
+(global) and per-project scope. `just orient` lists what's wired; the session's
+deferred-tool list shows what's reachable via `ToolSearch`.
 
 ---
 
 ## 3. Information Flow
 
-### Session Startup
+### Session startup (load order)
 
 ```
-1. Claude Code launches
-2. Loads ~/.claude/CLAUDE.md                    (global rules)
-3. Loads ~/.claude/rules/*.md                   (global rule files)
-4. Loads {project}/CLAUDE.md                    (project rules)
-5. Loads {project}/.claude/rules/*.md           (project rule files)
-6. Loads ~/.claude/projects/{path}/memory/MEMORY.md  (auto-memory)
-7. Starts MCP servers from .mcp.json + ~/.claude/mcp.json
-8. Fires SessionStart hook → session-init.sh:
-   - Saves session ID to .claude/current-session-id
-   - Snapshots git status baseline
-   - Registers in active-agents.json
-   - Hashes loaded skills for provenance
-   - Scans for incomplete plans → injects as additionalContext
-   - Injects codebase overview INDEX blocks as additionalContext
-9. Loads skill descriptions into system prompt (~2K tokens)
-10. Loads deferred tool list (MCP tools available via ToolSearch)
+1.  ~/.claude/CLAUDE.md                         global rules
+2.  ~/.claude/rules/*.md                         global gotchas (path-scoped load on match)
+3.  {project}/CLAUDE.md                           project identity + constitution
+4.  {project}/.claude/rules/*.md                  project rules (path-scoped load on match)
+5.  ~/.claude/projects/{path}/memory/MEMORY.md    auto-memory index
+6.  MCP servers start (~/.claude.json + project scope)
+7.  SessionStart hooks fire:
+      - write .claude/current-session-id, snapshot git baseline
+      - PEER-SESSION warning if another claude shares the checkout
+      - inject codebase overview INDEX block as additionalContext
+      - inject incomplete-plan pointers
+8.  Skill descriptions → system prompt
+9.  Deferred MCP tool list (reachable via ToolSearch)
 ```
 
-**Total context budget at session start** (approximate):
-- Global CLAUDE.md: ~8K tokens
-- Global rules: ~2K tokens
-- Project CLAUDE.md: ~8-15K tokens (meta is largest)
-- Project rules: ~3-5K tokens
-- MEMORY.md + topic files referenced: ~3K tokens
-- Skill descriptions: ~2K tokens
-- Deferred tool list: ~2K tokens
-- Overview additionalContext: ~2K tokens
-- **Total before first user message: ~30-40K tokens**
+Always-loaded budget (rules + memory) measured ~16.7K tokens for an agent-infra
+session (2026-06-13); skills, tool list, and overview add on top. Every subagent
+spawn pays the always-loaded portion too. Measure live with `just context-budget`.
 
-### During Session
+### During a session
 
 ```
-User message
-  → UserPromptSubmit hook (context-warn, tab-color)
-  → Model generates response
-  → For each tool call:
-      → PreToolUse hooks (matchers filter by tool name)
-        - May BLOCK (exit 2) or ADVISE (stderr)
-      → Tool executes
-      → PostToolUse hooks
-        - May warn, log, or inject guidance
-  → When model stops:
-      → Stop hooks (plan-status, verify-plan, uncommitted-warn, debrief, notify)
+User message → UserPromptSubmit hooks (context-warn, feedback intake, tab color)
+  → model generates → for each tool call:
+      PreToolUse hooks (matched by tool name) — may BLOCK (exit 2) or ADVISE
+      → tool executes →
+      PostToolUse hooks — warn / log / inject guidance
+  → model stops → Stop hooks (plan-status, verify-claimed-work, uncommitted-warn)
 ```
 
-### Session End / Compaction
+### Compaction / session end
 
 ```
-Context approaching limit:
-  → PreCompact hook (logs nuance signals)
-  → Compaction summarizes conversation
-  → PostCompact hook (verifies invariants survived)
-  → checkpoint.md written for handoff
-
-Session ends:
-  → SessionEnd hooks:
-    - sessionend-log.sh (receipt to session-receipts.jsonl)
-    - sessionend-overview-trigger.sh (marks overviews for refresh)
-    - sessionend-index-sessions.sh (indexes into sessions.db)
+context near limit → PreCompact hook (saves nuance + prompts checkpoint.md)
+  → summarize → PostCompact hook (verify claimed work survived; trust git not memory)
+session ends → SessionEnd hooks (receipt log, overview refresh marker, session index)
 ```
 
 ---
@@ -221,124 +148,89 @@ Session ends:
 
 ```
 ~/Projects/
-├── justfile              # Workspace task runner (all-health, push-all, todos)
-├── meta/                 # Agent infra, orchestrator, measurement, research
-├── intel/                # Investment research
-├── selve/                # Personal knowledge
-├── genomics/             # Genomics pipeline
-├── skills/               # Shared skill library
-│   ├── */SKILL.md        # 35 skills
-│   └── hooks/            # ~50 shared hook scripts
-├── research-mcp/           # Research paper MCP server
-├── llmx/                 # Multi-model CLI transport (editable-installed)
-└── best/                 # OSS reference repos (auto-synced daily)
+├── agent-infra/        # the hub: constitution, hooks governance, measurement, research
+├── intel/  genomics/  phenome/  …   # project repos served by the hub
+├── skills/             # shared skills + skills/hooks/ (cross-project guardrails)
+├── research-mcp/       # research paper MCP server
+└── llmx/               # multi-model CLI transport (editable-installed)
 ```
 
-**Shared resources flow downward from meta and skills:**
-- `meta` owns: constitution, hooks governance, orchestrator, measurement, research
-- `skills/` owns: capabilities (skills) and guardrails (hooks)
-- `research-mcp` owns: research tool infrastructure
-- `llmx` owns: multi-model dispatch
+Shared resources flow downward from `agent-infra` and `skills/`. Sub-projects don't
+carry agent-infra's knowledge — they **query it on demand** via the `agent-infra`
+MCP (scopes: all, hooks, failures, research, architecture, health, …). Propagation
+is pull-based and organic: the human runs sessions from agent-infra that touch other
+repos; cross-repo attestation is enforced at each repo's mutation gateway via a
+transactional outbox (see CLAUDE.md `<cross_project_rules>`), not an agent ritual.
 
-**Data stores:**
-- `~/.claude/orchestrator.db` — Task queue
-- `~/.claude/runlogs.db` — Cross-vendor session transcripts
-- `~/.claude/session-receipts.jsonl` — Session cost/duration log
-- `~/.claude/hook-triggers.jsonl` — Hook fire/block telemetry
-- `~/.claude/subagent-log.jsonl` — Subagent spawn/result log
-- `~/.claude/tool-log.jsonl` — Tool call sequence tracking
+**Session/telemetry store:** `~/.claude/agentlogs.db` (cross-vendor: Claude + Codex
++ Gemini + Kimi), queried via `uv run agentlogs …`. JSONL side-logs:
+`session-receipts.jsonl`, `hook-triggers.jsonl`, `event-log.jsonl`. (`runlogs.db`
+and `runlog.py` are **dead** — see `.claude/rules/session-forensics.md`.)
 
 ---
 
 ## 5. Self-Improvement Loop
 
-The core feedback cycle that makes the system get better:
+The feedback cycle that makes the system get better:
 
 ```
 Sessions happen (human + agent work)
+  ↓  SessionEnd hooks
+reflect_capture.py        zero-LLM capture of correction signals + omission-probe firings
   ↓
-session-retro pipeline (daily 22:00)
-  → session-shape.py         # Zero-cost structural anomaly detector (pre-filter)
-  → session-analyst skill    # Deep behavioral analysis (dispatches to Gemini)
-  → improvement-log.md       # Structured findings appended
+reflect.py → fm.py        cluster signals, classify against the Failure-Mode taxonomy
+  ↓  (+ /observe sessions for deep behavioral analysis)
+improvement-log.md        findings appended; two streams — [obs] behavioral ledger
+                          (mined for recurrence) and [ ] actionable queue
+  ↓  recurs 2+ sessions AND checkable-predicate-or-architectural?
+Implementation            hook / rule / skill / code change, committed with Evidence trailer
   ↓
-finding-triage.py
-  → SQLite staging DB        # Fingerprinting + dedup
-  → 2+ recurrences?          # Auto-promote to actionable
-  ↓
-Implementation
-  → Hook, rule, skill, or code change
-  → Commit with evidence trailer
-  ↓
-fix-verify.py
-  → Runs detection queries against recent sessions
-  → Confirms fix is holding
+gov.py + graders          governance shrink: re-run a scaffold's verifier with it removed;
+                          if it still passes, the scaffold was training wheels → retire
 ```
 
-**Measurement scripts** (epistemic instrumentation):
-- `supervision-kpi.py` — Supervision Load Index (north star metric)
-- `calibration-canary.py` — Answer-confidence calibration
-- `pushback-index.py` — Sycophancy detection
-- `trace-faithfulness.py` — Agent claims vs actual tool calls
-- `safe-lite-eval.py` — Factual precision via Exa verification
-- `epistemic-lint.py` — Unsourced claim detection
-- `fold-detector.py` — Behavioral sycophancy (position fold rate)
+Governance is **subtractive by design** (Gov-ID blocks carry goal + verifier +
+blast_radius; see `.claude/rules/gov-id.md`) — the corpus is meant to shrink as model
+capability rises, not just grow.
 
-**Autoresearch / RSI loop** (deterministic optimization):
-- `scripts/autoresearch.py` — mutates a small editable surface, runs a metric, and keeps or discards patches.
-- `experiments/skill-routing/` — locked skill-router eval across canonical, stress, and holdout cases.
-- `experiments/claim-bench-rsi/` — claim-bench parser/source-extraction eval. This produced the first concrete tool improvement on 2026-06-06: commit `d3110e0` fixed multiword verdict parsing.
-- `experiments/hook-tuning/` and `experiments/context-packing/` — seed evals only. They are not trustworthy optimization targets until they have larger labeled holdouts.
+**Measurement scripts** (epistemic instrumentation, all in `scripts/`):
+`supervision-kpi.py`, `calibration-canary.py`, `pushback-index.py`,
+`trace-faithfulness.py`, `safe-lite-eval.py`, `epistemic-lint.py`, `fold-detector.py`.
 
-Boundary: RSI improves code only where the evaluator is real. It has not
-changed the `$research` skill, corpus MCP, or MCP server behavior unless those
-surfaces are named in the mutable files and verified by a locked eval.
+**Deterministic RSI** (`scripts/autoresearch.py` + `experiments/`): mutates a small
+editable surface, runs a *real locked eval*, keeps or discards. Boundary: RSI
+improves code only where the evaluator is ground-truth-bound — a model-as-judge
+proxy does not make taste work "verifiable" (a bad eval is worse than none).
 
 ---
 
 ## 6. The Memory Problem
 
-### Why Claude Code "likes" MEMORY.md
+The user observes that Claude Code over-relies on MEMORY.md — citing it when it
+should read the actual codebase. This is **attention capture**, not classic context
+rot, from three reinforcing mechanisms:
 
-The user observes that Claude Code over-relies on MEMORY.md — referencing it when it should read the actual codebase. This is **not** context rot in the traditional sense. It's **attention capture** caused by three reinforcing mechanisms:
+1. **Positional privilege.** MEMORY.md is injected near the top of context. Start-
+   positioned info gets better recall than middle (Lost-in-the-Middle). It's always
+   "in mind"; code requires active retrieval.
+2. **Instructional reinforcement.** The memory system prompt tells the model to read
+   memories when relevant and save when learning — making memory-checking a default,
+   not a last resort.
+3. **Zero-cost access.** Reading MEMORY.md costs no tool call; reading code costs
+   latency + tokens + a decision about *what* to read. The rational-lazy strategy is
+   "check context first" — correct in principle, but it creates staleness risk:
+   MEMORY.md reflects when it was written, not current state.
 
-**1. Positional privilege.** MEMORY.md content is injected into the system prompt, near the top of context. Research shows ~75% accuracy for start-positioned information vs ~55% for middle (Liu et al., Lost-in-the-Middle). MEMORY.md gets the best attention real estate in every session. It's always "in mind" while code files require active retrieval via tool calls.
+**Consequence:** MEMORY.md assertions about file paths, function names, or flags may
+be stale; the model may "remember" something exists without verifying it still does.
 
-**2. Instructional reinforcement.** The auto-memory system prompt explicitly tells the model to:
-- Read memories when they seem relevant
-- Save new memories when learning about the user/project
-- Access memory when the user asks to recall something
-
-This creates a behavioral loop: the model is *told* to use memory, *rewarded* by it being easy to access (no tool call needed), and *penalized* for ignoring it (might miss relevant context). The instructions make memory-checking a default behavior rather than a last resort.
-
-**3. Zero-cost access vs tool-call cost.** Reading MEMORY.md content requires zero tool calls — it's already in context. Reading actual code requires Read/Grep tool calls, each of which:
-- Costs latency
-- Costs tokens (tool call overhead)
-- Might return more information than needed
-- Requires the model to decide *what* to read
-
-The rational lazy strategy is: check what's already in context first, and only go to the codebase if needed. This is correct behavior in principle but creates staleness risk — MEMORY.md reflects when it was written, not the current state.
-
-### What this means practically
-
-- MEMORY.md assertions about file paths, function names, or code state may be stale
-- The model may "remember" something exists without verifying it still does
-- Instructions in MEMORY.md may contradict what the codebase actually does
-- The model treats MEMORY.md as ground truth rather than as a cache that needs validation
-
-### What would fix it
-
-The user's existing `feedback_memory_skepticism.md` note and CLAUDE.md rule ("memory records what was true when it was written... trust what you observe now") are the right direction. The fundamental tension is:
-
-1. **Can't remove MEMORY.md** — it carries genuinely useful cross-session context
-2. **Can't stop it from being privileged** — it's in the system prompt by design
-3. **Can mitigate** via:
-   - Keeping MEMORY.md minimal (index of pointers, not content)
-   - Moving factual claims to `.claude/rules/` files (which are also auto-loaded but positioned differently)
-   - Adding a verification norm: "if MEMORY.md names a specific file/function/flag, grep for it before acting on it" (already in global CLAUDE.md)
-   - Periodic memory pruning: delete entries that are now derivable from code
-
-The honest answer: MEMORY.md will always have some attention advantage due to position. The system already has the right mitigations in principle. The gap is enforcement — there's no hook that detects "agent cited memory without verifying current state." That would require semantic judgment (unhookable), making cross-model review the only real check.
+**Mitigations (in place):** keep MEMORY.md to an *index of pointers* not content;
+the global rule "if memory names a specific file/function/flag, verify it still
+exists before acting"; periodic pruning of entries now derivable from code. The
+honest limit: position advantage is structural and can't be removed; there's no hook
+for "cited memory without verifying" (semantic predicate) — cross-model review is the
+only real check. **`just orient` is part of the fix:** when the question is "what
+*is* the system," querying live ground truth beats trusting any cached prose.
 
 ---
 
@@ -346,14 +238,15 @@ The honest answer: MEMORY.md will always have some attention advantage due to po
 
 | Question | Look here |
 |----------|-----------|
-| How is the science-graph substrate wired? | `corpus-substrate-architecture.md` (corpus store + corpus-core + claim layers) |
-| Why does a hook fire? | `~/.claude/settings.json` → hook path → read the script |
-| What rules load for project X? | `{project}/CLAUDE.md` + `{project}/.claude/rules/` + `~/.claude/CLAUDE.md` + `~/.claude/rules/` |
-| What MCP tools are available? | `{project}/.mcp.json` + `~/.claude/mcp.json` + deferred tool list in session |
-| What skills exist? | `~/Projects/skills/*/SKILL.md` |
-| What the orchestrator is doing? | `orchestrator.py status`, `orchestrator.py log --today` |
-| Session history? | `runlog.py recent`, `runlog.py query <named-query>` |
-| Hook telemetry? | `hook-roi.py`, `hook-telemetry-report.py` |
-| What was decided and why? | `meta/decisions/*.md` |
-| Research on topic X? | `meta/research/` (index in `.claude/rules/research-index.md`) |
-| Cross-project health? | `just all-health` from `~/Projects/` |
+| What is the system *right now*? | `just orient` (repos, loops, hooks, MCP, skills, doc freshness) |
+| Is the infra healthy? | `just doctor` |
+| What happened in recent sessions? | `just dashboard`, `uv run agentlogs recent\|search\|stats` |
+| Why does a hook fire? | `~/.claude/settings.json` or project `.claude/settings.json` → hook path → read the script; `just hook-telemetry` for what's firing |
+| What rules load for project X? | `{project}/CLAUDE.md` + `.claude/rules/` + the two global equivalents |
+| What MCP tools exist? | `just orient` (MCP section) + the session's deferred-tool list |
+| What skills exist? | `just orient` (count) + `~/Projects/skills/*/SKILL.md` |
+| How is the corpus/science-graph wired? | `corpus-substrate-architecture.md` |
+| How is search/retrieval wired? | `search-retrieval-architecture.md` |
+| What was decided and why? | `decisions/*.md` (+ `.claude/rules/vetoed-decisions.md` for what NOT to rebuild) |
+| Research on topic X? | `research/` (index: `.claude/rules/research-index.md`) |
+| Is a doc stale? | `just orient` flags doc age + drift (live launchd jobs vs. CLAUDE.md) |
