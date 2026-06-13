@@ -161,29 +161,6 @@ context-health *args:
 maintainability *args:
     uv run python3 scripts/agent_maintainability.py {{args}}
 
-# Smoke test the new agent-infra tooling end-to-end
-[group('health')]
-agent-infra-smoke:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    tmpdir=$(mktemp -d)
-    trap 'rm -rf "$tmpdir"' EXIT
-    echo "=== Unit tests ==="
-    uv run python3 -m unittest tests.test_agent_surface tests.test_agent_maintainability tests.test_research_verifier
-    echo "=== Surface analyzer ==="
-    uv run python3 scripts/agent_surface.py --top 5 --write "$tmpdir/surface.txt" > /dev/null
-    grep -q "Agent Surface Report" "$tmpdir/surface.txt"
-    grep -q "MCP exposure" "$tmpdir/surface.txt"
-    echo "=== Maintainability analyzer ==="
-    uv run python3 scripts/agent_maintainability.py --repo meta --write "$tmpdir/maintainability.txt" > /dev/null
-    grep -q "Agent Maintainability Report" "$tmpdir/maintainability.txt"
-    grep -q "Repo: meta" "$tmpdir/maintainability.txt"
-    echo "=== Research verifier ==="
-    uv run python3 scripts/research_verifier.py research/weekly-agent-infra-sweep-2026-04-02.md --write-companion --artifact-dir "$tmpdir/research-verification" > /dev/null
-    test -s "$tmpdir/research-verification/weekly-agent-infra-sweep-2026-04-02.verification.md"
-    grep -q "Verification Artifact" "$tmpdir/research-verification/weekly-agent-infra-sweep-2026-04-02.verification.md"
-    echo "OK: agent-infra tooling smoke test passed"
-
 # Canonical runner for standalone review-tool tests
 [group('health')]
 review-tool-tests:
@@ -193,7 +170,7 @@ review-tool-tests:
 # Browse SQLite database in web UI
 [group('dashboard')]
 datasette *args:
-    uvx datasette ~/.claude/runlogs.db {{args}}
+    uvx datasette ~/.claude/agentlogs.db {{args}}
 
 # ── Skills ───────────────────────────────────────────────────────
 
