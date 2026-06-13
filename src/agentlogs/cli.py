@@ -198,7 +198,22 @@ def cmd_index(args) -> int:
                     _signal.setitimer(_signal.ITIMER_REAL, max_run_s + 60.0)
                 except (ValueError, OSError):
                     pass  # not main thread / unsupported — soft deadline still applies
-            for v in vendors:
+            # Fairness: index the most-behind vendor first so one vendor's big
+            # backlog (claude, 1754 sessions) can't monopolize the shared
+            # run_deadline and starve another. Codex went dark 06-09→06-13 exactly
+            # this way (claude indexed first, ate the budget; same class as the
+            # May-4 incident). Order by each vendor's newest session, oldest-first;
+            # vendors with no sessions yet sort first (most behind).
+            run_vendors = vendors
+            if len(vendors) > 1:
+                placeholders = ",".join("?" * len(vendors))
+                newest = dict(db.execute(
+                    f"SELECT vendor, MAX(start_ts) FROM sessions "
+                    f"WHERE vendor IN ({placeholders}) GROUP BY vendor",
+                    vendors,
+                ).fetchall())
+                run_vendors = sorted(vendors, key=lambda v: (newest.get(v) or ""))
+            for v in run_vendors:
                 stats = ix.index_vendor(
                     db, v, limit_sources=args.limit_sources, force=args.force,
                     source_timeout_s=getattr(args, "source_timeout", 180.0),

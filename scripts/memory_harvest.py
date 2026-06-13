@@ -39,6 +39,46 @@ THEMES = {
     "budget":       ("compute budget guard", "skills/modal"),
 }
 
+def _themes_for(text: str) -> list[str]:
+    hay = text.lower()
+    return sorted({THEMES[k][0] for k in THEMES if k in hay})
+
+
+def _scan_codex() -> list[tuple[str, str, str, str]]:
+    """Parse ~/.codex/memories/MEMORY.md into (project, type, stem, desc) rows.
+
+    Codex memory has no per-project frontmatter — it's one global MEMORY.md with
+    `# Task Group:` blocks (carrying `applies_to: cwd=<path>`), `## Task N: <title>`
+    sections, and `### keywords` bullet lists. We attribute each task to the cwd's
+    project so its lessons cluster WITH the matching Claude project memories.
+    """
+    rows: list[tuple[str, str, str, str]] = []
+    cx = Path.home() / ".codex/memories/MEMORY.md"
+    if not cx.exists():
+        return rows
+    proj, title, kw, in_kw = "codex", None, [], False
+
+    def flush():
+        if title:
+            rows.append((proj, "codex-task", title[:80], " ".join(kw)[:200]))
+
+    for line in cx.read_text(errors="replace").splitlines():
+        m = re.search(r'cwd=([^\s;,]+)', line)
+        if m:
+            proj = Path(m.group(1).rstrip("/")).name or "codex"
+        if line.startswith("## Task"):
+            flush()
+            title, kw, in_kw = line.lstrip("# ").strip(), [], False
+        elif line.startswith("### keywords"):
+            in_kw = True
+        elif line.startswith("###"):
+            in_kw = False
+        elif in_kw and line.strip().startswith("-"):
+            kw.append(line.strip().lstrip("- ").strip())
+    flush()
+    return rows
+
+
 def scan(min_span: int = 2):
     root = Path.home() / ".claude/projects"
     mems = []  # (project, type, stem, desc, themes)
@@ -53,9 +93,10 @@ def scan(min_span: int = 2):
         typ = (re.search(r'type:\s*(\w+)', txt) or [None, "?"])[1]
         dm = re.search(r'description:\s*(.+)', txt)
         desc = (dm.group(1).strip() if dm else "")[:160]
-        hay = (md.stem + " " + desc).lower()
-        themes = sorted({THEMES[k][0] for k in THEMES if k in hay})
-        mems.append((proj, typ, md.stem, desc, themes))
+        mems.append((proj, typ, md.stem, desc, _themes_for(md.stem + " " + desc)))
+    # Codex memory store (different structure; same theme-clustering).
+    for proj, typ, stem, desc in _scan_codex():
+        mems.append((proj, typ, stem, desc, _themes_for(stem + " " + desc)))
     # cluster by theme
     clusters = collections.defaultdict(list)
     target = {disp: tgt for disp, tgt in THEMES.values()}
