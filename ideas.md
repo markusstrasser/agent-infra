@@ -12,7 +12,7 @@ So the right next-generation architecture is:
 
 thin execution fabric, thick epistemic kernel.
 
-Unify meta, intel, research, genomics, and future selve around one shared contract for case → claim → evidence → commitment → resolution → score → policy update. Do not unify raw ontologies, raw storage, or resolver logic. One schema, many resolvers.
+Unify meta, intel, research, genomics, and future phenome around one shared contract for case → claim → evidence → commitment → resolution → score → policy update. Do not unify raw ontologies, raw storage, or resolver logic. One schema, many resolvers.
 
 High confidence: native tools, structured outputs, compaction, background execution, and agent eval/trace surfaces keep expanding. Medium confidence: MCP task continuity and richer multi-round flows matter later this year. Low confidence: skills-over-MCP or memory interchange become stable enough soon to be a foundation.
 
@@ -50,7 +50,7 @@ meta “hook/policy/evaluator X reduces error class Y” transcript analytics, c
 intel forecast, thesis, trade proposal market outcomes, outbox execution, postmortems
 research literature claim, thesis memo, open-question closure source verification, later evidence, manual adjudication
 genomics pipeline conclusion, assay/variant hypothesis pipeline outputs, assays, curation, downstream evidence
-selve decision or intervention hypothesis lived outcomes, journals, explicit feedback
+phenome decision or intervention hypothesis lived outcomes, journals, explicit feedback
 
 Unify now: IDs, claim/commitment schema, evidence/source ledger, run receipts, outbox protocol, resolution state machine, scoring envelope, policy-promotion pipeline.
 
@@ -66,7 +66,7 @@ Use append-only events underneath. Corrections append; they do not erase history
 
 case:
 id
-domain # meta | intel | research | genomics | selve
+domain # meta | intel | research | genomics | phenome
 subject_ids[]
 question
 stakes
@@ -163,7 +163,7 @@ Adopt native features where they collapse custom code without weakening receipts
 
 Defer building your core around MCP connector, MCP Tasks, or skills-over-MCP. Anthropic’s MCP connector is still beta, tool-call-only, remote HTTP/SSE only, and not ZDR-eligible. MCP Tasks are still experimental, and Task Continuity is still draft status. Skills-over-MCP is still exploratory. Provider memory also stays out of the authority path; it is soft context, not hard state. ￼
 
-Hosted convenience also changes your data posture. Anthropic’s dynamic web fetch filtering relies on code execution and is not ZDR by default, and OpenAI background mode stores response data long enough to poll and is not ZDR-compatible. That means genomics and selve may keep more local execution than intel or generic research, even when native features exist. ￼
+Hosted convenience also changes your data posture. Anthropic’s dynamic web fetch filtering relies on code execution and is not ZDR by default, and OpenAI background mode stores response data long enough to poll and is not ZDR-compatible. That means genomics and phenome may keep more local execution than intel or generic research, even when native features exist. ￼
 
 The migration path that avoids thrash: 1. Build a vendor-neutral RuntimeAdapter with capability flags: search, fetch, sandbox, structured_output, background, compaction, remote_mcp, soft_memory. 2. Swap execution engines behind that adapter. Start with meta and intel. 3. Keep receipts, outbox semantics, and policy gates unchanged. 4. Dual-run canaries on old subprocess path and new native path. 5. Retire custom wrappers only after parity on task success, epistemic metrics, and cost.
 
@@ -175,7 +175,7 @@ Claim verification
 Keep it. Trigger by stakes, novelty, or actionability. Do not verify every sentence like a deranged hall monitor. Verify the claims that can move capital, conclusions, or policy.
 
 Source grading
-Keep it and centralize it. Use one generic envelope plus domain adapters: primary/secondary, provenance completeness, recency, conflict risk, directness; then Admiralty for intel, study-design quality for research/genomics, self-report reliability for selve.
+Keep it and centralize it. Use one generic envelope plus domain adapters: primary/secondary, provenance completeness, recency, conflict risk, directness; then Admiralty for intel, study-design quality for research/genomics, self-report reliability for phenome.
 
 Null result tracking
 Keep it and elevate it. null_result and pertinent_negative should be structured evidence types, not just advisory prose. This is one of the cheapest ways to reduce self-flattering nonsense.
@@ -198,7 +198,7 @@ Do not build a grand learned PRM now. Research reasoning labels are too noisy. U
 
 90 days 1. Extend the same schema to research and genomics with domain-specific resolvers. 2. Add source ledger, null-result evidence, stance-revision events, and correction propagation. 3. Stand up a model/provider canary suite and make upgrades fail closed. 4. Route generic search/fetch/code through native tools with explicit allowlists and receipts. 5. Package repeated workflows as skills/plugins only after the underlying state/control path is stable. 6. Rebuild dashboards around resolved commitments, calibration, and correction propagation.
 
-180 days 1. Bring selve onto the same loop as a slow, noisy, higher-approval resolver. 2. Expose stable domain services through your own gateway/MCP facade; keep protocol separate from semantics. 3. Pilot background/task-continuity features only behind the adapter and only if stability improves. 4. Retire remaining duplicate ledgers and old subprocess paths. 5. Decide which custom scaffolding still earns rent.
+180 days 1. Bring phenome onto the same loop as a slow, noisy, higher-approval resolver. 2. Expose stable domain services through your own gateway/MCP facade; keep protocol separate from semantics. 3. Pilot background/task-continuity features only behind the adapter and only if stability improves. 4. Retire remaining duplicate ledgers and old subprocess paths. 5. Decide which custom scaffolding still earns rent.
 
 Kill list
 • markdown-only machine state
@@ -268,7 +268,7 @@ A 30 / 90 / 180 day action plan
 
 90: extend schema to research and genomics; add source ledger, null-result evidence, fold/revision events, and correction propagation; stand up canaries; route commodity search/fetch/code to native tools; package repeated workflows as skills/plugins.
 
-180: bring selve onto the same loop; expose stable services behind your own gateway/MCP facade; pilot background/task continuity only behind adapters; retire duplicate ledgers and leftover subprocess glue.
+180: bring phenome onto the same loop; expose stable services behind your own gateway/MCP facade; pilot background/task continuity only behind adapters; retire duplicate ledgers and leftover subprocess glue.
 
 The single most dangerous architectural mistake to avoid
 

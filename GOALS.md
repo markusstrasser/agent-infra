@@ -92,7 +92,7 @@ the warning stands: agent-infra is not a place to write more rules about rules. 
 
 ## Projects Served
 
-All projects: intel, selve, genomics, skills, research-mcp, and any future repos. Cross-project work happens organically — the human runs Claude Code from agent-infra and touches other repos as needed. The agent-infra MCP provides a query interface so sub-projects can access agent-infra's knowledge without carrying it.
+All projects: intel, phenome, genomics, skills, research-mcp, and any future repos. Cross-project work happens organically — the human runs Claude Code from agent-infra and touches other repos as needed. The agent-infra MCP provides a query interface so sub-projects can access agent-infra's knowledge without carrying it.
 
 Agent-Infra provides: shared skills, hooks, MCP servers, maintenance checklists, session analysis, observability, and the research pipeline.
 
