@@ -351,3 +351,54 @@ design correction:
   a deploy step; Phase 1 is build+prove only (zero cross-project blast).
 - arc-agi clean-expensive contract: re-probe its ledger writer when it lands (Phase-0 used the design doc).
 - `/improve maintain` migration: Phase 3, after burn-in elsewhere + independent review (may not self-authorize).
+
+## FINDING 5 (closes the arc — the extraction over-reached; ship the KNOWLEDGE, not the platform)
+
+Two ground-truth probes that should have run at Phase 0, run before the hutter deploy + conductor migration:
+
+1. **Does anything LOAD the extracted skill?** `grep` both directions across hutter/intel/genomics/
+   agent-infra: every `outer-loop` hit outside the skill's own dir is the generic English phrase
+   (papers, substack HTML) — **not a reference to the skill**. `route.py` + `lint_ledger_conformance.py`
+   have **zero external callers**.
+2. **Do the "2 consumers" already implement the pattern natively?** Yes. hutter split its own docs:
+   `LOOP.md` (inner Grinder loop) / `OUTER-LOOP.md` ("the **outer** loop: where /research, /brainstorm,
+   /critique live" + the human-owned strategic-move checklist) / `DREAMER-BOOT.md`. `/improve maintain`
+   already routes by verifier-boundary: sweep → pick-one → reversible-local-do / boundary-cross-escalate,
+   with an unattended **Generate lane** (the amplify pattern). Neither loads `outer-loop/`; each encodes
+   its regime-specific version in its own prose.
+
+**So FINDING 4's "2-consumer kit passes the proven-common ≥2 bar" was itself too generous (corrected
+here).** The two loops share a *pattern already written in each*, not a *loadable artifact*. `route.py`
+is the **union** of hutter's rich rules + the conductor's simple ones + science's partial rule — no
+single consumer needs all of it; the genuine **intersection** is a 2-liner ("boundary-crossing/
+irreversible/discovery → human; reversible+local+clean-accept → auto") that both already have. Union ≠
+intersection, and there is no loader → the **proven-common test (vetoed-decisions: speculative
+shared-utility extraction) is NOT met as built.** FINDING 4 already killed the "a new repo wants a loop"
+premise, so the plan's success metric ("a new repo stands up a loop with only a LOOP.md") **has no
+taker** — the demand the platform was built for does not exist.
+
+**DECISION (principal-approved 2026-06-13): do NOT deploy the platform.** No global symlink, no hutter
+migration, no conductor migration. The arc's durable output is the **knowledge** (FINDINGS 1-5 + the
+partial-accept correctness fix + the verifier-regime→loop-possibility principle), captured in this ADR.
+
+- **Kept as the executable record** (skills/outer-loop/, de-skilled to a README, NOT an invocable skill):
+  `route.py` (the deterministic autonomy router — the one novel + correct piece, encoding "never
+  auto-ratchet on a noisy gate") + `tests/` (hutter trace-equivalence 10/10 + partial-regime proof 8/8)
+  + `references/examples/{hutter,science}-LOOP.md` (now test fixtures: what a clean-cheap vs partial
+  contract looks like). stdlib, pure, won't rot.
+- **Pruned** (no caller, richer-elsewhere, or design-captured-here): `SKILL.md` (generalization restating
+  the two loops' prose), `references/ledger-schema.sql` (hutter's `ledger.db` views are richer; science
+  is git-native; no shared SQL consumer), `references/loop-contract.md` (typed-schema design — captured
+  above), `scripts/lint_ledger_conformance.py` (zero callers).
+
+**Governance correction:** the plan's "the skill may not be the authority for migrating its own
+conductor" was MY plan rule, **mis-attributed to the constitution** in conversation. The constitution's
+actual text (P4): autonomy boundaries "do not restrict explicit user-directed work … once the user has
+approved it." The real invariant is narrower and already hard-coded in `route.py` PROTECTED_ACTIONS: an
+autonomous loop must never silently edit its own **gate**. Refactoring conductor prose is not a
+gate-edit; under user direction the human IS the independent review.
+
+**The lesson (one line):** run the "who loads this / do the consumers already do it natively?" probe at
+DECIDE-time, before building the abstraction — the proven-common ≥2 test is a Phase-0 gate, not a
+Phase-2 discovery. Reading the consumers first would have collapsed this whole arc to "write the findings
+down" on day one. (Action still produced the information — but the build should have been gated behind the probe.)
