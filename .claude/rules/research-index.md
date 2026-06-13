@@ -52,6 +52,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-06-12-vendor-binary-skill-archaeology.md` | Vendor Binary Skill Archaeology — code-review/verify pipelines extracted from binary v2.1.175; partition-not-compete verdict vs critique | Editing critique/execute/review skills; proposing new review tooling; each Claude Code release (re-extract + diff embedded prompts) |
 | `2026-06-13-code-health-diagnostics-for-agents.md` | Forced-ranking diagnostics: churn>length, graph-skip-below-1000-files, lexical-dup over embeddings; deterministic recall→LLM precision | Building a code/doc health detector or ranker; choosing classical-vs-graph-vs-embedding diagnostics; churn/size/cohesion/dup signal selection |
 | `2026-06-13-llm-optimal-repo-representation.md` | Optimal repo representation for tool-using agents + why agents write monoliths (measured: 1-3 files, ImportError-avoidance, prompting won't fix) | Repo/doc layout for agents; file-granularity & naming; diagnosing/controlling 1000-line files; context-rot from long files |
+| `2026-06-13-skills-marketplace-survey.md` | Skills Marketplace Survey | TODO |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
 | `adversarial-case-library.md` | Adversarial Case Library: The Best "Calling BS" Reviews | TODO |
 | `agent-behavior-refresh-2026-04.md` | Agent Behavior Delta — Memory, Self-Modification, Sycophancy | TODO |
