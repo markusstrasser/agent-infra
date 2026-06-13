@@ -60,6 +60,35 @@ fetch_if_stale "claude-agent-sdk" \
     "https://pypi.org/pypi/claude-code-sdk/json"                        \
     "claude-agent-sdk-pypi.json"
 
+# ── OpenAI SDK + Codex CLI ──
+fetch_if_stale "openai-sdk" \
+    "https://pypi.org/pypi/openai/json"                                 \
+    "openai-sdk-pypi.json"
+fetch_if_stale "codex-cli" \
+    "https://api.github.com/repos/openai/codex/releases/latest"         \
+    "codex-cli-release.json"
+
+# ── Google GenAI SDK ──
+fetch_if_stale "google-genai" \
+    "https://pypi.org/pypi/google-genai/json"                          \
+    "google-genai-pypi.json"
+
+# ── MCP Python SDK ──
+fetch_if_stale "mcp-sdk" \
+    "https://pypi.org/pypi/mcp/json"                                    \
+    "mcp-sdk-pypi.json"
+
+# ── Tooling we depend on (Exa, Modal, uv) ──
+fetch_if_stale "exa-py" \
+    "https://pypi.org/pypi/exa-py/json"                                 \
+    "exa-py-pypi.json"
+fetch_if_stale "modal" \
+    "https://pypi.org/pypi/modal/json"                                  \
+    "modal-pypi.json"
+fetch_if_stale "uv" \
+    "https://api.github.com/repos/astral-sh/uv/releases/latest"         \
+    "uv-release.json"
+
 # Note: Exa OpenAPI not publicly fetchable. Exa MCP is configured directly.
 
 echo "[vendor-docs] Done."
