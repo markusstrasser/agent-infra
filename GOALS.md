@@ -1,4 +1,4 @@
-# Meta — Goals
+# Agent-Infra — Goals
 
 > Human-owned. Agent may propose changes but must not modify without explicit approval.
 
@@ -29,7 +29,7 @@ Per-regime, not one ratio (raw "maximize autonomy/consumption" maximands incenti
 - Agent theater (performative work that produces no value)
 - Repeated corrections for things already taught once
 
-The closer sessions get to "optimal run" (what would happen if the agent had perfect tooling and perfect instructions), the better meta is doing its job.
+The closer sessions get to "optimal run" (what would happen if the agent had perfect tooling and perfect instructions), the better agent-infra is doing its job.
 
 ## Operator Tax (Measured 2026-04-06)
 
@@ -61,9 +61,9 @@ The invariants: the Constitution section (in CLAUDE.md) and GOALS.md are human-o
 2. **Hook engineering** — deterministic guards that prevent known failure modes (instructions alone = 0% reliable)
 3. **Observability** — cockpit components keep the human informed without requiring them to ask
 4. **Research** — stay current on agent behavior research, absorb what's applicable, ignore what's not. Research has intrinsic value — it changes how agents think and prompt, even when it doesn't produce a hook or script. No enforcement quota on research-to-implementation conversion.
-5. **Cross-project propagation** — organic, pull-based. The human runs sessions from meta that touch other repos. Sub-projects query agent-infra via MCP when relevant. Projects don't need meta's full knowledge pushed to them — the MCP is the bridge.
+5. **Cross-project propagation** — organic, pull-based. The human runs sessions from agent-infra that touch other repos. Sub-projects query agent-infra via MCP when relevant. Projects don't need agent-infra's full knowledge pushed to them — the MCP is the bridge.
 6. **Multi-vendor agent ops** — strategic. Claude Code is primary, but Codex/Gemini/Kimi CLIs serve as sub-agents and alternative interfaces. Subscriptions are often cheaper than API. Runlog, dashboard, and receipts cover all vendors. CLAUDE.md symlinks (AGENTS.md, GEMINI.md) ensure instruction parity where possible.
-7. **Self-improvement** — meta improves its own tooling using the same methods it applies to sub-projects
+7. **Self-improvement** — agent-infra improves its own tooling using the same methods it applies to sub-projects
 
 ## Execution Model
 
@@ -83,24 +83,24 @@ The cycle: research (divergent) until diminishing returns → build (convergent)
 
 ## Knowledge Management
 
-Meta's research index, improvement log, and maintenance checklist are valuable — but should trend toward **index over content dump**. Best practices:
+Agent-Infra's research index, improvement log, and maintenance checklist are valuable — but should trend toward **index over content dump**. Best practices:
 - Research memos: actionable findings up front, evidence below. The index table in CLAUDE.md is the discovery layer.
 - Improvement log: findings should resolve (implemented, rejected, superseded), not accumulate indefinitely. Archive entries older than 60 days that haven't been acted on.
 - Backlog: items without a clear path to implementation should be pruned, not preserved.
 
-The warning stands: meta is not a place to write more rules about rules. If knowledge isn't changing agent behavior, it's dead weight.
+the warning stands: agent-infra is not a place to write more rules about rules. If knowledge isn't changing agent behavior, it's dead weight.
 
 ## Projects Served
 
-All projects: intel, selve, genomics, skills, research-mcp, and any future repos. Cross-project work happens organically — the human runs Claude Code from meta and touches other repos as needed. The agent-infra MCP provides a query interface so sub-projects can access meta's knowledge without carrying it.
+All projects: intel, selve, genomics, skills, research-mcp, and any future repos. Cross-project work happens organically — the human runs Claude Code from agent-infra and touches other repos as needed. The agent-infra MCP provides a query interface so sub-projects can access agent-infra's knowledge without carrying it.
 
-Meta provides: shared skills, hooks, MCP servers, maintenance checklists, session analysis, observability, and the research pipeline.
+Agent-Infra provides: shared skills, hooks, MCP servers, maintenance checklists, session analysis, observability, and the research pipeline.
 
 ## Skills Ownership
 
-**Meta owns skill quality.** Meta runs session analysis, sees when skills are applied across projects, and can judge whether they work. Claude Code knowledge is co-located here. The information flow is natural: session-analyst findings → skill improvements → propagation.
+**Agent-Infra owns skill quality.** Agent-Infra runs session analysis, sees when skills are applied across projects, and can judge whether they work. Claude Code knowledge is co-located here. The information flow is natural: session-analyst findings → skill improvements → propagation.
 
-Skills (`~/Projects/skills/`) may merge into meta as a directory. For now, kept separate. But quality governance (authoring standards, testing, versioning, cross-project propagation) lives in meta regardless of directory structure.
+Skills (`~/Projects/skills/`) may merge into agent-infra as a directory. For now, kept separate. But quality governance (authoring standards, testing, versioning, cross-project propagation) lives in agent-infra regardless of directory structure.
 
 ## Quality Standard
 
@@ -127,25 +127,25 @@ Mechanisms (to be implemented):
 
 ## Open Questions
 
-- **Enforcement granularity** — which principles deserve hooks vs. which stay instructional? Hooks can be annoying. Need empirical data from meta sessions. Progressive approach for now.
+- **Enforcement granularity** — which principles deserve hooks vs. which stay instructional? Hooks can be annoying. Need empirical data from agent-infra sessions. Progressive approach for now.
 - **Autonomy gradient threshold** — where exactly does "clear improvement" end and "multiple valid solutions" begin? Probably can't be defined precisely; needs examples over time.
-- **Skills merge timing** — meta owns quality but skills/ is still separate. When/whether to merge directories.
+- **Skills merge timing** — agent-infra owns quality but skills/ is still separate. When/whether to merge directories.
 
 ## Deferred Scope
 
-- **IB API / trading automation** — blocked by paper trading validation in intel, not meta's concern
+- **IB API / trading automation** — blocked by paper trading validation in intel, not agent-infra's concern
 - **Fraud/corruption separation** — stays in intel until compute burden forces a split
 - **Numeric benchmarking** — qualitative assessment first, formalize metrics when patterns stabilize
 - **Shared library extraction** (`~/Projects/lib/`) — active work, plan exists, will update goals when it lands
 
 ## Exit Condition
 
-Meta becomes unnecessary when:
+Agent-Infra becomes unnecessary when:
 1. Claude (5, 6, N) natively handles meta-improvement — eliciting user goals, applying project upgrades, working correctly across subdomains, benchmarking itself
 2. Claude Code ships native equivalents of hooks, observability, session analysis
 3. The creative/divergent capability (connecting old projects, finding novel solutions across domains) is handled natively
 
-This may never fully happen — meta encodes domain-specific and personal-idiosyncratic knowledge that generic tooling won't replicate. But the goal is to make meta's job progressively smaller, not to preserve it.
+This may never fully happen — agent-infra encodes domain-specific and personal-idiosyncratic knowledge that generic tooling won't replicate. But the goal is to make agent-infra's job progressively smaller, not to preserve it.
 
 ---
 
