@@ -32,8 +32,10 @@ from pathlib import Path
 
 from common.io import load_jsonl
 from common.paths import EVENT_LOG
+import importlib.util
 
 REPO = Path(__file__).resolve().parent.parent
+GRADERS_ROOT = REPO.parent  # ~/Projects ; governance verifier paths resolve here (evals is a sibling repo)
 RULES_DIR = REPO / ".claude" / "rules"
 HOOKS_GLOBS = [
     (Path.home() / "Projects" / "skills" / "hooks", "*"),
@@ -282,16 +284,44 @@ def _summarize_reasoning(name: str, kind: str, stdout: str) -> dict:
 
 
 # ── gov-shrink dry-run ────────────────────────────────────────────────────────
+def run_grader(verifier: str) -> dict | None:
+    """Resolve + EXECUTE a governance grader, returning its ground-truth verdict
+    {passed, margin, evidence}, or None if the grader file is absent. Verifier paths are
+    projects-root-relative — the graders live in the evals SIBLING repo (e.g.
+    `evals/graders/governance/context_budget.py`), not under agent-infra. (The earlier
+    "phantom verifier" reading checked agent-infra/evals/ and missed ~/Projects/evals/.)
+    Graders are ground-truth-bound (char counts / git / grep), never LLM-judge; import is
+    side-effect-free (module-level defs + grade())."""
+    if not verifier:
+        return None
+    grader_file = (GRADERS_ROOT / verifier).resolve()
+    if not grader_file.is_file():
+        return None
+    try:
+        spec = importlib.util.spec_from_file_location(grader_file.stem, grader_file)
+        if spec is None or spec.loader is None:
+            return None
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        v = mod.grade(REPO)
+        return {"passed": bool(v["passed"]), "margin": v.get("margin"),
+                "evidence": str(v.get("evidence", ""))}
+    except Exception as e:  # noqa: BLE001
+        return {"passed": None, "margin": None, "evidence": f"(grader error: {str(e)[:120]})"}
+
+
 def gov_shrink_dryrun(artifacts: list[dict]) -> dict:
-    """A scaffold is shrink-eligible iff it has a verifier (re-run with scaffold
-    removed on model bump; if grader still passes, retire). Without a verifier it
-    can't be capability-tested — that's the generative backlog."""
+    """A scaffold is shrink-eligible iff it has a verifier. For eligible scaffolds whose
+    grader file EXISTS, run it now and attach the real verdict (ground-truth pass/fail);
+    a ✗ FAIL means the rule's goal is currently violated. Scaffolds without a verifier are
+    the generative backlog (write the grader). Ablation — re-run with the scaffold removed,
+    retire if still PASS — is the next step layered on this."""
     eligible, backlog, style = [], [], []
     for a in artifacts:
         if a["blast_radius"] == "style":
             style.append(a)
         elif a["verifier"]:
-            eligible.append(a)
+            eligible.append({**a, "verdict": run_grader(a["verifier"])})
         else:
             backlog.append(a)
     return {"eligible": eligible, "backlog": backlog, "style": style}
@@ -387,16 +417,26 @@ def render_md(rep: dict) -> str:
 
     L.append("## gov-shrink dry-run (the core loop)")
     sh = rep["shrink"]
-    L.append(f"- **Shrink-eligible** (has verifier → re-run with scaffold removed on next model bump): "
-             f"**{len(sh['eligible'])}**")
+    ran = [a for a in sh["eligible"] if a.get("verdict")]
+    L.append(f"- **Shrink-eligible** (has a verifier): **{len(sh['eligible'])}** · "
+             f"graders that EXECUTED this run: **{len(ran)}**")
     for a in sh["eligible"]:
-        L.append(f"  - `{a['id']}` verifier=`{a['verifier']}` blast=`{a['blast_radius']}`")
+        v = a.get("verdict")
+        if v is None:
+            vs = "⚠ verifier declared but grader file not found at projects-root"
+        elif v["passed"] is None:
+            vs = v["evidence"]
+        else:
+            vs = (f"{'✓ PASS' if v['passed'] else '✗ FAIL (goal violated)'} "
+                  f"margin={v['margin']} — {v['evidence']}")
+        L.append(f"  - `{a['id']}` verifier=`{a['verifier']}` → {vs}")
     L.append(f"- **Backlog — needs a verifier before it can be capability-tested**: **{len(sh['backlog'])}**")
     for a in sh["backlog"]:
         L.append(f"  - `{a['id']}` — goal: {a['goal'][:80] or '(undeclared)'}")
     L.append(f"- Style/format artifacts (excluded from shrink): {len(sh['style'])}")
-    L.append("- NOTE: ablation-eval execution (run grader with scaffold removed) is wired in "
-             "Phase 2 once `evals/` verifiers exist; this run reports eligibility, not verdicts.\n")
+    L.append("- Graders now EXECUTE (ground-truth, no LLM): ✗ FAIL = the rule's goal is currently "
+             "violated; ✓ PASS = goal holds. Ablation (re-run with the scaffold removed → retire if "
+             "still PASS) is the next step layered on this.\n")
 
     L.append("## Advisory-noise (hooks firing without changing behavior)")
     if rep["advisory_noise"]:
