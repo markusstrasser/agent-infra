@@ -68,3 +68,23 @@ This aligns with existing governance: append-only is already the constitution's 
 
 ## Supersedes
 Does not supersede; refines the 2026-04-09 "scope state by invocation ID" proposal — that instinct (thread-ID partitioning) was right for session-local state but insufficient for canonical state, which needs event-sourcing/OCC.
+
+## Revisions
+
+### 2026-06-13 — PRIMARY fix reframed: isolation-first, not locking-first (and an inventory miss)
+
+Operator pushback ("this is a trillion-dollar space — surely it's solved; what does Anthropic use?") triggered a prior-art pass that should have run FIRST (violated the hook-enforced inventory-before-dispatch rule — we already held the answer in two memos; ~245K subagent tokens partly rediscovered it):
+
+- **`caid-multi-agent-swe-2026-03.md`** (arXiv:2603.21489, VERIFIED claims): git **worktree isolation beats soft isolation by 7.8pp**; soft isolation *hurts* vs single-agent; optimal **2-4 agents**; multi-agent costs 3-5× with no wall-clock speedup. The coordination backbone is **git primitives, not a custom state layer**: worktree=isolation, commit=completion signal, merge=integration, test=verification gate. This is the entire "isolate per agent + merge via git" answer.
+- **`2026-06-12-symphony-orchestrator-reference.md`** (openai/symphony): central orchestrator, **no durable DB** (queue durability outsourced to an external authoritative store; orchestrator state disposable, reconstructed by reconciliation), **hard per-issue isolation** (full clones + symlink-escape defense). Validates CAID + state-externalization. "No orchestrator" is **workload-scoped** — re-open only for parallel multi-task fan-out, not a serial/interactive workload.
+
+Fresh 2026-06-13 landscape pass (`artifacts/research/2026-06-13-orchestrator-tools/`) confirmed the same convergently: **every funded product uses isolate-per-agent (worktree/microVM/container) + merge via PR; ZERO shared mutable state.** Anthropic's own multi-agent research system = orchestrator-worker, results flow up as artifacts, **no shared-state DB**.
+
+**Reframe of this decision:**
+- **PRIMARY fix = isolation (CAID git-primitives), which we ALREADY adopted for code-touching subagents but never applied to peer interactive sessions or to checkpoint/tracker files.** The clobbering exists because concurrent peer sessions write *shared mutable markdown/JSON on one checkout* — the one thing the entire field says not to do. Lever for interactive peers: `claude --worktree` per session; coordinate through git.
+- **Event-sourcing / OCC / SQLite-WAL (the body of this memo) is DEMOTED to the narrow fallback for irreducibly-shared state** — the cross-session stores that exist *by design* and cannot be worktree-isolated (e.g. `agentlogs.db`, append-only daily logs, launchd-job state). For those, WAL + append-only is correct. It is NOT the primary answer for checkpoint.md/trackers — those should stop being concurrently shared.
+- **Turnkey option:** worktree-orchestrators (Claude Squad, Conductor) exist, but per the Symphony memo's logic a coordinator only earns its keep on **parallel multi-task fan-out**; for serial/interactive peer work, bare `--worktree` is the lever. Gate adoption on the fan-out trigger.
+
+**Provenance caveat:** the fresh landscape pass leaned on blog/vendor sources; specific product claims (tool "EOL Q2 2026", successor naming, funding/version specifics, "Nx PR velocity") are UNVERIFIED vendor-slop and are not relied upon here. The load-bearing claim — isolate-per-agent+merge is the industry standard — is trusted only because it converges across 4 independent agents AND matches CAID (verified paper) AND the Symphony memo.
+
+**Net:** the original five-primitive plan AND the event-sourcing escalation were both solving a self-inflicted problem (sharing mutable files across peers). Fix the architecture (isolate), then apply WAL/append-only only to the small irreducible-shared residue.
