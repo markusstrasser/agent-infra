@@ -5,7 +5,7 @@ repo: agent-infra
 decision_date: 2026-06-13
 recorded_date: 2026-06-13
 provenance: contemporaneous
-status: proposed
+status: accepted
 initial_leaning: "Defer extraction — hutter(clean) vs science(partial) differ, proven-common test unmet. REVERSED when ≥3 live instances surfaced (hutter, arc-agi, intel) + the verifier-regime axis turned out to be a PARAMETER, not a blocker."
 relations:
   - type: depends_on
@@ -229,6 +229,10 @@ This is the bounded-autonomy / reversible-draft discipline the constitution pres
 partial-verifier architecture work.
 
 ## The one fork left to the principal (constitution P12 — labs disagree with stated Plan B)
+
+**RESOLVED 2026-06-13: B — prove-first** (the principal chose the labs' recommendation over the
+literal "full stuff" Plan B). Skill name stays `outer-loop`. The platform (declarative interpreter +
+shared-ledger) is earned by the executability proof, not committed upfront.
 
 Both labs lean toward proving executable commonality before building the full platform; the user's
 stated Plan B was "the full stuff." Not silently resolving this — it is the user's call:
