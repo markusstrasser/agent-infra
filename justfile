@@ -135,6 +135,14 @@ test-health *args:
 orphan-check *args:
     uv run python3 scripts/orphan_check.py {{args}}
 
+# Orphaned-FINDINGS ratchet (report-only): flag trending-scout memos whose
+# adopt-grade verdicts never reached improvement-log (the loop's read path).
+# Sibling to orphan-check, findings axis. --all for full history; promote live
+# ones to [ ] citing the memo. See consumption-over-autonomy.md.
+[group('health')]
+orphan-findings *args:
+    uv run python3 scripts/orphan_findings.py {{args}}
+
 # Audit verdicts ↔ corpus-annotation drift (substrate-v1, Phase 4 backstop)
 [group('health')]
 audit-corpus-sync *args:

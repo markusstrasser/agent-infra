@@ -492,6 +492,31 @@ def check_orphaned_generators() -> list[Check]:
                    f"re-verify via `just orphan-check`")]
 
 
+def check_orphaned_findings() -> list[Check]:
+    """Report-only ratchet: flag trending-scout memos with adopt-grade verdicts
+    not yet routed to improvement-log (the loop's read path).
+
+    Sibling to check_orphaned_generators — same generation-without-consumption
+    disease, findings axis. Advisory; a flag means a memo's findings never reached
+    the loop. Re-verify + promote live ones via `just orphan-findings`. See
+    decisions/2026-06-04-consumption-over-autonomy.md Finding 1."""
+    c = Check("global:orphan-findings", "global")
+    try:
+        import orphan_findings
+        rep = orphan_findings.scan(all_memos=True)
+    except Exception as e:  # noqa: BLE001 — advisory, fail open
+        return [c.warn(f"orphan_findings unavailable: {str(e)[:80]}")]
+    flagged = rep["flagged_memos"]
+    if not flagged:
+        return [c.ok(f"{rep['actionable']} actionable verdicts, 0 un-harvested")]
+    memos = ", ".join(m["memo"].replace("trending-scout-", "ts-").replace(".md", "")
+                      for m in flagged[:5])
+    extra = f" (+{len(flagged) - 5})" if len(flagged) > 5 else ""
+    return [c.warn(f"{rep['orphaned_findings']} un-harvested finding(s) in "
+                   f"{len(flagged)} memo(s): {memos}{extra} — "
+                   f"promote live ones via `just orphan-findings`")]
+
+
 def check_decisions_pending() -> list[Check]:
     """Surface the escalation queue so it isn't write-only.
 
@@ -587,6 +612,7 @@ def run_all_checks(project_filter: str | None = None) -> list[Check]:
         all_checks.extend(check_telemetry_freshness())
         all_checks.extend(check_test_health())
         all_checks.extend(check_orphaned_generators())
+        all_checks.extend(check_orphaned_findings())
         all_checks.extend(check_decisions_pending())
         all_checks.extend(check_agentlogs_indexer())
 
