@@ -15,11 +15,12 @@ from pathlib import Path
 
 from config import METRICS_FILE, PROJECT_ROOTS, RESEARCH_DIRS, PROSE_EXTENSIONS, log_metric
 
-# Provenance tag pattern — any of these within PROXIMITY lines counts as sourced
+# Provenance tag pattern — any of these within PROXIMITY lines counts as sourced.
+# SINGLE SOURCE OF TRUTH: ~/Projects/skills/references/provenance-tags.md (+ provenance_tags.re).
+# Read the canonical regex; fail loud if the SSOT is unreachable rather than drift a vendored copy
+# (this was the bug — 5 enforcers each carried a divergent inline copy).
 TAG_PATTERN = re.compile(
-    r"\[SOURCE:|\[DATABASE:|\[DATA\]|\[INFERENCE\]|\[SPEC\]|\[CALC\]"
-    r"|\[QUOTE\]|\[TRAINING-DATA\]|\[PREPRINT\]|\[FRONTIER\]|\[UNVERIFIED\]"
-    r"|\[[A-F][1-6]\]"
+    (Path.home() / "Projects" / "skills" / "hooks" / "provenance_tags.re").read_text(encoding="utf-8").strip()
 )
 
 # Verifiable claim patterns with severity weights
