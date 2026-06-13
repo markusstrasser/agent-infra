@@ -11,7 +11,7 @@ prior: research/trending-scout-2026-06-11.md
 
 **Window:** 2026-06-11 → 2026-06-13 (2 days — first run of the new 2-day freshness cadence)
 **Sources:** Claude Code changelog (WebFetch), Brave (date-filtered). **Exa 402 — out of credits**, OpenAI/Google/arxiv axes not covered this run (see search log).
-**Findings:** 2 genuinely-new infra-relevant, 4 version bumps, ~3 already-known/vetoed (filtered)
+**Findings:** 3 infra-relevant (hook path-`if:`, nested subagents, Self-Harness paper), 1 dated flag (Gemini CLI EOL Jun-18), 5 version bumps, ~4 already-known/vetoed (filtered)
 
 ---
 
@@ -64,9 +64,35 @@ The deterministic half of the same surveillance loop (vendor-sweep launchd) alre
 - **`enforceAvailableModels` / `requiredMinimum/MaximumVersion`** managed settings — enterprise model/version governance; low value for a solo operator. Noted, no action.
 - **microsoft/skills**, **awesome-harness-engineering** (GitHub) — external confirmation of the harness-as-first-class bet; the harness-eng list is a decent periodic reference but nothing adopt-grade. Watch.
 
+## Deferred Axes — covered after Exa recovered (same session)
+
+Exa came back mid-session; the OpenAI/Codex, Google/Gemini, GitHub-trending, and research axes were then run.
+
+### 3. Self-Harness: harnesses that improve themselves (arXiv 2606.09498, Shanghai AI Lab)
+
+| Field | Content |
+|-------|---------|
+| Source | arxiv.org/abs/2606.09498 (2026-06-08) |
+| What it does | An LLM agent improves its OWN operating harness via an iterative loop: **Weakness Mining** (model-specific failure patterns from execution traces) → **Harness Proposal** (diverse minimal harness edits tied to failures) → **Proposal Validation** (accept only after regression testing). Terminal-Bench-2.0, 3 base models (MiniMax M2.5, Qwen3.5-35B-A3B, GLM-5); held-out pass rates 40.5→61.9%, 23.8→38.1%, 42.9→57.1%. |
+| Why relevant | This is **almost exactly this repo's `reflect.py` deep-pass thesis** (mine failures → propose enforcer/mint → validate before promote) and the gov-shrink loop. External, quantified validation of the core bet — and a concrete 3-stage decomposition + the "minimal edits + regression-gate before accept" discipline worth comparing against ours. |
+| Integration path | **Read + compare** — map their Weakness-Mining/Proposal/Validation stages onto our reflect→improvement-log→verifier flow; their regression-gate-before-accept is the part we do most loosely (we promote to `[ ]` for human disposition, they auto-validate). Candidate for a decisions/ memo. |
+| Current overlap | reflect.py (deep pass), gov.py (gov-shrink), the FM taxonomy + verifier-sketch convention. |
+| Maintenance | Reading only; no infra adopted yet. |
+| Verdict | **Read closely — highest-signal item this run; possible decisions/ memo** |
+
+### Flag: Gemini CLI fully shuts down **2026-06-18** (5 days out)
+
+The free Gemini CLI retired 2026-05-31 (already in `llmx-routing.md`); now the **AI Pro/Ultra/free tiers stop processing on June 18** too — migrate to Antigravity `agy`. **Audited this session** (`rg gemini` over scripts/ops/launchd): we route Gemini via llmx paid API, so the live paths are clean. Two residues, neither newly-broken by June 18: `scripts/code-review-scout.py` has a `gemini-cli` provider option (already dead since the May-31 free-tier retirement; script is not launchd-scheduled), and `friend-sync.sh` npm-updates `@google/gemini-cli` (harmless). **Action:** fold the code-review-scout gemini path into the agent-infra-sweep dead-path cleanup, not an urgent fix.
+
+### Ecosystem (watch, no action)
+
+- **ECC 2.0.0** (github affaan-m/ECC) — "agent harness operating system," 261 skills / 64 agents / 84 commands, cross-harness (Claude Code/Codex/OpenCode/Cursor), control-pane TUI. The maximalist version of what this repo does. Star count claim (214K) is implausible — discount. **Watch**: it's a competing whole-harness; our bet is curated+measured, not 261-skill breadth. Possibly mine its MCP-inventory/drift-detection idea later.
+- **codex** rust-v0.140.0-alpha (from .139) — alpha prereleases only this window, no notable feature text. Version bump.
+- **openai-agents-python 0.17.5**, **vercel/ai @ai-sdk/mcp 2.0.0-canary**, **IBM mcp-context-forge 1.0.3** (enterprise MCP gateway, FedRAMP/FIPS) — routine / not our use case.
+
 ## Search Log
 
-- **WebFetch** code.claude.com changelog → full, high-signal (primary source for the 2 findings + version deltas).
-- **Brave** date-filtered 2026-06-10..13 → worked; mostly listicles + ecosystem noise, one useful repo (awesome-harness-engineering).
-- **Exa** `web_search_advanced_exa` → **HTTP 402, credits exhausted**. OpenAI/Codex deep-check, Google/Gemini, GitHub-trending, and arxiv/alphaXiv axes NOT covered this run. Top up Exa or route those axes via Brave next run.
-- **Not covered:** OpenAI/Codex changelog, Google/Gemini, research papers. A 2-day gap on those is low-risk; next run should re-cover.
+- **WebFetch** code.claude.com changelog → full, high-signal (primary source for findings 1-2 + version deltas).
+- **Brave** date-filtered 2026-06-10..13 → worked; mostly listicles, one useful repo (awesome-harness-engineering).
+- **Exa** `web_search_advanced_exa` → 402 on first batch (credits), **recovered mid-session**. Re-ran OpenAI/Codex, Gemini, GitHub-trending, research-paper axes. Lesson logged: narrow/domain-filtered Exa queries + `contextMaxCharacters` avoid the 80–320KB temp-file dumps two broad queries produced.
+- **All axes now covered** for the 2026-06-11→13 window.
