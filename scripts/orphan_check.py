@@ -72,7 +72,7 @@ OCCASIONAL_MANUAL = {
     # completed one-shot migrations (harmless, delete-eligible)
     "selve-frontmatter-backfill.py", "compress-research-index.py",
     # repo-introspection on demand
-    "repo-outline.py", "repo-summary.py", "repo-changes.py", "verify-audit.py",
+    "repo-outline.py", "repo-summary.py", "repo-changes.py",
     "verify-subagent-claims.py", "researcher-postmortem.py",
     "dispatch-with-stub.py", "parallel_mcp.py", "parallel_search.py",
     # one-time characterization probes (kept as occasional-manual per their vetoes)
