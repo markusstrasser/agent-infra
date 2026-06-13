@@ -65,6 +65,20 @@ def test_scan_flags_uncited_memo_and_clears_when_cited(tmp_path, monkeypatch):
     assert rep2["flagged_memos"] == []
 
 
+def test_parser_still_matches_real_trending_memo_format():
+    """Drift guard: the parser is coupled to trending-scout's live output template
+    (### N. Title + | Verdict | **X** |). If the skill changes its format, this
+    breaks LOUDLY — otherwise extract_findings silently returns 0 and the ratchet
+    reports a false all-clear. Couples parser to reality, not just a fixture."""
+    real = sorted(mod.RESEARCH.glob("trending-scout-*.md"))
+    if not real:
+        return  # no memos yet (fresh checkout) — nothing to couple against
+    # At least one recent memo must yield verdicts; 0 across all = parser drift.
+    total = sum(len(mod.extract_findings(m)) for m in real)
+    assert total > 0, ("orphan_findings parser found 0 verdicts across all "
+                       "trending-scout memos — output template likely drifted")
+
+
 def test_memo_with_only_nonactionable_verdicts_never_flags(tmp_path, monkeypatch):
     research = tmp_path / "research"
     research.mkdir()

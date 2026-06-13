@@ -33,6 +33,21 @@ genuinely-live ones to [ ] (Watch/Ignore/done-inline/stale stay out). The
 going-forward fix is finding-side routing (trending-scout Pipeline Output step 3
 + improve harvest), which makes citation the norm so this signal stays clean.
 
+KNOWN LIMITATIONS (deliberately un-fixed — measured ~0 backlog at build time, so
+heavier machinery would be over-engineering; revisit on the stated trigger):
+  - Partial-citation: a memo clears when its stem appears ANYWHERE in the log, so
+    promoting one finding from a multi-finding memo silences the rest. Trigger to
+    add finding-level tracking: a multi-finding memo ships an un-triaged actionable
+    finding, OR orphaned_findings stays >0 for >14d (findings actually accruing).
+  - Scope = trending-scout only (the one generator we KNOW leaked). Other
+    generators (sweeps deliberately excluded; /leverage; research proposals) are
+    not covered. Trigger to generalize: a second generator is found leaking.
+  - Consumption is still instruction-driven (harvest 2f / source routing); only
+    DETECTION is deterministic (this script in doctor). If the doctor line gets
+    rubber-stamped, promote from advisory to a maintain-tick gate.
+Drift guard: tests/test_orphan_findings.py asserts the parser still matches a real
+memo (format drift would otherwise return 0 = silent false all-clear).
+
 Usage:
     uv run python3 scripts/orphan_findings.py            # recent (90d) human report
     uv run python3 scripts/orphan_findings.py --all      # full catch-up reconciliation
