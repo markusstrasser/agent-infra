@@ -1,5 +1,5 @@
 {
-  "_doc": "SHADOW omission-probes for the recursive learning loop (reflect_capture.py). Keyed by project. A probe fires when a session WRITES a path matching any trigger_files substring but NONE of required_any appears as a tool name / Bash command / tool input. Firings are shadow (no surface) until they clear a PPV gate. First-draft predicates — expect tuning from shadow data; high FP is acceptable here by design (plan 4d40085a, review finding #2).",
+  "_doc": "SHADOW omission-probes for the recursive learning loop (reflect_capture.py). Keyed by project. A probe fires when a session WRITES a path matching any trigger_files substring but NONE of required_any appears as a tool name / Bash command / tool input. A path matching any exclude_files substring is skipped (e.g. probes/schemas/shell that don't take a test). Firings are shadow (no surface) until they clear a PPV gate. First-draft predicates — expect tuning from shadow data; high FP is acceptable here by design (plan 4d40085a, review finding #2).",
   "intel": [
     {
       "name": "entity-write-without-identity-read",
@@ -21,6 +21,7 @@
     {
       "name": "new-script-without-test",
       "trigger_files": ["scripts/"],
+      "exclude_files": ["_probe.py", ".sql", ".sh"],
       "required_any": ["tests/", "test_", "py_compile", "pytest"]
     }
   ]

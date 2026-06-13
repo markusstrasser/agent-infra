@@ -202,7 +202,10 @@ def extract_omissions(events: list[dict], rules: list[dict]) -> list[dict]:
     for rule in rules:
         globs = rule.get("trigger_files", [])
         required = rule.get("required_any", [])
+        excludes = rule.get("exclude_files", [])
         hit = _wrote_trigger_file(events, globs)
+        if hit and excludes and any(x in hit for x in excludes):
+            continue  # path matches an exclusion (probe/schema/shell) — not a test-bearing target
         if hit and not _any_required_seen(events, required):
             out.append({"kind": "omission", "subtype": rule.get("name", "unnamed"),
                         "strength": "shadow", "shadow": True,
