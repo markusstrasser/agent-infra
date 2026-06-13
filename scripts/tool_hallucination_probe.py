@@ -26,6 +26,8 @@ import os
 import re
 import sqlite3
 import sys
+
+from common.db import open_db_ro
 from collections import Counter
 
 DB_DEFAULT = os.path.expanduser("~/.claude/agentlogs.db")
@@ -132,7 +134,7 @@ def main() -> int:
         print(f"agentlogs DB not found: {args.db}", file=sys.stderr)
         return 1
 
-    con = sqlite3.connect(f"file:{args.db}?mode=ro", uri=True)
+    con = open_db_ro(args.db)
 
     _header("Cross-vendor measurability (named-tool-schema signatures)")
     cv = cross_vendor_measurability(con)

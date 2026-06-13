@@ -21,3 +21,14 @@ def open_db(path: Path | str, *, wal: bool = True, timeout: float = 5.0,
     if foreign_keys:
         db.execute("PRAGMA foreign_keys = ON")
     return db
+
+
+def open_db_ro(path: Path | str, *, timeout: float = 5.0) -> sqlite3.Connection:
+    """Open a SQLite DB read-only (immutable consumers of a DB they don't own).
+
+    Uses URI mode=ro so a reader never creates the file or its WAL/journal
+    sidecars on a store another process owns (e.g. agentlogs.db). Caller must
+    handle sqlite3.Error if the file is absent. Returns plain tuples (no
+    row_factory) — these consumers use positional access.
+    """
+    return sqlite3.connect(f"file:{Path(path)}?mode=ro", uri=True, timeout=timeout)

@@ -23,6 +23,7 @@ from config import PROJECT_ROOTS
 PROJECTS_DIR = Path.home() / "Projects"
 PROJECTS = list(PROJECT_ROOTS.keys())
 from common.paths import CLAUDE_DIR
+from common.db import open_db_ro
 GLOBAL_SETTINGS = CLAUDE_DIR / "settings.json"
 GLOBAL_CLAUDE_MD = CLAUDE_DIR / "CLAUDE.md"
 MEMORY_WARN_LINES = 180
@@ -560,7 +561,7 @@ def check_agentlogs_indexer() -> list[Check]:
     try:
         # mode=ro (not immutable=1) — the DB is live/WAL; immutable would risk
         # stale reads while the indexer writes. ro respects WAL + locks.
-        con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=5)
+        con = open_db_ro(db_path)
     except sqlite3.Error as exc:
         return [Check("indexer", "global").warn(f"cannot open agentlogs.db: {exc}")]
     try:

@@ -44,6 +44,8 @@ import json
 import re
 import sqlite3
 import sys
+
+from common.db import open_db_ro
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -159,7 +161,7 @@ def invocation_counts(days: int) -> dict[str, str]:
     if not AGENTLOGS_DB.exists() or AGENTLOGS_DB.stat().st_size == 0:
         return {}
     try:
-        con = sqlite3.connect(f"file:{AGENTLOGS_DB}?mode=ro", uri=True, timeout=5)
+        con = open_db_ro(AGENTLOGS_DB)
     except sqlite3.Error:
         return {}
     try:

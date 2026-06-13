@@ -22,13 +22,14 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import sqlite3
 from pathlib import Path
 
 try:
     from scripts.common.skill_objects import collect_skill_objects, iter_default_roots, load_object_content
+    from scripts.common.db import open_db_ro
 except ModuleNotFoundError:  # script execution: python3 scripts/skill-routing.py
     from common.skill_objects import collect_skill_objects, iter_default_roots, load_object_content
+    from common.db import open_db_ro
 
 DB = Path.home() / ".claude" / "agentlogs.db"
 
@@ -84,7 +85,7 @@ def main() -> int:
         return run_cases(args.cases, json_output=args.json, explain=args.explain, limit=args.top)
 
     cutoff = f"date('now', '-{args.days} days')"
-    conn = sqlite3.connect(args.db)
+    conn = open_db_ro(args.db)
     cur = conn.execute(f"SELECT {cutoff}").fetchone()[0]
     rows = conn.execute(QUERY, (cur,)).fetchall()
 

@@ -25,8 +25,9 @@ hence Python rather than a shell recipe.
 """
 import json
 import os
-import sqlite3
 import sys
+
+from common.db import open_db_ro
 from datetime import datetime, timedelta, timezone
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -57,7 +58,7 @@ def main():
     state.setdefault("pending", [])
     state.setdefault("seen", [])
 
-    con = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
+    con = open_db_ro(DB)
     try:
         watermark = con.execute(
             "SELECT MIN(last_success_at) FROM v_indexer_health "
