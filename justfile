@@ -152,6 +152,13 @@ drift-sentinel:
 orphan-findings *args:
     uv run python3 scripts/orphan_findings.py {{args}}
 
+# Cross-project memory generalization scan — clusters siloed feedback/reference
+# memories that look factor-out-worthy (modal lessons, tool-fabrication, etc.).
+# Deterministic pre-filter; harvest Phase 2g does the semantic dedup + factoring.
+[group('health')]
+memory-harvest *args:
+    uv run python3 scripts/memory_harvest.py {{args}}
+
 # Audit verdicts ↔ corpus-annotation drift (substrate-v1, Phase 4 backstop)
 [group('health')]
 audit-corpus-sync *args:
