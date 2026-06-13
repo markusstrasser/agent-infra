@@ -54,6 +54,8 @@ smoke:
     echo "=== agentlogs DB ==="
     sqlite3 "$HOME/.claude/agentlogs.db" "SELECT COUNT(*) FROM sessions" > /dev/null 2>&1 || { echo "FAIL: agentlogs sessions"; exit 1; }
     echo "OK: agentlogs readable"
+    echo "=== Doc-vs-reality drift (advisory: live launchd jobs vs CLAUDE.md) ==="
+    uv run python3 scripts/orient.py --drift 2>&1 | tail -2 || true
     echo "=== MCP server contracts (in-process, \$0, no LLM) ==="
     uv run python3 scripts/mcp_contract_smoke.py
     echo "=== Skill routing locked evals ==="
