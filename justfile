@@ -694,3 +694,12 @@ binary-skills-diff:
     set -- $files; \
     if [ "$#" -lt 2 ]; then echo "(single extraction — baseline)"; \
     else git --no-pager diff --no-index "$1" "$2" || true; fi
+
+# Forced ranking of files most worth expensive review — focus-weighted commit
+# frequency + size + near-dup + fan-in (code) / orphan-stale (md), import-cycle
+# flag. Deterministic recall+ranking; read the top-N with max reasoning.
+# Usage: just rank [repo] [--days N] [--top N]
+# Provenance: research/2026-06-13-code-health-diagnostics-for-agents.md
+[group('knowledge')]
+rank *args:
+    uv run python3 scripts/structure_debt_rank.py {{args}}
