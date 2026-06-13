@@ -198,7 +198,7 @@ Question is moot — there's nothing to contribute back to a personal-corpus-sha
 - `AkariAsai/OpenScholar` repo (1471 stars, Apache-2.0, last push 2025-08-13 — dormant; `run.py + retriever/ + training/` layout = research code)
 - `asreview/asreview` repo (895 stars, Apache-2.0, active; active-learning for screening prioritization — wrong shape for corpus_core)
 - `urschrei/pyzotero` repo (1303 stars; HTTP client to Zotero Web API, not a corpus manager)
-- Prior memo: `/Users/alien/Projects/meta/research/futurehouse-technical-analysis.md` (2026-03-19) and `futurehouse-org-scan-2026-04.md` (2026-04-02) — confirms Edison Scientific spinout pattern and CalVer release cadence.
+- Prior memo: `/Users/alien/Projects/agent-infra/research/futurehouse-technical-analysis.md` (2026-03-19) and `futurehouse-org-scan-2026-04.md` (2026-04-02) — confirms Edison Scientific spinout pattern and CalVer release cadence.
 
 <!-- knowledge-index
 generated: 2026-05-11T07:30:07Z

@@ -1,4 +1,4 @@
-Wrote the audit to [codex-structural-complexity.md](/Users/alien/Projects/meta/docs/audit/codex-structural-complexity.md).
+Wrote the audit to [codex-structural-complexity.md](/Users/alien/Projects/agent-infra/docs/audit/codex-structural-complexity.md).
 
 The report includes per-script metrics, the top 5 longest functions with line ranges, lists of all functions over 50 lines, god-function callouts, and concrete module split recommendations for each target script.
 

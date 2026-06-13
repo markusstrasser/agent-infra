@@ -1,4 +1,4 @@
-Wrote the audit to [docs/audit/codex-sqlite-unification.md](/Users/alien/Projects/meta/docs/audit/codex-sqlite-unification.md).
+Wrote the audit to [docs/audit/codex-sqlite-unification.md](/Users/alien/Projects/agent-infra/docs/audit/codex-sqlite-unification.md).
 
 Short version: the repo has five persistent SQLite families, not one muddled store: `orchestrator.db`, `sessions.db`, `findings.db`, `runlogs.db`, and `knowledge/{project}.db`. The schemas are split between external SQL files (`scripts/schema.sql`, `scripts/runlog_schema.sql`, `substrate/schema.sql`) and inline definitions (`scripts/sessions.py`, `scripts/finding-triage.py`). `scripts/views.sql` exists and defines `v_stalled`, `v_daily_cost`, `v_failures`, `v_pipeline_health`, `v_queue`, and `v_proposals` for `orchestrator.db`, but those views are applied manually.
 

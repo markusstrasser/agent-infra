@@ -113,7 +113,7 @@ User snippets analyzed against skills/hooks/rules. Six snippets retired:
 
 Remaining as manual snippets (human steering, can't automate):
 - Post-session retro ("gotchas to eradicate") — manual invocation = snippet is superior
-- "Check ~/Projects/meta" — human judgment call
+- "Check ~/Projects/agent-infra" — human judgment call
 - "Generate ideas to improve" — direction-setting
 - Parallel refactor agents — per-situation decision
 - "Sanity check controversial takes" — steering

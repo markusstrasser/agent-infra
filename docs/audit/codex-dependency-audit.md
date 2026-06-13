@@ -1,4 +1,4 @@
-Audit written to [docs/audit/codex-dependency-audit.md](/Users/alien/Projects/meta/docs/audit/codex-dependency-audit.md).
+Audit written to [docs/audit/codex-dependency-audit.md](/Users/alien/Projects/agent-infra/docs/audit/codex-dependency-audit.md).
 
 Key points:
 - All four declared runtime dependencies in `pyproject.toml` are actually used by the audited scripts.

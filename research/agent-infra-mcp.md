@@ -27,7 +27,7 @@ Two distribution mechanisms exist today:
 
 3. **Token savings collapse (measured):** Global CLAUDE.md is only ~1,712 tokens (99 lines). Meta's reference_data section is ~1,485 tokens. Not enough removable content to justify migration on token savings alone.
 
-4. **Portability illusion (G2, P1):** .mcp.json with absolute paths (`/Users/alien/Projects/meta/...`) is no more portable than `~/.claude/CLAUDE.md`. Portable config ≠ portable behavior.
+4. **Portability illusion (G2, P1):** .mcp.json with absolute paths (`/Users/alien/Projects/agent-infra/...`) is no more portable than `~/.claude/CLAUDE.md`. Portable config ≠ portable behavior.
 
 5. **Redundant abstraction (G3, partially wrong):** Agents CAN Read/Glob/Grep meta files from any project — but they don't know the files exist. Discovery is the real problem, not access.
 

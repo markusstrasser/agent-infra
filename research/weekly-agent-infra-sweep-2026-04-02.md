@@ -9,7 +9,7 @@ tags: [agents, weekly-sweep, skills, mcp, verification, coding-agents, enterpris
 **Question:** What new papers and official posts from March 26, 2026 through April 2, 2026 materially change our view of agent infrastructure?  
 **Tier:** Standard  
 **Date:** 2026-04-02  
-**Ground truth:** Meta already leaned toward progressive disclosure, verification-before-output, native search over retrieval, and skepticism of bloated MCP/tool surfaces. [SOURCE: /Users/alien/Projects/meta/research/practitioner-agent-usage-2026-03.md] [SOURCE: /Users/alien/Projects/meta/research/coding-agents-long-context-2026-03.md] [SOURCE: /Users/alien/Projects/meta/research/claude-code-internals.md]
+**Ground truth:** Meta already leaned toward progressive disclosure, verification-before-output, native search over retrieval, and skepticism of bloated MCP/tool surfaces. [SOURCE: /Users/alien/Projects/agent-infra/research/practitioner-agent-usage-2026-03.md] [SOURCE: /Users/alien/Projects/agent-infra/research/coding-agents-long-context-2026-03.md] [SOURCE: /Users/alien/Projects/agent-infra/research/claude-code-internals.md]
 
 ### Claims Table
 
@@ -30,13 +30,13 @@ tags: [agents, weekly-sweep, skills, mcp, verification, coding-agents, enterpris
 
 1. **New evidence in favor of skills as compression architecture.** We already had practitioner evidence that skills compress MCP/tool usage; this week adds a direct preprint showing the same effect at corpus scale, plus a first-party Google writeup pushing progressive disclosure as the default architecture. This strengthens the case for investing in skill linting, skill slimming, and negative-scope descriptions rather than expanding monolithic instructions. [SOURCE: https://arxiv.org/pdf/2603.29919.pdf] [SOURCE: https://developers.googleblog.com/developers-guide-to-building-adk-agents-with-skills/] [INFERENCE]
 
-2. **Verification is no longer just epistemic hygiene; it is becoming core architecture.** Marco DeepResearch bakes verification into data synthesis, trajectories, and test-time scaling. This is aligned with our existing “verify before finalizing” position and suggests the next leverage is explicit verifier roles, not just stronger prompts. [SOURCE: https://arxiv.org/pdf/2603.28376.pdf] [SOURCE: /Users/alien/Projects/meta/research/ai-scientist-patterns.md] [INFERENCE]
+2. **Verification is no longer just epistemic hygiene; it is becoming core architecture.** Marco DeepResearch bakes verification into data synthesis, trajectories, and test-time scaling. This is aligned with our existing “verify before finalizing” position and suggests the next leverage is explicit verifier roles, not just stronger prompts. [SOURCE: https://arxiv.org/pdf/2603.28376.pdf] [SOURCE: /Users/alien/Projects/agent-infra/research/ai-scientist-patterns.md] [INFERENCE]
 
-3. **Autonomy is still bounded by coherence, not raw intelligence.** YC-Bench’s most useful result is not model ranking; it is the failure decomposition: perceive -> record -> retrieve -> act remains brittle. That fits our current skepticism of “fully autonomous” framing and supports short-burst autonomy with persistent memory and checks between loops. [SOURCE: https://arxiv.org/pdf/2604.01212.pdf] [SOURCE: /Users/alien/Projects/meta/research/practitioner-agent-usage-2026-03.md] [INFERENCE]
+3. **Autonomy is still bounded by coherence, not raw intelligence.** YC-Bench’s most useful result is not model ranking; it is the failure decomposition: perceive -> record -> retrieve -> act remains brittle. That fits our current skepticism of “fully autonomous” framing and supports short-burst autonomy with persistent memory and checks between loops. [SOURCE: https://arxiv.org/pdf/2604.01212.pdf] [SOURCE: /Users/alien/Projects/agent-infra/research/practitioner-agent-usage-2026-03.md] [INFERENCE]
 
 4. **There is now better empirical grounding for “comprehension debt.”** The wild PR paper says agent code churns more; the Python-proficiency paper says the code is usually not syntactically advanced. Together this suggests the maintenance problem is not mostly obscure language tricks. It is change volume, broad edits, and weaker durability. That argues for measuring post-merge churn and survival, not just static code quality or benchmark scores. [SOURCE: https://arxiv.org/pdf/2604.00917.pdf] [SOURCE: https://arxiv.org/pdf/2604.00299.pdf] [INFERENCE]
 
-5. **MCP should remain narrow and high-leverage.** GrantBox and FinMCP-Bench both make MCP more concrete, but neither justifies broad CRUD-mirror MCP design. The stronger lesson is the opposite: privilege surfaces are dangerous, multi-tool orchestration is brittle, and evaluation has to be domain-specific. This is consistent with our current “data gateways, not API mirrors” stance. [SOURCE: https://arxiv.org/pdf/2603.28166.pdf] [SOURCE: https://arxiv.org/pdf/2603.24943.pdf] [SOURCE: /Users/alien/Projects/meta/research/claude-code-internals.md] [INFERENCE]
+5. **MCP should remain narrow and high-leverage.** GrantBox and FinMCP-Bench both make MCP more concrete, but neither justifies broad CRUD-mirror MCP design. The stronger lesson is the opposite: privilege surfaces are dangerous, multi-tool orchestration is brittle, and evaluation has to be domain-specific. This is consistent with our current “data gateways, not API mirrors” stance. [SOURCE: https://arxiv.org/pdf/2603.28166.pdf] [SOURCE: https://arxiv.org/pdf/2603.24943.pdf] [SOURCE: /Users/alien/Projects/agent-infra/research/claude-code-internals.md] [INFERENCE]
 
 6. **Terminal-first got stronger this week.** The ServiceNow paper is not definitive, but it materially strengthens the argument that when stable APIs exist, direct terminal/API interaction may beat both GUI stacks and heavy MCP wrappers on cost-performance. This is a meaningful update because it is a direct head-to-head, not a philosophical preference. [SOURCE: https://arxiv.org/pdf/2604.00073.pdf] [INFERENCE]
 
@@ -50,9 +50,9 @@ tags: [agents, weekly-sweep, skills, mcp, verification, coding-agents, enterpris
 
 ### What Mostly Confirms Existing Meta Beliefs
 
-- Progressive disclosure beats monolithic prompt stuffing. [SOURCE: https://developers.googleblog.com/developers-guide-to-building-adk-agents-with-skills/] [SOURCE: /Users/alien/Projects/meta/research/claude-code-internals.md]
-- Verification should happen before final output. [SOURCE: https://arxiv.org/pdf/2603.28376.pdf] [SOURCE: /Users/alien/Projects/meta/research/ai-scientist-patterns.md]
-- Native search / direct interaction remains preferable to extra retrieval layers when the environment already exposes strong primitives. [SOURCE: https://arxiv.org/pdf/2604.00073.pdf] [SOURCE: /Users/alien/Projects/meta/research/coding-agents-long-context-2026-03.md]
+- Progressive disclosure beats monolithic prompt stuffing. [SOURCE: https://developers.googleblog.com/developers-guide-to-building-adk-agents-with-skills/] [SOURCE: /Users/alien/Projects/agent-infra/research/claude-code-internals.md]
+- Verification should happen before final output. [SOURCE: https://arxiv.org/pdf/2603.28376.pdf] [SOURCE: /Users/alien/Projects/agent-infra/research/ai-scientist-patterns.md]
+- Native search / direct interaction remains preferable to extra retrieval layers when the environment already exposes strong primitives. [SOURCE: https://arxiv.org/pdf/2604.00073.pdf] [SOURCE: /Users/alien/Projects/agent-infra/research/coding-agents-long-context-2026-03.md]
 
 ### What’s Uncertain
 

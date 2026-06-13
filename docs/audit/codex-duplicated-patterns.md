@@ -1,4 +1,4 @@
-Wrote the audit to [docs/audit/codex-duplicated-patterns.md](/Users/alien/Projects/meta/docs/audit/codex-duplicated-patterns.md).
+Wrote the audit to [docs/audit/codex-duplicated-patterns.md](/Users/alien/Projects/agent-infra/docs/audit/codex-duplicated-patterns.md).
 
 `scripts/config.py` currently centralizes metrics/project config plus `extract_project_name()` and `jsonl_log()`, but it does not provide shared `.claude` path constants, session iterators, SQLite helpers, argparse helpers, or JSONL readers/bulk writers. The report includes the exact `rg -n` evidence, file:line inventories, config cross-reference, and extraction recommendations.
 

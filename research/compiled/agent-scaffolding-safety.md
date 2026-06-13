@@ -128,7 +128,7 @@ No source directly addresses sustained improvement beyond ~24 hours or ~80 itera
 
 ## Cross-References
 
-All source memos in `~/Projects/meta/research/`:
+All source memos in `~/Projects/agent-infra/research/`:
 
 1. `agent-scaffolding-landscape-2026-03.md` — Landscape survey: MAST taxonomy, ACT, MCTS, production ceiling, self-improvement, failure attribution
 2. `agent-scaffolding-instructions-infra-2026-03.md` — Paper filter: harness engineering, instruction-following, prompt injection, tool benchmarks

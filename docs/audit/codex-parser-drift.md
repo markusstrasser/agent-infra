@@ -1,4 +1,4 @@
-Report saved to [codex-parser-drift.md](/Users/alien/Projects/meta/docs/audit/codex-parser-drift.md).
+Report saved to [codex-parser-drift.md](/Users/alien/Projects/agent-infra/docs/audit/codex-parser-drift.md).
 
 Highest-signal findings are straightforward: `response_item.reasoning` is dropped entirely, `response_item.message` drops the distinct `developer` role and therefore omits developer instructions from both events and instruction hashing, `session_meta` is only partially mapped and also maps `git.branch` into `git_head`, and the parser double-emits user and assistant text because it records both `response_item.message` and `event_msg.user_message` or `event_msg.agent_message`.
 

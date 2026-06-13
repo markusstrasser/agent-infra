@@ -1206,7 +1206,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 
 ### [2026-03-04] TOKEN WASTE: Duplicate file reads in same session
 - **Session:** meta f27cc590
-- **Evidence:** `Read(/Users/alien/Projects/meta/scripts/sessions.py)` called twice in sequence at Phase 4 (lines ~898-905 in transcript) with no intervening edits or context changes. Same file was also read earlier in Phase 2 (line ~693-699). Three reads of the same file in one session.
+- **Evidence:** `Read(/Users/alien/Projects/agent-infra/scripts/sessions.py)` called twice in sequence at Phase 4 (lines ~898-905 in transcript) with no intervening edits or context changes. Same file was also read earlier in Phase 2 (line ~693-699). Three reads of the same file in one session.
 - **Failure mode:** Token waste — duplicate reads (known pattern, also observed in prior sessions)
 - **Proposed fix:** [rule] Existing CLAUDE.md guidance covers this ("reading files already in context"). Low severity since sessions.py is small.
 - **Severity:** low — ~3 redundant reads, small files
@@ -1987,7 +1987,7 @@ Note: 3d4a2d99 has been analyzed 5 times today across different session-analyst 
 
 ### [2026-03-13] TOKEN WASTE: 9 consecutive Read/Grep calls on same file
 - **Session:** meta 8b61490f
-- **Evidence:** Agent called `Grep` and `Read` on `/Users/alien/Projects/meta/scripts/orchestrator.py` 9 times across the session. Multiple reads of different line ranges when a single full read + grep would have sufficed. The agent was investigating token tracking + adding an efficiency subcommand — each sub-question triggered a new Read instead of working from the already-loaded content.
+- **Evidence:** Agent called `Grep` and `Read` on `/Users/alien/Projects/agent-infra/scripts/orchestrator.py` 9 times across the session. Multiple reads of different line ranges when a single full read + grep would have sufficed. The agent was investigating token tracking + adding an efficiency subcommand — each sub-question triggered a new Read instead of working from the already-loaded content.
 - **Failure mode:** Token waste — duplicate reads (5th occurrence logged, recurring pattern)
 - **Proposed fix:** tool-tracker.sh already deployed (2026-03-10). Verify it's firing for this pattern — may need tuning if reads of different line ranges bypass the duplicate check.
 - **Severity:** low — small file, marginal cost

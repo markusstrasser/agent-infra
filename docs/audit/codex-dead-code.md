@@ -1,4 +1,4 @@
-Wrote the audit to [docs/audit/codex-dead-code.md](/Users/alien/Projects/meta/docs/audit/codex-dead-code.md).
+Wrote the audit to [docs/audit/codex-dead-code.md](/Users/alien/Projects/agent-infra/docs/audit/codex-dead-code.md).
 
 Headline result: the strict four-source cross-reference (`justfile`, `pipelines/*.json`, `.claude/settings.json`, `scripts/orchestrator.py:1-50`) misses 26 of 54 `scripts/*.py` files, but 12 of those are still reachable through other checked-in callers or config (`.mcp.json`, launchd plists, imports, or the external `model-review` skill). That leaves 13 `STANDALONE` manual CLIs and 1 clear `ORPHAN`: `scripts/fail_open.py`.
 

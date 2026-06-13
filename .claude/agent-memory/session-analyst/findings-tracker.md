@@ -91,12 +91,12 @@ type: project
 ## Last analysis run — genomics 2026-03-26
 **Date:** 2026-03-26
 **Sessions analyzed:** 1833d541, a62b3f8f, fddae46b, 5584f9f9, 955df826
-**Output:** /Users/alien/Projects/meta/artifacts/session-retro/2026-03-26-genomics.md
+**Output:** /Users/alien/Projects/agent-infra/artifacts/session-retro/2026-03-26-genomics.md
 
 ## Last analysis run — meta 2026-03-26
 **Date:** 2026-03-26
 **Sessions analyzed:** aa2981a8, 955b17d9, 7e3fdd99, a315e598
-**Output:** /Users/alien/Projects/meta/artifacts/session-retro/2026-03-26-meta.md
+**Output:** /Users/alien/Projects/agent-infra/artifacts/session-retro/2026-03-26-meta.md
 
 ## Last analysis run — publishing 2026-05-16
 **Date:** 2026-05-16

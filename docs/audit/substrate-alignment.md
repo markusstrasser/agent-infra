@@ -1,6 +1,6 @@
 # Substrate Alignment Audit
 
-Scope: `/Users/alien/Projects/meta/substrate/schema.sql`, `/Users/alien/Projects/meta/substrate/core.py`, `/Users/alien/Projects/meta/substrate/mcp_server.py`, plus `/Users/alien/Projects/meta/substrate/cli.py` because the task requires verifying CLI reachability.
+Scope: `/Users/alien/Projects/agent-infra/substrate/schema.sql`, `/Users/alien/Projects/agent-infra/substrate/core.py`, `/Users/alien/Projects/agent-infra/substrate/mcp_server.py`, plus `/Users/alien/Projects/agent-infra/substrate/cli.py` because the task requires verifying CLI reachability.
 
 Method: I treated `KnowledgeDB` non-underscore methods as the public core API, excluding dunder methods. `close()` counts as reachable because the CLI uses `with KnowledgeDB(...) as db` at `substrate/cli.py:49`, which dispatches `__exit__()` and then `close()` at `substrate/core.py:44`.
 
