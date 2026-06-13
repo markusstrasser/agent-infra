@@ -102,3 +102,11 @@ If the Consumption principle + spine are adopted: within 30 days, every standing
 detector (corpus drift, source_eval, orphan lint, divergence) has a named consumer
 and a non-void escalation path; zero "fired daily into a void for weeks" incidents
 recur.
+
+## Update 2026-06-14 — third axis observed: telemetry streams (cleanup-grade, NOT detector-grade)
+
+Swept all ~30 `~/.claude/*.jsonl|*.json` telemetry/state streams for the disease (writer exists, zero readers). Result: **~28 consumed, 2 zombies** — `steward-actions.jsonl` (53K, eradicated-orchestrator residue) and `spinning-shadow.jsonl` (1.2M, writer hook removed). Both deleted.
+
+**Root cause is not "no detector" — it is removal-without-teardown:** when a hook/job/script writer is deleted, its output file (and any downstream consumer edge) is left behind to rot. The disease now has three observed axes — code (`orphan_check`), findings (`orphan_findings`), telemetry (here).
+
+**Decision: do NOT build a third (telemetry) orphan detector.** 2 zombies / 30 streams is cleanup-grade, not leak-grade (resist-list discipline, 2026-06-14 session). The durable fix is the teardown discipline, not more standing detectors: **removing a generator must remove its orphaned output in the same change** (grep the writer's output path; delete what no longer has a writer). If telemetry zombies recur (a 3rd appears), reconsider a check then — measure before enforcing.
