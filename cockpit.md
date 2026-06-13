@@ -67,10 +67,10 @@ uv run python3 scripts/agent_receipts.py import-openai path/to/responses.jsonl
 
 **Normalized fields:** `response_id` (when present), `status` / `background_state`, `reasoning_effort`, `reasoning_output_tokens`, `cached_input_tokens`, `tool_call_count`, `project`, `task_label`, `task_tags`.
 
-### Runlog (`meta/scripts/runlog.py`)
-Cross-vendor local forensic store. Separate from receipts/dashboard.
+### Agentlogs (`uv run agentlogs`)
+Cross-vendor local forensic store (`~/.claude/agentlogs.db`). Separate from receipts/dashboard.
 
-Use it when you need transcript-derived event history, tool-call lineage, file touches, supervision analysis, or cross-vendor SQL queries. Canonical docs: `runlog.md`.
+Use it when you need transcript-derived event history, tool-call lineage, file touches, supervision analysis, or cross-vendor SQL queries: `agentlogs recent|search|stats|query`. Canonical docs: `.claude/rules/session-forensics.md`. (Replaces the retired runlog.py/runlogs.db.)
 
 ### Dashboard (`meta/scripts/dashboard.py`)
 Reads Claude receipts plus Codex/OpenAI receipts. Shows weekly/all-time stats and a provider-specific panel for OpenAI/Codex runs.
