@@ -562,6 +562,49 @@ lint-dupes:
 vendor-docs *args:
     ./scripts/sync-vendor-docs.sh {{args}}
 
+# Deterministic surveillance fetch: vendor docs + CC binary skills, commit diffs.
+# Runs daily via com.agent-infra.vendor-sweep; this is the manual entry point.
+[group('health')]
+vendor-sweep:
+    bash scripts/vendor-sweep.sh
+
+# Surveillance freshness — which sweeps are DUE (deterministic, zero-API).
+# Consumed by /improve maintain to decide whether to run a semantic sweep.
+# vendor-docs/binary are fetched by launchd daily; the agent runs the rest.
+[group('health')]
+freshness:
+    #!/usr/bin/env bash
+    # Calendar-day deltas only — normalize the stamp to midnight so a date-only
+    # filename stamp doesn't fractionally undershoot a wall-clock "now".
+    today_ep=$(date -j -f "%Y-%m-%d %H:%M:%S" "$(date +%Y-%m-%d) 00:00:00" +%s)
+    # Age from the date stamp IN the filename (the real "when run"); mtime is a
+    # proxy git checkouts silently reset, so only fall back to it when no stamp.
+    newest() {
+      local glob="$1" best_d="" best_f=""
+      for f in $glob; do
+        [ -e "$f" ] || continue
+        local d; d=$(basename "$f" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1)
+        [ -z "$d" ] && d=$(date -r "$(stat -f %m "$f")" +%Y-%m-%d)
+        if [ -z "$best_d" ] || [[ "$d" > "$best_d" ]]; then best_d="$d"; best_f="$f"; fi
+      done
+      echo "$best_d|$best_f"
+    }
+    row() {
+      local name="$1" glob="$2" target="$3"
+      local res; res=$(newest "$glob"); local d="${res%%|*}" f="${res##*|}"
+      if [ -z "$f" ]; then printf "  %-20s %-16s %5s  %4sd  %s\n" "$name" "(none)" "-" "$target" "DUE"; return; fi
+      local ep; ep=$(date -j -f "%Y-%m-%d %H:%M:%S" "$d 00:00:00" +%s 2>/dev/null || echo "$today_ep")
+      local age=$(( (today_ep - ep) / 86400 ))
+      local status="ok"; [ "$age" -ge "$target" ] && status="DUE"
+      printf "  %-20s %-16s %4dd  %4sd  %s\n" "$name" "$(basename "$f" .md | cut -c1-16)" "$age" "$target" "$status"
+    }
+    echo "SURVEILLANCE FRESHNESS"
+    printf "  %-20s %-16s %5s  %5s  %s\n" "source" "last" "age" "tgt" "status"
+    row "vendor-docs"       "docs/vendor/*.json"               2
+    row "binary-extract"    "research/binary-extracts/*.md"    7
+    row "trending-scout"    "research/trending-scout-*.md"     2
+    row "agent-infra-sweep" "research/*agent-infra-sweep*.md"  3
+
 # ── Git ────────────────────────────────────────────────────────────
 
 # Top 20 most-changed files per repo (churn hotspots)
