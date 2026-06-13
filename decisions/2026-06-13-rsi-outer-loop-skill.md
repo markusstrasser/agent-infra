@@ -273,6 +273,32 @@ oracle is independently anchored in hutter's code (not circular); it surfaced on
 **Scoping tightening:** Phase 1 wrote ONLY to the skills repo (read hutter for ground truth + oracle).
 Planting the contract into hutter + archiving `OUTER-LOOP.md` is Phase 2 (archive-then-delete).
 
+## Phase 2 outcome — partial-regime build + 2 ground-truth findings (2026-06-13, skills@e265a66)
+
+Began Phase 2 with science (the partial-regime instance). Two findings reshaped the plan, plus one
+design correction:
+
+- **DESIGN CORRECTION — `route.py` partial accept was wrong.** It routed a `partial`-regime accept to
+  UNATTENDED (auto-committing on a noisy verifier — the intel/genomics report-not-gate failure
+  inverted). hutter's clean-cheap test never exercised the partial branch. Fixed: partial/mixed
+  accepts default to ATTENDED; the ADR's "narrow+reversible → unattended" exception is a per-action
+  contract literal, never a route() default. Proven by an 8/8 partial trace-equivalence test.
+- **FINDING 1 — science is conductor-coupled, not a standalone loop.** `/research-ops cycle` is a
+  WORKER the single conductor `/improve maintain` dispatches (since the 2026-06-12 three-conductor
+  merge). So science's *deploy* belongs with the conductor migration (Phase 3), not standalone Phase 2.
+  Only its contract + fix-proof are done now. The migration order is corrected accordingly.
+- **FINDING 2 — science's ledger is git-native** (git history as attempt graph + CYCLE.md + the
+  failed-experiments fingerprints), not a SQL table. The shared SQL schema + conformance linter fit the
+  4 structured loops (hutter/arc-agi/intel/genomics); the linter now skips `kind: git-native`. A
+  structured science ledger is a deferred enhancement (the loop runs on git today — YAGNI).
+- **Trace-isomorphic gate (from the /eval survey):** the science gate verifies extracted *claims*
+  against external sources (already consumed + decomposed). A noted upgrade is to grade the evidence
+  *trace* (phenome KG-verifier pattern; structure-checking verifiers block reward-hacking output checks
+  miss). Recommended, not built in Phase 2.
+
+Revised Phase 2 = intel + genomics (staged consumed-gate, paused at ENFORCE) + hutter authoritative
+deploy. Phase 3 = agent-infra conductor + science deploy.
+
 ## Deferred / open (tracker)
 - ~~Skill name: `outer-loop` vs `rsi-loop`~~ → **RESOLVED: `outer-loop`** (built). | ~~Ledger home:
   schema-file+linter vs module~~ → **RESOLVED: schema-file + conformance linter** (built, field-map-aware).
