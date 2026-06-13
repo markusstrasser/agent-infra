@@ -203,7 +203,7 @@ Human oracles "exhibit a broad distribution" (normal modularization). Two more m
 
 ### B2. The mechanistic explanations (ranked by evidence strength)
 
-1. **Context-window self-protection (MEASURED, B1).** Keeping all state in one file means the
+1. **Context-window self-protection (phenomenon MEASURED B1; this *mechanism* is the authors' own "seems to be" interpretation, not isolated causation).** Keeping all state in one file means the
    agent never has to *re-read* across files within a turn — it dodges its own context-rot. The
    monolith is a *rational response to A4*: cross-file means more reads, more distractors, more
    `ImportError`. This is the dominant, evidence-backed cause.
@@ -267,3 +267,14 @@ two "gap" rows are the actionable, currently-unbuilt levers.
 - RepoGraph/Aider = the Harness-1 / state-externalization thesis instantiated for *code
   navigation*: externalize the "what's where" bookkeeping into a ranked map so the policy only
   decides what to read.
+
+## Revisions
+
+**2026-06-13 — B2.1 mechanism label tightened after full-source re-verification.** A primary
+check of the full text (arxiv.org/html/2604.06742v1) confirmed the quoted finding is real: the
+paper *does* state the ImportError-avoidance + limited-context-window mechanism. But it frames it
+as "seems to be" / "an agentic perspective" — the authors' *speculative interpretation*, not
+isolated causation. The **phenomenon** (1–3-file median preference) is measured; the **mechanism**
+is hypothesized. Softened B2.1's "MEASURED" label. (Meta-lesson: an abstract-only fetch first
+mis-read the paper as making NO mechanism claim — that absence was the fetch's artifact, not the
+paper's. Verify at full primary, not the abs page.)
