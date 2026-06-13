@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.agent-infra.gov-report</string>
+
+    <!--
+      Governance-health SENSE (the honest half of the thermostat — option (b), 2026-06-14).
+      Runs the deterministic, ZERO-API gov-report daily so the governance-health read is
+      automated (no operator tax) instead of "prose Markus executes by hand". It writes
+      artifacts/gov/gov-report.md (gitignored — no churn). The /improve maintain rotation
+      CONSUMES this report and acts on the REAL signals: the 3 gov_invariants assertions
+      (rule_hook_balance, recurrence_architecture, verifier_coverage). It deliberately does
+      NOT treat the gov-shrink ELIGIBILITY column as actionable — 3/4 of those point to
+      non-existent graders (evals/graders/governance/ is empty), and the verifier_coverage
+      invariant in this very report flags that gap. Surfaces the gaps instead of hiding them.
+      Informational only — no auto-fix, no paging.
+    -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/alien/Projects/agent-infra/.venv/bin/python3</string>
+        <string>/Users/alien/Projects/agent-infra/scripts/gov.py</string>
+        <string>report</string>
+        <string>--days</string>
+        <string>30</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/alien/Projects/agent-infra</string>
+
+    <!-- Daily at 05:45 (after test-health 05:30 / corpus-ledger-commit 05:00). -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>5</integer>
+        <key>Minute</key>
+        <integer>45</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/alien/.claude/logs/gov-report.out</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/alien/.claude/logs/gov-report.err</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+
+    <key>LowPriorityIO</key>
+    <true/>
+
+    <key>Nice</key>
+    <integer>5</integer>
+</dict>
+</plist>
