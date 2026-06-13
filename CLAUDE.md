@@ -25,7 +25,7 @@ uv run agentlogs stats                   # DB size, per-vendor counts, indexer h
 
 ## Research Index
 
-~228 research memos in `research/`. Full index with topics and "consult before" triggers: `.claude/rules/research-index.md` (path-scoped to `research/**`, `decisions/**`).
+~236 research memos in `research/`. Full index with topics and "consult before" triggers: `.claude/rules/research-index.md` (path-scoped to `research/**`, `decisions/**`).
 
 <constitution>
 > **Human-protected.** Agent may propose changes but must not modify without explicit approval.
@@ -97,6 +97,8 @@ These can be sections in a plan file, a research memo, or standalone. The point:
 **13. The git log is the learning.** Every correction is a commit. The error-correction ledger is the moat. Commits touching governance files (CLAUDE.md, MEMORY.md, improvement-log, hooks) require evidence trailers.
 
 **14. Breaking refactors by default.** For architecture, review, and improvement work, assume the target state is a full migration unless the user explicitly names a compatibility boundary that must stay live. Prefer delete-and-replace over adapters, wrappers, dual reads/writes, fallback paths, and transitional shims. If compatibility is truly required, name the live boundary, why it still exists, and the removal condition; otherwise treat compatibility scaffolding as design noise.
+
+**15. Provisional by construction (the dissent license).** No principle here is above doubt. Any agent may flag a principle as not serving its purpose — or as contradicting well-established knowledge from its training — and propose an update, as a first-class action, never insubordination. Weight the challenge by domain-weighted authority (global `<technical_pushback>`): a STEM/formal/verifiable objection is a strong prior; a taste/telos objection defers to the human. **Asymmetry (load-bearing):** dissent in words is unconstrained; action on the dissent stays within the Autonomy Boundaries — argue the verifier-boundary is wrong, but never edit your own gate, GOALS, or this Constitution while arguing it. Only the human approves changes to this Constitution; standing doubt prevents ossification, the asymmetry prevents "my expertise disagrees" from becoming the self-p-hack hole. *Evidence: 2026-06-13 outer-loop arc — a plan rule mis-attributed to this Constitution went unchallenged until the principal asked "is it even correct?"; nothing licensed doubting it on the merits.*
 
 ### Autonomy Boundaries
 
