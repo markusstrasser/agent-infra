@@ -83,3 +83,6 @@ scripts/gwern_ingested.txt
 .claude/rules/codebase-map.md
 artifacts/fable_throttle_probe.jsonl
 .claude/skill-usage-watch.json
+
+# Drift sentinel digest (regenerated daily; auto-clears when green)
+.claude/drift-digest.md

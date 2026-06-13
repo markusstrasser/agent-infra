@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.agent-infra.drift-sentinel</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/alien/Projects/agent-infra/scripts/drift-sentinel.sh</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/alien/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>/Users/alien</string>
+    </dict>
+    <key>WorkingDirectory</key>
+    <string>/Users/alien/Projects/agent-infra</string>
+    <!-- Daily 06:35 (after vendor-sweep 06:00) zero-API self-monitor: runs the
+         deterministic report-only checks and writes .claude/drift-digest.md when
+         something needs attention (removed when green). The next agent-infra
+         SessionStart surfaces it via drift-surface.sh. Decouples self-monitoring
+         from the interactive /improve loop. -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>6</integer>
+        <key>Minute</key>
+        <integer>35</integer>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/Users/alien/.claude/logs/drift-sentinel.out</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/alien/.claude/logs/drift-sentinel.err</string>
+    <key>LowPriorityIO</key>
+    <true/>
+    <key>Nice</key>
+    <integer>5</integer>
+</dict>
+</plist>

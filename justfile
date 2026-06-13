@@ -135,6 +135,15 @@ test-health *args:
 orphan-check *args:
     uv run python3 scripts/orphan_check.py {{args}}
 
+# Daily self-monitor: run the deterministic report-only checks (freshness,
+# orphan-findings, orphan-check, doc-vs-reality) and write .claude/drift-digest.md
+# when something needs attention (auto-cleared when green). Surfaced next
+# SessionStart. Decouples detection from the interactive loop. Scheduled via
+# com.agent-infra.drift-sentinel; run manually here.
+[group('health')]
+drift-sentinel:
+    bash scripts/drift-sentinel.sh
+
 # Orphaned-FINDINGS ratchet (report-only): flag trending-scout memos whose
 # adopt-grade verdicts never reached improvement-log (the loop's read path).
 # Sibling to orphan-check, findings axis. --all for full history; promote live
