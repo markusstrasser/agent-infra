@@ -133,7 +133,7 @@ mkdir -p .claude/rules .claude/skills
 
 ## Session Analysis (Recurring)
 - [ ] Run `/session-analyst intel 5` — analyze last 5 intel sessions for behavioral anti-patterns
-- [ ] Run `/session-analyst selve 5` — analyze last 5 selve sessions
+- [ ] Run `/session-analyst phenome 5` — analyze last 5 phenome sessions
 - [ ] Review `improvement-log.md` for actionable findings
 - [ ] Implement proposed fixes (hooks > rules > instructions)
 - [ ] Measure: did the fix reduce the failure rate in subsequent sessions?
@@ -189,7 +189,7 @@ Consumption-based metrics, not write volume. Check bi-weekly.
 | Metric | What it measures | How | Target |
 |--------|-----------------|-----|--------|
 | Stale resolution (cohort) | Of objects stale at T0, fraction resolved by T+14 | changelog timestamps | >50% |
-| `query_stale` MCP calls | Read path has a pulse | runlogs.db tool_calls | >0/week |
+| `query_stale` MCP calls | Read path has a pulse | agentlogs.db tool_calls | >0/week |
 
 **Retired:** substrate assertion count (vanity), MCP read:write ratio (invisible to runlogs with direct SQLite).
 

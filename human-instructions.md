@@ -62,13 +62,13 @@
 - Codex CLI gives session facts: model, reasoning effort, tokens, tool-call count, project, task label.
 - Import stored Responses API objects: `just agent-receipts import-openai path/to/responses.jsonl`.
 
-## Runlog Forensics
+## Session Forensics
 
 ```
-uv run python3 scripts/runlog.py stats                  # health check
-uv run python3 scripts/runlog.py query runs_touching_path --param path_like=%foo% --format json
-uv run python3 scripts/runlog.py query supervision_ratio_by_vendor_week --format json
-uv run python3 scripts/runlog.py query tool_usage_by_mcp_server --param vendor=codex --format json
+uv run agentlogs stats                  # health check
+uv run agentlogs query runs_touching_path --param path_like=%foo% --format json
+uv run agentlogs query supervision_ratio_by_vendor_week --format json
+uv run agentlogs query tool_usage_by_mcp_server --param vendor=codex --format json
 ```
 
 ## Things Only You Can Do
