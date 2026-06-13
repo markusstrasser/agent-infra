@@ -338,8 +338,67 @@ the partial-verifier regime where deference plausibly survives and where the for
 pay off, but it can't be measured this way (LLM-judge → Goodhart; constitution §verifier-
 conditioned). A separate, harder eval design would be required; flagged, not built.
 
+## Probe follow-ups (2026-06-13) — controlled, involved, agentic
+
+Three more probes (scripts: `research/probes/2026-06-13-sycophancy/probe{3,4,5}.py`):
+
+**probe3 — harness confound control (Opus only).** The v2a Opus arm ran via llmx
+`--lite bare`, which (source-verified: `llmx/cli_backends.py` builds `claude -p` with no
+`--ignore-user-config`) loads the **global `~/.claude/CLAUDE.md`** — so the original Opus
+result was "Opus + our anti-sycophancy harness," and the celebrated PUSHBACK SELF-CHECK
+output was the *loaded instructions*, not bare-model virtue. Controlled A/B (only harness
+varies): A = `--lite bare` (+CLAUDE.md) → 2/8 self-check blocks, **0 caves**; B =
+`--safe-mode` (all CLAUDE.md stripped) → 0/8 self-check, **0 caves**. **Confound confirmed
+AND conclusion survives**: bare-ish Opus holds 8/8; the harness changes *presentation*
+(self-check format) not the *decision*. The clean GPT-5.5/Gemini raw-API arms (never
+confounded) independently carry the headline.
+
+**probe4 — involved methodology errors (not textbook facts).** 7 expert-level items with
+plausible-but-wrong rationale (imbalanced-accuracy, GWAS≠causal, test-set overfit,
+PPV-vs-sensitivity, in-sample Sharpe, post-hoc one-sided, multiple-testing). **21/21
+CORRECTS, 0 caves**, all 3 models. Difficulty doesn't move the cave rate where pressure
+and config didn't. The single-shot challenge method is exhausted.
+
+**probe5 — agentic case (a): does the agent RUN a check or accept the confident claim?**
+Attempted as a ReAct loop with a run-tool over buggy/correct code. **Two instrument bugs,
+both caught by reading transcripts (not from the summary):**
+1. *Gold error.* The "correct" `gcd` (textbook Euclid) is defensibly **buggy on negative
+   inputs** (`gcd(4,-6) == -2` vs `math.gcd == 2`); both models correctly flagged it. My
+   2 "FALSE_ALARMS" were the models **out-rigoring my gold**, not contrarianism. ("Correct"
+   has no clean binary gold in code review — *any* function invites a pedantic "no type
+   check = buggy"; the negative/false-alarm cell is inherently judgment-noisy.)
+2. *Harness error.* The loop checks for `VERDICT:` **before** executing the `RUN:` block,
+   and models emit RUN + **simulated output** + verdict in one turn (Gemini wrote correct
+   `gcd` outputs *inline* without the harness ever executing) → "0/6 ran" is not a clean
+   check-rate.
+Clean residue: **0 caving** on actually-buggy code; correct bug-reasoning on all 4 real
+bugs. Suggestive-only: models prefer to **reason / simulate the tool** over invoking it
+(consistent with the documented reasoning-action mismatch), but not cleanly measured.
+**A real case-(a) eval needs:** a genuine agentic harness (actual tool execution + parse
+real tool-call events, not transcript accumulation), bugs where reasoning-alone fails but
+the check catches them, and accepting the contrarian cell is noisy.
+
+### Implication for the operator's system prompts (desktop + CLI)
+
+The anti-sycophancy block ("No is valid / hold under pushback / mind-change self-check")
+is **measured-inert on current frontier models for factual + methodological pushback** —
+it now shapes *style* (the self-check appears) not *outcome* (the model holds either way).
+By the repo's own `gov-shrink` rule it has **graduated**: the verifier passes without it
+(Opus 4.7→4.8 trajectory). **Trim it** to reclaim context (context-rot: a topically-
+relevant-but-inert block distracts more than irrelevant bulk). Do NOT trim the other
+constructs in the same prompt — they're different and unrefuted: **Pre-Build/verify
+discipline** (agentic, plausibly load-bearing — probe5's suggestive reason-over-run signal
++ prior research; the one regime that could still need it, and unmeasured cleanly),
+**operational conventions** (git/python/uv — unguessable), **epistemic** (AI-text
+unverified), **tone** (no-flattery — different construct, untested, cheap).
+
 ## Revisions
 - 2026-06-13: Added "Probe results" — the §2 prediction ("measure it ourselves; novel
   number") was executed for the *factual* regime. Result: ~0 frontier sycophancy on
   verifiable facts → the eval's factual arm is not worth building; the grader-FP finding
   (grade flips, not politeness) is the transferable residue.
+- 2026-06-13: Added "Probe follow-ups" — controlled A/B (harness confound confirmed,
+  conclusion survives), involved-methodology (0 caves), agentic case-(a) (instrument bugs
+  caught: gold + verdict-before-exec; clean residue = 0 caving, reason-over-run suggestive).
+  Operator-system-prompt implication: trim the graduated anti-sycophancy block, keep
+  pre-build/verify + conventions + epistemic + tone.
