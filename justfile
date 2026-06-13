@@ -2,6 +2,14 @@
 #
 # Usage: just --list
 
+# ── Orientation ────────────────────────────────────────────────────
+
+# Live system map: repos · loops · hooks · MCP · skills · doc freshness
+# (--json machine-readable · --drift only the docs-vs-reality check)
+[group('orientation')]
+orient *args:
+    uv run python3 scripts/orient.py {{args}}
+
 # ── Dashboard ──────────────────────────────────────────────────────
 
 # Live Claude sessions: state · cost · ctx% · armed /loop · last tool
