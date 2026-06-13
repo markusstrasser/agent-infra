@@ -41,6 +41,8 @@ smoke:
     echo "=== Research index frontmatter ==="
     head -1 .claude/rules/research-index.md | grep -q '^---$' || { echo "FAIL: research-index.md missing YAML frontmatter"; exit 1; }
     echo "OK: frontmatter intact"
+    echo "=== Routing-doc reference closure (advisory) ==="
+    uv run python3 scripts/skill_reference_validator.py --repo agent-infra 2>&1 | grep -E 'dangling|missing absolute|closure OK' || true
     echo "=== agentlogs DB ==="
     sqlite3 "$HOME/.claude/agentlogs.db" "SELECT COUNT(*) FROM sessions" > /dev/null 2>&1 || { echo "FAIL: agentlogs sessions"; exit 1; }
     echo "OK: agentlogs readable"
