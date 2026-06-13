@@ -19,7 +19,7 @@ humans.
 |---|---|---|
 | `~/Projects/corpus` | **DATA**: one dir per source + `graph.duckdb`. | no (377M; see §10 seam) |
 | `~/Projects/substrate` | Substrate **CODE**: the `corpus-core` package and shared corpus schemas. | yes |
-| `~/Projects/agent-infra` | Meta/governance code: `corpus_mcp.py`, `audit_corpus_sync.py`, dashboards, hooks. | yes |
+| `~/Projects/agent-infra` | Agent-infra/governance code: `corpus_mcp.py`, `audit_corpus_sync.py`, dashboards, hooks. | yes |
 | `~/Projects/research-mcp` | Discovery + retrieval MCP (`fetch_paper`, RAG). Depends on `corpus-core`. | yes |
 | `~/Projects/genomics`, `~/Projects/phenome` | Domain repos with per-repo claim layers; coupled directly by **the bridge**. | yes |
 | `~/Projects/intel` | Separate (market/AI-narrative; 0 DOIs — deliberately not paper-shaped). | yes |

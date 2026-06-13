@@ -41,8 +41,9 @@ DOC_EXT = (".md", ".py", ".sh", ".json", ".jsonl", ".toml", ".yaml", ".yml", ".s
 # reference consumer-project or example paths by design and would flood the gate.
 ROUTING_DOC_NAMES = frozenset({"CLAUDE.md", "AGENTS.md", "GEMINI.md", "README.md"})
 # Refs whose first segment is a sibling repo/skill are cross-context, not this
-# repo's closure (they resolve where the skill/repo is consumed). meta/ is NOT
-# here on purpose — it's the dead rename husk we want flagged.
+# repo's closure (they resolve where the skill/repo is consumed). The meta→agent-infra
+# rename husk is fully cleaned (refs repointed, old ~/Projects/meta deleted 2026-06-13),
+# so meta/ no longer needs special flagging.
 LIVE_SIBLINGS = frozenset({"agent-infra", "intel", "intel-harness", "genomics", "phenome", "publishing", "research-mcp", "skills", "modal"})
 _FENCE_RE = re.compile(r"```.*?```", re.DOTALL)
 _LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s#]+)")

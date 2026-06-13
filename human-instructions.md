@@ -76,7 +76,7 @@ uv run python3 scripts/runlog.py query tool_usage_by_mcp_server --param vendor=c
 - **Creative direction.** Agent proposes, you select.
 - **Goal-setting.** GOALS.md is human-owned.
 - **Risk tolerance.** Agent sizes by Kelly; you set circuit breakers.
-- **Cross-domain synthesis.** Agent doesn't connect intel to genomics to meta. That's yours (for now).
+- **Cross-domain synthesis.** Agent doesn't connect intel to genomics to agent-infra. That's yours (for now).
 - **Deciding when research is done.** Agent searches forever. You call it.
 
 ## CLI Power-User Tips
@@ -101,7 +101,7 @@ uv run python3 scripts/runlog.py query tool_usage_by_mcp_server --param vendor=c
 
 ## The Endgame Check
 
-Every few weeks: is meta making sessions better?
+Every few weeks: is agent-infra making sessions better?
 - Sessions closer to "optimal run"?
 - Supervision rate trending down?
 - Corrections for taught things going to zero?

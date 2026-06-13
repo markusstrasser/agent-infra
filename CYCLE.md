@@ -1,4 +1,4 @@
-# Research Cycle — meta
+# Research Cycle — agent-infra
 
 **Cumulative cost:** $0.00 (first tick)
 **Last tick:** 2026-03-25

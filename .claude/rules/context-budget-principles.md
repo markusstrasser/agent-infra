@@ -81,7 +81,7 @@ binds (measure-before-enforcing). Re-measure when adding skills:
 2026-06-13 (post context-rot slim — global CLAUDE.md 8.1K→3.9K tok, vetoed-decisions
 11.8K→4.4K chars, MEMORY.md 10.3K→5.6K chars, 3 rules path-scoped, 1 deleted):
 
-| Component (meta session) | Chars | ≈Tokens |
+| Component (agent-infra session) | Chars | ≈Tokens |
 |---|---|---|
 | Global CLAUDE.md + non-scoped global rules | 23.6K | 5.9K |
 | Project CLAUDE.md + non-scoped project rules | 37.4K | 9.4K |
@@ -90,7 +90,7 @@ binds (measure-before-enforcing). Re-measure when adding skills:
 
 Measure: sum `wc -c` over CLAUDE.md + rules without `paths:` frontmatter + MEMORY.md.
 Every subagent spawn pays this too — budget new always-loaded content against it.
-Historical (2026-04-05): Meta 18.7K / Selve 21K / Genomics 32.9K tokens always-loaded.
+Historical (2026-04-05): Agent-Infra 18.7K / Selve 21K / Genomics 32.9K tokens always-loaded.
 
 Context-rot grounding (Chroma 2025, pre-frontier but mechanism-robust): performance
 degrades non-uniformly with input length; topically-close-but-stale text (distractors)

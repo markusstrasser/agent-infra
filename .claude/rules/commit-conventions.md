@@ -1,6 +1,6 @@
-# Meta Commit Conventions
+# Agent-Infra Commit Conventions
 
-Supplements the global commit message format with meta-specific rules.
+Supplements the global commit message format with agent-infra-specific rules.
 
 ## Trailers
 
@@ -20,4 +20,4 @@ Commits touching `research/`, `decisions/`, or index-referenced docs must have a
 
 ## Scope Reference
 
-Canonical scopes for meta are listed in `.git-scopes` (repo root). The commit hook warns on unknown scopes but doesn't block. When adding a genuinely new scope, add it to `.git-scopes`.
+Canonical scopes for agent-infra are listed in `.git-scopes` (repo root). The commit hook warns on unknown scopes but doesn't block. When adding a genuinely new scope, add it to `.git-scopes`.

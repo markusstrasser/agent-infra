@@ -15,7 +15,7 @@ blast_radius: style
 All knowledge-eligible files (research memos, decisions, entity files) must have YAML frontmatter.
 The PostToolUse hook warns if frontmatter is missing. The balance check flags it as an error.
 
-## Meta Research Memos (`research/*.md`)
+## Agent-Infra Research Memos (`research/*.md`)
 
 ```yaml
 ---
@@ -26,7 +26,7 @@ date: YYYY-MM-DD
 
 Additional optional fields: `tags`, `status` (active/complete/superseded).
 
-## Meta Decisions (`decisions/*.md`)
+## Agent-Infra Decisions (`decisions/*.md`)
 
 Use the template at `decisions/.template.md`. Required: `concept`, `decision_date`, `status`.
 

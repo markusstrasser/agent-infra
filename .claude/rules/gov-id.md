@@ -48,7 +48,7 @@ Python hooks — comment lines after the module docstring:
   → it's on the generative backlog (write the verifier).
 - **blast_radius** — sets the apply-gate tier:
   - `style` — format/naming; excluded from shrink, never auto-acts.
-  - `local` — meta-only; eligible for earned-autonomy auto-retirement once a track record exists.
+  - `local` — agent-infra-only; eligible for earned-autonomy auto-retirement once a track record exists.
   - `shared` — affects 3+ projects; human-gated.
   - `constitution` — constitution/GOALS; human-gated, ≤1 proposal/week.
 

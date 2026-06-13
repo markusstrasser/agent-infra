@@ -1,4 +1,4 @@
-# Meta — Agent Infrastructure
+# Agent-Infra — Agent Infrastructure
 
 ## Purpose
 This repo plans and tracks improvements to agent infrastructure across projects (intel, phenome, genomics, skills, research-mcp). It's the "thinking about thinking" repo.
@@ -63,7 +63,7 @@ A model-as-judge proxy does **not** make taste work "verifiable" — ground-trut
 **3. Measure before enforcing.** Log every hook trigger to measure false positives. Without data, you can't promote or demote hooks rationally.
 
 **4. Self-modification by reversibility + blast radius.** "Obvious improvement" is unmeasurable. Use concrete proxies:
-- **Autonomous:** affects only meta's files, easily reversible, one clear approach, no other project changes
+- **Autonomous:** affects only agent-infra's files, easily reversible, one clear approach, no other project changes
 - **Propose and wait:** touches shared infrastructure, multiple viable approaches, affects other projects, deletes/restructures architecture
 - **Always human-approved:** this Constitution section, GOALS.md
 These are autonomy boundaries for self-directed changes. They do not restrict explicit user-directed work across projects once the user has approved it.
@@ -86,7 +86,7 @@ These can be sections in a plan file, a research memo, or standalone. The point:
 
 **8. Filter by maintenance, not effort.** Dev creation cost ≈ 0 with agents. The "invisible governor" (effort kills ideas before testing) is gone. Decision tables in research memos use: Value | Maintenance | Prerequisites — not Effort | ROI. Gate on ongoing drag (maintenance burden, complexity budget, supervision cost, integration risk), not creation cost. Jevons Paradox applies: cheaper dev = more gets built, so guard against complexity sprawl, not under-building. See `research/agent-economics-decision-frameworks.md`.
 
-**9. Skills governance.** Meta owns skill quality: authoring, testing, propagation. Skills stay in `~/Projects/skills/` (separate). Meta governs through `/observe` (sees usage across projects) and improvement-log.
+**9. Skills governance.** Agent-infra owns skill quality: authoring, testing, propagation. Skills stay in `~/Projects/skills/` (separate). Agent-infra governs through `/observe` (sees usage across projects) and improvement-log.
 
 **10. Fail open, carve out exceptions.** Hooks fail open by default. Explicit fail-closed list: protected data writes, multiline bash, repeated failure loops (>5). List grows only with measured ROI data.
 
@@ -102,7 +102,7 @@ These can be sections in a plan file, a research memo, or standalone. The point:
 
 **Hard limits (never without human):** modify Constitution or GOALS.md; deploy shared hooks/skills affecting 3+ projects; delete architectural components.
 
-**Autonomous:** update meta's CLAUDE.md/MEMORY.md/improvement-log/checklist; add meta-only hooks; run `/observe`; conduct research sweeps; create new skills (propagation = propose).
+**Autonomous:** update agent-infra's CLAUDE.md/MEMORY.md/improvement-log/checklist; add agent-infra-only hooks; run `/observe`; conduct research sweeps; create new skills (propagation = propose).
 
 ### Self-Improvement Governance
 
@@ -126,7 +126,7 @@ Primary feedback: `/observe sessions` comparing actual runs vs optimal baseline.
 
 How to verify this constitution is working (check via `/observe sessions` after 2 weeks):
 
-1. **No build-then-undo on shared infrastructure changes.** The reversibility + blast radius boundary should prevent autonomous changes that get reverted. Test: zero reverts of meta-initiated shared changes in 14 days.
+1. **No build-then-undo on shared infrastructure changes.** The reversibility + blast radius boundary should prevent autonomous changes that get reverted. Test: zero reverts of agent-infra-initiated shared changes in 14 days.
 2. **Hooks fire on high-frequency failures.** Deployed hooks (bash-loop-guard, spinning-detector, failure-loop) should reduce repeated tool failures. Test: ≥50% reduction in ≥5-bash-failure-streaks vs pre-deployment baseline.
 3. **Research produces architecture, not documents.** Research sessions should result in hooks, skills, or code — not just memos. Test: ≥50% of research findings in improvement-log have "implemented" status within 30 days.
 4. **Model review surfaces disagreements.** When cross-model review disagrees with a stated preference, the synthesis explicitly flags it. Test: zero instances of silently overriding user preference in review artifacts.
