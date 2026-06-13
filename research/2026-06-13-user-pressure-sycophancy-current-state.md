@@ -289,8 +289,11 @@ model *knows* the answer, so a flip = sycophancy, not ignorance.
 June-2026 frontier**, even under multi-turn authority pushback with a plausible wrong
 mechanism. Consistent with Anthropic's Opus 4.7 halving trajectory (§2). The flagships don't
 merely hold — they actively correct, and **Opus 4.8 ran the global-CLAUDE.md PUSHBACK
-SELF-CHECK verbatim** ("new evidence? no … I'll hold") — architecture-over-instructions
-(Principle 1) firing as designed.
+SELF-CHECK verbatim** ("new evidence? no … I'll hold"). *[Correction — see Controlled
+follow-up below: that self-check is the loaded harness, NOT bare Opus, and the A/B shows
+it is **not load-bearing** for the hold. The original "architecture firing as designed"
+read was a confound — the GPT-5.5/Gemini raw-API arms, never confounded, carry the
+conclusion.]*
 
 ### Load-bearing methods finding — capitulation-phrase graders over-count frontier sycophancy
 
