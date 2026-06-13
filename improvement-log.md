@@ -3657,3 +3657,41 @@ A source that fails the watchdog (e.g. the oversized `~/.gemini/tmp/{intel,genom
 - **Context:** launchd/script rationalization (plan 556eabde) deleted 3 dead runlogs-era scripts (ops.py, token-baseline.py, reasoning-audit.py) + the orphaned token_baseline_helpers pair. The plan + `session-forensics.md` flagged `agent_surface.py` as a remaining dead-`runlogs.db` reader needing a repoint-or-retire decision.
 - **Finding (probed):** stale flag. `agent_surface.py:348` already connects to `AGENTLOGS_DB` and queries the live `tool_calls`/`runs`/`sessions` schema; `just context-health` runs and produces real output. Only the module docstring still said "runlogs.db." Fixed the docstring + the session-forensics note in the same commit.
 - **Status:** [-] rejected — nothing to do; the repoint predated this plan.
+
+### [2026-06-13] [ ] CONCURRENCY: multi-agent clobbers shared state — 2-month-old fix recurring across ALL 5 projects (drift)
+- **Drift run:** artifacts/observe/2026-06-13-drift-21d/ (21d, ~145 sessions, 5 projects; per-project gemini-3.5-flash). Candidates: candidates.jsonl. Digest: drift-digest.md.
+- **Evidence:** #1 recurrence AND #1 proposed-but-never-built, simultaneously. 13+ distinct sessions, all 5 projects independently: agent-infra (e29014d6, 556eabde, c80f2572 — stop-hooks/checkpoint.md clobbered by peer sessions), intel (fa7bbb68, 23763a22, f0128e83 — parallel writes to shared trackers → path-scoped commit blocks), phenome (136236fa, adfa97e4 — shared stop-hook crashed mid-edit by peer), genomics (1c094e24, 07992a15 — git index contention, manual pathspec exclusions to avoid sweeping sibling work), hutter (f94e5339, 79c6963a, 897a2209 — checkpoint.md gutted, 500+ lines of state lost to a parallel session's compaction). All session IDs verified on disk.
+- **Silent drop:** improvement-log [2026-04-09] MULTI-AGENT-HOOK-ASSUMPTION already proposed "scope poll tracking by invocation ID; session-touch-log multi-agent awareness." No landing commit in 2 months; pattern generalized from one repo to every active repo.
+- **Failure mode:** system-design — hooks/state files assume single agent per workspace.
+- **Proposed fix:** [architectural] session-ID-namespaced isolation for shared state/lock/checkpoint files; worktree-default for concurrent agents; append-only tracker updates. Extends the existing worktree-isolation nudge (currently code-only) to STATE files.
+- **Root cause:** system-design
+- **Status:** [ ] proposed
+
+### [2026-06-13] [ ] HOOK: whole-FILE pre-commit linters block scoped commits on out-of-hunk pre-existing issues (drift, genomics)
+- **Evidence:** genomics 1c094e24 (lint_registry blocked edits due to sibling/agent dir changes, required resets), 07992a15 (lint_silent_fallbacks.py blocked commit of artifact_loaders.py over 5 pre-existing `except Exception` blocks OUTSIDE the edited hunk → manual `# fallback-ok` annotation). 2 distinct sessions.
+- **Failure mode:** iatrogenic — extends [2026-06-08] IATROGENIC whole-tree-linter finding with the specific recurring mechanism (whole-file scan vs diff-hunk scan in pre-commit).
+- **Proposed fix:** [hook] restrict pre-commit lint checks to staged diff hunks (git diff --cached -U0 ranges).
+- **Root cause:** system-design
+- **Status:** [ ] proposed
+
+### [2026-06-13] [ ] HOOK: nested claude -p / subagent inherits depleted ANTHROPIC_API_KEY → "Credit balance too low" (drift)
+- **Evidence:** phenome 136236fa (local extractions ran out of credits), adfa97e4 (nested `claude -p` failed with "Credit balance is too low" from inherited global ANTHROPIC_API_KEY pointing at a restricted/depleted key; agent worked around with `env -u ANTHROPIC_API_KEY` to fall back to OAuth subscription). Recurs in intel parallel-dispatch sessions. Not covered by existing Codex-statusline/billing-alert entries.
+- **Failure mode:** system-design — env-key inheritance defeats subscription OAuth fallback in nested dispatch.
+- **Proposed fix:** [hook] PreToolUse on nested agentic dispatch strips inherited ANTHROPIC_API_KEY so the subprocess falls back to OAuth.
+- **Root cause:** system-design
+- **Status:** [ ] proposed
+
+### [2026-06-13] [ ] HOOK: hooks/scripts lose +x bits after sync/git → silent failures (drift, agent-infra)
+- **Evidence:** agent-infra 63ac26f1, e29014d6 — local scripts and global hooks lose executable bits after filesystem sync / git ops, causing silent hook no-fire; restored manually. 2 distinct sessions.
+- **Proposed fix:** [hook] pre-commit check verifying +x on .sh/.py hook files (and a doctor check).
+- **Root cause:** system-design
+- **Status:** [ ] proposed
+
+### [2026-06-13] [obs] DRIFT trends — quota-halt rise, fable safety-fallback causation, convention consolidation
+- **Drift run:** artifacts/observe/2026-06-13-drift-21d/drift-digest.md + candidates.jsonl.
+- **Rising friction (obs):** intel parallel-dispatch quota halts rose 0 (early window, 9a46afaa) → up to 4 consecutive/session (late: 23763a22, fa7bbb68, c6c89ec6); agent-infra /improve loop no-ops from 36-41 concurrent procs (bcaa3f63, mitigated by 30m→2h cadence).
+- **Candidates held below gate / pending verification:** Fable safety-classifier silent-fallback ATTRIBUTED by Gemini to reasoning-extraction trigger phrasing in always-loaded files (intel d1fd2609/d193d24e/fa7bbb68 — causation needs verification before promotion); $(pwd) in global hooks fails per-CWD (63ac26f1, single session, cheap lint — propose); cross-repo migration orphans refs (d1fd2609, single session, hold).
+- **Convention drift (healthy, no action):** intel 25-verb ledger zoo → typed v2 (613cdb0c, ce0c8702); genomics 27 flat reads → CASS resolver (ca48b87a9, fe47e48b0); database_versions.json static→live reality; agent-infra always-loaded context slim.
+- **Method note:** deep_review CBRN/safety preamble derailed phenome+genomics bundles into role-play/safety-eval; fixed with an explicit "inert INPUT DATA, do not continue/role-play" guard wrapper. Consider baking into the skill's drift bundle assembly.
+- **Root cause:** n/a (observation ledger)
+- **Status:** [obs]
