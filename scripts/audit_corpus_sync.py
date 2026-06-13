@@ -459,7 +459,11 @@ def parse_health_section(corpus_store) -> dict[str, Any]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Audit verdicts ↔ corpus annotations drift")
     parser.add_argument("--json", action="store_true",
-                        help="Emit JSON; non-zero exit on drift")
+                        help="Emit JSON (drift is reported in drift_total, not via exit code)")
+    parser.add_argument("--strict", action="store_true",
+                        help="Exit non-zero when drift is detected (CI/gate opt-in). Default "
+                             "(and the launchd job): drift exits 0 and is reported in drift_total; "
+                             "only fatal execution failures exit non-zero.")
     parser.add_argument("--verbose", action="store_true",
                         help="List individual drifted verdict_ids")
     parser.add_argument("--drain-only", action="store_true",
@@ -577,7 +581,13 @@ def main(argv: list[str] | None = None) -> int:
                 for d in rel["drift_orphan_relations"][:20]:
                     print(f"  orphan-rel   {d['repo']}/{d['home_id']}")
 
-    return 1 if (report["drift_total"] + report["relations"]["relation_drift_total"]) > 0 else 0
+    # Drift is a SEMANTIC report state (annotations need triage), NOT an execution
+    # failure — so it does not set a failing exit code by default. The launchd job read
+    # exit-1-on-drift as a process crash, producing a standing false-red across sessions
+    # (improvement-log EXIT-CODE-AS-REPORT-STATE, 3-session confirmed). Opt into CI-gate
+    # semantics with --strict. Fatal failures already returned 2 above.
+    drift = report["drift_total"] + report["relations"]["relation_drift_total"]
+    return 1 if (args.strict and drift > 0) else 0
 
 
 if __name__ == "__main__":
