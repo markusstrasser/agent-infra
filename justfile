@@ -603,7 +603,7 @@ freshness:
     row "vendor-docs"       "docs/vendor/*.json"               2
     row "binary-extract"    "research/binary-extracts/*.md"    7
     row "trending-scout"    "research/trending-scout-*.md"     2
-    row "agent-infra-sweep" "research/*agent-infra-sweep*.md"  3
+    row "agent-infra-sweep" "research/*sweep*.md"              3
 
 # ── Git ────────────────────────────────────────────────────────────
 
