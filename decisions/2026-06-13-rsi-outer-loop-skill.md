@@ -249,8 +249,36 @@ stated Plan B was "the full stuff." Not silently resolving this — it is the us
 - The action×autonomy matrix collapses to one differing field across repos → ship **#1** (skill+mode).
 - A 6th regime appears outside the four operating points → reopen the parameterization.
 
+## Phase 1 outcome — BUILT + PROVEN (2026-06-13, skills@54707da)
+
+The skill is built and the executability proof passed. Shipped in `~/Projects/skills/outer-loop/`
+(4 commits, `08e8654`→`54707da`): `SKILL.md` (policy), `references/loop-contract.md` (typed
+`LOOP.md` schema), `references/ledger-schema.sql` (canonical generic schema + `predicted_score` +
+`v_calibration`), `scripts/route.py` (the deterministic autonomy router — 6 safety rules as CODE),
+`scripts/lint_ledger_conformance.py` (field-map-aware drift guard), `references/examples/hutter-LOOP.md`
+(first instance), `tests/test_route_trace_equivalence.py` (the proof).
+
+**Proof:** 10/10 trace-equivalence scenarios reproduce the OUTER-LOOP/eval.py oracle; conformance
+linter PASSES against hutter's **live** `experiments` schema with **zero hutter mutation** (every
+canonical field mapped to its compression column). A blind fresh-eyes review (1,800-combo router
+sweep) confirmed the two RSI-critical fail-closed invariants hold under brute force and the test's
+oracle is independently anchored in hutter's code (not circular); it surfaced one latent gap
+(errored-accept→reject vs fail_closed) now hardened.
+
+**Two design locks the probe-the-write forced** (folded into the build, not the original draft):
+1. **Generic-core schema + per-repo `field_map`**, never forced column renames — hutter conforms today.
+2. **`gate_version` is recommended-not-required** — clean deterministic gates defeat silent
+   gate-gaming structurally, so the audit field is load-bearing only in soft-gate regimes.
+
+**Scoping tightening:** Phase 1 wrote ONLY to the skills repo (read hutter for ground truth + oracle).
+Planting the contract into hutter + archiving `OUTER-LOOP.md` is Phase 2 (archive-then-delete).
+
 ## Deferred / open (tracker)
-- Skill name: `outer-loop` (default) vs `rsi-loop`. | Ledger home: schema-file+linter (default) vs module.
-- PACE adoption: deferred to measured false-commit need. | intel/genomics consumed-gate: staged dry-run→enforce.
-- arc-agi: promoted to Phase-0/1 design probe (clean-expensive is the hardest schema test). 
-- `/improve maintain` migration: after burn-in elsewhere + independent review (may not self-authorize).
+- ~~Skill name: `outer-loop` vs `rsi-loop`~~ → **RESOLVED: `outer-loop`** (built). | ~~Ledger home:
+  schema-file+linter vs module~~ → **RESOLVED: schema-file + conformance linter** (built, field-map-aware).
+- PACE adoption: deferred to measured false-commit need (out of critical path). | intel/genomics
+  consumed-gate: staged dry-run→enforce (Phase 2).
+- Global skill symlink (`~/.claude/skills/outer-loop`): **deferred to Phase 2** — make-discoverable is
+  a deploy step; Phase 1 is build+prove only (zero cross-project blast).
+- arc-agi clean-expensive contract: re-probe its ledger writer when it lands (Phase-0 used the design doc).
+- `/improve maintain` migration: Phase 3, after burn-in elsewhere + independent review (may not self-authorize).
