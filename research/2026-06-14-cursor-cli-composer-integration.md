@@ -142,26 +142,34 @@ Three benchmarks, all reusing existing multi-model baselines, Composer dispatche
 | Benchmark | Task | Composer result | vs frontier baselines |
 |---|---|---|---|
 | cross_lab_review | injected-defect code review | 11/11 clean catches | **= frontier** (Opus/GPT/Gemini all 11/12) — saturated |
-| extraction_bakeoff **phenome** | biomedical, HARD byte-exact quote contract | 100% faithful, 100% quote-present, 52% recall, **9% spurious**, yield 11 | **solid/disciplined** — clean, mid recall |
-| extraction_bakeoff **intel** | financial, SOFT paraphrase, no verbatim anchor | faith **1.74**/3 (4th of 5), **69 claims / 24 unsupported** | **weak** — over-extracts, gpt-5.3 wins at 2.47 |
+| extraction_bakeoff **phenome** | biomedical, HARD byte-exact quote contract | 100% faithful; abca1 **96%** / abcg2 **82%** recall, 9% spurious; diekstra reasoned `[]` (correct drop) | **strong + most contract-faithful** (see correction) |
+| extraction_bakeoff **intel** | financial, SOFT paraphrase, no verbatim anchor | faith 1.47/1.38/**2.36** (opus, doc-variable), over-extracts (69 claims, 24–45 unsupported by judge) | **over-extracts under a loose spec** |
 
-**Thesis — Composer is CONTRACT-GATED.** Same model, opposite behavior: with a hard
-checkable contract (byte-exact quotes, schema, tests, a grader) it's competitive and
-clean (9% spurious on phenome); with paraphrase freedom it over-generates unsupported
-claims (35% on intel). It's a **high-recall, high-volume generator that needs an
-external verifier to stay precise** — gpt-5.3/gpt-5.5 self-restrain, Composer doesn't.
-Matches its design (Kimi-K2.5 base, coding-throughput tuned, no reasoning-effort tier)
-and the cross_lab_review enumerate-and-hedge tendency.
+> **Trace-audit correction (2026-06-14):** the first-pass aggregates ("52% mid-pack recall",
+> "needs a verifier because sloppy") were WRONG — corrected by reading traces. The phenome
+> "52%" is a metric artifact: composer scored 0/33 on diekstra by correctly returning `[]`
+> (the paper is methodology → the contract says DROP), while gpt-5.5/the opus gold extracted
+> drop-class methodology claims (contract violation). Composer was the ONLY contract-faithful
+> model there. Full audit: `evals/extraction_bakeoff/COMPOSER_ARM_RESULTS.md § Spot-check`.
 
-**ROUTE TO Composer:** verifier-bound work where its yield is an asset and a contract
-catches over-generation — code review (as a $-cheap third lineage), byte-exact/schema
-extraction, anything with tests or a grader downstream. **DON'T ROUTE:** open/paraphrase
-generation with no anchor, hard reasoning/math/novel design (untested, but the
-cheap-coding-model prior says skip), latency- or cost-sensitive high volume (slower than
-every API arm; usage-metered). **It beats no incumbent on its own track** — situational
-tool, not a new default. Hard-reasoning axis remains unmeasured (no baseline-bearing
-reasoning benchmark in evals; critique_replay is the harder-review candidate but its
-runner is a stub with no baselines).
+**Corrected thesis — Composer is a literal CONTRACT-FOLLOWER (does what you SAY, not what you
+MEANT).** Tight, mechanically-checkable spec (byte-exact quotes, explicit drop/keep rules) →
+it follows it with higher fidelity than the frontier models (100% byte-exact; only model to
+drop diekstra methodology). Loose/underspecified spec (intel) → it extracts maximally,
+including source-unsupported claims, more than gpt-5.3/5.5. The "needs a verifier" need is for
+when YOUR contract is underspecified, not because the model is inherently sloppy. Consistent
+with its design (Kimi-K2.5 base, coding-throughput tuned) and the cross_lab_review hedge.
+
+**ROUTE TO Composer:** work with a tight, mechanically-checkable contract — code review (cheap
+third lineage), byte-exact/schema extraction with explicit rules, anything with tests/a grader.
+It out-follows frontier on strict specs. **DON'T ROUTE (or tighten the spec first):**
+open/loose/paraphrase generation (it over-extracts), latency-/cost-sensitive volume (slower
+through our agent transport, usage-metered), hard reasoning/math/novel design (untested;
+cheap-coding-model prior says skip). Expect occasional reasoned-empty output on out-of-scope
+docs — check for it. **Beats no incumbent as a default** — situational, picked when
+contract-fidelity matters more than throughput/cost. Caveats: N=3 docs/track, judges split on
+intel (24 vs 45 unsupported) → directional, not verdict. Hard-reasoning axis unmeasured (no
+baseline-bearing reasoning benchmark in evals).
 
 ## Applied to the integration
 - llmx `cursor` transport uses `--output-format text` + exit-code detection (sufficient per the error-path probe). If we later want token telemetry through llmx, switch the cursor branch to `json` and parse `result`/`usage`.
