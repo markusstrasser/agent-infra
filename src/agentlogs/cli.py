@@ -161,8 +161,15 @@ def cmd_index(args) -> int:
 
     vendors = args.vendor or ["claude", "codex", "gemini", "kimi"]
 
-    def _run_all() -> int:
+    def _run_all(reap: bool = False) -> int:
         db = connect(_resolve_db_path(args))
+        if reap:
+            # Under the exclusive lock, any 'running' row is a dead holder from a
+            # prior crash/hard-deadline exit — finalize it so it stops tripping
+            # doctor's stuck-holder warning.
+            reaped = ix.reap_orphaned_runs(db)
+            if reaped:
+                print(f"[reap] finalized {reaped} orphaned 'running' indexer_runs row(s)")
         bulk = bool(getattr(args, "bulk", False))
         if bulk:
             # Drop FTS triggers — bulk-load mode rebuilds at the end.
@@ -268,7 +275,7 @@ def cmd_index(args) -> int:
         return _run_all()
     try:
         with indexer_lock(AGENTLOGS_LOCK, timeout_s=30.0):
-            return _run_all()
+            return _run_all(reap=True)
     except IndexerLockBusy:
         print("another indexer is running; exiting cleanly", file=sys.stderr)
         return 0

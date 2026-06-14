@@ -588,6 +588,27 @@ def _finish_indexer_run(db, run_id: int, stats: IndexerStats, error: Exception |
     )
 
 
+def reap_orphaned_runs(db: sqlite3.Connection) -> int:
+    """Finalize stale 'running' indexer_runs rows as orphaned errors. Returns count.
+
+    Safe ONLY under the exclusive indexer lock: holding the lock means no other
+    indexer is alive, so every 'running' row is a dead holder from a prior crash
+    or the SIGALRM hard-deadline _os._exit(75) — which releases the flock but
+    cannot finalize its row. Left unreaped they sit 'running' forever and trip
+    doctor's stuck-holder warning, training everyone to ignore the one time it
+    is a live hang. (Witnessed: the Codex-went-dark 06-08→06-12 window left 65.)
+    """
+    cur = db.execute(
+        "UPDATE indexer_runs SET status='error', ended_at=?, "
+        "error_class='OrphanedRun', "
+        "error_message='reaped: running row with no live lock holder "
+        "(prior crash or hard-deadline exit)' "
+        "WHERE status='running'",
+        (_utc_now(),),
+    )
+    return cur.rowcount
+
+
 # ---------------------------------------------------------------------------
 # Top-level ingest
 # ---------------------------------------------------------------------------

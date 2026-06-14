@@ -39,6 +39,28 @@ def test_tool_calls_has_no_result_json(tmp_path: Path) -> None:
     db.close()
 
 
+def test_reap_orphaned_runs_finalizes_running_rows(tmp_path: Path) -> None:
+    """Dead-holder 'running' indexer_runs rows get finalized; terminal rows untouched."""
+    db = agentlogs.connect(tmp_path / "new.db")
+    db.execute("INSERT INTO indexer_runs (started_at, vendor, status) "
+               "VALUES ('2026-06-08T00:00:00Z', 'claude', 'running')")
+    db.execute("INSERT INTO indexer_runs (started_at, vendor, status) "
+               "VALUES ('2026-06-09T00:00:00Z', 'codex', 'running')")
+    db.execute("INSERT INTO indexer_runs (started_at, ended_at, vendor, status) "
+               "VALUES ('2026-06-10T00:00:00Z', '2026-06-10T00:01:00Z', 'gemini', 'success')")
+
+    assert ix.reap_orphaned_runs(db) == 2
+    statuses = {r[0]: r[1] for r in db.execute("SELECT vendor, status FROM indexer_runs")}
+    assert statuses == {"claude": "error", "codex": "error", "gemini": "success"}
+    reaped = db.execute(
+        "SELECT COUNT(*) FROM indexer_runs WHERE error_class='OrphanedRun' AND ended_at IS NOT NULL"
+    ).fetchone()[0]
+    assert reaped == 2
+    # Idempotent: nothing left to reap on a second pass.
+    assert ix.reap_orphaned_runs(db) == 0
+    db.close()
+
+
 def test_runs_has_token_columns(tmp_path: Path) -> None:
     """Phase 0 refinement: token counts promoted to structured columns."""
     db = agentlogs.connect(tmp_path / "new.db")
