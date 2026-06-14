@@ -151,3 +151,17 @@ against git semantics + the quantitative grounding (203.8 commits/day → 2.4% l
    vs PATH-wrapped `git` (prevention-first, catches `--no-verify`, more invasive).** Gemini leaned
    PATH-wrap; GPT leaned receipt-audit. Recommend: receipt-audit + hooks first; PATH-wrap as optional
    later hardening.
+
+### Forks resolved (2026-06-14, user) — status ACCEPTED
+- **Axis 1: ENFORCE worktree-per-session.** Isolates the mutation phase; also makes ANY commit
+  (gateway or raw) race-safe — each worktree has its own index, so a raw `--no-verify` commit can't
+  race a peer's index. The isolation makes the escape hatch (below) safe.
+- **Axis 3: perimeter = VISIBILITY, not prevention. NO PATH-wrap.** Threat model is COOPERATIVE
+  agents (both models flagged it; user confirmed "agents don't go rogue"). `--no-verify` / raw commit
+  stays a FIRST-CLASS, deliberate escape hatch — flexibility preserved. The receipt-audit's job is
+  ATTRIBUTION (gateway-commit vs intended override) so a bypass is never SILENT — consistent with
+  "don't *silently* route around guardrails" (a deliberate, logged override is fine). Tiered: quiet
+  attribution for ordinary overrides; a LOUD audit flag only when a bypass touches the irreversible
+  category (protected-paths/append-only). The gateway is the good DEFAULT, not the only path; its
+  value never depended on blocking bypass.
+- **Next:** Phase 3 build plan (grounded probes) → implementation across repos.
