@@ -88,3 +88,27 @@ labeled screen; it is never acceptable as a silent substitute for the gate.
 ## Supersedes
 None. Generalizes `2026-05-28-verify-against-ground-truth-not-model-text` (which remains the
 canonical record for the model-text-as-completion-verifier face and its hook layer).
+
+## Revisions
+- **2026-06-14 — fifth face: clobberable-identity proxy (this record's "Revisit if" fired).**
+  A long single-operator session ran beside 3+ concurrent peer agent-infra sessions on one
+  checkout. Its friction was almost entirely P8, each instance caught by the human (= supervision
+  load, the anti-objective) — and each was a clobberable/estimated proxy standing in for an
+  available deterministic principal: (1) a subagent audit reported **chars as tokens** (modal-dx
+  "9.4k" vs the real 2,335 from `context-budget.py`); (2) audit recs were **stale on state**
+  (modal-dx→skill + intel glob already done — `git log`/the live file was truth); (3) a cross-repo
+  apply-subagent's **worktree branched stale `origin/main`** (23 behind the target HEAD); (4) the
+  Stop-hook auto-checkpoint could fall back to the **clobberable `current-session-id`** for file
+  ownership and committed a peer's unattributed output.
+- **Boundary-local fix that paid (#4):** skills@f12a1cd — the auto-checkpoint now fails CLOSED when
+  a ledger producer exists but this session's ledger is empty (the clobber-race), surfacing
+  unattributed files instead of sweeping them. #1/#2 → dispatch discipline (measurement subagents
+  return judgment; the coordinator computes the numbers from the tool, never the subagent's
+  estimate). #3 → cross-repo apply-subagents edit the live checkout, never `isolation:worktree`.
+  No new GLOBAL meta hook — consistent with this record (fix at the boundary where the
+  identity/data plane lives).
+- **Generative framing — "principal-by-default":** every clobberable/estimated proxy has a cheap
+  deterministic principal available (the tool's number, `git`, the target HEAD, the per-session
+  ledger). Action rule: before surfacing a number / state / ownership claim, route it through the
+  principal — the human catching a proxy is supervision the architecture should have spent. The
+  actionable restatement of `epistemic_discipline` #8.
