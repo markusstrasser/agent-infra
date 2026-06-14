@@ -123,3 +123,20 @@ by default" — capping it is a no-op). Caught by reading the live tool schema (
 2000, and `context-mode`/MCP+ productize the general truncate-spill problem — so the exa fix is
 cheaper than a custom engine, and the general case must dependency-eval context-mode before any
 build. Verdicts unchanged; only the exa build spec sharpened.
+
+**2026-06-14 — exa-cap pilot BUILT + context-mode dependency-eval done.**
+- Built `scripts/pretool_exa_cap.py` + wired in `.claude/settings.json` (agent-infra-local pilot,
+  Claude-only). Verified on 5 cases. `EXA_TEXT_MAX_CHARS` env-tunable (default 12000). Commit landed.
+- **context-mode (mksglu/context-mode) → SKIP adoption** (cloned to best/, evaluated). It DOES work
+  on CC — it integrates via hooks (75 PreToolUse / 40 PostToolUse across 8 platforms + openclaw
+  plugin) and dodges the PostToolUse-can't-shrink ceiling exactly like our exa-cap (PreToolUse
+  routing-block, not PostToolUse). So the ceiling is NOT a blocker for the hook-routing approach —
+  useful confirmation. But adoption is wrong for us: (a) massive overlap/conflict with our existing
+  stack (it ships its own SQLite session store + SessionStart/Stop/PreCompact hooks that would fight
+  agentlogs.db + our hooks); (b) sandbox model changes the workflow (Bash subprocesses don't persist
+  to host; route execution through `ctx_execute`); (c) ELv2 license (source-available, not OSI);
+  (d) credibility red flags (18 fabricated `href="#"` enterprise-adoption logos; inflated stats;
+  single maintainer). **Pattern-extract verdict:** the PreToolUse-routing mechanism is already
+  validated + adopted (exa-cap); `src/truncate.ts` + FTS5-spill is the reference IF the long-tail
+  (Read 15M / browser 6.7M) ever justifies a general truncator. Don't build that now; don't adopt
+  context-mode.
