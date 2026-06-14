@@ -20,7 +20,7 @@ if [ ! -d "$EMB" ]; then
 fi
 if uv run --project "$EMB" python3 "$REPO/scripts/blindspot_miner.py" --days 7 >/dev/null 2>&1; then
   if [ -f "$REPO/.claude/blindspot-digest.md" ]; then
-    echo "[blindspot-miner] wrote digest: $(grep -c '^- ' "$REPO/.claude/blindspot-digest.md") flag(s)"
+    echo "[blindspot-miner] wrote digest: $(grep -cE '^- `' "$REPO/.claude/blindspot-digest.md") flag(s)"
   else
     echo "[blindspot-miner] no flags — clean window."
   fi
