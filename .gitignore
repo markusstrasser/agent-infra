@@ -87,3 +87,5 @@ artifacts/fable_throttle_probe.jsonl
 # Drift sentinel digest (regenerated daily; auto-clears when green)
 .claude/drift-digest.md
 PRIORITIES.md
+# Blindspot miner digest (regenerated daily; auto-clears when no flags)
+.claude/blindspot-digest.md

@@ -144,6 +144,13 @@ orphan-check *args:
 drift-sentinel:
     bash scripts/drift-sentinel.sh
 
+# RSI blindspot miner: emb-contrastive over recent sessions surfaces the moments the
+# human had to catch a loop miss (→ candidate detectors). Standing: com.agent-infra.
+# blindspot-miner (daily 06:50, runs in emb's env). Run manually here.
+[group('health')]
+blindspot:
+    bash scripts/blindspot-miner.sh
+
 # Orphaned-FINDINGS ratchet (report-only): flag trending-scout memos whose
 # adopt-grade verdicts never reached improvement-log (the loop's read path).
 # Sibling to orphan-check, findings axis. --all for full history; promote live
