@@ -63,6 +63,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-06-14-cursor-cli-composer-integration.md` | Cursor CLI (`cursor-agent`) + Composer 2.5 — Headless Integration Verification | TODO |
 | `2026-06-14-eval-methodology-canon.md` | Primary-source eval-method canon — Miller error-bars/stats (SE+n, clustered SE 3×, paired compare, power/MDE, no-temperature), Biderman reproducibility (pin-harness, format≠correctness, ≥2 seeds), BetterBench 46-criterion checklist (FLOOR not cert), LiveCodeBench contamination (date-tag + cutoff-step detector); 16-item pre-flight checklist | Designing/hardening ANY decision-grade eval; eval skill; choosing N/power/SE/seeds; contamination defense; benchmark-quality gating; before reporting model-comparison numbers |
 | `2026-06-14-git-janitor-subagent-verdict.md` | Custom subagents current state + git-janitor-subagent verdict | TODO |
+| `2026-06-14-inference-compute-pareto-frontier.md` | Inference-Compute Pareto Frontier: model × iteration × scaffold vs (quality, ... | TODO |
 | `2026-06-14-leverage-hunt-rsi-system.md` | Leverage Hunt — whole agent-infra / cross-project RSI system | TODO |
 | `2026-06-14-phenome-substrate-identity-boundary.md` | phenome vs substrate vs corpus — the identity boundary (2026-06-14) | TODO |
 | `2026-06-14-subagent-offload-empirics-and-verdict.md` | Subagent offload for the main Opus agent — empirics + verdict | TODO |
