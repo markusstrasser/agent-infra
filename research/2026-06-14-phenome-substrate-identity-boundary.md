@@ -84,3 +84,37 @@ agent-emulation layer, daily-output end state, the "verify-not-synthesize"
 Open fork for Markus: does phenome keep the **OSS-plugin / Synthoria donor**
 distribution scope, or does that move entirely to genome-toolkit + substrate
 (the L2 distribution path), leaving phenome purely personal?
+
+## Revision 2026-06-14 — the "purely personal" resolution above is WRONG
+
+Markus pushed back ("is it not in the ADRs / most recent sessions?") and he was
+right. The resolution above over-corrected by conflating **package extraction**
+with **identity hand-off**. Checking the most recent ADRs and 06-13 sessions:
+
+- **The claim graph DATA lives in phenome** — `phenome/indexed/claims.duckdb`,
+  `phenome/dist/claims_public.duckdb`. `claimcore` (in `substrate`) is only the
+  *lib*: "evidence over an **injected** corpus." phenome holds the graph + runs
+  the lib over it.
+- **ADRs 0008/0009/0010 (all 2026-06-13) frame the graph as UNIVERSAL + a
+  verifier instrument, in phenome:** 0008 "phenome's claim graph … verifies the
+  answer path, never joins it"; 0009 "a *universal* KG derived from all
+  modalities (experience/sensor/web/sensorium)"; 0010 "research agent enriches
+  the claim-store KG overnight, staged→verified→promoted."
+- **Markus's own 06-13 words:** "Universal KG, derived from multimodal,
+  experience/data/web/sensorium … /decide" and "research agent running overnight
+  to enrich the KG."
+
+So the 2026-06-10 extraction moved the **reusable package code** (corpus-core,
+claimcore) into the `substrate` L2 repo — **not** the claim graph, the verifier,
+the enrichment, or the identity. Per ADR 0002 the axis is **verify vs synthesize,
+NOT personal vs general**, so a universal/general KG in phenome is *by design*.
+
+**Corrected identity:** phenome has **two co-core identities** — (1) the
+verification substrate + universal claim-graph instrument (hosts the graph, the
+refusal oracle, the overnight enrichment), and (2) the personal phenotype
+self-knowledge + agent-emulation vertical. `substrate` = the consumed lib code;
+`corpus` = general source data; `genome-toolkit`/`_synthoria-donor` = the
+distribution paths that *did* leave. The original GOALS.md "verification
+substrate (the core)" line was closer to right than my first rewrite; the genuine
+correction is only that the *reusable packaging* (not the instrument) now lives
+in `substrate`. phenome/docs/GOALS.md rewritten accordingly 2026-06-14.
