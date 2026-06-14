@@ -77,6 +77,12 @@ OCCASIONAL_MANUAL = {
     "dispatch-with-stub.py", "parallel_mcp.py", "parallel_search.py",
     # one-time characterization probes (kept as occasional-manual per their vetoes)
     "tool_hallucination_probe.py", "prompt-archaeology.py",
+    # data-exhaust producer — on-demand (--today/--days N, no schedule). Its output
+    # artifacts/epistemic-metrics.jsonl has 8 live consumers (dashboard, claims-reader,
+    # trace-faithfulness, safe-lite-eval, observe/session-shape, 2 advisory hooks). The
+    # 0-invocations/90d proxy flags it as orphan, but deleting it strands the consumers:
+    # this is the producer-of-consumed-static-output false-positive class, not dead infra.
+    "session-features.py",
 }
 
 # Pure library / helper modules and the inventory generators themselves — not
