@@ -3726,3 +3726,20 @@ A source that fails the watchdog (e.g. the oversized `~/.gemini/tmp/{intel,genom
 - **Lesson:** gross un-routed (31) vastly overstated live backlog (~0) — adopt-grade CC findings were absorbed by a PARALLEL consumer (claude-code-native-features-deferred.md) the harvest path didn't know about. Fix is systematic consumption (below), not manual re-verification.
 - **Root cause:** generation-without-consumption (decisions/2026-06-04-consumption-over-autonomy.md Finding 1) — harvest read-path excluded research/ verdict-memos.
 - **Status:** [x] reconciled
+
+### [2026-06-14] Supervision Audit (7-day window)
+- **Period:** 7 days, 431 sessions, 3697 user messages. Wasted-supervision (deterministic): 33 (0.9%) — well under the 15% target; classifier is mature (continuation artifacts already excluded).
+- **Top correction class:** `repeat-instruction` (10/7d) — heterogeneous topics across 7 sessions (login state, model-fallback UI, goal updates, download target). No single automatable root for the class.
+- **Two extractable sub-items:**
+  - *Fable-dumbing probe* (agent-infra c54269ad, "I told you three times"): RESOLVED — capability shipped as `scripts/fable_throttle_probe.py` (commit 76e36b4). Waste was 3-turn deferral, not an open gap.
+  - *In-session search misses existing docs* (phenome 351a2b7f): the real promotable finding (below).
+
+### [2026-06-14] [TOKEN WASTE / INVENTORY]: In-session search ignores already-present docs
+- **Session:** phenome 351a2b7f-757 ("why is your search so bad... first you need to be prompted to look at the docs we already have... then two prompts to find the obvious")
+- **Evidence:** User needed 2 prompts to get the agent to consult docs that already existed in-repo before searching/researching directly.
+- **Failure mode:** Inventory/docs-first failure class. 2nd occurrence — 1st was improvement-log.md:2163 (genomics, 3 redundant research subagents).
+- **Coverage gap:** `pretool-inventory-dispatch.py` (c5c98bf) externalizes git-log state ONLY on `Agent`/subagent dispatch. It does NOT fire on the agent's own in-session Grep/Read/research-direct search. This correction is that uncovered surface.
+- **Root cause:** skill-coverage — the externalization principle was applied to dispatch but not to first-party search.
+- **Proposed fix:** [hook] extend inventory externalization to first-party search, OR a docs-index additionalContext on session/topic start. NOTE: shared infra (global settings) → needs human sign-off; search-burst noise is a known concern (hook docstring: 34k FTS hits → needs query-scoping before synchronous use). NOT built autonomously.
+- **Status:** [obs] (behavioral, recurrence=2)
+- **Status:** [ ] proposed (first-party-search inventory externalization — sign-off gated)
