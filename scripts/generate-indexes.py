@@ -164,8 +164,15 @@ def check_codebase_map(fix: bool) -> list[str]:
     if not cmap.exists() or not cmap_script.exists():
         return issues
 
-    # Count actual .py files in scripts/
-    actual_on_disk = len(list((ROOT / "scripts").rglob("*.py")))
+    # Count files the SAME way the generator does — its gather skips vendored
+    # sub-venvs (e.g. scripts/corpus, 2700+ .py). A naive rglob over-counts and
+    # permanently false-flags staleness. Single source of truth = the generator.
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("_cmap", cmap_script)
+    assert spec and spec.loader
+    _cmap = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(_cmap)
+    actual_on_disk = len(_cmap.gather_all_files([ROOT / "scripts"]))
 
     text = cmap.read_text()
     m = re.search(r'# (\d+) Python files', text)
