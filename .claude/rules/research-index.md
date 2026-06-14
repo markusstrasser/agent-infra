@@ -60,7 +60,9 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-06-13-user-pressure-sycophancy-current-state.md` | User-Pressure Sycophancy — Current State (June 2026) | TODO |
 | `2026-06-14-benchmark-leaderboard-methodology-critique.md` | Benchmark & Leaderboard Methodology Critique | TODO |
 | `2026-06-14-composer-2.5-external-benchmarks.md` | Composer 2.5 — External Benchmarks vs Our Internal Findings | TODO |
+| `2026-06-14-critique-decide-eval-strategy.md` | Critique / Decide Eval Strategy | TODO |
 | `2026-06-14-cursor-cli-composer-integration.md` | Cursor CLI (`cursor-agent`) + Composer 2.5 — Headless Integration Verification | TODO |
+| `2026-06-14-decide-critique-cheap-gates.md` | Decide/Critique — cheap gates + usage validation | TODO |
 | `2026-06-14-eval-methodology-canon.md` | Primary-source eval-method canon — Miller error-bars/stats (SE+n, clustered SE 3×, paired compare, power/MDE, no-temperature), Biderman reproducibility (pin-harness, format≠correctness, ≥2 seeds), BetterBench 46-criterion checklist (FLOOR not cert), LiveCodeBench contamination (date-tag + cutoff-step detector); 16-item pre-flight checklist | Designing/hardening ANY decision-grade eval; eval skill; choosing N/power/SE/seeds; contamination defense; benchmark-quality gating; before reporting model-comparison numbers |
 | `2026-06-14-git-janitor-subagent-verdict.md` | Custom subagents current state + git-janitor-subagent verdict | TODO |
 | `2026-06-14-inference-compute-pareto-frontier.md` | Inference-Compute Pareto Frontier: model × iteration × scaffold vs (quality, ... | TODO |
