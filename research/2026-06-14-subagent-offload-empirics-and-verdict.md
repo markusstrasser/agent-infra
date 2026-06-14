@@ -91,3 +91,26 @@ delegable here is either already delegated, core task work, or better handled by
 ## Artifacts
 - Critique: `.model-review/2026-06-14-subagent-offload-60b99c/` (31 findings, 1 cross-model).
 - Context packet: `.model-review/subagent-offload-context.md`.
+
+## Revisions
+**2026-06-14 (probe of the genomics status tools — root cause + "already exists"):**
+Ran a read-only probe (`/tmp/probe_genomics_status.py`) calling `pipeline_status`/`sample_state`
+directly. Falsified BOTH hypothesized root causes:
+- NOT missing-modal / env-isolation (Gemini) — `modal` imports fine in the genomics venv and the
+  server runs `uv run --directory /Users/alien/Projects/genomics …`; it *reaches* Modal (that's how
+  it gets rate-limited).
+- NOT a status-encoding artifact. **Real cause:** `pipeline_status(sample)` →
+  `view_sample_completion` does a LIVE crawl of **258 Modal stages** (per-stage `VolumeListFiles`),
+  hits Modal API rate limits (5s→15s→30s backoffs), and **times out** — one call didn't finish in
+  120s. agentlogs "100% error" = TIMEOUTS.
+- **The fix already exists and is ACTIVE.** genomics M2 "stage-freshness primitive"
+  (`docs/decisions/2026-06-14-stage-freshness-primitive.md`, `.claude/plans/m2-freshness-build.md`)
+  is building exactly the per-stage cache that kills the 258-stage volume crawl ("cache is not
+  optional", "no new volume calls"). Commit `442bc035d` (M4 per-stage cache key) landed DURING this
+  probe → live concurrent workstream. **Verdict: do NOT build a separate `state.json` populator —
+  it would duplicate/collide with M2 (build-then-undo).** The improvement-log `[ ]` is superseded.
+- **Residual gap worth handing to the M2 owner:** M2 repoints `execution_plan` (dispatch) +
+  `sample_remediation` (completion) at the cached `stale()` predicate, but the MCP STATUS TOOLS the
+  agent polls (`pipeline_status`/`sample_state` in `genomics_mcp.py`) still call `view_sample_completion`
+  live — that's the 1490-calls/timeout surface from this memo. Confirm M2 (or a follow-up) routes the
+  status tools through the cache too, else the agent-facing polling stays expensive.
