@@ -182,13 +182,24 @@ _REDUNDANT_PAYLOAD_KEYS = frozenset({
     "tool_call_id",           # already in events.tool_call_id
     "seq",                    # already in events.seq
     "ts", "timestamp",        # already in events.ts
+    "results",                # verbatim tool_result array — recoverable from source JSONL via record_refs (740MB, never read)
 })
 
+# Event kinds whose payload carries zero analytical value — drop it entirely.
+# status_update = spinner text / queue-operation / remote-control banners; only ever
+# written, never read by any query/view/CLI (measured 2026-06-14: 86K rows / 360MB write-only).
+_PAYLOADLESS_KINDS = frozenset({"status_update"})
 
-def trim_payload(payload: Any) -> Any | None:
-    """Drop keys from the top-level payload dict that are redundant with
-    dedicated event columns. Return None if nothing structural remains.
+
+def trim_payload(payload: Any, kind: str | None = None) -> Any | None:
+    """Drop payload that's redundant with dedicated columns or recoverable from the
+    source JSONL (record_refs). Returns None when nothing of analytical value remains.
+
+    - For payloadless kinds (status_update), drop the whole payload — pure metadata bloat.
+    - Otherwise drop the redundant top-level keys (text/content/results/... live elsewhere).
     """
+    if kind in _PAYLOADLESS_KINDS:
+        return None
     if not isinstance(payload, dict):
         return payload
     kept = {k: v for k, v in payload.items() if k not in _REDUNDANT_PAYLOAD_KEYS}
@@ -425,7 +436,7 @@ def _upsert_event(db, row, record_ref_id, import_id):
     # line_no-based raw_key changes). Conflict target is the composite index, not
     # the PK, so re-indexing updates the event_id in place instead of failing the
     # whole vendor's transaction.
-    trimmed = trim_payload(row.payload)
+    trimmed = trim_payload(row.payload, row.kind)
     db.execute(
         """
         INSERT INTO events (
@@ -815,7 +826,7 @@ def _write_parsed(db, parsed, source_id: int, import_id: int, stats: IndexerStat
         event_rows = []
         for ev in parsed.events:
             record_ref_id = ref_map.get(ev.record_key) if ev.record_key else None
-            trimmed = trim_payload(ev.payload)
+            trimmed = trim_payload(ev.payload, ev.kind)
             event_rows.append((
                 _db_text(ev.event_id), _db_text(ev.run_id), import_id, ev.seq,
                 _db_text(ev.ts), _db_text(ev.kind),
