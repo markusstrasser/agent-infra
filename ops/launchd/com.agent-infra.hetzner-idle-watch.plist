@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.agent-infra.hetzner-idle-watch</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/alien/Projects/agent-infra/scripts/hetzner-idle-watch.sh</string>
+        <string>--notify</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/alien/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>/Users/alien</string>
+    </dict>
+    <key>WorkingDirectory</key>
+    <string>/Users/alien/Projects/agent-infra</string>
+    <!-- Twice-daily notify-only check for NON-hutter Hetzner boxes idling > 12h.
+         hutter/scripts/idle_reaper.sh deliberately skips cross-project boxes
+         (genomics sbayesrc-*), so they had no watcher and idled ~€16 once
+         (2026-06-14). Read-only; teardown is operator-gated hetzner-reap.sh.
+         Zero API quota (local hcloud CLI). -->
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict><key>Hour</key><integer>9</integer><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Hour</key><integer>21</integer><key>Minute</key><integer>0</integer></dict>
+    </array>
+    <key>StandardOutPath</key>
+    <string>/Users/alien/.claude/logs/hetzner-idle-watch.out</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/alien/.claude/logs/hetzner-idle-watch.err</string>
+    <key>LowPriorityIO</key>
+    <true/>
+    <key>Nice</key>
+    <integer>5</integer>
+</dict>
+</plist>
