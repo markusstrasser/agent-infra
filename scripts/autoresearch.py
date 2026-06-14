@@ -18,7 +18,6 @@ import hashlib
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 import textwrap
@@ -422,18 +421,26 @@ def write_generalization_discard(
     log: ExperimentLog,
     experiment_id: int,
     check_name: str,
-    main_value: float,
-    check_value: float,
+    main_value: float | None,
+    check_value: float | None,
     direction: str,
     description: str,
 ):
-    """Write an explanatory artifact for a retroactive generalization discard."""
+    """Write an explanatory artifact for a retroactive generalization discard.
+
+    In practice both metrics are float here — the only caller reaches this via
+    generalization_worse(), which short-circuits to False when either is None.
+    The signature accepts None (matching generalization_worse) so a future caller
+    can't crash on the format; None renders as "n/a".
+    """
+    def _fmt(v: float | None) -> str:
+        return f"{v:.6f}" if v is not None else "n/a"
     reason_path = log.log_dir / f"{experiment_id:04d}_{check_name}_discard.md"
     reason_path.write_text(
         f"# {check_name.title()} Discard — Experiment #{experiment_id}\n\n"
         f"**Date:** {datetime.now(timezone.utc).isoformat()}\n"
-        f"**Main metric:** {main_value:.6f}\n"
-        f"**{check_name.title()} metric:** {check_value:.6f}\n"
+        f"**Main metric:** {_fmt(main_value)}\n"
+        f"**{check_name.title()} metric:** {_fmt(check_value)}\n"
         f"**Direction:** {direction}\n"
         f"**Description:** {description}\n\n"
         f"Retroactively discarded because {check_name} performance diverged "
@@ -792,7 +799,7 @@ def run_mutator(config: dict, worktree: Path, prompt: str) -> tuple[str, float]:
 # LEARNINGS.md management
 # ---------------------------------------------------------------------------
 
-def update_learnings(worktree: Path, log: ExperimentLog, config: dict):
+def update_learnings(worktree: Path, log: ExperimentLog):
     """Summarize recent failures into LEARNINGS.md."""
     recent = log.load_recent(50)
     discards = [
@@ -1248,7 +1255,7 @@ def run_experiment_loop(config: dict, config_path: Path, tag: str,
             # 9. Update LEARNINGS.md periodically
             if experiment_id % LEARNINGS_UPDATE_INTERVAL == 0:
                 print("[autoresearch] Updating LEARNINGS.md...")
-                update_learnings(experiment_cwd, log, config)
+                update_learnings(experiment_cwd, log)
 
             # 10. Stall detection
             if consecutive_discards >= DEFAULT_STALL_THRESHOLD:
@@ -1287,7 +1294,6 @@ def cmd_run(args):
 
 
 def cmd_results(args):
-    config = load_config(args.config)
     config_dir = Path(args.config).parent.resolve()
 
     # Find most recent run
