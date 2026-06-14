@@ -45,7 +45,7 @@ from our own git-friction audit + output-size probe.
 |---|---|---|
 | opencode subagent permission-derivation (child⊆parent) | **SKIP** | 2084 Agent dispatches ~89% read/analysis; git-friction audit shows pain is peer-session cross-sweep + `--no-verify`, not subagent over-reach; worktree-default + zero-output gate already cover code-touch. No incident history → Pre-Build #1 → don't build. |
 | opencode truncation+spill (universal) | **SKIP as-ported** | CC ceiling: PostToolUse can only *add* context, not shrink an emitted result. |
-| → narrow variant: **PreToolUse exa `contextMaxCharacters` cap** | **BUILD** | Probe: exa_advanced = 8.5M tok of >50KB results across 122 calls; `research-tool-gotchas` rule ("cap at 3000 on broad sweeps") ignored 122×. Instruction→architecture (Principle 1). Buildable via `updatedInput`. |
+| → narrow variant: **PreToolUse exa `textMaxCharacters` cap** | **BUILD** | Probe: exa_advanced = 8.5M tok of >50KB results across 122 calls; `research-tool-gotchas` rule ("cap on broad sweeps") ignored 122×. Instruction→architecture (Principle 1). Buildable via `updatedInput`. (Param corrected — see Revisions.) |
 | hermes gated curator | **RECORD, don't build** | Pattern redundant (gov.py / reclaim-rotate / drift-sentinel already do report-only + archive + dry-run). Value = the veto-reframe below. |
 | hermes negative-capture blocklist | **SKIP** | Non-problem: 3 agent-infra memory files have negative phrasing, mostly legit. |
 | refactor-mcp | **SKIP** | C#-only (fleet is Python/TS) + maintainer's BUG-REPORT.md: 78 bugs / 8 data-loss in core ops; 2 confirmed unfixed in HEAD. |
@@ -80,11 +80,31 @@ BUILD: verified the mechanism exists (`updatedInput`) rather than assuming porta
   (operator said "check history," not "skip #1" — the data drove it).
 
 ## Build spec (the one deliverable — first task on handoff)
-PreToolUse hook matching `mcp__exa__web_search_advanced_exa` (+ `web_search_exa`): if
-`contextMaxCharacters` unset or > CAP, set it to CAP via `hookSpecificOutput.updatedInput` +
-`permissionDecision:"allow"`. Open HOW (tune at build): CAP value (probe what agents currently
-pass); whether to also gate `crawling_exa`. Scope: exa is used cross-project → **shared infra →
-human-gated** before global deploy; pilot agent-infra-local first.
+PreToolUse hook matching `mcp__exa__web_search_advanced_exa`: if `textMaxCharacters` is unset
+(→ uncapped full-text extraction = the 8.5M-tok source) OR > CAP, set it to CAP via
+`hookSpecificOutput.updatedInput` + `permissionDecision:"allow"`. Optionally also clamp
+`numResults` (default 10) and, per Exa's own best-practice, nudge toward `enableHighlights` +
+`highlightsMaxCharacters` (≈10× fewer tokens than full text). NOTE: `contextMaxCharacters` (my
+original spec) is the WRONG knob — it's "not included by default," so capping it is a no-op; the
+real lever is `textMaxCharacters`. Open HOW: CAP value (OSS `exa-mcp-server` uses 2000; Exa quick-ref
+≈500, tutorial ≈5000). Scope: exa is cross-project → **shared infra → human-gated** before global
+deploy; pilot agent-infra-local first.
+
+## Prior art (Pre-Build #1 — operator-directed check, do NOT reinvent)
+- **Native lever already on our tool** (verified from the live tool schema): `textMaxCharacters`,
+  `highlightsMaxCharacters`, `numResults`. The OSS `exa-mcp-server` (~/Projects/best) hard-defaults
+  `DEFAULT_MAX_CHARACTERS: 2000` (`src/tools/config.ts:10`) — our hosted `web_search_advanced_exa`
+  does not, which is the entire gap. So the "build" is really "inject the default the OSS server
+  already ships."
+- **Exa coding-agent guide** (exa.ai/docs/reference/search-api-guide-for-coding-agents): prefer
+  `highlights` over `text` for agents (~10× token reduction); cap full text with `maxCharacters`.
+- **Productized OSS for the GENERAL problem** (Read 15M + browser 6.7M, not just exa):
+  `github.com/mksglu/context-mode` (sandboxes tool output, claims 98% reduction, SQLite+FTS5+BM25 —
+  opencode's truncate+spill, shipped) and `mcp-plus.github.io` (MCP+: `expected_info` arg pre-filters
+  before output hits context). Both are MCP-layer/sandbox tools → **dependency-eval against the
+  CC-on-top ceiling before adopting** (can they wrap our MCP servers without owning the runtime?).
+  `openai/codex#6426` tracks the same line-vs-token truncation problem. Don't build a general
+  truncation engine without evaluating context-mode first.
 
 ## Revisit if
 - A subagent-over-reach incident actually occurs (reopens #1).
@@ -94,3 +114,12 @@ human-gated** before global deploy; pilot agent-infra-local first.
 ## Supersedes
 Refines (narrows) the autobrowse auto-graduation veto — see `.claude/rules/vetoed-decisions.md`
 and `decisions/2026-05-28-autobrowse-graduation-not-built.md`. Does not overturn it.
+
+## Revisions
+**2026-06-14 — operator-directed prior-art check corrected the build spec.** (1) The exa lever
+is `textMaxCharacters` (uncapped when unset), NOT `contextMaxCharacters` (which is "not included
+by default" — capping it is a no-op). Caught by reading the live tool schema (probe-the-write).
+(2) Added Prior-art section: the native cap exists, the OSS `exa-mcp-server` already defaults it to
+2000, and `context-mode`/MCP+ productize the general truncate-spill problem — so the exa fix is
+cheaper than a custom engine, and the general case must dependency-eval context-mode before any
+build. Verdicts unchanged; only the exa build spec sharpened.
