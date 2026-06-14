@@ -150,3 +150,48 @@ Ordered by leverage. Items marked ★ are triple-sourced (Miller + Biderman + Be
 - All 4 papers read via **HTML full-text** (`curl -A Mozilla https://arxiv.org/html/{id}v1` → strip tags). **`research-mcp fetch_paper` failed on all 4 arXiv DOIs/URLs** (Sci-Hub + OA both 404) — consistent with the standing gotcha (`fetch_paper FAILS on arXiv → curl + strip`). Saved to corpus (metadata only); full text is in `/tmp/txt_{id}.txt` for this session.
 - Citation counts from S2 (Miller 87, Biderman 161, BetterBench 116, LiveCodeBench 1676). All are arXiv preprints/workshop-grade except LiveCodeBench (ICLR 2025) and BetterBench (NeurIPS 2024 D&B) — provenance ceiling B→A for the two published ones.
 - Sibling memo `2026-06-14-benchmark-leaderboard-methodology-critique.md` (concurrent session) critiques named *leaderboards*; this memo extracts the *primary-source method*. Overlap only at LiveCodeBench (they critique the instrument, I extract its design pattern).
+
+---
+
+## Item analysis (psychometric) — research → BUILT TOOL (2026-06-14)
+
+The psychometric/personnel-selection frame ("think like someone who designs IQ tests or recruits
+for NASA") applied to our evals. Prior art (evals `frontier-discrimination.md`, `benchmarking-science-2026.md`)
+documented the METHODS (IRT difficulty/discrimination, point-biserial, item-information/CAT,
+contamination-as-negative-discrimination) but left them as formulas/pseudocode — **zero built tooling**.
+The gap was architecture, not research. Built: `skills/eval/scripts/item_analysis.py` (+ tests).
+
+**Validation (the reason it exists).** Ran item analysis on the real extraction_bakeoff response
+matrix (5 models × 3 items). It **mechanically flagged `diekstra` #1-to-inspect** — the exact item
+that last session was only caught after the operator said "go look at the traces" (composer's 0/33
+was *correct*; the gold was contaminated with drop-class methodology claims). A manual trace-audit
+catch is now an automatic statistical flag. This is the consumption the build was named for.
+
+**Honest result (not overclaimed).** Absolute corrected item-total r on diekstra was only −0.06 (not
+strongly negative): composer scored 0 but gpt-5.5 — also top-ability — scored 0.81 (it *included* the
+same drop-class claims), so the two nearly cancel. The robust signal at small N is **"lowest
+discrimination + highest top-model dispersion"** (diekstra: top_disp 0.41 vs 0.09/0.15 on clean items),
+NOT "strongly negative r." The tool ranks by a composite anomaly score and labels output DIRECTIONAL
+below 8 models × 5 items — flags are leads for a trace audit, never verdicts.
+
+**The probe earned its keep by finding a bug** before the tool was committed: a 0–1 difficulty
+threshold applied to 0–3 faithfulness scores produced spurious CEILING flags on the intel track. Fix:
+normalize every score per `scale_max`. Locked by `test_scale_normalization_no_false_ceiling`.
+
+**Explore→converge (selection rationale, constitution P6).** 7 candidate mechanisms: full 2PL/3PL/4PL
+IRT · DIF (Mantel-Haenszel/logistic) · Mokken-H · Bayesian-IRT · leave-one-out influence · CTT
+discrimination · top-model dispersion. At our N (5–15 models × 3–100 items) full IRT is underpowered
+(SEs too large <20 models × <100 items — `frontier-discrimination.md`), DIF needs model-family groups +
+N. **Chose CTT discrimination + small-N-robust signals (top-dispersion, top-in-bottom)** for v1, with a
+documented **upgrade path to IRT** once an item bank is calibrated (tinyBenchmarks 2402.14992 /
+LEGO-IRT 2510.04051 — anchor-item subset → stable ability from ~3% of items).
+
+**Wired:** eval-skill Phase 4.5 (mechanizes checks #1–2, the manual outlier/gold-validity reads) +
+`pretool-eval-preflight.sh` item 9. **Criterion validity** (the NASA-recruiter half) added to the
+design phase (construct/consumer step): name the real-world outcome the score predicts (Schmidt-Hunter
+selection validity); a benchmark never checked against the downstream outcome is a vanity metric. That
+is consumption-over-autonomy with a name and a literature.
+
+**Open / deferred:** IRT param fitting (needs the item bank); DIF across model families (reasoning-heavy
+vs retrieval-heavy items) once N supports it; test-retest reliability + SEM CIs from the ≥2-seed runs the
+hook already mandates. Not built — flagged, not chased.
