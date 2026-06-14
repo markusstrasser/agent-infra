@@ -163,6 +163,14 @@ drift-sentinel:
 blindspot:
     bash scripts/blindspot-miner.sh
 
+# Pre-registered prediction ledger: `predictions list` (open/DUE/resolved),
+# `predictions resolve <id> <confirmed|refuted|partial> "<note>"`. drift-sentinel
+# surfaces DUE-and-unresolved ones daily (the resolver — a write-only log is false
+# comfort). predictions.jsonl is the append-only calibration ledger.
+[group('health')]
+predictions *args:
+    uv run python3 scripts/predictions.py {{args}}
+
 # Orphaned-FINDINGS ratchet (report-only): flag trending-scout memos whose
 # adopt-grade verdicts never reached improvement-log (the loop's read path).
 # Sibling to orphan-check, findings axis. --all for full history; promote live

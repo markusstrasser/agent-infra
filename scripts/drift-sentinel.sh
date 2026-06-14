@@ -39,6 +39,8 @@ section "Doc-vs-reality drift" \
   "uv run python3 '$REPO/scripts/orient.py' --drift" "✗"
 section "Context budget — always-loaded over ceiling" \
   "uv run python3 '$REPO/scripts/context-budget.py' --check" "OVER"
+section "Predictions DUE — resolve the verdict (confirmed/refuted)" \
+  "uv run python3 '$REPO/scripts/predictions.py' due" "DUE"
 
 if [ -s "$TMP" ]; then
   { printf '# Drift digest — %s\n' "$(date +%Y-%m-%d)"; \
