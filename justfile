@@ -37,6 +37,18 @@ agent-receipts *args:
 context-budget *args:
     uv run python3 scripts/context-budget.py {{args}}
 
+# ── Hetzner fleet (cross-project idle-spend control) ───────────────
+
+# List NON-hutter Hetzner boxes idling on the shared account + est. €
+[group('hetzner')]
+hetzner-idle:
+    bash scripts/hetzner-idle-watch.sh
+
+# Teardown ONE non-hutter box (snapshot-then-delete). DRY-RUN unless BUDGET_APPROVED=1.
+[group('hetzner')]
+hetzner-reap name *args:
+    bash scripts/hetzner-reap.sh {{name}} {{args}}
+
 # ── Health ─────────────────────────────────────────────────────────
 
 # Fast smoke test (<1m) — indexes, frontmatter, views
