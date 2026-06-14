@@ -601,6 +601,54 @@ def check_agentlogs_indexer() -> list[Check]:
     return checks
 
 
+def check_uv_tool_editables() -> list[Check]:
+    """Validate uv-tool editable installs still point at real source dirs.
+
+    A `uv tool install --editable` records the source dir in uv-receipt.toml
+    (`editable = "..."`) and in a `_editable_impl_*.pth`. When a package is
+    promoted/moved — e.g. corpus-core: agent-infra/scripts/corpus/packages ->
+    substrate/packages, the same move as evalcore — the pointer goes stale: the
+    import can half-work off a leftover copy while the CLI entry point is gone,
+    and NO launchd/import check catches it (the library still imports; only
+    invoking the CLI fails). 2026-06-14: the `corpus` CLI was dead for exactly
+    this reason and a full /improve health loop missed it — every check was
+    green because none exercised this surface. Deterministic: the recorded
+    source dir either exists or it doesn't.
+    """
+    import re
+
+    checks: list[Check] = []
+    tools_dir = Path.home() / ".local" / "share" / "uv" / "tools"
+    if not tools_dir.is_dir():
+        return checks  # no uv tools on this machine
+
+    seen: set[tuple[str, str]] = set()  # (tool, source_dir)
+    for tool_dir in sorted(tools_dir.iterdir()):
+        if not tool_dir.is_dir():
+            continue
+        tool = tool_dir.name
+        receipt = tool_dir / "uv-receipt.toml"
+        if receipt.exists():
+            for m in re.finditer(r'editable\s*=\s*"([^"]+)"', receipt.read_text()):
+                seen.add((tool, m.group(1)))
+        for pth in tool_dir.glob("lib/python*/site-packages/_editable_impl_*.pth"):
+            content = pth.read_text().strip()
+            target = content.splitlines()[0].strip() if content else ""
+            if target.startswith("/"):
+                seen.add((tool, target))
+
+    if not seen:
+        return checks
+    dead = [(t, s) for t, s in sorted(seen) if not Path(s).is_dir()]
+    for tool, src in dead:
+        checks.append(Check(f"uv-tool:{tool}", "global").warn(
+            f"editable -> MISSING {src} (stale pointer; package moved? "
+            f"fix: uv tool install --force --editable <new-path>)"))
+    checks.append(Check("uv-tools", "global").ok(
+        f"{len(seen) - len(dead)}/{len(seen)} editable installs resolve"))
+    return checks
+
+
 def run_all_checks(project_filter: str | None = None) -> list[Check]:
     """Run all checks, optionally filtered to one project."""
     all_checks: list[Check] = []
@@ -616,6 +664,7 @@ def run_all_checks(project_filter: str | None = None) -> list[Check]:
         all_checks.extend(check_orphaned_findings())
         all_checks.extend(check_decisions_pending())
         all_checks.extend(check_agentlogs_indexer())
+        all_checks.extend(check_uv_tool_editables())
 
         # Global CLAUDE.md
         gc = Check("global:CLAUDE.md", "global")
