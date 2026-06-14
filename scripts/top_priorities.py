@@ -93,8 +93,8 @@ def broken_tools() -> list[dict]:
             "klass": "broken-tool",
             "score": SCORE["broken-tool"] + min(dep_days, 20) + 5,  # biggest cluster
             "title": f"Recurring missing-dep failures across {len(dep_mods)} modules",
-            "why": f"{dep_fails} fails / {dep_days}d — {top}. Likely bare-`python3`/`uvx` invocation or absent env deps",
-            "action": "fix invocation discipline (uv run) or add deps; consider a guard for `uvx python3`",
+            "why": f"{dep_fails} fails / {dep_days}d — {top}. Bare/uvx-python invocation (guarded since 2026-06-14) OR uv-run-missing-dep / wrong-cwd (residual)",
+            "action": "residual is uv-run-missing-dep + wrong-cwd local modules (mostly ad-hoc); add deps where a real project lacks them",
         })
     return out
 
