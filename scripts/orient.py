@@ -42,7 +42,7 @@ MAP_DOCS = [
     ("CLAUDE.md", "constitution · cross-project arch table · launchd loops (auto-loaded)"),
     ("GOALS.md", "what the system optimizes for (human-owned)"),
     ("system-architecture.md", "narrative: how the layers connect end-to-end"),
-    (".claude/rules/codebase-map.md", "generated per-file script inventory (path-scoped)"),
+    (".claude/rules/codebase-map.md", "generated index: groups + hubs (auto-loaded); per-file detail on-demand in .claude/maps/"),
     (".claude/overviews/source-overview.md", "generated module/flow map (injected at start)"),
 ]
 STALE_DAYS = 45  # narrative docs older than this get a staleness flag
