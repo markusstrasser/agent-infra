@@ -59,6 +59,8 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-06-13-skills-marketplace-survey.md` | skills.sh + awesome-claude-skills dependency eval — 2 conditional survivors (Anthropic office-doc gen, ToB SAST), broken trust channel (ToB scanner bypass), vendor-not-`npx skills add` | Before installing/adopting any third-party skill or marketplace dependency; "what's on skills.sh"; supply-chain risk of skills; office-doc generation gap |
 | `2026-06-13-user-pressure-sycophancy-current-state.md` | User-Pressure Sycophancy — Current State (June 2026) | TODO |
 | `2026-06-14-git-janitor-subagent-verdict.md` | Custom subagents current state + git-janitor-subagent verdict | TODO |
+| `2026-06-14-leverage-hunt-rsi-system.md` | Leverage Hunt — whole agent-infra / cross-project RSI system | TODO |
+| `2026-06-14-subagent-offload-empirics-and-verdict.md` | Subagent offload for the main Opus agent — empirics + verdict | TODO |
 | `2026-06-14-supervision-audit-git-friction.md` | Supervision Audit: Git/Commit/Hook Friction | TODO |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
 | `adversarial-case-library.md` | Adversarial Case Library: The Best "Calling BS" Reviews | TODO |
