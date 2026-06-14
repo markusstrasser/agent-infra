@@ -47,3 +47,9 @@ else
   rm -f "$DIGEST"
   echo "[drift-sentinel] all green — no digest."
 fi
+
+# Refresh the Top-N priorities digest (the loop's headline output) so it surfaces
+# at SessionStart even on days the conductor is never invoked — the demand-test
+# insight (surface where attention already is, don't depend on typing /loop).
+uv run python3 "$REPO/scripts/top_priorities.py" --top 10 >/dev/null 2>&1 \
+  && echo "[drift-sentinel] refreshed PRIORITIES.md" || true
