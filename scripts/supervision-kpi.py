@@ -41,6 +41,29 @@ CORRECTION_PATTERNS = re.compile(
     re.IGNORECASE,
 )
 
+# Blindspot flags — the HIGHEST-signal supervision: the human caught something the
+# autonomous loop should have found itself ("why didn't you find X", "did you check
+# the git log", "you should have looked at ideas", "we already decided"). The blunt
+# start-anchored CORRECTION_PATTERNS above is BLIND to these — measured 2026-06-14,
+# this session's "why did you not find thid", "why don't you check the system", and
+# "SOOO why didn't you find this bug?" all scored corrections:0, as did the phenome
+# corpus session adfa97e4. You cannot reduce supervision you cannot measure: these
+# ARE the loop's coverage gaps, surfacing as the human pointing them out. Searched
+# in the message lead (not start-anchored — "SOOO why didn't you" starts mid-phrase);
+# the verbs are distinctive enough to avoid false positives. (The RSI directive.)
+BLINDSPOT_PATTERNS = re.compile(
+    r"why (?:did|didn'?t|don'?t|aren'?t|haven'?t|wouldn'?t|didnt|dont) "
+    r"(?:you|the loop|it|we) (?:not |never |fail(?:ed)? to )?"
+    r"(?:find|catch|check|look|notice|see|spot|read|consult)"
+    r"|(?:you|it) (?:should|could) have (?:found|caught|checked|looked|noticed|seen|read)"
+    r"|did (?:you|the loop) (?:check|look at|read|see|notice|find|consider)"
+    r"|we (?:already|just) (?:discussed|decided|did|tried|talked|covered|said)"
+    r"|already (?:discussed|decided|exists|covered) "
+    r"|(?:check|look at|read|consult) the (?:git|commit|log|history|ideas|docs|decision|prior|reasoning)"
+    r"|you (?:didn'?t|never|forgot to) (?:check|look|read|consult|find|catch)",
+    re.IGNORECASE,
+)
+
 # Patterns for system-injected user messages to skip
 SYSTEM_REMINDER_RE = re.compile(r"<system-reminder>", re.IGNORECASE)
 # Task notifications (subagent results), command messages (skill loads),
@@ -67,6 +90,7 @@ def extract_supervision(path: Path) -> dict:
 
     # Accumulators
     corrections = 0
+    blindspot_flags = 0  # human caught a loop miss — the costliest supervision
     denials = 0
     hooks_shown = 0
     corrections_after_hooks = 0
@@ -119,6 +143,14 @@ def extract_supervision(path: Path) -> dict:
                     corrections += 1
                     correction_turn_indices.append(turn_index)
 
+                # Blindspot flag — human caught a loop miss. Search the lead AND the
+                # tail (not start-anchored): the ask lands mid-phrase ("SOOO why
+                # didn't you...") and, in the paste-then-ask pattern, at the very end
+                # of a long pasted transcript (the corpus flag was beyond char 200).
+                if BLINDSPOT_PATTERNS.search(text[:250] + "\n¦\n" + text[-250:]):
+                    blindspot_flags += 1
+                    correction_turn_indices.append(turn_index)
+
                 # Store for repeated instruction detection
                 user_messages.append(text)
 
@@ -151,7 +183,10 @@ def extract_supervision(path: Path) -> dict:
     )
 
     # --- Compute SLI ---
-    sli = corrections + 2 * denials + 3 * repeated_instructions
+    # blindspot flags weighted highest (5x): the human catching a miss the loop
+    # should have caught is the costliest, most actionable supervision — it names a
+    # coverage gap. repeated_instructions 3x, denials 2x, blunt corrections 1x.
+    sli = corrections + 2 * denials + 3 * repeated_instructions + 5 * blindspot_flags
 
     # --- AIR ---
     air = (
@@ -167,6 +202,7 @@ def extract_supervision(path: Path) -> dict:
         "date": date,
         "sli": sli,
         "corrections": corrections,
+        "blindspot_flags": blindspot_flags,
         "denials": denials,
         "repeated_instructions": repeated_instructions,
         "hooks_shown": hooks_shown,
@@ -462,6 +498,22 @@ def _print_summary(results: list[dict], args) -> None:
         f"median SLI: {median_sli:.1f}",
         file=sys.stderr,
     )
+
+    # Blindspot flags — the headline RSI number: how many times the human had to
+    # catch a loop miss in this window. The objective is to drive this toward zero
+    # by converting each into a detector. Sessions with flags are named so the loop
+    # can go ask "what detector would have caught this?"
+    total_blind = sum(r.get("blindspot_flags", 0) for r in results)
+    flagged = [r for r in results if r.get("blindspot_flags", 0)]
+    if total_blind:
+        names = ", ".join(f"{r['project']}/{r['session_id'][:8]}({r['blindspot_flags']})"
+                          for r in sorted(flagged, key=lambda r: -r["blindspot_flags"])[:6])
+        print(f"BLINDSPOT FLAGS: {total_blind} across {len(flagged)} session(s) "
+              f"— human caught a loop miss. Convert each to a detector. [{names}]",
+              file=sys.stderr)
+    else:
+        print("BLINDSPOT FLAGS: 0 (none detected — verify coverage if the window had real misses)",
+              file=sys.stderr)
 
     # AGR
     agr = compute_agr(results)
