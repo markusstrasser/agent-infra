@@ -58,6 +58,13 @@ _BLAST_RULES: list[tuple[re.Pattern, str]] = [
     (re.compile(r"\.sql$|(^|/)migrations?/|schema"), "schema/contract"),
     (re.compile(r"(^|/)\.claude/settings\.json$|(^|/)\.mcp\.json$"), "settings/mcp"),
 ]
+# A blind CODE review (fresh-eyes / critique) catches LOGIC bugs in code/enforcement files
+# (hooks, schema, settings) — NOT governance PROSE (CLAUDE/GOALS/rules .md), which is human-gated
+# and has a different failure mode (is-this-rule-wise, not is-there-a-bug). Flagging prose was the
+# dominant false positive (the 2026-06-14 measurement: 49/140 flagged, mostly doc/record edits).
+_CODE_REASONS = {"hook", "schema/contract", "settings/mcp"}
+# Mechanical checkpoints aren't a deliberate risky change — never a code-review target.
+_WIP_RE = re.compile(r"^\[wip\]|Auto-checkpoint", re.I)
 # Test presence = a cheap verifier accompanied the change.
 _TEST_RE = re.compile(r"(^|/)(test_[^/]+\.py|[^/]+_test\.py)$|(^|/)tests?/")
 # Review signal in a commit subject (best-effort; cross-referenced per session).
@@ -115,21 +122,27 @@ def classify(days: int) -> list[dict]:
     }
     findings = []
     for c in commits:
+        if _WIP_RE.search(c["subject"]):     # mechanical checkpoint — not a deliberate change
+            continue
         reasons = blast_reasons(c["files"])
         if not reasons:
             continue
         had_test = any(_TEST_RE.search(f) for f in c["files"])
         had_review = bool(_REVIEW_RE.search(c["msg"])) or c["session"] in reviewed_sessions
-        verdict = (
-            "UNREVIEWED_RISKY" if not had_test and not had_review
-            else "covered"
-        )
+        code_reasons = [r for r in reasons if r in _CODE_REASONS]
+        if had_test or had_review:
+            verdict = "covered"
+        elif code_reasons:                   # unreviewed CODE/enforcement → the genuine signal
+            verdict = "REVIEW_WORTHY"
+        else:                                # unreviewed PROSE (CLAUDE/GOALS/rules) → human-gated, not a code-review target
+            verdict = "PROSE_ONLY"
         findings.append({
             "sha": c["sha"][:10],
             "date": c["date"][:10],
             "session": c["session"][:8],
             "subject": c["subject"][:80],
             "blast_reasons": reasons,
+            "code_reasons": code_reasons,
             "had_test": had_test,
             "had_review": had_review,
             "verdict": verdict,
@@ -137,9 +150,14 @@ def classify(days: int) -> list[dict]:
     return findings
 
 
+def find_review_worthy(days: int = 14) -> list[dict]:
+    """Unreviewed CODE/enforcement diffs — the precise signal a blind code review would catch."""
+    return [f for f in classify(days) if f["verdict"] == "REVIEW_WORTHY"]
+
+
 def find_unreviewed_risky(days: int = 14) -> list[dict]:
-    """Importable entrypoint for gov.py — only the UNREVIEWED_RISKY findings."""
-    return [f for f in classify(days) if f["verdict"] == "UNREVIEWED_RISKY"]
+    """Back-compat for gov.py — now the PRECISE code-review-worthy set (prose FPs dropped)."""
+    return find_review_worthy(days)
 
 
 def append_log(findings: list[dict]) -> int:
@@ -170,14 +188,17 @@ def report() -> dict:
             except Exception:
                 continue
     risky = rows  # every logged row is risky by construction
-    unrev = [r for r in risky if r["verdict"] == "UNREVIEWED_RISKY"]
-    reasons = Counter(reason for r in unrev for reason in r["blast_reasons"])
+    # REVIEW_WORTHY = the precise code/enforcement signal; legacy UNREVIEWED_RISKY rows counted too.
+    worthy = [r for r in risky if r["verdict"] in ("REVIEW_WORTHY", "UNREVIEWED_RISKY")]
+    prose = [r for r in risky if r["verdict"] == "PROSE_ONLY"]
+    reasons = Counter(reason for r in worthy for reason in r["blast_reasons"])
     return {
         "logged_risky": len(risky),
-        "unreviewed_risky": len(unrev),
-        "rate": round(len(unrev) / len(risky), 2) if risky else 0.0,
+        "review_worthy": len(worthy),
+        "prose_only_fp_dropped": len(prose),
+        "rate": round(len(worthy) / len(risky), 2) if risky else 0.0,
         "by_reason": dict(reasons.most_common()),
-        "unreviewed_shas": [r["sha"] for r in unrev],
+        "review_worthy_shas": [r["sha"] for r in worthy],
     }
 
 
@@ -192,25 +213,26 @@ def main() -> int:
     if a.report:
         rep = report()
         print(json.dumps(rep, indent=2) if a.json else (
-            f"[risky-diff shadow] logged_risky={rep['logged_risky']} "
-            f"unreviewed_risky={rep['unreviewed_risky']} rate={rep['rate']}\n"
+            f"[risky-diff] logged={rep['logged_risky']} review_worthy(code)={rep['review_worthy']} "
+            f"prose_fp_dropped={rep['prose_only_fp_dropped']} rate={rep['rate']}\n"
             f"  by_reason: {rep['by_reason']}\n"
-            f"  unreviewed: {', '.join(rep['unreviewed_shas']) or '(none)'}"
+            f"  review_worthy: {', '.join(rep['review_worthy_shas']) or '(none)'}"
         ))
         return 0
 
     findings = classify(a.days)
     risky = len(findings)
-    unrev = sum(1 for f in findings if f["verdict"] == "UNREVIEWED_RISKY")
+    worthy = sum(1 for f in findings if f["verdict"] == "REVIEW_WORTHY")
+    prose = sum(1 for f in findings if f["verdict"] == "PROSE_ONLY")
     if a.log:
         added = append_log(findings)
         print(f"  ✓ logged {added} new rows to {SHADOW_LOG}")
     if a.json:
         print(json.dumps(findings, indent=2))
     else:
-        print(f"[risky-diff shadow] window={a.days}d  risky={risky}  unreviewed_risky={unrev}")
+        print(f"[risky-diff] window={a.days}d  flagged={risky}  review_worthy(code)={worthy}  prose_only(human-gated)={prose}")
         for f in findings:
-            mark = "✗" if f["verdict"] == "UNREVIEWED_RISKY" else "·"
+            mark = {"REVIEW_WORTHY": "✗", "PROSE_ONLY": "~"}.get(f["verdict"], "·")
             print(f"  {mark} {f['sha']} {f['date']} [{','.join(f['blast_reasons'])}]"
                   f" test={'Y' if f['had_test'] else 'n'} rev={'Y' if f['had_review'] else 'n'}"
                   f" — {f['subject']}")

@@ -24,9 +24,12 @@ def test_blast_reasons_ignores_ordinary_code():
 
 def test_classify_flags_risky_without_test_or_review(monkeypatch):
     commits = [
-        # risky (constitution), no test, no review → UNREVIEWED_RISKY
+        # risky PROSE (constitution .md), no test, no review → PROSE_ONLY (human-gated, not a code-review target)
         {"sha": "a" * 12, "date": "2026-06-07T00:00:00", "subject": "edit constitution",
          "session": "sess1", "msg": "edit constitution", "files": ["CLAUDE.md"]},
+        # risky CODE (hook), no test, no review → REVIEW_WORTHY (the precise blind-review signal)
+        {"sha": "g" * 12, "date": "2026-06-07T02:00:00", "subject": "edit hook",
+         "session": "sessG", "msg": "edit hook", "files": ["skills/hooks/pretool-x.sh"]},
         # risky, but accompanied by a test → covered
         {"sha": "b" * 12, "date": "2026-06-06T00:00:00", "subject": "schema change",
          "session": "sess2", "msg": "schema change", "files": ["x.sql", "tests/test_x.py"]},
@@ -43,8 +46,9 @@ def test_classify_flags_risky_without_test_or_review(monkeypatch):
 
     findings = mod.classify(days=30)
     by_sha = {f["sha"]: f for f in findings}
-    assert len(findings) == 3  # the ordinary commit is excluded
-    assert by_sha["aaaaaaaaaa"]["verdict"] == "UNREVIEWED_RISKY"
+    assert len(findings) == 4  # the ordinary commit is excluded
+    assert by_sha["aaaaaaaaaa"]["verdict"] == "PROSE_ONLY"  # CLAUDE.md prose — human-gated
+    assert by_sha["gggggggggg"]["verdict"] == "REVIEW_WORTHY"  # unreviewed CODE/hook — the precise signal
     assert by_sha["bbbbbbbbbb"]["verdict"] == "covered"  # test present
     assert by_sha["cccccccccc"]["verdict"] == "covered"  # review-in-body present
 
