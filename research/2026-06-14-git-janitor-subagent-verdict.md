@@ -76,7 +76,47 @@ symptom. Options, in order of leverage:
 supervision and `supervision-audit` / `/observe supervision` *should* surface it. Worth one audit
 pass to confirm it's a real recurrence (constitution: 2+ sessions) before building anything.
 
-## What's uncertain
-- Whether git friction is actually a top supervision sink here, or a felt-but-rare annoyance.
-  Resolve with `/observe supervision` + agentlogs before building. (Self-improvement governance:
-  needs 2+ session recurrence to earn a fix.)
+## Update 2026-06-14 — empirics gathered + Anthropic checked (friction CONFIRMED)
+
+**Anthropic ships no commit-hygiene janitor** (claude-code-guide check + today's marketplace audit).
+They bet on **worktree isolation**; the commit gap is acknowledged in their tracker:
+- #4834 — no deterministic `PreCommit`/`PostCommit` hook types (open FR)
+- #40117 — agents bypass hooks via `--no-verify`/stash/quiet
+- **#46808 — hooks silently DON'T fire inside worktrees** → rules OUT a worktree-isolated janitor (it would lose our guardrails)
+- #56865 — web auto-commit overrides CLAUDE.md
+
+**Empirics (agentlogs, last 21d, all repos) — clears the 2+ session bar ~40×:**
+| class | calls | errors | err-sessions |
+|---|---|---|---|
+| commit | 4279 | 251 | **84** |
+| stash | 138 | 67 | 35 |
+| add/stage | 312 | 24 | 18 |
+| reset | 103 | 13 | 10 |
+| `--no-verify` (BYPASS) | 30 | 3 | **14 sessions use it** |
+
+Single-session commit-retry thrash: agent-infra **25 calls / 22 failed**, genomics 65/21, 63/14 — the
+concrete "Opus stuck on stupid git issues" pathology.
+
+**Hook-layer truth (changed the design — supersedes the "auto-fix message hook" lean above):**
+native `pre-commit` = `pre-commit-guards.sh` → no-large-binaries + validate-changed-hooks +
+protected-paths (exit 1 = block; these SHOULD block — auto-fixing = antipattern). NO `commit-msg`
+format rejecter; `commit-check-parse` is advisory; `prepare-commit-msg` only appends Session-ID.
+∴ friction is **staging-confusion + legit-block-then-`--no-verify`-bypass**, NOT message format.
+
+**Updated design — two SEPARABLE pieces (don't bundle):**
+- **A. Close the `--no-verify` hole** — `PreToolUse Bash(git commit*)` hook blocks `--no-verify`,
+  tells agent to escalate not bypass. Fixes the confirmed 14-session governance violation. Shared
+  infra → pilot agent-infra-local, propose-before-global.
+- **B. Synchronous context-shield commit subagent** — model `opus-low` + parent verifies
+  `git show --stat` post-commit (low effort skips self-checking; risky for a git *writer*). Tools:
+  `Bash`(git)/`Read`/`Grep`, NO Edit/Write. Job: stage named paths → conventional msg → satisfy
+  hooks → report SHA. HARD-REFUSE→escalate: conflict / non-ff / rebase / revert / stash-pop /
+  any guard block / "did this regress". Win = retry churn never enters Opus context. NOT concurrent
+  (index race + #46808), NOT worktree-isolated.
+
+## Still pending (the build gate)
+- **Routine-vs-feisty ratio of the 251 commit errors** — being classified by the supervision-audit
+  agent (`research/2026-06-14-supervision-audit-git-friction.md`). If mostly staging-confusion →
+  subagent B has clear value; if mostly legit protected-path blocks → those should block, B helps
+  less and piece A matters more. Build decision waits on this.
+- **Deploy scope** (pilot-local vs global) + whether to ship piece A — user's call.
