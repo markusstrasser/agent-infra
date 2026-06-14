@@ -90,3 +90,6 @@ artifacts/fable_throttle_probe.jsonl
 PRIORITIES.md
 # Blindspot miner digest (regenerated daily; auto-clears when no flags)
 .claude/blindspot-digest.md
+
+# Downloaded paper PDFs (binaries — archival, not committed)
+research/papers/
