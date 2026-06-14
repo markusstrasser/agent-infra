@@ -1,74 +1,49 @@
 #!/usr/bin/env python3
 # Gov-ID: tool:blindspot-miner
-# goal: surface the moments the HUMAN had to catch a loop miss, so each becomes a
-#       candidate detector — grow the loop's coverage from the supervision stream.
-# verifier: null  (the loop's own blindspot-flag RATE is the objective; not yet a grader)
+# goal: surface the moments the HUMAN had to correct the loop, CLASSIFIED by direction
+#       (timid / wrong / missed-context / taste) so each becomes the right kind of fix.
+# verifier: scripts/tests/test_supervision_taxonomy.py
 # blast_radius: local
-"""blindspot_miner.py — the standing RSI detector.
+"""blindspot_miner.py — the standing RSI miner, now direction-aware.
 
-The directive (Markus, 2026-06-14): "every time I mention something, ask why the
-loop didn't find it, and metaimprove a way for the next loop to find stuff like it."
-Every user flag is a labeled example of a loop miss. This mines recent sessions for
-those moments — the human reproaching/correcting the agent for missing something it
-should have caught (a prior decision, an existing tool, a git-log fact) — so each
-becomes a candidate DETECTOR. The constitutional gradient is the RATE of these →
-declining supervision.
+The directive (Markus, 2026-06-14): "every time I mention something, ask why the loop
+didn't find it, and meta-improve a way for the next loop to find stuff like it." Every
+user correction is a labeled example of a loop miss. This mines recent sessions for those
+moments and CLASSIFIES each via the single-source taxonomy (`supervision_taxonomy.py`).
 
-Division of labor (probes, improvement-log 2026-06-14):
-  • supervision-kpi.py = cheap regex TREND metric (43% recall, $0, agent-infra-native).
-  • THIS = the QUALITY miner — emb-contrastive (the ONLY method catching semantic
-    paraphrases like "how come you missed that" at high precision; regex/fuzzy hit a
-    lexical ceiling). Runs in emb's env (`uv run --project ~/Projects/emb`) so
-    agent-infra never inherits torch. $0 (local embeddings).
+Why classification matters (the upgrade): a correction's TYPE determines the fix.
+  • over_caution  (RAISE_AUTONOMY) → loosen / act more — the agent was timid, not wrong.
+  • rediscovery   (GROW_COVERAGE)  → a detector — the agent missed existing context.
+  • error_correction (REDUCE_ERROR)→ a correctness guardrail — the agent was wrong.
+  • taste_steer   (AMPLIFY_TASTE)  → produce options, keep the human as judge.
+The old miner saw only the rediscovery class and reported an undifferentiated count, so
+the loop could not tell "be more careful" from "stop hesitating." It was, in particular,
+BLIND to over_caution — the failure mode most opposed to autonomy.
 
-DETECT here; CONVERT (LLM "what detector would've caught this?") is the interactive
-judgment tier that consumes this digest — not auto-run in the standing job.
+Division of labor:
+  • supervision-kpi.py = cheap regex TREND over the same taxonomy ($0, agent-infra env).
+  • THIS = the QUALITY miner — emb-contrastive (catches semantic paraphrases at precision),
+    run in emb's env (`uv run --project ~/Projects/emb`) so agent-infra never inherits torch.
+
+DETECT here; CONVERT (LLM "what fix would this direction call for?") is the interactive tier.
 """
 from __future__ import annotations
 
 import argparse
 import json
 import re
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import supervision_taxonomy as tax
+
 PROJECTS = Path.home() / ".claude" / "projects"
 
-# Contrastive seeds (validated in the head-to-head bench, improvement-log 2026-06-14).
-# blind = the class to catch; normal = the baseline to subtract (kills the "it's all
-# agent-instructions" topical similarity that sank plain sim-to-seeds).
-BLIND_SEEDS = [
-    "why didn't you find this bug", "did you check the git log first",
-    "you should have looked at the prior decisions", "we already discussed this",
-    "you didn't check what already exists", "you keep rediscovering what we built",
-    "isn't there a better tool for this", "that's already in the docs / ideas",
-    "go check what exists before building", "how come you missed that",
-    "why are you hand-rolling this instead of using the existing tool",
-]
-NORMAL_SEEDS = [
-    "add a test for the parser", "fix the bug in the resolver", "run the tests",
-    "commit this and move on", "implement the feature", "what model are you using",
-    "summarize the file", "check the tests pass before committing", "look at the PR",
-    "deploy this", "go on", "do all three",
-]
-
-# Regex Tier-0 — a fast high-precision PRE-FLAG (local optimization, NOT the canonical
-# definition; the real detector is contrastive). Mirrors supervision-kpi's intent.
-RGX = re.compile(
-    r"why (?:did|didn'?t|don'?t|aren'?t|haven'?t|wouldn'?t|didnt|dont) (?:you|the loop|it|we) (?:not |never |fail(?:ed)? to )?(?:find|catch|check|look|notice|see|spot|read|consult)"
-    r"|(?:you|it) (?:should|could) have (?:found|caught|checked|looked|noticed|seen|read)"
-    r"|did (?:you|the loop) (?:check|look at|read|see|notice|find|consider)"
-    r"|we (?:already|just) (?:discussed|decided|did|tried|talked|covered|said)"
-    r"|(?:check|look at|read|consult) the (?:git|commit|log|history|ideas|docs|decision|prior|reasoning)"
-    r"|you (?:didn'?t|never|forgot to) (?:check|look|read|consult|find|catch|grep)",
+SKIP = re.compile(
+    r"^(<task-notification>|<command-name>|<command-message>|Base directory for this skill:|Stop hook feedback:|<system-reminder>)",
     re.IGNORECASE,
 )
-# Loose recall-preserving pre-filter: a blindspot flag almost always has 2nd-person /
-# interrogative / recollection cues. Cuts pure task-instructions before embedding.
-PREFILTER = re.compile(r"\b(you|your|why|did|didn|already|check|look|miss|should|we|isn'?t|exist|forgot)\b|\?", re.I)
-SKIP = re.compile(r"^(<task-notification>|<command-name>|<command-message>|Base directory for this skill:|Stop hook feedback:|<system-reminder>)", re.I)
-
-THRESH = 0.10  # contrastive score; tuned for precision (bench: clear flags +0.19..+0.35, hard negs <0)
 
 
 def _user_text(obj: dict) -> str | None:
@@ -115,7 +90,7 @@ def gather_candidates(days: int) -> list[dict]:
                     except json.JSONDecodeError:
                         continue
                     t = _user_text(obj)
-                    if not t or not PREFILTER.search(t[:300] + t[-200:]):
+                    if not t or not tax.PREFILTER.search(t[:300] + t[-200:]):
                         continue
                     cands.append({
                         "session": j.stem[:8], "project": project,
@@ -128,26 +103,20 @@ def gather_candidates(days: int) -> list[dict]:
 
 
 def score(cands: list[dict]) -> list[dict]:
-    """Flag = regex Tier-0 hit OR emb-contrastive score > THRESH."""
-    import numpy as np
+    """Flag = taxonomy regex tier-0 hit (precision) OR emb-contrastive match (recall).
+    Each flag carries its type + direction + inspectable evidence."""
     from emb.embed import EmbeddingEngine
     eng = EmbeddingEngine()
 
-    def norm(xs):
-        e = np.asarray(eng.embed_texts(xs), dtype=np.float32)
-        return e / (np.linalg.norm(e, axis=1, keepdims=True) + 1e-9)
-
-    B, N = norm(BLIND_SEEDS), norm(NORMAL_SEEDS)
-    if cands:
-        E = norm([c["lead"] for c in cands])
-        cont = (E @ B.T).max(1) - (E @ N.T).max(1)
-    else:
-        cont = []
+    emb_matches = tax.classify_emb_batch([c["lead"] for c in cands], eng) if cands else []
     flags = []
-    for c, sc in zip(cands, cont):
-        regex_hit = bool(RGX.search(c["lead"]))
-        if regex_hit or sc > THRESH:
-            flags.append({**c, "score": round(float(sc), 3), "method": "regex" if regex_hit else "emb"})
+    for c, em in zip(cands, emb_matches):
+        m = tax.classify_regex(c["text"]) or em  # regex tier-0 wins (high precision); emb fills recall
+        if m:
+            flags.append({
+                **c, "type": m.type_id, "direction": m.direction,
+                "method": m.method, "score": float(m.score), "evidence": m.evidence,
+            })
     flags.sort(key=lambda x: x["score"], reverse=True)
     return flags
 
@@ -156,24 +125,39 @@ def render(flags: list[dict], days: int, n_cands: int) -> str:
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
     L = [f"# Blindspot misses — {stamp} (last {days}d)", ""]
     if not flags:
-        L.append(f"_No blindspot flags in {n_cands} candidate messages. If the window had real misses the human caught, the seeds/threshold need widening — not a clean bill of health._")
+        L.append(f"_No correction flags in {n_cands} candidate messages. If the window had real "
+                 f"misses the human caught, the seeds/threshold need widening — not a clean bill of health._")
         return "\n".join(L) + "\n"
-    L.append(f"**{len(flags)} moments the human had to catch a loop miss** (of {n_cands} candidates). "
-             f"Each is a candidate detector — for recurring clusters, ask: *what check would have caught this autonomously?*\n")
-    by_proj: dict[str, int] = {}
-    for f in flags:
-        by_proj[f["project"]] = by_proj.get(f["project"], 0) + 1
-    L.append("By project: " + ", ".join(f"{p}={n}" for p, n in sorted(by_proj.items(), key=lambda x: -x[1])) + "\n")
+
+    by_dir = Counter(f["direction"] for f in flags)
+    by_type = Counter(f["type"] for f in flags)
+    L.append(f"**{len(flags)} corrections the human had to make** (of {n_cands} candidates), "
+             f"classified by the direction each implies:\n")
+    # Direction is the headline — it says what KIND of fix each cluster calls for.
+    dir_label = {
+        "raise_autonomy": "RAISE_AUTONOMY (agent was timid → loosen/act more)",
+        "grow_coverage": "GROW_COVERAGE (agent missed context → add detector)",
+        "reduce_error": "REDUCE_ERROR (agent was wrong → correctness guardrail)",
+        "amplify_taste": "AMPLIFY_TASTE (missed taste → options, keep human judge)",
+    }
+    for d, n in by_dir.most_common():
+        types = ", ".join(f"{t}={by_type[t]}" for t in by_type if tax.BY_ID[t].direction.value == d)
+        L.append(f"- **{dir_label.get(d, d)}** — {n}  ({types})")
+    L.append("")
+    by_proj = Counter(f["project"] for f in flags)
+    L.append("By project: " + ", ".join(f"{p}={n}" for p, n in by_proj.most_common()) + "\n")
+    L.append("Top flags (sorted by confidence):\n")
     for f in flags[:25]:
-        snip = re.sub(r"\s+", " ", f["text"])[:140]
-        L.append(f"- `{f['score']:+.2f}` [{f['method']}] **{f['project']}/{f['session']}** ({f['date']}): {snip}")
+        snip = re.sub(r"\s+", " ", f["text"])[:130]
+        L.append(f"- `{f['score']:+.2f}` [{f['type']}/{f['method']}] **{f['project']}/{f['session']}** "
+                 f"({f['date']}): {snip}")
     if len(flags) > 25:
         L.append(f"\n_(+{len(flags) - 25} more)_")
     return "\n".join(L) + "\n"
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Standing RSI miner: surface loop misses the human had to catch.")
+    ap = argparse.ArgumentParser(description="Standing RSI miner: classify the corrections the human had to make.")
     ap.add_argument("--days", type=int, default=7)
     ap.add_argument("--out", default=str(Path(__file__).resolve().parent.parent / ".claude" / "blindspot-digest.md"))
     ap.add_argument("--json", action="store_true")
@@ -182,7 +166,8 @@ def main() -> int:
     cands = gather_candidates(args.days)
     flags = score(cands)
     if args.json:
-        print(json.dumps(flags, indent=2))
+        # Direction enums → values for JSON
+        print(json.dumps([{**f, "direction": f["direction"].value if hasattr(f["direction"], "value") else f["direction"]} for f in flags], indent=2))
         return 0
     digest = render(flags, args.days, len(cands))
     out = Path(args.out)
