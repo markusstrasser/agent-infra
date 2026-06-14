@@ -114,16 +114,31 @@ def scan(min_span: int = 2):
             "samples": [f"[{p}] {s}" for p, _, s, _ in items[:6]],
         })
     out.sort(key=lambda c: (c["candidate"], len(c["projects"]), c["count"]), reverse=True)
-    return {"total_memories": len(mems), "clusters": out}
+    inventory = [{"project": p, "type": t, "name": s, "desc": d} for p, t, s, d, _ in mems]
+    return {"total_memories": len(mems), "clusters": out, "inventory": inventory}
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--min-span", type=int, default=2, help="min projects for a cross-project candidate")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--inventory", action="store_true",
+                    help="dump EVERY memory one-liner grouped by project (the keyword clusterer's blind spot — "
+                         "the long tail for the agent's semantic pass)")
     a = ap.parse_args()
     r = scan(a.min_span)
     if a.json:
         print(json.dumps(r, indent=1)); return
+    if a.inventory:
+        by_proj = collections.defaultdict(list)
+        for m in r["inventory"]:
+            by_proj[m["project"]].append(m)
+        print(f"# Memory inventory — {r['total_memories']} memories across {len(by_proj)} projects")
+        print("# Full surface (NOT keyword-filtered). Find cross-project generalizable patterns the THEMES dict misses.\n")
+        for proj in sorted(by_proj):
+            print(f"\n## {proj} ({len(by_proj[proj])})")
+            for m in sorted(by_proj[proj], key=lambda x: x["name"]):
+                print(f"  [{m['type']:>9}] {m['name']}: {m['desc']}")
+        return
     print(f"# Memory generalization scan — {r['total_memories']} memories\n")
     print("Deterministic pre-filter. CANDIDATE = generalize-worthy (spans ≥%d projects or ≥5-silo)." % a.min_span)
     print("The semantic factoring (dedup vs shared rules, propose) is the agent's job in harvest Phase 2g.\n")
