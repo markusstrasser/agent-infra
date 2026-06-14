@@ -58,8 +58,10 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-06-13-skill-trim-audit.md` | Skill Bloat Audit — Measure Before Cut | TODO |
 | `2026-06-13-skills-marketplace-survey.md` | skills.sh + awesome-claude-skills dependency eval — 2 conditional survivors (Anthropic office-doc gen, ToB SAST), broken trust channel (ToB scanner bypass), vendor-not-`npx skills add` | Before installing/adopting any third-party skill or marketplace dependency; "what's on skills.sh"; supply-chain risk of skills; office-doc generation gap |
 | `2026-06-13-user-pressure-sycophancy-current-state.md` | User-Pressure Sycophancy — Current State (June 2026) | TODO |
+| `2026-06-14-benchmark-leaderboard-methodology-critique.md` | Benchmark & Leaderboard Methodology Critique | TODO |
 | `2026-06-14-composer-2.5-external-benchmarks.md` | Composer 2.5 — External Benchmarks vs Our Internal Findings | TODO |
 | `2026-06-14-cursor-cli-composer-integration.md` | Cursor CLI (`cursor-agent`) + Composer 2.5 — Headless Integration Verification | TODO |
+| `2026-06-14-eval-methodology-canon.md` | Primary-source eval-method canon — Miller error-bars/stats (SE+n, clustered SE 3×, paired compare, power/MDE, no-temperature), Biderman reproducibility (pin-harness, format≠correctness, ≥2 seeds), BetterBench 46-criterion checklist (FLOOR not cert), LiveCodeBench contamination (date-tag + cutoff-step detector); 16-item pre-flight checklist | Designing/hardening ANY decision-grade eval; eval skill; choosing N/power/SE/seeds; contamination defense; benchmark-quality gating; before reporting model-comparison numbers |
 | `2026-06-14-git-janitor-subagent-verdict.md` | Custom subagents current state + git-janitor-subagent verdict | TODO |
 | `2026-06-14-leverage-hunt-rsi-system.md` | Leverage Hunt — whole agent-infra / cross-project RSI system | TODO |
 | `2026-06-14-phenome-substrate-identity-boundary.md` | phenome vs substrate vs corpus — the identity boundary (2026-06-14) | TODO |
