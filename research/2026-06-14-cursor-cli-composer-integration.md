@@ -136,6 +136,33 @@ These were run directly against the installed `cursor-agent` (v2026.06.12) durin
 - **Empty-cwd overhead:** trivial call from an empty dir showed `inputTokens:2` + `cacheWriteTokens:29678` (system prompt cached once) — confirms the neutral-cwd isolation works and per-call marginal context is tiny after the first.
 - **Reasoning effort:** `composer-2.5` and `composer-2.5-fast` are the only composer entries in `--list-models` (no effort tiers) — confirms #6.
 
+## Composer 2.5 — measured routing profile (2026-06-14)
+Three benchmarks, all reusing existing multi-model baselines, Composer dispatched via the llmx cursor transport.
+
+| Benchmark | Task | Composer result | vs frontier baselines |
+|---|---|---|---|
+| cross_lab_review | injected-defect code review | 11/11 clean catches | **= frontier** (Opus/GPT/Gemini all 11/12) — saturated |
+| extraction_bakeoff **phenome** | biomedical, HARD byte-exact quote contract | 100% faithful, 100% quote-present, 52% recall, **9% spurious**, yield 11 | **solid/disciplined** — clean, mid recall |
+| extraction_bakeoff **intel** | financial, SOFT paraphrase, no verbatim anchor | faith **1.74**/3 (4th of 5), **69 claims / 24 unsupported** | **weak** — over-extracts, gpt-5.3 wins at 2.47 |
+
+**Thesis — Composer is CONTRACT-GATED.** Same model, opposite behavior: with a hard
+checkable contract (byte-exact quotes, schema, tests, a grader) it's competitive and
+clean (9% spurious on phenome); with paraphrase freedom it over-generates unsupported
+claims (35% on intel). It's a **high-recall, high-volume generator that needs an
+external verifier to stay precise** — gpt-5.3/gpt-5.5 self-restrain, Composer doesn't.
+Matches its design (Kimi-K2.5 base, coding-throughput tuned, no reasoning-effort tier)
+and the cross_lab_review enumerate-and-hedge tendency.
+
+**ROUTE TO Composer:** verifier-bound work where its yield is an asset and a contract
+catches over-generation — code review (as a $-cheap third lineage), byte-exact/schema
+extraction, anything with tests or a grader downstream. **DON'T ROUTE:** open/paraphrase
+generation with no anchor, hard reasoning/math/novel design (untested, but the
+cheap-coding-model prior says skip), latency- or cost-sensitive high volume (slower than
+every API arm; usage-metered). **It beats no incumbent on its own track** — situational
+tool, not a new default. Hard-reasoning axis remains unmeasured (no baseline-bearing
+reasoning benchmark in evals; critique_replay is the harder-review candidate but its
+runner is a stub with no baselines).
+
 ## Applied to the integration
 - llmx `cursor` transport uses `--output-format text` + exit-code detection (sufficient per the error-path probe). If we later want token telemetry through llmx, switch the cursor branch to `json` and parse `result`/`usage`.
 - Docs corrected: every "$0 marginal" claim → "usage-metered (included pool → ~$0.50/$2.50 per M)" across llmx-guide, critique SKILL, llm_dispatch profile, model-review axis label, COMPOSER_ARM_RESULTS.
