@@ -123,11 +123,24 @@ def generate_map(project_root: Path, source_dirs: list[Path]) -> str:
 
     # Format output
     total_files = sum(len(v) for v in groups.values())
+    # Path-scope the map to the source dirs it actually covers, so it loads only
+    # when editing real code (not a hardcoded "scripts/**" that may not exist).
+    path_globs = []
+    for src_dir in source_dirs:
+        try:
+            rel = src_dir.resolve().relative_to(project_root.resolve())
+        except ValueError:
+            continue
+        glob = "**" if str(rel) == "." else f"{rel.as_posix()}/**"
+        if glob not in path_globs:
+            path_globs.append(glob)
+    if not path_globs:
+        path_globs = ["**"]
     lines = [
         "---",
         "description: Auto-generated file map with cross-file relationships. Updated daily.",
         "paths:",
-        '  - "scripts/**"',
+        *[f'  - "{g}"' for g in path_globs],
         "---",
         "# Codebase Map",
         "",
