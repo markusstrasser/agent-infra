@@ -21,11 +21,11 @@ uv run agentlogs stats                   # DB size, per-vendor counts, indexer h
 - `justfile` — task runner. `just --list` for all recipes.
 - `improvement-log.md` — `/observe sessions` appends findings here
 - `agent_infra_mcp.py` — cross-project knowledge search (scopes: all, hooks, failures, research, architecture, health, genomics, genes)
-- Scripts: see `.claude/rules/codebase-map.md` for full inventory
+- Scripts: `.claude/rules/codebase-map.md` is the auto-loaded index (groups + import-hubs + pointers); full per-file detail is on-demand in `.claude/maps/codebase.<group>.md` (Read when navigating an area)
 
 ## Research Index
 
-~238 research memos in `research/`. Full index with topics and "consult before" triggers: `.claude/rules/research-index.md` (path-scoped to `research/**`, `decisions/**`).
+~239 research memos in `research/`. Full index with topics and "consult before" triggers: `.claude/rules/research-index.md` (path-scoped to `research/**`, `decisions/**`).
 
 <constitution>
 > **Human-protected.** Agent may propose changes but must not modify without explicit approval.
