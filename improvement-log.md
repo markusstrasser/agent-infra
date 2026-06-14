@@ -3740,6 +3740,6 @@ A source that fails the watchdog (e.g. the oversized `~/.gemini/tmp/{intel,genom
 - **Failure mode:** Inventory/docs-first failure class. 2nd occurrence — 1st was improvement-log.md:2163 (genomics, 3 redundant research subagents).
 - **Coverage gap:** `pretool-inventory-dispatch.py` (c5c98bf) externalizes git-log state ONLY on `Agent`/subagent dispatch. It does NOT fire on the agent's own in-session Grep/Read/research-direct search. This correction is that uncovered surface.
 - **Root cause:** skill-coverage — the externalization principle was applied to dispatch but not to first-party search.
-- **Proposed fix:** [hook] extend inventory externalization to first-party search, OR a docs-index additionalContext on session/topic start. NOTE: shared infra (global settings) → needs human sign-off; search-burst noise is a known concern (hook docstring: 34k FTS hits → needs query-scoping before synchronous use). NOT built autonomously.
-- **Status:** [obs] (behavioral, recurrence=2)
-- **Status:** [ ] proposed (first-party-search inventory externalization — sign-off gated)
+- **Proposed fix:** REFINED 2026-06-14 (maintain tick, after reading the hook): a first-party-search HOOK is **not the right lever** — Grep/Read fire constantly and "is this search research-intent" is a *semantic* trigger (over-hooking a semantic predicate; the 34k-FTS note is the *dispatch* hook's deferred-v2, a separate concern). Tractable lever = a one-line generalization of the existing global "inventory before research" rule to name first-party search (rule, not hook). Shared infra → sign-off-ready draft written to `decisions-pending/2026-06-14-first-party-search-inventory.md`.
+- **Status:** [obs] (behavioral, recurrence=2 of the class; first-party surface = recurrence-1)
+- **Status:** [ ] proposed → escalated to `decisions-pending/2026-06-14-first-party-search-inventory.md` (rule-generalization, human sign-off)
