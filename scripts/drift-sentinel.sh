@@ -37,6 +37,8 @@ section "Orphaned generators" \
   "uv run python3 '$REPO/scripts/orphan_check.py'" "candidate orphan"
 section "Doc-vs-reality drift" \
   "uv run python3 '$REPO/scripts/orient.py' --drift" "✗"
+section "Context budget — always-loaded over ceiling" \
+  "uv run python3 '$REPO/scripts/context-budget.py' --check" "OVER"
 
 if [ -s "$TMP" ]; then
   { printf '# Drift digest — %s\n' "$(date +%Y-%m-%d)"; \

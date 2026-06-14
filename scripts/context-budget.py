@@ -395,11 +395,53 @@ def print_comparison(projects: list[dict]) -> None:
     print(line)
 
 
+ACTIVE_PROJECTS = [
+    "agent-infra", "intel", "genomics", "phenome",
+    "hutter", "substrate", "evo", "skills", "research",
+]
+
+
+def always_loaded_total(data: dict) -> int:
+    """Tokens loaded EVERY session + every subagent spawn — mirrors print_report's
+    always_total (global CLAUDE.md + global always-rules + shared skill descs +
+    project CLAUDE.md + project always-rules + MEMORY.md index + overviews).
+    Excludes path-scoped rules, on-demand memory files, and skill bodies."""
+    t = data["global_claude_md"]
+    t += sum(r["tokens"] for r in data["global_rules_always"])
+    t += data["shared_skills"]["description_tokens"]
+    t += data["project_claude_md"]
+    t += sum(r["tokens"] for r in data["project_rules_always"])
+    t += data["memory_index_tokens"]
+    t += sum(o["tokens"] for o in data.get("overviews", []))
+    return t
+
+
+def cmd_check(threshold: int) -> None:
+    """Report-only budget canary across active projects. Prints OVER/ok lines
+    (drift-sentinel greps 'OVER'); the digest then shows which repo crept past the
+    always-loaded ceiling. Exit 0 always (advisory)."""
+    rows = []
+    for name in ACTIVE_PROJECTS:
+        p = PROJECTS_ROOT / name
+        if p.is_dir():
+            rows.append((name, always_loaded_total(analyze_project(p))))
+    rows.sort(key=lambda r: -r[1])
+    for name, tok in rows:
+        mark = "OVER" if tok > threshold else "ok  "
+        print(f"{mark} {name:<12} {tok:>6} tok always-loaded (ceiling {threshold})")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Context budget analyzer")
     parser.add_argument("project", nargs="?", default=".", help="Project path (default: cwd)")
     parser.add_argument("--compare", action="store_true", help="Compare agent-infra/phenome/genomics")
+    parser.add_argument("--check", action="store_true", help="Report-only always-loaded canary across active projects")
+    parser.add_argument("--threshold", type=int, default=30000, help="always-loaded ceiling for --check (tokens)")
     args = parser.parse_args()
+
+    if args.check:
+        cmd_check(args.threshold)
+        return
 
     if args.compare:
         projects = []
