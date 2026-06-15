@@ -47,6 +47,22 @@ SCORE = {
 }
 
 
+# A broken-CLI failure older than this (no re-occurrence) is presumed resolved.
+# Conservative: a CLI in active use re-fails within days; one idle this long isn't blocking.
+BROKEN_CLI_STALE_DAYS = 3
+
+
+def _age_days(last_seen: str) -> int | None:
+    """Whole days since a 'YYYY-MM-DDTHH:MM' last_seen stamp; None if unparseable."""
+    if not last_seen:
+        return None
+    try:
+        ts = datetime.fromisoformat(last_seen[:16]).replace(tzinfo=timezone.utc)
+        return (datetime.now(timezone.utc) - ts).days
+    except (ValueError, TypeError):
+        return None
+
+
 def _run_json(cmd: list[str]) -> list | dict | None:
     try:
         out = subprocess.run(cmd, capture_output=True, text=True, timeout=120).stdout
@@ -66,11 +82,20 @@ def broken_tools() -> list[dict]:
         days, fails = r.get("distinct_days", 0), r.get("fails", 0)
         # broken-cli (a specific CLI can't start) stays its OWN priority — distinct, high
         if cluster.startswith("broken-cli"):
+            # Recency gate: a CLI that hasn't failed in BROKEN_CLI_STALE_DAYS is
+            # presumed fixed — the 14d window otherwise surfaces one-off failures
+            # (distinct_days=1, last_seen 5-9d ago) as if they were current breakage.
+            # The detector cried wolf on 4 already-resolved corpus/watermark entries
+            # for >a week (2026-06-15). Suppress stale; show age on the live ones.
+            age = _age_days(r.get("last_seen", ""))
+            if age is not None and age > BROKEN_CLI_STALE_DAYS:
+                continue
+            age_str = f", last {age}d ago" if age is not None else ""
             out.append({
                 "klass": "broken-tool",
                 "score": SCORE["broken-tool"] + min(days, 20),
                 "title": f"Broken CLI: {cluster}",
-                "why": f"{fails} fails / {days}d — {r.get('sample','')[:70]}",
+                "why": f"{fails} fails / {days}d{age_str} — {r.get('sample','')[:70]}",
                 "action": "fix the editable/entry-point; verify with a live run",
             })
         # missing-module:* are largely ONE root cause (bare-python/uvx invocation
