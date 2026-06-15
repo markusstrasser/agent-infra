@@ -147,8 +147,13 @@ lightest approach is a **tree-sitter normalized-AST fingerprint** —
 `{path, symbol?, sig=xxhash3(node-kinds + token-text, whitespace-stripped)}`,
 recomputed on demand → OK/STALE/ORPHAN/DEAD, stored in the *referencing* artifact
 (no new store, ~50 LOC; steal fiberplane/drift's pattern, not the dep). Git-native
-alternative: **Git AI** (`refs/notes/ai`, line-level attribution that migrates across
-rebase/squash) — probe before adopting. **Not** CRDT.
+alternative: **Git AI** (`refs/notes/ai`) — **PROBED 2026-06-15 (primary source
+usegitai.com): forward-only + write-path** (agents must call `git ai checkpoint` via
+hooks; no retroactive attribution for existing history, no trailer/session ingestion).
+**Verdict: NOT adopted as substrate** — zero coverage of our 1540 existing commits (the
+ask is about *existing* code) + a per-repo write obligation; our read-only blame+trailer
+bridge serves it today. Steal the `refs/notes/ai` schema ONLY if a consumer ever needs
+forward sub-commit attribution. **Not** CRDT.
 
 ## Evidence
 Probes (2026-06-15, this session): `agentlogs.db` schema; trailer-column
@@ -182,5 +187,6 @@ Zero architecture reversals across both rounds = the `/decide` success criterion
 
 ## Revisit if
 - A rule/tool needs a line-precise durable anchor → build the deferred anchor layer.
+- A consumer needs **forward** sub-commit/line attribution → revisit Git AI (or emit `refs/notes/ai`-shaped notes from our hooks keyed to Session-ID).
 - Measured CLI usage is high enough to warrant an agent-callable MCP surface.
 - We decide to capture effort going forward → add a forward-only stamp + extend `who`.
