@@ -47,9 +47,13 @@ SCORE = {
 }
 
 
-# A broken-CLI failure older than this (no re-occurrence) is presumed resolved.
-# Conservative: a CLI in active use re-fails within days; one idle this long isn't blocking.
-BROKEN_CLI_STALE_DAYS = 3
+# A tool-failure cluster whose LAST occurrence is older than this (no re-failure
+# since) is presumed resolved — most often a guard/fix landed and the 14d scan
+# window is just trailing pre-fix failures. Applied uniformly to every failure
+# branch (broken-cli, missing-module, import-error) so the digest never surfaces
+# a solved problem as a top priority. Conservative: a tool failing in active use
+# re-fails within days; one idle this long isn't currently blocking anyone.
+FAILURE_STALE_DAYS = 3
 
 
 def _age_days(last_seen: str) -> int | None:
@@ -76,20 +80,17 @@ def broken_tools() -> list[dict]:
         return []
     rows = _run_json(["python3", str(FAILURES_SCRIPT), "--days", "14", "--json"]) or []
     out: list[dict] = []
-    dep_mods, dep_fails, dep_days = [], 0, 0
+    dep_mods, dep_fails, dep_days, dep_fresh = [], 0, 0, None
     for r in rows:
         cluster = str(r.get("cluster", ""))
         days, fails = r.get("distinct_days", 0), r.get("fails", 0)
+        age = _age_days(r.get("last_seen", ""))
+        # Uniform recency gate: a cluster that hasn't re-failed in FAILURE_STALE_DAYS
+        # is presumed resolved (see constant). Skip it on every branch below.
+        if age is not None and age > FAILURE_STALE_DAYS:
+            continue
         # broken-cli (a specific CLI can't start) stays its OWN priority — distinct, high
         if cluster.startswith("broken-cli"):
-            # Recency gate: a CLI that hasn't failed in BROKEN_CLI_STALE_DAYS is
-            # presumed fixed — the 14d window otherwise surfaces one-off failures
-            # (distinct_days=1, last_seen 5-9d ago) as if they were current breakage.
-            # The detector cried wolf on 4 already-resolved corpus/watermark entries
-            # for >a week (2026-06-15). Suppress stale; show age on the live ones.
-            age = _age_days(r.get("last_seen", ""))
-            if age is not None and age > BROKEN_CLI_STALE_DAYS:
-                continue
             age_str = f", last {age}d ago" if age is not None else ""
             out.append({
                 "klass": "broken-tool",
@@ -104,6 +105,8 @@ def broken_tools() -> list[dict]:
             dep_mods.append(cluster.split(":", 1)[1])
             dep_fails += fails
             dep_days = max(dep_days, days)
+            if age is not None:
+                dep_fresh = age if dep_fresh is None else min(dep_fresh, age)
         elif cluster.startswith("import-error") and days >= 2:
             out.append({
                 "klass": "broken-tool",
@@ -118,7 +121,7 @@ def broken_tools() -> list[dict]:
             "klass": "broken-tool",
             "score": SCORE["broken-tool"] + min(dep_days, 20) + 5,  # biggest cluster
             "title": f"Recurring missing-dep failures across {len(dep_mods)} modules",
-            "why": f"{dep_fails} fails / {dep_days}d — {top}. Bare/uvx-python invocation (guarded since 2026-06-14) OR uv-run-missing-dep / wrong-cwd (residual)",
+            "why": f"{dep_fails} fails / {dep_days}d (freshest {dep_fresh}d ago) — {top}. Bare/uvx-python invocation (guarded since 2026-06-14) OR uv-run-missing-dep / wrong-cwd (residual)",
             "action": "residual is uv-run-missing-dep + wrong-cwd local modules (mostly ad-hoc); add deps where a real project lacks them",
         })
     return out
