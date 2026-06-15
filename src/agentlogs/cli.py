@@ -464,25 +464,38 @@ def cmd_dispatch(args) -> int:
 
 def cmd_git_import(args) -> int:
     from .git_import import import_git_commits
+    from .locks import IndexerLockBusy, indexer_lock
+    from .paths import AGENTLOGS_LOCK
 
-    db = connect(_resolve_db_path(args))
+    def _run() -> int:
+        db = connect(_resolve_db_path(args))
+        try:
+            count = import_git_commits(
+                db, projects=args.project, days=args.days,
+            )
+            print(f"Imported {count} commits across "
+                  f"{len(args.project) if args.project else 5} projects "
+                  f"({args.days}d window)")
+            # Summary of newly-visible fix-of-fix chains
+            rows = db.execute(
+                "SELECT COUNT(*) FROM v_fix_chains WHERE fix1_date >= "
+                "date('now', ?)", (f"-{args.days} days",),
+            ).fetchone()
+            if rows and rows[0]:
+                print(f"Fix-of-fix chains in window: {rows[0]}")
+            return 0
+        finally:
+            db.close()
+
+    # git-import is a WRITER (INSERT…ON CONFLICT on git_commits). Take the same
+    # single-writer lock as index/prune so it can't race the 2h indexer — that
+    # collision surfaced as `database is locked` mid-import (2026-06-16).
     try:
-        count = import_git_commits(
-            db, projects=args.project, days=args.days,
-        )
-        print(f"Imported {count} commits across "
-              f"{len(args.project) if args.project else 5} projects "
-              f"({args.days}d window)")
-        # Summary of newly-visible fix-of-fix chains
-        rows = db.execute(
-            "SELECT COUNT(*) FROM v_fix_chains WHERE fix1_date >= "
-            "date('now', ?)", (f"-{args.days} days",),
-        ).fetchone()
-        if rows and rows[0]:
-            print(f"Fix-of-fix chains in window: {rows[0]}")
+        with indexer_lock(AGENTLOGS_LOCK, timeout_s=30.0):
+            return _run()
+    except IndexerLockBusy:
+        print("another indexer/import is running; exiting cleanly", file=sys.stderr)
         return 0
-    finally:
-        db.close()
 
 
 def _fmt_who_row(h) -> dict:
