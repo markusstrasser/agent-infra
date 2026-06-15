@@ -7,6 +7,8 @@ Subcommands:
   recent    List recent sessions
   query     Run a named analytical SQL query
   stats     DB size, per-vendor counts, indexer health
+  who       Code line/range → the session/model that authored it (blame + agentlogs)
+  whence    A session → the code it produced (v_session_commits)
   dispatch  Run a session through an analysis prompt via llmx
 """
 
@@ -34,7 +36,7 @@ def _make_parser() -> argparse.ArgumentParser:
 
     # index
     s_index = sub.add_parser("index", help="Ingest new sessions from all vendors")
-    s_index.add_argument("--vendor", action="append", choices=["claude", "codex", "gemini", "kimi"],
+    s_index.add_argument("--vendor", action="append", choices=["claude", "codex", "cursor", "gemini", "kimi"],
                          help="Limit to one or more vendors (default: all)")
     s_index.add_argument("--limit-sources", type=int, default=None,
                          help="Cap sources per vendor (useful for smoke tests)")
@@ -104,6 +106,19 @@ def _make_parser() -> argparse.ArgumentParser:
                        help="Project(s) to import (default: agent-infra, intel, "
                             "phenome, genomics, skills)")
 
+    # who — code line → session/model that authored it
+    s_who = sub.add_parser("who", help="Which session/model authored a code line/range")
+    s_who.add_argument("file", help="path[:LINE | :START-END] (e.g. src/agentlogs/db.py:25-40)")
+    s_who.add_argument("--history", action="store_true",
+                       help="Show EVERY session in the range's lineage (git log -L), "
+                            "not just blame's last-touch. Requires a line range.")
+    s_who.add_argument("--format", choices=["table", "json"], default="table")
+
+    # whence — session → the code it produced
+    s_whence = sub.add_parser("whence", help="What code a session produced")
+    s_whence.add_argument("session", help="session_uuid / vendor_session_id")
+    s_whence.add_argument("--format", choices=["table", "json"], default="table")
+
     # dispatch
     s_disp = sub.add_parser("dispatch", help="Analyze a session via llmx")
     s_disp.add_argument("session", help="session_uuid or session_pk")
@@ -159,7 +174,7 @@ def cmd_index(args) -> int:
     from .locks import IndexerLockBusy, indexer_lock
     from .paths import AGENTLOGS_LOCK
 
-    vendors = args.vendor or ["claude", "codex", "gemini", "kimi"]
+    vendors = args.vendor or ["claude", "codex", "cursor", "gemini", "kimi"]
 
     def _run_all(reap: bool = False) -> int:
         db = connect(_resolve_db_path(args))
@@ -470,6 +485,81 @@ def cmd_git_import(args) -> int:
         db.close()
 
 
+def _fmt_who_row(h) -> dict:
+    # Prefer the RAW trailer id (h.session_id) — it matches the trailer and is what
+    # `whence`/`show` accept. session_uuid is `vendor:raw`-namespaced; strip the prefix.
+    sid = h.session_id or (h.session_uuid or "").split(":", 1)[-1] or "unknown"
+    return {
+        "lines": f"{h.start}-{h.end}" if h.end != h.start else str(h.start),
+        "commit": h.sha[:8],
+        "date": (h.authored_at or "")[:10],
+        "session": sid[:8] if sid != "unknown" else "unknown",
+        "model": h.model or ("unknown" if h.note == "pre-index" else "-"),
+        "effort": "n/a",
+        "scope": h.scope or "-",
+        "subject": (h.subject or "")[:48],
+        "note": h.note or "",
+    }
+
+
+def cmd_who(args) -> int:
+    from . import provenance as pv
+
+    db = connect(_resolve_db_path(args))
+    try:
+        fn = pv.history if args.history else pv.who
+        try:
+            rel, hunks = fn(db, args.file)
+        except (FileNotFoundError, ValueError) as e:
+            print(f"who: {e}", file=sys.stderr)
+            return 2
+        rows = [_fmt_who_row(h) for h in hunks]
+        if args.format == "json":
+            print(json.dumps(rows, indent=2, default=str))
+            return 0
+        mode = "lineage (oldest→newest)" if args.history else "last-authored"
+        print(f"{rel}  [{mode}]")
+        _print_table(
+            rows,
+            ["lines", "commit", "date", "session", "model", "effort", "scope", "subject", "note"],
+        )
+        return 0
+    finally:
+        db.close()
+
+
+def cmd_whence(args) -> int:
+    from . import provenance as pv
+
+    db = connect(_resolve_db_path(args))
+    try:
+        sess, rows = pv.whence(db, args.session)
+        if args.format == "json":
+            print(json.dumps(
+                {"session": dict(sess) if sess else None,
+                 "commits": [dict(r) for r in rows]},
+                indent=2, default=str))
+            return 0
+        if sess is None and not rows:
+            print(f"no session or commits for {args.session!r}", file=sys.stderr)
+            return 2
+        if sess is not None:
+            print(f"session {sess['session_uuid']}  {sess['vendor']}  "
+                  f"model={sess['model'] or 'unknown'}  "
+                  f"start={sess['start_ts'] or '-'}  "
+                  f"dur={sess['duration_min'] or '-'}min  "
+                  f"lines={sess['transcript_lines'] or '-'}")
+        print(f"produced {len(rows)} commit(s):")
+        _print_table(
+            rows,
+            ["authored_at", "hash", "project", "files",
+             "insertions", "deletions", "subject"],
+        )
+        return 0
+    finally:
+        db.close()
+
+
 def cmd_prune(args) -> int:
     from . import prune as pr
     from .locks import IndexerLockBusy, indexer_lock
@@ -520,6 +610,8 @@ _COMMANDS = {
     "stats": cmd_stats,
     "dispatch": cmd_dispatch,
     "git-import": cmd_git_import,
+    "who": cmd_who,
+    "whence": cmd_whence,
 }
 
 

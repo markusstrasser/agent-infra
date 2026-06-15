@@ -22,6 +22,16 @@ fleet:
 dashboard *args:
     uv run python3 scripts/dashboard.py {{args}}
 
+# Code line → session/model that authored it (e.g. just who src/agentlogs/db.py:25-40)
+[group('dashboard')]
+who file *args:
+    uv run agentlogs who {{file}} {{args}}
+
+# Session → the code it produced (e.g. just whence <session_uuid>)
+[group('dashboard')]
+whence session *args:
+    uv run agentlogs whence {{session}} {{args}}
+
 # Dashboard for last N days
 [group('dashboard')]
 dashboard-days days:
@@ -36,6 +46,26 @@ agent-receipts *args:
 [group('dashboard')]
 context-budget *args:
     uv run python3 scripts/context-budget.py {{args}}
+
+# Skills index description budget (Codex ~8k char ceiling; loaded mount sets)
+[group('dashboard')]
+skills-budget *args:
+    uv run python3 scripts/skills_budget.py {{args}}
+
+# Sync ~/.claude/skills → ~/.agents/skills + ~/.codex/skills
+[group('health')]
+sync-agent-skills *args:
+    uv run python3 scripts/sync_agent_skills.py {{args}}
+
+# Four-surface governance dedup before minting rules/skills
+[group('health')]
+dedup-surfaces *args:
+    uv run python3 scripts/dedup_surfaces.py {{args}}
+
+# Validate .model-review/dispatch.json closeout partition
+[group('health')]
+lint-closeout-dispatch *args:
+    uv run python3 scripts/lint_closeout_dispatch.py {{args}}
 
 # ── Hetzner fleet (cross-project idle-spend control) ───────────────
 
@@ -75,6 +105,10 @@ smoke:
     uv run python3 experiments/skill-routing/eval.py --locked
     echo "=== Codex parity (.codex/ + .agents/skills mirror Claude assets) ==="
     uv run --no-project python3 scripts/codex_parity_sync.py --check 2>&1 | tail -6
+    echo "=== Skills vendor sync (~/.agents/skills mirror) ==="
+    uv run python3 scripts/sync_agent_skills.py --check 2>&1 | tail -4 || true
+    echo "=== Skills index budget (advisory until trim) ==="
+    uv run python3 scripts/skills_budget.py 2>&1 | tail -6 || true
     echo "=== Claude hook smoke (silently-dead hook gate) ==="
     uv run --no-project python3 scripts/hooks_smoke.py --timeout 8
     echo "=== Codex hook compatibility ==="
@@ -234,6 +268,11 @@ skill-manifest *args:
 skill-usage-watch:
     uv run python3 scripts/skill_usage_watch.py
 
+# External API token/cost rollup from .model-review/*.meta.json (llmx dispatches)
+[group('health')]
+critique-cost *args:
+    uv run python3 scripts/critique_cost.py {{args}}
+
 # Evaluate hand-authored skill routing fixtures
 [group('health')]
 skill-routing-eval *args:
@@ -284,6 +323,17 @@ epistemic-lint *args:
 [group('epistemic')]
 critique-health *args:
     uv run python3 scripts/critique_health.py {{args}}
+
+# Post-review integration audit — did the diff implement HALLUCINATED findings?
+[group('epistemic')]
+integration-audit review_dir repo='.':
+    uv run python3 {{justfile_directory()}}/../skills/critique/scripts/integration_audit.py \
+        --review-dir {{review_dir}} --repo {{repo}}
+
+# Deterministic review gate: triage | rank | inconclusive (no LLM)
+[group('epistemic')]
+review-gate cmd='triage' *args:
+    uv run python3 {{justfile_directory()}}/../skills/critique/scripts/review_gate.py {{cmd}} {{args}}
 
 # SAFE-lite factual precision check
 [group('epistemic')]
@@ -398,7 +448,7 @@ plans-json:
 
 # ── Sessions (agentlogs) ─────────────────────────────────────────
 
-# Ingest new sessions from all vendors (Claude, Codex, Gemini) into agentlogs.db
+# Ingest new sessions from all vendors (Claude, Codex, Cursor, Gemini, Kimi) into agentlogs.db
 [group('sessions')]
 agentlogs-index *args:
     uv run agentlogs index {{args}}
