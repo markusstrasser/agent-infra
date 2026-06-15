@@ -1,0 +1,39 @@
+---
+description: Cockpit pilot HUD — Claude/Codex/Cursor statuslines, Ghostty tabs, shared state
+globs: cockpit.md,scripts/cockpit*.sh,scripts/*statusline*.sh,scripts/codex-tab-title.sh,scripts/codex_hook_shim.py,scripts/fleet.sh
+alwaysApply: false
+---
+
+# Cockpit (Cursor + cross-vendor)
+
+Operator runs 10–20 parallel Ghostty tabs. Cockpit = **steer without asking**.
+
+## Cursor-specific
+
+- **Statusline:** `~/.cursor/cli-config.json` → `statusLine.command` = `/Users/alien/Projects/agent-infra/scripts/cursor-statusline.sh`
+- **Intervals:** `updateIntervalMs: 5000`, `timeoutMs: 3000` — keep script under 3s.
+- **Marker:** `◇` on line 1 distinguishes Cursor from Claude `◐`.
+- **State files:** same `/tmp/claude-tab-*` and `claude-agent-$PPID` as Claude (PPID = agent process).
+- **No cost in Cursor HUD** yet (`—` in agent state); context % + fleet aggregate still work.
+
+## All vendors
+
+| Vendor | HUD | Tab title |
+|--------|-----|-----------|
+| Claude | 2-line via `~/.claude/statusline.sh` | OSC 2 in statusline |
+| Cursor | 2-line via `cursor-statusline.sh` | OSC 2 in statusline |
+| Codex | none | `codex-tab-title.sh` + shim flush only |
+
+Shared: `scripts/cockpit_common.sh`. Full doc: `cockpit.md`.
+
+## Editing checklist
+
+1. Change `scripts/` canonical copy; sync `~/.codex/hooks/codex-tab-title.sh` if needed.
+2. Use `realpath` for `COCKPIT_DIR` when script may be symlinked.
+3. Codex hooks: `COCKPIT_AGENT_PID` from shim, never hook `$PPID`.
+4. Line 2 = steering only (loop, compact, git, fleet, others, ⚑) — no throughput/cache noise.
+5. Test: `echo '<statusline json>' | ~/.claude/statusline.sh` and `scripts/fleet.sh`.
+
+## Key /tmp paths
+
+`claude-agent-$pid`, `claude-tab-tool-$pid`, `claude-tab-state-$pid`, `cockpit-tab-pending-$pid` (Codex flush), `hutter-fleet-cache` (hutter project only).
