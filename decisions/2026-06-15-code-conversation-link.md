@@ -114,9 +114,13 @@ agentlogs owns `git_commits`. Read-only, no new store, no materialized index, no
 - **Blame = last-touch, not origin ("refactor wash")** *(cross-model, both reviewers)*:
   plain `git blame` credits whoever *last* touched a line. A later session that
   reformats / moves / wraps logic re-attributes it, masking the originating session.
-  This is inherent to blame and **workflow-independent**. Mitigation: `who --history`
-  (`git log -L`) shows the full lineage; default `who` output is labelled
-  "last-authored," never "originated."
+  This is inherent to blame and **workflow-independent**. Mitigations: (1)
+  **`.git-blame-ignore-revs` + `blame.ignoreRevsFile`** (git core ≥2.23) — auto-list
+  wash commits (reformat/rename) so blame skips past them; re-attributed lines carry
+  a `?` → treat as `degraded` in the join *(git-native fix found in research,
+  `2026-06-15-git-native-tooling-anchors.md`)*; (2) `who --history` (`git log -L`)
+  shows the full lineage; (3) default `who` output is labelled "last-authored," never
+  "originated."
 - **Trailer re-stamp is much narrower than the context-blind reviewers claimed**
   *(cursor, code-verified — corrects Gemini+GPT)*: the `prepare-commit-msg` hook is
   **idempotent** — `prepare-commit-msg-session-id.sh:13` exits if a `Session-ID:` is
@@ -138,8 +142,13 @@ agentlogs owns `git_commits`. Read-only, no new store, no materialized index, no
 **Rot-resistant durable anchors** for references *stored* in docs/rules (the
 `file:line` rot problem). The query tool does NOT need this — it blames current
 state on demand. Defer until a measured consumer exists (a rule wanting a stable
-anchor). Approximation when needed: `git blame --reverse` line-following or
-symbol-name + content-hash anchors — **not** CRDT.
+anchor). **Researched answer** (`2026-06-15-git-native-tooling-anchors.md`): the
+lightest approach is a **tree-sitter normalized-AST fingerprint** —
+`{path, symbol?, sig=xxhash3(node-kinds + token-text, whitespace-stripped)}`,
+recomputed on demand → OK/STALE/ORPHAN/DEAD, stored in the *referencing* artifact
+(no new store, ~50 LOC; steal fiberplane/drift's pattern, not the dep). Git-native
+alternative: **Git AI** (`refs/notes/ai`, line-level attribution that migrates across
+rebase/squash) — probe before adopting. **Not** CRDT.
 
 ## Evidence
 Probes (2026-06-15, this session): `agentlogs.db` schema; trailer-column
