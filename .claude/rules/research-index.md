@@ -70,6 +70,13 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-06-14-phenome-substrate-identity-boundary.md` | phenome vs substrate vs corpus — the identity boundary (2026-06-14) | TODO |
 | `2026-06-14-subagent-offload-empirics-and-verdict.md` | Subagent offload for the main Opus agent — empirics + verdict | TODO |
 | `2026-06-14-supervision-audit-git-friction.md` | Supervision Audit: Git/Commit/Hook Friction | TODO |
+| `2026-06-15-agent-extensibility-surfaces.md` | AI Coding Agent Extensibility Surfaces — Cross-Platform Comparison | TODO |
+| `2026-06-15-agent-infra-sweep.md` | Agent-infra Frontier Sweep — 2026-06-15 (3-day delta) | TODO |
+| `2026-06-15-agent-surface-api-design-principles.md` | Agent Surface API Design Principles — Research Memo | TODO |
+| `2026-06-15-agent-surface-architecture.md` | Agent Surface Architecture — Research Synthesis | TODO |
+| `2026-06-15-critique-slow-and-unreliable.md` | /critique — speed + reliability forensics; preflight via `model-review.py --preflight` | Tuning critique axes; diagnosing sub-5s aborts; Composer vs API tradeoffs |
+| `2026-06-15-git-innovation-vcs-crdt.md` | STUB — being filled | TODO |
+| `2026-06-15-git-native-tooling-anchors.md` | Git-native provenance/diff tooling + durable code anchors — `--ignore-rev` fixes refactor-wash, trailer-parse Session-ID, `git log -L` for line lineage; anchors = steal drift's normalized-AST-fingerprint pattern (no server), SKIP SCIP/LSIF/LSP as too heavy | Sharpening blame→session attribution; building durable rot-resistant code anchors; SCIP/LSIF/tree-sitter-diff adoption; refactor-wash mitigation |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
 | `adversarial-case-library.md` | Adversarial Case Library: The Best "Calling BS" Reviews | TODO |
 | `agent-behavior-refresh-2026-04.md` | Agent Behavior Delta — Memory, Self-Modification, Sycophancy | TODO |
@@ -257,5 +264,6 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `trending-scout-2026-05-19.md` | Trending Scout — 2026-05-19 | TODO |
 | `trending-scout-2026-06-11.md` | Trending Scout — 2026-06-11 | TODO |
 | `trending-scout-2026-06-13.md` | Trending Scout — 2026-06-13 | TODO |
+| `trending-scout-2026-06-15.md` | Trending Scout — 2026-06-15 | TODO |
 | `weekly-agent-infra-sweep-2026-04-02.md` | Weekly Agent Infra Sweep 2026 04 02 | TODO |
 | `wiki-vs-flat-for-agents.md` | Wiki Vs Flat For Agents | TODO |
