@@ -191,3 +191,18 @@ upstream signal, it does not close them.
   Net build across the whole arc: the hutter Heretic auditor only (DONE, merged `c70e1f1`). The Gating
   section's pre-probe optimism and the body's earlier "ledger-core is a live candidate" are superseded by
   this entry.
+- **2026-06-16 — CORRECTION; supersedes the two entries above AT THE ALGORITHM LAYER (Markus: the probe
+  was scoped to the wrong layer):** the deletion-probe measured STORAGE (row-append: hutter `INSERT`,
+  anim `appendFileSync` — thin, different backends). That finding stands *for storage mechanics only*. It
+  did NOT measure the ALGORITHM layer, where the verdict FLIPS. The loop algorithms are **universal and
+  domain-free**: clade-yield (lineage descendant-acceptance), calibration (predicted vs actual),
+  probe-transfer (PACE funnel), tag-yield (decayed gain/cost), the heretic auditor, the dreamer proposer.
+  **Proof of transfer: the heretic auditor was PORTED anim→hutter this same session.** They don't share
+  *today* only because of stack difference (hutter = SQLite views, anim = TS functions) — and **DuckDB SQL
+  is language-agnostic**: a shared DuckDB `experiments` schema + the algorithms as SQL views are queryable
+  from hutter (Python), anim (TS), and intel. So **`loop-core` IS real** — a DuckDB experiments schema +
+  algorithm views, a TOOLKIT each loop's own control flow calls (NOT a runtime — FINDING 4 still bars
+  shared control flow). Per-project: the verifier, candidate-gen, a few columns. **NEXT = probe v2 at the
+  right layer:** can hutter's clade-yield/calibration/heretic views + anim's collapse onto ONE DuckDB
+  loop-core by deletion? STILL TRUE: no corpus-style content-id/supersession storage lib (corpus↔loop
+  divergent). **"Each keeps its own" holds at the storage line, NOT the algorithm line.**
