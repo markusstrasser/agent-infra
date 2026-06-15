@@ -68,6 +68,11 @@
           },
           {
             "type": "command",
+            "command": "/Users/alien/Projects/skills/hooks/stop-smart-judge.sh",
+            "async": true
+          },
+          {
+            "type": "command",
             "command": "/Users/alien/Projects/skills/hooks/stop-corpus-drain-health.sh",
             "async": true
           },
