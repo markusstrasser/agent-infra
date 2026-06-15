@@ -34,7 +34,23 @@ Which parts of the loop are common **roles** (factor as swappable, inspectable i
 domain mechanics (plug). Established by reading the two most-advanced instances (Explore digs,
 2026-06-16) and the `corpus_core` ledger writer — not by theorizing.
 
-## Decision — loop-core is a composition of inspectable ROLES over a shared ledger
+## History constraint — heed the outer-loop build-then-undo (CRITICAL)
+
+A near-identical extraction was ALREADY built and KILLED: `decisions/2026-06-13-rsi-outer-loop-skill.md`
+extracted a shared `outer-loop` skill + typed LOOP.md + ledger schema — then FINDING 5 killed
+deployment (**zero external callers**; hutter and `/improve maintain` already encoded the pattern
+natively; durable output was knowledge + `route.py`, not a platform). FINDING 4: **verifier regime
+decides whether a standalone loop is even possible** — only hutter (clean + cheap verifier)
+auto-ratchets; intel/genomics/science are conductor-driven *partial* regimes. Build-then-undo of
+shared platforms is the repo's recurring meta-failure.
+
+**Consequence:** the roles below transfer as a **documented PATTERN (knowledge)**, NOT as a shared
+runtime that dictates one control flow (that overfits hutter — the only standalone loop). The ONLY
+package extraction permitted is `ledger-core`, and ONLY after a **loader probe** proves ≥2 real
+callers of the *same* contract (the proven-common bar). The per-project win (hutter Heretic auditor)
+is the real deliverable; a `loop-core` runtime is gated, not assumed.
+
+## Decision — loop-core ROLES are a documented pattern; the only package is a proven `ledger-core`
 
 ```
         ┌────────── ledger (append-only · DuckDB · shared mechanics w/ corpus_core) ──────────┐
@@ -63,18 +79,37 @@ ships reference implementations of the generic strategies (clade-yield proposer,
 e-process gate) that projects compose and override. This is the classic propose-evaluate-select
 loop (genetic / active-learning) decomposed into its natural roles, with durable memory.
 
-## Ledger — shared `ledger-core` mechanics on DuckDB (DECIDED — was deferred)
+## Ledger — corpus stays separate; the real `ledger-core` is loop↔loop (re-scoped 2026-06-16)
 
-`corpus_core` and `loop-core` are **siblings** that both build on ONE extracted **`ledger-core`**
-mechanics contract on **DuckDB**: append-only · content-addressed IDs · supersession-not-mutation
-· per-file JSONL source-of-truth + rebuildable index projection · monotonic schema-version bump
-guard · **derived scalars as views, never columns** (overwriting destroys the replayable moat).
-`corpus_core`'s `graph_schema.sql` is the **reference embodiment** — extract its mechanics into
-`ledger-core`; `loop-core` consumes it with its own domain schema:
-`(ts, variant, git_sha, parent_id, predicted, actual, verifier_score, auditor_verdict,
-accept_verdict, tags, metrics)`. The belief-graph domain (claim_relations / support_balance)
-stays in corpus_core; the experiment-trial domain stays in loop-core. Shared mechanics, distinct
-schemas.
+The Phase-4 critique correctly killed a **`corpus_core ↔ loop`** ledger-core: corpus is a belief GRAPH
+(recursive resolution, claim-relations, `support_balance` traversals — confirmed in `graph_schema.sql`);
+a loop ledger is a LINEAR timeseries of trials. Divergent access patterns → no shared package across
+*that* boundary; corpus keeps its own ledger. They share only a *discipline* (append-only ·
+content-addressed · supersession · JSONL→rebuildable-DuckDB · derived-scalars-as-views).
+
+**But the critique and the draft mis-scoped the extraction (Markus, 2026-06-16).** The real `ledger-core`
+opportunity is **loop ↔ loop ↔ loop** — hutter, anim-workbench, and intel (+ more RSI loops coming) are
+all the SAME shape: append-only timeseries trial logs with `predicted/actual/verdict/lineage`. The
+architectural-mismatch objection does **not** apply among same-shape loops, and their lockstep coupling
+is *appropriate* (they should co-evolve). With ≥2 existing callers (hutter SQLite + anim JSONL) and more
+arriving, the proven-common bar is plausibly met. The only open question is the empirical 50-line-wrapper
+one — does the shared append/content-id/supersession/rebuild/schema-guard exceed a trivial wrapper — and
+**more consumers make the probe more favorable, not less.**
+
+**DELETION-PROBE RESULT (2026-06-16 — ran it, read both ledgers' code): NO package.** hutter is a SQLite
+`experiments` table with **autoincrement int ids** + ~13 domain-specific views (calibration, clade-yield,
+probe-transfer), explicitly **gitignored + rederived-by-rerun**. anim is a **~10-line** JSONL append
+(`appendFileSync` + `JSON.parse`) + a domain coverage view. **The "ledger-core mechanics"
+(content-addressing · supersession · JSONL→rebuildable-projection · schema-version-guard) were
+`corpus_core`'s — the loops have NONE of them.** What the loops share is ~10 lines of stdlib + domain
+views that do NOT share — the 50-line wrapper, confirmed by code. **Markus's reframe was right (loops ARE
+same-shape; the corpus-mismatch reasoning was wrong) — but same-shape ≠ shared mechanics: a PATTERN, not
+a library.**
+
+**Forward-standard caveat:** a shared *mature* ledger lib (bringing corpus's content-id/supersession/
+replayability TO the loops) is a separate, SPECULATIVE bet — it imposes machinery the current loops don't
+use or need (hutter gitignored-rederivable; anim raw JSONL). Per the repo's no-speculative-shared-utils
+rule, revisit ONLY when ≥3 loops concretely NEED a replayable/supersession ledger. Today: no.
 
 ## Invariants to preserve
 
@@ -100,15 +135,59 @@ schemas.
 - **Any backward-compat shim / wrapper / dual-path** — rejected by directive: breaking refactor,
   full migration.
 
-## Concrete first win (no loop-core needed)
+## Concrete first win — DONE (2026-06-16, in worktree, awaiting review)
 
-**hutter adopts anim-workbench's Heretic auditor** (the Auditor role) onto its greedy `s < base`
-gate — hutter's gate is the weakest of the three (observational-only anti-p-hack), a live PACE
-self-p-hacking hole. Same-day, in a hutter worktree, independent of the full factoring.
+**hutter adopts anim-workbench's Heretic auditor** — IMPLEMENTED in worktree
+`~/Projects/hutter-heretic-wt` (branch `heretic-auditor`): `scripts/heretic_audit.py`, a stateless
+per-track auditor (unverified-record ratio · zero-REJECT window · tautological-prediction ratio)
+wired at the ACCEPT branch in `eval.py`. On FAIL → `ACCEPT_HELD`: the byte win is recorded + bit-exact
+but does NOT ratchet (excluded from `v_leaderboard`/`v_accepted`, surfaced in new `v_held` view for
+human triage). 12 tests pass; not merged. Proves the Auditor role end-to-end with no loop-core package.
+NOTE (scout S2): hutter's exact-byte ratchet is zero-variance and structurally sound — the real hole
+is *compute allocation under noisy proxies* and *search-space self-dealing*, not false ACCEPTs; the
+auditor flags selection-pressure/calibration drift, it does not fix a broken ratchet.
 
-## Open (Phase 3)
+## Gating sequence — default is NO package
 
-- Home: `substrate/packages/loop-core` + `substrate/packages/ledger-core`, beside `corpus-core`.
-- Migration order: (1) hutter Heretic-auditor win → (2) extract `ledger-core` from corpus_core →
-  (3) loop-core roles → (4) migrate hutter + anim-workbench onto them, delete the hand-rolled loops.
-- Read corpus_core's append/rebuild **code** (not just schema) before extracting `ledger-core`.
+1. **DONE** — hutter Heretic auditor win (above). The one real build; per-project, zero-dependency.
+2. **Write the ledger CONTRACT/SPEC + conformance fixtures** (file layout · record envelope · content-ID
+   rule · supersession rule · schema-version rule · rebuild semantics). This documented pattern IS the
+   shared artifact — zero package.
+3. **Brutal deletion-probe on the LOOP ledgers (hutter + anim, both EXISTING).** A `ledger-core` package
+   is justified if both migrate onto one API by DELETING their local mechanics (proven by deletion, not
+   "could share"). The corpus↔loop pairing is excluded (divergent); loop↔loop is same-shape with ≥2
+   callers now + intel/more coming — so this probe is worth running and may well PASS. If the shared
+   mechanics exceed a trivial wrapper → extract `ledger-core` (loops only); each loop keeps its domain schema.
+4. Build NO shared **runtime** (only hutter is standalone; partial regimes are conductor-driven —
+   FINDING 4). The roles stay a documented pattern. The ledger-core **package** is GATED on step 3's
+   loop↔loop probe — not pre-rejected, not pre-assumed.
+
+## Global meta-loop tie-in
+
+loop-core ledgers feed the **EXISTING** global promotion loop (`blindspot_miner` → `/observe` →
+`improvement-log` → `/improve maintain` → harness), NOT a new mechanism. Upward promotion runs through
+the global constitution gate (2+ sessions · checkable predicate · blast_radius tier), **never** the
+per-project accept-gate. The per-project accept-gate (PACE anti-self-p-hack) and global gov-shrink
+(capability-rising retirement) are **orthogonal** gates with opposite defaults. Auditor rejections
+classify to the supervision taxonomy (`GROW_COVERAGE`/`REDUCE_ERROR`) and feed blindspot-miner;
+accept-gate policy divergence across projects becomes *visible* in the ledger → a harmonization
+proposal for agent-infra to gate. The actuator gaps in that global loop are real and pre-existing
+(`gov.py` AUTO_APPLY=False; no prediction-registration trigger; 13× add-vs-retire) — loop-core adds
+upstream signal, it does not close them.
+
+## Revisions
+
+- **2026-06-16 — deletion-probe RESULT (supersedes the Gating step-3 "may well PASS"):** the probe was RUN
+  (read hutter + anim ledger code). **FAILED → no `ledger-core` package.** hutter = SQLite table +
+  autoincrement int ids + ~13 domain views (gitignored/rederived-by-rerun); anim = a ~10-line JSONL
+  `appendFileSync` + a coverage view. The content-id / supersession / rebuild / schema-guard mechanics
+  that would justify a package are `corpus_core`'s — **absent in the loops.** They share ~10 lines of
+  stdlib + non-shared domain views (the 50-line wrapper, confirmed by reading code). Markus's same-shape
+  reframe was correct, but same-shape ≠ shared library.
+- **Arc shape (this ADR got *more conservative* under pressure — the point of running the arc):**
+  deep role-based PLATFORM + ledger-core → (history scout: outer-loop already built+killed, zero callers)
+  roles = documented pattern → (cross-model critique: ledger-core = displaced overreach) → (Markus: loops
+  are same-shape, re-open) → (deletion-probe: loops share stdlib, not mechanics) **build NOTHING shared.**
+  Net build across the whole arc: the hutter Heretic auditor only (DONE, merged `c70e1f1`). The Gating
+  section's pre-probe optimism and the body's earlier "ledger-core is a live candidate" are superseded by
+  this entry.
