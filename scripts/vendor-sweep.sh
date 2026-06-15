@@ -21,6 +21,10 @@ echo "[vendor-sweep] $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 # 2. Claude Code binary skill-prompt extraction (no-op if version unchanged)
 uv run python3 scripts/binary_skills_extract.py || echo "[vendor-sweep] binary_skills_extract returned non-zero (advisory)"
 
+# 2b. Cursor CLI built-in command extraction (backend-injected, not on disk —
+# harvested from the newest agent transcript carrying a <cursor_commands> block).
+uv run python3 scripts/cursor_commands_extract.py || echo "[vendor-sweep] cursor_commands_extract returned non-zero (advisory)"
+
 # 3. Commit any diffs on the narrow surveillance paths only.
 # docs/vendor/ is gitignored (local reference cache; freshness tracked by mtime).
 # Only binary-extracts/ is committed — the inter-version prompt diff is the
@@ -30,10 +34,12 @@ if git -C "$REPO" diff --cached --quiet; then
     echo "[vendor-sweep] no changes."
 else
     changed=$(git -C "$REPO" diff --cached --name-only | sed 's#^#    #')
-    git -C "$REPO" commit -q -m "[vendor-sync] Capture Claude Code binary skill diff — scheduled surveillance
+    git -C "$REPO" commit -q -m "[vendor-sync] Capture vendor agent-surface diff — scheduled surveillance
 
 Daily deterministic fetch (vendor-sweep.sh); vendor-docs refreshed to local
-cache (gitignored). New binary extract = a Claude Code version bump. Changed:
+cache (gitignored). A diff here = a Claude Code binary skill change and/or a
+Cursor backend built-in-command change (both are unpublished vendor changelogs).
+Changed:
 $(git -C "$REPO" diff --cached --name-only)
 
 Native-First: launchd + curl + existing extractor, no new fetch engine." \
