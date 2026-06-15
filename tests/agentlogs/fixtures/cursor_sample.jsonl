@@ -1,0 +1,2 @@
+{"role":"user","message":{"content":[{"type":"text","text":"<user_query>\n/observe\n</user_query>"}]}}
+{"role":"assistant","message":{"content":[{"type":"text","text":"Running observe."},{"type":"tool_use","name":"Read","input":{"path":"/Users/alien/.claude/skills/observe/SKILL.md"}}]}}
