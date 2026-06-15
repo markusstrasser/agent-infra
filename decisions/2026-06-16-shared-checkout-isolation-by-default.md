@@ -49,8 +49,11 @@ isolation-by-default and favored the band-aid. It did not — it strongly confir
    at LAUNCH (the one place that prevents the shared-state class), not coped with downstream in 5
    hooks. Matches the repo's own prior art (isolate-per-agent + merge-via-git; CAID 7.8pp;
    event-sourcing/locking NOT needed — `research/2026-06-13-multiagent-state-coordination-prior-art.md`).
-2. **Enforce via a launch wrapper, not a manual habit** — at 78–97% concurrency a manual
-   `--worktree` is forgotten ~80% of the time; only enforcement makes isolation the default.
+2. **Enforce by PROMPTING at launch — not a silent wrapper, not a manual habit** — at 78–97%
+   concurrency a manual `--worktree` is forgotten ~80% of the time, but a *silent* auto-worktree
+   carries real costs (see Revisions 2026-06-16). The launch path detects a live peer via the lock
+   and *asks* (`[w] isolate / [s] share`): isolation can't be forgotten, without a surprise context
+   switch.
 3. **One primitive underneath: a per-checkout claim-lock** `.claude/checkout-claim.json`
    = `{pid, session_id, started_at}` (gitignored runtime state), reclaimed when pid is dead.
    Composable — replaces the imprecise global `pgrep -x claude` in the peer-warn hook (also closes
@@ -98,5 +101,24 @@ attribution/sweep commits; `sessionstart-peer-session-warn.sh` uses global `pgre
 ## Implementation gate (NOT done here)
 Shared infra (5 projects) + currently 4 live peers running these hooks → propose-and-wait + execute
 only from a clean worktree, single-variable commits: (1) claim-lock + gitignore, (2) repoint
-peer-warn to the lock, (3) launch wrapper, (4) retire the Stop-hook attribution branches. Each its
-own commit so a regression is bisectable.
+peer-warn to the lock, (3) launch PROMPT (warn + one-key opt-in; headless `-p` passes through; NOT a
+silent auto-wrapper — see Revisions), (4) retire the Stop-hook attribution branches. Each its own
+commit so a regression is bisectable.
+
+## Revisions
+
+### 2026-06-16 — Phase 3 softened to a prompt (driven by a "any downside?" probe)
+Original Decision said "enforce via a launch wrapper." A downside review surfaced costs the overlap
+data hadn't priced — enough to change the *mechanism*, not the principle (enforcement still beats a
+forgettable habit):
+- **Wrapping the binary:** sits on every launch's critical path (must fail-open → `exec` the real
+  binary on any error); recursion risk (invoke the real binary by absolute path); **headless `-p`
+  must pass through** — auto-worktreeing /loop/cron/llmx dispatches would silently break them.
+- **Auto-worktree behavior:** implicit context switch (land in a worktree you didn't ask for → commit
+  to a branch you forget to merge → "lost" work); **path-keyed infra goes blind until merge** —
+  launchd WatchPaths, agentlogs `project_root`, `.mcp.json --directory` all key on the canonical path,
+  so a worktree is invisible to them until merged back; plus worktree proliferation + merge burden.
+- **Resolution:** keep precise lock-based DETECTION (Phase 2 — pure win, unchanged). Replace the
+  silent auto-wrapper with a **launch prompt** (`[w] isolate / [s] share`): preserves "can't forget"
+  without the surprise/headless/path-blindness footguns. Full-auto only earns its keep once path-keyed
+  infra is worktree-aware (out of scope). Principle unchanged; enforcement surface moved silent→prompted.
