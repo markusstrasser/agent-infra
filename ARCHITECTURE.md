@@ -72,10 +72,31 @@ how the system notices its own misses.
 |---|---|---|
 | Harness | The layered instruction/skill/hook/MCP surface loaded per session | `CLAUDE.md` §Cross-Project Architecture · `.claude/rules/context-budget-principles.md` |
 | Durable stores | git + `agentlogs.db` + corpus — the system's memory | `.claude/rules/session-forensics.md` · `decisions/2026-05-26-cross-attestation-substrate-v2.md` |
-| Self-monitoring | 13 zero-API launchd jobs (sense half of RSI) | `CLAUDE.md` §Active launchd jobs |
+| Self-monitoring | zero-API launchd jobs (sense half of RSI) — live set: `launchctl list \| grep com.agent-infra` | `CLAUDE.md` §Active launchd jobs |
 | RSI governance | observe → improvement-log → promote to architecture | `CLAUDE.md` <constitution> · `.claude/rules/gov-id.md` |
 | Governed projects | intel/phenome/genomics/skills + their stances | `research/cross-project-architecture-overview.md` (prose, 2026-05-11) |
-| Codebase | 138 py files, groups + import-hubs | `.claude/rules/codebase-map.md` |
+| Codebase | py files by group + import-hubs (count is GENERATED, never hand-kept) | `.claude/rules/codebase-map.md` |
+
+## Derive live state — never trust a hand-kept count
+
+The blocks above show the **shape**; the exhaustive, current inventory is **derived**. A
+hand-maintained list drifts the day you add a job (this doc said "13 jobs / 138 files" one
+day after it was written). So: **what's POSSIBLE is a map (slow-changing); what's WIRED is
+derived (changes hourly) — never hand-document liveness.** To see what's actually wired now:
+
+| Question | Command |
+|---|---|
+| Which launchd jobs are loaded | `launchctl list \| grep com.agent-infra` |
+| Which hooks are registered / which fire | `.claude/settings.json` · `uv run python3 scripts/hooks_smoke.py` |
+| Which `just` recipes exist | `just --list` |
+| Dead scripts (generator, no consumer) | `uv run python3 scripts/orphan_check.py` |
+| Scaffold lifecycle (rules/hooks, shrink-eligible vs backlog) | `just gov-report` |
+| Cross-project health (hooks · MCP · skills · symlinks) | `uv run python3 scripts/doctor.py` |
+| Doc-vs-reality drift (live jobs vs CLAUDE.md / this doc) | `uv run python3 scripts/orient.py --drift` |
+| Open human-gated decisions (pending · steward · DUE predictions) | `just questions` |
+
+> The unbuilt unifier: a single `just orient` that runs all of these into one "what's
+> possible AND what's live" surface. Until it exists, the table above is the manual route.
 
 ## Regenerate the image
 ```bash
