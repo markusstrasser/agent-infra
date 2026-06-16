@@ -7,9 +7,10 @@ This repo plans and tracks improvements to agent infrastructure across projects 
 
 ```bash
 just --list                              # all recipes, grouped
+just orient                              # live map — WHAT IS IT? jobs·hooks·MCP·skills, derived from ground truth (never stale)
 just smoke                               # minimal functional test (<1m)
-uv run python3 scripts/doctor.py         # cross-project health check (full validation)
-uv run python3 scripts/dashboard.py      # agent ops dashboard
+uv run python3 scripts/doctor.py         # cross-project health check — HEALTHY? (full validation)
+uv run python3 scripts/dashboard.py      # agent ops dashboard — WHAT HAPPENED?
 uv run agentlogs recent                  # recent runs across vendors (Claude+Codex+Cursor+Gemini)
 uv run agentlogs search <query>          # FTS5 search across all vendors
 uv run agentlogs stats                   # DB size, per-vendor counts, indexer health
