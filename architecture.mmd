@@ -1,9 +1,9 @@
 flowchart TD
-    subgraph SESS["🧠 Agent sessions — multi-vendor"]
+    subgraph SESS["🧠 Agent sessions — multi-vendor · THE ground truth (sensor)"]
         S1["Claude Code · Codex · Cursor · Gemini<br/>interactive + /loop + subagents"]
     end
 
-    subgraph HARNESS["⚙️ Harness — shapes every session"]
+    subgraph HARNESS["⚙️ Harness — the only actuator · shapes every session"]
         G["Global · ~/.claude/<br/>CLAUDE.md · rules/ · settings.json hooks"]
         SH["Shared · ~/Projects/skills/<br/>~40 skills + hooks/ — symlinked by friend-sync.sh"]
         P["Per-project<br/>CLAUDE.md (=AGENTS.md) · .claude/rules · settings.json · .mcp.json"]
@@ -16,7 +16,7 @@ flowchart TD
         CORP["corpus<br/>bytes + parses + citations + belief-ledger<br/>cross-attestation outbox"]
     end
 
-    subgraph WATCH["🔁 Self-monitoring — launchd · zero-API"]
+    subgraph WATCH["🔁 Self-monitoring — launchd · zero-API · the middle timescale"]
         L["agentlogs-index (2h) · drift-sentinel · blindspot-miner<br/>vendor-sweep · gov-report · audit-corpus-sync<br/>codebase-map-refresh · test-health · reclaim-rotate"]
         DIG["digests @ SessionStart<br/>PRIORITIES · drift-digest · blindspot-digest"]
     end
@@ -25,22 +25,34 @@ flowchart TD
         OBS["/observe · /improve maintain"]
         LOG["improvement-log.md<br/>2+ recurrences → promote"]
         RULE["new rules · hooks · skills · decisions/"]
-        KPI["supervision-kpi<br/>declining-supervision = the objective"]
+        KPI["supervision-kpi · AIR<br/>declining-supervision = the objective"]
     end
 
     subgraph PROJ["📦 Governed projects"]
         PR["intel · phenome · genomics · skills · research-mcp"]
     end
 
+    subgraph PROPOSED["🔧 PROPOSED edges — verified 2026-06-16, NOT yet built · research/2026-06-16-predictive-arch-rsi-loops.md"]
+        AW["① Anti-windup gate<br/>stop promoting a rule-class whose<br/>reflexes fire-but-don't-fix (AIR not dropping)"]
+        PW["② Precision-weighting<br/>weight each miner by demonstrated<br/>precision (1−FP), not all-equal"]
+        PH["③ Problem-hiding guard<br/>alarm when supervision↓ co-occurs<br/>with error-visibility↓"]
+        ANT["④ Anticipatory edge (cheap only)<br/>predict next-likely miss-class,<br/>pre-install reflex — NOT an EFE planner"]
+    end
+
+    %% ===== SHORT-TERM "reflex" loop — seconds, within ONE session =====
     S1 -->|shaped by| HARNESS
-    HARNESS -->|context + tools| S1
+    HARNESS ==>|context + tools · ⚡ SHORT reflex loop, this session| S1
+    DIG -->|surfaced| S1
+
+    %% ===== writes to durable memory =====
     S1 -->|granular commits| GIT
     S1 -->|transcripts| DB
     S1 -->|sources / verdicts| CORP
     GIT -->|git_import| DB
+
+    %% ===== LONG-TERM "learning" loop — days–weeks, across sessions =====
     L --> DB
     L --> DIG
-    DIG -->|surfaced| S1
     DB --> OBS
     CORP --> OBS
     DIG --> OBS
@@ -48,13 +60,21 @@ flowchart TD
     KPI --> OBS
     OBS --> LOG
     LOG --> RULE
-    RULE ==>|propagate · the feedback edge| HARNESS
+    RULE ==>|propagate · 🔄 LONG learning loop, future sessions| HARNESS
     HARNESS -->|skills + hooks| PR
     PR -->|sessions| S1
+
+    %% ===== proposed (dashed = not built) =====
+    AW -.->|gate the promotion path| LOG
+    PW -.->|weight the miners| L
+    PH -.->|cross-check the objective| KPI
+    ANT -.->|prospective surfacing| OBS
 
     classDef store fill:#1f2937,stroke:#60a5fa,color:#e5e7eb;
     classDef gov fill:#14532d,stroke:#4ade80,color:#e5e7eb;
     classDef watch fill:#3b2f0b,stroke:#fbbf24,color:#e5e7eb;
+    classDef prop fill:#2a1a3a,stroke:#c084fc,color:#e5e7eb,stroke-dasharray:5 5;
     class GIT,DB,CORP store;
     class OBS,LOG,RULE,KPI gov;
     class L,DIG watch;
+    class AW,PW,PH,ANT prop;

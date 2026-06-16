@@ -2,70 +2,44 @@
 
 **Start here** if you want the shape of the system in one screen. This is the visual
 front-door; the prose detail lives in the pointers at the bottom. Revise the diagram
-when you observe drift — don't let it rot (regen: `just refresh-arch` — see below).
+when you observe drift — don't let it rot (regen: edit `architecture.mmd`, then run the `mmdc` command at the bottom).
 
 ![Architecture flowchart](architecture.png)
 
-<details><summary>Mermaid source (edit this, then re-render)</summary>
+**Mermaid source:** [`architecture.mmd`](architecture.mmd) — the single source the `png` renders from. Edit it, then regen the image (below). The inline duplicate was removed 2026-06-16 (two copies drift; one source is constitution principle 9).
 
-```mermaid
-flowchart TD
-    subgraph SESS["🧠 Agent sessions — multi-vendor"]
-        S1["Claude Code · Codex · Cursor · Gemini<br/>interactive + /loop + subagents"]
-    end
-    subgraph HARNESS["⚙️ Harness — shapes every session"]
-        G["Global · ~/.claude/<br/>CLAUDE.md · rules/ · settings.json hooks"]
-        SH["Shared · ~/Projects/skills/<br/>~40 skills + hooks/ — symlinked by friend-sync.sh"]
-        P["Per-project<br/>CLAUDE.md (=AGENTS.md) · .claude/rules · settings.json · .mcp.json"]
-        MCP["MCP servers<br/>research-mcp · agent_infra_mcp · exa/brave/perplexity · scite"]
-    end
-    subgraph STORE["💾 Durable stores — the memory"]
-        GIT["git — the ledger<br/>Session-ID trailers · 'git log is the learning'"]
-        DB["agentlogs.db<br/>sessions·runs·events·tool_calls<br/>+ git_commits → v_session_commits"]
-        CORP["corpus<br/>bytes + parses + citations + belief-ledger<br/>cross-attestation outbox"]
-    end
-    subgraph WATCH["🔁 Self-monitoring — launchd · zero-API"]
-        L["agentlogs-index (2h) · drift-sentinel · blindspot-miner<br/>vendor-sweep · gov-report · audit-corpus-sync<br/>codebase-map-refresh · test-health · reclaim-rotate"]
-        DIG["digests @ SessionStart<br/>PRIORITIES · drift-digest · blindspot-digest"]
-    end
-    subgraph GOV["🧭 RSI governance loop"]
-        OBS["/observe · /improve maintain"]
-        LOG["improvement-log.md<br/>2+ recurrences → promote"]
-        RULE["new rules · hooks · skills · decisions/"]
-        KPI["supervision-kpi<br/>declining-supervision = the objective"]
-    end
-    subgraph PROJ["📦 Governed projects"]
-        PR["intel · phenome · genomics · skills · research-mcp"]
-    end
-    S1 -->|shaped by| HARNESS
-    HARNESS -->|context + tools| S1
-    S1 -->|granular commits| GIT
-    S1 -->|transcripts| DB
-    S1 -->|sources / verdicts| CORP
-    GIT -->|git_import| DB
-    L --> DB
-    L --> DIG
-    DIG -->|surfaced| S1
-    DB --> OBS
-    CORP --> OBS
-    DIG --> OBS
-    DB --> KPI
-    KPI --> OBS
-    OBS --> LOG
-    LOG --> RULE
-    RULE ==>|propagate · the feedback edge| HARNESS
-    HARNESS -->|skills + hooks| PR
-    PR -->|sessions| S1
-```
-</details>
+## The two loops (sessions are the only sensor; the harness the only actuator)
+Everything the operator does happens **inside a session** — so sessions are the system's one
+ground-truth signal, and the **harness is the one thing worth changing**. The system is a
+**cascaded control loop** with two timescales (verified against control theory / active inference /
+H-JEPA, `research/2026-06-16-predictive-arch-rsi-loops.md`):
 
-## The loop in one sentence
-Multi-vendor **sessions** are shaped by a layered **harness** → their work lands in three
-**durable stores** (git ledger, `agentlogs.db`, corpus) → **launchd self-monitors** mine those
-stores into SessionStart **digests** → the **RSI governance loop** (`/observe`, `/improve`)
-promotes recurring findings into rules/hooks/skills → which **propagate back into the harness**
-(the heavy `==>` edge). Declining supervision is the objective; the blindspot/drift miners are
-how the system notices its own misses.
+- **⚡ SHORT-TERM "reflex" loop** (seconds, *within one session*): SessionStart digests +
+  PreToolUse guards + Stop nudges shape the live session; the human corrects in the moment; the
+  agent adapts before the turn ends. No durable write needed. (`HARNESS ⇄ S1`.)
+- **🔄 LONG-TERM "learning" loop** (days–weeks, *across sessions*): transcripts/commits/verdicts →
+  durable stores → launchd miners (the de-facto **middle timescale**) → `/observe`+`/improve` →
+  improvement-log → **2+ recurrence gate** → promote to rules/hooks/skills → propagate to the
+  harness → shapes future sessions. Objective: declining supervision (`supervision-kpi`/AIR).
+
+They are **coupled**: the long loop's *output is short-loop machinery* — a hook is a reflex the
+slow loop installed. Cascade-control law (Skogestad/Shinskey): the inner loop must run ~4–10×
+faster than the outer or they fight; ours does (seconds vs days), so the split is sound.
+
+## Proposed edges — verified 2026-06-16, NOT yet built
+The literatures say our 2-loop cut is *correct but under-instrumented* — add **named edges, not
+new loops** (full decision table + provenance in the research memo). Drawn dashed/purple in the
+diagram:
+
+| # | Edge | What it adds | Value | Status |
+|---|------|--------------|-------|--------|
+| ① | **Anti-windup gate** | long loop stops promoting a rule-class whose reflexes fire-but-don't-fix (AIR not dropping) — the integral-windup analog | HIGH | unblocked by the 2026-06-16 AIR-instrument fix (`supervision-kpi`) |
+| ② | **Precision-weighting** | weight each miner by demonstrated precision (1−FP), not all-equal — "which detector to trust" | HIGH | clash-detector's 2-wk window already collects the number |
+| ③ | **Problem-hiding guard** | alarm when supervision↓ co-occurs with error-visibility↓ (the dominant iterative-loop collapse mode; already half-stated in the constitution) | HIGH | drift-sentinel can run the joint check |
+| ④ | **Anticipatory edge** (cheap only) | long loop predicts next-likely miss-class, pre-installs a reflex — the one genuinely-reactive gap. NOT an EFE planner (intractable) | MED | must pair with ① or predicting-misses-that-never-come IS the windup failure |
+
+DON'T import: the FEP/EFE formalism, JEPA architecture, or a Gödel-machine self-rewrite loop —
+our regime is observable **scaffolding-RSI**, the converging non-FOOM kind.
 
 ## Legend (one line each → where the detail lives)
 | Block | What it is | Deeper doc |
