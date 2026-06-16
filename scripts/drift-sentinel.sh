@@ -41,8 +41,9 @@ section "Context budget — always-loaded over ceiling" \
   "uv run python3 '$REPO/scripts/context-budget.py' --check" "OVER"
 section "Skills index — description chars over Codex ceiling" \
   "uv run python3 '$REPO/scripts/skills_budget.py' --check" "OVER|fail"
-section "Predictions DUE — resolve the verdict (confirmed/refuted)" \
-  "uv run python3 '$REPO/scripts/predictions.py' due" "DUE"
+# Predictions DUE moved to the Questions-for-you VIEW (questions_view.py, 2026-06-16) —
+# they are human-gated VERDICTS, so they converge in the decision surface, not here in
+# the deterministic drift monitor. drift-sentinel stays pure self-monitoring.
 
 if [ -s "$TMP" ]; then
   { printf '# Drift digest — %s\n' "$(date +%Y-%m-%d)"; \

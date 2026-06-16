@@ -2,15 +2,17 @@
 """predictions.py — pre-registered prediction ledger + resolver.
 
 Every substantive behavioral/infra change registers a FALSIFIABLE prediction with a
-check_date. The daily drift-sentinel surfaces DUE-and-unresolved predictions so they
-get a verdict (confirmed/refuted/partial) instead of accreting unverified — the
-constitution's secondary constraint ("error-correction per session": autonomy only
-counts if errors are caught) made concrete, and the existing 5 constitution-level
-Pre-Registered Tests generalized to per-change.
+check_date. The Questions-for-you VIEW (questions_view.py) surfaces DUE-and-unresolved
+predictions as governance questions so they get a verdict (confirmed/refuted/partial)
+instead of accreting unverified — the constitution's secondary constraint
+("error-correction per session": autonomy only counts if errors are caught) made
+concrete, and the existing 5 constitution-level Pre-Registered Tests generalized to
+per-change.
 
 The RESOLVER is the point. A write-only prediction log is false comfort
-(generation-without-consumption) — so this ships WITH the drift-sentinel surfacing,
-never alone. Scope it to changes with a MEASURABLE predicted effect (not chmods).
+(generation-without-consumption) — so this ships WITH a surfacing, never alone. The
+surfacing moved drift-sentinel → the Questions VIEW (2026-06-16) so every human-gated
+verdict converges in ONE place. Scope it to changes with a MEASURABLE predicted effect.
 
 Append-only JSONL (`predictions.jsonl` at repo root), records joined by `id`:
   prediction:  {"id","ts","kind":"prediction","change","commit","prediction","metric","check_date"}
@@ -56,13 +58,21 @@ def _today() -> str:
     return datetime.date.today().isoformat()
 
 
-def cmd_due() -> None:
+def due_predictions() -> list[dict]:
+    """DUE-and-open prediction records (OPEN ∧ check_date<=today), oldest first.
+
+    The data behind `due`; imported by questions_view so the Questions VIEW and the CLI
+    agree on what's DUE (single-source — consumers LOAD this, never re-derive the rule)."""
     preds, resolved = _load()
     today = _today()
     due = [p for pid, p in preds.items()
            if pid not in resolved and p.get("check_date", "9999") <= today]
     due.sort(key=lambda p: p.get("check_date", ""))
-    for p in due:
+    return due
+
+
+def cmd_due() -> None:
+    for p in due_predictions():
         print(f"DUE {p['check_date']} [{p['id']}] {p.get('change', '')}")
         print(f"    predict: {p.get('prediction', '')}")
         print(f"    metric:  {p.get('metric', '')}  (resolve: predictions.py resolve {p['id']} <verdict> \"...\")")

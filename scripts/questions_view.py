@@ -53,7 +53,8 @@ CLASH_LOG = Path.home() / ".claude" / "clash-shadow.jsonl"
 # Envelope taxonomy — the four classes a human-gated question can be ABOUT.
 CAT_ORDER = ("governance", "goal", "tool", "hook")
 CAT_LABEL = {"governance": "Governance", "goal": "Goals", "tool": "Tools", "hook": "Hooks"}
-SOURCE_LABEL = {"decisions-pending": "decision", "steward-proposals": "steward", "clash": "clash"}
+SOURCE_LABEL = {"decisions-pending": "decision", "steward-proposals": "steward",
+                "predictions": "prediction", "clash": "clash"}
 
 
 # ── The envelope (the VIEW's lingua franca) ──────────────────────────────────
@@ -221,6 +222,33 @@ def _collect_dir(d: Path, parser, *, skip: set[str], feeder: str, result: ViewRe
             result.skipped.append(f"{feeder}/{f.name} ({type(e).__name__})")
 
 
+def _collect_predictions(result: ViewResult) -> None:
+    """DUE pre-registered predictions (predictions.py) — each is a verdict the human owes
+    (confirmed/refuted/partial). Imported, NOT re-derived: predictions.due_predictions()
+    owns the DUE rule (single-source). The surfacing moved here from drift-sentinel so all
+    human-gated verdicts converge in this one VIEW."""
+    try:
+        import predictions  # scripts/ is on path (conftest / uv run / act_drain insert)
+        due = predictions.due_predictions()
+    except Exception as e:  # feeder-LEVEL failure → fail loud (P8)
+        result.degraded.append(f"[DEGRADED: predictions unreadable — {type(e).__name__}]")
+        return
+    for p in due:
+        pid = p.get("id", "")
+        if not pid:
+            continue
+        change = p.get("change") or _truncate(p.get("prediction", ""), 80) or pid
+        result.questions.append(Question(
+            id=make_id("predictions", pid),
+            source="predictions",
+            category="governance",
+            prompt=_truncate(f"Resolve prediction: {change} — confirmed or refuted?", 200),
+            created=p.get("check_date", ""),
+            ref=f"predictions.jsonl#{pid}",
+            detail=_truncate(f"predict: {p.get('prediction', '')}", 130),
+        ))
+
+
 def _collect_clash(result: ViewResult) -> None:
     """GATED feeder — promoted clash-shadow rows become governance questions. Dormant:
     reads ONLY rows with promoted=true, and nothing is promoted until `just clash-detect
@@ -255,7 +283,7 @@ def _collect_clash(result: ViewResult) -> None:
 def _dedup(questions: list[Question]) -> list[Question]:
     """Dedup by stable id, then by normalized prompt across feeders. More-structured
     sources win (decisions-pending > steward > clash)."""
-    rank = {"decisions-pending": 0, "steward-proposals": 1, "clash": 2}
+    rank = {"decisions-pending": 0, "steward-proposals": 1, "predictions": 2, "clash": 3}
     seen_id: set[str] = set()
     seen_prompt: set[str] = set()
     out: list[Question] = []
@@ -282,6 +310,7 @@ def collect_questions(repo: str | Path = REPO, *, include_clash: bool = False) -
         STEWARD_DIR, _parse_steward,
         skip=set(), feeder="steward-proposals", result=result,
     )
+    _collect_predictions(result)
     if include_clash:
         _collect_clash(result)
     result.questions = _dedup(result.questions)

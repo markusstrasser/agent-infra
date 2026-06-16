@@ -8,9 +8,20 @@ Covers the 5 robustness HOWs the cross-model critique confirmed (ADR
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # scripts/
 
 import questions_view as qv  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _isolate_ambient_feeders(monkeypatch, tmp_path):
+    """Hermetic by default: don't let the real predictions.jsonl / clash-shadow.jsonl leak
+    into count assertions. Tests that exercise those feeders override these explicitly."""
+    import predictions
+    monkeypatch.setattr(predictions, "LEDGER", tmp_path / "_no_predictions.jsonl")
+    monkeypatch.setattr(qv, "CLASH_LOG", tmp_path / "_no_clash.jsonl")
 
 DECISION = """# Fix the rate-limit gate — pgrep over-counts, gate stuck closed
 
@@ -163,3 +174,41 @@ def test_render_groups_and_header(tmp_path, monkeypatch):
 
 def test_render_empty_is_none():
     assert qv.render_section(qv.ViewResult()) is None
+
+
+# ── predictions feeder: DUE predictions converge into the VIEW (single-sourced) ──
+def test_predictions_feeder_due_only(tmp_path, monkeypatch):
+    import json as _json
+
+    import predictions
+    ledger = tmp_path / "predictions.jsonl"
+    rows = [
+        {"id": "2020-01-01-old", "kind": "prediction", "change": "past change",
+         "prediction": "X happens", "check_date": "2020-01-01"},
+        {"id": "2099-01-01-future", "kind": "prediction", "change": "future change",
+         "prediction": "Y happens", "check_date": "2099-01-01"},
+    ]
+    ledger.write_text("\n".join(_json.dumps(r) for r in rows) + "\n")
+    monkeypatch.setattr(predictions, "LEDGER", ledger)
+    monkeypatch.setattr(qv, "STEWARD_DIR", tmp_path / "no-steward")
+    result = qv.collect_questions(tmp_path / "no-decisions")
+    preds = [q for q in result.questions if q.source == "predictions"]
+    assert len(preds) == 1  # only the DUE (past) one; the future one is not due
+    assert "past change" in preds[0].prompt and preds[0].category == "governance"
+
+
+def test_predictions_resolved_excluded(tmp_path, monkeypatch):
+    import json as _json
+
+    import predictions
+    ledger = tmp_path / "predictions.jsonl"
+    rows = [
+        {"id": "2020-01-01-x", "kind": "prediction", "change": "c",
+         "prediction": "p", "check_date": "2020-01-01"},
+        {"id": "2020-01-01-x", "kind": "resolution", "status": "confirmed", "note": "done"},
+    ]
+    ledger.write_text("\n".join(_json.dumps(r) for r in rows) + "\n")
+    monkeypatch.setattr(predictions, "LEDGER", ledger)
+    monkeypatch.setattr(qv, "STEWARD_DIR", tmp_path / "no-steward")
+    result = qv.collect_questions(tmp_path / "no-decisions")
+    assert not [q for q in result.questions if q.source == "predictions"]  # resolved → not DUE
