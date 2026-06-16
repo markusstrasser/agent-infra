@@ -337,9 +337,12 @@ def _ensure_session_pk(db: sqlite3.Connection, sr) -> int:
         if row:
             db.execute(
                 "UPDATE sessions SET project_root=COALESCE(?, project_root), "
-                "project_slug=COALESCE(?, project_slug), session_uuid=COALESCE(session_uuid, ?) "
+                "project_slug=COALESCE(?, project_slug), session_uuid=COALESCE(session_uuid, ?), "
+                # sticky-true: a session known to be a subagent stays one across re-imports
+                "is_subagent = MAX(is_subagent, ?) "
                 "WHERE session_pk=?",
-                (sr.project_root, sr.project_slug, sr.vendor_session_id, row[0]),
+                (sr.project_root, sr.project_slug, sr.vendor_session_id,
+                 1 if getattr(sr, "is_subagent", False) else 0, row[0]),
             )
             return int(row[0])
     if sr.synthetic_session_key:
@@ -359,12 +362,13 @@ def _ensure_session_pk(db: sqlite3.Connection, sr) -> int:
     cursor = db.execute(
         """
         INSERT INTO sessions (vendor, client, vendor_session_id, synthetic_session_key,
-                              session_uuid, project_root, project_slug)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+                              session_uuid, project_root, project_slug, is_subagent)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (sr.vendor, _db_text(sr.client), _db_text(sr.vendor_session_id),
          sr.synthetic_session_key, _db_text(session_uuid),
-         _db_text(sr.project_root), _db_text(sr.project_slug)),
+         _db_text(sr.project_root), _db_text(sr.project_slug),
+         1 if getattr(sr, "is_subagent", False) else 0),
     )
     return int(cursor.lastrowid)  # type: ignore[arg-type]
 
@@ -678,11 +682,43 @@ def index_vendor(
             # re-touching never-indexed legacy sources whose re-import/continuation
             # collides on the events.event_id PK. Older already-indexed data stays put.
             sources = [s for s in sources if s.path.stat().st_mtime >= since_ts]
-        if limit_sources:
-            sources = sources[:limit_sources]
+        # Order newest-first so a backlog drains from the most-recent end and the
+        # current session is always reachable. discover_sources() returns sources
+        # sorted BY PATH, and the OLD code did `sources[:limit]` BEFORE the per-source
+        # skip-check — so a vendor with >limit in-window files only ever examined the
+        # first `limit` paths. Once those imported, every run skipped all of them and
+        # NEVER reached the rest. Witnessed 2026-06-16: cursor had 711 in-window
+        # transcripts on disk but only 347 registered (364 later-sorted paths
+        # permanently starved). Fix = (1) order by mtime desc; (2) apply the limit to
+        # ACTUAL IMPORTS, not to the iteration window, so each run advances `limit` new
+        # sources through the backlog instead of re-skipping the same head every cycle.
+        sources.sort(key=lambda s: s.path.stat().st_mtime, reverse=True)
         stats.sources_discovered = len(sources)
 
+        # Cheap pre-skip: a file already imported under THIS parser+schema whose on-disk
+        # mtime is unchanged cannot have new content, so skip it WITHOUT reading+sha-ing
+        # the file. Without this, applying the limit to actual-imports (below) would sha
+        # every backlog file each run to discover it's unchanged — O(all sources) I/O on
+        # claude's 11k-source set. One indexed query builds the map per pass.
+        imported_mtime: dict[str, float] = {} if force else {
+            r["path"]: r["file_mtime"]
+            for r in db.execute(
+                """
+                SELECT s.path AS path, s.file_mtime AS file_mtime
+                FROM sources s JOIN imports i ON i.source_id = s.source_id
+                WHERE s.vendor = ? AND i.parser_name = ? AND i.parser_version = ?
+                  AND i.schema_version = ? AND i.success = 1 AND s.file_mtime IS NOT NULL
+                """,
+                (vendor, parser_name, parser_version, SCHEMA_VERSION),
+            )
+        }
+
+        imported_this_run = 0
         for idx, source in enumerate(sources):
+            if limit_sources and imported_this_run >= limit_sources:
+                # Did `limit` real imports this run; the rest (older backlog or churn)
+                # waits for the next cycle. Bounds work WITHOUT starving by position.
+                break
             if deadline is not None and time.monotonic() > deadline:
                 print(
                     f"[agentlogs] run deadline reached during {vendor}: "
@@ -696,6 +732,10 @@ def index_vendor(
             # outer except, killing the whole vendor pass.
             watchdog.disarm()
             if not source.path.exists():
+                continue
+            prev_mtime = imported_mtime.get(str(source.path))
+            if prev_mtime is not None and source.path.stat().st_mtime <= prev_mtime:
+                stats.sources_skipped += 1
                 continue
             sha = _sha256_file(source.path)
             source_id = _upsert_source(db, source, sha)
@@ -735,6 +775,7 @@ def index_vendor(
                 _write_parsed(db, parsed, source_id, import_id, stats)
                 db.execute("COMMIT")
                 stats.sources_imported += 1
+                imported_this_run += 1
             except Exception as src_exc:
                 # Per-source failure: roll back this source's transaction, record
                 # it as failed, and continue with the next source. Previously this

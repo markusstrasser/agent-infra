@@ -121,6 +121,7 @@ def parse_source(source: DiscoveredSource) -> ParsedSource:
         vendor_session_id=session_vendor_id,
         project_root=project_root,
         project_slug=project_slug,
+        is_subagent=is_subagent,
     )
     bundle.sessions.append(session)
     bundle.runs.append(

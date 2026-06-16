@@ -201,12 +201,15 @@ def recent_sessions(
     *,
     vendor: str | None = None,
     project: str | None = None,
+    role: str | None = None,
     limit: int = 20,
 ) -> list[sqlite3.Row]:
     sql = """
         SELECT
             session_pk, session_uuid, vendor, project_slug,
-            start_ts, duration_min, model, first_message
+            start_ts, duration_min, model,
+            CASE WHEN is_subagent = 1 THEN 'subagent' ELSE 'operator' END AS role,
+            first_message
         FROM sessions
         WHERE 1=1
     """
@@ -217,6 +220,10 @@ def recent_sessions(
     if project:
         sql += " AND project_slug = ?"
         params.append(project)
+    if role == "operator":
+        sql += " AND is_subagent = 0"
+    elif role == "subagent":
+        sql += " AND is_subagent = 1"
     sql += " ORDER BY COALESCE(start_ts, indexed_at) DESC LIMIT ?"
     params.append(limit)
     return list(db.execute(sql, params))

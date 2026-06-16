@@ -34,6 +34,10 @@ class SessionRow:
     synthetic_session_key: str | None = None
     project_root: str | None = None
     project_slug: str | None = None
+    # True iff this session is a subagent/sidechain dispatch (Task/Agent tool spawn),
+    # NOT an operator (top-level interactive) session. Derived per-adapter from the
+    # raw transcript marker (claude: agent-*.jsonl / subagents/ path, == isSidechain).
+    is_subagent: bool = False
 
     @property
     def lookup_key(self) -> tuple[str, str, str]:

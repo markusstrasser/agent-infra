@@ -11,7 +11,7 @@ just orient                              # live map — WHAT IS IT? jobs·hooks�
 just smoke                               # minimal functional test (<1m)
 uv run python3 scripts/doctor.py         # cross-project health check — HEALTHY? (full validation)
 uv run python3 scripts/dashboard.py      # agent ops dashboard — WHAT HAPPENED?
-uv run agentlogs recent                  # recent runs across vendors (Claude+Codex+Cursor+Gemini)
+uv run agentlogs recent                  # recent runs across vendors (live data: Claude+Codex+Cursor; Gemini+Kimi adapters wired but no sessions in 21d retention window)
 uv run agentlogs search <query>          # FTS5 search across all vendors
 uv run agentlogs stats                   # DB size, per-vendor counts, indexer health
 ```
