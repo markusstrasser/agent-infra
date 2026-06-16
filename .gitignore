@@ -37,6 +37,7 @@ __pycache__/
 **/.claude/checkpoint.md
 .claude/scheduled_tasks.lock
 **/.claude/current-session-id
+**/.claude/checkout-claim.json
 .claude/plans/
 downloads/
 .context/*.xml
