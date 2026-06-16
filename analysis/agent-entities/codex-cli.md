@@ -12,11 +12,12 @@ status: active
 
 - **Version:** 0.139.0 (npm + local; 0.140.0-alpha.4 on 2026-06-10)
 - **Latest release date:** ~2026-06-09 (0.139.0)
-- **Pricing:** per-token via OpenAI API; GPT-5.5 bundled with ChatGPT subscription (our `--lite bare` $0 path)
+- **Pricing:** per-token via OpenAI API; GPT-5.5 bundled with ChatGPT subscription (our `llmx chat --subscription` $0 path)
 - **Transport:** CLI; daemon-managed `codex remote-control` (0.131+); `/app` Desktop handoff (0.138)
 - **Models supported:** GPT-5.5 flagship under ChatGPT auth
 - **MCP:** runtime enable/disable (0.131); per-server env targeting + OAuth for streamable-HTTP servers + `readOnlyHint` concurrent execution + `$ref`/`$defs` preserved (0.134); `oneOf`/`allOf` preserved (0.139). The 2026-04 "~37K bundled-MCP overhead, no disable flag" state is obsolete
 - **Config:** profiles v2 — `--profile` primary selector, legacy `[profiles.]` blocks in config.toml REJECTED, settings live in `$CODEX_HOME/.config.toml` (0.134). Our config verified clean 2026-06-11
+- **Skills:** open agent skills standard (`SKILL.md`); discovers `~/.agents/skills`, legacy `~/.codex/skills`, repo `.agents/skills` (we symlink via `codex_parity_sync.py`). Progressive disclosure; ~8k char skills index budget. No `Skill` tool in agentlogs — loads via `exec_command` reads of SKILL.md. [SOURCE: developers.openai.com/codex/skills]
 - **Hooks:** PreToolUse/PostToolUse etc. via hooks.json; exec-path bug (#25875, hooks silently not firing under `codex exec`) fixed 2026-06-04 — canary verification on 0.139 still pending
 
 ## Recent Changes
@@ -38,4 +39,4 @@ Revisit our llmx routing if any of these change:
 
 - GitHub releases: `https://github.com/openai/codex/releases`
 - OpenAI API changelog: `https://developers.openai.com/api/docs/changelog`
-- Current llmx routing notes: `~/.claude/rules/llmx-routing.md`
+- Transport facts: `llmx info` / `~/.claude/cache/llmx-routing.json`; model choice: model-guide skill

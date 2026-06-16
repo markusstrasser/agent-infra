@@ -145,7 +145,7 @@ playbook entirely (corpus/attestation substrates, cross-model critique).
   lift a weekly ceiling, and the silent fallback was the frontier Dreamer hand-driving the object
   loop — the exact cost asymmetry the two-loop split exists to avoid. The restart-loop must
   distinguish quota-exhaustion (long backoff to the reset time + alert) from transient rc, and
-  must NOT silently degrade into Dreamer-hand-driving. Maps to `llmx-routing` exit-6 (billing
+  must NOT silently degrade into Dreamer-hand-driving. Maps to `llmx info` exit-6 (billing
   exhausted) vs exit-3 (rate limit): permanent-for-the-window, not retryable.
 - **Source reverted, binary stale** — a dispatch that edits/reverts source but skips the rebuild
   runs the PREVIOUS config and writes a mislabeled ledger row (hutter box Move-0: "baseline-stock"

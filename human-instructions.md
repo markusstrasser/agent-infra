@@ -93,7 +93,7 @@ uv run agentlogs query tool_usage_by_mcp_server --param vendor=codex --format js
 - `--add-dir path/to/other/repo` — give Claude access to another repo (also `/add-dir` mid-session)
 
 **Performance:**
-- `--bare` — skip CLAUDE.md, settings, MCPs on startup (up to 10x faster). Use for non-interactive `claude -p` or SDK calls where you explicitly specify context.
+- `--bare` — skip CLAUDE.md, settings, MCPs on startup (up to 10x faster). For non-interactive `claude -p`, prefer **subscription OAuth** (strip inherited `ANTHROPIC_API_KEY`) or `llmx chat --subscription`; vendor `--bare` docs assume API-key billing — use only when explicitly requested.
 
 **Remote:**
 - `/schedule` — schedule Claude to run remotely on a cron (up to a week). Use for babysit loops, code review, rebase.
