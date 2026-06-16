@@ -14,6 +14,7 @@ flowchart TD
         GIT["git — the ledger<br/>Session-ID trailers · 'git log is the learning'"]
         DB["agentlogs.db<br/>sessions·runs·events·tool_calls<br/>+ git_commits → v_session_commits"]
         CORP["corpus<br/>bytes + parses + citations + belief-ledger<br/>cross-attestation outbox"]
+        EMB["embed-once index<br/>angle-agnostic semantic layer over sessions<br/>any new angle = free emb query, not a metered re-read"]
     end
 
     subgraph WATCH["🔁 Self-monitoring — launchd · zero-API · the middle timescale"]
@@ -56,6 +57,8 @@ flowchart TD
     L --> DIG
     KPI -.->|liveness checked by| PULSE
     PULSE -->|alarm when an instrument dies| DIG
+    DB -->|embed-once| EMB
+    EMB -->|cheap re-angle queries| OBS
     DB --> OBS
     CORP --> OBS
     DIG --> OBS
@@ -77,7 +80,7 @@ flowchart TD
     classDef gov fill:#14532d,stroke:#4ade80,color:#e5e7eb;
     classDef watch fill:#3b2f0b,stroke:#fbbf24,color:#e5e7eb;
     classDef prop fill:#2a1a3a,stroke:#c084fc,color:#e5e7eb,stroke-dasharray:5 5;
-    class GIT,DB,CORP store;
+    class GIT,DB,CORP,EMB store;
     class OBS,LOG,RULE,KPI gov;
     class L,DIG,PULSE watch;
     class AW,PW,PH,ANT prop;
