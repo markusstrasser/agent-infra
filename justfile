@@ -340,6 +340,38 @@ integration-audit review_dir repo='.':
 review-gate cmd='triage' *args:
     uv run python3 {{justfile_directory()}}/../skills/critique/scripts/review_gate.py {{cmd}} {{args}}
 
+# ── Dispatch (just-fronted engines: gather → critique → …) ────────
+# Brief-schema contract: .claude/rules/dispatch-brief-schema.md
+
+# Deterministic v0 context gather around a plan/ADR/memo (no LLM). Emits brief-schema.
+[group('dispatch')]
+gather path *args:
+    uv run python3 scripts/gather_context.py "{{path}}" --repo "$(pwd)" {{args}}
+
+# One-call cross-model critique of a design doc: gather → model-review.
+# Fronts the EXISTING engine (genomics plan-close-review pattern); removes the
+# orchestrator's packet-assembly turns. model-review self-scouts + self-presets.
+# NOTE: no `review_gate triage` step — its `_scan_dead_refs` blocker false-fires on
+# design docs that legitimately name cross-repo / basename refs (see ideas.md proposal).
+[group('dispatch')]
+critique path *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p .model-review
+    slug="$(basename "{{path}}" | sed 's/\.[^.]*$//')"
+    packet=".model-review/${slug}-context.md"
+    uv run python3 scripts/gather_context.py "{{path}}" --repo "$(pwd)" --output "$packet"
+    # model-review auto-loads .model-review/dispatch.json if present; a stale one
+    # (from a prior triage run, this session or a peer) carries dead-ref blockers that
+    # abort design-doc critique. Clear it so model-review self-configures fresh.
+    rm -f .model-review/dispatch.json
+    uv run python3 {{justfile_directory()}}/../skills/critique/scripts/model-review.py \
+        --context "$packet" --project "$(pwd)" \
+        --topic "critique: {{path}}" --extract {{args}} \
+        "Adversarially review the design doc at {{path}}. Read the actual repo code to ground every claim; do not speculate about files not in context."
+    echo "drill:    just review-gate rank --review-dir .model-review --json"
+    echo "next:     fold verified findings → {{path}}"
+
 # SAFE-lite factual precision check
 [group('epistemic')]
 safe-lite *args:

@@ -35,6 +35,7 @@ observe
 improvement-log
 decisions
 tests
+dispatch
 # Added 2026-06-14 — frequency-measured (≥4 uses in last 800 commits) to kill spurious
 # unknown-scope warnings (GF-4 supervision finding). Canonical spelling only; variants
 # (claim-bench, decision-singular) left unregistered to warn as consistency nudges.
