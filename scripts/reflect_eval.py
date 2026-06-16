@@ -43,6 +43,25 @@ def _age_days(ts: str) -> float:
         return 0.0
 
 
+def _since_map() -> dict[str, str]:
+    """subtype -> the date its predicate last changed (config `since`). PPV must window
+    to firings on/after this, else a fixed predicate is judged on its old version's noise
+    (the new-script FP class: excludes added 2026-06-13, all firings predate it)."""
+    cfg_path = Path(__file__).parent.parent / "config" / "reflect-omission-rules.json"
+    try:
+        cfg = json.loads(cfg_path.read_text())
+    except Exception:
+        return {}
+    out: dict[str, str] = {}
+    for rules in cfg.values():
+        if not isinstance(rules, list):
+            continue
+        for r in rules:
+            if r.get("name") and r.get("since"):
+                out[r["name"]] = r["since"]
+    return out
+
+
 def evaluate(dry: bool = False) -> dict:
     # 1. process accumulated shadow data (auto-records evidence; quarantines proposals)
     classify = reflect.run_classify(dry_run=dry)
@@ -50,8 +69,16 @@ def evaluate(dry: bool = False) -> dict:
     capture = reflect.load_capture()
     incidents = len(capture)
     kinds = Counter(s.get("kind", "?") for s in capture)
-    omissions_by_subtype = Counter(
-        s.get("subtype", "?") for s in capture if s.get("kind") == "omission")
+    # Window omission firings to those on/after the predicate's `since` — stale pre-fix
+    # firings would poison PPV forever (a fixed predicate can never clear its old noise).
+    since = _since_map()
+    om_all = [s for s in capture if s.get("kind") == "omission"]
+    def _fresh(s: dict) -> bool:
+        sub = s.get("subtype", "?")
+        cut = since.get(sub)
+        return cut is None or (s.get("ts", "")[:10] >= cut)
+    omissions_by_subtype = Counter(s.get("subtype", "?") for s in om_all if _fresh(s))
+    omissions_stale_excluded = Counter(s.get("subtype", "?") for s in om_all if not _fresh(s))
 
     pending = reflect._load_pending()
     proposals = [p for _, _, p in pending]
@@ -79,6 +106,7 @@ def evaluate(dry: bool = False) -> dict:
         "proposals": total_props, "attach_enf": attach_enf, "mint_like": mint_like,
         "compaction_ratio": round(ratio, 3), "attach_share": attach_share,
         "omissions_by_subtype": dict(omissions_by_subtype),
+        "omissions_stale_excluded": dict(omissions_stale_excluded),
         "pending": total_props, "p90_age_days": round(p90_age, 1), "backlog_slope": slope,
         "this_run": {"auto_recorded": len(classify["auto_recorded"]),
                      "quarantined": len(classify["quarantined"]),
@@ -123,8 +151,9 @@ def render(r: dict) -> str:
          "## Pre-registered tests", "",
          f"- **T1 compaction** [{r['tests']['T1_compaction']}] — ratio={r['compaction_ratio']} "
          f"(target ≤0.35), attach_share={r['attach_share']} (target ≥0.80)",
-         f"- **T3 omission PPV** [{r['tests']['T3_omission_ppv']}] — firings by probe: "
-         f"{r['omissions_by_subtype'] or '(none yet)'}",
+         f"- **T3 omission PPV** [{r['tests']['T3_omission_ppv']}] — fresh firings by probe (windowed to predicate `since`): "
+         f"{r['omissions_by_subtype'] or '(none yet)'}"
+         + (f"  ·  stale pre-fix firings excluded: {r['omissions_stale_excluded']}" if r.get('omissions_stale_excluded') else ""),
          f"- **T4 throughput** [{r['tests']['T4_throughput']}] — pending={r['pending']}, "
          f"p90_age={r['p90_age_days']}d (target ≤7), backlog_slope={r['backlog_slope']}", "",
          "## Your decision (the loop has a built-in kill switch — cut, don't tune)", "",
