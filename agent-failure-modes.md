@@ -244,7 +244,7 @@ FM-ID: fm8-benchmark-conflation
 signature: capability on a real task inferred from a proxy benchmark of a different task type (e.g. bug-fix score cited for feature-building)
 target_surface: evals (~/Projects/evals) task-type matching; /observe architecture mode when assessing agent capability claims
 status: active
-evidence_count: 0
+evidence_count: 1
 -->
 ```
 IF agent succeeds on SWE-bench
