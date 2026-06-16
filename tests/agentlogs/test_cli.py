@@ -64,6 +64,50 @@ def test_cli_query_list(tmp_path, capsys):
     assert "tool_failure_rate_by_tool" in out
 
 
+def test_session_role_derivation_and_filter(tmp_path):
+    """is_subagent is derived from the claude subagent path marker, persisted on the
+    session, and exposed by recent_sessions(role=...) — migration 008."""
+    import json
+    from agentlogs import search as se
+
+    projects = tmp_path / "projects" / "-proj"
+    sub_dir = projects / "subagents"
+    sub_dir.mkdir(parents=True)
+
+    def _line(role, text, ts):
+        return json.dumps({
+            "type": role, "timestamp": ts, "cwd": "/proj", "gitBranch": "main",
+            "isSidechain": role == "user", "uuid": f"{role}-{ts}",
+            "message": {"role": role, "content": [{"type": "text", "text": text}]},
+        }) + "\n"
+
+    # Operator (top-level) transcript.
+    op = projects / "11111111-1111-1111-1111-111111111111.jsonl"
+    op.write_text(_line("user", "operator turn", "2026-06-16T10:00:00Z")
+                  + _line("assistant", "ok", "2026-06-16T10:00:01Z"))
+    # Subagent transcript (subagents/ dir + agent- stem => is_subagent).
+    sa = sub_dir / "agent-22222222222222222.jsonl"
+    sa.write_text(_line("user", "subagent turn", "2026-06-16T10:05:00Z")
+                  + _line("assistant", "done", "2026-06-16T10:05:01Z"))
+
+    db = agentlogs.connect(tmp_path / "roles.db")
+    ix.index_vendor(db, "claude", source_paths=[op, sa])
+
+    roles = {
+        r["vendor_session_id"]: r["is_subagent"]
+        for r in db.execute("SELECT vendor_session_id, is_subagent FROM sessions WHERE vendor='claude'")
+    }
+    assert any(v == 1 for v in roles.values()), "subagent session not flagged"
+    assert any(v == 0 for v in roles.values()), "operator session mis-flagged"
+
+    op_rows = se.recent_sessions(db, role="operator")
+    sa_rows = se.recent_sessions(db, role="subagent")
+    assert all(r["role"] == "operator" for r in op_rows)
+    assert all(r["role"] == "subagent" for r in sa_rows)
+    assert len(op_rows) >= 1 and len(sa_rows) >= 1
+    db.close()
+
+
 def test_query_signatures():
     params = agentlogs.list_queries()
     assert "tool_failure_rate_by_tool" in params

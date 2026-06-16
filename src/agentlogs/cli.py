@@ -84,6 +84,9 @@ def _make_parser() -> argparse.ArgumentParser:
     s_recent = sub.add_parser("recent", help="List recent sessions")
     s_recent.add_argument("--vendor")
     s_recent.add_argument("--project")
+    s_recent.add_argument("--role", choices=["operator", "subagent"],
+                          help="filter by session role (operator = top-level interactive; "
+                               "subagent = Task/Agent tool dispatch)")
     s_recent.add_argument("-n", "--limit", type=int, default=20)
     s_recent.add_argument("--format", choices=["table", "json"], default="table")
 
@@ -359,7 +362,8 @@ def cmd_recent(args) -> int:
     db = connect(_resolve_db_path(args))
     try:
         rows = se.recent_sessions(
-            db, vendor=args.vendor, project=args.project, limit=args.limit,
+            db, vendor=args.vendor, project=args.project,
+            role=getattr(args, "role", None), limit=args.limit,
         )
         if args.format == "json":
             print(json.dumps([dict(r) for r in rows], indent=2, default=str))
@@ -367,7 +371,7 @@ def cmd_recent(args) -> int:
             _print_table(
                 rows,
                 ["session_uuid", "vendor", "project_slug", "start_ts",
-                 "duration_min", "model", "first_message"],
+                 "duration_min", "model", "role", "first_message"],
             )
         return 0
     finally:
