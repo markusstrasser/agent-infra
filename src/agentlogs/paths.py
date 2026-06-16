@@ -9,6 +9,7 @@ from pathlib import Path
 CLAUDE_DIR = Path(os.environ.get("CLAUDE_DIR", str(Path.home() / ".claude")))
 PROJECTS_DIR = CLAUDE_DIR / "projects"
 CODEX_DIR = Path.home() / ".codex"
+CURSOR_DIR = Path.home() / ".cursor"
 GEMINI_DIR = Path.home() / ".gemini"
 
 AGENTLOGS_DB = Path(os.environ.get("AGENTLOGS_DB", str(CLAUDE_DIR / "agentlogs.db")))

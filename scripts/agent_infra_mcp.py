@@ -55,7 +55,7 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
         "query": {"type": "string", "description": "Search keywords (FTS5 syntax)"},
         "n": {"type": "integer", "description": "Max results (default 5)", "default": 5},
         "project": {"type": "string", "description": "Filter by project slug"},
-        "vendor": {"type": "string", "description": "Filter by vendor (claude/codex/gemini)"},
+        "vendor": {"type": "string", "description": "Filter by vendor (claude/codex/cursor/gemini/kimi)"},
     }, "required": ["query"]},
 )
 async def search_sessions(args):

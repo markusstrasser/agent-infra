@@ -171,13 +171,11 @@ def _print_table(rows: list, columns: list[str] | None = None) -> None:
 
 def cmd_index(args) -> int:
     from . import index as ix
-    from .locks import IndexerLockBusy, indexer_lock
-    from .paths import AGENTLOGS_LOCK
+    from .gateway import IndexerLockBusy, write_gateway
 
     vendors = args.vendor or ["claude", "codex", "cursor", "gemini", "kimi"]
 
-    def _run_all(reap: bool = False) -> int:
-        db = connect(_resolve_db_path(args))
+    def _run_all(db, reap: bool = False) -> int:
         if reap:
             # Under the exclusive lock, any 'running' row is a dead holder from a
             # prior crash/hard-deadline exit — finalize it so it stops tripping
@@ -284,13 +282,10 @@ def cmd_index(args) -> int:
                     END
                 """)
                 print("[bulk] FTS rebuilt + triggers restored")
-            db.close()
 
-    if args.no_lock:
-        return _run_all()
     try:
-        with indexer_lock(AGENTLOGS_LOCK, timeout_s=30.0):
-            return _run_all(reap=True)
+        with write_gateway(_resolve_db_path(args), no_lock=args.no_lock) as db:
+            return _run_all(db, reap=not args.no_lock)
     except IndexerLockBusy:
         print("another indexer is running; exiting cleanly", file=sys.stderr)
         return 0
@@ -464,19 +459,16 @@ def cmd_dispatch(args) -> int:
 
 def cmd_git_import(args) -> int:
     from .git_import import import_git_commits
-    from .locks import IndexerLockBusy, indexer_lock
-    from .paths import AGENTLOGS_LOCK
+    from .gateway import IndexerLockBusy, write_gateway
 
-    def _run() -> int:
-        db = connect(_resolve_db_path(args))
-        try:
+    try:
+        with write_gateway(_resolve_db_path(args)) as db:
             count = import_git_commits(
                 db, projects=args.project, days=args.days,
             )
             print(f"Imported {count} commits across "
                   f"{len(args.project) if args.project else 5} projects "
                   f"({args.days}d window)")
-            # Summary of newly-visible fix-of-fix chains
             rows = db.execute(
                 "SELECT COUNT(*) FROM v_fix_chains WHERE fix1_date >= "
                 "date('now', ?)", (f"-{args.days} days",),
@@ -484,15 +476,6 @@ def cmd_git_import(args) -> int:
             if rows and rows[0]:
                 print(f"Fix-of-fix chains in window: {rows[0]}")
             return 0
-        finally:
-            db.close()
-
-    # git-import is a WRITER (INSERT…ON CONFLICT on git_commits). Take the same
-    # single-writer lock as index/prune so it can't race the 2h indexer — that
-    # collision surfaced as `database is locked` mid-import (2026-06-16).
-    try:
-        with indexer_lock(AGENTLOGS_LOCK, timeout_s=30.0):
-            return _run()
     except IndexerLockBusy:
         print("another indexer/import is running; exiting cleanly", file=sys.stderr)
         return 0
@@ -575,12 +558,10 @@ def cmd_whence(args) -> int:
 
 def cmd_prune(args) -> int:
     from . import prune as pr
-    from .locks import IndexerLockBusy, indexer_lock
-    from .paths import AGENTLOGS_LOCK
+    from .gateway import IndexerLockBusy, write_gateway
 
-    def _run() -> int:
-        db = connect(_resolve_db_path(args))
-        try:
+    try:
+        with write_gateway(_resolve_db_path(args), no_lock=args.no_lock) as db:
             if not args.apply:
                 plan = pr.plan_prune(db, args.keep_days)
                 print(f"[dry-run] keep_days={plan.keep_days}  cutoff={plan.cutoff}")
@@ -600,14 +581,6 @@ def cmd_prune(args) -> int:
             print(f"  db size: {plan.size_before_mb:,.0f} MB -> "
                   f"{plan.size_after_mb:,.0f} MB (reclaimed {reclaimed:,.0f} MB)")
             return 0
-        finally:
-            db.close()
-
-    if args.no_lock:
-        return _run()
-    try:
-        with indexer_lock(AGENTLOGS_LOCK, timeout_s=30.0):
-            return _run()
     except IndexerLockBusy:
         print("another indexer/prune is running; exiting cleanly", file=sys.stderr)
         return 0
