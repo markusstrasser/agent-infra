@@ -82,21 +82,24 @@ how the system notices its own misses.
 The blocks above show the **shape**; the exhaustive, current inventory is **derived**. A
 hand-maintained list drifts the day you add a job (this doc said "13 jobs / 138 files" one
 day after it was written). So: **what's POSSIBLE is a map (slow-changing); what's WIRED is
-derived (changes hourly) — never hand-document liveness.** To see what's actually wired now:
+derived (changes hourly) — never hand-document liveness.**
+
+### → Start with `just orient`
+`just orient` (`scripts/orient.py`) IS the unifier: the live map — repos, launchd loops,
+hook wiring (by event), MCP servers, skills — assembled from ground truth on every run, so
+nothing in it can go stale. It correctly shows jobs added minutes ago (it reads `launchctl`,
+not prose). `orient = what is it?` · `doctor = healthy?` · `dashboard = what happened?`
+
+Drill deeper into one question:
 
 | Question | Command |
 |---|---|
-| Which launchd jobs are loaded | `launchctl list \| grep com.agent-infra` |
-| Which hooks are registered / which fire | `.claude/settings.json` · `uv run python3 scripts/hooks_smoke.py` |
-| Which `just` recipes exist | `just --list` |
+| Doc-vs-reality drift (live jobs vs this doc / CLAUDE.md) | `uv run python3 scripts/orient.py --drift` |
 | Dead scripts (generator, no consumer) | `uv run python3 scripts/orphan_check.py` |
 | Scaffold lifecycle (rules/hooks, shrink-eligible vs backlog) | `just gov-report` |
 | Cross-project health (hooks · MCP · skills · symlinks) | `uv run python3 scripts/doctor.py` |
-| Doc-vs-reality drift (live jobs vs CLAUDE.md / this doc) | `uv run python3 scripts/orient.py --drift` |
+| Which hooks actually FIRE (not just registered) | `uv run python3 scripts/hooks_smoke.py` |
 | Open human-gated decisions (pending · steward · DUE predictions) | `just questions` |
-
-> The unbuilt unifier: a single `just orient` that runs all of these into one "what's
-> possible AND what's live" surface. Until it exists, the table above is the manual route.
 
 ## Regenerate the image
 ```bash
