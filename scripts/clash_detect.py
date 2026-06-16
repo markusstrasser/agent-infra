@@ -42,11 +42,24 @@ _LINE = re.compile(
 )
 
 
+def _effective_cursor(n_lines: int) -> int:
+    """The line offset to resume from, self-healing against log rotation/truncation.
+
+    The capture log is append-only WITHIN a rotation epoch, but `reclaim-rotate` (or a
+    manual reset) can truncate/delete it. A raw line-offset cursor would then point PAST
+    the (now shorter) log → `lines[cursor:]` is empty → every future capture is silently
+    dropped forever. Detect that (cursor > current line count = log shrank) and reset to 0
+    so the new epoch reprocesses from the start. Reprocessing is shadow-safe (idempotent
+    append to clash-shadow.jsonl; precision is measured, not mutated)."""
+    cur = int(CURSOR.read_text().strip()) if CURSOR.is_file() else 0
+    return 0 if cur > n_lines else cur
+
+
 def _read_new() -> list[dict]:
     if not CAPTURE_LOG.is_file():
         return []
     lines = CAPTURE_LOG.read_text(errors="ignore").splitlines()
-    cursor = int(CURSOR.read_text().strip()) if CURSOR.is_file() else 0
+    cursor = _effective_cursor(len(lines))
     new = []
     for ln in lines[cursor:]:
         ln = ln.strip()
@@ -138,8 +151,10 @@ def main() -> int:
                 **v,
             }) + "\n")
 
-    # advance cursor only by what we actually processed (the batch), append-only safe
-    CURSOR.write_text(str((int(CURSOR.read_text().strip()) if CURSOR.is_file() else 0) + len(batch)))
+    # advance cursor only by what we actually processed (the batch). Base off the SAME
+    # effective cursor as the read (resets to 0 on rotation) so the two never desync.
+    n_lines = len(CAPTURE_LOG.read_text(errors="ignore").splitlines()) if CAPTURE_LOG.is_file() else 0
+    CURSOR.write_text(str(_effective_cursor(n_lines) + len(batch)))
     n_clash = sum(1 for v in verdicts.values() if v["verdict"] == "CLASH")
     print(f"judged {len(batch)} messages → {n_clash} CLASH (shadow → {SHADOW_LOG})")
     return 0
