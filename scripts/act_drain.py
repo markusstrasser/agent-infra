@@ -20,6 +20,7 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "scripts"))
 
 import loop_funnel as lf  # noqa: E402
+import questions_view as qv  # noqa: E402
 
 DIGEST = Path.home() / ".claude" / "act-drain-digest.md"
 REFLECT = REPO / "scripts" / "reflect.py"
@@ -46,7 +47,11 @@ def run_classify() -> str:
 
 def build_digest(classify_summary: str) -> tuple[str | None, dict]:
     m = lf.metrics()
-    if not lf.needs_attention(m):
+    # The focused "Questions for you" VIEW (ADR 2026-06-16-agent-question-convergence):
+    # human-gated questions surface regardless of the funnel metrics — a lone pending
+    # decision is not counted by needs_attention(), so we OR it in here.
+    qsection = qv.render_section(qv.collect_questions(REPO))
+    if not lf.needs_attention(m) and not qsection:
         return None, m
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     parts = [
@@ -54,8 +59,10 @@ def build_digest(classify_summary: str) -> tuple[str | None, dict]:
         "_Daily zero-LLM drain: classify + disposition queue. "
         "Triage in any session; auto-clears when green._",
         "",
-        lf.render(m),
     ]
+    if qsection:  # FOCUS FIRST — the questions, before the funnel counts (ADR invariant #3)
+        parts.extend([qsection, ""])
+    parts.append(lf.render(m))
     if classify_summary:
         parts.extend(["## Last classify run", "```", classify_summary[:2000], "```", ""])
     parts.append("**Next:** `/rsi close` for pending digests · "

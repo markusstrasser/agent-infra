@@ -873,6 +873,14 @@ governance-index *args:
 clash-detect *args:
     uv run python3 scripts/clash_detect.py --repo "$(pwd)" {{args}}
 
+# Focused "Questions for you" VIEW over the human-gated stores (decisions-pending +
+# steward-proposals) — the VIEW-not-STORE deliverable (ADR 2026-06-16-agent-question-
+# convergence). Reads + filters + renders only; adds NO store (reversible by deletion).
+# Also surfaced at SessionStart via act_drain's digest. `--json` = machine lane.
+[group('knowledge')]
+questions *args:
+    uv run python3 scripts/questions_view.py --repo "$(pwd)" {{args}}
+
 # Find docs that may be stale after a correction — lexical scan for a term
 # across the knowledge repos. Replaces propagate-correction.py's forward
 # term-match leg (correction-sweep pipeline retired 2026-05-29).
