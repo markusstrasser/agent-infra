@@ -887,7 +887,10 @@ agg_working=0; agg_attention=0; agg_error=0
 cutoff=$(( now - 21600 ))
 for f in /tmp/claude-agent-*; do
   [[ -f "$f" ]] || continue
-  fpid="${f##*-}"; [[ "$fpid" == "$PPID" ]] && continue
+  fpid="${f##*-}"
+  [[ "$fpid" =~ ^[0-9]+$ ]] || continue
+  [[ "$fpid" == "$PPID" ]] && continue
+  kill -0 "$fpid" 2>/dev/null || { rm -f "$f" 2>/dev/null; continue; }
   fmtime=$(stat -f%m "$f" 2>/dev/null || echo 0)
   (( fmtime < cutoff )) && continue
   astate=$(cut -d'|' -f1 "$f" 2>/dev/null || echo "idle")

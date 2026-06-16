@@ -60,6 +60,99 @@ ADDITIONAL_CONTEXT_EVENTS = {"PreToolUse", "PostToolUse", "UserPromptSubmit"}
 REASON_KEYS = ("reason", "permissionDecisionReason", "additionalContext", "message", "stopReason")
 
 
+def _resolve_agent_tty(start_pid: int | None = None) -> tuple[int, str]:
+    """Find the interactive Codex/Claude parent pid + writable tty device.
+
+    Hook subprocesses are spawned by this shim (no controlling terminal). The
+  agent process that owns the Ghostty tab is our parent (or one hop up).
+    """
+    pid = start_pid if start_pid is not None else os.getppid()
+    for _ in range(6):
+        if pid <= 1:
+            break
+        try:
+            ps = subprocess.run(
+                ["ps", "-p", str(pid), "-o", "tty=,command="],
+                capture_output=True,
+                text=True,
+                timeout=1,
+            )
+            line = (ps.stdout or "").strip()
+        except Exception:
+            line = ""
+        tty = ""
+        if line:
+            parts = line.split(None, 1)
+            tty = parts[0] if parts else ""
+        if tty and tty not in ("?", "-", "??"):
+            dev = tty if tty.startswith("/dev/") else f"/dev/{tty}"
+            return pid, dev
+        try:
+            pid = int(
+                subprocess.run(
+                    ["ps", "-p", str(pid), "-o", "ppid="],
+                    capture_output=True,
+                    text=True,
+                    timeout=1,
+                ).stdout.strip()
+                or "0"
+            )
+        except Exception:
+            break
+    return start_pid or os.getppid(), ""
+
+
+def _hook_env(event: str, payload: str, agent_pid: int, tty: str) -> dict[str, str]:
+    env = os.environ.copy()
+    env["COCKPIT_AGENT_PID"] = str(agent_pid)
+    env["CLAUDE_PID"] = str(agent_pid)
+    if tty:
+        env["COCKPIT_TTY"] = tty
+    if event == "PreToolUse" and payload.strip():
+        try:
+            data = json.loads(payload)
+            tool = data.get("tool_name")
+            if isinstance(tool, str) and tool:
+                env["CLAUDE_TOOL_NAME"] = tool
+        except json.JSONDecodeError:
+            pass
+    return env
+
+
+def _tty_for_pid(pid: int) -> str:
+    try:
+        ps = subprocess.run(
+            ["ps", "-p", str(pid), "-o", "tty="],
+            capture_output=True,
+            text=True,
+            timeout=1,
+        )
+        tty = (ps.stdout or "").strip()
+    except Exception:
+        tty = ""
+    if tty and tty not in ("?", "-", "??"):
+        return tty if tty.startswith("/dev/") else f"/dev/{tty}"
+    return ""
+
+
+def _flush_tab_title(agent_pid: int, tty: str) -> None:
+    tty = tty or _tty_for_pid(agent_pid)
+    if not tty:
+        return
+    for pid in {agent_pid}:
+        path = f"/tmp/cockpit-tab-pending-{pid}"
+        if not os.path.isfile(path):
+            continue
+        try:
+            title = open(path, encoding="utf-8").read().strip()
+            if title:
+                with open(tty, "w", encoding="utf-8") as f:
+                    f.write(f"\033]2;{title}\007")
+                return
+        except Exception:
+            pass
+
+
 def _extract_reason(stdout: str) -> str:
     """Best-effort block reason from a hook's stdout."""
     text = stdout.strip()
@@ -143,6 +236,8 @@ def main(argv: list[str]) -> int:
     command = argv[1]
     event = os.environ.get("CODEX_HOOK_EVENT", "")
     payload = sys.stdin.read()
+    agent_pid, agent_tty = _resolve_agent_tty()
+    hook_env = _hook_env(event, payload, agent_pid, agent_tty)
 
     try:
         proc = subprocess.run(
@@ -152,12 +247,14 @@ def main(argv: list[str]) -> int:
             capture_output=True,
             shell=True,
             executable="/bin/bash",
+            env=hook_env,
         )
     except Exception:
         # Could not even launch the inner hook — fail open, do not block.
         return 0
 
     stdout, stderr, rc = proc.stdout, proc.stderr, proc.returncode
+    _flush_tab_title(agent_pid, agent_tty)
 
     # Invocation log — the only ground truth that Codex actually fired the hook
     # (codex#25875 shipped a silent no-fire regression; this makes the next one
