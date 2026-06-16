@@ -83,5 +83,26 @@ constitution principle 3 + this morning's lesson, fix ERGONOMICS of existing gat
 4. **Commit-without-request (12):** genuine rule tension (auto-commit "after a task" vs "don't
    commit unrequested") — clarify the boundary, don't hook.
 
+## Update — gate-ergonomics fixes SHIPPED + "find more" pass (2026-06-17)
+
+Global candidates 1-3 implemented (all gate-ergonomics, "transform/shift-left, not block"):
+- **subagent dispatch-gate** → auto-inject the write-stub/file-output discipline via
+  `updatedInput` instead of block-then-retry. `skills@da1b249`.
+- **provenance pre-write** → emit `additionalContext` (agent-visible) instead of exit-1 stderr
+  (which never reached the model — the warn was theater). `skills@124dd56`.
+- **precompact checkpoint** → session-stamp + don't clobber a PEER session's untracked
+  checkpoint (the existing guard only covered git-tracked ones). `skills@c64ebfd`.
+True "auto-worktree" for the peer case is NOT possible from a hook (can't fork a live session);
+the real fix was making the checkpoint WRITE non-clobbering.
+
+**"Find more" pass** (semantic clustering of the 215 UNCLASSIFIED misses, `emb pairs`):
+- **continuation-misread (6)** — agent replies "No response requested" to "Continue from where
+  you left off" and drops the thread. NEW, recurring, HOOKABLE (Stop/UserPrompt: a continuation
+  directive must not resolve to a no-op). Top new global candidate.
+- **background-job output buffering (3)** — `| tail -N` / `&` inside backgrounded Bash on long
+  jobs buffers all output until completion. Bash gotcha.
+- **extractor/feed scope drift (4)** — new inputs (RSS feeds, stages) scraped/added but excluded
+  from downstream extraction. Domain-specific (genomics/intel).
+
 ## Revisions
-- (none yet)
+- 2026-06-17: candidates 1-3 shipped; added find-more findings.

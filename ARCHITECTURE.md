@@ -21,6 +21,12 @@ H-JEPA, `research/2026-06-16-predictive-arch-rsi-loops.md`):
   durable stores → launchd miners (the de-facto **middle timescale**) → `/observe`+`/improve` →
   improvement-log → **2+ recurrence gate** → promote to rules/hooks/skills → propagate to the
   harness → shapes future sessions. Objective: declining supervision (`supervision-kpi`/AIR).
+  - **Embed-once query layer** (added 2026-06-17, validated): the `durable stores → miners` edge no
+    longer requires a per-angle LLM re-read. Sessions are embedded ONCE into a local index
+    (`scripts/export_sessions_for_emb.py` → `emb embed`, $0); any NEW mining angle — recurring
+    mistakes, decisions, steering signal — is then a free `emb search` / cheap `emb read`
+    (retrieve-then-LLM-on-hits). Decouples the *expensive read* from the *cheap query*, so new
+    miners are queries, not metered corpus passes. `research/2026-06-17-embed-once-validated-recurring-mistakes.md`.
 
 They are **coupled**: the long loop's *output is short-loop machinery* — a hook is a reflex the
 slow loop installed. Cascade-control law (Skogestad/Shinskey): the inner loop must run ~4–10×
@@ -56,6 +62,7 @@ our regime is observable **scaffolding-RSI**, the converging non-FOOM kind.
 |---|---|---|
 | Harness | The layered instruction/skill/hook/MCP surface loaded per session | `CLAUDE.md` §Cross-Project Architecture · `.claude/rules/context-budget-principles.md` |
 | Durable stores | git + `agentlogs.db` + corpus — the system's memory | `.claude/rules/session-forensics.md` · `decisions/2026-05-26-cross-attestation-substrate-v2.md` |
+| Session extraction (embed-once) | angle-agnostic semantic index over the session corpus — any new analysis angle is a free `emb` query, not a metered re-read; mistakes/decisions/steering all become queries | `research/2026-06-17-embed-once-validated-recurring-mistakes.md` · `scripts/export_sessions_for_emb.py` |
 | Self-monitoring | zero-API launchd jobs (sense half of RSI) — live set: `launchctl list \| grep com.agent-infra` | `CLAUDE.md` §Active launchd jobs |
 | RSI governance | observe → improvement-log → promote to architecture | `CLAUDE.md` <constitution> · `.claude/rules/gov-id.md` |
 | Governed projects | intel/phenome/genomics/skills + their stances | `research/cross-project-architecture-overview.md` (prose, 2026-05-11) |
