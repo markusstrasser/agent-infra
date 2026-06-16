@@ -15,6 +15,7 @@ blast_radius: local
 - Session/run CLI: `uv run agentlogs recent|search|stats|query <name>` — the live tool
 - agentlogs ships INSIDE the agent-infra wheel (hatch force-include; no own dist, non-editable install) — after editing `src/agentlogs/`, `uv sync --reinstall-package agent-infra`; `--reinstall-package agentlogs` is a silent no-op
 - Session search: `uv run python3 scripts/sessions.py search <query>` (FTS5, faster than bash/grep)
+- **Embed-once semantic layer** (angle-agnostic; query any NEW angle for free, no per-angle LLM re-read — validated 2026-06-17, `research/2026-06-17-embed-once-validated-recurring-mistakes.md`): `scripts/export_sessions_for_emb.py --out s.jsonl` → `emb embed s.jsonl -o idx/ --chunk` → `emb search idx/ "angle"` (free) / `emb read idx/ "angle" --top-k 200` (cheap LLM-on-hits). For recurring-pattern clustering: embed the signal texts + `emb pairs idx/ --threshold 0.80`. NOTE: bulk LLM passes use subscription/`--flex`, never metered Composer.
 - Run `just hook-telemetry` for current error sources
 
 > NOTE: `runlogs.db` / `runlog.py` / `meta/runlog.md` are **dead** — runlogs.db has been
