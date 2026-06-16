@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""rsi.py — RSI loop control surface. Owns the closure brain; reads sensors as feeds.
+"""pulse.py — RSI-loop instrument-liveness surface. Owns the closure brain; reads sensors as feeds.
+
+(Named `pulse`, not `rsi`: it checks whether each closure instrument has a pulse — the
+RSI loop is the paradigm, this is one narrow tool within it.)
 
 The single owner of "are my closure instruments alive and trusted." It defines NO
 sensor logic — it shells/reads the existing organs (supervision-kpi, fm.py, reflect,
@@ -15,7 +18,7 @@ is constancy over a window, not just null.
 `gate` (thin, FM-ID granularity) and `registry` included; `weights` deferred until
 ≥2 detectors clear PPV (reflect.PPV_CLEARED is currently empty — no load to weight).
 
-Gov-ID: hook:rsi-instrument-canary
+Gov-ID: hook:pulse-instrument-canary
 goal: an RSI closure instrument silently going null / constant / stale (the AIR-1591 bug class)
 verifier: null
 blast_radius: local
@@ -29,7 +32,7 @@ import sys
 import time
 from pathlib import Path
 
-HISTORY = Path.home() / ".claude" / "rsi-canary-history.jsonl"  # the canary's own observation log (append-only, reconstructible — NOT a source of truth)
+HISTORY = Path.home() / ".claude" / "pulse-canary-history.jsonl"  # the canary's own observation log (append-only, reconstructible — NOT a source of truth)
 WINDOW = 5          # observations compared for the constancy test
 STALE_SECONDS = 36 * 3600  # an instrument with no fresh observation in 36h is stale
 
@@ -116,9 +119,9 @@ def cmd_canary(args) -> int:
         if level == "alarm":
             alarms += 1
     if alarms:
-        print(f"\nrsi canary: {alarms} instrument(s) ALARM — a closure metric is dead/blind", file=sys.stderr)
+        print(f"\npulse canary: {alarms} instrument(s) ALARM — a closure metric is dead/blind", file=sys.stderr)
         return 1
-    print(f"\nrsi canary: {len(INSTRUMENTS)} instruments live")
+    print(f"\npulse canary: {len(INSTRUMENTS)} instruments live")
     return 0
 
 
@@ -155,12 +158,12 @@ def _selftest() -> int:
     hist3 = [{"name": "syn3", "value": 1.0, "ts": now - STALE_SECONDS - 1}]
     level3, _ = _judge("syn3", hist3, now)
     assert level3 == "alarm", "canary failed to flag stale"
-    print("rsi selftest: constant + null + stale all flagged ✓")
+    print("pulse selftest: constant + null + stale all flagged ✓")
     return 0
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(description="rsi.py — RSI loop control surface (canary/gate/registry)")
+    p = argparse.ArgumentParser(description="pulse.py — RSI-loop instrument-liveness surface (canary/gate/registry)")
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("canary", help="check each closure instrument for null/constant/stale").set_defaults(fn=cmd_canary)
     sub.add_parser("registry", help="list watched instruments").set_defaults(fn=cmd_registry)

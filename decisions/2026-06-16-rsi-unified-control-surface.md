@@ -13,7 +13,7 @@ relates_to:
 
 ## Decision
 
-Build **one control surface** (`rsi` CLI, invoked by `/improve maintain` on loop) that OWNS the
+Build **one control surface** (`pulse` CLI — `scripts/pulse.py`, invoked by `/improve maintain` on loop) that OWNS the
 closure *brain* — instrument registry + null-canary, promotion gate + anti-windup, per-detector
 precision weights, and the closure metric — and READS the existing sensors (`reflect_capture`,
 `fm.py recurrence`, `supervision-kpi`/AIR, the miners) as data feeds. **Do not rewrite the
@@ -44,7 +44,7 @@ weights, the closure ledger — into one harness surface; leave each sensor only
 3. **The null-instrument problem becomes structurally impossible.** Every closure metric registers
    `{name, last_value, last_fresh_ts, expected_variance}`; a constant/null/stale instrument alarms.
    This is the one capability whose absence caused the 1591-session miss.
-4. **Single API.** One queryable surface (`rsi` CLI). `/improve maintain` (already a loop) is its
+4. **Single API.** One queryable surface (`pulse` CLI). `/improve maintain` (already a loop) is its
    scheduler; the existing `/rsi` skill stays the human close-digest — no third surface.
 5. **Sessions are the only sensor, the harness the only actuator** (unchanged from ARCHITECTURE.md).
 
@@ -85,9 +85,9 @@ fact-check). Fact-checker: zero line-drift on cited anchors. The two arch critic
 - `reflect.PPV_CLEARED` is empty (0 graduated detectors, 1 family) → **weights is over-build ahead
   of load; deferred.**
 - `views.sql` is dead orchestrator-DB plumbing → registry is a JSON manifest + live-read VIEW
-  (questions_view.py pattern), standalone `scripts/rsi.py`, NOT an agentlogs subcommand.
+  (questions_view.py pattern), standalone `scripts/pulse.py`, NOT an agentlogs subcommand.
 
-**Converged scope (shipped `1e11f86`):** the single `rsi` CLI exists now.
+**Converged scope (shipped `1e11f86`; renamed rsi→pulse):** the single `pulse` CLI exists now.
 - `canary` — BUILT, full; wired into `drift-sentinel.sh`. Flags null/constant/stale per-instrument,
   fail-loud (no single aggregate verdict — avoids the choke-point failure mode the panel raised).
 - `gate` — BUILT thin, FM-ID granularity (the free one fm.py emits); advisory until a promotion
