@@ -18,6 +18,7 @@ flowchart TD
 
     subgraph WATCH["🔁 Self-monitoring — launchd · zero-API · the middle timescale"]
         L["agentlogs-index (2h) · drift-sentinel · blindspot-miner<br/>vendor-sweep · gov-report · audit-corpus-sync<br/>codebase-map-refresh · test-health · reclaim-rotate"]
+        PULSE["pulse canary (run by drift-sentinel + /improve SWEEP)<br/>null/constant/stale on every closure instrument<br/>— the AIR-1591 catcher; the loop watching its own loop"]
         DIG["digests @ SessionStart<br/>PRIORITIES · drift-digest · blindspot-digest"]
     end
 
@@ -53,6 +54,8 @@ flowchart TD
     %% ===== LONG-TERM "learning" loop — days–weeks, across sessions =====
     L --> DB
     L --> DIG
+    KPI -.->|liveness checked by| PULSE
+    PULSE -->|alarm when an instrument dies| DIG
     DB --> OBS
     CORP --> OBS
     DIG --> OBS
@@ -76,5 +79,5 @@ flowchart TD
     classDef prop fill:#2a1a3a,stroke:#c084fc,color:#e5e7eb,stroke-dasharray:5 5;
     class GIT,DB,CORP store;
     class OBS,LOG,RULE,KPI gov;
-    class L,DIG watch;
+    class L,DIG,PULSE watch;
     class AW,PW,PH,ANT prop;
