@@ -41,6 +41,11 @@ section "Context budget — always-loaded over ceiling" \
   "uv run python3 '$REPO/scripts/context-budget.py' --check" "OVER"
 section "Skills index — description chars over Codex ceiling" \
   "uv run python3 '$REPO/scripts/skills_budget.py' --check" "OVER|fail"
+# The RSI closure canary lives HERE (autonomous daily), NOT in doctor.py — doctor is
+# only run on /loop days, which is the exact blind spot that let AIR rot 1591 sessions
+# (repo-grounded critique 2026-06-16). drift-sentinel surfaces at every SessionStart.
+section "RSI instrument canary (a closure metric went null/constant/stale)" \
+  "uv run python3 '$REPO/scripts/rsi.py' canary 2>&1" "✗|ALARM"
 # Predictions DUE moved to the Questions-for-you VIEW (questions_view.py, 2026-06-16) —
 # they are human-gated VERDICTS, so they converge in the decision surface, not here in
 # the deterministic drift monitor. drift-sentinel stays pure self-monitoring.
