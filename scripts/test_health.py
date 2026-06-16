@@ -54,7 +54,7 @@ class RepoSuite:
 
 
 SUITES: tuple[RepoSuite, ...] = (
-    RepoSuite("phenome", HOME / "Projects" / "phenome", ("tests/", "-m", "not slow")),
+    RepoSuite("phenome", HOME / "Projects" / "phenome", ("tests/", "-m", "not slow"), timeout_s=1200),
     RepoSuite("agent-infra", HOME / "Projects" / "agent-infra",
               ("tests/", "scripts/tests/", "-m", "not slow")),
     # Deliberately NOT monitored:

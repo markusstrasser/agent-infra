@@ -39,6 +39,9 @@ extraPaths = ["src"]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.pytest.ini_options]
+pythonpath = ["scripts"]
+
 [dependency-groups]
 dev = [
     "modal>=1.4.2",
