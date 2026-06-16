@@ -864,6 +864,15 @@ refresh-maps:
 governance-index *args:
     uv run python3 scripts/build_governance_index.py --repo "$(pwd)" {{args}}
 
+# Offline governance clash-detection over captured directive-class user messages
+# (Phase 2 SHADOW, ADR 2026-06-16-governance-clash-detection). Judges captures against
+# .claude/governance-index.md, writes verdicts to ~/.claude/clash-shadow.jsonl — surfaces
+# NOTHING (measure precision on real messages before promoting to the human back-queue).
+# `just clash-detect` runs detection · `just clash-detect --summary` shows the tally.
+[group('knowledge')]
+clash-detect *args:
+    uv run python3 scripts/clash_detect.py --repo "$(pwd)" {{args}}
+
 # Find docs that may be stale after a correction — lexical scan for a term
 # across the knowledge repos. Replaces propagate-correction.py's forward
 # term-match leg (correction-sweep pipeline retired 2026-05-29).
