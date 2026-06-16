@@ -82,7 +82,7 @@ Exa came back mid-session; the OpenAI/Codex, Google/Gemini, GitHub-trending, and
 
 ### Flag: Gemini CLI fully shuts down **2026-06-18** (5 days out)
 
-The free Gemini CLI retired 2026-05-31 (already in `llmx-routing.md`); now the **AI Pro/Ultra/free tiers stop processing on June 18** too — migrate to Antigravity `agy`. **Audited this session** (`rg gemini` over scripts/ops/launchd): we route Gemini via llmx paid API, so the live paths are clean. Two residues, neither newly-broken by June 18: `scripts/code-review-scout.py` has a `gemini-cli` provider option (already dead since the May-31 free-tier retirement; script is not launchd-scheduled), and `friend-sync.sh` npm-updates `@google/gemini-cli` (harmless). **Action:** fold the code-review-scout gemini path into the agent-infra-sweep dead-path cleanup, not an urgent fix.
+The free Gemini CLI retired 2026-05-31 (already in `llmx info` / routing mirror); now the **AI Pro/Ultra/free tiers stop processing on June 18** too — migrate to Antigravity `agy`. **Audited this session** (`rg gemini` over scripts/ops/launchd): we route Gemini via llmx paid API, so the live paths are clean. Two residues, neither newly-broken by June 18: `scripts/code-review-scout.py` has a `gemini-cli` provider option (already dead since the May-31 free-tier retirement; script is not launchd-scheduled), and `friend-sync.sh` npm-updates `@google/gemini-cli` (harmless). **Action:** fold the code-review-scout gemini path into the agent-infra-sweep dead-path cleanup, not an urgent fix.
 
 ### Ecosystem (watch, no action)
 

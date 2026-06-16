@@ -35,7 +35,7 @@ So the cost is dominated by the *slowest single axis* + the agent turns wrapped 
 | 1 | **Slowest-axis API latency on a high-effort reasoning pass** (GPT-5.5 high/xhigh on `formal`). The parallel pool waits on the max, not the sum. xhigh "runs 30-45 min"; the 1132s tail is this. | SKILL Known Issue 2026-04-09/06-11; lens `formal`=GPT-5.5 high; global timeout 720s (model-review.py:1146) | 60-1100s |
 | 2 | **Orchestrator packet-assembly turns** — the agent reads/greps/Writes `context.md` BEFORE the script runs (context-assembly.md: "Use Read/Grep to gather, then Write"). Pure agent-thread time, invisible to the script's own timer. | context-assembly.md; SKILL routing/triage (`review_gate.py triage`) | 30-180s |
 | 3 | **Median dual-family round-trip** (2× Gemini-flash + 2× GPT-medium in parallel). The irreducible API latency floor. | agentlogs median 178s; `llmx` mean 12.2s/call but axes are the long ones | ~120-180s |
-| 4 | **Retry/setup churn** — 358 sub-5s aborts: Python-version mismatch bootstrap, `Credit balance too low` (bare-mode auth), tail-truncation re-runs, `--sibling-roots` re-runs. Each forces a re-dispatch. | Known Issues 2026-04-11/04-25/06-03; 358/611 sub-5s | +1 full run each |
+| 4 | **Retry/setup churn** — 358 sub-5s aborts: Python-version mismatch bootstrap, `Credit balance too low` (inherited `ANTHROPIC_API_KEY` / wrong transport — use `--subscription`, not `anthropic-direct`), tail-truncation re-runs, `--sibling-roots` re-runs. Each forces a re-dispatch. | Known Issues 2026-04-11/04-25/06-03; 358/611 sub-5s; `decisions/2026-06-15-llmx-refactor-dispatch-layer.md` | +1 full run each |
 | 5 | **Verify-pass tail hang** — one stuck verification network call silences the whole process; no per-finding timeout helps. | Known Issue 2026-04-13 | up to global timeout |
 | 6 | **Orchestrator synthesis + extract + verify-before-fold turns** — extraction is parallelized (1546) so cheap; the agent-side disposition/synthesis prose is the residual. | dispatch.md extraction defaults | 20-60s |
 | 7 | **Escalating rounds** (standard→deep→full, or audit-plan's 8 parallel lanes + 2 critics). Multiplies #1-3 by axis count / lane count. | lens depth presets; Known Issue 2026-06-15 | ×2-×4 |
@@ -101,3 +101,7 @@ Move the **repo-grounding / premise-falsification axis** to local CLI by default
 documented fix), keep ≥1 *frontier cross-family* axis on API for the adversarial/formal cross-check,
 and keep the `--verify`-against-code pass mandatory regardless of transport. Measure Composer's
 critique-hallucination rate before promoting it from "repo-grounding lane" to "cosigner."
+
+**P0 mitigation (2026-06-15):** run `model-review.py --preflight` before dispatch (wraps
+`llmx chat --dry-run --subscription -m claude-opus-4-8`) to catch bootstrap/auth/transport
+misconfig before paying for a full axis round-trip. Transport facts: `llmx info --write-mirror`.

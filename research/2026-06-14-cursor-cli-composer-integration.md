@@ -173,5 +173,6 @@ baseline-bearing reasoning benchmark in evals).
 
 ## Applied to the integration
 - llmx `cursor` transport uses `--output-format text` + exit-code detection (sufficient per the error-path probe). If we later want token telemetry through llmx, switch the cursor branch to `json` and parse `result`/`usage`.
+- **2026-06-15 update:** transport facts live in `llmx info` / `~/.claude/cache/llmx-routing.json`; probe any route with `llmx chat --dry-run`. Claude axes must use `--subscription`, not `anthropic-direct` (`decisions/2026-06-15-llmx-refactor-dispatch-layer.md`).
 - Docs corrected: every "$0 marginal" claim → "usage-metered (included pool → ~$0.50/$2.50 per M)" across llmx-guide, critique SKILL, llm_dispatch profile, model-review axis label, COMPOSER_ARM_RESULTS.
 - Still genuinely open (not blocking): exact included-pool size per plan tier; whether global `~/.cursor` rules leak from a neutral cwd; ToS legal text (marketed for CI, no restriction found).

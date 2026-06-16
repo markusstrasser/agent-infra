@@ -77,6 +77,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-06-15-critique-slow-and-unreliable.md` | /critique — speed + reliability forensics; preflight via `model-review.py --preflight` | Tuning critique axes; diagnosing sub-5s aborts; Composer vs API tradeoffs |
 | `2026-06-15-git-innovation-vcs-crdt.md` | STUB — being filled | TODO |
 | `2026-06-15-git-native-tooling-anchors.md` | Git-native provenance/diff tooling + durable code anchors — `--ignore-rev` fixes refactor-wash, trailer-parse Session-ID, `git log -L` for line lineage; anchors = steal drift's normalized-AST-fingerprint pattern (no server), SKIP SCIP/LSIF/LSP as too heavy | Sharpening blame→session attribution; building durable rot-resistant code anchors; SCIP/LSIF/tree-sitter-diff adoption; refactor-wash mitigation |
+| `2026-06-16-session-surface-errors-verified.md` | Session Surface Errors — Verified Research (2026-06-16) | TODO |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
 | `adversarial-case-library.md` | Adversarial Case Library: The Best "Calling BS" Reviews | TODO |
 | `agent-behavior-refresh-2026-04.md` | Agent Behavior Delta — Memory, Self-Modification, Sycophancy | TODO |

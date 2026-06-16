@@ -61,7 +61,7 @@
 
 ## 5. `--bare` Flag for Orchestrator Tasks
 
-**What:** Skips hooks, LSP, plugin sync, and skill directory walks for scripted `-p` calls. Requires `ANTHROPIC_API_KEY` directly.
+**What:** Skips hooks, LSP, plugin sync, and skill directory walks for scripted `-p` calls. Vendor docs say it requires `ANTHROPIC_API_KEY` directly — **for routine work prefer subscription OAuth** (`claude -p` with keys stripped, or `llmx chat --subscription`); reserve API-key `--bare` for explicitly requested API billing.
 
 **Why defer (slightly):** Our orchestrator uses SDK `query()`, not `claude -p`. The `--bare` flag is CLI-only. Relevant only for script-engine tasks that shell out to `claude -p`. Need to audit which orchestrator tasks would benefit.
 
