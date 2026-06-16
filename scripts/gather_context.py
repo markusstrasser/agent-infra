@@ -44,8 +44,13 @@ CODE_EXTS = {
 
 # markdown link target:  [label](path)
 _MD_LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
-# inline-code or bare token that looks like a path (has a slash or known ext)
-_PATH_TOKEN = re.compile(r"`?([\w./~@-]+\.(?:" + "|".join(sorted(CODE_EXTS)) + r"))`?")
+# inline-code or bare token that looks like a path (has a slash or known ext).
+# Extensions are tried longest-first AND a trailing (?!\w) word-boundary guard so
+# `.json` never truncates to `.js` (alternation-ordering bug) — that would
+# misclassify real .json refs as missing.
+_PATH_TOKEN = re.compile(
+    r"`?([\w./~@-]+\.(?:" + "|".join(sorted(CODE_EXTS, key=len, reverse=True)) + r"))(?!\w)"
+)
 
 
 def extract_paths(text: str) -> list[str]:
@@ -62,6 +67,10 @@ def extract_paths(text: str) -> list[str]:
         # strip a trailing line/anchor suffix and surrounding punctuation
         cand = raw.split("#", 1)[0].rstrip(".,:;)").lstrip("(")
         if not cand or cand in {".", "..", "./", "../"}:
+            continue
+        # a real path segment never starts with '-' — this is a placeholder
+        # fragment (e.g. `<slug>-context.md` → `-context.md`), not a ref.
+        if cand.startswith("-"):
             continue
         out.append(cand)
     return out
