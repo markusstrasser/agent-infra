@@ -93,6 +93,10 @@ smoke:
     set -euo pipefail
     echo "=== Index check (informational) ==="
     uv run python3 scripts/generate-indexes.py --check 2>&1 | tail -5 || true
+    echo "=== Governance index currency (regen from canonical if stale) ==="
+    uv run python3 scripts/build_governance_index.py --check 2>&1 | tail -2 \
+      && echo "OK: governance-index current" \
+      || echo "STALE: run \`just governance-index\` (a canonical source changed)"
     echo "=== Research index frontmatter ==="
     head -1 .claude/rules/research-index.md | grep -q '^---$' || { echo "FAIL: research-index.md missing YAML frontmatter"; exit 1; }
     echo "OK: frontmatter intact"
@@ -851,6 +855,14 @@ test-corpus *args:
 [group('knowledge')]
 refresh-maps:
     scripts/refresh-codebase-maps.sh
+
+# Regenerate the compact governance index from the canonical sources (GOALS.md,
+# CLAUDE.md constitution, vetoed-decisions.md). Single source for curated-governance
+# injection + clash-detection; consumers LOAD it, never re-state it. Deterministic
+# (no git churn unless a source changed). `--check` fails if the on-disk copy is stale.
+[group('knowledge')]
+governance-index *args:
+    uv run python3 scripts/build_governance_index.py --repo "$(pwd)" {{args}}
 
 # Find docs that may be stale after a correction — lexical scan for a term
 # across the knowledge repos. Replaces propagate-correction.py's forward
