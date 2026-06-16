@@ -116,7 +116,24 @@ def extract_supervision(path: Path) -> dict:
                 if data.get("type") == "hook_progress" and data.get("hookEvent") == "Stop":
                     hook_turn_indices.append(turn_index)
 
+            elif msg_type == "attachment":
+                # Real hook-fire signal. The hook_progress/Stop form above is near-absent in
+                # practice (7 occurrences vs >3600 hook_success across transcripts), so it left
+                # hooks_shown dead at 0 and air=null on 1591 sessions — the closure metric was
+                # querying a field Claude Code does not write. A hook counts as "shown" only when
+                # it surfaced content the agent could see (stdout/stderr/additional-context),
+                # not routine silent logging hooks.
+                att = obj.get("attachment") or {}
+                if att.get("type") == "hook_success" and (
+                    att.get("stdout") or att.get("stderr")
+                    or att.get("hookAdditionalContext") or att.get("hook_additional_context")
+                ):
+                    hook_turn_indices.append(turn_index)
+
     by_type["repeated_instruction"] = _count_repeated_instructions(user_messages)
+
+    # Per-turn, not per-fire: a turn with 5 PostToolUse hooks is one "hook shown" for AIR.
+    hook_turn_indices = sorted(set(hook_turn_indices))
 
     # Direction vector — the objective's shape.
     vector = tax.empty_vector()
