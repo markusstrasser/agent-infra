@@ -6,6 +6,7 @@ decision_date: 2026-06-16
 recorded_date: 2026-06-16
 provenance: contemporaneous
 status: accepted
+outcome: superseded-in-practice   # Phases 2 & 4 stood down — see Revisions 2026-06-16 (later)
 initial_leaning: dedup the stop-uncommitted-warn advisory (band-aid)
 relations:
   - type: depends_on
@@ -105,6 +106,10 @@ peer-warn to the lock, (3) launch PROMPT (warn + one-key opt-in; headless `-p` p
 silent auto-wrapper — see Revisions), (4) retire the Stop-hook attribution branches. Each its own
 commit so a regression is bisectable.
 
+**Outcome (2026-06-16, later):** (1) + (3) shipped (`scripts/checkout_claim.py`, `scripts/claude-launch.sh`)
+but dormant — unadopted. (2) superseded by the peer's `lsof` fix. (4) stood down (would re-open the
+sweep the peer just hardened). See Revisions.
+
 ## Revisions
 
 ### 2026-06-16 — Phase 3 softened to a prompt (driven by a "any downside?" probe)
@@ -122,3 +127,35 @@ forgettable habit):
   silent auto-wrapper with a **launch prompt** (`[w] isolate / [s] share`): preserves "can't forget"
   without the surprise/headless/path-blindness footguns. Full-auto only earns its keep once path-keyed
   infra is worktree-aware (out of scope). Principle unchanged; enforcement surface moved silent→prompted.
+
+### 2026-06-16 (later) — Fork resolved toward harden-shared; Phases 2 & 4 stood down
+A peer workstream, editing the same two hooks in parallel, took the branch this ADR *rejected*
+(Alternative 2: robustify the shared-checkout machinery instead of isolating it away) — and shipped it
+first. Reading the live hooks settled the relevance question:
+
+- **Phase 2 superseded.** `sessionstart-peer-session-warn.sh` no longer uses imprecise `pgrep -x claude`;
+  it now does `lsof -a -d cwd` and counts only claude PIDs whose cwd == *this* checkout — precise
+  per-checkout detection that reads OS truth and works with zero adoption dependency. Repointing it to
+  the claim-lock would *regress* (the lock is empty until sessions launch through the wrapper) and then
+  be redundant. `lsof` is strictly better for a *runtime* hook; the lock's remaining niche is the
+  *launch-time* isolate decision (no claude process exists yet to lsof), which Phase 3 already covers.
+- **Phase 4 stood down.** `stop-uncommitted-warn.sh` was *hardened*, not stripped: `f12a1cd` added a
+  fail-CLOSED branch for the concurrent-peer case (ledger empty + peers present → commit nothing,
+  surface as unattributable). Phase 4 (delete the heuristics) is correct ONLY once isolation is the
+  default — one writer per tree. That world is not materializing: 5 peers shared this checkout the day
+  this was written, the launch wrapper is unadopted (the lock is empty), and the peer is actively
+  investing in making *shared* safe. Deleting the heuristics now re-opens the exact sweep the peer just
+  closed.
+- **Shipped vs dormant.** Phases 1 (claim-lock) + 3 (launch wrapper) are in-tree and tested but
+  *unadopted* — additive, harmless, wired into no default path; available for opt-in.
+
+**Principle vs practice.** The principle (isolate-by-default is the cleaner endgame) is not reversed —
+but the data that motivated it (78–97% overlap) is *also* why isolation is disruptive in practice
+(worktree merge friction, path-keyed-infra blindness — see the revision above). At $0 adoption cost,
+the peer's harden-shared (lsof + fail-closed) is the pragmatic winner. **If isolation-by-default is
+later wanted, the lever is ADOPTION (the launch alias), not more hooks** — and the precondition is
+path-keyed infra (launchd WatchPaths, agentlogs `project_root`, `.mcp.json`) becoming worktree-aware.
+
+Evidence: live reads of both hooks (2026-06-16); peer commits `f12a1cd` (fail-closed), `4348399`
+(peer-warn loud + one-paste isolate), `74ee531` (log peer-warn fires); 5 concurrent peers + empty
+claim-lock observed this session.
