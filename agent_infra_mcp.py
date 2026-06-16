@@ -21,6 +21,7 @@ from fastmcp import Context, FastMCP
 from mcp.types import TextContent
 
 from scripts.common.skill_objects import collect_skill_objects, iter_default_roots, load_object_content
+from scripts.common.surface_gates import FailureEnvelope
 
 log = logging.getLogger(__name__)
 
@@ -303,22 +304,20 @@ def create_mcp() -> FastMCP:
             )]
 
         if scope not in ("all", *SCOPE_MAP):
-            return _wrap({
-                "error": True, "error_type": "INVALID_SCOPE",
-                "message": f"Unknown scope '{scope}'",
-                "recoverable": True,
-                "suggested_action": f"use one of: all, {', '.join(SCOPE_MAP.keys())}",
-                "call_number": _call_count,
-            })
+            env = FailureEnvelope(
+                check="agent-infra.search",
+                reason=f"unknown scope '{scope}'",
+                fix=f"use scope: all, {', '.join(SCOPE_MAP.keys())}",
+            )
+            return _wrap(env.to_payload(error_type="INVALID_SCOPE", call_number=_call_count))
 
         if not query or not query.strip():
-            return _wrap({
-                "error": True, "error_type": "EMPTY_QUERY",
-                "message": "Query string is empty",
-                "recoverable": True,
-                "suggested_action": "provide search terms (2+ chars each)",
-                "call_number": _call_count,
-            })
+            env = FailureEnvelope(
+                check="agent-infra.search",
+                reason="query string is empty",
+                fix="provide search terms (2+ chars each)",
+            )
+            return _wrap(env.to_payload(error_type="EMPTY_QUERY", call_number=_call_count))
 
         sections, file_count, index_mtime = _index_sections()
         if index_mtime > ctx.lifespan_context.get("index_mtime", 0):
@@ -331,13 +330,14 @@ def create_mcp() -> FastMCP:
         result["call_number"] = _call_count
 
         if not result["results"]:
-            result["error"] = True
-            result["error_type"] = "NO_RESULTS"
-            result["recoverable"] = True
-            result["suggested_action"] = (
-                "try broader terms, different scope, or check if the topic exists "
-                "in research/ files"
+            env = FailureEnvelope(
+                check="agent-infra.search",
+                reason=f"no results for query={query!r} scope={scope}",
+                fix="try broader terms, different scope, or: uv run agentlogs search <query>",
+                detail="topic may not exist in indexed research/ dirs",
             )
+            payload = env.to_payload(error_type="NO_RESULTS", call_number=_call_count)
+            result.update(payload)
 
         return _wrap(result)
 
@@ -389,6 +389,13 @@ def create_mcp() -> FastMCP:
                 if (not project or row.get("project") == project)
                 and name.lower() in str(row.get("object_id", "")).lower()
             ]
+        if not matches:
+            env = FailureEnvelope(
+                check="agent-infra.get_skill_object",
+                reason=f"no skill object matching name={name!r}",
+                fix="uv run python3 scripts/agent_surface.py --format json | jq '.skills[].name'",
+            )
+            return _wrap_json(env.to_payload(query=name, project=project or None, matches=[]))
         result = {"query": name, "project": project or None, "matches": matches[:10]}
         if include_content:
             result["matches"] = [_with_content(row, max_chars) for row in result["matches"]]
