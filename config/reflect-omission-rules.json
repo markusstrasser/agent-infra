@@ -24,5 +24,24 @@
       "exclude_files": ["_probe.py", ".sql", ".sh"],
       "required_any": ["tests/", "test_", "py_compile", "pytest"]
     }
+  ],
+  "genomics": [
+    {
+      "name": "dispatch-without-readiness-check",
+      "trigger_files": ["scripts/pipeline_orchestrator.py", "scripts/modal_"],
+      "exclude_files": ["_probe.py", "test_"],
+      "required_any": ["sample-state", "sample-readiness", "sample-remediation", "truth-check"]
+    },
+    {
+      "name": "genotype-dict-without-verify",
+      "trigger_files": ["config/variant_registry.json", "variant_review_rules.py"],
+      "required_any": ["verify-genotypes", "verify_genotypes", "just verify-genotypes"]
+    },
+    {
+      "name": "stage-payload-without-contract",
+      "trigger_files": ["scripts/modal_", "scripts/pipeline_stages.py"],
+      "exclude_files": ["_probe.py", "test_"],
+      "required_any": ["payload_contract", "denominator", "StageTrustVerdict", "canary"]
+    }
   ]
 }

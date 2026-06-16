@@ -16,6 +16,7 @@ rules declared in that project's CLAUDE.md `<!-- omission-rules ... -->` block.
 Pure core (extract_signals / extract_corrections / extract_omissions) is
 side-effect-free for unit testing; main() does the IO.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -25,22 +26,29 @@ import sys
 from pathlib import Path
 
 CAPTURE_LOG = Path.home() / ".claude" / "reflect-capture.jsonl"
+CLOSE_QUEUE = Path.home() / ".claude" / "close-queue"
 # Meta-side central probe config, keyed by project. Co-located with the loop
 # (which meta owns) so probe declarations don't require editing busy repos.
 CENTRAL_RULES = Path(__file__).resolve().parent.parent / "config" / "reflect-omission-rules.json"
-# Build in meta, intel is the single test bed (plan scope). Other projects: no-op.
-TESTBED = {"intel", "agent-infra"}
+# Shadow scope: capture only on test-bed projects (plan 4d40085a + genomics 2026-06-15).
+TESTBED = {"intel", "agent-infra", "genomics"}
 
 # Correction tokens, split by strength so downstream clustering can weight them.
 _STRONG = [
-    "#f", "you should have", "why didn't you", "why didnt you", "that's not",
-    "thats not", "i told you", "not what i", "that is wrong", "you forgot",
+    "#f",
+    "you should have",
+    "why didn't you",
+    "why didnt you",
+    "that's not",
+    "thats not",
+    "i told you",
+    "not what i",
+    "that is wrong",
+    "you forgot",
 ]
 _MEDIUM = ["wrong", "instead", "don't", "dont", "not that", "incorrect", "no,"]
 _WEAK = ["actually", "stop", "no "]
-_NEG_RE = re.compile(
-    "|".join(re.escape(t) for t in _STRONG + _MEDIUM + _WEAK), re.IGNORECASE
-)
+_NEG_RE = re.compile("|".join(re.escape(t) for t in _STRONG + _MEDIUM + _WEAK), re.IGNORECASE)
 _OMISSION_BLOCK = re.compile(r"<!--\s*omission-rules\s*(.*?)-->", re.DOTALL)
 
 
@@ -105,11 +113,23 @@ def extract_corrections(events: list[dict]) -> list[dict]:
         prev = events[i - 1] if i > 0 else None
         after_action = bool(prev and prev["role"] == "assistant" and prev["tools"])
         if "#f" in text.lower():
-            out.append({"kind": "correction", "subtype": "f_tag",
-                        "strength": "strong", "trigger": text[:280]})
+            out.append(
+                {
+                    "kind": "correction",
+                    "subtype": "f_tag",
+                    "strength": "strong",
+                    "trigger": text[:280],
+                }
+            )
         elif _NEG_RE.search(text) and (after_action or len(text) < 200):
-            out.append({"kind": "correction", "subtype": "negation",
-                        "strength": _strength(text), "trigger": text[:280]})
+            out.append(
+                {
+                    "kind": "correction",
+                    "subtype": "negation",
+                    "strength": _strength(text),
+                    "trigger": text[:280],
+                }
+            )
 
     # retry runs: >=3 same-tool calls with differing inputs, uninterrupted by a
     # user text message (FM24 — blind retry). A user message between calls means
@@ -118,8 +138,14 @@ def extract_corrections(events: list[dict]) -> list[dict]:
 
     def _flush():
         if run_name and len(run_inputs) >= 3 and len(set(run_inputs)) >= 2:
-            out.append({"kind": "correction", "subtype": "retry_run", "strength": "medium",
-                        "trigger": f"{run_name} x{len(run_inputs)} varied-input run"})
+            out.append(
+                {
+                    "kind": "correction",
+                    "subtype": "retry_run",
+                    "strength": "medium",
+                    "trigger": f"{run_name} x{len(run_inputs)} varied-input run",
+                }
+            )
 
     for ev in events:
         if ev["role"] == "user" and not ev["is_tool_result"] and ev["texts"]:
@@ -136,11 +162,20 @@ def extract_corrections(events: list[dict]) -> list[dict]:
 
     # failure→user: an errored tool_result directly followed by user text
     for i, ev in enumerate(events[:-1]):
-        if ev["errors"] and events[i + 1]["role"] == "user" and \
-                not events[i + 1]["is_tool_result"] and events[i + 1]["texts"]:
-            out.append({"kind": "correction", "subtype": "fail_then_user",
-                        "strength": "medium",
-                        "trigger": " ".join(events[i + 1]["texts"])[:280]})
+        if (
+            ev["errors"]
+            and events[i + 1]["role"] == "user"
+            and not events[i + 1]["is_tool_result"]
+            and events[i + 1]["texts"]
+        ):
+            out.append(
+                {
+                    "kind": "correction",
+                    "subtype": "fail_then_user",
+                    "strength": "medium",
+                    "trigger": " ".join(events[i + 1]["texts"])[:280],
+                }
+            )
     return out
 
 
@@ -207,9 +242,15 @@ def extract_omissions(events: list[dict], rules: list[dict]) -> list[dict]:
         if hit and excludes and any(x in hit for x in excludes):
             continue  # path matches an exclusion (probe/schema/shell) — not a test-bearing target
         if hit and not _any_required_seen(events, required):
-            out.append({"kind": "omission", "subtype": rule.get("name", "unnamed"),
-                        "strength": "shadow", "shadow": True,
-                        "trigger": f"wrote {hit} without any of {required}"})
+            out.append(
+                {
+                    "kind": "omission",
+                    "subtype": rule.get("name", "unnamed"),
+                    "strength": "shadow",
+                    "shadow": True,
+                    "trigger": f"wrote {hit} without any of {required}",
+                }
+            )
     return out
 
 
@@ -220,7 +261,7 @@ def extract_signals(events: list[dict], rules: list[dict]) -> list[dict]:
 # ── IO ───────────────────────────────────────────────────────────────────────
 def _sig_hash(session: str, s: dict) -> str:
     return hashlib.sha1(
-        f"{session}|{s.get('subtype')}|{s.get('trigger','')}".encode(), usedforsecurity=False
+        f"{session}|{s.get('subtype')}|{s.get('trigger', '')}".encode(), usedforsecurity=False
     ).hexdigest()[:16]
 
 
@@ -238,6 +279,43 @@ def _already_seen(session: str) -> set[str]:
     return seen
 
 
+def enqueue_close_intent(
+    *,
+    session: str,
+    project: str,
+    transcript_path: str,
+    reason: str,
+    goal_state: dict,
+    ts: str,
+    tier1: bool,
+    tier1_reason: str,
+) -> bool:
+    """Write a close-queue intent for async Tier 1 digest. Idempotent per session."""
+    CLOSE_QUEUE.mkdir(parents=True, exist_ok=True)
+    path = CLOSE_QUEUE / f"{session}.json"
+    if path.exists():
+        existing = json.loads(path.read_text(encoding="utf-8"))
+        if existing.get("processed"):
+            return False
+        if existing.get("tier1_eligible") and not tier1:
+            return False  # don't downgrade an already-eligible intent
+    intent = {
+        "schema": "reflect.close-intent.v1",
+        "session_id": session,
+        "project": project,
+        "ts": ts,
+        "reason": reason,
+        "transcript_path": transcript_path,
+        "goal_state": goal_state,
+        "tier1_eligible": tier1,
+        "tier1_reason": tier1_reason,
+        "invoke_skill": tier1,
+        "processed": False,
+    }
+    path.write_text(json.dumps(intent, indent=2) + "\n", encoding="utf-8")
+    return True
+
+
 def append_signals(session: str, project: str, signals: list[dict], ts: str) -> int:
     if not signals:
         return 0
@@ -250,8 +328,14 @@ def append_signals(session: str, project: str, signals: list[dict], ts: str) -> 
             if h in seen:
                 continue
             seen.add(h)
-            row = {"schema": "reflect.capture.v1", "session": session, "project": project,
-                   "ts": ts, "hash": h, **s}
+            row = {
+                "schema": "reflect.capture.v1",
+                "session": session,
+                "project": project,
+                "ts": ts,
+                "hash": h,
+                **s,
+            }
             f.write(json.dumps(row, default=str) + "\n")
             written += 1
     return written
@@ -279,7 +363,33 @@ def main() -> int:
         signals = extract_signals(events, rules)
         n = append_signals(session, project, signals, ts)
         if n:
-            sys.stderr.write(f"[reflect-capture] {n} signal(s) from {project}/{session[:8]} (shadow)\n")
+            sys.stderr.write(
+                f"[reflect-capture] {n} signal(s) from {project}/{session[:8]} (shadow)\n"
+            )
+
+        from goal_state import goal_state_from_transcript, tier1_eligible  # noqa: WPS433
+
+        goal_state = goal_state_from_transcript(lines)
+        strong = any(
+            sig.get("subtype") == "f_tag" or sig.get("strength") == "strong" for sig in signals
+        )
+        tier1, tier1_reason = tier1_eligible(goal_state, correction_strong=strong)
+        if goal_state.get("degraded"):
+            sys.stderr.write(
+                f"[reflect-capture] [DEGRADED] goal marker unknown for {session[:8]}\n"
+            )
+        if enqueue_close_intent(
+            session=session,
+            project=project,
+            transcript_path=transcript,
+            reason=str(payload.get("reason") or "other"),
+            goal_state=goal_state,
+            ts=ts,
+            tier1=tier1,
+            tier1_reason=tier1_reason,
+        ):
+            tag = "tier1" if tier1 else "capture-only"
+            sys.stderr.write(f"[reflect-capture] close-intent queued ({tag}: {tier1_reason})\n")
     except Exception as e:  # fail-open: never disrupt session end
         sys.stderr.write(f"[reflect-capture] skipped ({type(e).__name__})\n")
     return 0
@@ -287,6 +397,7 @@ def main() -> int:
 
 def _utc_now() -> str:
     from datetime import datetime, timezone
+
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
