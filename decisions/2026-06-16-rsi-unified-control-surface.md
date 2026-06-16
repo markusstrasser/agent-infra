@@ -1,7 +1,7 @@
 ---
 concept: rsi-loop-closure
 decision_date: 2026-06-16
-status: proposed
+status: accepted
 supersedes: []
 relates_to:
   - decisions/2026-06-07-state-externalization-lens.md
@@ -72,3 +72,29 @@ weights, the closure ledger — into one harness surface; leave each sensor only
 Hard-to-reverse arch decision → mandatory cross-model + repo-grounded critique panel (Phase 4 of
 the decide arc) BEFORE building, with a dedicated fact-checker resolving every `file:line`/metric
 claim in the plan. Build nothing until the panel stops producing reversals.
+
+## Critique panel outcome & converged decision (2026-06-16)
+
+3 repo-grounded cursor agents (opus-thinking-high spine, gpt-5.5-high cross-lab, composer-2.5
+fact-check). Fact-checker: zero line-drift on cited anchors. The two arch critics CONVERGED on a
+**partial spine reversal** — verified true against code:
+- `drift-sentinel` (the autonomous daily monitor) does NOT invoke `doctor` → a doctor-only canary
+  inherits the exact blind spot that let AIR rot on no-loop days. **Canary home = drift-sentinel.**
+- `check_telemetry_freshness` tests `count==0` only → a wrong-field *constant non-null* (the AIR
+  bug) is missed. **Constant/variance detection is the genuinely-new capability.**
+- `reflect.PPV_CLEARED` is empty (0 graduated detectors, 1 family) → **weights is over-build ahead
+  of load; deferred.**
+- `views.sql` is dead orchestrator-DB plumbing → registry is a JSON manifest + live-read VIEW
+  (questions_view.py pattern), standalone `scripts/rsi.py`, NOT an agentlogs subcommand.
+
+**Converged scope (shipped `1e11f86`):** the single `rsi` CLI exists now.
+- `canary` — BUILT, full; wired into `drift-sentinel.sh`. Flags null/constant/stale per-instrument,
+  fail-loud (no single aggregate verdict — avoids the choke-point failure mode the panel raised).
+- `gate` — BUILT thin, FM-ID granularity (the free one fm.py emits); advisory until a promotion
+  flow exists. Axis-granularity rollup deferred (open fork — needs an FM-ID→axis join fm.py lacks).
+- `weights` — DEFERRED. Activates when ≥2 detectors clear PPV.
+
+**Operator note:** the panel disagreed with the larger greenfield scope; the call to ship
+canary+gate-thin and defer weights was made on verifiable evidence (empty PPV_CLEARED, fm.py
+already emits the gate input), not punted — correcting an earlier mis-application of P12-as-ceremony
+to what was a technical question.
