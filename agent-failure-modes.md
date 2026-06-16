@@ -839,7 +839,7 @@ FM-ID: stale-canonical-artifacts
 signature: code fix lands; previously-generated defective outputs keep their canonical filenames while fixes accumulate in suffixed siblings; user keeps opening the stale file
 target_surface: regenerate canonical-named outputs in place after any pipeline fix; embed provenance (git rev + config) in output metadata
 status: active
-evidence_count: 1
+evidence_count: 2
 -->
 The user opens the plain-named file. Half a debugging session lost to an agent
 analyzing `_v3`/`_fixed` siblings while the user looked at the stale pre-fix
