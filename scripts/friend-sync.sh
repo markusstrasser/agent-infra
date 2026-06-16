@@ -154,8 +154,24 @@ if [ -d "$SKILLS_SRC" ]; then
         total=$(find "$SKILLS_DST" -maxdepth 1 -type l | wc -l | tr -d ' ')
         skip "all $total skills linked"
     fi
+
+    # Codex discovery paths mirror Claude global set (~/.agents/skills primary)
+    if [ -f "$PROJECTS/agent-infra/scripts/sync_agent_skills.py" ]; then
+        (cd "$PROJECTS/agent-infra" && uv run python3 scripts/sync_agent_skills.py 2>&1 | sed 's/^/  /') || true
+    fi
 else
     warn "skills repo not found at $SKILLS_SRC"
+fi
+
+# ── 4a. Cursor skills parity ────────────────────────────────────
+
+step "Cursor skills"
+AI_DIR="$PROJECTS/agent-infra"
+if [ -x "$AI_DIR/scripts/cursor-skills-sync.sh" ]; then
+    bash "$AI_DIR/scripts/cursor-skills-sync.sh" | sed 's/^/  /'
+    ok "cursor skills synced"
+else
+    skip "cursor-skills-sync.sh not found"
 fi
 
 # ── 4b. Codex parity (mirror .claude/ assets into Codex layers) ──
@@ -163,9 +179,10 @@ fi
 step "Codex parity"
 
 # Regenerate per-repo .codex/config.toml (delta MCP servers) + .codex/hooks.json
-# (project hooks, paths absolutized) for intel/genomics/phenome. Skills are linked
-# via .agents/skills. All Codex-local mirrors are gitignored; source of truth is
-# each repo's committed .claude/ + .mcp.json. See scripts/codex_parity_sync.py.
+# (project hooks, paths absolutized) + ~/.codex/AGENTS.md -> ~/.claude/CLAUDE.md.
+# Skills are linked via .agents/skills. All Codex-local mirrors are gitignored;
+# source of truth is each repo's committed .claude/ + .mcp.json.
+# See scripts/codex_parity_sync.py.
 AI_DIR="$PROJECTS/agent-infra"
 if [ -f "$AI_DIR/scripts/codex_parity_sync.py" ]; then
     if (cd "$AI_DIR" && uv run --no-project python3 scripts/codex_parity_sync.py 2>&1 | grep -E '✓|drift|✗' | sed 's/^/  /'); then

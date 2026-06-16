@@ -17,6 +17,7 @@ generates the Codex-local mirror, which is GITIGNORED (like the already-ignored
                               they fire regardless of Codex's session cwd — merges with
                               ~/.codex/hooks.json
   <repo>/.agents/skills       symlink -> <repo>/.claude/skills (Codex auto-discovers)
+  ~/.codex/AGENTS.md          symlink -> ~/.claude/CLAUDE.md (global instructions parity)
 
 Empirically verified (2026-06-02, codex-cli 0.135):
   - project .codex/config.toml mcp_servers MERGE with ~/.codex/config.toml (union).
@@ -350,6 +351,8 @@ def absolutize_hook_command(cmd: str, repo_dir: Path) -> str:
 
 CODEX_HOOK_SHIM = Path(__file__).resolve().parent / "codex_hook_shim.py"
 GLOBAL_CODEX_HOOKS = HOME / ".codex" / "hooks.json"
+GLOBAL_CLAUDE_MD = HOME / ".claude" / "CLAUDE.md"
+GLOBAL_CODEX_AGENTS = HOME / ".codex" / "AGENTS.md"
 
 
 def shim_wrap(cmd: str, event: str) -> str:
@@ -448,6 +451,45 @@ def sync_global_codex_hooks(check: bool) -> dict:
         if not backup.exists():
             backup.write_text(original)
         GLOBAL_CODEX_HOOKS.write_text(new_text)
+    return result
+
+
+def sync_global_codex_agents(check: bool) -> dict:
+    """Ensure ~/.codex/AGENTS.md is a symlink to ~/.claude/CLAUDE.md.
+
+    Per-repo AGENTS.md -> CLAUDE.md symlinks are committed; the global pair is
+    machine-local like ~/.codex/hooks.json and maintained here + friend-sync.
+    """
+    result = {
+        "path": str(GLOBAL_CODEX_AGENTS),
+        "target": str(GLOBAL_CLAUDE_MD),
+        "would_update": False,
+        "linked": False,
+    }
+    if not GLOBAL_CLAUDE_MD.is_file():
+        return result
+
+    want = GLOBAL_CLAUDE_MD.resolve()
+    have = (
+        GLOBAL_CODEX_AGENTS.is_symlink()
+        and GLOBAL_CODEX_AGENTS.resolve() == want
+    )
+    result["linked"] = have
+    result["would_update"] = not have
+    if have or check:
+        return result
+
+    GLOBAL_CODEX_AGENTS.parent.mkdir(parents=True, exist_ok=True)
+    backup = GLOBAL_CODEX_AGENTS.with_suffix(".md.prewrap.bak")
+    if GLOBAL_CODEX_AGENTS.exists() and not GLOBAL_CODEX_AGENTS.is_symlink():
+        if not backup.exists():
+            backup.write_text(GLOBAL_CODEX_AGENTS.read_text())
+        GLOBAL_CODEX_AGENTS.unlink()
+    elif GLOBAL_CODEX_AGENTS.exists() or GLOBAL_CODEX_AGENTS.is_symlink():
+        GLOBAL_CODEX_AGENTS.unlink()
+    GLOBAL_CODEX_AGENTS.symlink_to(want)
+    result["linked"] = True
+    result["would_update"] = False
     return result
 
 
@@ -585,7 +627,19 @@ def main() -> int:
     # Global ~/.codex/hooks.json is hand-maintained, not a generated mirror; shim
     # its commands so they speak Codex's output contract. Skipped with --repo.
     global_hooks = None
+    global_agents = None
     if not args.repo:
+        con.step("~/.codex/AGENTS.md (global)")
+        global_agents = sync_global_codex_agents(args.check)
+        if not GLOBAL_CLAUDE_MD.is_file():
+            con.warn("~/.claude/CLAUDE.md missing — cannot link global AGENTS.md")
+        elif global_agents["linked"]:
+            con.ok("~/.codex/AGENTS.md -> ~/.claude/CLAUDE.md (ok)")
+        elif args.check:
+            con.kv("global AGENTS", "WOULD LINK -> ~/.claude/CLAUDE.md")
+        else:
+            con.ok("~/.codex/AGENTS.md -> ~/.claude/CLAUDE.md (linked)")
+
         con.step("~/.codex/hooks.json (global)")
         global_hooks = sync_global_codex_hooks(args.check)
         verb = "would wrap" if args.check else "wrapped"
@@ -611,6 +665,8 @@ def main() -> int:
         )
         total_div += len(r["drift"])
         total_stale += r["would_update"]
+    if global_agents and global_agents["would_update"]:
+        total_stale += 1
     if global_hooks and global_hooks["would_update"]:
         total_stale += 1
     if args.check and total_stale:
@@ -619,7 +675,7 @@ def main() -> int:
         con.ok("all .codex/ mirrors in sync")
     if total_div:
         con.kv("divergences", f"{total_div} project↔global .mcp.json diffs (informational, not overridden)")
-    return 0
+    return 1 if args.check and total_stale else 0
 
 
 if __name__ == "__main__":

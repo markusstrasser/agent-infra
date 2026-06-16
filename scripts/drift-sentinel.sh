@@ -39,6 +39,8 @@ section "Doc-vs-reality drift" \
   "uv run python3 '$REPO/scripts/orient.py' --drift" "✗"
 section "Context budget — always-loaded over ceiling" \
   "uv run python3 '$REPO/scripts/context-budget.py' --check" "OVER"
+section "Skills index — description chars over Codex ceiling" \
+  "uv run python3 '$REPO/scripts/skills_budget.py' --check" "OVER|fail"
 section "Predictions DUE — resolve the verdict (confirmed/refuted)" \
   "uv run python3 '$REPO/scripts/predictions.py' due" "DUE"
 

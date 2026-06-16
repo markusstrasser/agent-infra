@@ -60,6 +60,35 @@ def test_shim_wrap_is_idempotent_and_carries_event() -> None:
     assert module.shim_wrap(wrapped, "Stop") == wrapped  # idempotent
 
 
+def test_sync_global_codex_agents_links_to_claude_md(tmp_path: Path, monkeypatch) -> None:
+    module = load_module()
+    claude_md = tmp_path / "claude" / "CLAUDE.md"
+    codex_dir = tmp_path / "codex"
+    agents_md = codex_dir / "AGENTS.md"
+    claude_md.parent.mkdir(parents=True)
+    claude_md.write_text("# global rules\n")
+    codex_dir.mkdir()
+    agents_md.write_text("# stale standalone copy\n")
+
+    monkeypatch.setattr(module, "GLOBAL_CLAUDE_MD", claude_md)
+    monkeypatch.setattr(module, "GLOBAL_CODEX_AGENTS", agents_md)
+
+    check = module.sync_global_codex_agents(check=True)
+    assert check["would_update"] is True
+    assert check["linked"] is False
+    assert agents_md.read_text().startswith("# stale")
+
+    applied = module.sync_global_codex_agents(check=False)
+    assert applied["linked"] is True
+    assert agents_md.is_symlink()
+    assert agents_md.resolve() == claude_md.resolve()
+    assert agents_md.read_text() == claude_md.read_text()
+    assert (codex_dir / "AGENTS.md.prewrap.bak").exists()
+
+    again = module.sync_global_codex_agents(check=False)
+    assert again["linked"] is True and again["would_update"] is False
+
+
 def test_sync_global_codex_hooks_wraps_and_backs_up(tmp_path: Path, monkeypatch) -> None:
     module = load_module()
     hooks_file = tmp_path / "hooks.json"
