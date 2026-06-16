@@ -47,15 +47,16 @@ def _run(cmd: list[str], timeout: int = 60) -> str:
         return ""
 
 
-def _supervision_today() -> tuple[float | None, float | None]:
-    """(total_hooks_shown, mean_air) for today — the two instruments that died."""
+def _supervision_today() -> tuple[float | None, float | None, float | None]:
+    """(total_hooks_shown, mean_air, total_correction_load) for today."""
     out = _run(["uv", "run", "python3", str(Path(__file__).parent / "supervision-kpi.py"), "--today"])
     rows = [json.loads(l) for l in out.splitlines() if l.strip().startswith("{")]
     if not rows:
-        return None, None
+        return None, None, None
     hooks = sum(r.get("hooks_shown", 0) for r in rows)
     airs = [r["air"] for r in rows if r.get("air") is not None]
-    return float(hooks), (sum(airs) / len(airs) if airs else None)
+    load = sum(r.get("load", 0) for r in rows)
+    return float(hooks), (sum(airs) / len(airs) if airs else None), float(load)
 
 
 def probe_hooks_shown() -> float | None:
@@ -66,10 +67,24 @@ def probe_air() -> float | None:
     return _supervision_today()[1]
 
 
-# name -> (probe, human note). Add a row + a probe to watch a new closure instrument.
+def probe_correction_load() -> float | None:
+    return _supervision_today()[2]
+
+
+# Each instrument declares a LIVENESS CONTRACT — the test direction, DECLARED not inferred.
+# Inferring "expected variance" from history would ingest the AIR-1591 constant-0 as "normal"
+# and launder the exact bug the canary exists to catch (repo-grounded critique 2026-06-16).
+#   should-vary → constancy means DEAD (null/stale/constant all alarm). For metrics that move
+#                 under ordinary operation (the declining-supervision KPIs).
+#   may-rest    → constancy is HEALTHY (only null/stale alarm). For metrics legitimately flat
+#                 (config flags, thresholds, a gate at its steady state). NOT registered yet —
+#                 the slot exists so generalizing the registry can't false-alarm on green.
+# name -> (probe, contract, note). Register ONLY gating/trusted/should-vary metrics — a doctor
+# health check (healthy==constant) would alarm-on-green and re-blind the operator (do NOT add).
 INSTRUMENTS = {
-    "supervision.hooks_shown": (probe_hooks_shown, "hooks surfaced/turn (was constant 0 for 1591 sessions)"),
-    "supervision.air":         (probe_air,         "corrections after a shown hook (was null — the dead-field bug)"),
+    "supervision.hooks_shown":     (probe_hooks_shown,     "should-vary", "hooks surfaced/turn (was constant 0 for 1591 sessions)"),
+    "supervision.air":             (probe_air,             "should-vary", "corrections after a shown hook (was null — the dead-field bug)"),
+    "supervision.correction_load": (probe_correction_load, "should-vary", "total correction load/day — the declining-supervision objective"),
 }
 
 
@@ -85,8 +100,10 @@ def _append(name: str, value, ts: float) -> None:
         f.write(json.dumps({"name": name, "value": value, "ts": ts}) + "\n")
 
 
-def _judge(name: str, hist: list[dict], now: float) -> tuple[str, str]:
-    """Return (level, reason). level in {ok, alarm}. Fail loud, PER INSTRUMENT."""
+def _judge(name: str, hist: list[dict], now: float, contract: str = "should-vary") -> tuple[str, str]:
+    """Return (level, reason). level in {ok, alarm}. Fail loud, PER INSTRUMENT.
+    The constancy test fires ONLY for should-vary metrics — a may-rest metric is
+    legitimately flat, so constant != dead there (else alarm-on-green re-blinds)."""
     mine = [h for h in hist if h["name"] == name]
     latest = mine[-1] if mine else None
     if latest is None or latest["value"] is None:
@@ -94,16 +111,17 @@ def _judge(name: str, hist: list[dict], now: float) -> tuple[str, str]:
     if now - latest["ts"] > STALE_SECONDS:
         age_h = round((now - latest["ts"]) / 3600)
         return "alarm", f"STALE — freshest observation {age_h}h old"
-    recent = [h["value"] for h in mine[-WINDOW:] if h["value"] is not None]
-    if len(recent) >= WINDOW and len(set(recent)) == 1:
-        return "alarm", f"CONSTANT — last {WINDOW} observations all = {recent[-1]} (the AIR-1591 bug class)"
+    if contract == "should-vary":
+        recent = [h["value"] for h in mine[-WINDOW:] if h["value"] is not None]
+        if len(recent) >= WINDOW and len(set(recent)) == 1:
+            return "alarm", f"CONSTANT — last {WINDOW} should-vary observations all = {recent[-1]} (the AIR-1591 bug class)"
     return "ok", f"value={latest['value']}"
 
 
 def cmd_canary(args) -> int:
     """Observe every instrument, append to history, judge null/constant/stale."""
     now = time.time()
-    for name, (probe, _note) in INSTRUMENTS.items():
+    for name, (probe, _contract, _note) in INSTRUMENTS.items():
         try:
             val = probe()
         except Exception as e:
@@ -112,8 +130,8 @@ def cmd_canary(args) -> int:
         _append(name, val, now)
     hist = _read_history()
     alarms = 0
-    for name, (_probe, note) in INSTRUMENTS.items():
-        level, reason = _judge(name, hist, now)
+    for name, (_probe, contract, note) in INSTRUMENTS.items():
+        level, reason = _judge(name, hist, now, contract)
         glyph = "✓" if level == "ok" else "✗"
         print(f"  {glyph} {name}: {reason}" + (f"  — {note}" if level == "alarm" else ""))
         if level == "alarm":
@@ -126,8 +144,8 @@ def cmd_canary(args) -> int:
 
 
 def cmd_registry(_args) -> int:
-    for name, (_probe, note) in INSTRUMENTS.items():
-        print(f"  {name} — {note}")
+    for name, (_probe, contract, note) in INSTRUMENTS.items():
+        print(f"  {name}  [{contract}] — {note}")
     return 0
 
 
