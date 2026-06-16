@@ -67,6 +67,11 @@ dedup-surfaces *args:
 lint-closeout-dispatch *args:
     uv run python3 scripts/lint_closeout_dispatch.py {{args}}
 
+# Plan-close shadow log report (promotion readiness)
+[group('dashboard')]
+plan-close-report *args:
+    uv run python3 scripts/plan_close_report.py {{args}}
+
 # ── Hetzner fleet (cross-project idle-spend control) ───────────────
 
 # List NON-hutter Hetzner boxes idling on the shared account + est. €
@@ -408,6 +413,21 @@ reflect-status:
 [group('epistemic')]
 reflect-eval *args:
     uv run python3 scripts/reflect_eval.py {{args}}
+
+# Full-corpus steer mining — incremental via scanned ledger (~$0.08/session, budget-capped)
+[group('epistemic')]
+steer-mine *args:
+    uv run python3 ~/Projects/skills/observe/scripts/mine_steers.py --from-agentlogs --prompt-mode multi --budget 5 --workers 3 {{args}}
+
+# RSI loop funnel — per-stage queue depths (capture → classify → disposition)
+[group('epistemic')]
+loop-funnel *args:
+    uv run python3 scripts/loop_funnel.py {{args}}
+
+# ACT drain — classify captured signals + write disposition digest (launchd daily)
+[group('epistemic')]
+act-drain *args:
+    uv run python3 scripts/act_drain.py {{args}}
 
 # Install git pre-commit hooks (chains no-large-binaries + append-only/protected guards)
 [group('epistemic')]
