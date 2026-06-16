@@ -348,11 +348,11 @@ review-gate cmd='triage' *args:
 gather path *args:
     uv run python3 scripts/gather_context.py "{{path}}" --repo "$(pwd)" {{args}}
 
-# One-call cross-model critique of a design doc: gather → model-review.
-# Fronts the EXISTING engine (genomics plan-close-review pattern); removes the
-# orchestrator's packet-assembly turns. model-review self-scouts + self-presets.
-# NOTE: no `review_gate triage` step — its `_scan_dead_refs` blocker false-fires on
-# design docs that legitimately name cross-repo / basename refs (see ideas.md proposal).
+# One-call cross-model critique of a design doc: gather → triage → model-review.
+# Fronts the EXISTING engine; removes the orchestrator's packet-assembly turns.
+# triage routes the preset + writes a packet-bound dispatch.json. --mode model means
+# dead refs (cross-repo / basename in ADRs) WARN not block, and model-review
+# provenance-gates the auto-load so no stale manifest can poison it (skills@2b6da1b).
 [group('dispatch')]
 critique path *args:
     #!/usr/bin/env bash
@@ -361,11 +361,10 @@ critique path *args:
     slug="$(basename "{{path}}" | sed 's/\.[^.]*$//')"
     packet=".model-review/${slug}-context.md"
     uv run python3 scripts/gather_context.py "{{path}}" --repo "$(pwd)" --output "$packet"
-    # model-review auto-loads .model-review/dispatch.json if present; a stale one
-    # (from a prior triage run, this session or a peer) carries dead-ref blockers that
-    # abort design-doc critique. Clear it so model-review self-configures fresh.
-    rm -f .model-review/dispatch.json
+    uv run python3 {{justfile_directory()}}/../skills/critique/scripts/review_gate.py triage \
+        --repo "$(pwd)" --packet "$packet" --mode model
     uv run python3 {{justfile_directory()}}/../skills/critique/scripts/model-review.py \
+        --dispatch-manifest .model-review/dispatch.json \
         --context "$packet" --project "$(pwd)" \
         --topic "critique: {{path}}" --extract {{args}} \
         "Adversarially review the design doc at {{path}}. Read the actual repo code to ground every claim; do not speculate about files not in context."
