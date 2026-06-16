@@ -33,4 +33,6 @@ Each subagent prompt must include:
 ## 4) Synthesize (you, the parent agent)
 
 Merge the subagent findings: **consensus** (2+ models), **lone-model** findings, deduplicate overlapping issues, note disagreements. Categorize for the user: act on / consider / noted / dismissed, with brief rationale. Do not auto-apply changes.
+
+composer-2.5,gpt-5.3-codex-low
 --- End Command ---
