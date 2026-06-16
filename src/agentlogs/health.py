@@ -16,8 +16,9 @@ class VendorStat:
     tool_calls: int
     last_session_at: str | None
     last_index_success_at: str | None
-    last_index_error_at: str | None
-    errors_7d: int
+    last_parse_error_at: str | None
+    parse_errors_7d: int
+    orphaned_7d: int
 
 
 def db_size_bytes(path: Path) -> int:
@@ -81,8 +82,12 @@ def vendor_stats(db: sqlite3.Connection) -> list[VendorStat]:
                 tool_calls=row["tool_calls"],
                 last_session_at=row["last_session_at"],
                 last_index_success_at=health["last_success_at"] if health else None,
-                last_index_error_at=health["last_error_at"] if health else None,
-                errors_7d=health["error_7d"] if health else 0,
+                # last_parse_error_at = the timestamp of the last GENUINE parse/vendor
+                # error (not a reaped OrphanedRun crash row). This is the field an
+                # operator should react to; OrphanedRun is operational crash-recovery.
+                last_parse_error_at=health["last_parse_error_at"] if health else None,
+                parse_errors_7d=health["parse_errors_7d"] if health else 0,
+                orphaned_7d=health["orphaned_7d"] if health else 0,
             )
         )
     return out

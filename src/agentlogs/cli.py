@@ -425,8 +425,13 @@ def cmd_stats(args) -> int:
             [asdict(vs) for vs in stats],
             ["vendor", "sessions", "runs", "events", "tool_calls",
              "last_session_at", "last_index_success_at",
-             "last_index_error_at", "errors_7d"],
+             "last_parse_error_at", "parse_errors_7d", "orphaned_7d"],
         )
+        if any(vs.orphaned_7d for vs in stats):
+            print()
+            print("note: orphaned_7d = indexer runs reaped after a --max-run-seconds "
+                  "hard-deadline exit (crash recovery, not a parse failure). "
+                  "Only parse_errors_7d indicates a broken adapter.")
         return 0
     finally:
         db.close()
