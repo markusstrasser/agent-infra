@@ -1,3 +1,9 @@
+> **SUPERSEDED 2026-06-16** by `2026-06-16-improve-dispatch-route-to-cursor-agent.md`.
+> The operator reframed the fix ("use cursor subagents"): routing Tier-2 dispatch to cursor-agent
+> makes the claude-proc count the wrong signal for that lane. The `pgrep -x` fix below survives
+> only as the *residual claude-lane* cleanup (Explore/search fan-out) inside the superseding
+> proposal. Disposition this one together with that one.
+
 # Fix `/improve maintain` rate-limit gate — `pgrep -lf claude` over-counts, gate is permanently closed
 
 **Boundary:** shared — edits `skills/improve/SKILL.md`, consumed by all projects (3+ blast radius)
