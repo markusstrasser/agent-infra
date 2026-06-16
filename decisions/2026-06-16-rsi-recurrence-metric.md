@@ -54,4 +54,4 @@ hook-ROI-window idea to FMs, reusing existing data):
 - Turns "906 evidence rows" into "X resolved FMs with recurrence dropped, Y not, Z underpowered" —
   the instrument that answers "is the loop successful?"
 - Build = ~2 functions in `fm.py` + a self-test; no new dependency, no new capture. Reversible.
-- **Not yet built** — this is the decision; the build is a separate `/execute`.
+- **Built** in `0e9fb1a` (2026-06-16) — `fm.py resolve` + `recurrence` + selftest (green); list regression-clean.
