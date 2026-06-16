@@ -1,0 +1,10 @@
+{
+  "threadId": "thr_probe",
+  "objective": "Keep improving the benchmark until p95 latency is under 120ms",
+  "status": "complete",
+  "tokenBudget": 200000,
+  "tokensUsed": 45000,
+  "timeUsedSeconds": 900,
+  "createdAt": 1776272400,
+  "updatedAt": 1776273300
+}

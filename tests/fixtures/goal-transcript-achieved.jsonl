@@ -1,0 +1,7 @@
+{"type":"user","message":{"role":"user","content":[{"type":"text","text":"/goal echo hello in a file named /tmp/goal-probe.txt"}]},"timestamp":"2026-06-15T09:00:00.000Z","sessionId":"probe-session-001"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Setting goal and working on it."}]},"timestamp":"2026-06-15T09:00:05.000Z","sessionId":"probe-session-001"}
+{"type":"attachment","attachment":{"type":"goal_status","met":false,"active":true,"objective":"echo hello in a file named /tmp/goal-probe.txt"},"timestamp":"2026-06-15T09:00:05.100Z","sessionId":"probe-session-001"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","name":"Write","input":{"file_path":"/tmp/goal-probe.txt","content":"hello\n"}}]},"timestamp":"2026-06-15T09:00:10.000Z","sessionId":"probe-session-001"}
+{"type":"attachment","attachment":{"type":"goal_status","met":true,"objective":"echo hello in a file named /tmp/goal-probe.txt","reason":"File exists with expected content"},"timestamp":"2026-06-15T09:00:20.000Z","sessionId":"probe-session-001"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Goal achieved. Wrote hello to /tmp/goal-probe.txt."}]},"timestamp":"2026-06-15T09:00:20.100Z","sessionId":"probe-session-001"}
+{"type":"user","message":{"role":"user","content":[{"type":"text","text":"thanks, one more thing..."}]},"timestamp":"2026-06-15T09:05:00.000Z","sessionId":"probe-session-001"}

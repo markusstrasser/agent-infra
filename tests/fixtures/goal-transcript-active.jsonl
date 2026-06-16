@@ -1,0 +1,3 @@
+{"type":"user","message":{"role":"user","content":[{"type":"text","text":"/goal run the full test suite until green"}]},"timestamp":"2026-06-15T10:00:00.000Z","sessionId":"probe-session-002"}
+{"type":"attachment","attachment":{"type":"goal_status","met":false,"active":true,"objective":"run the full test suite until green"},"timestamp":"2026-06-15T10:00:01.000Z","sessionId":"probe-session-002"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Still working — 3 tests failing."}]},"timestamp":"2026-06-15T10:30:00.000Z","sessionId":"probe-session-002"}

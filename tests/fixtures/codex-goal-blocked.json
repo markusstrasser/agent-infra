@@ -1,0 +1,10 @@
+{
+  "threadId": "thr_blocked",
+  "objective": "Wait for Modal pipeline to finish",
+  "status": "blocked",
+  "tokenBudget": 200000,
+  "tokensUsed": 10000,
+  "timeUsedSeconds": 60,
+  "createdAt": 1776272400,
+  "updatedAt": 1776272460
+}
