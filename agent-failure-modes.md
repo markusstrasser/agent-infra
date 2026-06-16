@@ -207,7 +207,7 @@ FM-ID: fm6-debate-martingale
 signature: multi-agent debate (models arguing) used for correctness instead of independent assessments + majority vote
 target_surface: /critique model mode (structure as independent assessments + voting); model-review skill
 status: active
-evidence_count: 0
+evidence_count: 7
 -->
 ```
 IF multi-agent debate used for correctness
@@ -258,7 +258,7 @@ FM-ID: fm9-diminishing-multiagent-returns
 signature: agents added to a workflow whose single-agent success rate already exceeds ~45% (negative marginal return)
 target_surface: subagent dispatch decision-point gate; /observe supervision mode reviewing fan-out ROI
 status: active
-evidence_count: 0
+evidence_count: 1
 -->
 ```
 IF single agent success rate > 45%
@@ -348,7 +348,7 @@ FM-ID: fm15-silent-semantic-failure
 signature: reasoning drift / wrong bucket / misleading diagnostic that raises no runtime exception
 target_surface: post-impl /critique close; report-only canary before any enforcer goes active
 status: active
-evidence_count: 0
+evidence_count: 1
 -->
 ```
 IF agent reasoning drifts (hallucination, goal confusion, logic error)
@@ -582,7 +582,7 @@ FM-ID: fm25-belief6-fae
 signature: outcome-claim or external-attribution without trace; disposition asserted over context
 target_surface: belief-6 analyst labels (UNSUPPORTED_OUTCOME_CLAIM, EXTERNAL_ATTRIBUTION_WITHOUT_TRACE)
 status: active
-evidence_count: 0
+evidence_count: 1
 -->
 ```
 IF agent reports on task outcome or investigates a failure
@@ -622,7 +622,7 @@ FM-ID: fm24-retry-without-diagnosis
 signature: same tool called 3+ times with varied params and no diagnosis step between failures
 target_surface: spinning-detector / tool-failure hooks; decision-point gate before blind retry
 status: active
-evidence_count: 0
+evidence_count: 894
 -->
 ```
 IF external tool/API call fails

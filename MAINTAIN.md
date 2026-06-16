@@ -56,3 +56,7 @@ Status of `~/.claude/steward-proposals/` after 2026-04-17 archive sweep (4 imple
 
 ## Drift Alerts
 - (none flagged this tick)
+
+- [2026-06-15] RSI close queued: genomics/1b9c7d03 (operator_correction_signal)
+
+- [2026-06-15] RSI close queued: agent-infra/0a59fefd (operator_correction_signal)
