@@ -429,6 +429,12 @@ risky-diff-shadow *args:
 risky-diff-report *args:
     uv run python3 scripts/risky_diff_review_shadow.py --report {{args}}
 
+# Feature-work loop decompose-quality shadow (report-only; sibling to risky-diff-shadow).
+# Reads live from agentlogs.db — no accumulation log, the DB is the durable substrate.
+[group('epistemic')]
+feature-loop-report *args:
+    uv run python3 scripts/feature_loop_probe.py --report {{args}}
+
 # Learning loop — classify captured session signals into FM dossiers + proposals (add --llm for $0 claude -p enrichment)
 [group('epistemic')]
 reflect-classify *args:
