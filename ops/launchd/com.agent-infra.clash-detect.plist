@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.agent-infra.clash-detect</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/alien/Projects/agent-infra/scripts/clash-detect.sh</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/alien/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>/Users/alien</string>
+    </dict>
+    <key>WorkingDirectory</key>
+    <string>/Users/alien/Projects/agent-infra</string>
+    <!-- Daily 07:00 (after the 06:xx morning cluster): SHADOW driver for governance
+         clash-detection. Processes NEW captured directive-class messages (cursor-tracked,
+         self-healing on rotation) against the governance index via gemini-3-flash; appends
+         verdicts to ~/.claude/clash-shadow.jsonl. Surfaces NOTHING — the 2-week precision
+         window. The ONLY agent-infra launchd job that makes an LLM call (one batched
+         gemini-flash/day, ~$0.001); everything else is local/zero-API. Promote/cut after
+         ~2 weeks via `just clash-detect --summary` (ADR 2026-06-16-governance-clash-detection). -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>7</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/Users/alien/.claude/logs/clash-detect.out</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/alien/.claude/logs/clash-detect.err</string>
+    <key>LowPriorityIO</key>
+    <true/>
+    <key>Nice</key>
+    <integer>5</integer>
+</dict>
+</plist>
