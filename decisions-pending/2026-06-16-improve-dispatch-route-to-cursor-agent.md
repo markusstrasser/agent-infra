@@ -29,17 +29,16 @@ This converges with two independent signals:
   (`pretool-subagent-gate.sh` checks 7+10, fired 3× in one dispatch this session) doesn't apply to
   the cursor lane.
 
-## Proposed lane split (in `improve/SKILL.md` "Rate Limit Check" + "Tier 2: Dispatched Work")
+## The change (one line, in `improve/SKILL.md` "Rate Limit Check" + "Tier 2: Dispatched Work")
 
-| Lane | Tool | Rate signal | Notes |
-|---|---|---|---|
-| Repo-coupled execution / critique (common case) | `cursor-agent -p -f --mode ask --model claude-opus-4-8-thinking-high` | Cursor quota; loop already caps Max-1/tick | model-guide-endorsed; repo-grounded |
-| Read-only search fan-out | claude `Explore` agent | claude subscription | residual claude lane — keep `pgrep -x claude` gate (the surviving piece of the superseded proposal) |
-| Non-repo synthesis | claude `Agent` / `llmx --subscription` | claude subscription | write-first gate (`#47936`) keeps earning its keep here |
+**Route repo-coupled Tier-2 dispatch to `cursor-agent -p -f --mode ask --model
+claude-opus-4-8-thinking-high`.** That lane runs on Cursor's quota and is gated by the loop's
+existing Max-1-per-tick cap, so the broken claude-proc count no longer gates it.
 
-So the `pgrep` fix is **not deleted** — it's demoted to gating only the residual claude lanes,
-where `pgrep -x claude` (total claude procs, the account-wide rate-limit-relevant count) is correct.
-The cursor lane is gated by the existing Max-1-per-tick cap, not a proc count.
+Everything else is status quo, not part of this change: search fan-out stays on claude `Explore`,
+non-repo synthesis stays on claude `Agent`/`llmx`. For those residual claude lanes the surviving
+piece of the superseded proposal applies — fix `pgrep -lf claude` → `pgrep -x claude` (account-wide
+count is the rate-limit-relevant signal). That's a one-line cleanup, not a new architecture.
 
 ## Open question for sign-off
 
