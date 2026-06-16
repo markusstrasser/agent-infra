@@ -598,9 +598,9 @@ def _run_mutator_claude(config: dict, worktree: Path, prompt: str) -> tuple[str,
 
     # Unset CLAUDECODE to avoid nested-session detection, AND strip the Anthropic
     # API keys so the nested `claude -p` runs on the OAuth subscription, not the
-    # (exhaustible) API account — mirrors reflect.py. With the keys present, an
-    # exhausted API account makes this spawn die exit-6 and fire the billing-alert
-    # badge; the keys stay in the parent env for llmx, which needs them there.
+    # (exhaustible) API account — mirrors reflect.py and 2026-06-15 llmx policy
+    # (never route Claude through anthropic-direct / API-key billing unless asked).
+    # Keys stay in the parent env for llmx API paths that explicitly need them.
     env = {k: v for k, v in os.environ.items()
            if k not in ("CLAUDECODE", "CLAUDE_SESSION_ID",
                         "ANTHROPIC_API_KEY", "CLAUDE_API_KEY")}

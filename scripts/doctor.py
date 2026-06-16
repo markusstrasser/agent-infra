@@ -9,6 +9,7 @@ Usage: uv run python3 scripts/doctor.py [--project PROJECT] [--json]
 
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -598,6 +599,24 @@ def check_agentlogs_indexer() -> list[Check]:
     for vendor, n in stuck:
         checks.append(Check(f"indexer:{vendor}", "global").warn(
             f"{n} run(s) stuck 'running' >2h — likely a hung/dead holder; reap + investigate"))
+
+    try:
+        row = con.execute("SELECT MAX(authored_at) FROM git_commits").fetchone()
+        if row and row[0]:
+            try:
+                last_git = datetime.fromisoformat(str(row[0]).replace("Z", "+00:00"))
+                age_d = (now - last_git).total_seconds() / 86400
+                c = Check("agentlogs:git-import-cache", "global")
+                if age_d > 3:
+                    checks.append(c.warn(
+                        f"git_commits cache stale: newest {age_d:.0f}d ago (>3d) — "
+                        f"run `agentlogs git-import` or rely on whence reconstruct"))
+                else:
+                    checks.append(c.ok(f"git_commits fresh ({age_d:.1f}d ago)"))
+            except (ValueError, TypeError):
+                pass
+    except sqlite3.Error:
+        pass
     return checks
 
 
@@ -649,6 +668,28 @@ def check_uv_tool_editables() -> list[Check]:
     return checks
 
 
+def check_critique_routing_verdict() -> list[Check]:
+    """Fail-closed gate: ROUTING_VERDICT JSON must parse; pending freezes cross2 default."""
+    c = Check("evals:critique-routing-verdict", "global")
+    path = PROJECTS_DIR / "evals" / "critique_replay" / "ROUTING_VERDICT.md"
+    if not path.is_file():
+        return [c.warn("ROUTING_VERDICT.md missing — model-review default stays standard")]
+    text = path.read_text()
+    m = re.search(r"```json\s*(\{.*?\})\s*```", text, re.S)
+    if not m:
+        return [c.fail("ROUTING_VERDICT.md missing ```json block")]
+    try:
+        data = json.loads(m.group(1))
+    except json.JSONDecodeError as exc:
+        return [c.fail(f"ROUTING_VERDICT JSON invalid: {exc}")]
+    if data.get("status") == "pending":
+        return [c.ok("ROUTING_VERDICT pending — defaults frozen at standard")]
+    preset = data.get("default_preset")
+    if not preset:
+        return [c.fail("ROUTING_VERDICT missing default_preset")]
+    return [c.ok(f"default_preset={preset}")]
+
+
 def run_all_checks(project_filter: str | None = None) -> list[Check]:
     """Run all checks, optionally filtered to one project."""
     all_checks: list[Check] = []
@@ -665,6 +706,7 @@ def run_all_checks(project_filter: str | None = None) -> list[Check]:
         all_checks.extend(check_decisions_pending())
         all_checks.extend(check_agentlogs_indexer())
         all_checks.extend(check_uv_tool_editables())
+        all_checks.extend(check_critique_routing_verdict())
 
         # Global CLAUDE.md
         gc = Check("global:CLAUDE.md", "global")

@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
-"""Continuous code review scout — dispatches code chunks to Gemini/GPT CLI for free review.
+"""Continuous code review scout — dispatches code chunks to local CLI reviewers.
 
 Groups files by directory, keeps each batch under CLI context limits (~40KB),
-dispatches to gemini-cli and codex-cli (subscription/free tier), writes
-structured findings to artifacts/code-review/{project}/{date}.jsonl.
+dispatches to cursor-agent (Composer 2.5, default), gemini, or codex via llmx,
+writes structured findings to artifacts/code-review/{project}/{date}.jsonl.
+
+Transport probe (no LLM call): `llmx chat --dry-run -m composer-2.5 -p cursor`.
+See `decisions/2026-06-15-llmx-refactor-dispatch-layer.md` for subscription/API policy.
 
 Usage:
   code-review-scout.py <project_path> [--focus refactoring]
-  code-review-scout.py <project_path> --focus dead-code --provider google
+  code-review-scout.py <project_path> --focus dead-code --provider cursor
   code-review-scout.py <project_path> --focus optimization --dry-run
   code-review-scout.py <project_path> --list-modules
   code-review-scout.py <project_path> --module tools/downloaders
+  code-review-scout.py <project_path> --all-providers
 
 Focus areas (rotate these):
   refactoring    — simplification, duplication, clarity
@@ -73,17 +77,20 @@ FOCUS_PROMPTS = {
 }
 
 PROVIDERS = {
+    "cursor": {
+        "model_flag": "-p cursor -m composer-2.5",
+        # Local cursor-agent via llmx cursor transport (usage-metered Composer pool).
+        "extra": "--timeout 300",
+        "name": "composer",
+    },
     "google": {
         "model_flag": "-p google -m gemini-3.1-pro-preview",
         # Gemini routes to the paid API since 2026-05-31 (free gemini-cli retired).
-        # Add "--flex" for the 50% best-effort discount on this background scan.
         "extra": "--timeout 180",
         "name": "gemini",
     },
     "openai": {
         "model_flag": "-p openai -m gpt-5.5",
-        # No --stream (forces API fallback). reasoning-effort may be ignored by CLI but
-        # doesn't trigger fallback.
         "extra": "--reasoning-effort medium --timeout 180",
         "name": "gpt",
     },
@@ -323,11 +330,13 @@ def main():
     parser.add_argument("project_path", type=Path)
     parser.add_argument("--focus", default="refactoring",
                         choices=list(FOCUS_PROMPTS.keys()))
-    parser.add_argument("--provider", default="google",
+    parser.add_argument("--provider", default="cursor",
                         choices=list(PROVIDERS.keys()),
-                        help="LLM provider (google=gemini-cli, openai=codex-cli)")
+                        help="LLM provider (cursor=composer-2.5, google=gemini, openai=codex)")
     parser.add_argument("--both", action="store_true",
-                        help="Dispatch to both providers in parallel")
+                        help="Dispatch to google+openai in parallel (legacy)")
+    parser.add_argument("--all-providers", action="store_true",
+                        help="Dispatch to cursor+google+openai in parallel")
     parser.add_argument("--module", type=str, default=None,
                         help="Review only this module/directory")
     parser.add_argument("--list-modules", action="store_true",
@@ -392,9 +401,10 @@ def main():
         return
 
     # Determine providers to use
-    providers = []
-    if args.both:
+    if args.all_providers:
         providers = list(PROVIDERS.values())
+    elif args.both:
+        providers = [PROVIDERS["google"], PROVIDERS["openai"]]
     else:
         providers = [PROVIDERS[args.provider]]
 

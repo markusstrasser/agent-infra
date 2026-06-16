@@ -404,6 +404,8 @@ def main() -> None:
 
     client = None
     if backend == "anthropic":
+        # Direct API — NOT the default for routine Claude work (2026-06-15 policy).
+        # Prefer backend=llmx with --subscription for subscription routing.
         try:
             import anthropic
         except ImportError:

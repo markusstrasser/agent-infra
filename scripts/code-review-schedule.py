@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Submit code-review-sweep pipeline with rotating project/focus.
+"""Run code-review scout with rotating project/focus.
 
-Called by cron/launchd daily. Rotates through projects and focus areas
-so each project gets reviewed with a different lens each day.
+Called by cron/launchd or `/loop /code-review`. Rotates through projects and
+focus areas so each project gets reviewed with a different lens each day.
 
 Usage:
-  code-review-schedule.py          # submit today's review
-  code-review-schedule.py --dry-run  # show what would be submitted
-  code-review-schedule.py --all    # submit all projects (weekend catch-up)
+  code-review-schedule.py          # run today's review
+  code-review-schedule.py --dry-run  # show what would run
+  code-review-schedule.py --all    # run all projects (weekend catch-up)
 """
 
 import subprocess
@@ -15,11 +15,13 @@ import sys
 from datetime import date
 from pathlib import Path
 
-PROJECTS = ["intel", "genomics", "agent-infra", "phenome", "skills"]
+ROOT = Path(__file__).parent.parent
+SCOUT = ROOT / "scripts" / "code-review-scout.py"
+PROJECTS_ROOT = Path.home() / "Projects"
+
+PROJECTS = ["intel", "genomics", "agent-infra", "phenome", "skills", "hutter"]
 FOCUSES = ["refactoring", "dead-code", "optimization", "patterns", "security"]
 
-# Each day picks a (project, focus) pair. 5 projects × 5 focuses = 25 day cycle.
-# Day 0: intel/refactoring, Day 1: genomics/dead-code, etc.
 
 def todays_assignment() -> tuple[str, str]:
     """Deterministic rotation based on day of year."""
@@ -29,18 +31,20 @@ def todays_assignment() -> tuple[str, str]:
     return project, focus
 
 
-def submit(project: str, focus: str, dry_run: bool = False):
+def run_review(project: str, focus: str, dry_run: bool = False):
+    project_path = PROJECTS_ROOT / project
     cmd = [
-        "uv", "run", "python3", "scripts/orchestrator.py",
-        "submit", "code-review-sweep",
-        "--vars", f"project={project}", f"focus={focus}", f"date={date.today()}",
+        "uv", "run", "python3", str(SCOUT), str(project_path),
+        "--focus", focus,
+        "--provider", "cursor",
+        "--workers", "2",
     ]
     if dry_run:
-        print(f"  Would submit: project={project} focus={focus}")
+        print(f"  Would run: project={project} focus={focus}")
         print(f"  Command: {' '.join(cmd)}")
     else:
-        print(f"  Submitting: project={project} focus={focus}")
-        subprocess.run(cmd, cwd=Path(__file__).parent.parent)
+        print(f"  Running: project={project} focus={focus}")
+        subprocess.run(cmd, cwd=ROOT, check=False)
 
 
 def main():
@@ -51,11 +55,11 @@ def main():
         focus = FOCUSES[date.today().timetuple().tm_yday % len(FOCUSES)]
         print(f"# All projects, focus={focus}")
         for project in PROJECTS:
-            submit(project, focus, dry_run)
+            run_review(project, focus, dry_run)
     else:
         project, focus = todays_assignment()
         print(f"# Today's code review: {project}/{focus}")
-        submit(project, focus, dry_run)
+        run_review(project, focus, dry_run)
 
 
 if __name__ == "__main__":
