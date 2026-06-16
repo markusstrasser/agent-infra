@@ -38,6 +38,16 @@ diagram:
 | ③ | **Problem-hiding guard** | alarm when supervision↓ co-occurs with error-visibility↓ (the dominant iterative-loop collapse mode; already half-stated in the constitution) | HIGH | drift-sentinel can run the joint check |
 | ④ | **Anticipatory edge** (cheap only) | long loop predicts next-likely miss-class, pre-installs a reflex — the one genuinely-reactive gap. NOT an EFE planner (intractable) | MED | must pair with ① or predicting-misses-that-never-come IS the windup failure |
 
+**All four are harness-state edges, not rules.** Each externalizes *recoverable bookkeeping* into
+the harness (recurrence-per-class, per-detector precision, the joint supervision×visibility trend)
+so the policy only *judges* — building any of them as a prompt instruction is the wrong layer
+(constitution P1 / `decisions/2026-06-07-state-externalization-lens.md`; control theory gives the
+*why*, the lens gives the *where*). Independent corroboration that the middle timescale already
+exists: SAMULE micro/meso/macro reflection (EMNLP 2025). MAST (NeurIPS 2025) grounds the verdict —
+44% of multi-agent failures are system-design not capability, 23.5% are task-verification (exactly
+what edges ① + ③ target); its "reasoning-action mismatch" + "information withholding" categories
+are candidate precision-weighted detectors we don't yet have.
+
 DON'T import: the FEP/EFE formalism, JEPA architecture, or a Gödel-machine self-rewrite loop —
 our regime is observable **scaffolding-RSI**, the converging non-FOOM kind.
 
