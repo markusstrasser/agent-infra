@@ -38,10 +38,42 @@ ELIGIBLE_DIRS = {
 }
 
 # Source tag pattern: [GRADE: source] or [DATA: source] etc.
-SOURCE_TAG_RE = re.compile(
-    r"\[([A-F][1-6]|DATA|CALC|INFERENCE|TRAINING-DATA|ESTIMATED|PROVISIONAL)"
-    r":?\s*(.*?)\]"
-)
+# Heads come from the provenance-tag SSOT (skills/hooks/provenance_tags.json), NOT an
+# inline list — this is the consumer that USED to carry its own divergent copy
+# (it knew ESTIMATED/PROVISIONAL but not SOURCE/DATABASE/…; the footer under-counted
+# provenance for years). Now it LOADS canonical so the taxonomy stays single-homed
+# (epistemic principle #9). test_provenance_tags.py asserts this file references the
+# SSOT so the regex can't be re-inlined and re-opened to drift.
+def _load_provenance_heads() -> list[str]:
+    """Return every provenance head from the SSOT (env override → skills home).
+
+    Fail-open: if the SSOT is unreachable we fall back to the historical inline set
+    so the footer keeps working in a checkout without the skills repo. The drift-test
+    guards against this fallback masking a real divergence when both are present.
+    """
+    candidates = []
+    env = os.environ.get("PROVENANCE_TAGS_JSON")
+    if env:
+        candidates.append(Path(env))
+    candidates.append(Path.home() / "Projects" / "skills" / "hooks" / "provenance_tags.json")
+    for p in candidates:
+        try:
+            spec = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        return [h["head"] for h in spec.get("heads", [])]
+    # degraded fallback — historical inline set (logged via the WARN below)
+    return ["DATA", "CALC", "INFERENCE", "TRAINING-DATA", "ESTIMATED", "PROVISIONAL"]
+
+
+_HEADS = _load_provenance_heads()
+# Two capture groups preserved for extract_source_tags: group(1)=head, group(2)=payload.
+# Grade tags [A-F][1-6] are matched by their own alternative; named heads by an alternation.
+# Heads sorted LONGEST-FIRST so a prefix can't shadow a longer head regardless of JSON
+# order (the old inline regex mis-parsed "[DATABASE: x]" as head=DATA because DATA, a
+# prefix, came first and had no word boundary — fixed here).
+_HEADS_ALT = "|".join([re.escape(h) for h in sorted(_HEADS, key=len, reverse=True)] + [r"[A-F][1-6]"])
+SOURCE_TAG_RE = re.compile(r"\[(" + _HEADS_ALT + r")" r":?\s*(.*?)\]")
 
 # Cross-reference pattern: relative paths to .md files
 CROSSREF_RE = re.compile(
