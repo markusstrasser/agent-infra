@@ -10,11 +10,18 @@ flowchart TD
         MCP["MCP servers<br/>research-mcp · agent_infra_mcp · exa/brave/perplexity · scite"]
     end
 
+    subgraph VERIFY["✅ Harness verification — Eve-inspired steals · 2026-06-17"]
+        HE["just harness-eval ~43s<br/>hooks-smoke · orient --drift · prior-context · test_orient"]
+        AT["config/approval-tiers.json<br/>block / predicate / warn registry · doctor"]
+        ST["just session-trace<br/>agentlogs → Eve-shaped span replay"]
+    end
+
     subgraph STORE["💾 Durable stores — the memory"]
         GIT["git — the ledger<br/>Session-ID trailers · 'git log is the learning'"]
         DB["agentlogs.db<br/>sessions·runs·events·tool_calls<br/>+ git_commits → v_session_commits"]
         CORP["corpus<br/>bytes + parses + citations + belief-ledger<br/>cross-attestation outbox"]
         EMB["embed-once index<br/>angle-agnostic semantic layer over sessions<br/>any new angle = free emb query, not a metered re-read"]
+        LG["lifecycle graph · just graph &lt;id&gt;<br/>decisions·research·predictions·commits → lifecycle_edges<br/>canonical relation vocab (invert-safe · relates_to non-traversable) · agentlogs-native projection, no new store"]
     end
 
     subgraph WATCH["🔁 Self-monitoring — launchd · zero-API · the middle timescale"]
@@ -27,7 +34,7 @@ flowchart TD
         OBS["/observe · /improve maintain"]
         LOG["improvement-log.md<br/>2+ recurrences → promote"]
         RULE["new rules · hooks · skills · decisions/"]
-        KPI["supervision-kpi · AIR<br/>declining-supervision = the objective"]
+        KPI["supervision-kpi · AIR · approval_mode trend<br/>declining-supervision = the objective"]
     end
 
     subgraph PROJ["📦 Governed projects"]
@@ -40,6 +47,12 @@ flowchart TD
         PH["③ Problem-hiding guard<br/>alarm when supervision↓ co-occurs<br/>with error-visibility↓"]
         ANT["④ Anticipatory edge (cheap only)<br/>predict next-likely miss-class,<br/>pre-install reflex — NOT an EFE planner"]
     end
+
+    %% ===== harness verification (Eve steals) =====
+    HE --> SH
+    AT --> SH
+    ST --> DB
+    HE -->|pre-commit gate| RULE
 
     %% ===== SHORT-TERM "reflex" loop — seconds, within ONE session =====
     S1 -->|shaped by| HARNESS
@@ -59,6 +72,8 @@ flowchart TD
     PULSE -->|alarm when an instrument dies| DIG
     DB -->|embed-once| EMB
     EMB -->|cheap re-angle queries| OBS
+    GIT -->|decisions·predictions relations + commit implements-edges| LG
+    LG -->|navigate decision↔commit↔finding lineage · bundle-for-review| OBS
     DB --> OBS
     CORP --> OBS
     DIG --> OBS
@@ -79,8 +94,10 @@ flowchart TD
     classDef store fill:#1f2937,stroke:#60a5fa,color:#e5e7eb;
     classDef gov fill:#14532d,stroke:#4ade80,color:#e5e7eb;
     classDef watch fill:#3b2f0b,stroke:#fbbf24,color:#e5e7eb;
+    classDef verify fill:#1e3a5f,stroke:#38bdf8,color:#e5e7eb;
     classDef prop fill:#2a1a3a,stroke:#c084fc,color:#e5e7eb,stroke-dasharray:5 5;
-    class GIT,DB,CORP,EMB store;
+    class GIT,DB,CORP,EMB,LG store;
     class OBS,LOG,RULE,KPI gov;
     class L,DIG,PULSE watch;
+    class HE,AT,ST verify;
     class AW,PW,PH,ANT prop;

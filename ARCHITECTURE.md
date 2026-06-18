@@ -61,8 +61,10 @@ our regime is observable **scaffolding-RSI**, the converging non-FOOM kind.
 | Block | What it is | Deeper doc |
 |---|---|---|
 | Harness | The layered instruction/skill/hook/MCP surface loaded per session | `CLAUDE.md` §Cross-Project Architecture · `.claude/rules/context-budget-principles.md` |
+| Harness verification | Eve-inspired steals: `just harness-eval` (CI gate), `approval-tiers.json` (needsApproval analog), `just session-trace` (replay) | `research/2026-06-17-vercel-eve-harness-steals.md` |
 | Durable stores | git + `agentlogs.db` + corpus — the system's memory | `.claude/rules/session-forensics.md` · `decisions/2026-05-26-cross-attestation-substrate-v2.md` |
 | Session extraction (embed-once) | angle-agnostic semantic index over the session corpus — any new analysis angle is a free `emb` query, not a metered re-read; mistakes/decisions/steering all become queries | `research/2026-06-17-embed-once-validated-recurring-mistakes.md` · `scripts/export_sessions_for_emb.py` |
+| Lifecycle graph | `just graph <id>` — rederivable neighborhood over the RSI-lifecycle artifacts (decisions·research·predictions·commits) joined through ONE canonical relation vocab (invert-safe folds, `relates_to` non-traversable); materialized in agentlogs.db, no new store. Densified by commit→decision `implements`-edges parsed from commit bodies. | `scripts/lifecycle_relations.json` (vocab, single source) · `src/agentlogs/lifecycle.py` · `decisions-pending/2026-06-18-phaseB-implements-trailer.md` |
 | Self-monitoring | zero-API launchd jobs (sense half of RSI) — live set: `launchctl list \| grep com.agent-infra` | `CLAUDE.md` §Active launchd jobs |
 | RSI governance | observe → improvement-log → promote to architecture | `CLAUDE.md` <constitution> · `.claude/rules/gov-id.md` |
 | Governed projects | intel/phenome/genomics/skills + their stances | `research/cross-project-architecture-overview.md` (prose, 2026-05-11) |
@@ -85,12 +87,16 @@ Drill deeper into one question:
 
 | Question | Command |
 |---|---|
+| Harness change pre-commit gate (Eve `eve eval` analog) | `just harness-eval` |
+| Approval-tier registry (block/warn/predicate hooks) | `uv run python3 scripts/approval_tiers.py` · `config/approval-tiers.json` |
+| Session structural replay (Eve Agent Runs analog) | `just session-trace <session-uuid-prefix>` |
 | Doc-vs-reality drift (live jobs vs this doc / CLAUDE.md) | `uv run python3 scripts/orient.py --drift` |
 | Dead scripts (generator, no consumer) | `uv run python3 scripts/orphan_check.py` |
 | Scaffold lifecycle (rules/hooks, shrink-eligible vs backlog) | `just gov-report` |
 | Cross-project health (hooks · MCP · skills · symlinks) | `uv run python3 scripts/doctor.py` |
 | Which hooks actually FIRE (not just registered) | `uv run python3 scripts/hooks_smoke.py` |
 | Open human-gated decisions (pending · steward · DUE predictions) | `just questions` |
+| RSI-lifecycle lineage of a decision/commit (decision↔commit↔finding neighborhood) | `just graph <id>` |
 
 ## Regenerate the image
 ```bash

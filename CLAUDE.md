@@ -22,6 +22,7 @@ just prior-context-triage              # classify post-hook prior-context misses
 just gather <plan.md>                   # deterministic context gather (no LLM)
 just critique <plan.md>                 # gather → cross-model critique
 just questions                          # human-gated pending decisions (act-drain VIEW)
+just graph <id>                         # RSI-lifecycle neighborhood of a decision/commit/finding (agentlogs-native; canonical relation vocab)
 ```
 
 ## Key Files
@@ -35,7 +36,7 @@ just questions                          # human-gated pending decisions (act-dra
 
 ## Research Index
 
-~266 research memos in `research/`. Full index with topics and "consult before" triggers: `.claude/rules/research-index.md` (path-scoped to `research/**`, `decisions/**`).
+~272 research memos in `research/`. Full index with topics and "consult before" triggers: `.claude/rules/research-index.md` (path-scoped to `research/**`, `decisions/**`).
 
 <constitution>
 > **Human-protected.** Agent may propose changes but must not modify without explicit approval.
