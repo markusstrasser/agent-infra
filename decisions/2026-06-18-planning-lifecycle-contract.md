@@ -296,3 +296,22 @@ blocks on `planctl/conceptctl validate`; `settings.json:27` write-protects the g
 - **Migration is BREAKING but behavior-preserving on genomics** (its pre-commit depends on `planctl`):
   genomics tests (`test_planctl*.py`/`test_conceptctl*.py`) are the gate; engine extracted behind the same
   public surface; genomics `validate` stays green at every step. Phases in the plan.
+
+### 2026-06-18 (later) — v0.4.1: reconcile with the live lifecycle graph-spine; version-via-append correction
+Operator flagged the sibling work: `.claude/plans/2026-06-18-harness-lifecycle-graph-spine.md`,
+`scripts/lifecycle_graph.py` (live peer build), `scripts/lifecycle_relations.json` (shared vocab atom).
+Reconciliation (operator #f): **the relation vocab is the ONLY shared atom; THREE separate layers** —
+plan-core (state-machine) ≠ `lifecycle_graph.py` (read-only/rederivable query-graph) ≠
+`lifecycle_relations.json` (vocab). plan-core **LOADS** the vocab (`supersedes` = its one canonical entry;
+plan-core's `status: superseded`/`supersedes:` reference it) and does **NOT swallow the graph**. Hand-over
+to the graph owner — 2 Phase-4 constraints hold: (C1) closing-loop cursors PERSIST (predictions.jsonl/
+act-drain), not rederived; (C2) cross-artifact joins key on explicit `decisions/` paths + commit-SHA, not
+bare slugs (~25%). Both already captured in the graph-spine plan.
+
+**Versioning correction (the append-only guard caught it live):** a *mutable* `spec_version` frontmatter
+field bumped in place VIOLATES `decisions/` append-only ("mark stale, don't delete"). Correct scheme for
+append-only stores: the version lives in THESE append-only `## Revisions` entries (each entry IS the
+increment); the frontmatter `spec_version` is now FROZEN/stale (stuck at 0.4.0) and non-authoritative —
+**current version = this entry, v0.4.1**. This refines `research/2026-06-18-spec-versioning-best-practices.md`:
+its SemVer-in-frontmatter scheme fits TRACKED-but-mutable specs, NOT append-only ones; for append-only,
+version-by-append. (Lesson surfaced by `pretool-append-only-guard.sh` blocking the in-place bump.)
