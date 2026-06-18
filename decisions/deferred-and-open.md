@@ -24,7 +24,7 @@ lost and nothing is re-proposed from scratch. Append; mark closed with the resol
 
 | Item | State | Reopen trigger |
 |---|---|---|
-| #2 citation-verify rate-gate for `/research` | **PROPOSED** (human gate) | `decisions-pending/2026-06-19-research-citation-verify-gate.md` — approve/reject. |
+| #2 citation-verify rate-gate for `/research` | **IMPLEMENTED** (approved + shipped `skills@a529547`) | closed — `verify_citations.py` + SKILL.md Phase 3. Reopen only to promote an advisory threshold to blocking on a measured miss. |
 | #1 weakness→component routing table for `/improve` | **DEFERRED** | `/improve` outputs read as non-actionable in practice (today: covered by `review_gate.py rank`/disposition). |
 | #3 phase-gated 6.0→8.5 score progression | **REJECTED** | LLM-judge-as-gate proxy (`CLAUDE.md:59`, `2026-05-28-verify-against-ground-truth`, scale-rubrics claim 5). Reopen only if a *ground-truth-grounded* scalar (Scale weighted-binary criteria, S∈[0,1]) is wanted — NOT Deli's holistic persona-score. |
 | #1 calibration ladder (first-round cap, max +Δ/round, ≥1 unresolved) | **REJECTED** | No host loop (`/critique` single-shot, `/code-review` scout, `/improve` per-finding). Reopen only if a scored iterative review loop is built for an independent reason. |

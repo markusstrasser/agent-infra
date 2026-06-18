@@ -1,3 +1,7 @@
+> **RESOLVED 2026-06-19 — APPROVED & IMPLEMENTED** (`/execute`). Shipped in `skills@a529547`
+> (`research/scripts/verify_citations.py` + SKILL.md Phase 3 + verification-procedure.md).
+> Kept as the decision record; no longer awaiting a human gate.
+
 # Pending decision — citation-verify rate-gate for `/research`
 
 **Boundary:** shared — edits `~/Projects/skills/research/` (used in all projects, 3+ blast radius)
