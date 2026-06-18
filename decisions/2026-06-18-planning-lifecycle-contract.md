@@ -338,3 +338,22 @@ each against source before folding/refuting:
   prediction. plan-core's Correct-stage composes with it (no duplicate). Fragility
   (`hash(commit,finding-text)` breaks on later edits) + fix (partial finding-ids) noted in graph-spine tracker.
 Current version = this entry, v0.4.2.
+
+### 2026-06-18 (later) — v0.4.3: FLIP — planctl-grade IS warranted (operator: "why not planctl?")
+Operator pushback on the v0.4.2 "defer extraction" verdict: *"why not planctl? we make lots of plans."*
+FLIP (self-check: driven by a NEW argument, not capitulation). v0.4.2 conflated *"agent-infra doesn't USE
+a state machine"* with *"agent-infra planning is divergent by design."* It is NOT divergent — it is
+**unmanaged**: 33 plans, free-text status, gitignored, proliferating = **the D4 problem this whole effort
+started from.** planctl is the mature solution; the `plan-status.py` parallel slice was the mistake (growth reverted).
+- **Proven-common met by TWO repos:** genomics (live — planctl's home) + agent-infra (33 plans). The 6
+  states are generic — an UPGRADE for agent-infra, not forced divergence; scratch plans stay light (`plan_kind: scratch`).
+- **phenome is SEPARATE — explicitly OUT of scope** (operator: *genomics COMPUTES and SENDS results to
+  phenome — separate repos, distinct roles*). The genome→phenome relationship is a **DATA bridge**, NOT a
+  shared-planning-infra relationship. phenome's 96 plans suffer D4 too, but its planning pattern is its own:
+  if it ever adopts plan management it earns its OWN prove-fit — do NOT assume genome's contract fits it.
+- **The one engineering caution that survives:** genomics planctl `validate` is RED now — even the home
+  repo's *blocking* control plane rotted. → adopt the engine **ADVISORY-first** in agent-infra (NOT
+  blocking-pre-commit); fix genomics's `validate`-RED. A red blocking gate is worse than advisory.
+- **Path (= the original extraction, now EARNED):** extract `plan-core` from genomics planctl → agent-infra
+  adopts (advisory) → genomics repoints behind its 38 tests + fix `validate`-RED. phenome separate.
+  Current version = this entry, v0.4.3.
