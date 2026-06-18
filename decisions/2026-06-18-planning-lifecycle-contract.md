@@ -315,3 +315,26 @@ increment); the frontmatter `spec_version` is now FROZEN/stale (stuck at 0.4.0) 
 **current version = this entry, v0.4.1**. This refines `research/2026-06-18-spec-versioning-best-practices.md`:
 its SemVer-in-frontmatter scheme fits TRACKED-but-mutable specs, NOT append-only ones; for append-only,
 version-by-append. (Lesson surfaced by `pretool-append-only-guard.sh` blocking the in-place bump.)
+
+### 2026-06-18 (later) — v0.4.2: FOLD parallel-critique #1 (resequence prove-fit-before-extract)
+A parallel session's repo-grounded composer-2.5 panel critiqued the shared lifecycle work. Verified
+each against source before folding/refuting:
+- **#1 FOLD — resequence (our OWN rule).** The migration extracted `plan-core` (M1) BEFORE proving
+  agent-infra/phenome adopt the contract (M3) — inverting proven-common-≥2 (corpus_core is the bar).
+  VERIFIED divergence: agent-infra plans freeform (2/33 carry the contract) vs genomics state-machine
+  (`ALLOWED_TRANSITIONS`/`plan_kind`); schemas differ (`plan_key/title/status` vs `exit_signal/scope_out/
+  verifier_commands/regime/telos`). **NEW ORDER:** (1) PROVE-FIT — adopt the planctl contract in
+  agent-infra IN PLACE (durable plans → state-machine; scratch → `plan_kind: scratch`); (2) IF fit →
+  EXTRACT to `plan-core` (EARNED; the breaking genomics step, now gated on proven-common, de-risked);
+  IF no-fit → planctl stays genomics-local, agent-infra shares only the vocab. Don't touch genomics's
+  live pre-commit until fit is proven.
+- **#2, #4 VALID — hand-over** (`lifecycle_graph.py`'s layer, not plan-core's; already in the graph-spine
+  plan's Phase-4 table: bare-slug ~25% → key on explicit `decisions/` paths + SHA; anchor the view in
+  `agentlogs.db` git cache, not the `gov.py` `:memory:` stub).
+- **#3 ALREADY CAPTURED** (C1 closing-loop cursors persist — v0.4.1 + graph-spine plan).
+- **#5 ALREADY FOLDED** (3-layer boundary — v0.4.1).
+- **#6 CONFIRMED shipped — don't rebuild, COMPOSE.** R1 closing-force trigger
+  (`register_implementations.py`, `ac208d4`/`1834656`): `[ ]→[x]` auto-registers a +30d earn-its-keep
+  prediction. plan-core's Correct-stage composes with it (no duplicate). Fragility
+  (`hash(commit,finding-text)` breaks on later edits) + fix (partial finding-ids) noted in graph-spine tracker.
+Current version = this entry, v0.4.2.
