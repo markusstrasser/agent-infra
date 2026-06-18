@@ -261,6 +261,90 @@ def _assemble_edges(repo_root: Path, nodes: dict[str, dict], vocab: dict) -> dic
     }
 
 
+# ── Commit-body pass (Phase B1 — recover commit --implements--> decision) ──────
+# The git_commits.body column (populated by git_import) carries two signals that a
+# code commit realized a decision:
+#   (1) an explicit `Implements: <slug>` trailer  → source='commit-trailer' (the
+#       forward/authored path; 0 in history today, the densifying path going fwd);
+#   (2) a best-effort prose mention of a `YYYY-MM-DD-slug` that RESOLVES to a
+#       decision node → source='commit-mention' (recovers ~31 edges from existing
+#       agent-infra history; resolution IS the precision filter).
+# `implements` is directed commit→decision: subject=<commit-hash>, target=<slug>.
+# The commit hash is a valid subject without being in collect_nodes — the
+# lifecycle_neighbors query matches subject OR target, so a decision's INCOMING
+# implements edges surface when the decision is queried.
+_IMPLEMENTS_TRAILER_RE = re.compile(r"^Implements:\s*(\S+)\s*$", re.MULTILINE)
+# Date-slug shape: a decision filename stem (2026-06-18-foo-bar). Anchored on a
+# word boundary; the trailing run is lowercase-alnum + hyphen (matches decisions/
+# stems). A trailing `.md` is stripped before resolution.
+_DATE_SLUG_RE = re.compile(r"\b(20\d\d-\d\d-\d\d-[a-z0-9][a-z0-9-]+)\b")
+
+
+def _commit_implements_edges(
+    con: sqlite3.Connection, nodes: dict[str, dict]
+) -> tuple[list[dict], int, int]:
+    """Scan agent-infra commit bodies for commit→decision `implements` edges.
+
+    Returns (rows, n_resolved, n_unresolved_trailers). For each agent-infra commit
+    with a non-empty body:
+      * every `Implements:` trailer → an edge (source='commit-trailer'); if the
+        target resolves to no decision node it is emitted dangling (explicit author
+        intent is preserved, never crashed on);
+      * every resolving date-slug prose mention → an edge (source='commit-mention');
+        NON-resolving mentions are SKIPPED (124 slug-shaped date strings in history
+        — e.g. `2026-03-19-late`, deleted/renamed decisions — would be false-positive
+        noise; resolution is the precision filter for the best-effort path).
+    Dedup: a commit that BOTH carries an `Implements:` trailer AND prose-mentions the
+    same slug yields ONE edge, preferring the explicit trailer.
+    """
+    rows: list[dict] = []
+    n_resolved = 0
+    n_unresolved_trailers = 0
+    try:
+        cur = con.execute(
+            "SELECT hash, body FROM git_commits "
+            "WHERE project = 'agent-infra' AND body IS NOT NULL AND body <> ''"
+        )
+    except sqlite3.OperationalError:
+        # git_commits absent (fresh/synthetic db) — no commit edges to add.
+        return rows, n_resolved, n_unresolved_trailers
+
+    for chash, body in cur.fetchall():
+        if not body:
+            continue
+        # slug -> source, preferring 'commit-trailer' over 'commit-mention' on dedup.
+        per_commit: dict[str, str] = {}
+        for m in _IMPLEMENTS_TRAILER_RE.finditer(body):
+            slug = m.group(1)
+            slug = slug[:-3] if slug.endswith(".md") else slug
+            per_commit[slug] = "commit-trailer"  # trailer always wins
+        for m in _DATE_SLUG_RE.finditer(body):
+            slug = m.group(1)
+            slug = slug[:-3] if slug.endswith(".md") else slug
+            if slug in nodes and slug not in per_commit:
+                per_commit[slug] = "commit-mention"
+
+        for slug, source in per_commit.items():
+            resolves = slug in nodes
+            if source == "commit-mention" and not resolves:
+                continue  # unreachable (we only added resolving mentions) — defensive
+            if not resolves:
+                n_unresolved_trailers += 1  # explicit trailer to a missing decision
+            else:
+                n_resolved += 1
+            rows.append({
+                "subject": chash,
+                "type": "implements",
+                "target": slug,
+                "traversable": 1,
+                "dangling": 0 if resolves else 1,
+                "source": source,
+                "raw_type": "implements",
+                "from_file": f"git_commits:{chash[:12]}",
+            })
+    return rows, n_resolved, n_unresolved_trailers
+
+
 # ── Schema (self-contained — rederivable rows, NOT a formal migration) ─────────
 _DDL = """
 CREATE TABLE IF NOT EXISTS lifecycle_edges (
@@ -287,6 +371,15 @@ def build_edges(con: sqlite3.Connection, repo_root: Path) -> dict:
     vocab = load_vocab(repo_root)
     nodes = collect_nodes(repo_root)
     assembled = _assemble_edges(repo_root, nodes, vocab)
+
+    # Phase B1: recover commit --implements--> decision edges from commit bodies
+    # (same `con`, after the frontmatter pass). These are traversable lifecycle
+    # edges; they raise edges_traversable without touching node collection.
+    commit_rows, n_impl_resolved, n_impl_dangling = _commit_implements_edges(con, nodes)
+    assembled["rows"].extend(commit_rows)
+    assembled["edges_traversable"] += len(commit_rows)
+    assembled["edges_dangling"] += n_impl_dangling
+    assembled["edges_commit_implements"] = n_impl_resolved
 
     con.execute(_DDL)
     # The DELETE+INSERT must be ONE atomic swap against the shared live agentlogs.db
@@ -332,5 +425,8 @@ def build_edges(con: sqlite3.Connection, repo_root: Path) -> dict:
         "edges_traversable": assembled["edges_traversable"],
         "edges_weak": assembled["edges_weak"],
         "edges_dangling": assembled["edges_dangling"],
+        "edges_commit_implements": len(commit_rows),
+        "edges_commit_implements_resolved": n_impl_resolved,
+        "edges_commit_implements_dangling": n_impl_dangling,
         "unknown_strings": assembled["unknown_strings"],
     }
