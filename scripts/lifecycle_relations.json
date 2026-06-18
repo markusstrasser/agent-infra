@@ -1,5 +1,5 @@
 {
-  "_doc": "Canonical closed vocabulary for harness RSI-lifecycle relations (decisions/, improvement-log, predictions, trailers). Single source of truth; all enforcers LOAD this, never re-state it. Authored from a git-grep probe of decisions/ 2026-06-18.",
+  "_doc": "Canonical closed vocabulary for harness RSI-lifecycle relations (decisions/, improvement-log, predictions, trailers). Single source of truth; all enforcers LOAD this, never re-state it. Authored from a git-grep probe of decisions/ 2026-06-18. Conventions: (1) a canonical entry with traversable:false (only relates_to) is a non-lifecycle association edge — kept for authoring + drift coverage but EXCLUDED from neighborhood traversal; absent traversable defaults true. (2) a fold entry with invert:true is the INVERSE of its canonical target — consumers MUST swap subject/target when normalizing (A superseded_by B => B supersedes A), never relabel in place.",
   "canonical": {
     "supersedes":    {"direction": "directed",  "doc": "A replaces B wholesale"},
     "branches_from": {"direction": "directed",  "doc": "A diverges from B; B still stands"},
@@ -10,7 +10,7 @@
     "refutes":       {"direction": "directed",  "doc": "A contradicts or falsifies B"},
     "retires":       {"direction": "directed",  "doc": "A marks B obsolete with no replacement"},
     "cross_repo_of": {"direction": "symmetric", "doc": "A is the cross-repo twin of B"},
-    "relates_to":    {"direction": "symmetric", "doc": "generic association (catch-all)"}
+    "relates_to":    {"direction": "symmetric", "doc": "generic association (catch-all); NOT a lifecycle edge", "grade": "weak", "traversable": false}
   },
   "fold": {
     "superseded_by":      {"to": "supersedes",  "invert": true,  "note": "inverse direction — subject/target swap on migration"},
@@ -20,8 +20,8 @@
     "grounded_in":        {"to": "depends_on",  "invert": false},
     "tension_with":       {"to": "refutes",     "invert": false},
     "generalizes":        {"to": "relates_to",  "invert": false},
-    "applies_lesson_from":{"to": "relates_to",  "invert": false},
-    "respects_vetoes_of": {"to": "relates_to",  "invert": false},
+    "applies_lesson_from":{"to": "depends_on",  "invert": false, "note": "A builds on a lesson from B = constraint/dependency, not generic"},
+    "respects_vetoes_of": {"to": "depends_on",  "invert": false, "note": "A constrained by B's vetoes = dependency"},
     "retrieval":          {"to": "relates_to",  "invert": false}
   }
 }
