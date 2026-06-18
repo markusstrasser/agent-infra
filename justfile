@@ -10,6 +10,15 @@
 orient *args:
     uv run python3 scripts/orient.py {{args}}
 
+# RSI-lifecycle neighborhood of a node (decision id, research stem, or prediction id):
+# traversable lifecycle out/in edges (supersedes/branches_from/depends_on…) PLUS a
+# separate weak section for non-traversable relates_to + provenance. Rederivable —
+# no disk store; fold-normalized + invert-safe. `just graph <id>` · `--build` for
+# counts · `--json` for the machine form.
+[group('orientation')]
+graph *args:
+    uv run python3 scripts/lifecycle_graph.py {{args}}
+
 # ── Dashboard ──────────────────────────────────────────────────────
 
 # Live Claude sessions: state · cost · ctx% · armed /loop · last tool
