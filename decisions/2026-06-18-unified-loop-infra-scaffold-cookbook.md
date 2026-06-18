@@ -13,6 +13,13 @@ affects: [agent-infra, research, phenome, hutter, anim-workbench, intel, skills]
 
 # Unified loop infra — scaffold + per-domain MANIFEST + skills + COOKBOOK (no runtime library)
 
+> **Disambiguation (same-day vocab overload).** This governs the autonomous **discovery-loop /
+> generator** life (propose→verify→rank→park). DISTINCT systems, not one:
+> `2026-06-18-planning-lifecycle-contract.md` = operator-directed **plan/feature** life
+> (kickoff→plan→execute→close); `2026-06-16-rsi-unified-control-surface.md` = the **RSI closure**
+> loop. Shared *regime*/*manifest* vocabulary is analogy, not a merge — regime is single-sourced to
+> `2026-06-07-verifier-conditional-autonomy` (clean/partial/principal).
+
 > `/decide` arc, 2026-06-18. Ratified `accepted` after a cross-model panel (2× Gemini + 2× GPT) and
 > two repo-grounded scouts produced **zero architecture-spine reversals** — only invariant refinements
 > and HOWs. Audit trail: `.model-review/…-4175d6/`, scout outputs `/tmp/scout-{factcheck,arch}.md`.

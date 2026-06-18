@@ -22,6 +22,14 @@ relations:
 
 # 2026-06-18: Planning failures are under-elicited inputs, not under-instructed execution — fix at the kickoff front-end with a typed plan contract, reuse existing gates
 
+> **Disambiguation (same-day vocab overload).** "lifecycle" here = the **operator-directed
+> plan/feature life** (kickoff → plan → execute → close). DISTINCT systems, not one:
+> `2026-06-18-unified-loop-infra-scaffold-cookbook.md` = autonomous **discovery-loop / generator**
+> life (propose→verify→rank→park); `2026-06-16-rsi-unified-control-surface.md` = the **RSI
+> closure/correction** loop. Shared words (*regime*, *manifest/contract*) are deliberate analogies,
+> NOT a merge — the regime taxonomy has ONE definition (`2026-06-07-verifier-conditional-autonomy`:
+> clean/partial/principal) that all three load.
+
 ## Context
 
 Two companion research docs (`research/2026-06-18-planning-process-deep-diagnosis.md`,
