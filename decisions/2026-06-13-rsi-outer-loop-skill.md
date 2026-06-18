@@ -402,3 +402,26 @@ gate-edit; under user direction the human IS the independent review.
 DECIDE-time, before building the abstraction — the proven-common ≥2 test is a Phase-0 gate, not a
 Phase-2 discovery. Reading the consumers first would have collapsed this whole arc to "write the findings
 down" on day one. (Action still produced the information — but the build should have been gated behind the probe.)
+
+## External convergence (2026-06-18) — Deli AutoResearch SKILL.md
+
+Markus surfaced **Deli_AutoResearch** (Deli Chen / DeepSeek, June 2026; `victorchen96.github.io/auto_research/`):
+a single self-contained `SKILL.md` protocol for long-horizon autonomous tasks. It prescribes exactly the
+union-prose artifact this ADR **pruned**: file-only state, fresh-session-per-iteration, L0/L1/L2 heartbeat
+watchdog, `stale_count`-gated forced pivots, `directions_tried.json` diversity, zero-interaction, guardian/
+worker separation, subagent scheduling patterns.
+
+**This is convergent validation, not a new local consumer.** An external team independently shipped the
+generalized protocol → confirms the *pattern* is real and our mechanisms are right (in several places ours is
+ahead: hutter's watchdog has an explicit detect/act split; anim-workbench's `qd-archive` is the formal version
+of their `directions_tried.json`; their review is same-model personas where ours is cross-model; **they have no
+autonomy router — they auto-ratchet every accept, which `route.py` exists to prevent**). It does **not** create
+a second *local* clean-verifier standalone loop, so the F5 resurrection trigger stays **unmet**. Verdict holds:
+do not rebuild the shared SKILL.
+
+**Genuine deltas harvested** (micro, into existing homes — not a platform): (1) "pivot **structure** not
+tactics: stale≥2 → question the frame, stale≥4 → human" as a sharper escalation framing offered to hutter/anim
+LOOP owners; (2) "ready means execute / never end a turn on a question" names our measured `over_caution`
+blindspot cluster precisely; (3) their verifier-noise→improvement-decay finding (+4.8/+0.1/−4.1/−6.6% over
+ε∈{0,.1,.3,.45} on a 285B GRPO run) is citable evidence for verifier-conditioned autonomy — but it is
+LLM-authored + self-reviewed, unverified by default (AI-text policy), so it is a pointer, not governance evidence.
