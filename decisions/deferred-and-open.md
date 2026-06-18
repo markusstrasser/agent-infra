@@ -20,6 +20,15 @@ lost and nothing is re-proposed from scratch. Append; mark closed with the resol
 | MAST detectors: reasoning-action-mismatch, information-withholding | **OPEN** (logged improvement-log 2026-06-16) | A real instance shows in sessions (not yet recurrence-gated). |
 | Auto-inject write-stub in `pretool-subagent-gate.sh` (vs block) | **OPEN** | Confirm PreToolUse can mutate `Agent` input on this CC version. Keeps the #47936 guard, kills the re-author friction. |
 
+## AutoResearch skill imports (ADR `2026-06-19-autoresearch-grounding-imports.md`)
+
+| Item | State | Reopen trigger |
+|---|---|---|
+| #2 citation-verify rate-gate for `/research` | **PROPOSED** (human gate) | `decisions-pending/2026-06-19-research-citation-verify-gate.md` — approve/reject. |
+| #1 weakness→component routing table for `/improve` | **DEFERRED** | `/improve` outputs read as non-actionable in practice (today: covered by `review_gate.py rank`/disposition). |
+| #3 phase-gated 6.0→8.5 score progression | **REJECTED** | LLM-judge-as-gate proxy (`CLAUDE.md:59`, `2026-05-28-verify-against-ground-truth`, scale-rubrics claim 5). Reopen only if a *ground-truth-grounded* scalar (Scale weighted-binary criteria, S∈[0,1]) is wanted — NOT Deli's holistic persona-score. |
+| #1 calibration ladder (first-round cap, max +Δ/round, ≥1 unresolved) | **REJECTED** | No host loop (`/critique` single-shot, `/code-review` scout, `/improve` per-finding). Reopen only if a scored iterative review loop is built for an independent reason. |
+
 ## Critique audit trail
 - `.model-review/rsi-arch-opus.md` · `rsi-crosslab-gpt.md` · `rsi-factcheck-composer.md` (2026-06-16).
   Partial spine reversal: ship canary, defer the promotion brain. All load-bearing claims verified
