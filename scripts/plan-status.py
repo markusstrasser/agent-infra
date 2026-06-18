@@ -25,6 +25,14 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+# Frontmatter engine is the shared, behavior-preserving plan_core extraction
+# (substrate/packages/plan-core) — same narrow-YAML parse/render/merge genomics
+# planctl uses. agent-infra layers its OWN required-keys + ADVISORY validate on
+# top; the parse/render primitives are single-sourced here, not re-hand-rolled.
+from plan_core import PlanConfig
+from plan_core import merge_frontmatter as _pc_merge_frontmatter
+from plan_core import parse_frontmatter as _pc_parse_frontmatter
+
 PROJECTS_DIR = Path.home() / "Projects"
 PROJECT_NAMES = ["agent-infra", "intel", "phenome", "genomics", "arc-agi", "skills"]
 
@@ -43,19 +51,20 @@ CONTRACT_FIELD_CLASS = {
 
 
 def parse_frontmatter(text: str) -> dict:
-    """Extract YAML-ish frontmatter from plan file."""
-    m = re.match(r"^---\n(.*?)\n---\n", text, re.DOTALL)
-    if not m:
+    """Extract frontmatter from a plan file via the shared plan_core engine.
+
+    Returns ``{}`` when the file has no frontmatter (plan_core returns ``None``)
+    so the cross-project scan stays tolerant of un-fronted plans — many
+    agent-infra `.claude/plans/*.md` have none. On malformed frontmatter,
+    plan_core raises ``ValueError``; we swallow it to ``{}`` here because this is
+    a read-only status scanner that must never crash on one bad file (the
+    advisory `--validate` path is where malformed docs are surfaced).
+    """
+    try:
+        meta, _ = _pc_parse_frontmatter(text)
+    except ValueError:
         return {}
-    fm = {}
-    for line in m.group(1).split("\n"):
-        if ":" in line:
-            key, _, val = line.partition(":")
-            val = val.strip()
-            if val.startswith("[") and val.endswith("]"):
-                val = [v.strip().strip("'\"") for v in val[1:-1].split(",") if v.strip()]
-            fm[key.strip()] = val
-    return fm
+    return meta or {}
 
 
 def plan_regime(project: str, fm: dict) -> str | None:
@@ -64,20 +73,57 @@ def plan_regime(project: str, fm: dict) -> str | None:
 
 
 def merge_frontmatter(filepath: str, updates: dict):
-    """Merge keys into a plan's YAML frontmatter, preserving existing keys (reuses parse_frontmatter)."""
+    """Merge keys into a plan's frontmatter via the shared plan_core renderer.
+
+    Behavior-preserving over the previous hand-rolled merge: existing keys are
+    kept, ``None`` updates skipped, and the body is preserved. plan_core's
+    renderer quotes values that need it (e.g. colons) and renders lists in
+    block style — strictly safer than the old inline `[a, b]` form, and
+    identical to genomics planctl's output.
+    """
     p = Path(filepath)
     text = p.read_text()
-    fm = parse_frontmatter(text)
-    fm.update({k: v for k, v in updates.items() if v is not None})
-    lines = []
-    for k, v in fm.items():
-        lines.append(f"{k}: [{', '.join(v)}]" if isinstance(v, list) else f"{k}: {v}")
-    new_fm = "---\n" + "\n".join(lines) + "\n---\n"
-    if text.startswith("---\n"):
-        text = re.sub(r"^---\n.*?\n---\n", new_fm, text, count=1, flags=re.DOTALL)
-    else:
-        text = new_fm + text
-    p.write_text(text)
+    p.write_text(_pc_merge_frontmatter(text, updates))
+
+
+# agent-infra's plan contract, expressed as a plan_core PlanConfig. This is the
+# injectable seam: the SAME engine genomics drives with strict registry-backed
+# config, agent-infra drives with its own required-keys and ADVISORY validation.
+# required_frontmatter_keys = the partial-regime contract fields (each maps to an
+# uncovered failure class — see CONTRACT_FIELD_CLASS). The generic state set /
+# kind taxonomy come from plan_core defaults. No concept_hook (agent-infra has no
+# concept registry).
+AGENT_INFRA_REQUIRED_KEYS = (*CONTRACT_REQUIRED["partial"], "regime", "plan_kind")
+
+
+def agent_infra_plan_config(project: str) -> PlanConfig:
+    """Build the agent-infra PlanConfig for one project's `.claude/plans` dir."""
+    return PlanConfig(
+        plans_dir=PROJECTS_DIR / project / ".claude" / "plans",
+        required_frontmatter_keys=AGENT_INFRA_REQUIRED_KEYS,
+        # generic state machine + kind taxonomy (plan_core defaults); no concept model
+    )
+
+
+def advisory_validate(plans: list[dict]) -> list[dict]:
+    """ADVISORY plan validation — reports missing contract fields, never blocks.
+
+    Uses plan_core's PlanConfig to declare agent-infra's required keys, then
+    reports which scanned plans omit them. Deliberately does NOT build a
+    genomics-style index (agent-infra plans have no plan_key/index.json and many
+    have no frontmatter at all) — it surfaces contract gaps per plan as advice.
+    Always returns cleanly; the caller prints and exits 0 no matter what.
+    """
+    cfg = agent_infra_plan_config("agent-infra")  # required-key set is repo-wide
+    required = cfg.required_frontmatter_keys
+    out = []
+    for p in plans:
+        present = dict(p.get("contract", {}))
+        present["regime"] = p.get("regime")
+        present["plan_kind"] = p.get("plan_kind")
+        missing = [k for k in required if not present.get(k)]
+        out.append({"project": p["project"], "file": p["file"], "missing": missing})
+    return out
 
 
 def contract_check(plans: list[dict]) -> list[dict]:
@@ -119,7 +165,7 @@ def scan_plans() -> list[dict]:
             except OSError:
                 continue
             fm = parse_frontmatter(text)
-            total_phases, phase_ids = count_phases(text)
+            total_phases, _ = count_phases(text)
             stat = f.stat()
             results.append({
                 "project": name,
@@ -127,6 +173,7 @@ def scan_plans() -> list[dict]:
                 "path": str(f),
                 "status": fm.get("status", "unknown"),
                 "regime": plan_regime(name, fm),
+                "plan_kind": fm.get("plan_kind"),
                 "contract": {k: fm.get(k) for k in CONTRACT_FIELD_CLASS},
                 "completed_phases": fm.get("completed_phases", []),
                 "total_phases": total_phases,
@@ -175,12 +222,31 @@ def main():
     parser.add_argument("--scope-out", help="contract: what this must NOT become (D3/D2)")
     parser.add_argument("--verifier", help="contract: verifier_commands surfaced at close (D2)")
     parser.add_argument("--regime", help="override repo-level regime for --contract-init")
+    parser.add_argument("--validate", action="store_true",
+                        help="ADVISORY: report plans missing required contract fields "
+                             "(uses plan_core engine; never blocks, always exits 0)")
     args = parser.parse_args()
 
     if args.update:
         completed = args.completed.split(",") if args.completed else None
         update_plan(args.update, args.status, completed)
         return
+
+    if args.validate:
+        rows = advisory_validate(scan_plans())
+        if args.json:
+            print(json.dumps(rows, indent=2))
+            return
+        clean = [r for r in rows if not r["missing"]]
+        print(f"Plan advisory-validate (plan_core; never blocks) — "
+              f"{len(clean)}/{len(rows)} carry full contract")
+        print(f"  required keys: {', '.join(AGENT_INFRA_REQUIRED_KEYS)}")
+        print("-" * 78)
+        for r in rows:
+            mark = "✓" if not r["missing"] else "!"
+            miss = "" if not r["missing"] else f"  missing: {', '.join(r['missing'])}"
+            print(f"  {mark} {r['project']:<9} {r['file'][:48]:<48}{miss}")
+        return  # advisory: always exit 0
 
     if args.contract_init:
         merge_frontmatter(args.contract_init, {

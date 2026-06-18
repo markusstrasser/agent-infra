@@ -14,10 +14,12 @@ dependencies = [
     "inspect-ai>=0.3.0",
     "openai>=2.26.0",
     "parallel-web>=0.4.0",
+    "plan-core",
 ]
 
 [tool.uv.sources]
 corpus-core = { path = "../substrate/packages/corpus-core", editable = true }
+plan-core = { path = "../substrate/packages/plan-core", editable = true }
 
 [project.scripts]
 agentlogs = "agentlogs.cli:main"
@@ -33,7 +35,11 @@ venvPath = "."
 venv = ".venv"
 typeCheckingMode = "basic"
 exclude = ["artifacts/", "downloads/", "bundles/", ".claude/worktrees/"]
-extraPaths = ["src"]
+# substrate editable deps resolve at runtime via _editable_impl_*.pth, but Pyright
+# only follows those when uv materializes a package dir (corpus-core does, via its
+# force-include data files; pure-stdlib plan-core does not). List both source roots
+# so static resolution is deterministic regardless of uv-sync materialization.
+extraPaths = ["src", "../substrate/packages/plan-core", "../substrate/packages/corpus-core"]
 
 [build-system]
 requires = ["hatchling"]
