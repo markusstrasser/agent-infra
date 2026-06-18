@@ -6,7 +6,7 @@ when you observe drift — don't let it rot (regen: edit `architecture.mmd`, the
 
 ![Architecture flowchart](architecture.png)
 
-**Mermaid source:** [`architecture.mmd`](architecture.mmd) — the single source the `png` renders from. Edit it, then regen the image (below). The inline duplicate was removed 2026-06-16 (two copies drift; one source is constitution principle 9).
+**Mermaid source:** [`architecture.mmd`](architecture.mmd) — the single source the `png` renders from. Edit it, then regen the image (below). The inline duplicate was removed 2026-06-16 (two copies drift; one source is constitution principle 9). `architecture.png` is **gitignored** (derived artifact — regen locally to view; the `.mmd` is the tracked source).
 
 ## The two loops (sessions are the only sensor; the harness the only actuator)
 Everything the operator does happens **inside a session** — so sessions are the system's one
