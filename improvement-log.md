@@ -3905,3 +3905,28 @@ A source that fails the watchdog (e.g. the oversized `~/.gemini/tmp/{intel,genom
 
 ### [2026-06-17] Design-decision validation as verifier-conditioned — substrate-unification ADR (RSI close)
 - **[obs] CATALOG-AS-DESIGN-VERIFIER + MANDATORY-CUT (1 session, candidate — promote on 2nd occurrence):** A hard-to-reverse DESIGN decision (`substrate/docs/decisions/0003`, 12 validation lanes, 0 spine reversals) is *verifiable* iff it has a **use-case acceptance-catalog** to simulate against — the catalog is to a design decision what a test suite is to code, shifting "design = partial-verifier → bounded autonomy" toward "clear-verifier" (generalizes the constitution's verifier-conditioned autonomy from code/claims to DESIGN). Empirically the **four lenses caught DISJOINT failure classes** — storage-fixtures passed while use-case sims found 3 path-gaps (write-gate/pmid↔doi/run-as-source); codex formal then found A1 was a reproducibility *screen* not a determinism *proof*; the security pass found the only foundational hole (forgeable trust-metadata: content-addressing ≠ authentication on a multi-client store). No lens substitutes for another. SECOND half: multi-round design-validation is an **expansion ratchet** (each critique adds edge-cases → iatrogenic bloat) UNLESS it ends with a cut/converge pass — Round-3's cut pass diagnosed "the ADR became a roadmap; the absorption set is too wide" and bounded ~17 items → an 8-item buildable core. **Calibration:** run the cut lane EARLY+continuously not only at the end; route reasoning-heavy synthesis (timeline/staleness/ADR-judgment) to high-effort or coordinator-verify, NOT a mechanical-gate low-effort lane (mis-routed ADR-archaeology to opus-low this session, operator-corrected). Promotion path: a `/decide` extension scaffolding catalog + 4-lens fan-out + forced convergence; the general simulation prompt is the seed artifact.
+
+### [2026-06-17] [INFRA BREAK]: genomics `pipeline_stages` import without PYTHONPATH=scripts
+- **Evidence:** `/observe failures` 21d: `missing-module:pipeline_stages` ×40 / 8 days / 16 runs (last 06-16). Tier-3 agentlogs: **38/40** failures are `uv run python3` from genomics cwd — correct invocation, wrong import surface. Module is `scripts/pipeline_stages.py`; `from pipeline_stages import STAGES` only works with `PYTHONPATH=scripts` (justfile pattern). Bare `uv run python3 -c "from pipeline_stages…"` reproduces the crash; `from scripts.pipeline_stages` works.
+- **Failure mode:** PYTHONPATH / project-local module path (distinct from bare-python class — `pretool-uv-python-guard` does not catch)
+- **Proposed fix:** [rule+hook] genomics CLAUDE.md gotcha ("inline python in genomics: prefix `PYTHONPATH=scripts` or import `scripts.pipeline_stages`") + optional pretool guard when cwd matches genomics and inline python imports `pipeline_stages|orchestrator|wgs_config` without PYTHONPATH
+- **Root cause:** skill-coverage — agents learned `uv run` but not genomics' scripts-on-PYTHONPATH layout
+- **Status:** [x] implemented — `pretool-genomics-pythonpath-guard.py` (global PreToolUse) + genomics CLAUDE.md PYTHONPATH/measurement gotcha (2026-06-17 observe stack)
+
+### [2026-06-17] observe stack — prior-context v2 + observe context cap + Stop dedup + measurement alias
+- **[x] prior-context v2 (partial):** `userprompt-prior-context.py` sibling-repo scan + observe/RSI self-check + **infra-design inventory** (session-forensics + scripts/ grep when prompt smells like schema/join design); `.cursor/rules/prior-context.mdc`; `scripts/prior_context_triage.py` + `just prior-context-triage` (41 flags / 13 sessions since 06-14; top bucket `existing_infra`)
+- **[x] observe RSI bundle:** `just observe-all` (observe-context + prior-context-triage + blindspot)
+
+### [2026-06-17] Eve harness steals — harness-eval · approval-tiers · session-trace · approval_mode KPI
+- **[x] P1 `just harness-eval`:** hooks-smoke · orient --drift · prior-context selftest · test_orient · approval_tiers (~49s)
+- **[x] P2 `config/approval-tiers.json`:** block/predicate/warn registry; `scripts/approval_tiers.py` + doctor check (47 hooks, 36 global pretools)
+- **[x] P3 `just session-trace`:** `scripts/session_trace.py` — Eve-shaped span replay from agentlogs (json|otel|text)
+- **[x] P4 supervision-kpi:** `runs.approval_mode` distribution + problem-hiding guard (bypass share ↑ + AIR elevated)
+- **[x] architecture.mmd:** VERIFY subgraph wired to HARNESS + STORE
+- **[x] observe size-safe context:** `scripts/observe_prepare_context.py` + `just observe-context` (580KB cap)
+- **[x] Stop unattributable dedup:** `stop-uncommitted-warn.sh` → `~/.claude/stop-unattrib-seen-<sid>.txt`
+- **[x] genomics measurement:** `just measurement-check` → `truth-check`; census vs gate_truth in CLAUDE.md
+- **[ ] output truncation on long Opus sessions** (6 sessions, drift) — architectural; A6 dedup shipped first
+
+## [2026-06-18] RSI close — correction-counter over-counts on recovered sessions
+- **[obs] close 5ce532b8** (agent-infra, flagged `operator_correction_signal` ×27): verified CLEAN — all 7 claimed commits present in git (`f404373 bf86452 70e70a4 e4eac54`; skills `da1b249 124dd56 c64ebfd`). The 27 "correction signals" (negation+retry_run lexical) did NOT map to an unrecovered failure; end-state sound. Datapoint: the Tier-1 trigger fires on iterative-but-recovered work, not just real failures → false-close-prompt rate is the metric to watch for whether the close skill earns its keep.
