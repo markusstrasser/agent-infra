@@ -60,6 +60,15 @@ else
   echo "[drift-sentinel] all green — no digest."
 fi
 
+# RSI closing-force registration trigger (2026-06-18): every newly-implemented [x]
+# finding gets a +30d earn-its-keep prediction so no scaffold escapes the "does this
+# still need to exist?" verdict (gov telos: corpus shrinks as IQ rises). Append-only,
+# idempotent — the documented missing half of the prediction ledger (WIN-2). Auto-
+# RETIREMENT stays human-gated (gov.py route(), AUTO_APPLY dormant) until this earns a
+# track record. 4-day window overlaps the daily cadence so nothing is missed.
+uv run python3 "$REPO/scripts/register_implementations.py" 2>&1 \
+  | grep -E 'registered [1-9]' || true
+
 # Refresh the Top-N priorities digest (the loop's headline output) so it surfaces
 # at SessionStart even on days the conductor is never invoked — the demand-test
 # insight (surface where attention already is, don't depend on typing /loop).

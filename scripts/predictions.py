@@ -24,6 +24,11 @@ Usage:
   predictions.py due                                 # DUE-and-open (drift-sentinel greps "DUE")
   predictions.py list                                # all, with status
   predictions.py resolve <id> <confirmed|refuted|partial> "<note>"
+  predictions.py register "<change>" "<prediction>" "<metric>" <check_date> [commit] [id]
+
+The registration trigger (register_implementations.py, run daily by drift-sentinel) is the
+closing-force actuator: every implemented finding gets a scheduled earn-its-keep re-check so
+no scaffold escapes the "does this still need to exist?" verdict (gov telos: shrink as IQ rises).
 """
 from __future__ import annotations
 
@@ -94,6 +99,29 @@ def cmd_list() -> None:
         print(f"[{st:8}] {p.get('check_date', '?')}  {pid}  — {p.get('change', '')}")
 
 
+def register_prediction(change: str, prediction: str, metric: str,
+                        check_date: str, commit: str = "", pid: str = "",
+                        source: str = "") -> str | None:
+    """Append a new prediction record; return its id, or None if already present.
+
+    Idempotent by id — the SOLE writer of `kind:"prediction"` rows (cmd_resolve owns
+    resolutions). Callers that derive a deterministic id (e.g. from commit+finding) get
+    free dedup: a second call with the same id is a no-op. Append-only, never edits."""
+    if not pid:
+        pid = f"pred-{_today()}-{abs(hash(change)) % 10**8:08d}"
+    preds, _ = _load()
+    if pid in preds:
+        return None
+    rec = {"id": pid, "ts": _today(), "kind": "prediction", "change": change,
+           "commit": commit, "prediction": prediction, "metric": metric,
+           "check_date": check_date}
+    if source:
+        rec["source"] = source
+    with LEDGER.open("a") as fh:
+        fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    return pid
+
+
 def cmd_resolve(pid: str, status: str, note: str) -> None:
     if status not in ("confirmed", "refuted", "partial"):
         print("status must be confirmed|refuted|partial")
@@ -112,8 +140,14 @@ def main() -> None:
         cmd_list()
     elif a[0] == "resolve" and len(a) >= 3:
         cmd_resolve(a[1], a[2], a[3] if len(a) > 3 else "")
+    elif a[0] == "register" and len(a) >= 5:
+        pid = register_prediction(
+            change=a[1], prediction=a[2], metric=a[3], check_date=a[4],
+            commit=a[5] if len(a) > 5 else "", pid=a[6] if len(a) > 6 else "")
+        print(f"registered [{pid}]" if pid else "already present (no-op)")
     else:
-        print("usage: predictions.py [due|list|resolve <id> <confirmed|refuted|partial> <note>]")
+        print("usage: predictions.py [due|list|resolve <id> <verdict> <note>|"
+              "register <change> <prediction> <metric> <check_date> [commit] [id]]")
         sys.exit(1)
 
 

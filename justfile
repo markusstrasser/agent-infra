@@ -177,7 +177,24 @@ mcp-health:
 doctor:
     uv run python3 scripts/doctor.py
 
-# Per-repo test-suite health: does each suite still COMPLETE (vs crash/abort)?
+# Harness eval — Eve `eve eval` analog for hook/skill changes (~43s).
+[group('health')]
+harness-eval:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "=== harness-eval (hooks + drift + prior-context + orient contracts) ==="
+    uv run --no-project python3 scripts/hooks_smoke.py --timeout 8
+    uv run python3 scripts/orient.py --drift
+    uv run python3 "$HOME/Projects/skills/hooks/test_userprompt_prior_context.py"
+    uv run python3 -m pytest scripts/tests/test_orient.py -q
+    uv run python3 scripts/approval_tiers.py
+    echo "OK: harness-eval"
+
+# Eve-shaped session replay from agentlogs (structural forensics).
+[group('health')]
+session-trace session *args:
+    uv run python3 scripts/session_trace.py {{session}} {{args}}
+
 # Watches the regression signal itself — a non-completing suite produces none.
 [group('health')]
 test-health *args:
@@ -206,6 +223,20 @@ drift-sentinel:
 blindspot:
     bash scripts/blindspot-miner.sh
 
+# Triage post-deploy prior-context blindspot flags (observe A5 prerequisite).
+prior-context-triage *args:
+    uv run python3 scripts/prior_context_triage.py {{args}}
+
+# Size-safe observe dispatch context (600KB cap); drops codex first, then truncates.
+observe-context project='agent-infra' sessions='5' *args:
+    uv run python3 scripts/observe_prepare_context.py --project {{project}} --sessions {{sessions}} {{args}}
+
+# Observe RSI bundle — size-safe context + prior-context triage + blindspot refresh.
+observe-all project='agent-infra' sessions='5':
+    just observe-context {{project}} {{sessions}}
+    just prior-context-triage
+    just blindspot
+
 # Pre-registered prediction ledger: `predictions list` (open/DUE/resolved),
 # `predictions resolve <id> <confirmed|refuted|partial> "<note>"`. drift-sentinel
 # surfaces DUE-and-unresolved ones daily (the resolver — a write-only log is false
@@ -213,6 +244,14 @@ blindspot:
 [group('health')]
 predictions *args:
     uv run python3 scripts/predictions.py {{args}}
+
+# RSI closing-force registration trigger: scan recent improvement-log commits and
+# register a +30d earn-its-keep prediction for each newly-implemented [x] finding so
+# no scaffold escapes the "does this still need to exist?" verdict (gov telos: shrink
+# as IQ rises). Idempotent/append-only; run daily by drift-sentinel. --all to backfill.
+[group('health')]
+register-impl *args:
+    uv run python3 scripts/register_implementations.py {{args}}
 
 # Orphaned-FINDINGS ratchet (report-only): flag trending-scout memos whose
 # adopt-grade verdicts never reached improvement-log (the loop's read path).
@@ -470,13 +509,13 @@ loop-funnel *args:
 act-drain *args:
     uv run python3 scripts/act_drain.py {{args}}
 
-# Install git pre-commit hooks (chains no-large-binaries + append-only/protected guards)
+# Install git pre-commit hooks (chains no-large-binaries + append-only/protected guards + codebase-map refresh)
 [group('epistemic')]
 install-hooks:
     @ln -sf "$HOME/Projects/skills/hooks/pre-commit-guards.sh" .git/hooks/pre-commit
     @echo "  ✓ .git/hooks/pre-commit → skills/hooks/pre-commit-guards.sh"
-    @echo "    chains no-large-binaries + append-only/protected (from .precommit-guards.env)"
-    @echo "  (bypass: GIT_ALLOW_BINARIES=1 / GIT_ALLOW_GUARD_BYPASS=1)"
+    @echo "    chains no-large-binaries + append-only/protected + codebase-map (from .precommit-guards.env)"
+    @echo "  (bypass: GIT_ALLOW_BINARIES=1 / GIT_ALLOW_GUARD_BYPASS=1 / SKIP_CODEBASE_MAP_REFRESH=1)"
 
 # Conformance check: is commit-time data/append-only protection LIVE in every repo?
 [group('epistemic')]
