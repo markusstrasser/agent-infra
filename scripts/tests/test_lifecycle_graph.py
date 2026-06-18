@@ -18,6 +18,7 @@ REPO = Path(__file__).resolve().parents[2]
 MOD_PATH = REPO / "scripts" / "lifecycle_graph.py"
 
 _spec = importlib.util.spec_from_file_location("lifecycle_graph", MOD_PATH)
+assert _spec and _spec.loader, MOD_PATH  # real file path — guards the type-checker
 lg = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(lg)
 
@@ -42,7 +43,7 @@ def test_superseded_by_inverts_to_supersedes():
 def test_relates_to_absent_from_traversable():
     """(b) relates_to is non-traversable — out of the bundling graph entirely."""
     vocab = lg.load_vocab()
-    canon, _invert, traversable = lg.normalize_type("relates_to", vocab)
+    canon, _, traversable = lg.normalize_type("relates_to", vocab)
     assert canon == "relates_to"
     assert traversable is False, "relates_to must be non-traversable (weak bucket only)"
 
