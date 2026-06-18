@@ -247,3 +247,25 @@ rejected/folded alternatives, not a parallel build).
   Dispatched 3 research axes → `research/2026-06-18-{elicitation,spec-formats,spec-versioning}-
   best-practices.md`. The front-end design + a contract **versioning** scheme will be added here
   once that research lands. The Phase-1 slice stands as the consumption substrate it plugs into.
+
+### 2026-06-18 (later) — research landed; front-end design grounded
+Full synthesis: `research/2026-06-18-plan-contract-frontend-synthesis.md`. The 3 axes converged:
+*format is the cheap 20%; eliciting the few underivable inputs + a staleness story is the leverage*;
+the 2025-26 SDD frontier (Kiro/spec-kit/Tessl) is a **cautionary tale** (more spec → less adherence)
+that validates the minimal spine — and the parity oracle they all lack **is our `verifier_commands`**.
+Grounded design decisions:
+- **Schema:** keep the 4 shipped fields; **add `telos`** (the one convergent PRD gap — fights
+  intent-drift) + regime-conditional `success_metric`/`hypothesis`/`operator_decision`/`user_story`/
+  `authority_split`. **Adopt EARS grammar** for `exit_signal`/`verifier_commands` (makes a
+  non-observable criterion ungrammatical); the advisory check warns on non-observable `exit_signal`.
+  Verifiability ladder = the regimes (clean→command required; partial→command-or-EARS; principal→
+  metric+checklist). Single ≤~15-line block; NO multi-file trees.
+- **Versioning ("version it"):** `spec_version` (SemVer, MAJOR = "invalidates work agents already
+  did") + `status` + `governs_commit` (drift anchor) + append-only `## Changelog` + `supersedes:` for
+  wholesale replacement + a ~15-line `git rev-list` staleness check + `Spec-Version:` trailer. Git is
+  the bitemporal substrate — **reject a DB for a single doc**.
+- **Elicitation (the front-end):** 3 edits to `interview-prompt` — Step-0 six-cell coverage gate
+  (outcomes·scope-OUT·constraints·prior-decisions·acceptance/exit·authority); score by **solution-
+  space split** not answer-variance (Kobalczyk ICLR 2025); add the **assume-and-mark** branch
+  (Spec-Kit `[NEEDS CLARIFICATION]`). Straw-man-first: draft the plan, the unfillable cells ARE the
+  questions. `interview-prompt` is a shared skill → edits shown as a diff for operator go before apply.
