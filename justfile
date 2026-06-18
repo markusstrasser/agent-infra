@@ -11,13 +11,13 @@ orient *args:
     uv run python3 scripts/orient.py {{args}}
 
 # RSI-lifecycle neighborhood of a node (decision id, research stem, or prediction id):
-# traversable lifecycle out/in edges (supersedes/branches_from/depends_on…) PLUS a
-# separate weak section for non-traversable relates_to + provenance. Rederivable —
-# no disk store; fold-normalized + invert-safe. `just graph <id>` · `--build` for
-# counts · `--json` for the machine form.
+# traversable lifecycle edges (supersedes/branches_from/depends_on…) PLUS weak
+# non-traversable relates_to + provenance, for a node. Agentlogs-native: rebuilds
+# the rederivable lifecycle_edges table, then runs the lifecycle_neighbors named
+# query. `just graph <id>`. Counts alone: `uv run agentlogs lifecycle-reindex`.
 [group('orientation')]
-graph *args:
-    uv run python3 scripts/lifecycle_graph.py {{args}}
+graph id:
+    uv run agentlogs lifecycle-reindex >/dev/null && uv run agentlogs query lifecycle_neighbors --param node={{id}}
 
 # ── Dashboard ──────────────────────────────────────────────────────
 

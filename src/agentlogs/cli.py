@@ -10,6 +10,7 @@ Subcommands:
   who       Code line/range → the session/model that authored it (blame + agentlogs)
   whence    A session → the code it produced (v_session_commits)
   dispatch  Run a session through an analysis prompt via llmx
+  lifecycle-reindex  Rebuild the RSI-lifecycle edge table from decisions/research
 """
 
 from __future__ import annotations
@@ -141,6 +142,17 @@ def _make_parser() -> argparse.ArgumentParser:
                          help="Execute the prune (default: dry-run preview, deletes nothing)")
     s_prune.add_argument("--no-lock", action="store_true",
                          help="Skip the single-writer indexer lock (debug only)")
+
+    # lifecycle-reindex — rebuild the RSI-lifecycle edge table -------------
+    s_lc = sub.add_parser(
+        "lifecycle-reindex",
+        help="Rebuild lifecycle_edges from decisions/ ∪ research/ ∪ predictions",
+    )
+    s_lc.add_argument("--repo-root", type=Path, default=None,
+                      help="agent-infra repo root holding decisions/, research/, "
+                           "predictions.jsonl, scripts/lifecycle_relations.json "
+                           "(default: git rev-parse --show-toplevel from cwd)")
+    s_lc.add_argument("--format", choices=["table", "json"], default="table")
 
     return p
 
@@ -595,6 +607,34 @@ def cmd_prune(args) -> int:
         return 0
 
 
+def cmd_lifecycle_reindex(args) -> int:
+    from . import lifecycle as lc
+
+    repo_root = args.repo_root or lc.default_repo_root()
+    db = connect(_resolve_db_path(args))
+    try:
+        manifest = lc.build_edges(db, repo_root)
+    finally:
+        db.close()
+
+    if args.format == "json":
+        print(json.dumps(manifest, indent=2))
+        return 0
+
+    nc = manifest["nodes_by_source"]
+    n_unknown = len(manifest["unknown_strings"])
+    print("lifecycle-reindex (agentlogs-native; lifecycle_edges rebuilt)")
+    print(f"  nodes: {manifest['nodes_total']} total — "
+          f"decisions={nc['decision']} research={nc['research']} "
+          f"predictions={nc['prediction']}")
+    print(f"  edges: {manifest['edges_total']} total — "
+          f"traversable={manifest['edges_traversable']} "
+          f"weak={manifest['edges_weak']} dangling={manifest['edges_dangling']}")
+    print(f"  unknown relation strings (vocab gaps): {n_unknown}"
+          + (f" -> {sorted(manifest['unknown_strings'])}" if n_unknown else ""))
+    return 0
+
+
 _COMMANDS = {
     "index": cmd_index,
     "prune": cmd_prune,
@@ -607,6 +647,7 @@ _COMMANDS = {
     "git-import": cmd_git_import,
     "who": cmd_who,
     "whence": cmd_whence,
+    "lifecycle-reindex": cmd_lifecycle_reindex,
 }
 
 
