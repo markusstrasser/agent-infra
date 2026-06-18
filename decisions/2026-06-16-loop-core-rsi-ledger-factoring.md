@@ -1,7 +1,7 @@
 ---
 concept: cross-project RSI loop factoring (loop-core as composable roles)
 decision_date: 2026-06-16
-status: proposed
+status: accepted
 relates_to:
   - research/2026-06-15-critique-slow-and-unreliable.md
   - research/2026-06-14-leverage-hunt-rsi-system.md
@@ -206,3 +206,20 @@ upstream signal, it does not close them.
   right layer:** can hutter's clade-yield/calibration/heretic views + anim's collapse onto ONE DuckDB
   loop-core by deletion? STILL TRUE: no corpus-style content-id/supersession storage lib (corpus↔loop
   divergent). **"Each keeps its own" holds at the storage line, NOT the algorithm line.**
+- **2026-06-18 — probe v2 RAN (the algorithm-layer deletion test this entry queued); status → accepted.**
+  Three read-only forensic agents extracted hutter/anim/intel's exact view DDL + judged
+  collapse-by-deletion (`research/2026-06-18-loop-core-probe-v2-algorithm-layer.md`). **Adopt-by-deletion
+  FAILS 3/3 — PARTIAL-UPDATE, not reversal.** The algorithm *shapes* ARE ~60% generic (clade-yield DAG
+  walk on (id,parent_id,verdict,score); predicted-vs-actual miss) — **the "algorithms are universal"
+  reframe is vindicated in SHAPE.** But no loop adopts a shared `experiments` schema by DELETING local
+  views: (1) hutter — the **verdict vocabulary IS the algorithm** (12-value verdict set + `slice IN
+  (enwik5/6/8)` truth-tier encode PACE gate→probe→ratchet; a flat `verdict` column can't hold it),
+  byte-direction + multi-col gain/cost are lost by a generic scalar, and SQLite-CTE→DuckDB-UNNEST is a
+  rewrite of 244 tested rows; (2) anim — no scalar score at all (conjunctive PASS, prose
+  predicted/actual), heretic reads external artifacts (un-portable); (3) intel — shares ONLY
+  calibration, the other 5 absent-by-regime (not a search loop). Even the narrowest helper-lib fails the
+  proven-common bar (clade-yield: 1 consumer; calibration: 2 but different units/engines). **FINAL: no
+  shared schema, no views toolkit, no helper-lib. The 6 algorithm shapes + the role pattern become a
+  documented SKELETON COOKBOOK (copy-stamp per loop into its own schema/engine). "toolkit" → "cookbook";
+  this entry's "loop-core IS real (schema+views)" over-reached on substance.** Net build across the whole
+  arc remains the hutter Heretic auditor only (`c70e1f1`).

@@ -79,7 +79,13 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-06-15-git-native-tooling-anchors.md` | Git-native provenance/diff tooling + durable code anchors — `--ignore-rev` fixes refactor-wash, trailer-parse Session-ID, `git log -L` for line lineage; anchors = steal drift's normalized-AST-fingerprint pattern (no server), SKIP SCIP/LSIF/LSP as too heavy | Sharpening blame→session attribution; building durable rot-resistant code anchors; SCIP/LSIF/tree-sitter-diff adoption; refactor-wash mitigation |
 | `2026-06-16-agentic-decomposition-gating-prior-art.md` | Agentic Decomposition & Gating — Engineering Prior-Art Scan | Before building ANY agentic decompose/fan-out/review gate or auto-code-review: isolation is solved (worktrees), BUY semantic-diff deps (inspect/kai/vibediff) don't build, review-throughput (200–400-line band) is the bottleneck; measurement-first per `decisions/2026-06-16-feature-work-loop-binding-measurement-first.md` |
 | `2026-06-16-predictive-arch-rsi-loops.md` | PROBE IN PROGRESS | TODO |
+| `2026-06-16-session-extraction-external-prior-art.md` | Session-Transcript Extraction: External Prior Art (2025–2026) | TODO |
+| `2026-06-16-session-extraction-prior-work.md` | Session-Corpus Value Extraction — Prior Work Archaeology | TODO |
 | `2026-06-16-session-surface-errors-verified.md` | Session Surface Errors — Verified Research (2026-06-16) | TODO |
+| `2026-06-17-embed-once-validated-recurring-mistakes.md` | Embed-once session extraction — validated + first recurring-mistake findings | TODO |
+| `2026-06-17-vercel-eve-harness-steals.md` | Vercel Eve vs agent-infra — research + simulated steals | TODO |
+| `2026-06-18-hutter-anim-rsi-comparative-report.md` | Hutter vs anim-workbench RSI — comparative report | TODO |
+| `2026-06-18-loop-core-probe-v2-algorithm-layer.md` | loop-core probe v2 — algorithm-layer deletion test | TODO |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
 | `adversarial-case-library.md` | Adversarial Case Library: The Best "Calling BS" Reviews | TODO |
 | `agent-behavior-refresh-2026-04.md` | Agent Behavior Delta — Memory, Self-Modification, Sycophancy | TODO |

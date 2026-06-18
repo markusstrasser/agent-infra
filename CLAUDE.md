@@ -8,12 +8,20 @@ This repo plans and tracks improvements to agent infrastructure across projects 
 ```bash
 just --list                              # all recipes, grouped
 just orient                              # live map — WHAT IS IT? jobs·hooks·MCP·skills, derived from ground truth (never stale)
+just harness-eval                        # hook/skill pre-commit gate (~43s): hooks-smoke · drift · prior-context · orient tests
+just session-trace <uuid-prefix>         # Eve-shaped span replay from agentlogs (structural forensics)
 just smoke                               # minimal functional test (<1m)
 uv run python3 scripts/doctor.py         # cross-project health check — HEALTHY? (full validation)
 uv run python3 scripts/dashboard.py      # agent ops dashboard — WHAT HAPPENED?
 uv run agentlogs recent                  # recent runs across vendors (live data: Claude+Codex+Cursor; Gemini+Kimi adapters wired but no sessions in 21d retention window)
 uv run agentlogs search <query>          # FTS5 search across all vendors
 uv run agentlogs stats                   # DB size, per-vendor counts, indexer health
+just blindspot                           # loop-miss miner (emb); digest at .claude/blindspot-digest.md
+just observe-context [project] [sessions]  # size-safe observe context (<600KB for llm-dispatch)
+just prior-context-triage              # classify post-hook prior-context misses
+just gather <plan.md>                   # deterministic context gather (no LLM)
+just critique <plan.md>                 # gather → cross-model critique
+just questions                          # human-gated pending decisions (act-drain VIEW)
 ```
 
 ## Key Files
@@ -27,7 +35,7 @@ uv run agentlogs stats                   # DB size, per-vendor counts, indexer h
 
 ## Research Index
 
-~263 research memos in `research/`. Full index with topics and "consult before" triggers: `.claude/rules/research-index.md` (path-scoped to `research/**`, `decisions/**`).
+~266 research memos in `research/`. Full index with topics and "consult before" triggers: `.claude/rules/research-index.md` (path-scoped to `research/**`, `decisions/**`).
 
 <constitution>
 > **Human-protected.** Agent may propose changes but must not modify without explicit approval.
@@ -143,9 +151,7 @@ How to verify this constitution is working (check via `/observe sessions` after 
 
 ## Active launchd jobs
 
-The orchestrator (queue-backed task runner) was fully eradicated 2026-06-07 — its launchd schedule was removed 2026-04-24 (with `code-review-daily`/`propose-work-daily`/`session-retro-daily`/`hook-roi-daily`), and the parked `archived_orchestrator.py` + its dead state path (`agent-state.json`, `stop-failures.jsonl`, the StopFailure backoff/billing writes) were deleted once confirmed it had no live consumer.
-
-The active launchd jobs are local, zero-API: `com.agent-infra.agentlogs-index` (every 2h session-dir indexing), `com.agent-infra.audit-corpus-sync` (daily 04:30 verdict/relation drift + parse-health advisory + outbox drain), `com.agent-infra.reclaim-rotate` (daily 04:10 log/artifact retention rotation), `com.agent-infra.corpus-ledger-commit` (WatchPaths on the corpus root + daily 05:00 backstop — git-commits the corpus belief-change ledger; the watch catches new-source ingests same-day, the clock catches in-place re-annotation the non-recursive watch misses), `com.agent-infra.test-health` (daily 05:30 suite-completion sentinel), `com.agent-infra.codebase-map-refresh` (WatchPaths on the 7 mapped source dirs + weekly backstop — regenerates the 5-project codebase maps via `just refresh-maps`; zero-API + idempotent, so no git churn on unchanged repos), `com.agent-infra.vendor-sweep` (daily 06:00 — `scripts/vendor-sweep.sh`: curl vendor docs/changelogs into the gitignored `docs/vendor/` cache + extract the Claude Code binary's embedded skill prompts, commit any binary-extract diff; zero-API deterministic half of surveillance — the semantic half, trending-scout/agent-infra-sweep, is surfaced as DUE by `just freshness` and run by `/improve maintain`), `com.agent-infra.drift-sentinel` (daily 06:35 — `scripts/drift-sentinel.sh`: runs the deterministic report-only checks (freshness, orphan-findings, orphan-check, doc-vs-reality drift, context-budget always-loaded canary via `context-budget.py --check` — flags any active repo over the ~30k always-loaded ceiling) and writes the gitignored `.claude/drift-digest.md` only when something needs attention, removed when green; the next agent-infra SessionStart surfaces it via `scripts/drift-surface.sh`. Decouples self-monitoring from the interactive `/improve` loop — the system notices its own drift across no-loop days), `com.agent-infra.blindspot-miner` (daily 06:50 — `scripts/blindspot-miner.sh` runs `scripts/blindspot_miner.py` IN EMB'S ENV (emb-contrastive detection, $0 local, no torch in agent-infra) over recent sessions to surface the moments the human had to catch a loop MISS — each a candidate detector; writes the gitignored `.claude/blindspot-digest.md` (removed when no flags), surfaced next agent-infra SessionStart via `scripts/blindspot-surface.sh`. The RSI loop-closure: the supervision stream grows the loop's coverage, the blindspot-flag rate is the declining-supervision objective; supervision-kpi.py is the cheap regex TREND, this is the semantic QUALITY miner), `com.agent-infra.act-drain` (daily 06:45 — `scripts/act-drain.sh` → `act_drain.py`: the zero-LLM ACT half of the RSI loop — runs reflect classify (deterministic drain), then writes the gitignored `~/.claude/act-drain-digest.md` when the disposition queue needs attention, removed when green; surfaced next SessionStart via `act-drain-surface.sh` (a `cat`, zero startup cost). Now LEADS with the focused **"Questions for you"** VIEW (`questions_view.py`, `just questions`) — the human-gated pending decisions + tool/hook steward proposals rendered as ONE section BEFORE the funnel counts, the VIEW-not-store deliverable of ADR 2026-06-16-agent-question-convergence; reads/filters/renders only, adds no store), `com.agent-infra.clash-detect` (daily 07:00 — `scripts/clash-detect.sh` → `clash_detect.py`: the SHADOW driver for governance clash-detection (ADR 2026-06-16-governance-clash-detection). Processes NEW captured directive-class user messages (from `userprompt-clash-capture.py`, cursor-tracked + self-healing on log rotation) against `.claude/governance-index.md` via gemini-3-flash; appends verdicts to `~/.claude/clash-shadow.jsonl` and SURFACES NOTHING — it's the 2-week precision window. **The one LLM-calling launchd job** (one batched gemini-flash call/day on the day's captures, ~$0.001; fail-safe — cursor not advanced on dispatch error, retried next day); promote/cut after ~2 weeks via `just clash-detect --summary`), `com.agent-infra.gov-report` (daily 05:45 — `scripts/gov.py`: the SENSE half of governance-shrink — scans Gov-ID scaffold lifecycle and runs the governance graders, writing the report-only retirement-candidate surface; zero-API), `com.agent-infra.hetzner-idle-watch` (twice daily 09:00 + 21:00 — `scripts/hetzner-idle-watch.sh --notify`: READ-ONLY watch that flags non-hutter Hetzner boxes (genomics `sbayesrc-*` weight-compute) idling >12h on the shared hcloud account and fires a macOS notification — never deletes; teardown stays the operator-gated `hetzner-reap.sh`. The one hcloud-API-touching job here, but read-only `hcloud server list` only — no LLM/quota cost. Closes the gap where hutter's `idle_reaper.sh` cross-project guard refuses to reap non-hutter boxes; two `sbayesrc-*` boxes idled 17h once, ~€16 wasted 2026-06-14), `com.agent-infra.reflect-eval` (one-shot 2026-06-17 09:00 — grades the session-learning loop's pre-registered tests, then self-unloads), and `com.agent-infra.risky-diff-review` (one-shot 2026-06-21 09:00 — scans the 2-week risky-diff-review SHADOW window from git history, surfaces the promote/cut call to checkpoint.md, then self-unloads).
+Live inventory: `just orient` (derived from ground truth, never stale). Slugs: `act-drain`, `agentlogs-index`, `audit-corpus-sync`, `blindspot-miner`, `clash-detect`, `codebase-map-refresh`, `corpus-ledger-commit`, `drift-sentinel`, `gov-report`, `hetzner-idle-watch`, `reclaim-rotate`, `risky-diff-review`, `test-health`, `vendor-sweep`. Summary: zero-API local jobs for agentlogs indexing, drift/blindspot/act-drain RSI loop, corpus sync, codebase-map refresh, vendor sweep; one LLM job (`clash-detect`, gemini-flash shadow). Orchestrator eradicated 2026-06-07 (was queue-backed; schedule removed 2026-04-24).
 
 ## Backlog
 
@@ -167,6 +173,11 @@ Anchor: `decisions/2026-06-15-llmx-refactor-dispatch-layer.md`.
 - Not a place to write more rules about rules.
 - Not a place to document things that should be implemented. Plan here → implement in target repo in same session.
 - Architectural changes > documentation changes.
+
+## Gotchas
+
+- **Observe / `llm-dispatch` context cap:** `--context` > ~600KB exits 2. Use `just observe-context` (drops codex first, then truncates) — don't concatenate full genomics transcripts into one dispatch.
+- **Prior context:** propose/diagnose prompts → `userprompt-prior-context.py` (Claude) + `.cursor/rules/prior-context.mdc` (Cursor). Triage residuals: `just prior-context-triage`.
 
 <cross_project_rules>
 ## Corpus attestation (substrate v2) — ARCHITECTURAL
