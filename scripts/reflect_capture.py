@@ -179,6 +179,36 @@ def extract_corrections(events: list[dict]) -> list[dict]:
     return out
 
 
+# ── Tier-1 close trigger: REAL empirical issue, not correction volume ────────
+def real_issue_signal(rows: list[dict]) -> tuple[bool, list[str]]:
+    """Does this session carry a REAL empirical issue worth an independent verify-close?
+
+    SINGLE SOURCE for the Tier-1 trigger — both the capture-time enqueue gate (main, below) and
+    the drain-time digest gate (reflect_session_close.build_digest) call THIS, so they can't
+    diverge. Previously they did: capture used f_tag|strong while close added a `len(rows) >= 3`
+    floor — and that count floor was the false-positive source. Every iterative-but-recovered
+    session trivially clears 3 corrections, so the close fired on clean work (verified clean on
+    5ce532b8: 27 signals → 0 real failures; improvement-log 2026-06-18). The floor is GONE.
+
+    Fires only on signals that predict a verify would find something:
+      operator_flag        — an explicit `#f` operator correction (f_tag)
+      strong_correction    — an emphatic correction (strength == "strong")
+      user_rescued_failure — the agent failed AND the user had to step in (subtype fail_then_user)
+    (unsupported_completion — a claimed-success-without-evidence fire — is session-keyed and added
+     by the close path, which can read that shadow log.)
+    Returns (eligible, sorted_kinds). Mere `negation`/`retry_run` volume no longer triggers.
+    """
+    kinds: set[str] = set()
+    for r in rows:
+        if r.get("subtype") == "f_tag":
+            kinds.add("operator_flag")
+        elif r.get("strength") == "strong":
+            kinds.add("strong_correction")
+        if r.get("subtype") == "fail_then_user":
+            kinds.add("user_rescued_failure")
+    return (bool(kinds), sorted(kinds))
+
+
 # ── omission-probes (SHADOW, project-scoped) ─────────────────────────────────
 def read_central_rules(project: str) -> list[dict]:
     """Read probe rules for a project from the meta-side central config."""
@@ -370,10 +400,8 @@ def main() -> int:
         from goal_state import goal_state_from_transcript, tier1_eligible  # noqa: WPS433
 
         goal_state = goal_state_from_transcript(lines)
-        strong = any(
-            sig.get("subtype") == "f_tag" or sig.get("strength") == "strong" for sig in signals
-        )
-        tier1, tier1_reason = tier1_eligible(goal_state, correction_strong=strong)
+        real_issue, _kinds = real_issue_signal(signals)
+        tier1, tier1_reason = tier1_eligible(goal_state, real_issue=real_issue)
         if goal_state.get("degraded"):
             sys.stderr.write(
                 f"[reflect-capture] [DEGRADED] goal marker unknown for {session[:8]}\n"

@@ -252,14 +252,21 @@ def goal_state_from_codex(goal: dict | None) -> dict[str, Any]:
 def tier1_eligible(
     goal_state: dict[str, Any],
     *,
-    correction_strong: bool = False,
+    real_issue: bool = False,
 ) -> tuple[bool, str]:
-    """Return (eligible, reason) for Tier 1 digest + /rsi close."""
+    """Return (eligible, reason) for Tier 1 digest + /rsi close.
+
+    A close is worth a verify-cycle only when there's something real to verify: a claimed
+    achievement (fabrication defense), an explicit /rsi close, or a REAL empirical issue
+    (reflect_capture.real_issue_signal — operator flag / strong correction / user-rescued
+    failure / unsupported completion). `real_issue` replaced `correction_strong` whose `len>=3`
+    floor fired on every iterative-but-recovered session (false-positive class retired
+    2026-06-18; see reflect_capture.real_issue_signal)."""
     status = goal_state.get("status")
     source = goal_state.get("source")
 
-    if correction_strong:
-        return True, "operator_correction_signal"
+    if real_issue:
+        return True, "real_issue_signal"
     if source == "explicit_rsi_close":
         return True, "explicit_rsi_close"
     if status == "achieved":

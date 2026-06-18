@@ -17,15 +17,15 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from goal_state import (  # noqa: E402
-    goal_state_from_transcript,
     slice_transcript_to_episode,
     tier1_eligible,
 )
-from reflect_capture import extract_corrections, parse_events  # noqa: E402
+from reflect_capture import extract_corrections, parse_events, real_issue_signal  # noqa: E402
 
 CLOSE_QUEUE = Path.home() / ".claude" / "close-queue"
 DIGEST_LOG = Path.home() / ".claude" / "reflect-close-digest.jsonl"
 CAPTURE_LOG = Path.home() / ".claude" / "reflect-capture.jsonl"
+UNSUPPORTED_SHADOW = Path.home() / ".claude" / "unsupported-completion-shadow.jsonl"
 MAINTAIN = REPO / "MAINTAIN.md"
 
 
@@ -57,13 +57,23 @@ def _session_corrections(session_id: str) -> list[dict]:
     return rows
 
 
-def _correction_strong(corrects: list[dict]) -> bool:
-    for row in corrects:
-        if row.get("subtype") == "f_tag":
-            return True
-        if row.get("strength") == "strong":
-            return True
-    return len(corrects) >= 3
+def _unsupported_completion(session_id: str) -> dict | None:
+    """Latest unsupported-completion shadow fire for this session (claimed success w/o evidence).
+
+    A real fabrication-risk signal — the highest-value thing a verify-close can catch. Returns the
+    row (success_hits/evidence_hits/msg_tail) when present, else None. Written by
+    stop-unsupported-completion.sh; absent file → None (fail open)."""
+    if not UNSUPPORTED_SHADOW.exists():
+        return None
+    found: dict | None = None
+    for line in UNSUPPORTED_SHADOW.read_text(encoding="utf-8", errors="replace").splitlines():
+        try:
+            row = json.loads(line)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        if row.get("session") == session_id:
+            found = row  # latest wins
+    return found
 
 
 def build_digest(intent: dict) -> dict | None:
@@ -71,8 +81,15 @@ def build_digest(intent: dict) -> dict | None:
     session_id = intent.get("session_id", "unknown")
     goal_state = intent.get("goal_state") or {}
     corrects = _session_corrections(session_id)
-    strong = _correction_strong(corrects)
-    eligible, reason = tier1_eligible(goal_state, correction_strong=strong)
+
+    # Gate on a REAL empirical issue (single-source predicate) — cheap, no transcript read.
+    real_issue, kinds = real_issue_signal(corrects)
+    uc = _unsupported_completion(session_id)
+    if uc and uc.get("would_fire"):
+        real_issue = True
+        kinds = sorted(set(kinds) | {"unsupported_completion"})
+
+    eligible, reason = tier1_eligible(goal_state, real_issue=real_issue)
     if not eligible and not intent.get("force_tier1"):
         return None
 
@@ -84,6 +101,31 @@ def build_digest(intent: dict) -> dict | None:
     episode_lines = slice_transcript_to_episode(lines, goal_state.get("evidence_ts"))
     events = parse_events(episode_lines)
     inline_corrects = extract_corrections(events)
+    fail_then_user = sum(
+        1 for r in (*corrects, *inline_corrects) if r.get("subtype") == "fail_then_user"
+    )
+
+    # Point the verify at the SPECIFIC issue — solid info, not a generic nudge.
+    if "unsupported_completion" in kinds:
+        hint = (
+            "FABRICATION RISK: session claimed success without an evidence marker. Re-run the "
+            "claimed-successful command and confirm the outcome BEFORE attaching evidence."
+        )
+    elif "user_rescued_failure" in kinds:
+        hint = (
+            "The agent failed and the operator had to step in. Verify the fix actually landed "
+            "(test exit / gate output / artifact hash) — don't trust the recovery narration."
+        )
+    elif reason == "goal_achieved":
+        hint = (
+            "Goal claimed ACHIEVED. Independently verify the achievement (receipt, gate output, "
+            "artifact hash) — the /goal evaluator is a proxy, not ground truth."
+        )
+    else:
+        hint = (
+            "Verify one load-bearing claim from this session (receipt, gate output, artifact "
+            "hash, or test exit code) before fm.py attach-evidence."
+        )
 
     digest = {
         "schema": "reflect.close-digest.v1",
@@ -91,10 +133,16 @@ def build_digest(intent: dict) -> dict | None:
         "project": intent.get("project", "unknown"),
         "ts": _utc_now(),
         "tier1_reason": reason,
+        "real_issue_kinds": kinds,                       # WHY this close was triggered (the issue)
+        "unsupported_completion": (
+            {k: uc.get(k) for k in ("would_fire", "success_hits", "evidence_hits", "msg_tail")}
+            if uc else None
+        ),
+        "fail_then_user_count": fail_then_user,
         "goal_state": goal_state,
         "session_end_reason": intent.get("reason"),
         "episode_line_count": len(episode_lines),
-        "correction_signals": len(corrects) + len(inline_corrects),
+        "correction_signals": len(corrects) + len(inline_corrects),  # context only — no longer the trigger
         "correction_subtypes": sorted(
             {
                 *(row.get("subtype", "") for row in corrects),
@@ -102,10 +150,7 @@ def build_digest(intent: dict) -> dict | None:
             }
         ),
         "invoke_skill": True,
-        "verify_hint": (
-            "Verify one load-bearing claim from this session (receipt, gate output, "
-            "artifact hash, or test exit code) before fm.py attach-evidence."
-        ),
+        "verify_hint": hint,
         "transcript_path": transcript_path,
     }
     return digest
