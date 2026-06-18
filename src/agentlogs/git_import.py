@@ -44,55 +44,89 @@ def _extract_scope(subject: str) -> str | None:
 
 
 def _parse_git_log(project: str, project_dir: Path, days: int) -> list[dict]:
-    """Parse `git log --numstat` into structured commit records."""
-    sep = "\x1f"  # unit separator — avoids collision with commit text
-    fmt = sep.join(["%H", "%ai", "%an", "%s", "%(trailers:key=Session-ID,valueonly)"])
+    """Parse `git log --numstat` into structured commit records.
+
+    Records are NUL-delimited (`-z`): the commit body (`%b`) is multi-line, so a
+    newline-delimited parse would split a single commit across lines and corrupt
+    the header fields. `-z` terminates each commit's formatted header with a NUL,
+    after which `--numstat` emits the file rows (themselves newline-separated)
+    until the next NUL-record. We split the whole stream on NUL into per-commit
+    chunks, then peel the first line (the `\\x1f`-joined header) from the numstat
+    tail. Body fields use `\\x1e` (record separator) internally so an embedded
+    `\\x1f` in prose can't shift the header columns.
+    """
+    fsep = "\x1f"  # unit separator — between header fields
+    bsep = "\x1e"  # record separator — wraps the body so prose can't shift columns
+    # Header order: hash, authored, author, subject, session-id, then body LAST
+    # (body is wrapped in bsep so its trailing newline before the numstat block is
+    # unambiguous). `-z` puts a NUL after the whole format, before the numstat.
+    fmt = (
+        fsep.join(["%H", "%ai", "%an", "%s",
+                   "%(trailers:key=Session-ID,valueonly)"])
+        + fsep + bsep + "%b" + bsep
+    )
     cmd = [
         "git", "-C", str(project_dir), "log",
         f"--since={days} days ago",
         f"--format={fmt}",
         "--numstat",
+        "-z",
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
     if result.returncode != 0:
         return []
 
+    # `-z` splits the stream into NUL-separated chunks that ALTERNATE:
+    #   chunk 2k   = the commit header (contains fsep), terminated by the format-
+    #                level NUL that `-z` writes after `%b`'s closing bsep;
+    #   chunk 2k+1 = that commit's `--numstat` block (newline-joined `ins\tdel\t
+    #                path` rows, NO fsep), terminated by the NUL before the next
+    #                header.
+    # So a numstat chunk belongs to the PRECEDING header chunk — not the one whose
+    # header follows it. We attach each fsep-less chunk to the current commit.
     commits: list[dict] = []
     current: dict | None = None
-    for line in result.stdout.splitlines():
-        if sep in line:
-            if current:
-                commits.append(current)
-            parts = line.split(sep)
+    for chunk in result.stdout.split("\x00"):
+        if not chunk:
+            continue  # trailing empty record from the final NUL
+        if fsep in chunk:
+            # Header chunk → start a new commit. The body is wrapped in bsep so its
+            # embedded newlines can't be mistaken for header columns or numstat.
+            head, _, body_part = chunk.partition(bsep)
+            body_text = body_part.partition(bsep)[0]  # text between the two bseps
+            parts = head.split(fsep)
             # Strip tz offset from authored_at so julianday() comparisons work
             authored = parts[1][:19] if len(parts) > 1 else ""
             current = {
-                "hash": parts[0],
+                "hash": parts[0].strip(),
                 "project": project,
                 "authored_at": authored,
                 "author": parts[2] if len(parts) > 2 else "",
                 "subject": parts[3] if len(parts) > 3 else "",
-                "body": None,
+                "body": body_text.strip() or None,
                 "session_id": (parts[4].strip() or None) if len(parts) > 4 else None,
                 "scope": _extract_scope(parts[3] if len(parts) > 3 else ""),
                 "files": [],
                 "insertions": 0,
                 "deletions": 0,
             }
-        elif current and line.strip():
-            numstat = line.split("\t", 2)
-            if len(numstat) == 3:
-                current["files"].append(numstat[2])
-                try:
-                    current["insertions"] += int(numstat[0])
-                except ValueError:
-                    pass
-                try:
-                    current["deletions"] += int(numstat[1])
-                except ValueError:
-                    pass
-    if current:
-        commits.append(current)
+            commits.append(current)
+        elif current is not None:
+            # numstat chunk for the current commit (no fsep).
+            for line in chunk.splitlines():
+                if not line.strip():
+                    continue
+                numstat = line.split("\t", 2)
+                if len(numstat) == 3:
+                    current["files"].append(numstat[2])
+                    try:
+                        current["insertions"] += int(numstat[0])
+                    except ValueError:
+                        pass
+                    try:
+                        current["deletions"] += int(numstat[1])
+                    except ValueError:
+                        pass
 
     # Classify + detect fix-of-fix (fix touching a file fixed within 3 days prior)
     for c in commits:

@@ -127,6 +127,105 @@ def test_resolver_spans_decisions_and_research(tmp_path):
     assert row["dangling"] == 0, "branches_from target should resolve (decisions/ node)"
 
 
+# ── Phase B1: commit-body → commit --implements--> decision edges ───────────────
+_IMPL_SLUG = "2026-06-18-phaseb-implements-trailer"  # date-slug decision id
+
+
+def _synthetic_repo_with_decision_slug(tmp_path: Path) -> Path:
+    """Synthetic repo whose decisions/ has a date-slug-id decision the commit pass
+    can resolve a prose mention / trailer against."""
+    repo = _synthetic_repo(tmp_path)
+    (repo / "decisions" / f"{_IMPL_SLUG}.md").write_text(
+        f"---\nid: {_IMPL_SLUG}\n---\n\nbody\n"
+    )
+    return repo
+
+
+def _seed_commit(db, chash: str, body: str) -> None:
+    """Insert a minimal agent-infra git_commits row carrying `body`."""
+    db.execute(
+        "INSERT INTO git_commits "
+        "(hash, project, authored_at, author, subject, body) "
+        "VALUES (?, 'agent-infra', '2026-06-18 00:00:00', 'T', 's', ?)",
+        (chash, body),
+    )
+
+
+def test_commit_implements_trailer_emits_edge(tmp_path):
+    """An explicit `Implements: <slug>` body trailer → a commit→decision edge with
+    subject=commit-hash, type=implements, traversable=1, source='commit-trailer'."""
+    repo = _synthetic_repo_with_decision_slug(tmp_path)
+    db = agentlogs.connect(tmp_path / "lc.db")
+    chash = "a" * 40
+    try:
+        _seed_commit(db, chash, f"some body text\n\nImplements: {_IMPL_SLUG}\n")
+        lc.build_edges(db, repo)
+        rows = db.execute(
+            "SELECT subject, type, target, traversable, dangling, source "
+            "FROM lifecycle_edges WHERE type = 'implements'"
+        ).fetchall()
+    finally:
+        db.close()
+    assert len(rows) == 1, f"expected one implements edge, got {[dict(r) for r in rows]}"
+    r = rows[0]
+    assert r["subject"] == chash, "subject must be the commit hash"
+    assert r["target"] == _IMPL_SLUG, "target must be the decision slug"
+    assert r["traversable"] == 1, "implements is a traversable lifecycle edge"
+    assert r["dangling"] == 0, "trailer slug resolves to a decision node"
+    assert r["source"] == "commit-trailer", "explicit trailer must be tagged"
+
+
+def test_commit_prose_mention_resolves_to_edge(tmp_path):
+    """A prose date-slug mention that RESOLVES to a decision → edge with
+    source='commit-mention'; a NON-resolving date-slug mention is SKIPPED."""
+    repo = _synthetic_repo_with_decision_slug(tmp_path)
+    db = agentlogs.connect(tmp_path / "lc.db")
+    chash = "b" * 40
+    try:
+        # One resolving mention + one slug-shaped string that does NOT resolve.
+        _seed_commit(
+            db, chash,
+            f"FLIP per {_IMPL_SLUG}; also touched 2026-03-19-late (no such decision)\n",
+        )
+        lc.build_edges(db, repo)
+        rows = db.execute(
+            "SELECT subject, target, source, traversable FROM lifecycle_edges "
+            "WHERE type = 'implements'"
+        ).fetchall()
+    finally:
+        db.close()
+    assert len(rows) == 1, (
+        "exactly one edge — the resolving mention; the non-resolving slug is "
+        f"skipped, got {[dict(r) for r in rows]}"
+    )
+    r = rows[0]
+    assert (r["subject"], r["target"]) == (chash, _IMPL_SLUG)
+    assert r["source"] == "commit-mention", "prose mention must be tagged"
+    assert r["traversable"] == 1
+
+
+def test_commit_trailer_and_mention_dedup_to_one(tmp_path):
+    """A commit with BOTH an Implements: trailer AND a prose mention of the SAME
+    slug yields ONE edge, preferring source='commit-trailer'."""
+    repo = _synthetic_repo_with_decision_slug(tmp_path)
+    db = agentlogs.connect(tmp_path / "lc.db")
+    chash = "c" * 40
+    try:
+        _seed_commit(
+            db, chash,
+            f"work on {_IMPL_SLUG} prose mention\n\nImplements: {_IMPL_SLUG}\n",
+        )
+        lc.build_edges(db, repo)
+        rows = db.execute(
+            "SELECT source FROM lifecycle_edges WHERE type = 'implements' "
+            "AND subject = ?", (chash,),
+        ).fetchall()
+    finally:
+        db.close()
+    assert len(rows) == 1, f"trailer+mention of same slug must dedup, got {len(rows)}"
+    assert rows[0]["source"] == "commit-trailer", "dedup must prefer the trailer"
+
+
 if __name__ == "__main__":
     import tempfile
     with tempfile.TemporaryDirectory() as d:
@@ -135,4 +234,10 @@ if __name__ == "__main__":
         test_relates_to_never_traversable(Path(d) / "b")
     with tempfile.TemporaryDirectory() as d:
         test_resolver_spans_decisions_and_research(Path(d) / "c")
+    with tempfile.TemporaryDirectory() as d:
+        test_commit_implements_trailer_emits_edge(Path(d) / "d")
+    with tempfile.TemporaryDirectory() as d:
+        test_commit_prose_mention_resolves_to_edge(Path(d) / "e")
+    with tempfile.TemporaryDirectory() as d:
+        test_commit_trailer_and_mention_dedup_to_one(Path(d) / "f")
     print("PASS")
