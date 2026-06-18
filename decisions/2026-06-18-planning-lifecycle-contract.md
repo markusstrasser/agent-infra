@@ -221,3 +221,21 @@ existing-gates mechanism survives; the panel resolved one level deeper into **sc
 None. Branches from `2026-06-07-verifier-conditional-autonomy` (regime taxonomy); subsumes the
 alignment report's §3–7 recommendations into the chosen mechanism (those become this ADR's
 rejected/folded alternatives, not a parallel build).
+
+## Revisions
+
+### 2026-06-18 — Phase-1 slice shipped; operator overrode the panel's "defer front-end"
+- **Phase-1 minimal slice SHIPPED** (commit `125c803`): extended `scripts/plan-status.py` with
+  `--contract-check` (advisory, never blocks) + `--contract-init` (light elicitation: 3 answers →
+  frontmatter block). Partial-regime, 3 fields, reuses the canonical `parse_frontmatter`. Measured
+  shadow baseline: **0/169** partial-regime plans carry the contract (it's new — not 169 bad plans).
+  Even phenome's `foundation-exit` exemplar reads as missing: it has a measurable exit in *prose*
+  but not in a machine-checkable block — the externalization gap, confirmed.
+- **Sequencing FLIPPED by operator (#f).** The panel deferred the interview / requirements / vision
+  / user-story front-end to post-validation; the operator — the principal on his own planning
+  process — directs it as **first-class now**, grounded in best-practice research and **versioned**.
+  This is a principal-register telos call (amplify, not measure-first); logged per the
+  autonomy-exception convention (clear/partial → principal-final is the operator's to make).
+  Dispatched 3 research axes → `research/2026-06-18-{elicitation,spec-formats,spec-versioning}-
+  best-practices.md`. The front-end design + a contract **versioning** scheme will be added here
+  once that research lands. The Phase-1 slice stands as the consumption substrate it plugs into.
