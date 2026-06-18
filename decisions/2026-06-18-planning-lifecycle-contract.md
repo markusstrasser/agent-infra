@@ -6,6 +6,8 @@ decision_date: 2026-06-18
 recorded_date: 2026-06-18
 provenance: contemporaneous
 status: proposed
+spec_version: 0.3.0          # 0.1 proposed → 0.2 panel-narrowed → 0.3 research-grounded (## Revisions = the versioned changelog)
+governs_commit: d126bf7      # last commit where the implementation matched this ADR (staleness anchor: git rev-list --count d126bf7..HEAD -- scripts/plan-status.py)
 initial_leaning: "Adopt the alignment report's ~12 planning contracts + new requirements/interview skills. REVERSED by audit: ~7/10 diagnosed classes already have rules (instruction-following failures) or are already shipped (D3 orchestrator scope-guard, D10 isolation); adding prose contracts re-instructs already-instructed classes (Constitution P1, ~0% reliable). Converged to: one typed plan contract elicited at kickoff, consumed by gates that already exist."
 relations:
   - type: branches_from
