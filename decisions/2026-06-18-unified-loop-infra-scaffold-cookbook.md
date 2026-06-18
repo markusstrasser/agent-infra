@@ -1,97 +1,110 @@
 ---
-concept: unified cross-domain RSI/research-loop infrastructure (scaffold + skills + cookbook)
+concept: unified cross-domain RSI/research-loop infrastructure (scaffold + manifest + skills + cookbook)
 decision_date: 2026-06-18
-status: proposed
+status: accepted
 relates_to:
   - research/2026-06-18-loop-core-probe-v2-algorithm-layer.md
   - research/2026-06-18-hutter-anim-rsi-comparative-report.md
   - decisions/2026-06-16-loop-core-rsi-ledger-factoring.md
+  - decisions/2026-06-09-shared-extraction-proven-common-test.md
   - decisions/2026-06-07-verifier-conditional-autonomy.md
 affects: [agent-infra, research, phenome, hutter, anim-workbench, intel, skills]
 ---
 
-# Unified loop infra — scaffold + skills + COOKBOOK (not a runtime library)
+# Unified loop infra — scaffold + per-domain MANIFEST + skills + COOKBOOK (no runtime library)
 
-> Output of a `/decide` arc (2026-06-18). Status `proposed` until the Phase-4 cross-model
-> critique survives **without an architecture reversal** (constitution P12 — 3+ project shared
-> infra). Then `accepted` → execute.
+> `/decide` arc, 2026-06-18. Ratified `accepted` after a cross-model panel (2× Gemini + 2× GPT) and
+> two repo-grounded scouts produced **zero architecture-spine reversals** — only invariant refinements
+> and HOWs. Audit trail: `.model-review/…-4175d6/`, scout outputs `/tmp/scout-{factcheck,arch}.md`.
 
 ## Context
 
-Every advanced loop here (hutter, anim, intel) + the research generator collection hand-rolls the
-same propose→verify→rank→accept→ledger skeleton. The operator wants to spin up **3–5 new domain
-loops soon** (immigration, phenome, …) and have each "find new things, rank them, build better
-theses" with declining supervision. Question: what shared infra makes starting one *easy*?
+hutter, anim, intel + the research generator collection each hand-roll the same
+propose→verify→rank→accept→ledger skeleton. The operator wants 3–5 new domain loops soon (immigration
+first, then phenome…) that "find new things, rank them, build better theses" with declining
+supervision. What shared infra makes starting one *easy* without repeating the build-then-undo this
+repo has died of (the `outer-loop` skill shipped zero-caller and was killed; `loop-core` resolved to a
+cookbook)?
 
-## The real axis (Phase 0)
+## Real axis
 
-Not "what infra to design" but **build ahead-of-need vs prove-then-extract** — because ahead-of-need
-shared loop infra is this repo's single most-repeated build-then-undo failure (the `outer-loop`
-skill shipped with zero callers; `loop-core` resolved to a cookbook). Two facts resolve it:
+Not "what infra to design" but **build ahead-of-need vs prove-then-extract.** Resolved: probe v2 killed
+the runtime *library* (adopt-by-deletion fails 3/3 — a shared schema is lossy); the operator's roadmap
++ a *prove-then-extract* sequence justify the rest, **provided each layer is derived from a LIVE
+instance, not theorized.**
 
-1. **Probe v2 (committed `4eab73d`)** killed the *runtime library* layer: adopt-by-deletion fails
-   3/3 because the verdict vocabulary IS the algorithm. The algorithm *shapes* are generic; the code
-   is not shared. → Layer 3 is a **copy-stamp cookbook**, never a package.
-2. **Operator roadmap = 3–5 domains** retires the build-then-undo risk for the *scaffold*: callers
-   #2–5 are real, so `/loop-new` is justified ahead-of-need — provided it is **derived from one real
-   instance** (immigration = caller #1), not theorized.
-
-## Decision
+## Decision — four layers, the manifest is the interface
 
 ```
-L1  SCAFFOLD  /loop-new <domain>  → stamps LOOP.md · OUTER-LOOP.md · HERETIC.md ·
-              GENERATORS.md · a DOMAIN-LOCAL ledger (own schema/engine) · the verifier slot.
-              DERIVED from the immigration loop (built by generalizing one real instance).
-L2  SKILLS (operate on the stamped conventions; NO shared runtime):
-    /loop-generators  diverge → candidates → verifier-RANK → ledger → park-dry   (the discovery engine)
-    /loop-outer       tri-lab review (Opus RSI + GPT arch + Gemini heretic)       — THIN pointer to
-    /loop-health      ledger views + status                                         existing hutter/anim ports
-L3  COOKBOOK (docs, copy-stamp): role pattern Proposer→Runner→Verifier→Auditor→Accept→Ledger
-              + 6 algorithm SHAPES (clade-yield · calibration · funnel · tag-yield · heretic · leaderboard).
+L1  SCAFFOLD  /loop-new <domain>  → stamps loop.yaml (manifest) + LOOP.md/OUTER-LOOP.md/HERETIC.md/
+              GENERATORS.md + a per-domain ledger FILE + the verifier slot.   (TO BE BUILT — does not exist yet)
+L2  MANIFEST  loop.yaml  → the typed per-domain contract: domain id · warehouse/store path · ledger
+              schema+version · verifier command + output schema · candidate schemas · verdict→status
+              vocab map · autonomy regime · lifecycle rules · cookbook-shapes used.
+              DESCRIPTOR / validation target — NOT an executed config. Skills READ it; nothing `run()`s it.
+L3  SKILLS (consume the manifest; NO shared runtime):   (ALL TO BE BUILT)
+    /loop-generators  diverge → candidates → verifier-RANK (regime-segmented) → ledger → park-dry
+    /loop-outer  tri-lab review   ─┐ thin pointers to EXISTING hutter/anim ports
+    /loop-health  ledger views + manifest↔ledger drift-test  ─┘ (outer-loop-review.sh, loop_health.py)
+L4  COOKBOOK (docs, copy-stamp): role pattern + 6 algorithm SHAPES, implemented as pure parameterized
+              functions inside /loop-generators (not inline SQL copies).
 ```
 
-The **one domain-specific fill is the verifier** — and it *sets the autonomy regime* the loop runs at:
-clean→automate · partial→bounded · principal→amplify (`decisions/2026-06-07-verifier-conditional-autonomy.md`).
-"Easy to start" = stamp L1+L3, the L2 skills already exist, answer one question: *what's your
-ground-truth check?*
+**The one domain-specific fill is the verifier — and it sets the autonomy regime, segmented per claim-class.**
 
-## Invariants (must survive)
+## Autonomy regime — FOUR statuses, segmented (refined from the cold-panel's 4th-status proposal + measured)
 
-1. **Verifier is ground-truth, never LLM-judged.** A bad eval is worse than none (Goodhart). The
-   scaffold's first prompt is "what's your ground-truth check?"; an LLM-judge / coherence / persuasion
-   answer is flagged **amplify-only, no auto-ratchet, heretic-heavy** (the IQ trap, generalized).
-2. **Cookbook is copy-stamp, not shared code** (probe v2). Each loop owns its schema/engine + verdict
-   vocabulary; it copies a skeleton, never imports a runtime.
-3. **Born with a caller.** No scaffold/skill ships without ≥1 real consumer. Immigration is #1; the
-   3–5 roadmap is #2–5. If a layer can't name its caller, it isn't built.
-4. **Generator lifecycle:** retrodiction ≥2 priors · negative-space required · consumption-path
-   required · park-after-2-dry-cycles (`skills/leverage/references/generators.md`).
-5. **Ledger is append-only, domain-local.** Supersede, never mutate (the replayable moat).
+| Regime | Meaning | Action |
+|---|---|---|
+| **clean** | deterministic verifier covers the generated claim class | auto-rank + auto-ratchet |
+| **partial** | verifier covers a declared subset | bounded autonomy *inside* the subset |
+| **coverage-poor** | verifier exists but most candidates are unmappable | discovery allowed; ranking **not truth-like** outside the core |
+| **amplify** | no ground-truth adjudication | heretic-heavy, human-judged, no auto-ratchet |
+
+**A loop carries a regime PER CLAIM-CLASS, not one blanket label.** A narrow true-verifier must NOT
+license corpus-wide auto-ranking — that is the PACE self-p-hack (Invariant 6).
+
+**Immigration is measured COVERAGE-POOR:** ~10% of 189 numeric claims have independent cross-source
+adjudication (the `<HS` NPV triangulation NAS+NRC+Clemens + SIPP/MEPS microdata cells), ~35%
+banding/consistency-only, ~56% orphan; 33% of claims sit in clusters with no data table. → auto-rank
+ONLY the ~10% core; the rest is amplify/heretic-only. (`/tmp/scout-factcheck.md`)
+
+## Invariants
+
+1. **Verifier is ground-truth, never LLM-judged**, AND **ranking is regime-segmented** — auto-rank only
+   the adjudicable claim-class; never let one true cell license corpus-wide truth-ranking.
+2. **Cookbook is copy-stamp, not shared code** (probe v2 — lossy schema). Shapes are pure parameterized
+   functions in `/loop-generators`; the shared-helper-lib re-opens only at a 2nd same-contract caller.
+3. **Born-with-a-caller, by layer:** `/loop-generators` extracts from the LIVE immigration sweep (caller
+   #1 real). **`/loop-new` extraction is gated on immigration being LIVE + surviving ≥2 sweeps**;
+   dry-stamping phenome is a non-overfit check, NOT caller #2. (Don't ship a stamper proven only by one
+   stamp — the `outer-loop` death.)
+4. **Manifest is the typed interface** — descriptor/validation target, never an executed config; a
+   `/loop-health` **manifest↔ledger drift-test** enforces it.
+5. **Ledger is append-only, a PER-DOMAIN FILE** (not one shared sidecar — DuckDB single-writer ⇒ lock
+   contention under concurrent launchd loops). Normalized `status` (accepted|rejected|parked|error|
+   unverifiable) + domain `verdict_detail`; content-hash `candidate_id`; `schema_version`. Supersede,
+   never mutate.
 6. **Auditor (heretic) is mandatory even when the accept-gate is greedy** (PACE: greedy alone =
-   self-p-hacking).
+   self-p-hacking); typed output (`heretic_verdict`, `failure_modes[]`, `blocking`).
 
 ## Rejected alternatives
 
-- **`loop-core` / `ledger-core` runtime library** — probe v2: adopt-by-deletion fails 3/3 because a
-  shared schema is **LOSSY** (can't hold anim's prose verdicts or hutter's 12-value verdict taxonomy
-  without discarding semantics). Rejected for *correctness*, NOT effort — so it **survives "depth over
-  effort"** (#g 2026-06-18): the cookbook + each loop's own schema IS the deepest *correct*
-  representation. The 6 shapes are still implemented as clean **parameterized functions** inside
-  `/loop-generators` (depth, born-with-caller = immigration); the shared-helper-lib question (hutter
-  agent's "lift the column-agnostic skeleton into a called helper") re-opens at the **2nd same-contract
-  caller**, not before. (`research/2026-06-18-loop-core-probe-v2-algorithm-layer.md`)
-- **Defer everything / prove-first-only (option b)** — overturned by the 3–5 domain roadmap (the fact
-  that flips the gate; deferring wastes the recurrence signal).
-- **Pure-docs cookbook only (no skills)** — wastes the 4× recurrence; the discovery engine
-  (`/loop-generators`) is real reusable leverage, not theory.
-- **Central orchestrator over all loops** — eradicated 2026-06-07; per-repo launchd + mechanical tick
-  is the proven pattern.
-- **MCP server (`loop-ops`)** — knowledge-substrate MCP retired (4 reads/60 writes); files + skills win.
-- **Rebuild `/loop-outer` + `/loop-health` from scratch** — hutter/anim already have the ports; the
-  skills are thin pointers, not reimplementations.
+- **`loop-core` runtime LIBRARY (shared schema/views)** — probe v2: adopt-by-deletion fails 3/3, LOSSY
+  (can't hold anim prose verdicts / hutter's 12-value taxonomy). Correctness, not effort → survives
+  "depth over effort." (`research/2026-06-18-loop-core-probe-v2-algorithm-layer.md`)
+- **Shared generic-typed PROTOCOL ENGINE** (`DiscoveryEngine.run(Diverge→Verify→Rank→Ledger→Park)`,
+  Gemini arch) — **category error**: the loops do NOT share control flow (hutter NEVER-STOP auto-ratchet;
+  anim paused gated stepper; intel bash-cron fan-out with no propose/ratchet/park). An engine would
+  re-impose the auto-ratchet intel deleted 2026-05-19 and the autonomy anim HOLD'd. The "patch-N-codebases"
+  drag is hypothetical (clade-yield has 1 consumer). (`/tmp/scout-arch.md`)
+- **Defer `/loop-new` to a LIVE 2nd caller (phenome)** — over-corrects past the roadmap; gate on
+  immigration-live+≥2-sweeps instead (Invariant 3).
+- **Pure-docs cookbook only** · **central orchestrator** (eradicated 2026-06-07) · **MCP `loop-ops`**
+  (knowledge-substrate MCP retired) · **rebuild `/loop-outer`+`/loop-health`** (point at hutter/anim ports).
 
-## First execution target
+## Grounded facts (this arc)
 
-Immigration generator sweep on the existing warehouse (verified: `lifetime_generators` 104,
-`parameter_claims` 563, 25 fiscal data tables for the consumption-path verifier). This is the
-proving instance the scaffold + `/loop-generators` are derived from.
+`lifetime_generators`=104, `parameter_claims`=563 (189 numeric), **21 data tables** (not 25), `theories_tested`=58,
+`sweep_experiments` not yet created. Probe-0 "match" was CIRCULAR (claim + benchmark both NAS-2017). Generator
+drift = exactly 2 MD-only (`G-LIF-Q06`, `G-LIF-S15`); reconcile by INSERT (DB is source of truth) before new rows.
