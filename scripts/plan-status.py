@@ -28,6 +28,19 @@ from pathlib import Path
 PROJECTS_DIR = Path.home() / "Projects"
 PROJECT_NAMES = ["agent-infra", "intel", "phenome", "genomics", "arc-agi", "skills"]
 
+# --- Planning-lifecycle contract (ADR 2026-06-18-planning-lifecycle-contract) ---
+# Phase-1 MINIMAL slice: partial-regime only; 3 fields, each mapped to an uncovered
+# failure class (panel invariant: a field with no class is a tracker field → cut).
+# Do NOT add fields/regimes here until a field is shown to change an outcome.
+# Regime is REPO-LEVEL (panel); a per-plan `regime:` frontmatter line overrides.
+REGIME_BY_PROJECT = {"hutter": "clean", "genomics": "partial", "phenome": "partial"}
+CONTRACT_REQUIRED = {"partial": ["exit_signal", "scope_out", "verifier_commands"]}
+CONTRACT_FIELD_CLASS = {
+    "exit_signal": "D4 — no measurable stop",
+    "scope_out": "D3/D2 — unscoped op / scope creep",
+    "verifier_commands": "D2 — closure without surfacing verifier output",
+}
+
 
 def parse_frontmatter(text: str) -> dict:
     """Extract YAML-ish frontmatter from plan file."""
@@ -43,6 +56,40 @@ def parse_frontmatter(text: str) -> dict:
                 val = [v.strip().strip("'\"") for v in val[1:-1].split(",") if v.strip()]
             fm[key.strip()] = val
     return fm
+
+
+def plan_regime(project: str, fm: dict) -> str | None:
+    """Repo-level regime; a per-plan `regime:` frontmatter line overrides (panel: repo-level default)."""
+    return fm.get("regime") or REGIME_BY_PROJECT.get(project)
+
+
+def merge_frontmatter(filepath: str, updates: dict):
+    """Merge keys into a plan's YAML frontmatter, preserving existing keys (reuses parse_frontmatter)."""
+    p = Path(filepath)
+    text = p.read_text()
+    fm = parse_frontmatter(text)
+    fm.update({k: v for k, v in updates.items() if v is not None})
+    lines = []
+    for k, v in fm.items():
+        lines.append(f"{k}: [{', '.join(v)}]" if isinstance(v, list) else f"{k}: {v}")
+    new_fm = "---\n" + "\n".join(lines) + "\n---\n"
+    if text.startswith("---\n"):
+        text = re.sub(r"^---\n.*?\n---\n", new_fm, text, count=1, flags=re.DOTALL)
+    else:
+        text = new_fm + text
+    p.write_text(text)
+
+
+def contract_check(plans: list[dict]) -> list[dict]:
+    """Advisory: report contract fields missing by regime. Slice scopes to partial. Never blocks."""
+    out = []
+    for p in plans:
+        required = CONTRACT_REQUIRED.get(p.get("regime") or "")
+        if not required:
+            continue  # slice covers partial-regime only; others skipped (post-validation)
+        missing = [f for f in required if not p.get("contract", {}).get(f)]
+        out.append({**p, "missing": missing})
+    return out
 
 
 def content_hash(text: str) -> str:
@@ -79,6 +126,8 @@ def scan_plans() -> list[dict]:
                 "file": f.name,
                 "path": str(f),
                 "status": fm.get("status", "unknown"),
+                "regime": plan_regime(name, fm),
+                "contract": {k: fm.get(k) for k in CONTRACT_FIELD_CLASS},
                 "completed_phases": fm.get("completed_phases", []),
                 "total_phases": total_phases,
                 "content_hash": content_hash(text),
@@ -117,11 +166,44 @@ def main():
     parser.add_argument("--update", metavar="FILE", help="Update plan status")
     parser.add_argument("--status", default="partial", help="Status to set")
     parser.add_argument("--completed", help="Comma-separated completed phase numbers")
+    # Planning-lifecycle contract (Phase-1 slice) — advisory check + light elicitation
+    parser.add_argument("--contract-check", action="store_true",
+                        help="Advisory: report contract fields missing by regime (never blocks)")
+    parser.add_argument("--contract-init", metavar="FILE",
+                        help="Write contract fields into a plan's frontmatter (light elicitation)")
+    parser.add_argument("--exit-signal", help="contract: measurable stop condition (D4)")
+    parser.add_argument("--scope-out", help="contract: what this must NOT become (D3/D2)")
+    parser.add_argument("--verifier", help="contract: verifier_commands surfaced at close (D2)")
+    parser.add_argument("--regime", help="override repo-level regime for --contract-init")
     args = parser.parse_args()
 
     if args.update:
         completed = args.completed.split(",") if args.completed else None
         update_plan(args.update, args.status, completed)
+        return
+
+    if args.contract_init:
+        merge_frontmatter(args.contract_init, {
+            "regime": args.regime, "exit_signal": args.exit_signal,
+            "scope_out": args.scope_out, "verifier_commands": args.verifier,
+        })
+        print(f"  ✓ contract written to {Path(args.contract_init).name}", file=sys.stderr)
+        return
+
+    if args.contract_check:
+        rows = contract_check(scan_plans())
+        if args.json:
+            print(json.dumps(rows, indent=2))
+            return
+        complete = [r for r in rows if not r["missing"]]
+        print(f"Plan-contract check (partial-regime; advisory) — {len(complete)}/{len(rows)} complete")
+        for fld, cls in CONTRACT_FIELD_CLASS.items():
+            print(f"  • {fld:<18} guards {cls}")
+        print("-" * 78)
+        for r in rows:
+            mark = "✓" if not r["missing"] else "!"
+            miss = "" if not r["missing"] else f"  missing: {', '.join(r['missing'])}"
+            print(f"  {mark} {r['project']:<9} {r['file'][:48]:<48}{miss}")
         return
 
     plans = scan_plans()
