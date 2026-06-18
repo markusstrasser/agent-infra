@@ -1,1 +1,26 @@
-# Lifecycle-Graph Spine Critique — PROBE IN PROGRESS
+# Lifecycle-Graph Spine Critique
+
+**VERDICT: spine-sound on A+C, but REVERSE two plan claims before B/C — (1) Phase B's shared-hook altitude trips constitution hard-limit #4 as written; (2) Phase C's join hit-rate is ~25%, not ≥90%, and the plan's own 8-edge "closed set" is incomplete (14 strings in use).**
+
+The no-store view+vocab+trailers architecture is correct and does NOT resurrect a veto. The reversals are in scope/altitude and in two probe numbers the plan asserts without having run them.
+
+## Findings
+
+**[plan L34-35, gov.py L13/L343/L357] `:memory:` view is genuinely vetो-clear — HELD.** `gov.py:13` docstring + `build_projection` (L343) + `build_report` L357 (`build_projection(artifacts).close() # prove the join path works; discard`) already do exactly the rederivable ephemeral-projection pattern. No persistent store. Clears the finding-triage-DB veto (vetoed-decisions.md) and option-5 self-rejection. Phase C *generalizes* an existing, proven pattern — low risk, not greenfield infra.
+
+**[plan L87-89] Phase C is ~40% pre-built — HELD (de-risks C).** `build_projection` is the skeleton; C only adds source readers (frontmatter relations, log markers, predictions.jsonl, trailers) + neighborhood query. This is the strongest part of the plan.
+
+**[plan L83-86, constitution hard-limit #4] Phase B trips the shared-infra gate — HELD / OPEN for operator.** `commit-check-parse.py` lives in `~/Projects/skills/hooks/` (the SHARED hooks home, canonical file confirmed, 6852 bytes). Editing it is editing shared infrastructure by location. CAVEAT that softens it: grep shows it is referenced/wired in agent-infra + the skills repo ONLY — NOT in genomics/phenome/intel `.git/hooks` or any `settings.json` (0 hits). And separately: it is NOT currently invoked as a git hook OR a settings hook in agent-infra at all (only `prepare-commit-msg-session-id.sh` is wired). So the *blast radius in practice* is agent-infra-local, but the *file lives in the shared tree* — that is precisely the ambiguity hard-limit #4 exists to force a human decision on. RECOMMENDATION: keep the decision-trailer suggestion logic agent-infra-local (a small agent-infra script, or a clearly-guarded agent-infra-only branch), NOT a body-edit to the shared parser. Flag to operator either way — do not self-authorize a shared-hook edit.
+
+**[plan L89 "{slug,SHA} join resolves ≥90% of the 42+53 refs"] — REFUTED. Measured 25%.** Ran it: of 36 distinct date-prefixed strings in improvement-log.md, only 9 resolve to a `decisions/*.md` file (25%). The unresolved majority are NOT decision slugs — they are `artifacts/observe/2026-05-11-intel-48h-sessions/...` paths and session/topic labels (spot-verified L167/L176/L185). The plan conflated "date-prefixed string in improvement-log" with "decision-node reference." The `grep -cE '20..-..-..' = 42` count is a string count, not a join-resolvable-ref count. **This is the phantom-join failure the plan-review-gate's own probe-the-join rule warns about.** The 42 refs do NOT hang findings off decision-nodes at 90%; the view will be sparse. Phase C still has value (frontmatter `relations:` + trailers are clean joins), but the improvement-log→decision edge is mostly absent and backfilling it is real migration cost the plan files under "deferred (option 3)" — yet C's payoff partly DEPENDS on it.
+
+**[plan L82, "closed set" of 8 edges] — REFUTED, matches team-lead probe.** `relations:` frontmatter uses 14 distinct `type:` strings: depends_on 27, branches_from 10, relates_to 6, cross_repo_of 4, supersedes 3, + 9 singletons (tension_with, supersedes_role_of, superseded_by, subsumes_probe, respects_vetoes_of, grounded_in, generalizes, applies_lesson_from). Phase A's `git grep` "probe before" is mandatory and the plan's 8-set is wrong. The team-lead's 10-edge canonical + fold-map is the right correction.
+
+**[vocab] `relates_to` (6 uses) is a generic-association escape hatch — OPEN.** It is NOT a lifecycle edge (no temporal/causal direction). Keeping it dilutes the vocab's enforceability — a drift-test can't catch misuse of a catch-all. Recommend: either drop it (force authors to pick a real relation) or explicitly tier it as "non-lifecycle / weak" and exclude it from the neighborhood traversal that powers bundling. Do not let it absorb the singletons during folding.
+
+**[vocab] folding `superseded_by` → `supersedes` is a direction bug — HELD.** `superseded_by` is the INVERSE of `supersedes`. Folding the string without flipping subject/object reverses the edge. The fold map must rewrite `A superseded_by B` to `B supersedes A`, not relabel in place. Same risk for any inverse pair. This is a silent data-correctness bug if done as a string substitution.
+
+## Net
+- Phase A: build it — but probe the full 14-string set first; fold inverses by flipping direction, not relabeling; decide `relates_to`'s status explicitly.
+- Phase B: re-scope to agent-infra-local OR get explicit operator sign-off (hard-limit #4). Don't body-edit the shared parser autonomously.
+- Phase C: build on `build_projection` (cheap, ~40% done) — but correct the success criterion: the improvement-log→decision join is ~25%, so either (a) accept a sparse view keyed on the clean frontmatter/trailer joins, or (b) cost the log backfill explicitly. Do NOT ship "≥90% join" as the gate; it's already falsified.

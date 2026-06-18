@@ -1,0 +1,27 @@
+{
+  "_doc": "Canonical closed vocabulary for harness RSI-lifecycle relations (decisions/, improvement-log, predictions, trailers). Single source of truth; all enforcers LOAD this, never re-state it. Authored from a git-grep probe of decisions/ 2026-06-18.",
+  "canonical": {
+    "supersedes":    {"direction": "directed",  "doc": "A replaces B wholesale"},
+    "branches_from": {"direction": "directed",  "doc": "A diverges from B; B still stands"},
+    "merged_from":   {"direction": "directed",  "doc": "A consolidates B (and possibly others)"},
+    "reopens":       {"direction": "directed",  "doc": "A re-litigates a closed B"},
+    "depends_on":    {"direction": "directed",  "doc": "A requires B to hold"},
+    "implements":    {"direction": "directed",  "doc": "commit/finding A realizes decision B"},
+    "refutes":       {"direction": "directed",  "doc": "A contradicts or falsifies B"},
+    "retires":       {"direction": "directed",  "doc": "A marks B obsolete with no replacement"},
+    "cross_repo_of": {"direction": "symmetric", "doc": "A is the cross-repo twin of B"},
+    "relates_to":    {"direction": "symmetric", "doc": "generic association (catch-all)"}
+  },
+  "fold": {
+    "superseded_by":      {"to": "supersedes",  "invert": true,  "note": "inverse direction — subject/target swap on migration"},
+    "supersedes_role_of": {"to": "supersedes",  "invert": false},
+    "subsumes_probe":     {"to": "merged_from", "invert": false},
+    "subsumes":           {"to": "merged_from", "invert": false},
+    "grounded_in":        {"to": "depends_on",  "invert": false},
+    "tension_with":       {"to": "refutes",     "invert": false},
+    "generalizes":        {"to": "relates_to",  "invert": false},
+    "applies_lesson_from":{"to": "relates_to",  "invert": false},
+    "respects_vetoes_of": {"to": "relates_to",  "invert": false},
+    "retrieval":          {"to": "relates_to",  "invert": false}
+  }
+}
