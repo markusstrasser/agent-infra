@@ -6,7 +6,7 @@ decision_date: 2026-06-18
 recorded_date: 2026-06-18
 provenance: contemporaneous
 status: proposed
-spec_version: 0.3.0          # 0.1 proposed → 0.2 panel-narrowed → 0.3 research-grounded (## Revisions = the versioned changelog)
+spec_version: 0.4.0          # 0.1 proposed → 0.2 panel-narrowed → 0.3 research-grounded → 0.4 global-infra: adopt+extract genomics planctl (## Revisions = changelog)
 governs_commit: d126bf7      # last commit where the implementation matched this ADR (staleness anchor: git rev-list --count d126bf7..HEAD -- scripts/plan-status.py)
 initial_leaning: "Adopt the alignment report's ~12 planning contracts + new requirements/interview skills. REVERSED by audit: ~7/10 diagnosed classes already have rules (instruction-following failures) or are already shipped (D3 orchestrator scope-guard, D10 isolation); adding prose contracts re-instructs already-instructed classes (Constitution P1, ~0% reliable). Converged to: one typed plan contract elicited at kickoff, consumed by gates that already exist."
 relations:
@@ -271,3 +271,28 @@ Grounded design decisions:
   space split** not answer-variance (Kobalczyk ICLR 2025); add the **assume-and-mark** branch
   (Spec-Kit `[NEEDS CLARIFICATION]`). Straw-man-first: draft the plan, the unfillable cells ARE the
   questions. `interview-prompt` is a shared skill → edits shown as a diff for operator go before apply.
+
+### 2026-06-18 (later) — v0.4.0: promote to GLOBAL infra by adopting+extracting genomics `planctl`
+Operator: "have it as global infra." **Pre-Build #1 hit:** genomics already runs a LIVE,
+pre-commit-**blocking** plan-contract control plane (`planctl`/`conceptctl`) — strictly better arch than
+the `plan-status.py` slice: validated frontmatter (rejects, not advisory), an `ALLOWED_TRANSITIONS` state
+machine, a **`plan_kind` durable/ephemeral taxonomy** (`durable|architecture|handoff|migration|
+multi-session|governance|runbook` vs `scratch|one-off|bugfix|audit-note|model-output`), an index,
+`migrate`-from-prose, cascade-retraction, tests, `fcntl` locking. Verified LIVE: `run-git-pre-commit.sh:161-166`
+blocks on `planctl/conceptctl validate`; `settings.json:27` write-protects the generated index/registry.
+- **Proven-common ≥2 — MET for the ENGINE ONLY.** The frontmatter-contract MACHINERY (parse/validate/
+  render + state machine + `plan_kind` + index + `migrate`) is generic; `planctl`'s 28 `conceptctl` refs
+  are mostly shared UTILITIES (`now_iso`/`read_text`/`write_text`/`repo_root`/`title_to_key`) — separable.
+  genomics (live) + agent-infra/phenome (need) = 2. **NOT** the cookbook's lossy-schema veto
+  (`2026-06-18-unified-loop-infra`): only the MACHINERY is shared; FIELDS stay per-repo (a manifest), so
+  nothing lossy is forced into a common schema. corpus_core-grade.
+- **Decision:** extract the generic engine → shared infra (mirror `corpus_core` packaging); each repo
+  supplies its field schema + `plan_kind` config; **single-source the state/kind/regime vocab**
+  (invariant-has-one-definition). **Subsume `plan-status.py`'s contract slice** — no two implementations.
+  genomics keeps `conceptctl` concept-registry + cascade-retraction LOCAL (discovery-specific) but imports
+  the shared plan engine.
+- **Resolves the gitignore/versioning question natively:** `plan_kind` IS the durable/ephemeral trigger —
+  durable kinds tracked+indexed, non-durable stay ephemeral (genomics already does this: 21/73).
+- **Migration is BREAKING but behavior-preserving on genomics** (its pre-commit depends on `planctl`):
+  genomics tests (`test_planctl*.py`/`test_conceptctl*.py`) are the gate; engine extracted behind the same
+  public surface; genomics `validate` stays green at every step. Phases in the plan.
