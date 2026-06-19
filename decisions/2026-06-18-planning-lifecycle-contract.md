@@ -357,3 +357,36 @@ started from.** planctl is the mature solution; the `plan-status.py` parallel sl
 - **Path (= the original extraction, now EARNED):** extract `plan-core` from genomics planctl → agent-infra
   adopts (advisory) → genomics repoints behind its 38 tests + fix `validate`-RED. phenome separate.
   Current version = this entry, v0.4.3.
+
+### 2026-06-19 — v0.4.4: FLIP the CONTRACT half — the mechanism already exists; the constraint is ADOPTION
+Engine extraction DONE & verified (substrate `a2a5d9f`; agent-infra `c3e210a`; genomics repoint `c4948047f`
+— planctl now imports `plan_core`, −182 lines, 44 tests + both `validate`s green; `validate`-RED was
+**transient**, green now, so that sub-task is MOOT). Then the operator asked the two questions that should
+gate every build: **(1) would a universal contract have solved problems we actually had? (2) what would it
+break?** A read-only history check (agentlogs + git across 5 repos + 334 plans; `/tmp/plan-contract-history-check.md`)
+**reversed the contract design.** Self-check: FLIP driven by NEW measured facts (an existing enforcing hook +
+0% adoption + a zero-incident field), not capitulation.
+- **DECISIVE (Pre-Build #1):** the two fields with real incidents — `verifier_commands` (9, incl. G1 genomics
+  `019d7aab` *"100 not run yet?!"*) and `exit_signal` (5 premature-termination recurrences) — are **ALREADY
+  enforced**. `skills/hooks/stop-plan-gate.sh` (wired in `~/.claude/settings.json`, fires in EVERY repo) parses
+  a ` ```verify ` block, RUNS each line, and BLOCKS the stop on failure. VERIFIED by me (hook lines 257-304 +
+  the global wiring). **0 of 334 plans supply a block.** The binding constraint was **adoption, not a missing
+  schema** — a new universal contract would have rebuilt this and inherited the same 0%.
+- **Theater cut (the preempt, confirmed by data):** `telos` = **ZERO incidents** + duplicates the human-owned
+  GOALS.md (re-states a shared invariant in N places) → DROP. `regime` = real & frequent (41/84 over_caution)
+  but a **per-turn disposition, wrong layer** for a plan field → DROP as a field (it's an over-caution hook if
+  anything). `scope_out` = 1 incident, marginal → not carried. Universal adoption of all 5 = ~60% theater.
+- **The drift I'd have shipped:** the v0.4.x `plan-status.py` contract slice read `verifier_commands:` as
+  advisory FRONTMATTER — a weaker PARALLEL to the verify-block (the two-enforcers-one-invariant drift the
+  constitution warns against). Retired it.
+- **DECISION (supersedes the "build a contract" half of v0.1–v0.4.3; the ENGINE half stands):** do NOT build a
+  universal plan-contract schema. Instead — (1) **fix adoption at the producer:** `/decide` now emits a runnable
+  ` ```verify ` block (skills `f073af0`); (2) **converge, don't parallel:** `plan-status.py` retired the
+  frontmatter contract → `--verify-coverage` adoption metric, baseline 0/294 (agent-infra `f623319`);
+  (3) **hygiene:** `--stale` triage filter, NOT the proposed auto-reaper (gitignored plans → deletion is
+  irreversible; reaper has no consumer) (agent-infra `47e613d`).
+- **What the spine got RIGHT all along:** "elicit/consume the few genuinely-missing inputs, advisory, build no
+  platform." v0.4.4 keeps that — it just routes the two real inputs through the EXISTING enforcing mechanism
+  instead of a new schema. The history check is the constitution's Pre-Build #1 + measure-before-enforce doing
+  exactly their job: a cross-repo schema build collapsed to three small edits against infra that already exists.
+  Current version = this entry, v0.4.4.
