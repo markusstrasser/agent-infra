@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
-"""maintain_tick.py — the MOTOR half of the RSI loop (SAFE / dry-run by default).
+"""maintain_tick.py — the MOTOR of the RSI loop (SAFE / dry-run by default).
+
+Two symmetric passes:
+  - ADD (default): drafts BUILD proposals for tier-0 candidates (run / --list).
+  - SUBTRACT (--subtract): drafts RETIREMENT proposals — the governance-shrink half,
+    a pure consumer of gov.py's report-only detectors + gov.route(). Telos: governance
+    shrinks as capability rises (gov-id.md). Auto-retire is gated on the ablation
+    runner (re-run a scaffold's grader with it removed) — Phase 2, not built yet — so
+    every retire-candidate currently routes to human. See run_subtract().
+
 
 The audit research/2026-06-19-auto-self-improvement-audit.md found the loop has
 healthy sensors but no MOTOR: `/improve maintain` is interactive-only, the
@@ -58,7 +67,6 @@ import json
 import os
 import re
 import subprocess
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -406,6 +414,194 @@ def append_ledger(action: str, target: str, result: str, detail: str) -> None:
         pass
 
 
+# ── SUBTRACT pass (governance SHRINK — the symmetric half) ──────────────────────
+# The motor only GREW: it drafts BUILDS. The constitution's telos is that
+# governance SHRINKS as capability rises (gov-id.md). This is the symmetric half —
+# it drafts RETIREMENTS. It is a pure CONSUMER of gov.py's report-only detectors
+# (epistemic-#9: LOAD the canonical detector, never re-detect) and of gov.route()
+# (the existing earned-autonomy router). SAFE/dry-run: drafts a retirement proposal
+# for human review; it removes nothing. The auto-retire gate is the ABLATION runner
+# (re-run a scaffold's grader with the scaffold REMOVED, retire only if still PASS)
+# — Phase 2, not built here. Until it exists, every candidate routes to human
+# because route_retire() passes confidence="medium" (route() needs "high" for auto).
+def gather_retire_candidates(days: int = 60) -> dict:
+    """Retire-candidates from gov.py, two streams mirroring the add-motor's
+    registry+log sources:
+      - gov-shrink: a Gov-ID scaffold WITH a verifier whose goal currently HOLDS
+        (verdict.passed is True). Goal-holds-WITH-the-scaffold is necessary but NOT
+        sufficient — the auto-retire gate is the ablation (re-run WITHOUT it). So
+        these are ABLATION-PENDING, drafted human-gated here.
+      - advisory-noise: a high-fire advisory-only hook (gov hardcodes blast=shared)
+        → quarantine/delete candidate. shared ⇒ always human-gated.
+    Returns {shrink_pending, advisory_noise, n_eligible, n_backlog[, error]}.
+    """
+    try:
+        import gov  # lazy: heavy import chain (graders, agentlogs); no cycle (gov ⊅ this)
+    except Exception as e:  # noqa: BLE001
+        return {"shrink_pending": [], "advisory_noise": [], "n_eligible": 0,
+                "n_backlog": 0, "error": f"gov import failed: {str(e)[:120]}"}
+    try:
+        artifacts = gov.collect_artifacts()
+        shrink = gov.gov_shrink_dryrun(artifacts)
+        noise = gov.advisory_noise(days)
+    except Exception as e:  # noqa: BLE001
+        return {"shrink_pending": [], "advisory_noise": [], "n_eligible": 0,
+                "n_backlog": 0, "error": f"gov detectors failed: {str(e)[:120]}"}
+    shrink_pending = []
+    for a in shrink.get("eligible", []):
+        v = a.get("verdict") or {}
+        if v.get("passed") is True:  # goal holds WITH the scaffold → ablation candidate
+            shrink_pending.append({
+                "origin": "gov-shrink",
+                "id": _slug(str(a.get("id", ""))) or str(a.get("id", "")),
+                "gov_id": a.get("id", ""),
+                "title": f"retire scaffold {a.get('id','')} — goal holds (ablation-pending)",
+                "blast_radius": (a.get("blast_radius") or "local"),
+                "retire_kind": "scaffold-shrink",
+                "verifier": a.get("verifier") or "",
+                "verdict": "PASS (goal holds WITH scaffold; ablation needed to confirm WITHOUT)",
+                "goal": a.get("goal", ""),
+                "artifact_path": a.get("path", ""),
+                "evidence": (str(v.get("evidence") or ""))[:200],
+                "source": "scripts/gov.py: gov_shrink_dryrun",
+            })
+    advisory = []
+    for n in noise:
+        advisory.append({
+            "origin": "advisory-noise",
+            "id": _slug(str(n.get("hook", ""))) or str(n.get("hook", "")),
+            "gov_id": n.get("hook", ""),
+            "title": f"retire/quarantine advisory hook {n.get('hook','')} — fires without changing behavior",
+            "blast_radius": (n.get("blast_radius") or "shared"),
+            "retire_kind": "advisory-noise",
+            "verifier": "",
+            "verdict": "",
+            "goal": "",
+            "artifact_path": "",
+            "evidence": n.get("evidence", ""),
+            "disposition": n.get("disposition", ""),
+            "source": "scripts/gov.py: advisory_noise",
+        })
+    return {"shrink_pending": shrink_pending, "advisory_noise": advisory,
+            "n_eligible": len(shrink.get("eligible", [])),
+            "n_backlog": len(shrink.get("backlog", []))}
+
+
+def route_retire(c: dict) -> str:
+    """Reuse gov.route() (the canonical earned-autonomy router) — never restate it.
+    confidence is pinned "medium" pre-ablation so route() can NEVER return auto-apply
+    (it requires "high"). After the ablation runner confirms WITHOUT-scaffold PASS
+    (Phase 2), a local scaffold may pass confidence="high" and become auto-eligible
+    (still behind AUTO_APPLY_ENABLED + the policy go_live flag)."""
+    try:
+        import gov
+        return gov.route(c.get("blast_radius", "shared"), "medium", 0)
+    except Exception:  # noqa: BLE001
+        return "human"  # fail-closed: unknown router → human
+
+
+def draft_retire_proposal(c: dict) -> tuple[Path, str]:
+    slug = f"retire-{c['id']}"
+    path = PROPOSAL_DIR / f"{_today()}-{slug}.md"
+    route = route_retire(c)
+    if c["retire_kind"] == "scaffold-shrink":
+        gate = (f"**Ablation REQUIRED (not yet run).** Re-run the verifier "
+                f"`{c.get('verifier','')}` with the scaffold REMOVED; mark `[~]` retired ONLY if it "
+                f"still PASSES (the scaffold was training wheels). The ablation runner is the auto-gate "
+                f"(Phase 2) — until it confirms a WITHOUT-scaffold PASS, this is a human-reviewed draft. "
+                f"Current grader verdict (WITH the scaffold): {c.get('verdict','')}.")
+    else:
+        gate = (f"**Advisory-only hook**, {c.get('evidence','')}, with no measured behavior change. "
+                f"Disposition: {c.get('disposition','')}. blast_radius=shared ⇒ human-gated — never "
+                f"auto-BLOCK and never auto-delete a shared hook; the operator quarantines/deletes.")
+    body = f"""---
+title: "Maintain-tick RETIRE draft — {c['gov_id']}"
+date: {_today()}
+status: draft-retire-proposal
+generated_by: scripts/maintain_tick.py --subtract (SAFE/dry-run)
+retire_kind: {c['retire_kind']}
+blast_radius: {c['blast_radius']}
+route: {route}
+verifier: {c.get('verifier','')}
+---
+
+# Maintain-tick RETIRE draft (governance SHRINK)
+
+> SAFE/dry-run: nothing was removed, no commit, no governance write. This drafts a
+> RETIREMENT for human review (or, once the ablation gate + earned-autonomy exist,
+> the apply lane). Telos: governance shrinks as capability rises (gov-id.md).
+> Reversible by construction — it is a file the operator reads.
+
+## Candidate to retire
+**{c['title']}**
+
+- Origin: `{c['origin']}`  ·  Source: `{c['source']}`  ·  Route: **{route}**
+- blast_radius: `{c['blast_radius']}`  ·  retire_kind: `{c['retire_kind']}`
+- Artifact: `{c.get('artifact_path') or c['gov_id']}`
+- Verifier: `{c.get('verifier') or '(none — advisory-noise)'}`
+- Evidence: {c.get('evidence','')}
+
+## The retire gate (NOT yet satisfied by this draft)
+{gate}
+
+## Proposed lifecycle marking (gov-id.md) — operator (or earned-autonomy actor) applies
+1. Confirm the gate above (ablation PASS for a scaffold; operator decision for advisory-noise).
+2. Mark the improvement-log entry `[~]` retired (cite the ablation verdict / decay evidence),
+   OR `[>]` superseded-by `<id>` if a replacement exists.
+3. Remove the scaffold artifact (`{c.get('artifact_path') or c['gov_id']}`) in the SAME commit
+   that records the marking, with an `Evidence:` trailer (governance commit).
+
+## Next
+- Confirm + apply: satisfy the gate, then make the marking + removal commit.
+- Or reject: leave the scaffold; note why (it is still load-bearing) — append one `[obs]` line.
+"""
+    return path, body
+
+
+def run_subtract(force: bool, ledger: bool, days: int = 60) -> dict:
+    """SAFE/dry-run subtract tick: gather retire-candidates from gov, pick one
+    deterministically, draft a retirement proposal. Removes nothing; the apply lane
+    is Phase 2 (gated on the ablation runner). Same rate-gate as the add tick."""
+    live = live_claude_count()
+    if not force and live > MAX_LIVE_CLAUDE:
+        if ledger:
+            append_ledger("maintain-subtract", "rate-gate", "skipped",
+                          f"{live} live claude procs > {MAX_LIVE_CLAUDE}; stood aside")
+        return {"status": "rate-gated", "live_claude": live, "picked": None}
+    g = gather_retire_candidates(days)
+    if g.get("error"):
+        if ledger:
+            append_ledger("maintain-subtract", "scan", "error", g["error"])
+        return {"status": "error", "picked": None, "error": g["error"]}
+    cands = g["shrink_pending"] + g["advisory_noise"]
+    if not cands:
+        if ledger:
+            append_ledger("maintain-subtract", "scan", "noop",
+                          f"0 retire-candidates (shrink_eligible={g['n_eligible']}, "
+                          f"backlog={g['n_backlog']})")
+        return {"status": "noop", "picked": None,
+                "n_eligible": g["n_eligible"], "n_backlog": g["n_backlog"]}
+    # deterministic: real shrink loop first (gov-shrink), then advisory-noise; by id.
+    cands.sort(key=lambda c: (c["origin"] != "gov-shrink", c["id"]))
+    picked = cands[0]
+    path, body = draft_retire_proposal(picked)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(body, encoding="utf-8")
+    if ledger:
+        append_ledger("maintain-subtract", picked["gov_id"], "drafted",
+                      f"retire draft -> {path.relative_to(REPO)} "
+                      f"(origin={picked['origin']}, route={route_retire(picked)})")
+    return {
+        "status": "drafted",
+        "picked": {k: picked.get(k) for k in ("id", "gov_id", "title", "origin",
+                                              "blast_radius", "retire_kind")},
+        "route": route_retire(picked),
+        "proposal_path": str(path.relative_to(REPO)),
+        "shrink_pending": len(g["shrink_pending"]),
+        "advisory_noise": len(g["advisory_noise"]),
+    }
+
+
 # ── main ───────────────────────────────────────────────────────────────────────
 def run(apply: bool, force: bool, ledger: bool) -> dict:
     """Returns a result dict (also the --json payload). Never raises for normal
@@ -488,8 +684,54 @@ def main() -> int:
                     help="do not append to maintenance-actions.jsonl (test use)")
     ap.add_argument("--json", action="store_true", help="machine-readable result")
     ap.add_argument("--list", action="store_true",
-                    help="list tier-0 candidates + needs-classification, pick nothing")
+                    help="list candidates, pick nothing (ADD tier-0/0E, or with --subtract the retire-candidates)")
+    ap.add_argument("--subtract", action="store_true",
+                    help="run the SUBTRACT pass: draft governance RETIREMENTS from gov.py "
+                         "detectors (the symmetric shrink half). SAFE/dry-run; removes nothing.")
     args = ap.parse_args()
+
+    # ── SUBTRACT pass (governance shrink) ──
+    if args.subtract:
+        if args.list:
+            g = gather_retire_candidates()
+            if args.json:
+                print(json.dumps({
+                    "shrink_pending": [{k: c[k] for k in ("gov_id", "blast_radius", "verifier")}
+                                       for c in g.get("shrink_pending", [])],
+                    "advisory_noise": [{"hook": c["gov_id"], "blast_radius": c["blast_radius"]}
+                                       for c in g.get("advisory_noise", [])],
+                    "n_eligible": g.get("n_eligible", 0), "n_backlog": g.get("n_backlog", 0),
+                    "error": g.get("error"),
+                }, indent=2))
+            else:
+                if g.get("error"):
+                    print(f"[maintain-subtract] gov detectors unavailable: {g['error']}")
+                    return 0
+                print(f"[maintain-subtract] retire-candidates: "
+                      f"shrink-pending(ablation)={len(g['shrink_pending'])} · "
+                      f"advisory-noise={len(g['advisory_noise'])} "
+                      f"(shrink-eligible={g['n_eligible']}, backlog={g['n_backlog']})")
+                for c in g["shrink_pending"]:
+                    print(f"  ⌫ [shrink] {c['gov_id']}  (blast={c['blast_radius']}, route={route_retire(c)})")
+                for c in g["advisory_noise"]:
+                    print(f"  ⌫ [noise]  {c['gov_id']}  (route={route_retire(c)})")
+            return 0
+        res = run_subtract(force=args.force, ledger=not args.no_ledger)
+        if args.json:
+            print(json.dumps(res, indent=2))
+        else:
+            st = res["status"]
+            if st == "drafted":
+                print(f"[maintain-subtract] drafted retire proposal: {res['proposal_path']}")
+                print(f"  picked: {res['picked']['title']}  (route={res['route']})")
+            elif st == "rate-gated":
+                print(f"[maintain-subtract] rate-gated: {res['live_claude']} live claude procs — stood aside.")
+            elif st == "error":
+                print(f"[maintain-subtract] error: {res['error']}")
+            else:
+                print(f"[maintain-subtract] noop: 0 retire-candidates "
+                      f"(shrink-eligible={res.get('n_eligible')}, backlog={res.get('n_backlog')}).")
+        return 0
 
     if args.list:
         g = gather_candidates()

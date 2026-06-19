@@ -294,3 +294,113 @@ def test_noop_when_no_candidates(sandbox):
     res = mt.run(apply=False, force=True, ledger=True)
     assert res["status"] == "noop"
     assert res["picked"] is None
+
+
+# ── SUBTRACT pass (governance shrink) ──────────────────────────────────────────
+# gov's eligible-item shape: {id, kind, path, goal, verifier, blast_radius, verdict}
+SHRINK_LOCAL_PASS = {
+    "id": "rule:some-local-rule", "kind": "rule",
+    "path": ".claude/rules/some-local-rule.md", "goal": "prevent X",
+    "verifier": "evals/graders/governance/x.py", "blast_radius": "local",
+    "verdict": {"passed": True, "margin": "5", "evidence": "goal holds with scaffold"},
+}
+SHRINK_LOCAL_FAIL = {**SHRINK_LOCAL_PASS,
+                     "verdict": {"passed": False, "margin": "-2", "evidence": "goal VIOLATED"}}
+SHRINK_LOCAL_NOGRADER = {**SHRINK_LOCAL_PASS, "verdict": None}  # grader file absent
+ADVISORY = {"hook": "some-advisory-hook", "fires": 999, "confidence": "medium",
+            "evidence": "999 fires in 60d, actions=['warn'] (advisory-only)",
+            "blast_radius": "shared", "disposition": "review→quarantine/delete (never auto-BLOCK)"}
+
+
+def _patch_gov(monkeypatch, *, eligible=None, noise=None, raise_=False):
+    """Patch gov.py's report-only detectors so the subtract pass runs offline (no
+    real graders / agentlogs). Leaves gov.route REAL by default so the routing
+    invariant is genuinely exercised."""
+    import gov
+    if raise_:
+        def _boom(*a, **k):
+            raise RuntimeError("gov detectors down")
+        monkeypatch.setattr(gov, "collect_artifacts", _boom)
+        return
+    monkeypatch.setattr(gov, "collect_artifacts", lambda: [])
+    monkeypatch.setattr(gov, "gov_shrink_dryrun",
+                        lambda arts: {"eligible": eligible or [], "backlog": [], "style": []})
+    monkeypatch.setattr(gov, "advisory_noise", lambda days: noise or [])
+
+
+def test_subtract_drafts_shrink_candidate_safely(sandbox, monkeypatch):
+    """A local shrink-eligible scaffold whose goal PASSES → drafted, route=human,
+    and the SAFE contract holds: ONLY the proposal + ledger are written (nothing
+    removed, no governance file touched)."""
+    _patch_gov(monkeypatch, eligible=[SHRINK_LOCAL_PASS])
+    before = {p for p in sandbox["root"].rglob("*") if p.is_file()}
+    res = mt.run_subtract(force=True, ledger=True)
+    after = {p for p in sandbox["root"].rglob("*") if p.is_file()}
+    assert res["status"] == "drafted"
+    assert res["route"] == "human"  # pre-ablation: always human
+    assert res["picked"]["origin"] == "gov-shrink"
+    proposal = sandbox["root"] / res["proposal_path"]
+    assert (after - before) == {proposal, sandbox["ledger"]}, "subtract must write ONLY proposal+ledger"
+    body = proposal.read_text()
+    assert "status: draft-retire-proposal" in body
+    assert "Ablation REQUIRED" in body
+    assert "nothing was removed" in body
+    rows = [json.loads(l) for l in sandbox["ledger"].read_text().splitlines() if l.strip()]
+    assert rows[-1]["action"] == "maintain-subtract" and rows[-1]["result"] == "drafted"
+
+
+def test_subtract_only_passing_scaffolds_are_candidates(sandbox, monkeypatch):
+    """A FAIL scaffold (goal violated WITH it) or a no-grader one is NOT a
+    retire-candidate — only goal-currently-holds scaffolds are ablation candidates."""
+    _patch_gov(monkeypatch, eligible=[SHRINK_LOCAL_FAIL, SHRINK_LOCAL_NOGRADER])
+    res = mt.run_subtract(force=True, ledger=True)
+    assert res["status"] == "noop"
+
+
+def test_subtract_never_auto_routes_preablation(sandbox, monkeypatch):
+    """THE safety invariant: even a LOCAL scaffold whose goal PASSES routes to human
+    pre-ablation — route_retire pins confidence='medium', so the REAL gov.route can
+    never return auto-apply even with AUTO_APPLY_ENABLED forced on."""
+    _patch_gov(monkeypatch, eligible=[SHRINK_LOCAL_PASS])  # local + passing
+    import gov
+    monkeypatch.setattr(gov, "AUTO_APPLY_ENABLED", True, raising=False)  # auto-apply env ON
+    res = mt.run_subtract(force=True, ledger=True)
+    assert res["route"] == "human"
+
+
+def test_subtract_advisory_noise_human_gated(sandbox, monkeypatch):
+    _patch_gov(monkeypatch, noise=[ADVISORY])
+    res = mt.run_subtract(force=True, ledger=True)
+    assert res["status"] == "drafted"
+    assert res["picked"]["retire_kind"] == "advisory-noise"
+    assert res["route"] == "human"  # blast=shared → always human
+
+
+def test_subtract_shrink_preferred_over_noise(sandbox, monkeypatch):
+    _patch_gov(monkeypatch, eligible=[SHRINK_LOCAL_PASS], noise=[ADVISORY])
+    res = mt.run_subtract(force=True, ledger=True)
+    assert res["picked"]["origin"] == "gov-shrink"  # real shrink loop first
+
+
+def test_subtract_noop_when_no_candidates(sandbox, monkeypatch):
+    _patch_gov(monkeypatch, eligible=[], noise=[])
+    res = mt.run_subtract(force=True, ledger=True)
+    assert res["status"] == "noop"
+    assert res["picked"] is None
+
+
+def test_subtract_gov_unavailable_fails_safe(sandbox, monkeypatch):
+    """Off-happy-path: a gov detector raising → status=error, no crash, nothing drafted."""
+    _patch_gov(monkeypatch, raise_=True)
+    res = mt.run_subtract(force=True, ledger=True)
+    assert res["status"] == "error"
+    assert res["picked"] is None
+    assert not (sandbox["proposal_dir"].exists() and list(sandbox["proposal_dir"].glob("*.md")))
+
+
+def test_subtract_rate_gate_stands_aside(sandbox, monkeypatch):
+    monkeypatch.setattr(mt, "live_claude_count", lambda: 5)  # over MAX_LIVE_CLAUDE
+    _patch_gov(monkeypatch, eligible=[SHRINK_LOCAL_PASS])
+    res = mt.run_subtract(force=False, ledger=True)  # force=False so gate applies
+    assert res["status"] == "rate-gated"
+    assert res["picked"] is None
