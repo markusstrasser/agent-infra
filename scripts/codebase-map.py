@@ -47,6 +47,7 @@ SKIP_DIRS = {".git", "__pycache__", ".venv", "node_modules", ".tox",
 HUB_MIN = 3        # minimum imported-by count to surface a file as a hub
 HUB_PER_GROUP = 6  # cap hub files listed per group in the index
 DESC_WIDTH = 55    # detail-tier description column width
+DETAIL_MAX_FILES = 80  # split oversized groups into subtree detail files
 
 
 def load_summaries(project_name: str) -> dict[str, str]:
@@ -98,7 +99,60 @@ def slugify_group(group_name: str) -> str:
     """Stable filename slug for a directory group ('scripts/common' -> 'scripts-common')."""
     if group_name == ".":
         return "root"
-    return group_name.replace("/", "-").strip("-")
+    slug = group_name.replace("/", "-").strip("-")
+    slug = re.sub(r"[^\w-]", "", slug.replace("*", "")).rstrip("_")
+    return slug or "root"
+
+
+def bucket_key_for_stem(group_name: str, stem: str) -> str:
+    """Assign a flat-dir file to a prefix/letter subtree bucket."""
+    if "_" in stem:
+        prefix = stem.split("_", 1)[0]
+        if len(prefix) >= 2:
+            return f"{group_name}/{prefix}_*"
+    letter = stem[0].lower() if stem else "?"
+    return f"{group_name}/{letter}-*"
+
+
+def partition_by_letter(bucket_name: str, entries: list, max_files: int) -> dict[str, list]:
+    """Split an oversized bucket by first letter (and fixed chunks as last resort)."""
+    by_letter: dict[str, list] = defaultdict(list)
+    for entry in entries:
+        letter = entry[0][0].lower() if entry[0] else "?"
+        by_letter[letter].append(entry)
+
+    result: dict[str, list] = {}
+    for letter, letter_entries in sorted(by_letter.items()):
+        if len(letter_entries) <= max_files:
+            result[f"{bucket_name}/{letter}"] = letter_entries
+            continue
+        for i in range(0, len(letter_entries), max_files):
+            chunk = letter_entries[i : i + max_files]
+            suffix = "" if i == 0 else f"-{i // max_files}"
+            result[f"{bucket_name}/{letter}{suffix}"] = chunk
+    return result
+
+
+def partition_group(
+    group_name: str,
+    entries: list,
+    max_files: int = DETAIL_MAX_FILES,
+) -> dict[str, list]:
+    """Split a large directory group into subtree buckets for on-demand detail."""
+    if len(entries) <= max_files:
+        return {group_name: entries}
+
+    buckets: dict[str, list] = defaultdict(list)
+    for entry in entries:
+        buckets[bucket_key_for_stem(group_name, entry[0])].append(entry)
+
+    result: dict[str, list] = {}
+    for bucket_name, bucket_entries in sorted(buckets.items()):
+        if len(bucket_entries) > max_files:
+            result.update(partition_by_letter(bucket_name, bucket_entries, max_files))
+        else:
+            result[bucket_name] = bucket_entries
+    return result
 
 
 def _path_globs(project_root: Path, source_dirs: list[Path]) -> list[str]:
@@ -168,15 +222,30 @@ def generate_maps(project_root: Path, source_dirs: list[Path]) -> tuple[str, dic
     total_files = sum(len(v) for v in groups.values())
     today = date.today()
 
-    # --- Tier 2: per-group detail (on-demand, not auto-loaded) ---
-    details: dict[str, str] = {}
+    # Partition oversized groups into subtree detail buckets (genomics scripts/ etc.).
+    detail_groups: dict[str, list[tuple[str, str, Path]]] = {}
+    split_parents: dict[str, list[tuple[str, str, int]]] = {}
     for group_name in sorted(groups):
-        slug = slugify_group(group_name)
-        entries = sorted(groups[group_name], key=lambda x: x[0])
+        entries = groups[group_name]
+        parts = partition_group(group_name, entries)
+        if len(parts) == 1 and group_name in parts:
+            detail_groups[group_name] = entries
+            continue
+        children: list[tuple[str, str, int]] = []
+        for sub_name, sub_entries in sorted(parts.items()):
+            detail_groups[sub_name] = sub_entries
+            children.append((sub_name, slugify_group(sub_name), len(sub_entries)))
+        split_parents[group_name] = children
+
+    # --- Tier 2: per-group/subtree detail (on-demand, not auto-loaded) ---
+    details: dict[str, str] = {}
+    for detail_name in sorted(detail_groups):
+        slug = slugify_group(detail_name)
+        entries = sorted(detail_groups[detail_name], key=lambda x: x[0])
         max_name = min(max(len(e[0]) + 3 for e in entries), 35)
 
         dlines = [
-            f"# Codebase detail — {group_name}/ ({len(entries)} files)",
+            f"# Codebase detail — {detail_name} ({len(entries)} files)",
             f"# generated {today} · on-demand (not auto-loaded) · index: .claude/rules/codebase-map.md",
             "# Edge annotations: → imports  ← imported-by-N-files",
             "",
@@ -188,7 +257,7 @@ def generate_maps(project_root: Path, source_dirs: list[Path]) -> tuple[str, dic
             edge_str = f"  {edges}" if edges else ""
             max_desc = DESC_WIDTH - len(edge_str) if edge_str else DESC_WIDTH
             if len(desc) > max_desc and max_desc > 10:
-                desc = desc[:max_desc - 1] + "…"
+                desc = desc[: max_desc - 1] + "…"
             dlines.append(f"  {fname:<{max_name}} {desc}{edge_str}".rstrip())
         details[slug] = "\n".join(dlines) + "\n"
 
@@ -215,7 +284,6 @@ def generate_maps(project_root: Path, source_dirs: list[Path]) -> tuple[str, dic
         "",
     ]
     for group_name in sorted(groups):
-        slug = slugify_group(group_name)
         entries = groups[group_name]
         ilines.append(f"## {group_name}/ — {len(entries)} files")
 
@@ -226,7 +294,26 @@ def generate_maps(project_root: Path, source_dirs: list[Path]) -> tuple[str, dic
         hub_strs = [f"{stem}.py ←{n}" for stem, n in ranked if n >= HUB_MIN][:HUB_PER_GROUP]
         if hub_strs:
             ilines.append(f"  hubs: {', '.join(hub_strs)}")
-        ilines.append(f"  detail: .claude/maps/codebase.{slug}.md")
+        if group_name in split_parents:
+            index_slug = f"{slugify_group(group_name)}-index"
+            children = split_parents[group_name]
+            ilines.append(
+                f"  detail index: .claude/maps/codebase.{index_slug}.md "
+                f"({len(children)} subtrees)"
+            )
+            idx_lines = [
+                f"# Codebase subtree index — {group_name}/ ({len(entries)} files)",
+                f"# generated {today} · on-demand · pick a subtree detail file below",
+                "",
+            ]
+            for sub_name, slug, count in children:
+                idx_lines.append(
+                    f"- {sub_name} ({count}): .claude/maps/codebase.{slug}.md"
+                )
+            details[index_slug] = "\n".join(idx_lines) + "\n"
+        else:
+            slug = slugify_group(group_name)
+            ilines.append(f"  detail: .claude/maps/codebase.{slug}.md")
         ilines.append("")
 
     return "\n".join(ilines), details

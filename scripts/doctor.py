@@ -373,6 +373,21 @@ def check_gitignore(project_dir: Path) -> list[Check]:
     return [c.ok("No .claude artifacts to ignore")]
 
 
+def check_codebase_map_gitignore(project_dir: Path) -> list[Check]:
+    """Mapped repos must gitignore generated codebase-map outputs."""
+    from codebase_map_config import assert_maps_gitignored, config_for_repo
+
+    cfg = config_for_repo(project_dir)
+    if not cfg:
+        return []
+    c = Check("gitignore:codebase-map", cfg.name)
+    try:
+        assert_maps_gitignored(cfg)
+    except RuntimeError as exc:
+        return [c.fail(str(exc))]
+    return [c.ok("generated map outputs gitignored + untracked")]
+
+
 def check_telemetry_freshness() -> list[Check]:
     """Detect silent hook failures by comparing transcript activity to receipt/log output."""
     checks = []
@@ -668,6 +683,25 @@ def check_uv_tool_editables() -> list[Check]:
     return checks
 
 
+def check_approval_tiers() -> list[Check]:
+    """Validate config/approval-tiers.json ↔ hook files ↔ global PreToolUse wiring."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import approval_tiers as at  # noqa: E402
+
+    c = Check("approval-tiers", "global")
+    chk = at.validate_manifest()
+    if chk.missing_files:
+        return [c.fail(f"missing hook files: {', '.join(chk.missing_files[:5])}"
+                        + ("…" if len(chk.missing_files) > 5 else ""))]
+    if chk.uncovered_global:
+        return [c.warn(f"{len(chk.uncovered_global)} global pretool(s) not in manifest: "
+                       f"{', '.join(chk.uncovered_global[:4])}"
+                       + ("…" if len(chk.uncovered_global) > 4 else ""))]
+    n = len(at.manifest_hooks())
+    g = len(at.global_pretool_hooks())
+    return [c.ok(f"{n} manifest hooks, {g} global pretools covered")]
+
+
 def check_critique_routing_verdict() -> list[Check]:
     """Fail-closed gate: ROUTING_VERDICT JSON must parse; pending freezes cross2 default."""
     c = Check("evals:critique-routing-verdict", "global")
@@ -706,6 +740,7 @@ def run_all_checks(project_filter: str | None = None) -> list[Check]:
         all_checks.extend(check_decisions_pending())
         all_checks.extend(check_agentlogs_indexer())
         all_checks.extend(check_uv_tool_editables())
+        all_checks.extend(check_approval_tiers())
         all_checks.extend(check_critique_routing_verdict())
 
         # Global CLAUDE.md
@@ -733,6 +768,7 @@ def run_all_checks(project_filter: str | None = None) -> list[Check]:
         all_checks.extend(check_git_state(proj_dir))
         all_checks.extend(check_mcp(proj_dir))
         all_checks.extend(check_gitignore(proj_dir))
+        all_checks.extend(check_codebase_map_gitignore(proj_dir))
 
     return all_checks
 

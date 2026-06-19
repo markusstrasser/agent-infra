@@ -97,6 +97,22 @@ def extract_docstring(filepath: Path) -> str | None:
     return None
 
 
+def extract_ast_fallback(filepath: Path) -> str | None:
+    """Cheap one-liner from first top-level class/def when docstring is missing."""
+    if filepath.suffix != ".py":
+        return None
+    try:
+        tree = ast.parse(filepath.read_text())
+        for node in tree.body[:12]:
+            if isinstance(node, ast.ClassDef):
+                return f"class {node.name}"
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                return f"def {node.name}(...)"
+    except (SyntaxError, UnicodeDecodeError, OSError):
+        pass
+    return None
+
+
 def llm_summarize(filepath: Path, model_id: str) -> str | None:
     """Get one-line summary from LLM."""
     try:
@@ -183,7 +199,7 @@ def main():
                     cache[rel] = {"hash": h, "summary": summary}
     elif needs_summary and args.no_llm:
         for f, rel, h in needs_summary:
-            summary = extract_docstring(f)
+            summary = extract_docstring(f) or extract_ast_fallback(f)
             if summary:
                 cache[rel] = {"hash": h, "summary": summary}
 
