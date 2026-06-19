@@ -115,3 +115,13 @@ The critique vindicates splitting them.
   `-f`=`--force`; the model string `claude-opus-4-8-thinking-high` IS valid (confirmed via
   `--list-models`, refuting critique finding #38). The critique's load-bearing hallucination
   (`pgrep -x`=0 "because Node.js") was refuted by the principal check (binary is named `claude`).
+
+## Correction 2026-06-19 — Composer-only (supersedes the opus-override note above)
+
+The "opus is an opt-in `--model` override" wording above is **wrong and superseded**: a
+non-Composer model via cursor-agent is off-policy AND **hook-blocked** by
+`pretool-cursor-model-guard.py` (cursor proxies frontier models at separate metered rates).
+The cursor lane is **Composer-only**, matching the operator directive and the standing rule in
+`feedback-cursor-agent-for-codebase-review`. The wrapper + SKILL.md were corrected to drop the
+opus path (`skills@5466151`). Likewise the decision's original `cursor-agent ... --model
+claude-opus-4-8-thinking-high` proposal (lines 23-24, 34-35) was off-policy at authoring time.
