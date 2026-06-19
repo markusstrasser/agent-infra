@@ -99,9 +99,12 @@ PRIORITIES.md
 .claude/blindspot-digest.md
 # Maintain-tick runtime telemetry (append log; churns every tick — track the generator, not the log)
 maintenance-actions.jsonl
-# Debug-scout run output (cursor ask-mode → docs/audit/*-debug-*; derived/ephemeral.
-# Durable codex-*/dispatch-research-* audits stay tracked.)
+# Orchestrator/debug pipeline run output in docs/audit/ — derived/ephemeral per run
+# (debug-scout files, findings-consolidation handoffs, dispatch manifests).
+# Durable codex-*/dispatch-research-* audits stay tracked.
 docs/audit/*-debug-*
+docs/audit/*-handoff.md
+docs/audit/*-manifest.txt
 
 # Downloaded paper PDFs (binaries — archival, not committed)
 research/papers/
