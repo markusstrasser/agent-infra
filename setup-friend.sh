@@ -683,8 +683,13 @@ cat > "$HOME/.zsh_agent_utils" <<'AGENTUTILS'
 #!/usr/bin/env zsh
 alias agent-sync='bash -c '"'"'for d in skills meta llmx emb parsers biomedical-mcp; do [ -d "$HOME/Projects/$d" ] && printf "  %-15s" "$d" && (git -C "$HOME/Projects/$d" pull --rebase --quiet 2>/dev/null && echo "ok" || echo "skip"); done; for t in llmx emb parsers; do [ -d "$HOME/Projects/$t" ] && uv tool install --editable "$HOME/Projects/$t" --quiet 2>/dev/null; done'"'"''
 alias push-all='bash -c '"'"'for d in "$HOME"/Projects/*/; do [ -d "$d/.git" ] || continue; ahead=$(git -C "$d" rev-list --count @{u}..HEAD 2>/dev/null) || continue; [ "$ahead" = "0" ] && continue; name=$(basename "$d"); printf "  %-15s %s ahead -> " "$name" "$ahead"; git -C "$d" push --quiet 2>/dev/null && echo "ok" || echo "fail"; done'"'"''
+# isolate-by-default (ADR 2026-06-16-shared-checkout-isolation): on a LIVE peer holding
+# this checkout, prompt [w]orktree / [s]hare instead of silently thrashing shared .claude state.
+# Headless `claude -p`/cron/llmx pass through untouched; aliases are invisible inside scripts
+# so the wrapper's own `claude` always resolves to the real binary (no recursion).
+alias claude="$HOME/Projects/agent-infra/scripts/claude-launch.sh"
 AGENTUTILS
-ok "Agent utils (agent-sync, push-all)"
+ok "Agent utils (agent-sync, push-all, claude->isolate-launch)"
 
 # ── Claude Code Config ──────────────────────────────────────
 
