@@ -18,7 +18,8 @@
     </dict>
     <key>WorkingDirectory</key>
     <string>/Users/alien/Projects/agent-infra</string>
-    <!-- Event-triggered: WatchPaths on the mapped source dirs (fires on direct
+    <!-- @system layer=watch role=sync llm=none
+         Event-triggered: WatchPaths on the mapped source dirs (fires on direct
          child add/remove/rename — content-only edits don't bump a dir's mtime,
          and agent-infra's own PostToolUse index hook covers those for this repo).
          Weekly StartInterval backstop catches what the watch misses; the refresh

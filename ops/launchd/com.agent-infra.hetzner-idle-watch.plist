@@ -19,7 +19,8 @@
     </dict>
     <key>WorkingDirectory</key>
     <string>/Users/alien/Projects/agent-infra</string>
-    <!-- Twice-daily notify-only check for NON-hutter Hetzner boxes idling > 12h.
+    <!-- @system layer=infra role=sentinel llm=none
+         Twice-daily notify-only check for NON-hutter Hetzner boxes idling > 12h.
          hutter/scripts/idle_reaper.sh deliberately skips cross-project boxes
          (genomics sbayesrc-*), so they had no watcher and idled ~€16 once
          (2026-06-14). Read-only; teardown is operator-gated hetzner-reap.sh.

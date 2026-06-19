@@ -20,7 +20,8 @@
     </dict>
     <key>WorkingDirectory</key>
     <string>/Users/alien/Projects/corpus</string>
-    <!-- Event-tie + clock backstop. WatchPaths fires on a new source dir landing
+    <!-- @system layer=watch role=sync llm=none
+         Event-tie + clock backstop. WatchPaths fires on a new source dir landing
          under the corpus root (a new sha_*/ child bumps the root's mtime) — the
          bulk of ledger changes are fresh ingests, now committed same-day. It does
          NOT catch in-place re-annotation of an existing source: annotations.jsonl

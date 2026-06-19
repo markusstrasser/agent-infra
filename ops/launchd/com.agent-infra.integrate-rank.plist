@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.agent-infra.drift-sentinel</string>
+    <string>com.agent-infra.integrate-rank</string>
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>/Users/alien/Projects/agent-infra/scripts/drift-sentinel.sh</string>
+        <string>/Users/alien/Projects/agent-infra/scripts/integrate-rank.sh</string>
     </array>
     <key>EnvironmentVariables</key>
     <dict>
@@ -18,23 +18,19 @@
     </dict>
     <key>WorkingDirectory</key>
     <string>/Users/alien/Projects/agent-infra</string>
-    <!-- @system layer=watch role=sentinel llm=none
-         Daily 06:35 (after vendor-sweep 06:00) zero-API self-monitor: runs the
-         deterministic report-only checks and writes .claude/drift-digest.md when
-         something needs attention (removed when green). The next agent-infra
-         SessionStart surfaces it via drift-surface.sh. Decouples self-monitoring
-         from the interactive /improve loop. -->
+    <!-- @system layer=gov role=miner llm=optional state=manifest
+         Daily 07:30 — after act-drain (06:45) + blindspot (06:50). -->
     <key>StartCalendarInterval</key>
     <dict>
         <key>Hour</key>
-        <integer>6</integer>
+        <integer>7</integer>
         <key>Minute</key>
-        <integer>35</integer>
+        <integer>30</integer>
     </dict>
     <key>StandardOutPath</key>
-    <string>/Users/alien/.claude/logs/drift-sentinel.out</string>
+    <string>/Users/alien/.claude/logs/integrate-rank.out</string>
     <key>StandardErrorPath</key>
-    <string>/Users/alien/.claude/logs/drift-sentinel.err</string>
+    <string>/Users/alien/.claude/logs/integrate-rank.err</string>
     <key>LowPriorityIO</key>
     <true/>
     <key>Nice</key>

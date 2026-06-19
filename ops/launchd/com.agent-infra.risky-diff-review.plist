@@ -6,8 +6,8 @@
     <key>Label</key>
     <string>com.agent-infra.risky-diff-review</string>
 
-    <!--
-      ONE-SHOT: risky-diff-review SHADOW promote/cut review (improvement-log
+    <!-- @system layer=watch role=review llm=none
+         ONE-SHOT: risky-diff-review SHADOW promote/cut review (improvement-log
       2026-06-07). Fires once on 2026-06-21 ~09:00 local (StartCalendarInterval
       has no year field, so the wrapper self-unloads + drops a sentinel to make
       it one-shot). Scans the 2-week window from local git history, logs +

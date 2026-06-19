@@ -6,8 +6,8 @@
     <key>Label</key>
     <string>com.agent-infra.reflect-eval</string>
 
-    <!--
-      ONE-SHOT: reflect-loop 2-week evaluation gate (plan 4d40085a). Fires once on
+    <!-- @system layer=gov role=sentinel llm=none state=manifest
+         ONE-SHOT: reflect-loop 2-week evaluation gate (plan 4d40085a). Fires once on
       2026-06-17 ~09:00 local (StartCalendarInterval has no year field, so the
       wrapper self-unloads + drops a sentinel to make it one-shot). Computes the
       pre-registered metrics (compaction, throughput) from local shadow data, runs

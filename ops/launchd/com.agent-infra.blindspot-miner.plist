@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.agent-infra.drift-sentinel</string>
+    <string>com.agent-infra.blindspot-miner</string>
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>/Users/alien/Projects/agent-infra/scripts/drift-sentinel.sh</string>
+        <string>/Users/alien/Projects/agent-infra/scripts/blindspot-miner.sh</string>
     </array>
     <key>EnvironmentVariables</key>
     <dict>
@@ -18,23 +18,25 @@
     </dict>
     <key>WorkingDirectory</key>
     <string>/Users/alien/Projects/agent-infra</string>
-    <!-- @system layer=watch role=sentinel llm=none
-         Daily 06:35 (after vendor-sweep 06:00) zero-API self-monitor: runs the
-         deterministic report-only checks and writes .claude/drift-digest.md when
-         something needs attention (removed when green). The next agent-infra
-         SessionStart surfaces it via drift-surface.sh. Decouples self-monitoring
-         from the interactive /improve loop. -->
+    <!-- @system layer=watch role=miner llm=none
+         Daily 06:50 (after drift-sentinel 06:35) RSI detector: emb-contrastive over
+         recent sessions surfaces the moments the human had to catch a loop miss, so
+         each becomes a candidate detector. Runs in emb's env (no torch in
+         agent-infra), $0 local. Writes .claude/blindspot-digest.md (removed when no
+         flags); next agent-infra SessionStart surfaces it via blindspot-surface.sh.
+         Decouples the RSI loop from interactive /improve — the loop notices its own
+         misses across no-loop days. -->
     <key>StartCalendarInterval</key>
     <dict>
         <key>Hour</key>
         <integer>6</integer>
         <key>Minute</key>
-        <integer>35</integer>
+        <integer>50</integer>
     </dict>
     <key>StandardOutPath</key>
-    <string>/Users/alien/.claude/logs/drift-sentinel.out</string>
+    <string>/Users/alien/.claude/logs/blindspot-miner.out</string>
     <key>StandardErrorPath</key>
-    <string>/Users/alien/.claude/logs/drift-sentinel.err</string>
+    <string>/Users/alien/.claude/logs/blindspot-miner.err</string>
     <key>LowPriorityIO</key>
     <true/>
     <key>Nice</key>

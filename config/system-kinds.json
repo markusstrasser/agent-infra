@@ -1,0 +1,26 @@
+{
+  "layers": {
+    "watch": "launchd recurring miners — zero-API sense half of RSI",
+    "gov": "RSI governance — promotion, drain, motor, human gates",
+    "verify": "harness verification — pre-commit / replay gates",
+    "session": "in-session file-bus orchestrator tools (just recipes)",
+    "infra": "cross-cutting infra jobs and telemetry"
+  },
+  "roles": {
+    "indexer": "session transcript / git import",
+    "miner": "pattern detector over sessions or corpus",
+    "sentinel": "drift / health / canary",
+    "rsi-motor": "autonomous tier-0 draft picker (dry-run default)",
+    "drain": "human-gated disposition queue",
+    "sync": "cross-repo sync / refresh",
+    "review": "risk or diff review",
+    "orchestrator-tool": "deterministic or hybrid just recipe for orchestrator model",
+    "operator-tool": "operator glance / briefing",
+    "skill": "user-invocable workflow skill"
+  },
+  "llm": ["none", "optional", "required"],
+  "state": {
+    "active": "expected loaded in launchctl when deployed",
+    "manifest": "repo manifest only — not required loaded (integrate-rank, reflect-eval, …)"
+  }
+}

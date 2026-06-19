@@ -18,7 +18,8 @@
     </dict>
     <key>WorkingDirectory</key>
     <string>/Users/alien/Projects/agent-infra</string>
-    <!-- Daily 06:00 deterministic, zero-API surveillance fetch: vendor docs +
+    <!-- @system layer=watch role=miner llm=none
+         Daily 06:00 deterministic, zero-API surveillance fetch: vendor docs +
          Claude Code binary skill extraction, commit diffs on narrow paths.
          Idempotent (sources self-stale at 24h; unchanged = no git churn). The
          semantic half is surfaced by `just freshness` and run by /improve. -->

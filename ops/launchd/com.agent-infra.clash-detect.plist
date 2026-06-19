@@ -18,7 +18,8 @@
     </dict>
     <key>WorkingDirectory</key>
     <string>/Users/alien/Projects/agent-infra</string>
-    <!-- Daily 07:00 (after the 06:xx morning cluster): SHADOW driver for governance
+    <!-- @system layer=watch role=miner llm=required
+         Daily 07:00 (after the 06:xx morning cluster): SHADOW driver for governance
          clash-detection. Processes NEW captured directive-class messages (cursor-tracked,
          self-healing on rotation) against the governance index via gemini-3-flash; appends
          verdicts to ~/.claude/clash-shadow.jsonl. Surfaces NOTHING — the 2-week precision

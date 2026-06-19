@@ -18,7 +18,8 @@
     </dict>
     <key>WorkingDirectory</key>
     <string>/Users/alien/Projects/agent-infra</string>
-    <!-- Daily 06:45 (after drift-sentinel 06:35): zero-LLM ACT drain — runs
+    <!-- @system layer=gov role=drain llm=none
+         Daily 06:45 (after drift-sentinel 06:35): zero-LLM ACT drain — runs
          reflect classify + ranks disposition queue. Writes
          ~/.claude/act-drain-digest.md when attention needed; removed when green.
          SessionStart surfaces via act-drain-surface.sh. -->

@@ -24,5 +24,7 @@
   <string>/Users/alien/.cache/reclaim/rotate-cron.out</string>
   <key>StandardErrorPath</key>
   <string>/Users/alien/.cache/reclaim/rotate-cron.err</string>
+  <!-- @system layer=infra role=sync llm=none
+       Daily 04:10: rotate reclaim cache / disk hygiene -->
 </dict>
 </plist>

@@ -6,8 +6,8 @@
     <key>Label</key>
     <string>com.agent-infra.test-health</string>
 
-    <!--
-      Test-health sentinel — watches whether each repo's test suite still
+    <!-- @system layer=watch role=sentinel llm=none
+         Test-health sentinel — watches whether each repo's test suite still
       COMPLETES (vs crashes / aborts collection / times out). A non-completing
       suite produces NO regression signal; a flaky hard crash once masked 4
       clusters of cross-repo drift for ~6 days. Local, zero-API, report-only.

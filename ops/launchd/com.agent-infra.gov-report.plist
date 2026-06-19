@@ -6,8 +6,8 @@
     <key>Label</key>
     <string>com.agent-infra.gov-report</string>
 
-    <!--
-      Governance-health SENSE (the honest half of the thermostat — option (b), 2026-06-14).
+    <!-- @system layer=gov role=miner llm=none
+         Governance-health SENSE (the honest half of the thermostat — option (b), 2026-06-14).
       Runs the deterministic, ZERO-API gov-report daily so the governance-health read is
       automated (no operator tax) instead of "prose Markus executes by hand". It writes
       artifacts/gov/gov-report.md (gitignored — no churn). The /improve maintain rotation

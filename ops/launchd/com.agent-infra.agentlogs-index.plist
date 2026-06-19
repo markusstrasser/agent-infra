@@ -24,7 +24,7 @@
 		<string>--source-timeout</string>
 		<string>180</string>
 		<string>--max-run-seconds</string>
-		<string>600</string>
+		<string>1200</string>
 	</array>
 	<key>StandardErrorPath</key>
 	<string>/Users/alien/.claude/logs/agentlogs/index.err</string>
@@ -43,5 +43,7 @@
 	</array>
 	<key>WorkingDirectory</key>
 	<string>/Users/alien/Projects/agent-infra</string>
+	<!-- @system layer=watch role=indexer llm=none
+	     Every 2h + WatchPaths: multi-vendor session transcript import into agentlogs.db -->
 </dict>
 </plist>

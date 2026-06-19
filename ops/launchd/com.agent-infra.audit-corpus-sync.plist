@@ -6,8 +6,8 @@
     <key>Label</key>
     <string>com.agent-infra.audit-corpus-sync</string>
 
-    <!--
-      Phase 4 backstop for the substrate-v1 attestation flow.
+    <!-- @system layer=watch role=sync llm=none
+         Phase 4 backstop for the substrate-v1 attestation flow.
       Detects per-repo verdicts without a corresponding corpus annotation
       (and corpus annotations without a corresponding verdict).
       Exit non-zero on drift; output to log for next-session triage.
