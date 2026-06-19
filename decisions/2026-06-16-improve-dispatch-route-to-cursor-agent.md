@@ -97,14 +97,21 @@ auth-expiry / missing-binary / quota-stall **silently breaks the maintain loop a
 ## Disposition — DECOUPLE (the decision conflated two changes)
 
 The original framing made the **urgent cheap fix hostage to the larger architectural change**.
-The critique vindicates splitting them:
+The critique vindicates splitting them.
 
-- **Fix A — un-break the motor NOW (one line, proven lane).** Apply the residual
-  `pgrep -lf claude` → `pgrep -x claude` at `improve/SKILL.md:457`. This restores the EXISTING
-  claude+worktree Tier-2 dispatch immediately (verified correct: `-x`=5 vs `-lf`=105). Shared
-  infra ⇒ hard-limit #4 ⇒ **needs operator's explicit yes** (one-line, trivially reversible).
-- **Fix B — cursor-agent routing = a scoped HARDENING project, not a one-liner.** Operator-desired
-  direction (`#f` 2026-06-16), but per the critique it must ship behind a wrapper: `command -v`
-  + `cursor-agent status` preflight → exit-code + `--timeout` handling → deterministic stdout
-  capture to a known artifact (ANSI-stripped) → **fallback to the claude Agent lane on any
-  non-zero/timeout**. Gate Fix B on that wrapper spec; do NOT block Fix A on it.
+## RESOLVED 2026-06-19 — both SHIPPED (operator approved "do both")
+
+- **Fix A — SHIPPED** (`skills@ca6ea0f`). `pgrep -lf claude` → `pgrep -x claude` at
+  `improve/SKILL.md:457`. Un-breaks the dead Tier-2 gate (verified `-x`=5 vs `-lf`=105).
+- **Fix B — SHIPPED** as a hardened wrapper, not prose (`skills@d3cc9d7` +
+  `scripts/cursor_dispatch.sh`). Preflight (binary + `isAuthenticated`) → shell-`timeout`-bounded
+  run → ANSI-stripped capture → FALLBACK exit codes 10–14 → caller re-dispatches to the claude
+  Agent lane. Smoke-tested live (real Composer dispatch happy-path + fallback branches).
+- **Operator directive 2026-06-19:** cursor lane **defaults to Composer** (best price/perf,
+  encouraged), not opus; opus is an opt-in `--model` override for rare high-stakes. Memory:
+  `feedback-cursor-default-composer`.
+- **CLI ground-truth corrections** (verify-before-documenting paid off): cursor-agent has **no
+  native `--timeout`** (wrapped with shell `timeout`); `--mode` accepts only `plan|ask`;
+  `-f`=`--force`; the model string `claude-opus-4-8-thinking-high` IS valid (confirmed via
+  `--list-models`, refuting critique finding #38). The critique's load-bearing hallucination
+  (`pgrep -x`=0 "because Node.js") was refuted by the principal check (binary is named `claude`).
