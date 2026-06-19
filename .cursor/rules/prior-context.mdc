@@ -11,5 +11,6 @@ On **propose / diagnose / evaluate / status** prompts: before recommending archi
 1. `git log --oneline -30` in the repo (and sibling repos if topic is cross-project)
 2. Grep `research/` + `decisions/` + `.claude/rules/research-index.md` for topic keywords
 3. For observe/RSI/agentlogs questions: run `just orient` and check `.claude/blindspot-digest.md` (agent-infra)
+4. For **infra-design** prompts (schema, view, hook, just recipe): Claude Code also injects `EXISTING-INFRA` via `userprompt-prior-context.py` — Read `.claude/rules/codebase-map.md`, grep `scripts/`, and `just --list` before proposing new surfaces
 
 Build on prior work, narrow to the gap, or supersede explicitly — do not re-derive from scratch.
