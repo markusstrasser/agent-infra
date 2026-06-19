@@ -197,10 +197,18 @@ def json_loads_maybe(value: Any) -> Any:
         return value
 
 
+# isolate-by-default worktrees are named "<repo>-wt<pid>" by claude-launch.sh, so an
+# isolated session's cwd basename would otherwise index under a distinct slug. Collapse
+# the "-wt<digits>" suffix to the canonical repo slug so worktree sessions attribute to
+# their repo. No current slug ends in -wt<digits>, so this is a no-op on existing data.
+# (project_root keeps the real worktree path; only the grouping slug is canonicalized.)
+_WORKTREE_SLUG_SUFFIX = re.compile(r"-wt\d+$")
+
+
 def slug_from_path(path: str | None) -> str | None:
     if not path:
         return None
-    name = Path(path).name.strip()
+    name = _WORKTREE_SLUG_SUFFIX.sub("", Path(path).name.strip())
     return name or None
 
 
