@@ -97,6 +97,11 @@ architecture.png
 PRIORITIES.md
 # Blindspot miner digest (regenerated daily; auto-clears when no flags)
 .claude/blindspot-digest.md
+# Maintain-tick runtime telemetry (append log; churns every tick — track the generator, not the log)
+maintenance-actions.jsonl
+# Debug-scout run output (cursor ask-mode → docs/audit/*-debug-*; derived/ephemeral.
+# Durable codex-*/dispatch-research-* audits stay tracked.)
+docs/audit/*-debug-*
 
 # Downloaded paper PDFs (binaries — archival, not committed)
 research/papers/
