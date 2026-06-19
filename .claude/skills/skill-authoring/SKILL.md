@@ -227,6 +227,43 @@ Key scripts available in the plugin (for orchestrated/automated use):
 - `scripts/improve_description.py` — description optimization without interactive loop
 - `scripts/package_skill.py` — package skill into `.skill` file
 
+## Design Language: Predictability
+
+A skill exists to wrangle determinism out of a stochastic system. **Predictability — the agent taking
+the same _process_ every run** (not the same output) — is the root virtue; the levers below serve it.
+These complement the mechanics above (frontmatter, L1/L2/L3, per-step constraints).
+
+### Leading words
+
+A **leading word** is a compact concept already in the model's pretraining that the agent thinks *with*
+while running the skill (`lesson`, `fog of war`, `tracer bullet`, `red`). Repeated across the text it
+accrues a distributed definition and anchors a whole region of behavior in the fewest tokens — by
+recruiting priors the model already holds. It pays twice: in the **body** it anchors *execution* (same
+behavior every time the word appears); in the **description** it anchors *invocation* (when the same word
+lives in your prompts/docs/code, the agent links that shared language to the skill and fires it more
+reliably). Hunt restatements that collapse to one token:
+
+- `fast, deterministic, low-overhead` → a **tight** loop (one quality restated → one pretrained word).
+- `a loop you believe in` → the loop goes **red** on the bug (a fuzzy gate → a binary observable state).
+
+### Prune no-ops sentence by sentence
+
+Beyond "volume without quality": run the no-op test on each **sentence in isolation** — does it change
+behavior vs the model's default? When one fails, **delete the whole sentence**, don't trim words from it.
+Be aggressive; most prose that fails should go, not be rewritten.
+
+### Failure taxonomy (diagnose a misbehaving skill)
+
+| Failure | Tell | Fix |
+|---|---|---|
+| **Premature completion** | a step ends before it's genuinely done | sharpen the completion criterion first (cheap, local); only if it's irreducibly fuzzy AND you observe the rush, hide post-completion steps by splitting |
+| **Duplication** | same meaning in ≥2 places | single source of truth — also inflates a meaning's rank on the disclosure ladder past its real one |
+| **Sediment** | stale layers accrete (adding feels safe, removing risky) | a pruning discipline — the default fate of any skill without one |
+| **Sprawl** | too long even when every line is live | the ladder — disclose reference to L3, split by branch/sequence |
+| **No-op** | a line the model already obeys by default | delete it, or replace a weak leading word (`be thorough`) with a stronger one (`relentless`) |
+
+_Design-language folded from mattpocock/writing-great-skills; see `agent-infra/research/2026-06-19-mattpocock-skills-best-ideas.md`._
+
 ## Anti-Patterns
 
 - **Generic instructions** — telling Claude what it already knows. Low value per Agent-Diff.
