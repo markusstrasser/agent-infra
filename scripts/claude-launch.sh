@@ -50,11 +50,16 @@ SID="${CLAUDE_SESSION_ID:-launch-$$}"
 if $PY "$CLAIM" -C "$CHECKOUT" peer --session "$SID" >/dev/null 2>&1; then
   say "⚠  live peer on $CHECKOUT:"
   $PY "$CLAIM" -C "$CHECKOUT" status >&2 2>/dev/null || true
-  if [ -n "$DRYRUN" ]; then echo "[dry-run] live peer → would prompt [w]orktree / [s]hare"; exit 0; fi
-  printf "   [w] isolate in a worktree   [s] share anyway  > " >&2
+  if [ -n "$DRYRUN" ]; then echo "[dry-run] live peer → would prompt; default [w]orktree (Enter), [s] to share"; exit 0; fi
+  printf "   [W] isolate in a worktree (default)   [s] share anyway  > " >&2
+  # Default-ISOLATE (operator decision 2026-06-19): Enter / empty / anything-but-share
+  # → worktree, so isolation is the path of least resistance. Only an explicit [s]
+  # shares. A read FAILURE (no tty) still defaults to SHARE — never auto-switch into a
+  # worktree without a real answer (ADR 2026-06-16: ask, do not switch silently).
   read -r ans </dev/tty || ans="s"
   case "$ans" in
-    w|W)
+    s|S|share|SHARE) : ;;   # explicit share → fall through to the share path below
+    *)
       wt="$(basename "$CHECKOUT")-wt$$"
       say "   → claude --worktree $wt"
       do_exec --worktree "$wt" "$@" ;;
