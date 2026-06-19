@@ -23,6 +23,9 @@ just gather <plan.md>                   # deterministic context gather (no LLM)
 just critique <plan.md>                 # gather → cross-model critique
 just questions                          # human-gated pending decisions (act-drain VIEW)
 just graph <id>                         # RSI-lifecycle neighborhood of a decision/commit/finding (agentlogs-native; canonical relation vocab)
+just operator-status-briefing [repo]  # operator glance (llm:none)
+/orchestrate [repo] [status|audit|fix|ship]  # file-bus pipeline skill (cross-repo: just -f ~/Projects/agent-infra/justfile …)
+just orient                             # includes orchestrator-tool recipe list from ground truth
 ```
 
 ## Key Files
@@ -36,7 +39,7 @@ just graph <id>                         # RSI-lifecycle neighborhood of a decisi
 
 ## Research Index
 
-~272 research memos in `research/`. Full index with topics and "consult before" triggers: `.claude/rules/research-index.md` (path-scoped to `research/**`, `decisions/**`).
+~290 research memos in `research/`. Full index with topics and "consult before" triggers: `.claude/rules/research-index.md` (path-scoped to `research/**`, `decisions/**`).
 
 <constitution>
 > **Human-protected.** Agent may propose changes but must not modify without explicit approval.
@@ -152,7 +155,15 @@ How to verify this constitution is working (check via `/observe sessions` after 
 
 ## Active launchd jobs
 
-Live inventory: `just orient` (derived from ground truth, never stale). Slugs: `act-drain`, `agentlogs-index`, `audit-corpus-sync`, `blindspot-miner`, `clash-detect`, `codebase-map-refresh`, `corpus-ledger-commit`, `drift-sentinel`, `gov-report`, `hetzner-idle-watch`, `reclaim-rotate`, `risky-diff-review`, `test-health`, `vendor-sweep`. Summary: zero-API local jobs for agentlogs indexing, drift/blindspot/act-drain RSI loop, corpus sync, codebase-map refresh, vendor sweep; one LLM job (`clash-detect`, gemini-flash shadow). Orchestrator eradicated 2026-06-07 (was queue-backed; schedule removed 2026-04-24).
+**Never hand-enumerate slugs** — derived on every run:
+
+```bash
+just orient                    # Loops + typed launchd inventory
+just system-inventory --json   # full @system-tagged manifest + orchestrator recipes
+just system-inventory --drift  # manifest vs launchctl + architecture.mmd freshness
+```
+
+Summary: zero-API local jobs for agentlogs indexing, drift/blindspot/act-drain RSI loop, corpus sync, codebase-map refresh, vendor sweep, **maintain-tick** (RSI motor, dry-run); one LLM job (`clash-detect`, gemini-flash shadow). Queue **orchestrator** eradicated 2026-06-07 — session **orchestrator model** tools are `/orchestrate` + agent-infra just recipes.
 
 ## Backlog
 

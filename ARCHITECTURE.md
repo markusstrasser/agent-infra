@@ -1,12 +1,22 @@
 # Architecture — how the whole setup ties together
 
 **Start here** if you want the shape of the system in one screen. This is the visual
-front-door; the prose detail lives in the pointers at the bottom. Revise the diagram
-when you observe drift — don't let it rot (regen: edit `architecture.mmd`, then run the `mmdc` command at the bottom).
+front-door; the prose detail lives in the pointers at the bottom.
 
 ![Architecture flowchart](architecture.png)
 
-**Mermaid source:** [`architecture.mmd`](architecture.mmd) — the single source the `png` renders from. Edit it, then regen the image (below). The inline duplicate was removed 2026-06-16 (two copies drift; one source is constitution principle 9). `architecture.png` is **gitignored** (derived artifact — regen locally to view; the `.mmd` is the tracked source).
+**Sources (hybrid — shape hand, inventory derived):**
+
+| Artifact | Role |
+|---|---|
+| [`architecture.template.mmd`](architecture.template.mmd) | Stable topology — two loops, blocks, proposed edges |
+| [`architecture.mmd`](architecture.mmd) | **Generated** — template + live launchd/orchestrator inventory |
+| [`config/system-kinds.json`](config/system-kinds.json) | Closed vocabulary for `@system` tags (`layer`, `role`, `llm`) |
+| Plist `<!-- @system layer=… role=… llm=… -->` | Per-job typed manifest in `ops/launchd/` |
+| [`.claude/rules/orchestrator-tool-names.md`](.claude/rules/orchestrator-tool-names.md) | Session just-recipes + `layer`/`role` |
+
+Regenerate: `just render-architecture` then `mmdc` (below). `just orient --drift` fails if
+`architecture.mmd` is stale vs template+inventory. `architecture.png` is **gitignored** (derived).
 
 ## The two loops (sessions are the only sensor; the harness the only actuator)
 Everything the operator does happens **inside a session** — so sessions are the system's one
@@ -65,7 +75,8 @@ our regime is observable **scaffolding-RSI**, the converging non-FOOM kind.
 | Durable stores | git + `agentlogs.db` + corpus — the system's memory | `.claude/rules/session-forensics.md` · `decisions/2026-05-26-cross-attestation-substrate-v2.md` |
 | Session extraction (embed-once) | angle-agnostic semantic index over the session corpus — any new analysis angle is a free `emb` query, not a metered re-read; mistakes/decisions/steering all become queries | `research/2026-06-17-embed-once-validated-recurring-mistakes.md` · `scripts/export_sessions_for_emb.py` |
 | Lifecycle graph | `just graph <id>` — rederivable neighborhood over the RSI-lifecycle artifacts (decisions·research·predictions·commits) joined through ONE canonical relation vocab (invert-safe folds, `relates_to` non-traversable); materialized in agentlogs.db, no new store. Densified by commit→decision `implements`-edges parsed from commit bodies. | `scripts/lifecycle_relations.json` (vocab, single source) · `src/agentlogs/lifecycle.py` · `decisions-pending/2026-06-18-phaseB-implements-trailer.md` |
-| Self-monitoring | zero-API launchd jobs (sense half of RSI) — live set: `launchctl list \| grep com.agent-infra` | `CLAUDE.md` §Active launchd jobs |
+| Self-monitoring | zero-API launchd jobs (sense half of RSI) — **derived:** `just orient` · `just system-inventory` | `config/system-kinds.json` · `ops/launchd/*.plist` (`@system` tags) |
+| Session orchestrator | file-bus pipeline — `/orchestrate`, typed just recipes | `.claude/rules/orchestrator-tool-names.md` |
 | RSI governance | observe → improvement-log → promote to architecture | `CLAUDE.md` <constitution> · `.claude/rules/gov-id.md` |
 | Governed projects | intel/phenome/genomics/skills + their stances | `research/cross-project-architecture-overview.md` (prose, 2026-05-11) |
 | Codebase | py files by group + import-hubs (count is GENERATED, never hand-kept) | `.claude/rules/codebase-map.md` |
@@ -90,7 +101,7 @@ Drill deeper into one question:
 | Harness change pre-commit gate (Eve `eve eval` analog) | `just harness-eval` |
 | Approval-tier registry (block/warn/predicate hooks) | `uv run python3 scripts/approval_tiers.py` · `config/approval-tiers.json` |
 | Session structural replay (Eve Agent Runs analog) | `just session-trace <session-uuid-prefix>` |
-| Doc-vs-reality drift (live jobs vs this doc / CLAUDE.md) | `uv run python3 scripts/orient.py --drift` |
+| Doc-vs-reality drift (manifests + architecture.mmd) | `just orient --drift` · `just system-inventory --drift` |
 | Dead scripts (generator, no consumer) | `uv run python3 scripts/orphan_check.py` |
 | Scaffold lifecycle (rules/hooks, shrink-eligible vs backlog) | `just gov-report` |
 | Cross-project health (hooks · MCP · skills · symlinks) | `uv run python3 scripts/doctor.py` |
@@ -100,6 +111,7 @@ Drill deeper into one question:
 
 ## Regenerate the image
 ```bash
+just render-architecture
 mmdc -i architecture.mmd -o architecture.png -t dark -b '#0b0f19' --scale 2 \
   -p /tmp/puppeteer-cfg.json   # cfg: {"executablePath":"<system Chrome>","args":["--no-sandbox"]}
 ```
