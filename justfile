@@ -536,8 +536,13 @@ commit-prep *args='':
 # Install git pre-commit hooks (chains no-large-binaries + append-only/protected guards + codebase-map refresh)
 [group('epistemic')]
 install-hooks:
-    @ln -sf "$HOME/Projects/skills/hooks/pre-commit-guards.sh" .git/hooks/pre-commit
-    @echo "  ✓ .git/hooks/pre-commit → skills/hooks/pre-commit-guards.sh"
+    @rm -f .git/hooks/pre-commit
+    @printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' \
+      '"$HOME/Projects/skills/hooks/pre-commit-guards.sh"' \
+      'bash "$HOME/Projects/agent-infra/scripts/pre-commit-architecture-render.sh"' \
+      > .git/hooks/pre-commit
+    @chmod +x .git/hooks/pre-commit
+    @echo "  ✓ .git/hooks/pre-commit → guards + architecture-render (agent-infra)"
     @echo "    chains no-large-binaries + append-only/protected + codebase-map (from .precommit-guards.env)"
     @echo "  (bypass: GIT_ALLOW_BINARIES=1 / GIT_ALLOW_GUARD_BYPASS=1 / SKIP_CODEBASE_MAP_REFRESH=1)"
 
