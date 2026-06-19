@@ -17,8 +17,16 @@ def test_json_entrypoint_emits_all_sections(capsys, monkeypatch):
     rc = orient.main()
     assert rc == 0
     data = json.loads(capsys.readouterr().out)
-    for key in ("repos", "loops", "hooks", "mcp", "skills", "maps", "drift"):
+    for key in ("repos", "loops", "hooks", "mcp", "skills", "orchestrator_tools", "launchd_inventory", "maps", "drift"):
         assert key in data, f"missing section: {key}"
+
+
+def test_orchestrator_tools_shape():
+    ot = orient.collect_orchestrator_tools()
+    assert ot["skill"] == "/orchestrate"
+    assert ot["recipes"]
+    assert ot["recipes"][0]["recipe"] == "operator-status-briefing"
+    assert all(r["llm"] in ("none", "optional", "required") for r in ot["recipes"])
 
 
 def test_human_render_never_raises(capsys, monkeypatch):
@@ -55,15 +63,10 @@ def test_repos_include_the_hub():
     assert hub and hub[0]["repo"] == "agent-infra"
 
 
-def test_drift_flags_a_job_absent_from_claude_md():
-    out = orient.collect_drift([{"name": "zzz-not-a-real-job-xyz"}])
-    assert "zzz-not-a-real-job-xyz" in out["undocumented_in_claude_md"]
-
-
-def test_drift_passes_a_documented_job():
-    # agentlogs-index is named in CLAUDE.md's active-launchd-jobs paragraph
-    out = orient.collect_drift([{"name": "agentlogs-index"}])
-    assert out["undocumented_in_claude_md"] == []
+def test_drift_flags_manifest_not_loaded():
+    out = orient.collect_drift([])
+    assert "manifest_not_loaded" in out
+    assert "integrate-rank" not in out["manifest_not_loaded"]
 
 
 def test_drift_only_mode_exit_code(monkeypatch):

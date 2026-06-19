@@ -31,6 +31,13 @@ from common.console import bold, color_status, con, dim
 from common.paths import CLAUDE_DIR
 from config import PROJECT_ROOTS
 from common.project_registry import MIRRORED_REPOS
+from system_inventory import (
+    collect_drift as inventory_drift,
+    collect_inventory,
+    collect_launchd_inventory,
+    collect_orchestrator_recipes,
+    write_architecture_mmd,
+)
 
 HOME = Path.home()
 PROJECTS = HOME / "Projects"
@@ -103,28 +110,8 @@ def collect_repos() -> list[dict]:
 
 
 def collect_loops() -> list[dict]:
-    """launchd jobs — the recurring loops. Live, with last-exit status."""
-    out = _run(["launchctl", "list"])
-    if not out:
-        return [{"unavailable": True}]
-    jobs = []
-    for line in out.splitlines():
-        parts = line.split("\t")
-        if len(parts) != 3 or "com.agent-infra" not in parts[2]:
-            continue
-        pid, status, label = parts
-        short = label.replace("com.agent-infra.", "")
-        try:
-            exit_code = int(status)
-        except ValueError:
-            exit_code = None
-        jobs.append({
-            "name": short,
-            "running": pid not in ("-", "0") and pid.isdigit(),
-            "last_exit": exit_code,
-            "ok": exit_code == 0,
-        })
-    return sorted(jobs, key=lambda j: j["name"])
+    """launchd jobs — live state merged with @system tags from plist manifests."""
+    return collect_launchd_inventory()
 
 
 def collect_hooks() -> dict:
@@ -187,18 +174,24 @@ def collect_maps() -> list[dict]:
     return rows
 
 
-def collect_drift(loops: list[dict]) -> dict:
-    """Drift guard: live launchd jobs that CLAUDE.md does not mention.
+def collect_orchestrator_tools() -> dict:
+    """File-bus pipeline recipes — from orchestrator-tool-names.md via system_inventory."""
+    recipes = collect_orchestrator_recipes()
+    return {
+        "registry": ".claude/rules/orchestrator-tool-names.md",
+        "skill": "/orchestrate",
+        "invoke": "just -f ~/Projects/agent-infra/justfile <recipe> <target>",
+        "recipes": [{"recipe": r["recipe"], "llm": r["llm"], "layer": r["layer"], "role": r["role"]} for r in recipes],
+    }
 
-    This is the exact rot class that motivated orient — CLAUDE.md's
-    documented job list had already drifted from reality. Set comparison
-    against live ground truth, not fuzzy prose parsing.
-    """
-    claude_md = (REPO_ROOT / "CLAUDE.md")
-    text = claude_md.read_text() if claude_md.exists() else ""
-    live = [j["name"] for j in loops if j.get("name")]
-    undocumented = [n for n in live if n not in text]
-    return {"live_jobs": len(live), "undocumented_in_claude_md": undocumented}
+
+def collect_drift(loops: list[dict]) -> dict:
+    """Drift guard: tagged plist manifests vs live launchd + generated architecture.mmd."""
+    inv = inventory_drift()
+    _, arch_stale = write_architecture_mmd(check=True)
+    inv["architecture_mmd_stale"] = arch_stale
+    inv["has_drift"] = inv["has_drift"] or arch_stale
+    return inv
 
 
 # ── renderers (human output) ─────────────────────────────────────────
@@ -249,6 +242,26 @@ def render(data: dict) -> None:
     s = data["skills"]
     con.kv("count", str(s["count"]))
     con.kv("dir", s["dir"])
+    if "orchestrate" in s.get("names", []):
+        con.kv("orchestrator workflow", "/orchestrate  (see Orchestrator tools below)")
+
+    ot = data.get("orchestrator_tools") or {}
+    con.header("Orchestrator tools — file-bus pipeline (agent-infra)")
+    con.kv("skill", ot.get("skill", "/orchestrate"))
+    con.kv("registry", ot.get("registry", ""))
+    con.kv("from any repo", ot.get("invoke", ""))
+    for r in ot.get("recipes") or []:
+        con.step(f"{r['recipe']:<36} llm:{r['llm']:<8} {r.get('layer', '')}/{r.get('role', '')}")
+
+    con.header("Launchd inventory — typed (@system tags)")
+    for j in data.get("launchd_inventory") or []:
+        if not j.get("loaded"):
+            continue
+        st = "ok" if j.get("ok") else f"exit {j.get('last_exit')}"
+        con.step(f"{j['name']:<24} layer={j.get('layer','?'):<7} role={j.get('role','?'):<12} llm={j.get('llm','none'):<8} {st}")
+    manifest_idle = [j["name"] for j in (data.get("launchd_inventory") or []) if j.get("source") and not j.get("loaded")]
+    if manifest_idle:
+        con.kv("manifest not loaded", ", ".join(manifest_idle))
 
     con.header("Where to read more (freshness shown)")
     for d in data["maps"]:
@@ -264,13 +277,24 @@ def render(data: dict) -> None:
 
 
 def render_drift(drift: dict) -> None:
-    con.header("Drift check — docs vs. reality")
-    und = drift["undocumented_in_claude_md"]
-    if not und:
-        con.ok(f"all {drift['live_jobs']} live launchd jobs are named in CLAUDE.md")
+    con.header("Drift check — manifests vs. reality")
+    issues = []
+    if drift.get("untagged_ops_manifest"):
+        issues.append(f"ops/launchd missing @system: {', '.join(drift['untagged_ops_manifest'])}")
+    if drift.get("untagged_loaded"):
+        issues.append(f"loaded jobs missing @system tags: {', '.join(drift['untagged_loaded'])}")
+    if drift.get("loaded_no_manifest_in_repo"):
+        issues.append(f"loaded with no repo plist: {', '.join(drift['loaded_no_manifest_in_repo'])}")
+    if drift.get("manifest_not_loaded"):
+        issues.append(f"manifest plists not loaded: {', '.join(drift['manifest_not_loaded'])}")
+    if drift.get("architecture_mmd_stale"):
+        issues.append("architecture.mmd stale — run: just render-architecture")
+    if not issues:
+        con.ok("launchd inventory + architecture.mmd in sync")
     else:
-        con.fail(f"{len(und)} live job(s) NOT documented in CLAUDE.md: {', '.join(und)}")
-        con.step("→ add them to CLAUDE.md 'Active launchd jobs', or retire the job")
+        for msg in issues:
+            con.fail(msg)
+        con.step("→ tag plists with <!-- @system layer=… role=… llm=… --> · render from architecture.template.mmd")
 
 
 def main() -> int:
@@ -283,7 +307,7 @@ def main() -> int:
             print(json.dumps(drift, indent=2))
         else:
             render_drift(drift)
-        return 1 if drift.get("undocumented_in_claude_md") else 0
+        return 1 if drift.get("has_drift") else 0
 
     data = {
         "repos": _safe(collect_repos, "repos"),
@@ -291,6 +315,8 @@ def main() -> int:
         "hooks": _safe(collect_hooks, "hooks"),
         "mcp": _safe(collect_mcp, "mcp"),
         "skills": _safe(collect_skills, "skills"),
+        "orchestrator_tools": _safe(collect_orchestrator_tools, "orchestrator_tools"),
+        "launchd_inventory": _safe(lambda: collect_inventory()["launchd"], "launchd_inventory"),
         "maps": _safe(collect_maps, "maps"),
     }
     data["drift"] = collect_drift(loops if isinstance(loops, list) else [])
