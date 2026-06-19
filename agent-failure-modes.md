@@ -193,7 +193,7 @@ FM-ID: fm5-error-amplification
 signature: multi-agent output passed downstream with no parent verification step between agents (peer-to-peer, not orchestrator-mediated)
 target_surface: subagent dispatch decision-point gate enforcing orchestrator-worker (centralized) topology; session-analyst label
 status: active
-evidence_count: 0
+evidence_count: 1
 -->
 ```
 IF independent agents pass outputs without validation
