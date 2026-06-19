@@ -15,6 +15,8 @@ import json
 import re
 from pathlib import Path
 
+from session_automation_telemetry import summarize, fetch_sessions, DB as AGENTLOGS_DB
+
 REPO = Path(__file__).resolve().parent.parent
 CAPTURE_LOG = Path.home() / ".claude" / "reflect-capture.jsonl"
 PROCESSED = Path.home() / ".claude" / "reflect-processed.json"
@@ -118,6 +120,8 @@ def metrics() -> dict:
     fm_evidence = _count_jsonl(FM_EVIDENCE) if FM_EVIDENCE.exists() else 0
     unclassified = max(0, captured - processed)
     disposition = len(quarantine) + steward + len(rsi)
+    session_rows = fetch_sessions(AGENTLOGS_DB, 7, None) if AGENTLOGS_DB.is_file() else []
+    session_split = summarize(session_rows) if session_rows else {}
     return {
         "captured": captured,
         "classified": processed,
@@ -130,6 +134,7 @@ def metrics() -> dict:
         "disposition_queue": disposition,
         "rsi_pending": rsi,
         "quarantine": quarantine,
+        "session_split_7d": session_split,
     }
 
 
@@ -144,6 +149,12 @@ def render(m: dict) -> str:
         f"- disposition queue (human): **{m['disposition_queue']}** · "
         f"FM evidence rows: **{m['fm_evidence_rows']}**",
     ]
+    ss = m.get("session_split_7d") or {}
+    if ss.get("total"):
+        lines.append(
+            f"- sessions (7d): **{ss['total']}** · automation **{ss.get('automation_pct', 0)}%** · "
+            f"operator **{ss.get('operator', 0)}**"
+        )
     if m["rsi_pending"]:
         lines.append("\n### RSI close (run `/rsi close`)")
         for row in m["rsi_pending"][:3]:
