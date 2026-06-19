@@ -1,0 +1,30 @@
+{
+  "repos": {
+    "agent-infra": {
+      "root": "~/Projects/agent-infra",
+      "source_dirs": ["scripts"],
+      "compact": false
+    },
+    "intel": {
+      "root": "~/Projects/intel",
+      "source_dirs": ["tools", "analysis"],
+      "compact": true
+    },
+    "research-mcp": {
+      "root": "~/Projects/research-mcp",
+      "source_dirs": ["src"],
+      "compact": false
+    },
+    "genomics": {
+      "root": "~/Projects/genomics",
+      "source_dirs": ["scripts"],
+      "compact": true,
+      "extra_gitignore": ["docs/codebase-map.md"]
+    },
+    "phenome": {
+      "root": "~/Projects/phenome",
+      "source_dirs": ["scripts", "src"],
+      "compact": false
+    }
+  }
+}

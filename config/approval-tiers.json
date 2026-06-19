@@ -1,0 +1,122 @@
+{
+  "version": 1,
+  "description": "Eve needsApproval analog — maps pretool hooks to block / predicate / warn tiers. Doctor enforces manifest ↔ disk; new global pretool guards should land here.",
+  "tiers": [
+    {
+      "id": "irreversible_write",
+      "action": "block",
+      "description": "Protected data, append-only files, archive moves",
+      "hooks": [
+        "pretool-data-guard.sh",
+        "pretool-append-only-guard.sh",
+        "pretool-archive-guard.sh",
+        "pretool-plan-protect.sh"
+      ]
+    },
+    {
+      "id": "destructive_git",
+      "action": "block",
+      "description": "Destructive or scope-violating git operations",
+      "hooks": [
+        "pretool-git-add-all-guard.sh",
+        "pretool-destructive-git-ref.sh",
+        "pretool-multiagent-commit-guard.sh",
+        "pretool-no-background-commit.sh",
+        "pretool-predelete-ref-guard.sh"
+      ]
+    },
+    {
+      "id": "bash_safety",
+      "action": "block",
+      "description": "Multiline bash / loop parse failures",
+      "hooks": [
+        "pretool-bash-loop-guard.sh",
+        "pretool-streaming-cli-guard.sh",
+        "pretool-bash-background-ampersand.py"
+      ]
+    },
+    {
+      "id": "spend_threshold",
+      "action": "predicate",
+      "description": "API spend — warn $500 / block $1000 (pretool-cost-guard)",
+      "hooks": [
+        "pretool-cost-guard.sh",
+        "pretool-modal-cost-guard.sh",
+        "pretool-modal-run-guard.sh",
+        "pretool-modal-script-audit.sh"
+      ]
+    },
+    {
+      "id": "invocation_discipline",
+      "action": "block",
+      "description": "Wrong python/uv/modal/duckdb invocation surfaces",
+      "hooks": [
+        "pretool-uv-python-guard.py",
+        "pretool-genomics-pythonpath-guard.py",
+        "pretool-bare-modal-guard.py",
+        "pretool-duckdb-quote-guard.sh",
+        "pretool-raw-openai-guard.sh"
+      ]
+    },
+    {
+      "id": "dispatch_governance",
+      "action": "block",
+      "description": "Subagent dispatch, worktree scope, regression DAG",
+      "hooks": [
+        "pretool-subagent-gate.sh",
+        "pretool-worktree-staleness-guard.py",
+        "pretool-regression-dag-gate.sh",
+        "pretool-cursor-model-guard.py",
+        "pretool-research-skill-gate.py"
+      ]
+    },
+    {
+      "id": "advisory_context",
+      "action": "warn",
+      "description": "Front-load context; does not block",
+      "hooks": [
+        "pretool-inventory-dispatch.py",
+        "pretool-heavy-load-guard.sh",
+        "pretool-cost-awareness.sh",
+        "pretool-companion-remind.sh",
+        "pretool-corpus-remind.sh",
+        "pretool-exa-context-guard.sh",
+        "pretool-governance-edit-notice.sh",
+        "pretool-goal-drift.sh",
+        "pretool-research-provenance-warn.sh",
+        "pretool-search-burst.sh",
+        "pretool-consensus-search.sh",
+        "pretool-skill-log.sh",
+        "pretool-source-remind.sh",
+        "pretool-read-discipline.sh",
+        "pretool-dataset-probe-first.sh",
+        "pretool-eval-preflight.sh",
+        "pretool-terse-bash.sh",
+        "pretool-genomics-mcp-routing.sh"
+      ]
+    },
+    {
+      "id": "inject",
+      "action": "inject",
+      "description": "Environment injection — not approval gates",
+      "hooks": [
+        "pretool-git-noext-inject.sh",
+        "pretool-pyunbuffered-inject.sh"
+      ]
+    },
+    {
+      "id": "lint_advisory",
+      "action": "warn",
+      "description": "Pre-commit / AST / commit-message nudges",
+      "hooks": [
+        "pretool-ast-precommit.sh",
+        "pretool-commit-check.sh"
+      ]
+    }
+  ],
+  "optional_per_project": [
+    "pretool-todos-lint.sh",
+    "pretool-archive-guard.sh",
+    "pretool-regen-config-lever.sh"
+  ]
+}
