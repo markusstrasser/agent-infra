@@ -36,6 +36,7 @@ __pycache__/
 # The '!' is escaped to prevent issues if script is sourced in zsh
 \!.env.example
 **/.claude/checkpoint.md
+**/.claude/checkpoint-autogen.md
 .claude/scheduled_tasks.lock
 **/.claude/current-session-id
 **/.claude/checkout-claim.json
