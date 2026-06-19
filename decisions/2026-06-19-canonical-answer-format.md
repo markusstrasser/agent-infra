@@ -1,6 +1,8 @@
 ---
 date: 2026-06-19
-status: pending
+status: accepted            # operator "go" 2026-06-19; adopted agent-infra-first
+adopted_as: .claude/rules/canonical-answer-format.md
+propagation: deferred       # global (all projects/vendors) propagation still open — operator chose agent-infra-first
 type: decision
 boundary: shared            # response format = global interaction style, 3+ projects → operator gate
 reversibility: high         # prose spec + optional advisory hook; git
