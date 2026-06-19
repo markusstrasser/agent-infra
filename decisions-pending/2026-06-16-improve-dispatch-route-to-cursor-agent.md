@@ -70,3 +70,41 @@ better).
 - `#47936` OPEN (verified 2026-06-16 via claude-code-guide); `subagent-zero-output-gate-stays`
 - cursor-agent live: `2026.06.15` build, authed (`cursor-agent status` ✓)
 - `feedback-cursor-agent-for-codebase-review` (memory)
+
+---
+
+## P12 cross-lab critique verdict — 2026-06-19
+
+Cross-model critique run (`.model-review/2026-06-19-critique-…-2fd78d/`): 54 claims →
+16 confirmed, 5 hallucinated, 32 inconclusive. The premise-scout (cursor-agent, repo-coupled)
+**timed out at 90s**, so the dispatch fell back to repo-blind external models — which produced
+the one hallucination that matters:
+
+- **REFUTED (hallucination):** "`pgrep -x claude` returns zero because Claude Code is Node.js."
+  Principal check on this machine: `pgrep -x claude` = **5** real processes; the executable is
+  literally named `claude` (`/Users/alien/.local/bin/claude`), not `node`. The `-x` fix is
+  correct here. (Classic context-blind-model environment hallucination — `feedback-cursor-agent-for-codebase-review`.)
+
+**The confirmed findings all converge on ONE thing:** routing Tier-2 to cursor-agent — even the
+narrow option (a) — is **NOT a one-line change**. Replacing a lane in the shared `improve/SKILL.md`
+with an external-CLI dependency requires an operational safety wrapper, or a cursor-agent
+auth-expiry / missing-binary / quota-stall **silently breaks the maintain loop across every repo**:
+- output contract undefined (read-only `--mode ask` vs "persists to repo" — contradictory) [#2,#8,#21,#30]
+- no install/auth preflight, no exit-code/timeout handling, no fallback to the claude lane [#3,#11,#17,#20,#49]
+- immediate cutover, no canary, high blast radius on shared infra [#18,#19]
+- high-latency model / quota may starve the per-tick loop; worktree-escape risk [#44,#48,#46]
+
+## Disposition — DECOUPLE (the decision conflated two changes)
+
+The original framing made the **urgent cheap fix hostage to the larger architectural change**.
+The critique vindicates splitting them:
+
+- **Fix A — un-break the motor NOW (one line, proven lane).** Apply the residual
+  `pgrep -lf claude` → `pgrep -x claude` at `improve/SKILL.md:457`. This restores the EXISTING
+  claude+worktree Tier-2 dispatch immediately (verified correct: `-x`=5 vs `-lf`=105). Shared
+  infra ⇒ hard-limit #4 ⇒ **needs operator's explicit yes** (one-line, trivially reversible).
+- **Fix B — cursor-agent routing = a scoped HARDENING project, not a one-liner.** Operator-desired
+  direction (`#f` 2026-06-16), but per the critique it must ship behind a wrapper: `command -v`
+  + `cursor-agent status` preflight → exit-code + `--timeout` handling → deterministic stdout
+  capture to a known artifact (ANSI-stripped) → **fallback to the claude Agent lane on any
+  non-zero/timeout**. Gate Fix B on that wrapper spec; do NOT block Fix A on it.
