@@ -84,8 +84,31 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-06-16-session-surface-errors-verified.md` | Session Surface Errors — Verified Research (2026-06-16) | TODO |
 | `2026-06-17-embed-once-validated-recurring-mistakes.md` | Embed-once session extraction — validated + first recurring-mistake findings | TODO |
 | `2026-06-17-vercel-eve-harness-steals.md` | Vercel Eve vs agent-infra — research + simulated steals | TODO |
+| `2026-06-18-elicitation-best-practices.md` | RESEARCH IN PROGRESS | TODO |
 | `2026-06-18-hutter-anim-rsi-comparative-report.md` | Hutter vs anim-workbench RSI — comparative report | TODO |
 | `2026-06-18-loop-core-probe-v2-algorithm-layer.md` | loop-core probe v2 — algorithm-layer deletion test | TODO |
+| `2026-06-18-plan-contract-frontend-synthesis.md` | Plan-contract front-end — research synthesis | TODO |
+| `2026-06-18-planning-process-alignment-report.md` | Planning process alignment report | TODO |
+| `2026-06-18-planning-process-deep-diagnosis.md` | Planning process — deep diagnosis | TODO |
+| `2026-06-18-spec-formats-best-practices.md` | Spec Formats Best Practices — agent-infra Plan Contract | TODO |
+| `2026-06-18-spec-versioning-best-practices.md` | RESEARCH IN PROGRESS | TODO |
+| `2026-06-18-why-grep-stays-winning.md` | Why grep stays winning for agentic code work | TODO |
+| `2026-06-19-auto-integration-rank.md` | Auto integration rank — 2026-06-19 (deterministic) | TODO |
+| `2026-06-19-auto-self-improvement-audit.md` | Automatic self-improvement audit — Jun 18–19 | TODO |
+| `2026-06-19-behavioral-eval-feasibility.md` | Behavioral eval from session-corrections — feasibility probe | TODO |
+| `2026-06-19-debug-pipeline-critique.md` | Debug scout pipeline — lean critique | TODO |
+| `2026-06-19-evolutionary-autoresearch-frameworks.md` | Evolutionary Program-Search & Autoresearch — 2026 successors | TODO |
+| `2026-06-19-hermes-deep-dive-local.md` | Hermes self-evolution — second-order dive on LOCAL code | TODO |
+| `2026-06-19-hermes-self-evolution-pattern.md` | Hermes Agent Self-Evolution — what it actually is, vs our RSI loop | TODO |
+| `2026-06-19-mattpocock-skills-best-ideas.md` | mattpocock/skills@1.0.0 — all best ideas + what to integrate | TODO |
+| `2026-06-19-multiagent-orchestrator-tool-survey.md` | Multiagent week — what happened + what tools to build | TODO |
+| `2026-06-19-orchestrator-tools-plan-synthesis.md` | Tooling plan (tested, critiqued, renamed) | TODO |
+| `2026-06-19-rsi-github-oss-delta.md` | RSI GitHub/OSS Delta | TODO |
+| `2026-06-19-rsi-labs-blogposts-delta.md` | RSI labs/practitioner blogposts — delta | TODO |
+| `2026-06-19-rsi-sota-arxiv-delta.md` | RSI & Self-Evolving Agents — arXiv SoTA Delta | TODO |
+| `2026-06-19-rsi-sota-synthesis-what-to-integrate.md` | RSI / autoresearch SoTA — what to integrate | TODO |
+| `2026-06-19-steering-vectors.md` | Steering vectors — session mine (2026-06-19) | TODO |
+| `2026-06-19-tooling-api-critique-synthesis.md` | Critique → ship | TODO |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
 | `adversarial-case-library.md` | Adversarial Case Library: The Best "Calling BS" Reviews | TODO |
 | `agent-behavior-refresh-2026-04.md` | Agent Behavior Delta — Memory, Self-Modification, Sycophancy | TODO |
@@ -274,5 +297,6 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `trending-scout-2026-06-11.md` | Trending Scout — 2026-06-11 | TODO |
 | `trending-scout-2026-06-13.md` | Trending Scout — 2026-06-13 | TODO |
 | `trending-scout-2026-06-15.md` | Trending Scout — 2026-06-15 | TODO |
+| `trending-scout-2026-06-19.md` | Trending Scout — 2026-06-19 | TODO |
 | `weekly-agent-infra-sweep-2026-04-02.md` | Weekly Agent Infra Sweep 2026 04 02 | TODO |
 | `wiki-vs-flat-for-agents.md` | Wiki Vs Flat For Agents | TODO |
