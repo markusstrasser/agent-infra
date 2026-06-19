@@ -258,7 +258,7 @@ FM-ID: fm9-diminishing-multiagent-returns
 signature: agents added to a workflow whose single-agent success rate already exceeds ~45% (negative marginal return)
 target_surface: subagent dispatch decision-point gate; /observe supervision mode reviewing fan-out ROI
 status: active
-evidence_count: 1
+evidence_count: 2
 -->
 ```
 IF single agent success rate > 45%
@@ -348,7 +348,7 @@ FM-ID: fm15-silent-semantic-failure
 signature: reasoning drift / wrong bucket / misleading diagnostic that raises no runtime exception
 target_surface: post-impl /critique close; report-only canary before any enforcer goes active
 status: active
-evidence_count: 1
+evidence_count: 2
 -->
 ```
 IF agent reasoning drifts (hallucination, goal confusion, logic error)
@@ -622,7 +622,7 @@ FM-ID: fm24-retry-without-diagnosis
 signature: same tool called 3+ times with varied params and no diagnosis step between failures
 target_surface: spinning-detector / tool-failure hooks; decision-point gate before blind retry
 status: active
-evidence_count: 894
+evidence_count: 1060
 -->
 ```
 IF external tool/API call fails
@@ -839,7 +839,7 @@ FM-ID: stale-canonical-artifacts
 signature: code fix lands; previously-generated defective outputs keep their canonical filenames while fixes accumulate in suffixed siblings; user keeps opening the stale file
 target_surface: regenerate canonical-named outputs in place after any pipeline fix; embed provenance (git rev + config) in output metadata
 status: active
-evidence_count: 2
+evidence_count: 3
 -->
 The user opens the plain-named file. Half a debugging session lost to an agent
 analyzing `_v3`/`_fixed` siblings while the user looked at the stale pre-fix
