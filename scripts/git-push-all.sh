@@ -1,168 +1,107 @@
 #!/usr/bin/env bash
-# Push all relevant repos (phenome, genomics, intel, sean, agent-infra, skills)
+# Push all main workspace repos (non-interactive).
 #
-# Usage: ./scripts/git-push-all.sh [--dry-run|--status]
+# Usage:
+#   ./scripts/git-push-all.sh              # push where ahead > 0
+#   ./scripts/git-push-all.sh --dry-run
+#   ./scripts/git-push-all.sh --status
+#   ./scripts/git-push-all.sh -- origin main   # extra args → git push
 
-set -euo pipefail
+set -uo pipefail
 
+# Governed + shared infra (not every Projects/* mirror)
 REPOS=(
-    "$HOME/Projects/phenome"
-    "$HOME/Projects/genomics"
-    "$HOME/Projects/intel"
-    "$HOME/Projects/sean"
-    "$HOME/Projects/agent-infra"
-    "$HOME/Projects/skills"
+    agent-infra
+    intel
+    genomics
+    phenome
+    skills
+    research-mcp
+    llmx
+    anim-workbench
+    hutter
 )
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
-
+PROJECTS="${PROJECTS:-$HOME/Projects}"
 dry_run=false
 status_only=false
+push_args=()
 
-# Parse args
-for arg in "${@:-}"; do
-    case "$arg" in
-        --dry-run) dry_run=true ;;
-        --status) status_only=true ;;
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --dry-run) dry_run=true; shift ;;
+        --status) status_only=true; shift ;;
+        --) shift; push_args=("$@"); break ;;
+        *) push_args+=("$1"); shift ;;
     esac
 done
 
-push_repo() {
-    local repo="$1"
-    local name
-    name=$(basename "$repo")
-    
-    echo -e "${BLUE}━━━ $name ━━━${NC}"
-    
+[[ ${#push_args[@]} -eq 0 ]] && push_args=(origin HEAD)
+
+push_one() {
+    local name="$1"
+    local repo="$PROJECTS/$name"
+    printf "  %-18s " "$name"
+
     if [[ ! -d "$repo/.git" ]]; then
-        echo -e "${RED}  ✗ Not a git repo${NC}"
-        echo
-        return 1
-    fi
-    
-    cd "$repo"
-    
-    # Check current branch
-    local branch
-    branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
-    
-    # Check for uncommitted changes
-    local has_changes=false
-    if ! git diff-index --quiet HEAD -- 2>/dev/null; then
-        has_changes=true
-    fi
-    
-    # Check for unpushed commits
-    local has_unpushed=false
-    local unpushed_count=0
-    if git rev-parse --abbrev-ref --symbolic-full-name @{u} &>/dev/null; then
-        unpushed_count=$(git rev-list --count HEAD..@{u} 2>/dev/null || echo 0)
-        if [[ "$unpushed_count" -gt 0 ]]; then
-            has_unpushed=true
-        fi
-        unpushed_count=$(git rev-list --count @{u}..HEAD 2>/dev/null || echo 0)
-        if [[ "$unpushed_count" -gt 0 ]]; then
-            has_unpushed=true
-        fi
-    else
-        # No upstream set
-        unpushed_count=$(git rev-list --count --remotes --not HEAD 2>/dev/null || echo 0)
-        if [[ "$unpushed_count" -gt 0 ]]; then
-            has_unpushed=true
-        fi
-    fi
-    
-    # Get ahead/behind counts
-    local ahead=0 behind=0
-    if git rev-parse --abbrev-ref --symbolic-full-name @{u} &>/dev/null; then
-        ahead=$(git rev-list --count @{u}..HEAD 2>/dev/null || echo 0)
-        behind=$(git rev-list --count HEAD..@{u} 2>/dev/null || echo 0)
-    fi
-    
-    # Display status
-    echo "  Branch: $branch"
-    
-    if $has_changes; then
-        local change_count
-        change_count=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')
-        echo -e "  ${YELLOW}⚡ Uncommitted: $change_count files${NC}"
-    else
-        echo -e "  ${GREEN}✓ Clean working tree${NC}"
-    fi
-    
-    if [[ "$ahead" -gt 0 ]]; then
-        echo -e "  ${YELLOW}↑ $ahead commits ahead of remote${NC}"
-    elif [[ "$behind" -gt 0 ]]; then
-        echo -e "  ${YELLOW}↓ $behind commits behind remote${NC}"
-    else
-        echo -e "  ${GREEN}✓ In sync with remote${NC}"
-    fi
-    
-    if $status_only; then
-        echo
+        echo "skip (no repo)"
         return 0
     fi
-    
-    # Commit message prompt if there are changes
-    if $has_changes; then
-        echo
-        echo -n "  Commit message (or 'skip' to skip, 'add' to add all): "
-        read -r msg
-        
-        if [[ "$msg" == "skip" ]]; then
-            echo "  Skipping commit"
-        elif [[ "$msg" == "add" ]]; then
-            echo -n "  Enter commit message: "
-            read -r msg
-            if [[ -n "$msg" ]]; then
-                if $dry_run; then
-                    echo "  [DRY RUN] Would: git add -A && git commit -m '$msg'"
-                else
-                    git add -A
-                    git commit -m "$msg" && echo -e "  ${GREEN}✓ Committed${NC}"
-                fi
-            fi
-        elif [[ -n "$msg" ]]; then
-            if $dry_run; then
-                echo "  [DRY RUN] Would: git commit -am '$msg'"
-            else
-                git commit -am "$msg" && echo -e "  ${GREEN}✓ Committed${NC}"
-            fi
-        fi
+
+    local branch ahead dirty upstream
+    branch=$(git -C "$repo" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "?")
+    dirty=$(git -C "$repo" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+
+    if ! upstream=$(git -C "$repo" rev-parse --abbrev-ref '@{u}' 2>/dev/null); then
+        echo "skip (no upstream on $branch)"
+        return 0
     fi
-    
-    # Push if there are unpushed commits or we just committed
-    if [[ "$ahead" -gt 0 ]] || { ! $status_only && $has_changes && [[ "${msg:-}" != "skip" ]]; }; then
-        if $dry_run; then
-            echo "  [DRY RUN] Would: git push origin $branch"
-        else
-            if git push origin "$branch" 2>&1 | head -5; then
-                echo -e "  ${GREEN}✓ Pushed to origin/$branch${NC}"
-            else
-                echo -e "  ${RED}✗ Push failed${NC}"
-            fi
-        fi
+
+    ahead=$(git -C "$repo" rev-list --count '@{u}'..HEAD 2>/dev/null || echo 0)
+    local behind
+    behind=$(git -C "$repo" rev-list --count HEAD..'@{u}' 2>/dev/null || echo 0)
+
+    if $status_only; then
+        local extra=""
+        [[ "$dirty" != "0" ]] && extra+=" dirty=$dirty"
+        [[ "$ahead" != "0" ]] && extra+=" ahead=$ahead"
+        [[ "$behind" != "0" ]] && extra+=" behind=$behind"
+        [[ -z "$extra" ]] && extra=" in sync"
+        echo "$branch$extra"
+        return 0
     fi
-    
-    echo
+
+    if [[ "$ahead" == "0" ]]; then
+        echo "skip (nothing to push)"
+        return 0
+    fi
+
+    if [[ "$dirty" != "0" ]]; then
+        echo -n "dirty=$dirty "
+    fi
+
+    if $dry_run; then
+        echo "would push $ahead → $upstream"
+        return 0
+    fi
+
+    if git -C "$repo" push "${push_args[@]}" 2>&1 | tail -3; then
+        echo "ok ($ahead pushed)"
+    else
+        echo "FAIL"
+        return 1
+    fi
 }
 
-# Main
-if $dry_run; then
-    echo -e "${YELLOW}=== DRY RUN MODE ===${NC}"
-    echo
-elif $status_only; then
-    echo -e "${BLUE}=== Git Status Overview ===${NC}"
-    echo
-fi
-
-for repo in "${REPOS[@]}"; do
-    push_repo "$repo"
+failed=0
+echo "=== push-all (main repos) ==="
+for name in "${REPOS[@]}"; do
+    push_one "$name" || failed=$((failed + 1))
 done
 
-echo -e "${GREEN}Done.${NC}"
+if $status_only; then
+    exit 0
+fi
+
+echo "=== done (${failed} failed) ==="
+exit $(( failed > 0 ? 1 : 0 ))

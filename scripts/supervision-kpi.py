@@ -42,6 +42,9 @@ from config import extract_project_name
 
 import supervision_taxonomy as tax
 
+AGENTLOGS_DB = Path.home() / ".claude" / "agentlogs.db"
+_BYPASS_MODES = frozenset({"bypassPermissions", "dontAsk", "never", "auto"})
+
 # Patterns for system-injected user messages to skip (parsing concern, not taxonomy).
 SYSTEM_REMINDER_RE = re.compile(r"<system-reminder>", re.IGNORECASE)
 SYSTEM_INJECTED_RE = re.compile(
@@ -217,6 +220,78 @@ def _count_corrections_after_hooks(hook_turns: list[int], correction_turns: list
         if any(ht + off in correction_set for off in range(1, window + 1)):
             count += 1
     return count
+
+
+def query_approval_mode_stats(days: int = 21) -> dict | None:
+    """agentlogs runs.approval_mode distribution — Eve needsApproval ground-truth proxy."""
+    if not AGENTLOGS_DB.is_file():
+        return None
+    try:
+        from common.db import open_db_ro
+        with open_db_ro(AGENTLOGS_DB) as con:
+            dist = {
+                row[0]: row[1] for row in con.execute(
+                    "SELECT COALESCE(approval_mode, '(null)') AS mode, COUNT(*) "
+                    "FROM runs WHERE started_at > datetime('now', ?) GROUP BY mode",
+                    (f"-{days} days",),
+                )
+            }
+            recent = {
+                row[0]: row[1] for row in con.execute(
+                    "SELECT COALESCE(approval_mode, '(null)'), COUNT(*) FROM runs "
+                    "WHERE started_at > datetime('now', '-7 days') GROUP BY 1"
+                )
+            }
+            prior = {
+                row[0]: row[1] for row in con.execute(
+                    "SELECT COALESCE(approval_mode, '(null)'), COUNT(*) FROM runs "
+                    "WHERE started_at BETWEEN datetime('now', '-14 days') "
+                    "AND datetime('now', '-7 days') GROUP BY 1"
+                )
+            }
+    except Exception:
+        return None
+    if not dist:
+        return None
+
+    def bypass_share(d: dict[str, int]) -> float:
+        total = sum(d.values()) or 1
+        bypass = sum(n for m, n in d.items() if m in _BYPASS_MODES)
+        return bypass / total
+
+    return {
+        "days": days,
+        "distribution": dist,
+        "bypass_share_recent_7d": round(bypass_share(recent), 3),
+        "bypass_share_prior_7d": round(bypass_share(prior), 3),
+        "total_runs": sum(dist.values()),
+    }
+
+
+def _print_approval_mode_stats(window_days: int, results: list[dict]) -> None:
+    if window_days < 7:
+        return
+    stats = query_approval_mode_stats(window_days)
+    if not stats:
+        return
+    dist = stats["distribution"]
+    top = sorted(dist.items(), key=lambda x: -x[1])[:5]
+    parts = ", ".join(f"{m}={n}" for m, n in top)
+    print(f"APPROVAL_MODES ({stats['total_runs']} runs, {window_days}d): {parts}", file=sys.stderr)
+    br, bp = stats["bypass_share_recent_7d"], stats["bypass_share_prior_7d"]
+    if br != bp:
+        print(f"  bypass-mode share: {bp:.1%} → {br:.1%} (7d prior → recent)", file=sys.stderr)
+    air_sessions = [r for r in results if r.get("air") is not None]
+    if air_sessions and br > bp + 0.05:
+        total_hooks = sum(r["hooks_shown"] for r in air_sessions)
+        total_after = sum(r["corrections_after_hooks"] for r in air_sessions)
+        air = total_after / total_hooks if total_hooks else 0
+        if air > 0.05:
+            print(
+                "  ⚠ PROBLEM-HIDING? bypass-mode share rose while AIR elevated "
+                f"({air:.3f}) — supervision may be dropping via mode, not hooks",
+                file=sys.stderr,
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -396,6 +471,11 @@ def _print_summary(results: list[dict], args) -> None:
         total_after = sum(r["corrections_after_hooks"] for r in air_sessions)
         overall_air = total_after / total_hooks if total_hooks else 0
         print(f"AIR: {overall_air:.3f} ({total_after}/{total_hooks} corrections after hooks, lower = better)", file=sys.stderr)
+
+    _print_approval_mode_stats(
+        21 if getattr(args, "today", False) else (getattr(args, "days", None) or 30),
+        results,
+    )
 
 
 def _print_comparison(results: list[dict], args, window_days: int) -> None:

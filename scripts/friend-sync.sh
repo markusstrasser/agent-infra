@@ -76,8 +76,37 @@ done
 
 step "CLI tools"
 
-# npm global packages
-for pkg in @anthropic-ai/claude-code @google/gemini-cli @openai/codex; do
+export PATH="$HOME/.local/bin:$PATH"
+
+# Claude Code (native — auto-updates in background; friend-sync nudges explicitly)
+if command -v claude &>/dev/null && [ -d "$HOME/.local/share/claude" ]; then
+    before=$(claude --version 2>/dev/null | sed 's/ (Claude Code)//' | head -1 || echo "?")
+    if claude update &>/dev/null; then
+        after=$(claude --version 2>/dev/null | sed 's/ (Claude Code)//' | head -1 || echo "?")
+        if [ "$before" = "$after" ]; then
+            skip "claude-code $after"
+        else
+            ok "claude-code $before → $after"
+        fi
+    else
+        warn "claude-code update failed ($before)"
+    fi
+elif command -v claude &>/dev/null; then
+    warn "claude-code via npm/legacy — reinstall: curl -fsSL https://claude.ai/install.sh | bash"
+    if npm list -g @anthropic-ai/claude-code --depth=0 &>/dev/null 2>&1; then
+        npm uninstall -g @anthropic-ai/claude-code 2>/dev/null || true
+    fi
+    curl -fsSL https://claude.ai/install.sh | bash 2>/dev/null \
+        && ok "claude-code migrated to native $(claude --version 2>/dev/null | sed 's/ (Claude Code)//' | head -1)" \
+        || warn "claude-code native install failed"
+else
+    curl -fsSL https://claude.ai/install.sh | bash 2>/dev/null \
+        && ok "claude-code installed $(claude --version 2>/dev/null | sed 's/ (Claude Code)//' | head -1)" \
+        || warn "claude-code install failed"
+fi
+
+# npm global packages (gemini, codex)
+for pkg in @google/gemini-cli @openai/codex; do
     name=$(echo "$pkg" | sed 's|.*/||')
     current=$(npm list -g "$pkg" --depth=0 2>/dev/null | grep "$pkg" | sed 's/.*@//' || echo "?")
     latest=$(npm view "$pkg" version 2>/dev/null || echo "?")
@@ -161,6 +190,31 @@ if [ -d "$SKILLS_SRC" ]; then
     fi
 else
     warn "skills repo not found at $SKILLS_SRC"
+fi
+
+# ── 4c. LaunchAgents plists (ops/launchd → ~/Library/LaunchAgents) ──
+
+step "LaunchAgents plists"
+
+LAUNCHD_SRC="$PROJECTS/agent-infra/ops/launchd"
+LAUNCHD_DST="$HOME/Library/LaunchAgents"
+if [ -d "$LAUNCHD_SRC" ]; then
+    mkdir -p "$LAUNCHD_DST"
+    synced=0
+    for src in "$LAUNCHD_SRC"/com.agent-infra.*.plist; do
+        [ -f "$src" ] || continue
+        base=$(basename "$src")
+        dst="$LAUNCHD_DST/$base"
+        if [ ! -f "$dst" ] || ! cmp -s "$src" "$dst"; then
+            cp "$src" "$dst"
+            label="${base%.plist}"
+            ok "$base — synced (reload: launchctl kickstart -k gui/$(id -u)/$label)"
+            synced=$((synced + 1))
+        fi
+    done
+    [ "$synced" -eq 0 ] && skip "all LaunchAgents plists match ops/launchd"
+else
+    skip "ops/launchd not found"
 fi
 
 # ── 4a. Cursor skills parity ────────────────────────────────────
