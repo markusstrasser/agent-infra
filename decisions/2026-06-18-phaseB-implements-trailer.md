@@ -2,12 +2,28 @@
 id: 2026-06-18-phaseB-implements-trailer
 concept: lifecycle-graph-spine
 repo: agent-infra
-status: spec — awaiting operator sign-off (B2-hook is the only gated piece; B1 + B2-lite are autonomous)
+status: RESOLVED 2026-06-19 — B1 shipped (627ca9c); B2 deferred by measurement (gap closed)
 decision_date: 2026-06-18
 relations:
   - type: depends_on
     target: 2026-06-07-verifier-conditional-autonomy
 ---
+
+> **RESOLVED 2026-06-19.** Disposition after probing live ground truth:
+> - **B1 — SHIPPED** in `627ca9c` ("Recover commit→decision implements-edges from history").
+>   Live DB: `git_commits.body` populated (1477 rows), **117 `commit-mention|implements`
+>   edges** recovered — vs the ~23 this spec predicted. The autonomous half is done and
+>   over-delivered.
+> - **B2-lite / B2-hook — DEFERRED (not rejected).** The sparse commit→decision gap that
+>   justified B2 is **already closed by B1's 117 edges** (the spec was written against a
+>   ~9-dangling sparse state). Per this spec's own measure-first gate + constitution P3,
+>   there is no measured incompleteness to justify a forward-authoring convention or hook.
+>   The parser already ingests both `Implements:` trailers AND prose date-slug mentions, and
+>   the data shows authors write prose mentions (117) not trailers (0) — so a trailer
+>   convention's marginal value is confidence-grade only.
+> - **Resurrection trigger:** `just graph <decided-slug>` shows materially-incomplete
+>   commit→decision edges *because trailers are missing* (not because the view is unused).
+>   Then ship B2-lite, measure adherence, and only then consider the gated B2-hook.
 
 # Phase B — `Implements:` ship-time edges: a B1 (ungated) / B2 (gated) ladder
 
