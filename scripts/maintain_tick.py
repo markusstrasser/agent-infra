@@ -518,6 +518,38 @@ def _run_grader_against(verifier: str, repo_path: Path) -> dict | None:
         return {"passed": None, "margin": None, "evidence": f"(grader error: {str(e)[:120]})"}
 
 
+def _path_confined(worktree: Path, art_path: str) -> bool:
+    """READ-ONLY guard for ablation: True iff worktree/art_path stays INSIDE worktree.
+    An ABSOLUTE art_path makes `worktree / art_path` discard the worktree (Path drops
+    the lhs on an absolute rhs) and a `..`-escaping path resolves outside it — either
+    would let unlink() touch the LIVE repo. gov yields repo-relative paths today, but
+    run_ablation accepts any dict, so this is defense-in-depth, not decoration."""
+    try:
+        return (worktree / art_path).resolve().is_relative_to(worktree.resolve())
+    except (OSError, ValueError):
+        return False
+
+
+def _ablation_verdict(before: dict | None, after: dict | None) -> dict:
+    """PURE decision from the with-scaffold (before) and without-scaffold (after)
+    grader verdicts. FAIL-CLOSED: BOTH must be conclusive, else ablated=None — an
+    inconclusive baseline cannot attribute a without-scaffold PASS to the scaffold.
+    An unchanged verdict (grader insensitive to the file, or hardcodes a repo path)
+    is also inconclusive. Only a conclusive, CHANGED verdict yields True/False."""
+    if before is None or before.get("passed") is None:
+        return {"ablated": None, "evidence": f"grader inconclusive WITH scaffold (baseline) — cannot ablate: {before}"}
+    if after is None or after.get("passed") is None:
+        return {"ablated": None, "evidence": f"grader inconclusive WITHOUT scaffold: {after}"}
+    if before.get("passed") == after.get("passed") and before.get("margin") == after.get("margin"):
+        return {"ablated": None,
+                "evidence": f"grader verdict identical with/without scaffold "
+                            f"(passed={after['passed']}, margin={after.get('margin')}) — "
+                            f"insensitive to this file; ablation inconclusive"}
+    return {"ablated": bool(after["passed"]),
+            "evidence": f"grader WITHOUT scaffold: passed={after['passed']} "
+                        f"margin={after.get('margin')} — {after.get('evidence','')}"}
+
+
 def run_ablation(candidate: dict) -> dict:
     """SAFETY-CRITICAL but strictly READ-ONLY. Decide whether a scaffold's GOAL still
     holds WITHOUT the scaffold, by re-running its grader against a throwaway git
@@ -546,25 +578,17 @@ def run_ablation(candidate: dict) -> dict:
             return {"ablated": None, "evidence": f"worktree add failed: {(r.stderr or '')[:120]}"}
         created = True
         target = wt / art_path
+        # READ-ONLY confinement FIRST (before any fs op): refuse a path that escapes
+        # the worktree so unlink() can never touch the live repo (Finding 1).
+        if not _path_confined(wt, art_path):
+            return {"ablated": None,
+                    "evidence": f"artifact_path {art_path} escapes the worktree — refused (READ-ONLY guard)"}
         if not target.exists():
             return {"ablated": None, "evidence": f"scaffold {art_path} not present at HEAD in worktree"}
         before = _run_grader_against(verifier, wt)        # with the scaffold
         target.unlink()                                    # ablate: remove ONLY in the worktree
         after = _run_grader_against(verifier, wt)           # without the scaffold
-        if after is None or after.get("passed") is None:
-            return {"ablated": None, "evidence": f"grader inconclusive without scaffold: {after}"}
-        # Sensitivity guard: if removing the file changed the verdict NOT AT ALL, the
-        # grader may be insensitive to this scaffold (or hardcodes a repo path) — we
-        # cannot conclude the scaffold is what is keeping the goal green. Report None.
-        if (before and before.get("passed") == after.get("passed")
-                and before.get("margin") == after.get("margin")):
-            return {"ablated": None,
-                    "evidence": f"grader verdict identical with/without scaffold "
-                                f"(passed={after['passed']}, margin={after.get('margin')}) — "
-                                f"insensitive to this file; ablation inconclusive"}
-        return {"ablated": bool(after["passed"]),
-                "evidence": f"grader WITHOUT scaffold: passed={after['passed']} "
-                            f"margin={after.get('margin')} — {after.get('evidence','')}"}
+        return _ablation_verdict(before, after)             # pure, fail-closed on both
     except Exception as e:  # noqa: BLE001
         return {"ablated": None, "evidence": f"ablation error: {str(e)[:120]}"}
     finally:

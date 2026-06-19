@@ -451,3 +451,37 @@ def test_subtract_ablate_not_run_when_flag_off(sandbox, monkeypatch):
     res = mt.run_subtract(force=True, ledger=True)  # ablate defaults False
     assert called["n"] == 0
     assert res.get("ablation") is None
+
+
+# ── ablation safety helpers (pure; the worktree path is integration-tested live) ──
+def test_path_confined_blocks_escape(tmp_path):
+    """READ-ONLY guard: relative-inside OK; absolute or ..-escape REFUSED (Finding 1)."""
+    wt = tmp_path / "wt"
+    wt.mkdir()
+    assert mt._path_confined(wt, ".claude/rules/x.md") is True
+    assert mt._path_confined(wt, "/Users/alien/Projects/agent-infra/improvement-log.md") is False  # absolute escapes
+    assert mt._path_confined(wt, "../../../Projects/agent-infra/CLAUDE.md") is False               # ..-escape
+    assert mt._path_confined(wt, "a/../b.md") is True                                              # stays inside
+
+
+def test_ablation_verdict_failclosed_on_inconclusive_baseline():
+    """Finding 2: an inconclusive `before` must NEVER yield ablated=True even when
+    `after` passes — the without-scaffold PASS cannot be attributed to the scaffold."""
+    incon = {"passed": None, "margin": None, "evidence": "grader errored"}
+    passed = {"passed": True, "margin": 5, "evidence": "ok"}
+    assert mt._ablation_verdict(incon, passed)["ablated"] is None      # the exact Finding-2 case
+    assert mt._ablation_verdict(None, passed)["ablated"] is None
+    assert mt._ablation_verdict(passed, None)["ablated"] is None
+    assert mt._ablation_verdict(passed, incon)["ablated"] is None
+
+
+def test_ablation_verdict_sensitivity_and_real_verdicts():
+    fail = {"passed": False, "margin": -2, "evidence": "violated"}
+    passW = {"passed": True, "margin": 5, "evidence": "holds"}
+    passN = {"passed": True, "margin": 9, "evidence": "holds more"}
+    # identical verdict with/without → inconclusive (grader insensitive to the file)
+    assert mt._ablation_verdict(passW, dict(passW))["ablated"] is None
+    # goal was failing WITH, passes WITHOUT (changed) → removable
+    assert mt._ablation_verdict(fail, passN)["ablated"] is True
+    # goal passed WITH, fails WITHOUT (changed) → load-bearing, KEEP
+    assert mt._ablation_verdict(passW, fail)["ablated"] is False
