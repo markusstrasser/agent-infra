@@ -1,0 +1,12 @@
+---
+description: Orchestrator (frontier model) vs operator (human) — do not conflate in docs or handoffs
+globs: docs/**, research/**, scripts/**, .claude/**, **/SKILL.md
+---
+
+# Orchestrator vs operator
+
+- **Operator / Human** — Markus; goals, approval, taste (`HUMAN.md`).
+- **Orchestrator** — frontier model parent session that dispatches scouts and triages handoffs.
+- **Scout / worker** — cheaper model; writes files only.
+
+Handoff lines like `**Orchestrator:**` mean the **frontier parent model**, not the human.

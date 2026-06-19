@@ -10,6 +10,16 @@
 orient *args:
     uv run python3 scripts/orient.py {{args}}
 
+# Typed system inventory (@system tags · launchd · orchestrator recipes)
+[group('orientation')]
+system-inventory *args:
+    uv run python3 scripts/system_inventory.py {{args}}
+
+# Regenerate architecture.mmd from architecture.template.mmd + live inventory
+[group('orientation')]
+render-architecture:
+    uv run python3 scripts/system_inventory.py --write
+
 # RSI-lifecycle neighborhood of a node (decision id, research stem, or prediction id):
 # traversable lifecycle edges (supersedes/branches_from/depends_on…) PLUS weak
 # non-traversable relates_to + provenance, for a node. Agentlogs-native: rebuilds
@@ -195,7 +205,8 @@ harness-eval:
     uv run --no-project python3 scripts/hooks_smoke.py --timeout 8
     uv run python3 scripts/orient.py --drift
     uv run python3 "$HOME/Projects/skills/hooks/test_userprompt_prior_context.py"
-    uv run python3 -m pytest scripts/tests/test_orient.py -q
+    uv run python3 -m pytest scripts/tests/test_orient.py scripts/tests/test_system_inventory.py -q
+    uv run python3 scripts/system_inventory.py --check
     uv run python3 scripts/approval_tiers.py
     echo "OK: harness-eval"
 
@@ -518,20 +529,91 @@ loop-funnel *args:
 act-drain *args:
     uv run python3 scripts/act_drain.py {{args}}
 
-# Parallel adversarial debug scouts (cursor ask-mode) → repo/docs/audit/*.md
+# Maintain motor — SAFE/dry-run RSI motor (drafts only; never auto-edits/commits/deploys).
+#   just maintain-tick                       ADD pass: draft a tier-0 BUILD proposal
+#   just maintain-tick --subtract --ablate   SUBTRACT pass: draft a governance RETIREMENT
+#                                            (gov-shrink + advisory-noise), ablation-gated
+#   just maintain-tick --list   /   --subtract --list      show candidates, pick nothing
+# Drafts land in artifacts/maintain/ for human/loop disposition. Consumed by /improve maintain.
 [group('epistemic')]
-debug repo scope='recent' *args='':
+maintain-tick *args:
+    uv run python3 scripts/maintain_tick.py {{args}}
+
+# ── Orchestrator-model tooling (canonical; see .claude/rules/orchestrator-tool-names.md) ──
+
+[group('epistemic')]
+operator-status-briefing target='.' *args='':
+    uv run python3 scripts/operator_status_briefing.py --repo {{target}} {{args}}
+
+[group('epistemic')]
+baseline-since-last-green target='.' *args='':
+    uv run python3 scripts/baseline_since_last_green.py --repo {{target}} {{args}}
+
+[group('epistemic')]
+audit-findings-consolidation audit_dir='docs/audit' *args='':
+    uv run python3 scripts/audit_findings_consolidation.py {{audit_dir}} {{args}}
+
+[group('epistemic')]
+commit-slice-planning target='.' *args='':
+    uv run python3 scripts/commit_slice_planning.py --repo {{target}} {{args}}
+
+[group('epistemic')]
+adversarial-debug-scout repo scope='recent' *args='':
     uv run python3 scripts/debug_scout.py {{repo}} --scope {{scope}} {{args}}
 
-# Merge scout artifacts → orchestrator handoff.md (orchestrator reads, does not auto-fix)
+[group('epistemic')]
+verification-gate-runner target='.' *args='':
+    uv run python3 scripts/verification_gate_runner.py --repo {{target}} {{args}}
+
+[group('epistemic')]
+session-automation-telemetry *args='':
+    uv run python3 scripts/session_automation_telemetry.py {{args}}
+
+[group('epistemic')]
+sensor-integration-ranking *args='':
+    uv run python3 scripts/sensor_integration_ranking.py {{args}}
+
+# WebVTT rolling-caption cleanup (youtube-transcript ingest)
+[group('epistemic')]
+clean-transcript input output='':
+    #!/usr/bin/env bash
+    set -euo pipefail
+    out="${2:-}"
+    if [ -z "$out" ]; then
+      uv run python3 scripts/clean_vtt.py "{{input}}"
+    else
+      uv run python3 scripts/clean_vtt.py "{{input}}" -o "{{output}}"
+    fi
+
+# Legacy aliases (deprecated 2026-07-19)
+[group('epistemic')]
+debug repo scope='recent' *args='':
+    @just adversarial-debug-scout {{repo}} {{scope}} {{args}}
 [group('epistemic')]
 debug-triage audit_dir='docs/audit' *args='':
-    uv run python3 scripts/debug_triage.py {{audit_dir}} {{args}}
-
-# Draft commit message from diff — never commits
+    @just audit-findings-consolidation {{audit_dir}} --kind debug {{args}}
 [group('epistemic')]
-commit-prep *args='':
-    uv run python3 scripts/commit_prep.py {{args}}
+scout-triage audit_dir='docs/audit' *args='':
+    @just audit-findings-consolidation {{audit_dir}} {{args}}
+[group('epistemic')]
+session-classify *args='':
+    @just session-automation-telemetry {{args}}
+[group('epistemic')]
+audit-delta target='.' *args='':
+    @just baseline-since-last-green {{target}} {{args}}
+[group('epistemic')]
+commit-prep target='.' *args='':
+    @just commit-slice-planning {{target}} --status-only {{args}}
+[group('epistemic')]
+commit-plan target='.' *args='':
+    @just commit-slice-planning {{target}} {{args}}
+[group('epistemic')]
+integrate-rank *args='':
+    @just sensor-integration-ranking --no-llm {{args}}
+
+[group('epistemic')]
+rsi-loop-funnel *args='':
+    uv run python3 scripts/loop_funnel.py {{args}}
 
 # Install git pre-commit hooks (chains no-large-binaries + append-only/protected guards + codebase-map refresh)
 [group('epistemic')]
@@ -823,6 +905,15 @@ freshness:
     row "agent-infra-sweep" "research/*sweep*.md"              3
 
 # ── Git ────────────────────────────────────────────────────────────
+
+# Push all main workspace repos (also: `just -f ~/Projects/justfile push-all` from anywhere)
+[group('git')]
+push-all *args:
+    bash scripts/git-push-all.sh {{args}}
+
+[group('git')]
+push-all-status:
+    bash scripts/git-push-all.sh --status
 
 # Top 20 most-changed files per repo (churn hotspots)
 [group('git')]

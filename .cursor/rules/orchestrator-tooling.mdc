@@ -1,0 +1,12 @@
+---
+description: File-bus orchestrator tools — /orchestrate skill, agent-infra just recipes, operator vs orchestrator model
+alwaysApply: true
+---
+
+# Orchestrator tooling
+
+- **Skill:** `/orchestrate` — modes `status|audit|fix|ship`
+- **Registry:** `.claude/rules/orchestrator-tool-names.md` (flags + `llm:` contracts)
+- **Cross-repo:** `just -f ~/Projects/agent-infra/justfile <recipe> <target>`
+- **Roles:** operator = human; orchestrator model = frontier parent; scout = ask-mode, files only
+- **Live list:** `just orient` → Orchestrator tools section
