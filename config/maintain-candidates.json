@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "description": "Structured build candidates for the maintain-tick motor (scripts/maintain_tick.py). PREFERRED source over prose improvement-log `[ ]` items (which carry no machine-readable tier fields). The TIER RULES live in config/build-autonomy-tiers.json — this file only carries each candidate's PREDICATE VALUES; the motor LOADS the policy and classifies (epistemic-principle #9). A candidate is tier-0 (auto-ship draft) ONLY if blast_radius=agent-infra AND reversible AND evidence_sessions>=policy_threshold AND checkable AND low_downside AND clear_win_vs_baseline. An item that is local+reversible but NOT a clear-win (missing any of the last three) routes to tier-0E (eval-gated, NOT auto-shipped). Set done:true to retire (don't delete — append-only spirit). In SAFE/dry-run mode the motor only DRAFTS a proposal; it never edits code, commits, or deploys.",
+  "schema": {
+    "id": "kebab slug (stable; used in proposal filename + ledger target)",
+    "title": "one-line human title",
+    "blast_radius": "agent-infra | shared | constitution  (tier-0/0E require agent-infra)",
+    "reversible": "bool",
+    "evidence_sessions": "int — distinct sessions the need recurred (policy threshold, default >=2)",
+    "checkable": "bool — has/will-have a ground-truth verifier (a test/grader). REQUIRED for tier-0; absence -> 0E",
+    "low_downside": "bool — failure mode is bounded + cheap (advisory/fail-open, reversible). REQUIRED for tier-0; absence -> 0E",
+    "clear_win_vs_baseline": "bool — one obvious correct approach, clearly better than status quo (not a policy/design choice). REQUIRED for tier-0; absence -> 0E",
+    "source": "where the need is documented (memo / log line)",
+    "build_kind": "hook | script | recipe | rule",
+    "proposal_outline": "what to build, terse — seeds the draft proposal",
+    "done": "optional bool — true retires the candidate"
+  },
+  "candidates": [
+    {
+      "id": "continuation-misread-guard",
+      "title": "continuation-misread hook — 'Continue from where you left off' must not be read as a no-op",
+      "blast_radius": "agent-infra",
+      "reversible": true,
+      "evidence_sessions": 4,
+      "checkable": true,
+      "low_downside": true,
+      "clear_win_vs_baseline": true,
+      "source": "research/2026-06-19-steering-vectors.md (cluster: continuation-misread, 4+); research/2026-06-19-auto-self-improvement-audit.md (tier-0 #1)",
+      "build_kind": "hook",
+      "proposal_outline": "UserPromptSubmit hook: detect a continuation directive ('continue from where you left off', 'resume', 'keep going', 'carry on', 'pick up where', 'continue.') and inject additionalContext stating a continuation != no-op — resume the prior task / re-read .claude/checkpoint.md, do NOT reply 'no response needed'. Fail-open, exit 0. checkable (has a 60-assertion test), low_downside (advisory + fail-open), clear_win (4+ session recurrence, advisory-only behavior). NOTE: agent-infra-local registration first (scripts/hooks/); GLOBAL ~/.claude deploy is a SEPARATE shared-tier sign-off (this session's Build 2 already built it local + tested)."
+    },
+    {
+      "id": "humanmd-template-aware-grep",
+      "title": "HUMAN.md template-aware open-count grep (don't match the template example header)",
+      "blast_radius": "shared",
+      "reversible": true,
+      "evidence_sessions": 2,
+      "checkable": true,
+      "low_downside": true,
+      "clear_win_vs_baseline": true,
+      "source": "research/2026-06-19-steering-vectors.md (cluster: HUMAN.md false open count, 2+); research/2026-06-19-auto-self-improvement-audit.md (tier-0 #2)",
+      "build_kind": "script",
+      "proposal_outline": "Template-aware grep that anchors on real escalation headers, not the `[open]` example inside a template block, so the open-escalation count is correct. NOTE: lives in hutter/agi3-status path (CROSS-REPO) — blast_radius=shared so the tier gate routes it to the human (policy tier 2), NOT auto-pick. The clear-win predicates are set true (it IS a clean fix) but the SHARED blast radius dominates (highest-tier-wins) so it is never tier-0/0E here. Recorded for visibility + human routing."
+    }
+  ]
+}
