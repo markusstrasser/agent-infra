@@ -518,6 +518,21 @@ loop-funnel *args:
 act-drain *args:
     uv run python3 scripts/act_drain.py {{args}}
 
+# Parallel adversarial debug scouts (cursor ask-mode) → repo/docs/audit/*.md
+[group('epistemic')]
+debug repo scope='recent' *args='':
+    uv run python3 scripts/debug_scout.py {{repo}} --scope {{scope}} {{args}}
+
+# Merge scout artifacts → orchestrator handoff.md (orchestrator reads, does not auto-fix)
+[group('epistemic')]
+debug-triage audit_dir='docs/audit' *args='':
+    uv run python3 scripts/debug_triage.py {{audit_dir}} {{args}}
+
+# Draft commit message from diff — never commits
+[group('epistemic')]
+commit-prep *args='':
+    uv run python3 scripts/commit_prep.py {{args}}
+
 # Install git pre-commit hooks (chains no-large-binaries + append-only/protected guards + codebase-map refresh)
 [group('epistemic')]
 install-hooks:
