@@ -3964,3 +3964,7 @@ A source that fails the watchdog (e.g. the oversized `~/.gemini/tmp/{intel,genom
 
 ## [2026-06-19] RSI close — correction-counter over-counts (2nd datapoint, recurrence)
 - **[obs] close b3e009cf** (agent-infra, flagged `operator_correction_signal` ×12: fail_then_user/negation/retry_run): verified CLEAN — final teardown claim ("DeusData/codebase-memory MCP ripped out; verdict recorded") confirmed against ground truth: no residual entry in any `.mcp.json`, and `memory/codebase-memory-mcp-rejected.md` (2888B) present + indexed in MEMORY.md. The 12 signals were the operator STEERING a tool-eval to a correct REJECT, not rescuing a fabrication; only 2 auto-checkpoint WIP commits (work was a teardown + memory record, not new code). **Recurrence: 2nd consecutive close (after 5ce532b8 ×27) where the correction-counter fired on recovered/steered-but-sound work → the Tier-1 trigger's false-close-prompt rate is now a confirmed 2-session pattern; candidate to gate on unrecovered-failure signal, not raw correction-lexeme count.**
+
+## [2026-06-19] RSI observe verify — close stale motor candidates (shipped)
+- **[x] continuation-misread hook** — superseded: `scripts/hooks/continuation-directive-guard.py` wired global UserPromptSubmit; 60-assertion test; `maintain-candidates.json` `done: true`.
+- **[x] HUMAN.md template-aware open counter** — superseded: `arc-agi/loop/status.py` `human_open()` header-only count (prose template excluded).

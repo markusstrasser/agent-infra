@@ -32,6 +32,8 @@
       "proposal_outline": "UserPromptSubmit hook: detect a continuation directive ('continue from where you left off', 'resume', 'keep going', 'carry on', 'pick up where', 'continue.') and inject additionalContext stating a continuation != no-op — resume the prior task / re-read .claude/checkpoint.md, do NOT reply 'no response needed'. Fail-open, exit 0. checkable (has a 60-assertion test), low_downside (advisory + fail-open), clear_win (4+ session recurrence, advisory-only behavior). NOTE: agent-infra-local registration first (scripts/hooks/); GLOBAL ~/.claude deploy is a SEPARATE shared-tier sign-off (this session's Build 2 already built it local + tested)."
     },
     {
+      "done": true,
+      "_done_note": "Shipped in arc-agi/loop/status.py human_open() — counts only ##/### headers with [open], excludes prose template example. Verified 2026-06-19: 10 header matches, 1 prose excluded.",
       "id": "humanmd-template-aware-grep",
       "title": "HUMAN.md template-aware open-count grep (don't match the template example header)",
       "blast_radius": "shared",
