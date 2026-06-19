@@ -18,7 +18,8 @@
     </dict>
     <key>WorkingDirectory</key>
     <string>/Users/alien/Projects/agent-infra</string>
-    <!-- The MOTOR half of the RSI loop, SAFE/dry-run. Picks ONE tier-0
+    <!-- @system layer=gov role=rsi-motor llm=none
+         The MOTOR half of the RSI loop, SAFE/dry-run. Picks ONE tier-0
          (agent-infra-local + reversible + evidence>=2) candidate and writes a
          DRAFT proposal to artifacts/maintain/<date>-<slug>.md. It does NOT edit
          code, commit, or deploy. Rate-gates on a live-`claude` cap so it never
