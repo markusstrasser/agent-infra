@@ -5,9 +5,11 @@ Two symmetric passes:
   - ADD (default): drafts BUILD proposals for tier-0 candidates (run / --list).
   - SUBTRACT (--subtract): drafts RETIREMENT proposals — the governance-shrink half,
     a pure consumer of gov.py's report-only detectors + gov.route(). Telos: governance
-    shrinks as capability rises (gov-id.md). Auto-retire is gated on the ablation
-    runner (re-run a scaffold's grader with it removed) — Phase 2, not built yet — so
-    every retire-candidate currently routes to human. See run_subtract().
+    shrinks as capability rises (gov-id.md). The READ-ONLY ablation gate (--ablate)
+    re-runs a scaffold's grader against a throwaway worktree with the scaffold REMOVED
+    (live repo untouched) and folds the verdict into the draft. route stays human;
+    actually auto-APPLYING a retirement is Phase 3 (apply lane + go_live, operator
+    only). See run_subtract() / run_ablation().
 
 
 The audit research/2026-06-19-auto-self-improvement-audit.md found the loop has
@@ -63,10 +65,13 @@ GROUND TRUTH (verified 2026-06-19, recorded so a future reader doesn't re-derive
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import re
+import shutil
 import subprocess
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -487,6 +492,88 @@ def gather_retire_candidates(days: int = 60) -> dict:
             "n_backlog": len(shrink.get("backlog", []))}
 
 
+# ── ablation runner (the auto-retire GATE — READ-ONLY, worktree-isolated) ────────
+def _run_grader_against(verifier: str, repo_path: Path) -> dict | None:
+    """Import a governance grader (from gov.GRADERS_ROOT — the evals sibling) and run
+    grade(repo_path). Parameterized mirror of gov.run_grader so the SAME grader code
+    can score a DIFFERENT repo state (an ablated worktree). Returns {passed, margin,
+    evidence} or None if the grader file is absent. passed=None on grader error."""
+    try:
+        import gov
+        grader_file = (gov.GRADERS_ROOT / verifier).resolve()
+    except Exception as e:  # noqa: BLE001
+        return {"passed": None, "margin": None, "evidence": f"(gov/grader-path error: {str(e)[:100]})"}
+    if not grader_file.is_file():
+        return None
+    try:
+        spec = importlib.util.spec_from_file_location(grader_file.stem, grader_file)
+        if spec is None or spec.loader is None:
+            return None
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        v = mod.grade(repo_path)
+        return {"passed": bool(v["passed"]), "margin": v.get("margin"),
+                "evidence": str(v.get("evidence", ""))}
+    except Exception as e:  # noqa: BLE001
+        return {"passed": None, "margin": None, "evidence": f"(grader error: {str(e)[:120]})"}
+
+
+def run_ablation(candidate: dict) -> dict:
+    """SAFETY-CRITICAL but strictly READ-ONLY. Decide whether a scaffold's GOAL still
+    holds WITHOUT the scaffold, by re-running its grader against a throwaway git
+    worktree at HEAD with the scaffold file REMOVED. The LIVE repo is NEVER mutated:
+    the worktree is a separate checkout, the file is removed only there, and the
+    worktree is torn down in `finally`.
+
+    Returns {ablated: bool|None, evidence: str}:
+      - ablated True  → goal STILL PASSES without the scaffold ⇒ training wheels, removable.
+      - ablated False → goal FAILS without it ⇒ load-bearing, KEEP.
+      - ablated None  → inconclusive (no verifier, worktree/grader error, or grader
+        proved insensitive to the file). FAIL-CLOSED: an inconclusive ablation NEVER
+        upgrades a candidate toward retirement — the human still decides.
+    """
+    verifier = candidate.get("verifier") or ""
+    art_path = candidate.get("artifact_path") or ""
+    if not verifier or not art_path:
+        return {"ablated": None, "evidence": "no verifier or artifact_path → cannot ablate"}
+    wt = Path(tempfile.gettempdir()) / f"ablate-wt-{os.getpid()}-{candidate.get('id','x')[:24]}"
+    created = False
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(REPO), "worktree", "add", "--detach", str(wt), "HEAD"],
+            capture_output=True, text=True, timeout=90)
+        if r.returncode != 0:
+            return {"ablated": None, "evidence": f"worktree add failed: {(r.stderr or '')[:120]}"}
+        created = True
+        target = wt / art_path
+        if not target.exists():
+            return {"ablated": None, "evidence": f"scaffold {art_path} not present at HEAD in worktree"}
+        before = _run_grader_against(verifier, wt)        # with the scaffold
+        target.unlink()                                    # ablate: remove ONLY in the worktree
+        after = _run_grader_against(verifier, wt)           # without the scaffold
+        if after is None or after.get("passed") is None:
+            return {"ablated": None, "evidence": f"grader inconclusive without scaffold: {after}"}
+        # Sensitivity guard: if removing the file changed the verdict NOT AT ALL, the
+        # grader may be insensitive to this scaffold (or hardcodes a repo path) — we
+        # cannot conclude the scaffold is what is keeping the goal green. Report None.
+        if (before and before.get("passed") == after.get("passed")
+                and before.get("margin") == after.get("margin")):
+            return {"ablated": None,
+                    "evidence": f"grader verdict identical with/without scaffold "
+                                f"(passed={after['passed']}, margin={after.get('margin')}) — "
+                                f"insensitive to this file; ablation inconclusive"}
+        return {"ablated": bool(after["passed"]),
+                "evidence": f"grader WITHOUT scaffold: passed={after['passed']} "
+                            f"margin={after.get('margin')} — {after.get('evidence','')}"}
+    except Exception as e:  # noqa: BLE001
+        return {"ablated": None, "evidence": f"ablation error: {str(e)[:120]}"}
+    finally:
+        if created:
+            subprocess.run(["git", "-C", str(REPO), "worktree", "remove", "--force", str(wt)],
+                           capture_output=True, text=True, timeout=30)
+        shutil.rmtree(wt, ignore_errors=True)  # belt-and-suspenders if remove left a stub
+
+
 def route_retire(c: dict) -> str:
     """Reuse gov.route() (the canonical earned-autonomy router) — never restate it.
     confidence is pinned "medium" pre-ablation so route() can NEVER return auto-apply
@@ -505,11 +592,23 @@ def draft_retire_proposal(c: dict) -> tuple[Path, str]:
     path = PROPOSAL_DIR / f"{_today()}-{slug}.md"
     route = route_retire(c)
     if c["retire_kind"] == "scaffold-shrink":
-        gate = (f"**Ablation REQUIRED (not yet run).** Re-run the verifier "
-                f"`{c.get('verifier','')}` with the scaffold REMOVED; mark `[~]` retired ONLY if it "
-                f"still PASSES (the scaffold was training wheels). The ablation runner is the auto-gate "
-                f"(Phase 2) — until it confirms a WITHOUT-scaffold PASS, this is a human-reviewed draft. "
-                f"Current grader verdict (WITH the scaffold): {c.get('verdict','')}.")
+        abl = c.get("ablation")
+        if abl and abl.get("ablated") is True:
+            gate = (f"**Ablation PASSED — the auto-gate is satisfied.** {abl.get('evidence','')} "
+                    f"The goal holds WITHOUT the scaffold ⇒ training wheels. Mark `[~]` retired and "
+                    f"remove the artifact. (Actually auto-applying still requires the apply lane + "
+                    f"go_live.maintain_tick_apply + AUTO_APPLY_ENABLED — operator only; this is a draft.)")
+        elif abl and abl.get("ablated") is False:
+            gate = (f"**Ablation FAILED — KEEP the scaffold (load-bearing).** {abl.get('evidence','')} "
+                    f"The goal FAILS without it; do NOT retire — drop this candidate.")
+        elif abl:  # ablated is None → inconclusive (fail-closed)
+            gate = (f"**Ablation INCONCLUSIVE.** {abl.get('evidence','')} Cannot auto-confirm; "
+                    f"human decides — treat as KEEP until a conclusive ablation.")
+        else:
+            gate = (f"**Ablation NOT run** (pass `--ablate`). Re-run the verifier "
+                    f"`{c.get('verifier','')}` with the scaffold REMOVED; mark `[~]` retired ONLY if it "
+                    f"still PASSES (training wheels). Current grader verdict (WITH the scaffold): "
+                    f"{c.get('verdict','')}.")
     else:
         gate = (f"**Advisory-only hook**, {c.get('evidence','')}, with no measured behavior change. "
                 f"Disposition: {c.get('disposition','')}. blast_radius=shared ⇒ human-gated — never "
@@ -558,10 +657,12 @@ verifier: {c.get('verifier','')}
     return path, body
 
 
-def run_subtract(force: bool, ledger: bool, days: int = 60) -> dict:
+def run_subtract(force: bool, ledger: bool, days: int = 60, ablate: bool = False) -> dict:
     """SAFE/dry-run subtract tick: gather retire-candidates from gov, pick one
-    deterministically, draft a retirement proposal. Removes nothing; the apply lane
-    is Phase 2 (gated on the ablation runner). Same rate-gate as the add tick."""
+    deterministically, draft a retirement proposal. Removes nothing. With ablate=True,
+    runs the READ-ONLY ablation gate on the picked shrink candidate (worktree-isolated
+    grader re-run without the scaffold) and folds the verdict into the draft. The apply
+    lane (actual removal) is Phase 3; route stays human here. Same rate-gate as add."""
     live = live_claude_count()
     if not force and live > MAX_LIVE_CLAUDE:
         if ledger:
@@ -584,18 +685,25 @@ def run_subtract(force: bool, ledger: bool, days: int = 60) -> dict:
     # deterministic: real shrink loop first (gov-shrink), then advisory-noise; by id.
     cands.sort(key=lambda c: (c["origin"] != "gov-shrink", c["id"]))
     picked = cands[0]
+    # The READ-ONLY ablation gate (opt-in) — only meaningful for a scaffold with a
+    # verifier; advisory-noise has none. Folds {ablated, evidence} into the draft.
+    if ablate and picked.get("retire_kind") == "scaffold-shrink":
+        picked["ablation"] = run_ablation(picked)
     path, body = draft_retire_proposal(picked)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(body, encoding="utf-8")
     if ledger:
+        abl = picked.get("ablation") or {}
         append_ledger("maintain-subtract", picked["gov_id"], "drafted",
                       f"retire draft -> {path.relative_to(REPO)} "
-                      f"(origin={picked['origin']}, route={route_retire(picked)})")
+                      f"(origin={picked['origin']}, route={route_retire(picked)}, "
+                      f"ablated={abl.get('ablated', 'not-run')})")
     return {
         "status": "drafted",
         "picked": {k: picked.get(k) for k in ("id", "gov_id", "title", "origin",
                                               "blast_radius", "retire_kind")},
         "route": route_retire(picked),
+        "ablation": picked.get("ablation"),
         "proposal_path": str(path.relative_to(REPO)),
         "shrink_pending": len(g["shrink_pending"]),
         "advisory_noise": len(g["advisory_noise"]),
@@ -688,15 +796,23 @@ def main() -> int:
     ap.add_argument("--subtract", action="store_true",
                     help="run the SUBTRACT pass: draft governance RETIREMENTS from gov.py "
                          "detectors (the symmetric shrink half). SAFE/dry-run; removes nothing.")
+    ap.add_argument("--ablate", action="store_true",
+                    help="(with --subtract) run the READ-ONLY ablation gate: re-run each shrink "
+                         "candidate's grader with the scaffold REMOVED in a throwaway worktree "
+                         "(live repo untouched) and fold the verdict into the draft.")
     args = ap.parse_args()
 
     # ── SUBTRACT pass (governance shrink) ──
     if args.subtract:
         if args.list:
             g = gather_retire_candidates()
+            if args.ablate and not g.get("error"):
+                for c in g.get("shrink_pending", []):
+                    c["ablation"] = run_ablation(c)
             if args.json:
                 print(json.dumps({
-                    "shrink_pending": [{k: c[k] for k in ("gov_id", "blast_radius", "verifier")}
+                    "shrink_pending": [{**{k: c[k] for k in ("gov_id", "blast_radius", "verifier")},
+                                        "ablation": c.get("ablation")}
                                        for c in g.get("shrink_pending", [])],
                     "advisory_noise": [{"hook": c["gov_id"], "blast_radius": c["blast_radius"]}
                                        for c in g.get("advisory_noise", [])],
@@ -708,22 +824,27 @@ def main() -> int:
                     print(f"[maintain-subtract] gov detectors unavailable: {g['error']}")
                     return 0
                 print(f"[maintain-subtract] retire-candidates: "
-                      f"shrink-pending(ablation)={len(g['shrink_pending'])} · "
+                      f"shrink-pending={len(g['shrink_pending'])} · "
                       f"advisory-noise={len(g['advisory_noise'])} "
-                      f"(shrink-eligible={g['n_eligible']}, backlog={g['n_backlog']})")
+                      f"(shrink-eligible={g['n_eligible']}, backlog={g['n_backlog']})"
+                      f"{' · ablation ON' if args.ablate else ' (ablation: pass --ablate)'}")
                 for c in g["shrink_pending"]:
-                    print(f"  ⌫ [shrink] {c['gov_id']}  (blast={c['blast_radius']}, route={route_retire(c)})")
+                    abl = c.get("ablation")
+                    asfx = f", ablated={abl.get('ablated')}" if abl else ""
+                    print(f"  ⌫ [shrink] {c['gov_id']}  (blast={c['blast_radius']}, route={route_retire(c)}{asfx})")
                 for c in g["advisory_noise"]:
                     print(f"  ⌫ [noise]  {c['gov_id']}  (route={route_retire(c)})")
             return 0
-        res = run_subtract(force=args.force, ledger=not args.no_ledger)
+        res = run_subtract(force=args.force, ledger=not args.no_ledger, ablate=args.ablate)
         if args.json:
             print(json.dumps(res, indent=2))
         else:
             st = res["status"]
             if st == "drafted":
                 print(f"[maintain-subtract] drafted retire proposal: {res['proposal_path']}")
-                print(f"  picked: {res['picked']['title']}  (route={res['route']})")
+                abl = res.get("ablation")
+                asfx = f"  ablated={abl.get('ablated')}" if abl else ""
+                print(f"  picked: {res['picked']['title']}  (route={res['route']}){asfx}")
             elif st == "rate-gated":
                 print(f"[maintain-subtract] rate-gated: {res['live_claude']} live claude procs — stood aside.")
             elif st == "error":

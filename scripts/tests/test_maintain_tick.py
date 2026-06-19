@@ -343,7 +343,7 @@ def test_subtract_drafts_shrink_candidate_safely(sandbox, monkeypatch):
     assert (after - before) == {proposal, sandbox["ledger"]}, "subtract must write ONLY proposal+ledger"
     body = proposal.read_text()
     assert "status: draft-retire-proposal" in body
-    assert "Ablation REQUIRED" in body
+    assert "Ablation NOT run" in body  # ablate defaults off → gate not yet satisfied
     assert "nothing was removed" in body
     rows = [json.loads(l) for l in sandbox["ledger"].read_text().splitlines() if l.strip()]
     assert rows[-1]["action"] == "maintain-subtract" and rows[-1]["result"] == "drafted"
@@ -404,3 +404,50 @@ def test_subtract_rate_gate_stands_aside(sandbox, monkeypatch):
     res = mt.run_subtract(force=False, ledger=True)  # force=False so gate applies
     assert res["status"] == "rate-gated"
     assert res["picked"] is None
+
+
+# ── ablation gate (READ-ONLY) ──────────────────────────────────────────────────
+def test_run_ablation_no_verifier_fails_closed():
+    """No verifier or artifact_path → ablated None (never claims removable)."""
+    assert mt.run_ablation({})["ablated"] is None
+    assert mt.run_ablation({"verifier": "x.py"})["ablated"] is None        # no artifact_path
+    assert mt.run_ablation({"artifact_path": ".claude/rules/x.md"})["ablated"] is None  # no verifier
+
+
+def test_subtract_ablate_folds_verdict_into_draft(sandbox, monkeypatch):
+    """With ablate=True, the picked shrink candidate's ablation verdict is run and
+    folded into the draft + result. (run_ablation is mocked — the live worktree path
+    is integration-tested separately; here we test the WIRING.)"""
+    _patch_gov(monkeypatch, eligible=[SHRINK_LOCAL_PASS])
+    monkeypatch.setattr(mt, "run_ablation",
+                        lambda c: {"ablated": True, "evidence": "goal holds without it (mock)"})
+    res = mt.run_subtract(force=True, ledger=True, ablate=True)
+    assert res["status"] == "drafted"
+    assert res["ablation"] == {"ablated": True, "evidence": "goal holds without it (mock)"}
+    body = (sandbox["root"] / res["proposal_path"]).read_text()
+    assert "Ablation PASSED" in body  # the ablated=True branch of the gate text
+    # ledger records the ablation verdict
+    assert "ablated=True" in sandbox["ledger"].read_text()
+
+
+def test_subtract_ablate_failed_says_keep(sandbox, monkeypatch):
+    """ablated False → the draft says KEEP (load-bearing), not retire."""
+    _patch_gov(monkeypatch, eligible=[SHRINK_LOCAL_PASS])
+    monkeypatch.setattr(mt, "run_ablation",
+                        lambda c: {"ablated": False, "evidence": "goal FAILS without it (mock)"})
+    res = mt.run_subtract(force=True, ledger=True, ablate=True)
+    body = (sandbox["root"] / res["proposal_path"]).read_text()
+    assert "Ablation FAILED" in body and "KEEP" in body
+
+
+def test_subtract_ablate_not_run_when_flag_off(sandbox, monkeypatch):
+    """ablate defaults off → run_ablation is NOT called (no worktree work per tick)."""
+    _patch_gov(monkeypatch, eligible=[SHRINK_LOCAL_PASS])
+    called = {"n": 0}
+    def _spy(c):
+        called["n"] += 1
+        return {"ablated": True, "evidence": "x"}
+    monkeypatch.setattr(mt, "run_ablation", _spy)
+    res = mt.run_subtract(force=True, ledger=True)  # ablate defaults False
+    assert called["n"] == 0
+    assert res.get("ablation") is None
