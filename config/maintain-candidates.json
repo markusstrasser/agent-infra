@@ -17,6 +17,8 @@
   },
   "candidates": [
     {
+      "done": true,
+      "_done_note": "Built (scripts/hooks/continuation-directive-guard.py + 60-assertion test) AND wired GLOBAL (~/.claude UserPromptSubmit) 2026-06-19, verified live (reads .user_message, matches userprompt-prior-context.py:328). Retired from the motor queue.",
       "id": "continuation-misread-guard",
       "title": "continuation-misread hook — 'Continue from where you left off' must not be read as a no-op",
       "blast_radius": "agent-infra",
