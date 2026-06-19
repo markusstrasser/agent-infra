@@ -2,7 +2,7 @@
 name: Claude Code
 category: coding-agent
 vendor: Anthropic
-last_refreshed: 2026-06-15
+last_refreshed: 2026-06-19
 status: active
 ---
 
@@ -10,17 +10,18 @@ status: active
 
 ## Current State
 
-- **Version:** 2.1.177 (npm latest; changelog through 2.1.176 features)
-- **Latest release date:** 2026-06-13
+- **Version:** 2.1.183 (npm latest)
+- **Latest release date:** 2026-06-19
 - **Pricing:** per-token via Claude API, plan-bundled via Claude subscriptions; fast mode = Opus at premium pricing
 - **Context window:** model-dependent; up to 1M (Fable 5, Opus long-context)
 - **Transport:** CLI (terminal), desktop app (Mac/Windows), web app (claude.ai/code), IDE extensions (VS Code, JetBrains). Headless batch via llmx: **`llmx chat --subscription -m claude-opus-4-8`** — not `anthropic-direct` unless explicitly requested (2026-06-15 policy; see `decisions/2026-06-15-llmx-refactor-dispatch-layer.md`).
 - **Models supported:** Fable 5 (default flagship), Opus 4.8/4.7/4.6 (fast mode default 4.7), Sonnet 4.6, Haiku 4.5
 - **Hook events:** 31 documented event types (PreToolUse, PostToolUse, Stop, SubagentStart/Stop, Session/Worktree/Compact lifecycle, MessageDisplay, InstructionsLoaded, PermissionRequest, …); 5 handler types incl. `mcp_tool`; Stop-family hooks return `hookSpecificOutput.additionalContext` (2.1.163)
-- **SDK:** claude-agent-sdk-python 0.2.96; claude-agent-sdk-typescript 0.3.172 (separate versioning from raw `@anthropic-ai/sdk` 0.104.1)
+- **SDK:** claude-agent-sdk-python 0.2.105; claude-agent-sdk-typescript 0.3.183 (separate versioning from raw `@anthropic-ai/sdk` 0.105.0)
 
 ## Recent Changes
 
+- 2026-06-19 [trending-scout] 2.1.177→2.1.183: `Tool(param:value)` permission rules (.178 — e.g. `Agent(model:opus)` to gate subagent model/cost); nested `.claude/skills` loading w/ `<dir>:<name>` clash naming (.178); `/config key=value` mid-prompt (.181); native destructive-git block in auto mode (.183). SDK ts 0.3.183: typed permission-denial reasons, `disallowedTools` server-level fix (was silent no-op), `SDKRateLimitInfo` credit fields. research/trending-scout-2026-06-19.md
 - 2026-06-15 [trending-scout] No release since 2.1.177 (Jun 13). Landscape stable; hook path `if:` audit still open ([ ] improvement-log). https://github.com/anthropics/claude-code/releases/tag/v2.1.177
 - 2026-06-13 [trending-scout] 2.1.172→2.1.177: hook path `if:` (2.1.176), nested subagents 5 levels (2.1.172), Fable `[1m]` normalize (.173), `enforceAvailableModels` (.175). research/trending-scout-2026-06-13.md
 - 2026-06-11 [trending-scout] 2.1.145→2.1.172 sweep: `--safe-mode` (.169); Stop/SubagentStop `additionalContext` (.163); MessageDisplay hook (.152); Dynamic Workflows GA (.154). research/trending-scout-2026-06-11.md
