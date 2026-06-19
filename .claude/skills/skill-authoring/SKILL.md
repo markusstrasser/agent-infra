@@ -259,8 +259,8 @@ Be aggressive; most prose that fails should go, not be rewritten.
 | **Premature completion** | a step ends before it's genuinely done | sharpen the completion criterion first (cheap, local); only if it's irreducibly fuzzy AND you observe the rush, hide post-completion steps by splitting |
 | **Duplication** | same meaning in ≥2 places | single source of truth — also inflates a meaning's rank on the disclosure ladder past its real one |
 | **Sediment** | stale layers accrete (adding feels safe, removing risky) | a pruning discipline — the default fate of any skill without one |
-| **Sprawl** | too long even when every line is live | the ladder — disclose reference to L3, split by branch/sequence |
-| **No-op** | a line the model already obeys by default | delete it, or replace a weak leading word (`be thorough`) with a stronger one (`relentless`) |
+
+(The other two classic failures — *no-op* and *sprawl* — are authoring-time anti-patterns; see **Generic instructions** / **All-in-SKILL.md** under Anti-Patterns below, not restated here.)
 
 _Design-language folded from mattpocock/writing-great-skills; see `agent-infra/research/2026-06-19-mattpocock-skills-best-ideas.md`._
 
