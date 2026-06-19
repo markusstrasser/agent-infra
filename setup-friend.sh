@@ -116,11 +116,16 @@ fi
 
 step "Installing AI CLI tools"
 
-# Claude Code
-if ! command -v claude &>/dev/null; then
-    npm install -g @anthropic-ai/claude-code
-    ok "Claude Code installed"
+# Claude Code (native installer — not npm; avoids duplicate /opt/homebrew/bin/claude)
+export PATH="$HOME/.local/bin:$PATH"
+if command -v claude &>/dev/null && [ -d "$HOME/.local/share/claude" ]; then
+    ok "Claude Code $(claude --version 2>/dev/null | head -1 || echo 'installed')"
 else
+    if npm list -g @anthropic-ai/claude-code --depth=0 &>/dev/null 2>&1; then
+        warn "Removing stale npm Claude Code install"
+        npm uninstall -g @anthropic-ai/claude-code 2>/dev/null || true
+    fi
+    curl -fsSL https://claude.ai/install.sh | bash
     ok "Claude Code $(claude --version 2>/dev/null | head -1 || echo 'installed')"
 fi
 
