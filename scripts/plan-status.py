@@ -165,11 +165,31 @@ def main():
     parser.add_argument("--verify-coverage", action="store_true",
                         help="Report which plans carry a runnable ```verify block "
                              "(the enforced stop-plan-gate mechanism; advisory, never blocks)")
+    parser.add_argument("--stale", nargs="?", const=14, type=int, metavar="DAYS",
+                        help="List OPEN plans (not done/failed) untouched >DAYS (default 14) — "
+                             "abandoned-plan triage for the human; never deletes anything")
     args = parser.parse_args()
 
     if args.update:
         completed = args.completed.split(",") if args.completed else None
         update_plan(args.update, args.status, completed)
+        return
+
+    if args.stale is not None:
+        from datetime import timedelta
+        cutoff = datetime.now(timezone.utc) - timedelta(days=args.stale)
+        open_states = {"pending", "running", "partial", "unknown"}
+        rows = [p for p in scan_plans()
+                if p["status"] in open_states
+                and datetime.fromisoformat(p["modified"]) < cutoff]
+        if args.json:
+            print(json.dumps(rows, indent=2))
+            return
+        print(f"Stale OPEN plans (status not done/failed, untouched >{args.stale}d) — {len(rows)} "
+              f"for triage (close or resume; nothing auto-deleted)")
+        print("-" * 78)
+        for p in sorted(rows, key=lambda x: x["modified"]):
+            print(f"  {p['project']:<9} {p['modified'][:10]}  {p['file'][:56]}")
         return
 
     if args.verify_coverage:
