@@ -968,3 +968,26 @@ binary-skills-diff:
 [group('knowledge')]
 rank *args:
     uv run python3 scripts/structure_debt_rank.py {{args}}
+
+# ── Git-ecosystem leverage (survey 2026-06-19) ────────────────────
+
+# Configure local merge drivers for THIS clone (idempotent; run once per clone).
+# mergiraf = AST-aware merge (`brew install mergiraf`), paired with .gitattributes:
+# auto-resolves structural conflicts, falls back to conflict markers when unsafe.
+# The driver lives in .git/config (local, not shared) — this recipe is its repro.
+[group('dev')]
+setup-merge-drivers:
+    git config --local merge.mergiraf.name "mergiraf AST merge driver"
+    git config --local merge.mergiraf.driver "mergiraf merge --git %O %A %B -p %P -l %L"
+    @echo "configured: mergiraf (AST, code+structured) + built-in union (append-only ledgers) — see .gitattributes"
+
+# Binary-search history to the commit that regressed a metric — the ACTIVE half of
+# "the git log is the learning". <cmd> exit!=0 = bad (an eval, or arc-agi's
+# loop/heretic_audit.py). For slow evals, memoize results per commit-hash.
+# Usage: just bisect-regression <good-rev> <bad-rev> <cmd...>
+#   e.g. just bisect-regression HEAD~20 HEAD 'uv run python3 some_eval.py'
+[group('dev')]
+bisect-regression good bad +cmd:
+    git bisect start {{bad}} {{good}}
+    -git bisect run {{cmd}}
+    git bisect reset

@@ -1,0 +1,23 @@
+# Git merge drivers — SCOPED TRIAL (agent-infra only). Provenance: git-ecosystem
+# survey 2026-06-19. Two drivers:
+#   mergiraf — AST/tree-sitter-aware merge: auto-resolves STRUCTURAL conflicts,
+#              falls back to ordinary conflict markers when unsafe (never hides a
+#              real conflict). Binary: `brew install mergiraf`; driver defined in
+#              .git/config (local). Until that driver is configured, git silently
+#              falls back to the default merge for these paths (so this is safe to
+#              commit ahead of the driver).
+#   union    — keep BOTH sides' lines on conflict; correct for append-only ledgers
+#              (the worktree / peer-session merge pain).
+
+# AST-aware merge for code + single-doc structured files
+*.py    merge=mergiraf
+*.js    merge=mergiraf
+*.ts    merge=mergiraf
+*.json  merge=mergiraf
+*.toml  merge=mergiraf
+*.yaml  merge=mergiraf
+*.yml   merge=mergiraf
+
+# Append-only ledgers — union keeps both sides' appended rows (no false conflict)
+*.jsonl            merge=union
+improvement-log.md merge=union
