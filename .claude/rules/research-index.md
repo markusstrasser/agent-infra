@@ -100,6 +100,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-06-19-evolutionary-autoresearch-frameworks.md` | Evolutionary Program-Search & Autoresearch — 2026 successors | TODO |
 | `2026-06-19-hermes-deep-dive-local.md` | Hermes self-evolution — second-order dive on LOCAL code | TODO |
 | `2026-06-19-hermes-self-evolution-pattern.md` | Hermes Agent Self-Evolution — what it actually is, vs our RSI loop | TODO |
+| `2026-06-19-leverage-rsi-autoresearch-actuation-gap.md` | Leverage Hunt — RSI + autoresearch | TODO |
 | `2026-06-19-mattpocock-skills-best-ideas.md` | mattpocock/skills@1.0.0 — all best ideas + what to integrate | TODO |
 | `2026-06-19-multiagent-orchestrator-tool-survey.md` | Multiagent week — what happened + what tools to build | TODO |
 | `2026-06-19-orchestrator-tools-plan-synthesis.md` | Tooling plan (tested, critiqued, renamed) | TODO |
@@ -107,6 +108,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-06-19-rsi-labs-blogposts-delta.md` | RSI labs/practitioner blogposts — delta | TODO |
 | `2026-06-19-rsi-sota-arxiv-delta.md` | RSI & Self-Evolving Agents — arXiv SoTA Delta | TODO |
 | `2026-06-19-rsi-sota-synthesis-what-to-integrate.md` | RSI / autoresearch SoTA — what to integrate | TODO |
+| `2026-06-19-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-19 (deterministic) | TODO |
 | `2026-06-19-steering-vectors.md` | Steering vectors — session mine (2026-06-19) | TODO |
 | `2026-06-19-tooling-api-critique-synthesis.md` | Critique → ship | TODO |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
