@@ -16,6 +16,29 @@ For each: arXiv id + date · 1-line claim · leverage (a/b/c + how) · verified-
 
 ---
 
+## Epoch-2 (handed-off ID verification + safety/bounds axis routed around S2)
+
+### Handed-off IDs — VERIFIED
+- **EFC = "Scaling Laws for Agent Harnesses via Effective Feedback Compute"** — arXiv:2605.29682 (May 28 2026). VERIFIED from abstract. Claim: raw tokens & tool-calls explain LIMITED variation in agent FAILURE RATES (R²=0.33 / 0.42); their "Oracle-EFC" and "Estimated-EFC" coordinates reach **R²=0.94**. Law relates FEEDBACK QUALITY (operationalized = informative, valid, non-redundant, retained) → failure rate. Base model NOT named in abstract (frontier status unverified). Code: not mentioned. LEVERAGE = (a)+(c), HIGH: quantitative spine for our premise that *quality of human corrections* (not volume) gates self-improvement — gives 4 named quality axes (informative/valid/non-redundant/retained) to score corrections against + a measurable target (predict failure-rate). Strongest epoch-2 find.
+- **SIA = "Self Improving AI with Harness & Weight Updates"** — arXiv:2605.27276 (May 26 2026, rev May 28). VERIFIED. Claim: ONE agent simultaneously updates BOTH another agent's harness/scaffold (prompts/tools/logic) AND its model WEIGHTS — vs optimizing levers separately; gains across 3 domains. Base model unnamed; code not indicated. Keywords: Self-Improving Agents, Test-Time Training, RL, Harness Engineering. LEVERAGE = (a), MEDIUM: harness+weights JOINT-update is beyond our harness-only loop (we don't train weights) — ceiling/direction note, not directly portable.
+- **RHO** — wenbo.io lead resolves to TWO different things; disambiguated:
+  - arXiv:2606.16458 **"RHO: Your Coding Agent is Secretly a Roboticist"** (Berkeley Embodied Science + AMD; Svegliato, Seshia, Zaharia). Literal "RHO" acronym but coding-agent→robotics-control, NOT RSI-core. Low leverage.
+  - **wenbo.io = Wenbo Pan**, whose on-axis paper is **"Evolving Agents in the Dark: Retrospective Harness Optimization via Self-Preference"** — arXiv:2606.05922 (Jun 2026, CityU HK). RSI-relevant: retrospective harness optimization via SELF-PREFERENCE (no external verifier — "in the dark"). LEVERAGE = (a)+(c): self-preference as improvement signal is exactly the risk our verifier-gating guards (LLM-judges-own-output = Trapped-Priors/semantic-laundering) — read as the CAUTIONARY failure mode to gate.
+
+### Bonus harness-RSI hits surfaced en route (Exa)
+- **Self-Harness: "Harnesses That Improve Themselves"** — arXiv:2606.09498 (Jun 2026, Shanghai AI Lab). On-axis (a). Epoch-3 candidate.
+- **Meta-Harness: End-to-End Opt** — surfaced (one of A2H's 5 named baselines); confirms "auto-harness" sub-field is crowded as of Jun 2026.
+
+### Safety / verification-BOUNDS axis (routed via Exa + OpenAlex, NOT S2)
+- **"On the Limits of Self-Improving in LLMs: The Singularity Is Not Near Without Symbolic Model Synthesis"** — arXiv:2601.05280 (Jan 5 2026). Claim (ASSERTED, title-level — body not full-read): pure-LLM self-improvement is BOUNDED; unbounded RSI needs symbolic model synthesis. Frontier-era. LEVERAGE = (a)+(b): theoretical ceiling argument supporting our verifier-gated *program-search* (symbolic/executable) grounds over pure prompt-self-edit loops. Borderline frontier; verify body before citing.
+- **"Exploration Hacking: Can LLMs Learn to Resist RL Training?"** — arXiv:2604.28182 (Apr 30 2026). Reward-hacking / training-resistance face of self-improvement safety. LEVERAGE = (a)+(c): the reward-hacking risk our eval/fitness must be robust to. Frontier. Note only.
+- OpenAlex backend returned mostly alignment-ETHICS (Rewarded Soups, pluralistic-alignment, "ethical evolution") — NOT RSI-convergence theory. The two arXiv hits above (via Exa) are the real bounds coverage; OpenAlex low-yield here.
+
+### Epoch-2 honest caveats
+EFC + SIA verified from abstracts only (no full PDF, no code confirmation). The two bounds papers are title/preview-level, NOT body-verified. "Singularity Is Not Near" is Jan-2026 = borderline frontier. All three handed-off IDs now resolved (EFC, SIA confirmed; RHO disambiguated into 2 papers).
+
+---
+
 ## RANKED SYNTHESIS (top NEW findings by leverage; known set confirmed absent below)
 
 **Top 3 to steal from (all May–Jun 2026, code released, body-verified):**
