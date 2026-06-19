@@ -115,7 +115,7 @@ class TestGoalStateFromCodex:
 
 class TestTier1Eligible:
     @pytest.mark.parametrize(
-        "status,source,strong,expected",
+        "status,source,real_issue,expected",
         [
             ("achieved", "claude_transcript", False, True),
             ("active", "claude_transcript", False, False),
@@ -124,9 +124,9 @@ class TestTier1Eligible:
             ("unknown", "none", True, True),
         ],
     )
-    def test_gating(self, status, source, strong, expected):
+    def test_gating(self, status, source, real_issue, expected):
         goal_state = {"status": status, "source": source}
-        if status == "unknown" and not strong:
+        if status == "unknown" and not real_issue:
             goal_state["degraded"] = True
-        eligible, _reason = gs.tier1_eligible(goal_state, correction_strong=strong)
+        eligible, _reason = gs.tier1_eligible(goal_state, real_issue=real_issue)
         assert eligible is expected
