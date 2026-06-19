@@ -78,7 +78,15 @@ NOT *faster* — this is a closure, not a speedup, so it can't be sized in a fac
 
 ## The actuation residue — ranked, with named consumers
 
-1. **Auto-resolver for predictions** [AUTONOMOUS, agent-infra-only]. On `check_date`,
+1. **Auto-resolver for predictions** [SHIPPED 79a090e — `predictions.py auto-resolve`,
+   wired into the daily `register_implementations` pass; refutes DUE predictions whose
+   bare agent-infra SHA is unreachable from HEAD; 6 tests; `resolution_rate` now an
+   instrumented KPI (0/26 today). Scope narrowed from the original plan: only the
+   PROXY-FREE subset auto-resolves — the commit→Gov-ID-scaffold join the original
+   sketch assumed turned out fragile (the `impl-*` predictions point at improvement-log
+   text edits, not at scaffolds with an `artifact_path`), so the ablation-verdict path
+   stays operator-gated. Honest factor: the loop now CLOSES on the build-then-undo
+   subset; the semantic remainder is still operator-polled.] On `check_date`,
    for predictions whose metric is machine-derivable (the `register_implementations`
    ones carry `metric="gov-shrink verdict if Gov-ID/verifier present"` — that IS
    machine-derivable: run the verifier with the scaffold removed = the ablation gate
