@@ -10,16 +10,15 @@ import json
 import subprocess
 from pathlib import Path
 
-import pytest
-
 SCRIPTS = Path(__file__).resolve().parent.parent
 
 
 def _load_predictions(ledger: Path):
     spec = importlib.util.spec_from_file_location("predictions_t", SCRIPTS / "predictions.py")
+    assert spec and spec.loader  # narrow Optional for the type-checker; a missing spec is a real failure
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    mod.LEDGER = ledger  # redirect the module-level ledger at the seam
+    setattr(mod, "LEDGER", ledger)  # redirect the module-level ledger at the seam
     return mod
 
 
