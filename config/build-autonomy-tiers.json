@@ -1,0 +1,42 @@
+{
+  "_doc": "Build-autonomy tiers — what the maintain-tick MOTOR may auto-ship vs gate. The OPERATIONAL form of the constitution's Autonomy Boundaries (it NEVER expands them; if a tier rule and the constitution disagree, the constitution wins). Consumed by scripts/maintain_tick.py + scripts/act_drain.py as the single-source tier policy (epistemic-principle #9 — consumers LOAD this, never restate the rules). DISTINCT from config/approval-tiers.json, which gates PRETOOL hooks (block/predicate/warn), not builds (audit 2026-06-19 corrected the conflation). Authorized: operator 2026-06-19 ('ok you can edit').",
+  "version": 1,
+  "tiers": {
+    "0": {
+      "rule": "agent-infra-local AND reversible AND checkable AND evidence_sessions>=2 AND blast_radius=agent-infra AND low_downside AND clear_win_vs_baseline (a complex / high-downside / unclear-vs-baseline item is NOT tier-0 even if local+reversible → it routes to 0E)",
+      "action": "auto-ship via maintain-tick",
+      "examples": ["agent-infra-only hook", "a local rule/doc fix", "a script bugfix"],
+      "constitution": "Self-modification boundary — 'Autonomous' tier (affects only agent-infra, easily reversible, one clear approach)"
+    },
+    "0E": {
+      "rule": "(agent-infra-local AND reversible) AND (complex OR high_downside OR unclear_vs_baseline OR multiple_viable_approaches) — tier-0 LOCATION but NOT a clear low-risk win",
+      "action": "EVAL-GATED auto-ship — NOT shipped on the tier rule. Required before ship: (1) opus-max runs a prior-art + repo sweep (git log/grep + decisions/ + vetoed-decisions) proving it is NOT a duplicate and NOT a re-run of a known-failed/vetoed experiment; (2) a minimum /eval emits a reproducible-fact verdict. Auto-ship IFF the fact PASSES (beats the status-quo baseline at the pre-registered threshold, heretic-clean); else → decisions-pending.",
+      "judge": "opus-max RUNS the sweep + the eval and READS the verdict (the human lacks the technical expertise for this call; opus-max is the more capable judge). BUT the GATE is the ground-truth FACT (deterministic baseline-beat + heretic PASS), NOT opus-max's opinion — self-judge Goodhart guard (DGM caution). The proposer of a change must not be the sole adjudicator of its own eval.",
+      "constitution": "verifier-conditioned autonomy — a CLEAR verifier (baseline-beat) automates the JUDGMENT to the most capable judge; the human is reserved for taste/telos. The reproducible-fact contract (decisions/2026-06-19-reproducible-fact-contract.md) IS this gate."
+    },
+    "1": {
+      "rule": "tier-0 conditions AND single-variable harness change (one logical change, isolatable per the isolate-harness-changes rule)",
+      "action": "auto-ship + notify in act-drain digest"
+    },
+    "2": {
+      "rule": "shared infra OR affects 3+ projects OR multiple viable approaches OR new dependency/pattern OR deletes-restructures architecture",
+      "action": "decisions-pending (human gate)",
+      "constitution": "hard limit #4 (shared infra 3+ projects) + 'Propose and wait' boundary"
+    },
+    "3": {
+      "rule": "GOALS OR constitution OR autonomy-boundary OR capital OR external contact OR architectural deletion OR taste-final",
+      "action": "principal only",
+      "constitution": "hard limits #1-5 + invariants.md (#1 may be inferred-from-user-messages + reversible = act-then-tell; #2-5 require explicit approval)"
+    }
+  },
+  "go_live": {
+    "maintain_tick_apply": false,
+    "note": "The motor auto-ships tier-0/1 ONLY when maintain_tick runs with --apply AND this flag is true. DEFAULT OFF: the motor DRAFTS proposals until the operator flips this after observing dry-run output. First live ships must be observable + reversible. Flipping this to true is itself a tier-3 (autonomy-boundary) act — operator only."
+  },
+  "invariants": [
+    "OPERATIONALIZES the constitution's Autonomy Boundaries; never EXPANDS them. Constitution wins on conflict.",
+    "A change matching multiple tiers takes the HIGHEST (most restrictive) tier.",
+    "Tier-0/1 auto-ships MUST emit a reproducible-fact verdict (predict-then-falsify) once that contract lands — an auto-shipped change that does not move its pre-registered metric is reverted (the accretion / policy-maze guard).",
+    "stale_count>=2 on a tier-0 item (two ticks, no progress) escalates to HUMAN.md, not retry-harder (structure-not-tactics)."
+  ]
+}
