@@ -114,6 +114,11 @@ def main() -> int:
               f"(+{CHECK_HORIZON_DAYS}d), {r['skipped']} already present")
     else:
         print(f"[register-impl] no new implementations in window ({r['skipped']} already present)")
+    # Closing force: the same daily pass that REGISTERS predictions also auto-resolves
+    # the proxy-free subset (refute reverted commits). Without this the ledger is
+    # write-only — registration fires daily, resolution never does. See predictions.py
+    # cmd_auto_resolve. The semantic remainder stays operator-gated via questions_view.
+    predictions.cmd_auto_resolve()
     return 0
 
 

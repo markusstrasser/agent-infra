@@ -37,7 +37,8 @@ import json
 import sys
 from pathlib import Path
 
-LEDGER = Path(__file__).resolve().parent.parent / "predictions.jsonl"
+REPO = Path(__file__).resolve().parent.parent
+LEDGER = REPO / "predictions.jsonl"
 
 
 def _load() -> tuple[dict, set]:
@@ -126,10 +127,63 @@ def cmd_resolve(pid: str, status: str, note: str) -> None:
     if status not in ("confirmed", "refuted", "partial"):
         print("status must be confirmed|refuted|partial")
         sys.exit(1)
-    rec = {"id": pid, "ts": _today(), "kind": "resolution", "status": status, "note": note}
+    _append_resolution(pid, status, note)
+    print(f"resolved [{pid}]: {status} — {note}")
+
+
+def _append_resolution(pid: str, status: str, note: str) -> None:
+    rec = {"id": pid, "ts": _today(), "kind": "resolution", "status": status,
+           "note": note, "auto": note.startswith("auto:")}
     with LEDGER.open("a") as fh:
         fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
-    print(f"resolved [{pid}]: {status} — {note}")
+
+
+_SHA = __import__("re").compile(r"^[0-9a-f]{7,40}$")
+
+
+def cmd_auto_resolve(dry_run: bool = False) -> int:
+    """Resolve the PROXY-FREE subset of DUE predictions; leave the rest to the operator.
+
+    The accept-gate half of predict-then-falsify (steal #1, 2026-06-19 SoTA synthesis).
+    The ledger was write-only — 24 registered, 0 resolved — so the loop never closed
+    (consumption-over-autonomy inside the RSI machinery). This resolves ONLY what is
+    deterministically derivable WITHOUT a fragile commit→scaffold join:
+
+      refuted — DUE+OPEN, `commit` is a bare agent-infra SHA, and that SHA is no longer
+                reachable from HEAD ⇒ the change was reverted/rebased out ⇒ it did not
+                earn its keep (the build-then-undo signal, directly checkable).
+
+    Everything else (cross-repo `commit` refs, non-SHA commits, scaffolds whose
+    earn-its-keep needs the ablation/gov-shrink verdict) is LEFT OPEN for the operator
+    via questions_view — semantics/blast is the operator's boundary, never auto-judged.
+    Confirming a prediction is NOT auto-done here: 'still present in history' is far
+    weaker than 'predicted metric moved', and a false 'confirmed' is the worse error.
+    """
+    import subprocess
+    preds, resolved = _load()
+    today = _today()
+    due_open = [p for pid, p in preds.items()
+                if pid not in resolved and p.get("check_date", "9999") <= today]
+    acted = 0
+    for p in due_open:
+        commit = (p.get("commit") or "").strip()
+        if not _SHA.match(commit):
+            continue  # cross-repo ref / prose / empty → operator's call
+        reachable = subprocess.run(
+            ["git", "-C", str(REPO), "merge-base", "--is-ancestor", commit, "HEAD"],
+            capture_output=True).returncode == 0
+        if reachable:
+            continue  # still in history → can't auto-confirm; leave for operator
+        note = f"auto: commit {commit} no longer reachable from HEAD — reverted/rebased, did not earn its keep"
+        if dry_run:
+            print(f"WOULD refute [{p['id']}] — {note}")
+        else:
+            _append_resolution(p["id"], "refuted", note)
+            print(f"  ✗ refuted [{p['id']}] — {note}")
+        acted += 1
+    _, now_resolved = _load()
+    print(f"auto-resolve: {acted} refuted; resolution_rate now {len(now_resolved)}/{len(preds)}")
+    return acted
 
 
 def main() -> None:
@@ -140,13 +194,16 @@ def main() -> None:
         cmd_list()
     elif a[0] == "resolve" and len(a) >= 3:
         cmd_resolve(a[1], a[2], a[3] if len(a) > 3 else "")
+    elif a[0] == "auto-resolve":
+        cmd_auto_resolve(dry_run="--dry-run" in a)
     elif a[0] == "register" and len(a) >= 5:
         pid = register_prediction(
             change=a[1], prediction=a[2], metric=a[3], check_date=a[4],
             commit=a[5] if len(a) > 5 else "", pid=a[6] if len(a) > 6 else "")
         print(f"registered [{pid}]" if pid else "already present (no-op)")
     else:
-        print("usage: predictions.py [due|list|resolve <id> <verdict> <note>|"
+        print("usage: predictions.py [due|list|auto-resolve [--dry-run]|"
+              "resolve <id> <verdict> <note>|"
               "register <change> <prediction> <metric> <check_date> [commit] [id]]")
         sys.exit(1)
 
