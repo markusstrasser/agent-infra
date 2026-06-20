@@ -272,7 +272,7 @@ FM-ID: fm10-memory-overfit
 signature: memory system selected/validated on LOCOMO-style conversational benchmarks rather than the actual entity-tracking/investigation use case
 target_surface: vetoed-decisions / decision-journal gate before adopting a fancier memory system over files+git
 status: active
-evidence_count: 0
+evidence_count: 1
 -->
 ```
 IF memory system evaluated on LOCOMO/conversational benchmarks
