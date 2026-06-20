@@ -14,10 +14,33 @@ from pathlib import Path
 SKILL = Path.home() / ".claude/skills/observe"
 DEFAULT_MAX = 580_000
 SEP = "\n\n---\n\n"
+SIGPIPE = 141
 
 
 def _run(cmd: list[str]) -> None:
     subprocess.run(cmd, check=True)
+
+
+def _run_shell_to_file(script: Path, out: Path) -> None:
+    """Run a shell script with stdout to *out*; tolerate benign SIGPIPE (141)."""
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with out.open("w") as fh:
+        proc = subprocess.run(
+            ["bash", str(script)],
+            stdout=fh,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    if proc.returncode == 0:
+        return
+    if proc.returncode == SIGPIPE and out.stat().st_size > 0:
+        return
+    err = (proc.stderr or "").strip()
+    raise subprocess.CalledProcessError(
+        proc.returncode,
+        ["bash", str(script)],
+        output=err or None,
+    )
 
 
 def extract(project: str, sessions: int, full: bool, out: Path, codex: bool) -> None:
@@ -66,11 +89,8 @@ def build_context(
     cov = root / "coverage-digest.txt"
 
     if not cov.is_file():
-        subprocess.run(
-            ["bash", str(Path(__file__).resolve().parents[1] / "scripts/coverage-digest.sh")],
-            stdout=cov.open("w"),
-            check=True,
-        )
+        digest = Path(__file__).resolve().parents[1] / "scripts/coverage-digest.sh"
+        _run_shell_to_file(digest, cov)
 
     parts: list[Path] = [input_md]
     if include_codex and codex_md.stat().st_size > 0:
