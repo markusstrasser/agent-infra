@@ -622,7 +622,7 @@ FM-ID: fm24-retry-without-diagnosis
 signature: same tool called 3+ times with varied params and no diagnosis step between failures
 target_surface: spinning-detector / tool-failure hooks; decision-point gate before blind retry
 status: active
-evidence_count: 1060
+evidence_count: 1186
 -->
 ```
 IF external tool/API call fails
