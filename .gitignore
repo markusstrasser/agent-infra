@@ -102,9 +102,11 @@ maintenance-actions.jsonl
 # Orchestrator/debug pipeline run output in docs/audit/ — derived/ephemeral per run
 # (debug-scout files, findings-consolidation handoffs, dispatch manifests).
 # Durable codex-*/dispatch-research-* audits stay tracked.
-docs/audit/*-debug-*
-docs/audit/*-handoff.md
-docs/audit/*-manifest.txt
+# **/ anchor: scouts also write to nested <pkg>/docs/audit/ (e.g. substrate/docs/audit/)
+**/docs/audit/*-debug-*
+**/docs/audit/*-handoff.md
+**/docs/audit/*-manifest.txt
+**/docs/audit/*-manifest.jsonl
 
 # Downloaded paper PDFs (binaries — archival, not committed)
 research/papers/
