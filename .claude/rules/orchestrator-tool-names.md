@@ -17,6 +17,22 @@ Multi-syllable names. **Just recipes = kebab-case.** **Scripts = snake_case.**
 
 Every run prints `llm: none|optional|required` on stderr. Vocabulary: `config/system-kinds.json`.
 
+## When to fire (orchestrator-model decides — NOT a hook)
+
+These are central hub recipes that take a repo as an **argument** — they run on any
+repo regardless of its local justfile. The orchestrator model reaches for them by
+judgment; deciding "is this a major-enough plan finish?" is a semantic call, so it is
+NOT auto-fired by a hook. Cursor scouts are cheap — fan out freely.
+
+| Trigger the orchestrator watches for | Reach for | Dispatch |
+|---|---|---|
+| Major plan / `/decide` / refactor just landed | `adversarial-debug-scout <repo>` then `audit-findings-consolidation` | **background**: `just -f ~/Projects/agent-infra/justfile adversarial-debug-scout <repo> recent &` → triage `docs/audit/` later |
+| Pre-commit / pre-ship gate | `verification-gate-runner <repo>` | foreground (fast) |
+| "what changed since green?" | `baseline-since-last-green <repo>` | foreground |
+
+Fire-and-forget convention: append `&` (or `run_in_background`) for scout/loop recipes
+(~minutes); they write to `<repo>/docs/audit/` and the orchestrator triages on return.
+
 ## Gate status contract (baseline + verification-gate-runner)
 
 `GREEN` | `RED` | `UNKNOWN` | `SKIPPED` — autonomous paths treat UNKNOWN like RED.
