@@ -198,13 +198,8 @@ def wave_scout_prompt(project: str, scope_block: str, memo: dict[str, Finding], 
     axes = load_prompt_template()  # borrow the shared check-axes + verify discipline
     # keep only the guidance up to its output block; we impose our own block below
     axes = axes.split("## Output format", 1)[0]
-    return (
-        "/debug\n\n"
-        "**AUDIT ONLY — you WRITE FINDINGS, you do NOT fix anything.** Strictly read-only: do NOT "
-        "edit, patch, refactor, create, or delete any file; do NOT run mutating or destructive "
-        "commands; do NOT commit. Your ENTIRE output is the finding blocks specified below — fixing "
-        "is the orchestrator's job, never yours.\n\n"
-        + axes.replace("{project}", project).replace("{scout_id}", f"w{wave}")
+    return (  # /debug + audit-only banner are inherited from debug_scout_prompt.md (single source)
+        axes.replace("{project}", project).replace("{scout_id}", f"w{wave}")
         .replace("{scope_block}", scope_block).replace("{extra_prompt}", "(none)")
         + "\n## Audit memo so far (do NOT re-report a known claim; instead VERIFY any `?UNVERIFIED`)\n"
         + memo_digest_for_prompt(memo)
