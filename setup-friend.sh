@@ -264,6 +264,18 @@ else
     warn "parsers install failed — repo may be private, set up SSH keys first"
 fi
 
+# agentlogs ships INSIDE the agent-infra wheel (no standalone dist), so expose a global
+# wrapper instead of `uv tool install`. Lets any repo search its own session history:
+#   agentlogs search --project <repo> "query"   (quote queries — FTS5 reads - as an operator)
+mkdir -p "$HOME/.local/bin"
+cat > "$HOME/.local/bin/agentlogs" <<'AGENTLOGS'
+#!/usr/bin/env bash
+# Global entrypoint → cross-vendor agent session store (agentlogs in the agent-infra wheel).
+exec uv run --project "$HOME/Projects/agent-infra" agentlogs "$@"
+AGENTLOGS
+chmod +x "$HOME/.local/bin/agentlogs"
+ok "agentlogs (global wrapper → agent-infra wheel)"
+
 # ── Repos ──────────────────────────────────────────────────
 
 step "Cloning repos"
