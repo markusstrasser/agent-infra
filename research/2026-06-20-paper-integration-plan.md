@@ -31,6 +31,21 @@ concluded "pattern-extract, our primer rejects hosted runtimes."
 | **ToolSearch → capability-envelope + intention graph** | ~10 | MODERATE |
 | **over-ask ask-gate** (uncertainty decomposition) + **Workflow** primitives (wait_for, plan-contract) | ~8 | MODERATE |
 
+## BUILD STATUS (2026-06-20)
+
+**Foundation SHIPPED — F1+F2+F3 built, tested (19 tests green), committed.**
+
+| Item | Status | Artifact |
+|---|---|---|
+| F1 typed trace IR | ✅ BUILT (`1c6b480`) | `scripts/session_trace.py --format ir` — derived view, inferred edges; 7 tests |
+| F2 memory provenance | ✅ BUILT (`e9e76f2`) | `scripts/memory_provenance_check.py` + `.claude/rules/memory-provenance-schema.md`; 6 tests; live run found 27 real drift warnings / 48 files |
+| F3 predict-then-falsify gate | ✅ BUILT (`9b1e8f5`) | `scripts/mechanism_record.py` + `mechanism-records/` + `.claude/rules/predict-then-falsify-gate.md`; 6 tests; validated end-to-end on live agentlogs |
+| L1 act-drain anti-accretion | ⬜ next | gated by F3 |
+| L2 eval lane / L3 ask-gate | ⬜ after L1 | |
+
+`just` recipe wrappers (`mechanism-*`, `memory-drift`) deferred until the in-flight
+peer `.sh`→`.py` justfile migration settles — direct invocation is the live interface.
+
 ## The structure: 3 foundations everything else assumes, then 5 layers
 
 The 30+-paper items aren't independent — **F1/F2/F3 are a substrate the rest require.** You can't run
