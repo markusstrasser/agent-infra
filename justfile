@@ -247,6 +247,10 @@ blindspot:
 prior-context-triage *args:
     uv run python3 scripts/prior_context_triage.py {{args}}
 
+# Hook fire rate vs triage flags (measure prior-context ROI)
+prior-context-stats *args:
+    uv run python3 scripts/prior_context_fire_stats.py {{args}}
+
 # Size-safe observe dispatch context (600KB cap); drops codex first, then truncates.
 observe-context project='agent-infra' sessions='5' *args:
     uv run python3 scripts/observe_prepare_context.py --project {{project}} --sessions {{sessions}} {{args}}
@@ -259,6 +263,7 @@ observe-drift sessions='5' *args:
 observe-all project='agent-infra' sessions='5':
     just observe-context {{project}} {{sessions}}
     just prior-context-triage
+    just prior-context-stats
     just blindspot
 
 # Pre-registered prediction ledger: `predictions list` (open/DUE/resolved),
