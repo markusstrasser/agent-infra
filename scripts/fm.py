@@ -40,6 +40,19 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 FM_FILE = REPO / "agent-failure-modes.md"
+
+try:
+    from common.automation_ledger import register as _ledger_register
+except Exception:  # ledger is best-effort — never let it break fm.py
+    def _ledger_register(*_a, **_k):
+        return None
+
+
+def _write_fm(text: str) -> None:
+    """Write the FM ledger AND register it as automation-written, so the Stop hook
+    attributes it to fm.py (not whatever interactive session is ending)."""
+    FM_FILE.write_text(text, encoding="utf-8")
+    _ledger_register(FM_FILE, "fm.py")
 EVIDENCE_LOG = Path.home() / ".claude" / "fm-evidence.jsonl"
 
 _FMID = re.compile(r"FM-ID\s*:\s*([a-z0-9][a-z0-9_.:/-]+)", re.IGNORECASE)
@@ -158,7 +171,7 @@ def _bump_count(fm_id: str, delta: int) -> bool:
                 indent = line[:len(line) - len(line.lstrip())]
                 closer = " -->" if "-->" in line else ""  # preserve inline comment closer
                 lines[i] = f"{indent}evidence_count: {cur + delta}{closer}\n"
-                FM_FILE.write_text("".join(lines), encoding="utf-8")
+                _write_fm("".join(lines))
                 return True
     return False
 
@@ -261,7 +274,7 @@ def _set_block_fields(fm_id: str, updates: dict[str, str]) -> bool:
     if rem:
         ind = field_indent or ""
         lines.insert(closer_idx, "".join(f"{ind}{k}: {v}\n" for k, v in rem.items()))
-    FM_FILE.write_text("".join(lines), encoding="utf-8")
+    _write_fm("".join(lines))
     return True
 
 
