@@ -113,7 +113,30 @@ Four of the highest-value items (#2 degradation monitor, #3 dispatch-receipt, #4
 ## Philosophy NOT to adopt
 OmO's manifesto: *"Human intervention is a failure signal / HUMAN IN THE LOOP = BOTTLENECK."* Autonomy-maximalism with no verifier-quality conditioning — the blunt version of our verifier-conditioned autonomy, and the stance behind the Replit "deleted prod DB in 9s then faked success" failure already in our `invariants.md`. Borrow the mechanisms, not the slogan.
 
-## Suggested next actions (if pursued)
+## Revisions
+
+**2026-06-20 (same day) — grounding via `/decide` collapsed the build table.** The build
+table above was written from the OmO source *without* checking our existing hooks or Claude
+Code's actual hook surface (the laziness it warns against). Grounding probes overturned it:
+- **#4 rules char-budget silent-drop → FALSIFIED.** Claude Code loads CLAUDE.md/rules *"in
+  full regardless of length"* (CC `memory.md`). The 30K "ceiling" is our own tooling's
+  advisory, not CC truncation. Only MEMORY.md (auto-memory) is capped (200 lines/25KB). Real
+  residual: path-scoped (`paths:`-frontmatter) rules drop after compaction until their trigger
+  file is re-read — a CC behavior, not a hook to build.
+- **#2 preemptive-compact + degradation monitor → NOT PORTABLE.** A hook cannot initiate
+  compaction (CC-controlled; PreCompact can only observe/block). No enforceable per-assistant-
+  message hook exists (`MessageDisplay` is display-only). The OmO mechanism doesn't map.
+- **#3 dispatch-receipt → DOWNGRADED (no incident).** Buildable via SubagentStop, but our 2
+  rediscovery burns were inventory-misses (already hooked by `pretool-prebuild-inventory-shadow.py`),
+  not context-loss-in-transit. The failure #3 targets has not been observed.
+- **#9 empty-task → REDUNDANT.** `posttool-subagent-output-check.sh` already covers it (stronger:
+  file exist/empty/PENDING-stub).
+- **#1 edit-error-recovery → BUILT & SHIPPED** (`1ffd6dd`). The only survivor; incident-backed
+  (Edit 7.1% error rate, 1651/23d, tail to 47/run; worst runs = documented bad sessions).
+  agent-infra-local; matched strings verified from real transcripts.
+
+Net: of 5 "compaction-integrity" candidates, **1 built, 4 closed by ground truth.** The arc's
+value was *preventing 4 unjustified builds*, not producing a suite.
 1. Verify #4 (rules char-budget drop) against real Claude Code — cheapest, gates how urgent the budget work is.
 2. Ship #1 (edit-error-recovery) + #9 (empty-task-response-detector) — trivial bash hooks, agent-infra-only, autonomous per constitution.
 3. Probe #2/#3 as the "compaction-integrity" pass.
