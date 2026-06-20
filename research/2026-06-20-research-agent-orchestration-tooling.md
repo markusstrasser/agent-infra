@@ -94,9 +94,16 @@ against current frontier.
 - **Delta vs us:** ~none architecturally — this IS our researcher-subagent + CORAL pattern (parent/
   supervisor owns final answer, bounded subagents, isolated context, compress-then-return). They have
   async background subagents (a throughput nicety we could mirror via `run_in_background`), and a
-  filesystem-context "deep agents" abstraction. No verification/adversarial layer like ours.
-- **Verdict:** ALREADY-FRONTIER. Confirms our architecture is the field-standard shape. Only nicety:
-  async background subagents for throughput (we already have `run_in_background`).
+  filesystem-context "deep agents" abstraction.
+- **Verification — CORRECTED (see Revisions):** open_deep_research has no verification/adversarial
+  layer. So does **our `deep_research` MCP tool** — it is a thin Gemini-Deep-Research wrapper
+  (`research-mcp/.../deep_research.py` polls the Interactions API and returns the provider's report +
+  citations, no claim-checking). The verification edge is in our broader `/research` pipeline
+  (`verify_claim`, cross-model critique) — NOT in the `deep_research` tool. Tool-to-tool, open_deep_research
+  ≈ our `deep_research`. Real gap to close: route `deep_research` output through `verify_claim` before
+  returning, or document that its output is unverified.
+- **Verdict:** ALREADY-FRONTIER *at the pipeline level*. Only nicety: async background subagents for
+  throughput (we already have `run_in_background`).
 
 ### GPT-Researcher — ACTIVE, BELOW our depth
 - 27.8k stars, 100+ contribs, very alive. But it's a breadth-first web-research → report wrapper
@@ -158,3 +165,11 @@ researcher subagent w/ persistent memory + CORAL epochs + cross-model adversaria
   durable mechanism, not the specific wet-lab results.
 - STORM / OpenScholar flagged pre-frontier (>9mo dormant) — prior March memos benchmarked against them;
   that comparison has decayed.
+
+## Revisions
+- **2026-06-20** — Corrected the open_deep_research "verification edge" claim. Original draft said
+  open_deep_research had "no verification/adversarial layer like ours," implying a tool-level advantage.
+  Probing `research-mcp/.../deep_research.py` showed our `deep_research` tool is itself an unverified
+  Gemini-Deep-Research wrapper — the verification lives in the `/research` *pipeline*, not the tool. The
+  edge is pipeline-level only; tool-to-tool we are at parity. (Subagent-output accuracy fix per AI-text
+  policy — claims from a dispatched researcher are unverified by default.)
