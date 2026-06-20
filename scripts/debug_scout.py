@@ -123,8 +123,7 @@ def run_scout(
     dry_run: bool,
 ) -> tuple[str, bool, str]:
     if dry_run:
-        out_path.write_text(f"# DRY RUN scout {scout_id}\n\n{prompt[:500]}…\n")
-        return scout_id, True, f"dry-run → {out_path}"
+        return scout_id, True, f"dry-run scout {scout_id} (no files written)"
 
     if not AGENT.is_file():
         return scout_id, False, "agent CLI not found (~/.local/bin/agent)"
@@ -175,20 +174,32 @@ def main() -> int:
     run_stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     day = date.today().isoformat()
     audit_dir = repo / "docs" / "audit"
-    audit_dir.mkdir(parents=True, exist_ok=True)
 
     scopes = build_scopes(repo, args.scope, args.max_scouts)
     if not scopes:
         return 1
     print(f"# debug scout run={run_stamp} repo={repo.name} scopes={len(scopes)}", file=sys.stderr)
 
+    if args.dry_run:
+        for scout_id, scope_block in scopes:
+            out_path = audit_dir / f"{day}-debug-{run_stamp}-{scout_id}.md"
+            print(f"  would write {out_path}", file=sys.stderr)
+            print(f"  scope[{scout_id}]: {scope_block[:200]}…", file=sys.stderr)
+        print(
+            f"\n# dry-run: {len(scopes)} scout(s), no files written "
+            f"(re-run without --dry-run to dispatch)",
+            file=sys.stderr,
+        )
+        return 0
+
+    audit_dir.mkdir(parents=True, exist_ok=True)
     results: list[tuple[str, bool, str]] = []
 
     def job(item: tuple[str, str]) -> tuple[str, bool, str]:
         scout_id, scope_block = item
         prompt = render_prompt(repo.name, scout_id, scope_block, args.prompt)
         out_path = audit_dir / f"{day}-debug-{run_stamp}-{scout_id}.md"
-        return run_scout(repo, scout_id, prompt, out_path, args.dry_run)
+        return run_scout(repo, scout_id, prompt, out_path, dry_run=False)
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
         futs = [pool.submit(job, s) for s in scopes]
