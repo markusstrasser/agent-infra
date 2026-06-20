@@ -40,8 +40,15 @@ concluded "pattern-extract, our primer rejects hosted runtimes."
 | F1 typed trace IR | ✅ BUILT (`1c6b480`) | `scripts/session_trace.py --format ir` — derived view, inferred edges; 7 tests |
 | F2 memory provenance | ✅ BUILT (`e9e76f2`) | `scripts/memory_provenance_check.py` + `.claude/rules/memory-provenance-schema.md`; 6 tests; live run found 27 real drift warnings / 48 files |
 | F3 predict-then-falsify gate | ✅ BUILT (`9b1e8f5`) | `scripts/mechanism_record.py` + `mechanism-records/` + `.claude/rules/predict-then-falsify-gate.md`; 6 tests; validated end-to-end on live agentlogs |
-| L1 act-drain anti-accretion | ⬜ next | gated by F3 |
-| L2 eval lane / L3 ask-gate | ⬜ after L1 | |
+| L1 act-drain anti-accretion | ⛔ BLOCKED | touches `scripts/act_drain.py` — in the active peer `.sh`→`.py` migration; collision risk |
+| L2 over-ask telemetry grader | 🟡 SLICE BUILT (`670a025`) | `scripts/over_ask_telemetry_grader.py` — faithful act/ask via tool-call telemetry over F1 IR; 5 tests; validated on real sessions. First consumer of F1. |
+| L3 ask-gate eval | ⬜ operator-go | grader is the instrument; threshold/caution-floor/promotion operator-owned |
+
+**L2 scope flip (VOI):** prior-art probe (`2026-06-19-behavioral-eval-feasibility.md`)
+found the over-ask lane far past the plan's framing — a case bridge + 29 human-labeled
+cases + a v0 harness replay already exist, and **bare-model eval is a refuted instrument
+(over-ask is harness-induced)**. So L2 ≠ a new eval; the missing piece was the **faithful
+telemetry grader** (the v0's text grader is foreclosed). Built that over F1.
 
 `just` recipe wrappers (`mechanism-*`, `memory-drift`) deferred until the in-flight
 peer `.sh`→`.py` justfile migration settles — direct invocation is the live interface.
