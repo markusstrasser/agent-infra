@@ -40,7 +40,7 @@ import json
 import os
 import re
 import sys
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -72,6 +72,7 @@ class Question:
     created: str   # ISO date (YYYY-MM-DD) from filename / field / mtime
     ref: str       # path to the source item (so the human can open it)
     detail: str = ""  # optional one-line context (boundary / recommendation / class)
+    supersedes: tuple[str, ...] = ()  # slugs (filename stems) this item consolidates → collapsed in the VIEW
 
 
 @dataclass
@@ -134,6 +135,44 @@ def _field_value(text: str, label: str) -> str:
     return ""
 
 
+def _supersedes(text: str) -> tuple[str, ...]:
+    """Parse a `**Supersedes:** slugA, slugB` field into filename-stem slugs.
+
+    The deterministic convergence edge: an agent that writes a consolidating
+    proposal declares which pending items it subsumes; the VIEW collapses them
+    under it (the lifecycle `supersedes` relation, applied to the queue). No
+    fuzzy auto-clustering — the semantic grouping is authored once, honored forever.
+    """
+    raw = _field_value(text, "Supersedes")
+    if not raw:
+        return ()
+    toks = re.split(r"[,\s]+", raw)
+    return tuple(t.strip().strip("`").removesuffix(".md") for t in toks if t.strip())
+
+
+def _collapse_superseded(questions: list[Question]) -> list[Question]:
+    """Drop items declared superseded by a present consolidator; annotate the
+    consolidator with the count. Collapsed items are NOT lost (they remain on
+    disk and are named by the consolidator) — this is convergence, not hiding."""
+    slug_owner = {slug: q.id for q in questions for slug in q.supersedes}
+    if not slug_owner:
+        return questions
+    collapsed: dict[str, int] = {}
+    survivors: list[Question] = []
+    for q in questions:
+        stem = Path(q.ref).name.removesuffix(".md")
+        owner = slug_owner.get(stem)
+        if owner and owner != q.id:
+            collapsed[owner] = collapsed.get(owner, 0) + 1
+        else:
+            survivors.append(q)
+    return [
+        replace(q, detail=(f"{q.detail} · " if q.detail else "") + f"consolidates {collapsed[q.id]} superseded")
+        if q.id in collapsed else q
+        for q in survivors
+    ]
+
+
 def _date_from_name(name: str) -> str:
     m = re.match(r"(\d{4}-\d{2}-\d{2})", name)
     return m.group(1) if m else ""
@@ -189,6 +228,7 @@ def _parse_decision(path: Path) -> Question:
         created=_date_from_name(path.name) or _mtime_date(path),
         ref=str(path),
         detail=" · ".join(detail_bits),
+        supersedes=_supersedes(text),
     )
 
 
@@ -212,6 +252,7 @@ def _parse_steward(path: Path) -> Question:
         created=created,
         ref=str(path),
         detail=f"class={klass}" if klass else "",
+        supersedes=_supersedes(text),
     )
 
 
@@ -329,7 +370,7 @@ def collect_questions(repo: str | Path = REPO, *, include_clash: bool = False) -
     _collect_predictions(result)
     if include_clash:
         _collect_clash(result)
-    result.questions = _dedup(result.questions)
+    result.questions = _collapse_superseded(_dedup(result.questions))
     return result
 
 
