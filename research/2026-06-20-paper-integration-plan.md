@@ -45,13 +45,15 @@ edits. Build the foundation first; the layers become cheap.
 **F1 — session-trace typed IR** (the substrate)
 - **Mechanism (HTIR, arXiv:2606.06324):** compile raw cross-vendor transcripts into a typed
   `TraceStep(id, vendor, role, request_ref, response_ref, status, effect_kind, resource_ref)` +
-  provenance/control-flow link tables, then diagnose against the IR, not raw prose. Reinforced by
-  ACDL (2605.01920, context-shape DSL), pi-cwl (2606.11213, typed expl/act episodes + dependency
-  edges), PROJECTMEM (2606.12329, event types issue/attempt_failed/fix_worked), MiniMax
-  (2605.26494, (state,action,observation,artifact,reward) episodes).
+  provenance/control-flow link tables, then diagnose against the IR, not raw prose. Reinforced
+  (NARROW, post-refute) by ACDL (2605.01920) — as a `context_shape` SUBVIEW only, not full IR; and
+  pi-cwl (2606.11213) — dependency edges are INFERRED forensic hints, NOT causal ground truth.
+  [PROJECTMEM 2606.12329 relocated to F2/F3; MiniMax 2605.26494 DROPPED — model paper, not trace-IR.]
 - **Why it works:** diagnosis on typed steps lets you group by *diagnosed flaw* instead of anecdote,
   and makes "did the intended mechanism fire?" a query, not a re-read.
-- **Measured:** HTIR reports 15.2–50.0% held-out gains (paper, not reproduced — screen-only).
+- **Measured:** HTIR's 15.2–50.0% is a FULL repair loop; the typed-IR ablation shows trace-grounded
+  diagnosis contributes but does NOT isolate the IR alone (refute). Preconditions: rich tool/env logs,
+  recurring failures, held-out tasks, recomputable target-flaw metrics. Screen-only.
 - **Our bolt-on:** a derived view over `agentlogs.db` (NOT a new DB) — `session-trace` emits typed
   steps + effect/provenance edges. Label inferred edges as inferred (pi-cwl caveat).
 - **Confidence:** MED (single paper for the IR shape; the *pattern* is 5-way triangulated). **Autonomy: autonomous** (agent-infra-local).
@@ -81,18 +83,25 @@ edits. Build the foundation first; the layers become cheap.
   self-preference (RHO 2606.05922 from the sweep; NRT-Bench 2606.20408).
 - **Our bolt-on:** a "mechanism record" required on every act-drain rule/hook proposal; gate checks
   the trace post-change. Composes with F1 (the trace to check) + F2 (the provenance to audit).
-- **Confidence:** HIGH (30-way + it's our own pre-existing plan). **Autonomy: autonomous.**
+- **Confidence:** MED post-refute (EvoTrainer downgraded HIGH→pattern-extraction: papers support the
+  gate as analogy from versioned experiments / replayable objective evals, not as proof every local
+  rule/hook edit needs it). **Build it, but it only bites once F1/L2 supply replayable artifacts +
+  objective (or explicitly-labeled proxy) outcomes.** **Autonomy: autonomous.**
 
 ---
 
 ### LAYER (cheap once the foundation exists)
 
 **L1 — act-drain anti-accretion** — replace monotonic "count corrections → append rule" with:
-ADD/MODIFY/**DELETE** lifecycle (ReSkill 2606.01619), a typed skill/rule graph with
-`depends_on/conflicts_with/supersedes/duplicate_of` edges (SkillDAG 2606.03056), recurring-**flaw**
-records grouping rules by diagnosed flaw not anecdote (HTIR), and lifecycle-failure labels — *where
-did a rule FAIL* before adding another (StreamMemBench 2606.14571). Trace-derived skill candidates
-with a verifier (Socratic-SWE 2606.07412). **Confidence: STRONG. Autonomy: autonomous** (this IS the gov-shrink telos).
+ADD/MODIFY/**DELETE** lifecycle, but (refute) each candidate needs **old-vs-new replay / trace-mechanism
+evidence** before promotion, not lifecycle verbs alone (ReSkill 2606.01619). A typed skill/rule graph
+(SkillDAG 2606.03056) — **for retrieval/interface structure ONLY; `supersedes`/`duplicate_of` and
+"typed edges reduce accretion" are NOT demonstrated (REFUTED)** — source lifecycle semantics from the
+replay metric, not the graph. StreamMemBench (2606.14571) → a *diagnostic taxonomy* (label where a
+correction's fix belongs: retrieval / prompt-surfacing / hook / deletion), not auto-enforcement.
+Trace-derived skill candidates (Socratic-SWE 2606.07412) must carry trace-IDs + a verifier + held-out
+replay + a **retirement condition**, else "trace-derived" is just another accretive rule-gen path.
+**Confidence: MED post-refute. Autonomy: autonomous** (this IS the gov-shrink telos — gated by F3).
 
 **L2 — /eval local harness-eval lanes** — build LOCAL slices (not adopt benchmarks): env-grounded
 final-state verifier, held-out chronological traces, **token cost first-class**, model×harness grid.
@@ -102,12 +111,14 @@ harnesses — direct prior-art), WeaveBench (2606.09426, trajectory-aware per-cl
 SentinelBench (2606.05342, wait-vs-poll + no-op tasks), NRT-Bench (2606.20408, objective-sim >
 LLM-judge), ALE (2606.05405, load/start/evaluate task-spec + failure taxonomy). **Confidence: VERY STRONG. Autonomy: bounded** (eval design is partial-verifier).
 
-**L3 — over-ask ask-gate as a behavioral eval first** — uncertainty decomposition (2606.19559):
-split action-confidence `c_t` from request-uncertainty `u_t`; route to clarify only when `u_t≥θ`.
-Targets our measured `over_caution=63`. Build as a behavioral testground (replay reconstructed
-underspecified scenarios, grade act-vs-ask by tool telemetry) BEFORE any live hook. Reinforced by
-Beyond-Commitment-Boundary (2606.13603, epiphenomenal-tail = over-deliberation) + RePro (2606.14302,
-retrospective progress). **Confidence: MED-HIGH. Autonomy: operator-go** (new harness, behavior-shaping).
+**L3 — over-ask ask-gate, eval-only first** — uncertainty decomposition (2606.19559): split
+action-confidence `c_t` from request-uncertainty `u_t`. **Do NOT ship `u_t≥θ` threshold-routing as the
+mechanism (refute): the paper itself finds no single threshold dominates, prompt-uncertainty competes
+with task budget, and it causes capability dilution.** Use `u_t` as an **offline label/feature in an
+eval lane**: replay reconstructed underspecified scenarios, grade act-vs-ask by tool telemetry,
+**locally calibrate any threshold on agentlogs, and compare against a cheap-probe-first baseline.**
+[2606.13603 DROPPED from L3 → separate "post-commitment over-deliberation tail" eval idea.]
+**Confidence: MED post-refute. Autonomy: operator-go.**
 
 **L4 — ToolSearch capability-envelope + intention graph** (optional/later) — return typed relations
 + required-params/side-effects/verifier envelope (SkillDAG, CAHL 2606.09371), intention-node rerank
@@ -130,10 +141,27 @@ EXISTING recipes — no per-query generation (FlowBank 2606.11290). **Confidence
 - Self-preference / self-judge fitness (RHO/Exploration-Hacking; collides with standing DGM caution).
 - Importing any paper's numbers as expected effect — all harness-confounded, screen-only.
 
-## Refutation status
-⏳ PENDING — adversarial codex pass (refute.sh) re-reads each foundation/layer claim against its
-cited paper to refute "this integration faithfully uses the mechanism." Only refutation-survivors
-stay. Blocked by the peer git-clean incident (see Provenance note); rerun after isolation.
+## Refutation status — DONE (6 high-effort codex skeptics, refute/*.md)
+
+**Result: nothing survived as clean HOLDS — all NARROW, with 3 citations REFUTED and dropped.**
+The unifying finding: every mechanism is *directionally* faithful, but each paper's EVIDENCE is
+narrower than this plan first implied — **none demonstrates its bolt-on reduces OUR specific failure
+(accretion / over-ask).** This tightens rather than kills the plan: it makes **F3 (predict-then-falsify)
++ L2 (local eval) the mandatory gate** — every other bolt-on is a *design pattern that must be locally
+validated on our own agentlogs before promotion*, not borrowed evidence.
+
+| Claim | Verdict | Correction applied |
+|---|---|---|
+| **F1** typed trace-IR | NARROW (×4) + **REFUTED ×1** | HTIR's gains are a *full repair loop*, not IR-isolated; ACDL→`context_shape` subview only; pi-CWL edges = inferred hints, not ground truth; PROJECTMEM moved to F2/F3; **MiniMax 2605.26494 DROPPED** (model paper, not trace-IR). |
+| **F2** memory raw-links | NARROW (×4) | Reword: not "agents rely more on raw" but "condensed needs raw-link **auditability + replay tests**, condensed is often not causally used"; Engram fields → factual/current-status only; MemRefine → active-**view** compression, measure duplicate retrieval first; StreamMemBench → *evaluate* lifecycle from traces, don't presume status. |
+| **F3** predict-then-falsify | NARROW | **EvoTrainer downgraded HIGH→pattern-extraction.** Gate is a good local design but the papers support it only as analogy from versioned experiments / replayable objective evals — implement **only after F1/L2 provide replayable artifacts + objective (or explicitly-labeled proxy) outcomes.** |
+| **L1** anti-accretion | NARROW (×3) + **REFUTED ×1** | **SkillDAG 2606.03056: `supersedes`/`duplicate_of` claim REMOVED** — typed edges are for retrieval/interface, NOT demonstrated to reduce accretion; ReSkill → tested candidate versions w/ reject/prune + old-vs-new replay required; StreamMemBench → diagnostic taxonomy only; Socratic-SWE → require trace-IDs+verifier+held-out+retirement-condition or it's just another accretive rule-gen path. |
+| **L2** eval lanes | NARROW (×5) | WildClawBench's model×harness claim needs **equalized env** (perms/tools/secrets/versions/timeouts) for fair local rankings + doesn't cover Cursor; SentinelBench = narrow wait-vs-poll only, don't over-generalize. |
+| **L3** ask-gate | NARROW + **REFUTED ×1** | **Threshold-routing `u_t≥θ` removed as the mechanism** — paper itself: no single threshold dominates, prompt-uncertainty competes with task budget, capability dilution. Use request-uncertainty as an **offline label/feature in an eval lane**, locally calibrate, compare vs **cheap-probe-first baseline**. **2606.13603 DROPPED** from L3 → separate "over-deliberation tail" eval idea. |
+
+**Net:** structure (3 foundations + 5 layers) holds; 3 citations dropped; F3 demoted from HIGH to
+the gate-that-must-be-built-first-but-proven-locally; the through-line is now explicit — **import
+mechanisms as patterns, prove each on our traces via F3/L2, never cite paper numbers as expected lift.**
 
 ## Honest caveats
 - Plan rests on gpt-5.5-low scout + gpt-5.5-medium full-read extractions — I did NOT independently
