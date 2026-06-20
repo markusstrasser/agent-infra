@@ -108,7 +108,6 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-06-19-rsi-labs-blogposts-delta.md` | RSI labs/practitioner blogposts — delta | TODO |
 | `2026-06-19-rsi-sota-arxiv-delta.md` | RSI & Self-Evolving Agents — arXiv SoTA Delta | TODO |
 | `2026-06-19-rsi-sota-synthesis-what-to-integrate.md` | RSI / autoresearch SoTA — what to integrate | TODO |
-| `2026-06-19-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-19 (deterministic) | TODO |
 | `2026-06-19-steering-vectors.md` | Steering vectors — session mine (2026-06-19) | TODO |
 | `2026-06-19-tooling-api-critique-synthesis.md` | Critique → ship | TODO |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
