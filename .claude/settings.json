@@ -65,6 +65,10 @@
           {
             "type": "command",
             "command": "$HOME/Projects/skills/hooks/posttool-codebase-map.sh"
+          },
+          {
+            "type": "command",
+            "command": "/Users/alien/Projects/agent-infra/.claude/hooks/posttool-edit-error-recovery.py"
           }
         ]
       }
