@@ -13,6 +13,7 @@ Multi-syllable names. **Just recipes = kebab-case.** **Scripts = snake_case.**
 | **none** | `session-automation-telemetry` | infra | orchestrator-tool |
 | **optional** | `sensor-integration-ranking` | infra | orchestrator-tool |
 | **required** | `adversarial-debug-scout` | session | orchestrator-tool |
+| **required** | `debug-until-dry` | session | orchestrator-tool |
 | **none** | `rsi-loop-funnel` | gov | orchestrator-tool |
 
 Every run prints `llm: none|optional|required` on stderr. Vocabulary: `config/system-kinds.json`.
@@ -27,6 +28,7 @@ NOT auto-fired by a hook. Cursor scouts are cheap — fan out freely.
 | Trigger the orchestrator watches for | Reach for | Dispatch |
 |---|---|---|
 | Major plan / `/decide` / refactor just landed | `adversarial-debug-scout <repo>` then `audit-findings-consolidation` | **background**: `just -f ~/Projects/agent-infra/justfile adversarial-debug-scout <repo> recent &` → triage `docs/audit/` later |
+| Want a full audit — loop until no new confirmed bugs | `debug-until-dry <repo>` | **background**: cursor wave loop over a shared memo; reads `docs/audit/<date>-bughunt-memo.md` when dry. Knobs: `--max-waves --workers --scouts-per-wave --verifier cursor\|opus\|none` |
 | Pre-commit / pre-ship gate | `verification-gate-runner <repo>` | foreground (fast) |
 | "what changed since green?" | `baseline-since-last-green <repo>` | foreground |
 
