@@ -251,6 +251,10 @@ prior-context-triage *args:
 observe-context project='agent-infra' sessions='5' *args:
     uv run python3 scripts/observe_prepare_context.py --project {{project}} --sessions {{sessions}} {{args}}
 
+# Fast capped multi-project drift context (no --full; per-project byte caps).
+observe-drift sessions='5' *args:
+    uv run python3 scripts/observe_drift_context.py --sessions {{sessions}} {{args}}
+
 # Observe RSI bundle — size-safe context + prior-context triage + blindspot refresh.
 observe-all project='agent-infra' sessions='5':
     just observe-context {{project}} {{sessions}}
