@@ -108,8 +108,11 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-06-19-rsi-labs-blogposts-delta.md` | RSI labs/practitioner blogposts — delta | TODO |
 | `2026-06-19-rsi-sota-arxiv-delta.md` | RSI & Self-Evolving Agents — arXiv SoTA Delta | TODO |
 | `2026-06-19-rsi-sota-synthesis-what-to-integrate.md` | RSI / autoresearch SoTA — what to integrate | TODO |
+| `2026-06-19-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-19 (deterministic) | TODO |
 | `2026-06-19-steering-vectors.md` | Steering vectors — session mine (2026-06-19) | TODO |
 | `2026-06-19-tooling-api-critique-synthesis.md` | Critique → ship | TODO |
+| `2026-06-20-research-agent-orchestration-tooling.md` | Research-Agent Orchestration Tooling — 2026-06-20 | TODO |
+| `2026-06-20-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-20 (deterministic) | TODO |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
 | `adversarial-case-library.md` | Adversarial Case Library: The Best "Calling BS" Reviews | TODO |
 | `agent-behavior-refresh-2026-04.md` | Agent Behavior Delta — Memory, Self-Modification, Sycophancy | TODO |
