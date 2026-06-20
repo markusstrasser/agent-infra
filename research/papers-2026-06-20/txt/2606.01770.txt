@@ -1,0 +1,3461 @@
+Adaptive Auto-Harness: Sustained Self-Improvement for Agentic System
+Deployment on Open-Ended Task Streams
+Zewen Liu1 , Zhan Shi2 , Yisi Sang2 , Bing He2 , Minhua Lin3 , Tianxin Wei4
+Dakuo Wang5 , Benoit Dumoulin2 , Wei Jin1 , Hanqing Lu2
+1
+Emory University 2 Amazon 3 The Pennsylvania State University 4 UIUC 5 Northeastern University
+{zewen.liu,wei.jin}@emory.edu; luhanqin@amazon.com
+
+1
+
+Introduction
+
+Open-ended task streams are a common deployment regime for LLM agents: tasks arrive continuously, feedback accumulates over time, and future
+tasks may differ from earlier ones. In this regime,
+an agent’s harness, comprising the prompts, skills,
+tools, and supporting infrastructure that surround
+a fixed LLM, is a primary determinant of tasksolving performance. Auto-harness systems such as
+A-Evolve (Lin et al., 2026), GEPA (Agrawal et al.,
+2025), and Meta-Harness (Lee et al., 2026) perform evolution to construct harness automatically
+
+Skills
+
+Generic skills
+Domain-specific
+Prompt size
+
+100
+50
+
+20
+0
+
+30
+20
+
+Pass-rate lift
+
+arXiv:2606.01770v2 [cs.LG] 3 Jun 2026
+
+Auto-harness systems such as A-Evolve,
+GEPA, and Meta-Harness improve LLM agents
+by optimizing prompts, skills, tools, memories, and supporting infrastructure from execution feedback, but they are typically evaluated on fixed offline benchmarks. Real deployments instead present open-ended task
+streams: histories grow without a fixed endpoint, heterogeneous tasks require different harnesses, and problem distributions shift over
+time. These challenges make a single repeatedly and densely updated harness brittle,
+causing performance degradation as accuracy
+peaks early and then declines. This motivates sustained harness construction with taskwise adaptation. We introduce Adaptive AutoHarness, a framework and system for such
+streams. The framework decomposes the gap
+to an oracle harness into evolution loss and
+adaptation loss. The system addresses these
+losses with a stateful multi-agent evolver, a harness tree with solve-time routing, and humansteering hooks for cases where history lacks
+the needed signal. Across prediction-market,
+security-competition, and event-forecasting
+streams, Adaptive Auto-Harness outperforms
+five existing auto-harness baselines and ablations attribute gains to better construction, routing, or targeted human steering. Code is available in Link.
+
+40
+
+KB
+
+60
+
+Abstract
+
+0
+
+0
+Cycle 3
+Cycle 7
+Cycle 15
+Cycle 30
+Cycle 51
+
+news_from_future. md0 Skill
+
+c11 Sports Super Bowl LX MVP
+shortcut hits a real post-event source
+c39 Politics US gov't shutdown
+shortcut misreads non-confirming evidence
+
+10
+0
+10
+
++
+
+-
+
+20
+10
+
+20
+
+30
+
+40
+
+50
+
+Evolution cycle
+Figure 1: Longer frequent evolution can overfit earlier stream evidence. Top: The A-Evolve run with unbounded evolution grows from 12 to 34 skills, while the
+prompt grows from 2 KB to 68 KB. Bottom: Each curve
+reports pass-rate increase relative to the no-evolution
+solver, with different evolution stopping cycles. Early
+gains fade as later tasks arrive; news_from_future.md
+helps on a sports task yet misfires on a politics task.
+
+from execution feedback, and report substantial
+gains on static offline benchmarks such as SWEbench (Jimenez et al., 2024). Those evaluations,
+however, do not capture the central pressure of deployment: the harness must keep improving while
+operating on a chronological stream whose history
+grows, task types vary, and distribution shifts.
+Representative streams include prediction
+markets with thousands of questions over
+weeks (Cheng et al., 2026), decade-long security
+competitions (Zhuo et al., 2025), and crosslingual forecasting services with heterogeneous
+sources (Zeng et al., 2025). Figure 1 illustrates
+why repeatedly evolving and injecting all harness
+during solving is insufficient. On Polymarket: we
+run A-Evolve and stop evolution after 3, 7, 15,
+30, or 51 cycles, comparing each run with the
+same solver without evolution. Early evolution
+improves pass rate, but longer runs accumulate
+larger prompts and more specialized skills, only
+
+D1: Unbounded Stream
+
+D2: Heterogeneity
+
+D3: Non-stationarity
+
+Harness
+
+Limited Context Window
+
+Single Harness
+vs Multi-Specialties
+
+Static Harness
+Fails to Adapt
+
+Figure 2: Three deployment dimensions in openended task streams. Unbounded stream, heterogeneous
+tasks, and non-stationary distributions expose the limits
+of evolving a single dense harness for long-term deployment
+
+some of which transfer. For example, a useful
+skill news_from_future.md (138 correct vs 16
+wrong BUYs) helps on a sports task yet misfires
+on a politics task. All stopping budgets eventually
+peak and decline; later in the stream, shorter runs
+outperform longer ones. Sustained deployment
+therefore requires preserving useful history while
+adapting the active harness to the task at hand.
+This failure exposes three deployment dimensions that static benchmark evaluation does not
+capture (Figure 2). (D1) Unbounded Streams.
+The task stream has no fixed train/test cutoff or
+designated endpoint (Karten et al., 2026; Wang
+et al., 2023); feedback, trajectories, and harness
+state accumulate throughout deployment, creating
+a heavy burden for the evolution. Existing autoharness systems built around a single-agent evolver
+compress this expanding history into a finite context window, creating a bottleneck for building the
+effective and generalizable harness. (D2) Task
+heterogeneity. Varied types of tasks are mixed in
+the same stream. A prediction-market platform, for
+example, mixes politics, sports, and finance questions in the same hour, each calling for distinct
+sources, tools, and prompting. However, existing
+auto-harness systems deploy a static dense harness
+across the stream, with no solve-time adaptation to
+the task at hand, and neglect the fact that a single
+fixed policy is rarely optimal across heterogeneous
+problems (Miao et al., 2025). (D3) Distributional
+non-stationarity. As the stream progresses, incoming tasks shift away from the experience the
+harness was last fitted on. A harness optimized
+for recent cycles therefore drifts out of fit for new
+tasks, even with rich historical experience. Closing
+this gap requires per-task contextual adaptation of
+the harness, not only continued historical fitting.
+Additional diagnostics are shown in Appendix A.
+We address these dimensions with a unified
+
+analytical framework and identify two root gaps
+that prior auto-harness systems overlook. This
+analysis motivates: (1) Sustained auto-harness
+(§3.3), which replaces stateless one-shot evolution
+with a stateful multi-agent system with cross-cycle
+knowledge for better harness construction; and (2)
+Solve-time adaptation (§3.4), which adapts a taskrelevant harness for each problem prior to solving,
+restoring per-task fit on a heterogeneous, drifting
+stream. Beyond the two axes, we further introduce
+a third axis: human-in-the-loop (HITL) for auxiliary steering of the harness to incorporate human
+insights and foresights that are absent from historical experience. Our contributions are:
+(1) Deployment-regime analysis of open-ended
+agentic streams. We formalize why static autoharness evaluation is insufficient once tasks arrive as unbounded, heterogeneous, and nonstationary streams. The framework decomposes the gap towards the optimal harness into
+evolution loss and adaptation loss, providing
+guidance for auto-harness system designs.
+(2) Adaptive Auto-harness system. We introduce
+a stateful multi-agent evolver for sustained
+harness construction, a harness-tree router for
+solve-time adaptation, and structurally triggered human-in-the-loop hooks for evolutions
+when historical experience is insufficient.
+(3) Comprehensive empirical validation and diagnosis. We evaluate on three streaming tasks
+spanning prediction markets, security challenges, and event forecasting against other
+auto-harness systems. Beyond aggregated performance, we provide in-depth analysis and
+evidence for the proposed gaps, component ablations, and human-in-the-loop slice analyses.
+
+2
+
+Related Work
+
+Continual Learning in Task Streams. Continual learning studies systems that learn from a sequence of tasks while retaining earlier capabilities (Buzzega et al., 2020; Wang et al., 2022b,a).
+Domain and test-time adaptation address distribution shift (Ben-David et al., 2010; Ganin et al.,
+2016; Wang et al., 2020; Liang et al., 2020), and
+mixture-of-experts methods route heterogeneous
+inputs to specialised components (Jacobs et al.,
+1991; Shazeer et al., 2017). These directions cover
+pieces of our D1–D3 setting, but they usually adapt
+model weights, classifiers, or expert modules. In
+contrast, we study the harness-level analogue.
+
+Self-improving and self-evolving agents. The
+closest LLM-agent precedents to our setting are
+systems that update the harness directly from execution feedback. A-Evolve (Lin et al., 2026) introduces a linear-chain evolver: each cycle reads batch
+trajectories and mutates prompts, skills, memory,
+and tools. GEPA (Agrawal et al., 2025) adds reflective Pareto prompt evolution using textual feedback
+rather than scalar reward. Meta-Harness (Lee et al.,
+2026) uses a growing filesystem archive and Claude
+Code as the proposer. Continual Harness (Karten
+et al., 2026) enables online adaptation within a single continuous deployment run through alternating
+action/refinement cycles. SkillOS (Ouyang et al.,
+2026) learns a skill curation policy via reinforcement learning, training a curator to select and refine
+reusable skills from repeated interactions.
+
+3
+3.1
+
+Method
+
+Regret(φ, xt ) = V (Ht , xt ) − V (φ(Ht ), xt ) ≥ 0,
+(2)
+non-negative since φ(Ht ) is one element of the
+supremum’s domain. Operationally, this ceiling
+matches what a solver granted Ht directly, under
+the same compute and tool budget as φ, could attain
+by reconstructing any candidate harness on the fly.
+Solve-time optimal harness. Fix the evolver class
+Φ and define the solve-time optimal harness for a
+particular task:
+CΦ∗ (xt ) = arg
+
+Problem Formulation
+
+We consider tasks arriving in an open-ended stream
+x1 , x2 , . . . , xT with xt ∼ Pt , where Pt is the task
+distribution at time t and each xt has a fixed ground
+truth y(xt ). The agent observes the history of prior
+experience Ht = {(xi , ri , τi )}t−1
+i=1 , where ri is optionally the realized reward on task xi and τi is the
+agent’s solving trajectory (actions, intermediate observations, tool calls). A harness C = φ(Ht ), with
+|C| ≤ K, is a bounded representation (prompts,
+skills, memory, and tools) with capacity budget
+K, where φ is the evolver: the agentic system that
+automatically transforms historic experience into
+the harness. A solver agent then acts via the policy
+at ∼ π(a | xt , Ct ), where π is the LLM-induced
+sampling distribution over actions conditioned on
+the task and harness.
+3.2
+
+which is the expected reward of the harnessconditioned solver. The full-history utility is the
+corresponding ceiling under the capacity budget,
+V (Ht , xt ) := supC : |C|≤K V (C, xt ), that is, the
+best utility attainable by any bounded harness on
+xt . The regret of the evolver-constructed harness is
+then
+
+Analytical Framework
+
+The three deployment dimensions of section §1
+surface concrete failures, but they do not by themselves identify what an evolver should fix. To pinpoint the root causes, we frame the problem analytically: we cast harness construction as a regretminimization problem against an oracle reference,
+and decompose the regret into two complementary
+loss terms that map directly to actionable design
+axes.
+Utility and regret. We define the utility of a harness C on a task xt as
+V (C, xt ) = Eat ∼π(·|xt ,C) [r(at , y(xt ))],
+
+(1)
+
+max
+C=φ(Ht ,xt ), φ∈Φ
+|C|≤K
+
+V (C, xt ).
+
+(3)
+
+This is an hypothetic oracle reference: it is the best
+harness the evolver class Φ could produce if it were
+allowed to condition on the incoming task xt at
+solve time. A deployed evolver φ commits to one
+harness φ(Ht ) before xt is observed; using CΦ∗ as
+pivot between V (Ht , xt ) and V (φ(Ht ), xt ) yields
+the following decomposition.
+Proposition 1 (Regret Decomposition). For any
+deployed evolver φ ∈ Φ,
+Ext [Regret(φ, xt )] = Levo (Φ) + Ladapt (φ), (4)
+where
+
+
+Levo (Φ) = Ext V (Ht , xt ) − V (CΦ∗ (xt ), xt ) ,
+(5)
+
+
+Ladapt (φ) = Ext V (CΦ∗ (xt ), xt ) − V (φ(Ht ), xt ) .
+(6)
+Levo is the evolution loss: it reflects the evolver
+class Φ’s capability gap, regardless of how many
+cycles the evolver runs. A single-agent prompt editor cannot produce multi-file infrastructure; that
+ceiling is structural, not a matter of effort. Reducing Levo therefore requires pursuing more capable
+evolver systems with access to broader control and
+feedbacks. Ladapt is the adaptation loss: the oracle
+builds the optimal harness per task, but a deployed
+φ commits to one harness before seeing xt . Therefore, even with an optimal evolver system, Ladapt
+exists as long as task heterogeneity persists.
+
+Open-ended
+Task Stream
+X1
+
+Auto-Harness via 4-Phase Evolution
+1 Analyze
+
+Taskboard Dispatch
+Research Agents
+
+Solving
+Trajectories
+Batch
+1~K
+
+X2
+
+Revealed
+Feedbacks
+
+…
+Analyst Agent
+
+Xt-1
+
+History
+Present
+
+HITL
+
+Xt+1
+
+Dispatch& Spawn
+Builder Agents
+
+Tests
+Folder
+
+A
+
+TASK TARGET
+
+ACTION
+
+A
+
+main
+
+Update
+
+B
+
+branch
+
+Create
+
+C
+
+branch
+
+B
+
+HITL
+
+Load Main
+
+Update
+
+Gate
+
+Review
+
+Select
+
+Research Task
+Logs
+Board
+
+Git Control
+Retry
+
+Logs Summary
+
+Solver
+Workspace
+
+2 Solve
+(Xt ,
+
+Update
+
+v System Prompt
+
+Yt v Skills
+
+…
+Heterogeneous Taks
+
+Build
+
+Load Branch
+
+1 Agentic Routing
+
+README
+
+C
+
+Adaptive-Harness via Agentic Routing
+
+Xt
+
+4 Verify
+
+Hypothesis-Test
+
+Xt
+Batch
+K+1
+
+3 Build
+
+2 Research
+
+Evolver
+Workspace
+
+)
+
+v Memory
+v Tools
+
+Harness
+Tree
+
+Figure 3: Overview of the Adaptive Auto-Harness system. Top: the multi-agent evolver constructs and refines a
+harness tree across cycles via four phases (Analyze → Research → Build → Verify) with a persistent cross-cycle
+workspace and temporal-reveal feedback. Bottom: at solve time, a router agent reads each branch’s workspace via
+git show and routes the incoming task xt to the most suitable branch. Two human-in-the-loop hooks (task-board
+steering and research-phase assistance) trigger only when the evolver’s history lacks relevant signal.
+
+Human-in-the-loop as a third axis. The decomposition assumes Ht contains relevant signal for
+xt . When it does not, the regret decomposition
+no longer applies; we address this case via a third
+axis outside Levo + Ladapt , the human-in-the-loop
+channel (§3.5).
+3.3
+
+Sustained Auto-Harness via Multi-Agent
+Evolution
+
+The analytical decomposition identifies Levo as
+the loss from harness capabilities that the evolver
+class cannot construct from history. We reduce
+this loss by expanding Φ with a stateful four-phase
+multi-agent evolver, temporal-reveal feedback, and
+cross-cycle memory (Figure 3). This design targets
+the unbounded-stream failure where a single-agent
+evolver must absorb growing trajectories, delayed
+labels, and prior research within one context window. Concretely, we address three structural limitations:
+(1) Multi-agent with distinct roles and objectives.
+Because unbounded streams keep expanding the
+trajectory history an evolver must interpret, existing single-agent evolvers must fit analysis, research,
+implementation, and verification into one context
+window. We decompose evolution into four phases
+(Analyze → Research → Build → Verify), each
+with a dedicated objective and full context budget.
+
+This eliminates the single-window bottleneck and
+lets parallel Researchers explore disjoint hypotheses without premature convergence.
+(2) Temporal-reveal feedback. Under unbounded
+streams, labels arrive asynchronously (e.g., a prediction market resolves days after the trade). We
+implement a temporal-reveal gate that surfaces
+each task’s evaluation signal to the evolver only after its resolution date, providing a proper streaming
+feedback signal without leaking future information.
+(3) Persistent cross-cycle state. We provide the
+evolver with a dedicated workspace that persists
+across cycles, containing a task board (prioritised
+failure analysis), research logs (tested hypotheses
+with pass/fail verdicts), architecture documentation (README), and verification tests. This crosscycle memory enables the evolver to refine its construction ability over time and build upon prior
+evolution experience rather than restarting from
+scratch.
+3.4
+
+Solve-Time Adaptation via Harness-Tree
+Routing
+
+The analytical decomposition identifies Ladapt as
+the loss from committing to one dense harness before observing the incoming task’s context. We
+reduce this loss by shifting heavy adaptation into
+evolution time: the evolver constructs a struc-
+
+tured harness store, and solve time only requires
+a lightweight adaptation operator. The reduction
+is general: it factors into (i) how the evolver organizes the harness space and (ii) how the solver
+selects from that space per task. The harness space
+can be organized in many forms, including a linear
+chain that always uses the most recently evolved
+workspace, a tree of regime-specific branches, or
+a graph of skills with dependency edges. The
+adaptation operator can likewise take many forms,
+ranging from skill-level retrieval over a flat catalog (ByteDance, 2025) to branch-level routing over
+a structured space. Different combinations trade
+off construction cost, operator latency, and the granularity at which adaptation occurs.
+We adopt a harness tree as the storage form
+and agentic routing as the adaptation operator.
+The tree is the natural fit for our setting because
+heterogeneous task streams cluster into a small
+number of recurring regimes (e.g., binary exploitation versus cryptography in CTF-Dojo,
+sports versus politics in PolyBench), branches
+isolate regime-specific prompts/skills/tools without
+cross-contaminating the others, and the branching
+gate gives the evolver an explicit lever to commit
+specialization only when warranted by failure
+evidence. We instantiate this with two designs
+(Figure 3). (1) Branching harness tree (built at
+evolution time). The solver’s workspace is a git
+repository. The evolver constructs regime-specific
+branches (e.g., branch/crypto-classical,
+branch/binary-reversing) during evolution,
+each carrying its own prompt, skills, and tool
+registry; git provides versioning, isolation, and
+lineage tracking across branches. (2) Agentic
+routing (executed at solve time). A router agent
+reads each branch’s workspace via git show and
+selects the branch given xt ’s context; the solver
+then checks out that branch and executes.
+3.5
+
+Human-in-the-Loop Channel
+
+A third failure lies outside Levo + Ladapt : some
+tasks require harness absent from Ht signal, such
+as API credentials, novel web sources, or proprietary endpoints. In this experience-insufficient
+setting, neither a stronger evolver nor solve-time
+routing can recover the missing signal. We address it with a human-in-the-loop channel that augments Ht through structurally triggered steering
+hooks (Figure 3). This design targets open-ended
+streams where new access requirements appear before autonomous evolution has relevant evidence.
+
+Table 1: Benchmark statistics for the three chronological
+task streams.
+Bench.
+
+Tasks Span
+
+Domain
+
+PolyBench 5,075 Feb 6–22, 2026 Prediction markets
+CTF-Dojo 261 2011–2024
+Security
+FutureX
+503 Jan–Apr 2026 Forecasting
+
+(1) Task-board steering. After the Analyst updates the task board, a human may review it to add
+entries, adjust priorities, or supply domain guidance and source access. This proactively steers
+the subsequent research cycle with direction the
+evolver cannot derive from trajectories alone. (2)
+Interactive assistance during research. When a
+Researcher agent hits a barrier mid-execution that
+requires human intervention (e.g., an authentication wall), the hook prompts the human in real time.
+This reactively unblocks the research agent at the
+point of failure.
+
+4
+
+Experiments
+
+4.1
+
+Experimental Setup
+
+Benchmarks. We evaluate on three open-ended
+task streams (Table 1): PolyBench for prediction
+markets (Cheng et al., 2026), CTF-Dojo for security challenges (Zhuo et al., 2025), and FutureX
+for event forecasting (Zeng et al., 2025). All three
+enforce strict temporal order and covers the three dimensions of challenge. Details and non-stationarity
+diagnostics are in Appendix A and C.
+Baselines. We compare with no-evolution runs
+with different solver agents using Sonnet-4.6 (Anthropic, 2025b), DeepSeek-V3.2 (Liu et al., 2025),
+Claude Haiku-4.5 (Anthropic, 2025a), GLM4.7 (Z.ai, 2025), and Kimi-K2.5 (Team et al., 2026).
+We compare with five auto-harness baselines: AEvolve (Lin et al., 2026), GEPA (Agrawal et al.,
+2025), Meta-Harness (Lee et al., 2026), Continual Harness (Karten et al., 2026), and SkillOS (Ouyang et al., 2026). We also compare with
+one human-designed system OctoTools (Lu et al.,
+2025).
+Solver and evolver. We use Claude Sonnet 4.6
+as the solver for all experiments unless specified, and use Claude Opus 4.6 as the evolver,
+both at temperature 0 to attribute gains to the
+evolution algorithm rather than sampling noise;
+the no-evolution controls additionally report baseagent results for Haiku 4.5, DeepSeek-V3.2, KimiK2.5, and GLM-4.7. All algorithms share the
+same batch size (100/20/20 for PolyBench/CTF-
+
+Table 2: Main comparison across no-evolution agents, auto-harness baselines, a human-designed system, and our
+three variants. PolyBench reports Accuracy / Return (coverage-scaled CWR, in %); CTF-Dojo and FutureX report
+the official Pass@1. Bold marks the best result per row and underline marks second best.
+No evolution
+Benchmark Metric
+
+Auto-harness baselines
+
+Human
+
+Ours
+
+Meta
+Cont.
+Multi
+Full
+Sonnet Haiku DeepSeek Kimi GLM A-Evolve GEPA
+SkillOS OctoTools
+Adaptive
+Harness Harness
+agent
+System
+
+Accuracy ↑
+Return ↑
+
+22.2
++1.7
+
+15.2
++88.0
+
+1.4
++16.4
+
+14.0 14.0
+−2.0 +10.1
+
+18.4
++7.2
+
+13.4
++0.2
+
+50.8
++320
+
+8.5
++1.7
+
+21.4
++3.6
+
+40.0
++20.4
+
+79.8
++351
+
+77.4
++352
+
+80.9
++330
+
+CTF-Dojo
+
+Pass ↑
+
+37.2
+
+23.8
+
+26.1
+
+24.5
+
+12.6
+
+45.2
+
+42.9
+
+41.0
+
+25.7
+
+29.5
+
+38.3
+
+47.9
+
+46.0
+
+50.2
+
+FutureX
+
+Pass ↑
+
+31.0
+
+31.0
+
+31.2
+
+27.8
+
+30.8
+
+47.5
+
+28.2
+
+29.4
+
+31.8
+
+29.8
+
+25.6
+
+49.5
+
+44.1
+
+47.3
+
+0.9
+
+1.0
+
+4.2
+
+PolyBench
+single-early
+multi-early
+single-mid
+
+1.0
+0.9
+
+multi-mid
+single-late
+multi-late
+
+0.8
+0.7
+0.6
+0.5
+
+0.6
+
+0.7
+
+0.8
+
+market consensus
+
+FutureX
+34.0
+
+Offline
+Curated
+web
+Open
+web
+
+47.6
+57.1
+0
+
+10
+
+20
+
+30
+
+40
+
+Accuracy (\%)
+
+50
+
+CTF-Dojo
+
+largest file size
+
+Dojo/FutureX), batch loop, and temporal-reveal
+gate; only the evolution algorithm varies.
+Metrics. For PolyBench, we report two complementary metrics: Accuracy, the fraction of all
+markets traded correctly; and Return, defined as
+Coverage × CWR, where CWR is the confidenceweighted portfolio profit-to-investment ratio over
+traded markets and coverage is the fraction of
+traded. For CTF-Dojo and FutureX, we report the
+official pass rate (Pass@1) defined by the original
+benchmarks. We also report lift in the figures as
+the difference with baselines. Full definitions are
+in Appendix A.
+Research questions. RQ1 (§4.2): How does
+Adaptive Auto-Harness compare against existing
+auto-harness systems on open-ended task streams?
+RQ2 (§4.3): How does Adaptive Auto-Harness address benchmark-specific bottlenecks? RQ3 (§4.4):
+Does stateful multi-agent evolution with evaluation
+feedback provide additional gains? RQ4 (§4.5):
+Can solve-time routing effectively leverage specialized harness branches? RQ5 (§4.6): Can human
+steering help under insufficient history signal?
+
+mean stated confidence
+
+PolyBench
+
+no-payload
+<1KB
+1-10KB
+10KB-1MB
+>1MB
+
+49
+50
+
+20
+
+40
+
+78
+
+Best single-agent
+Multi-agent
+
+30 39
+
+0
+
+70
+
+82 91
+
+67
+35 42
+
+60
+
+60
+
+Pass rate (\%)
+
+80
+
+100
+
+Figure 4: Levo evidence across benchmark-specific bottlenecks. PolyBench stresses confidence calibration,
+FutureX stresses web-retrieval access, and CTF-Dojo
+stresses payload handling of different file sizes.
+
+Comparison with Baselines
+
+Prior systems specialize on one metric cluster.
+A-Evolve leads the two pass-rate streams (45.2%
+CTF-Dojo, 47.5% FutureX) but covers only 21.1%
+of PolyBench markets. Meta-Harness leads all
+three PolyBench metrics (55.3% Coverage, 50.8%
+Accuracy, +320% Return) but falls below the noevolution Sonnet baseline on FutureX (29.4% vs.
+31.0%). Base solvers stay below 32.6% PolyBench Coverage on every model, and OctoTools,
+the frozen human-designed system, places third on
+PolyBench Return but does not lead any row. The
+pass-rate cluster and the portfolio cluster therefore
+sit in different baselines.
+Our three variants jointly lead all metrics. Without HITL intervention, the Full System combines
+multi-agent evolution with solve-time routing and
+reaches 97.9% PolyBench Coverage, 80.9% Accu-
+
+racy, and 50.2% CTF-Dojo Pass. The Multi-agent
+variant leads FutureX at 49.5%, where evolving the
+right source and tooling matters more than per-task
+routing. The Adaptive variant leads PolyBench Return at +352%, where matching each market to a
+specialized strategy matters.
+4.3
+
+Benchmark Bottlenecks
+
+RQ2 asks whether Adaptive Auto-Harness targets
+the bottlenecks that limit each benchmark. We organize the analysis around the two losses introduced
+in §3.2: the evolution loss Levo , the gap from capabilities the evolver class cannot construct; and the
+adaptation loss Ladapt , the gap from committing to
+a single harness across heterogeneous tasks.
+Evolution bottlenecks (Levo ) differ across benchmarks. Figure 4 plots a benchmark-specific stress
+
+cumulative per-task lift
+
+1.0
+
+task-weighted cumulative lift
+category Q25--Q75
+category Q10--Q90
+
+PolyBench
+
+0.8
+0.6
+0.4
+0.2
+0.0
+20
+
+40
+
+0.4
+0.4
+0.3
+0.3
+0.2
+0.2
+0.1
+0.1
+0.0
+-0.1
+
+CTF-Dojo
+
+FutureX
+
+0.4
+0.3
+
+0.1
+0.0
+10
+
+evolver cycle
+
+40
+
+30
+
+5
+
+10
+
+Figure 5: Ladapt evidence across task categories. Curves
+show cumulative adaptation lift over the baselines, while
+shaded bands show performance spread across task categories over cycles.
+
+44.3 60
+
+60
+
+40
+
+20.3
+
+20
+
+2.6
+
+7.5
+
+Single-agent
+feedback
+
+38
+
+44
+
+38
+
+44
+
+20
+
+0 CTF-Dojo 0 PolyBench 0
+
+FutureX
+
+memory
+Full System
+
+Figure 6: Ablations for multi-agent evolution. Removing evaluation feedback or cross-cycle memory degrades
+performance relative to the full stateful system.
+
+Oracle
+
+axis chosen to expose the most predictive capability. The PolyBench panel plots mean stated confidence against market consensus, defined as the
+implied probability of the favored outcome from
+Polymarket prices; a well-calibrated harness from
+our multi-agent variant tracks the diagonal, while
+single-agent variants stay flat and over-state confidence on low-consensus markets, suggesting that
+the binding capability is consensus-aware confidence calibration rather than raw prediction skill.
+The FutureX panel plots pass rate against three retrieval tiers, ranging from offline to date-filtered
+Wikipedia plus DuckDuckGo to unrestricted DuckDuckGo web search. Pass rate increases monotonically from 34.0% to 47.6% to 57.1%, identifying source acquisition rather than reasoning as the
+binding capability. The CTF-Dojo panel plots pass
+rate against the largest challenge file size, binned
+into five tiers from no-payload to >1MB. The best
+single-agent variant declines from 81.8% to 30.4%,
+and the multi-agent variant declines from 90.9%
+to 39.1% while retaining roughly a 9-point margin
+throughout, indicating that payload-handling infrastructure becomes the binding capability as inputs
+grow and that the multi-agent evolver mitigates but
+does not eliminate this bottleneck. In summary, the
+binding capability therefore differs by benchmark.
+Adaptation bottlenecks (Ladapt ) remain after
+evolution. Figure 5 reports per-task adaptation lift
+over evolver cycles, where lift on each task is the
+adaptative harness score minus the median score
+across single-committed-harness baselines. The
+solid curve is the within-cycle mean lift and the
+shaded band is performance variation across task
+categories; if a single committed dense harness
+were sufficient, the mean lift would approach zero
+as evolution progresses. We observe instead that
+the mean lift and variation remain positive across
+
+80
+40
+
+20
+
+0.2
+
+5
+
+43
+
+38 38
+
+80 55
+60
+40
+20
+
+35
+18
+
+8
+
+0 CTF-Dojo
+
+Adapt
+
+Naive
+
+Worst
+
++12
+20 +6+3 80 47
+-11 60 34 40
+0
+
+40
+
+20
+
+20
+
+22
+
+PolyBench 0 FutureX
+
+Figure 7: Designed analysis of solve-time routing on
+an evolved harness tree. We seed one branch per task
+category, evolve the tree over the stream, and replay
+every task through every branch. Oracle is the best
+branch per task, Adapt a category-based routing policy,
+Naive the main workspace only, and Worst the worst
+branch per task.
+
+all cycles on all three benchmarks.
+Takeaway. Although streams expose different bottlenecks, they can be addressed under the same
+principle: reduce evolution loss for missing capabilities and adaptation loss for task-specific fit.
+4.4
+
+Stateful Multi-Agent Evolution
+
+RQ3 asks whether the four-role evolver in section
+§3.3 (Analyst → parallel Researchers → Builder
+→ Verifier) improves over a single-agent evolver,
+and whether its state channels matter. Using
+100/60/80 tasks on PolyBench/CTF-Dojo/FutureX,
+Figure 6 compares the full system with variants
+that remove temporal-reveal feedback or crosscycle memory. The full system improves over
+the single-agent evolver on all three benchmarks:
+20.3 → 44.3 CWR on PolyBench, 38% → 43%
+on CTF-Dojo, and 38% → 44% on FutureX. Removing memory causes the broadest degradation,
+while removing feedback mainly hurts PolyBench,
+where outcomes resolve after trading.
+Takeaway. The four-role evolver is strongest when
+paired with persistent state: memory preserves
+
+Main
+
+2 Researcher
+
+1 Analyst
+
+tests
+
+identifies
+
+3 Builder
+
+creates
+
+4 Verifier
+
+Branch/culture 4/12
+
+gates
+
+Task ID: 184883
+Tag: sports
+
+Leeds vs Nottingham
+Leeds Win?
+
+Branch/finance 3/14
+
+Batch 1: task 187223
+Snapshot 4h past kickoff
+
+5 fixes testedcfor the failure Artifacts:
+Timestamp_checker.py
+Retained Rule:
+Verify result when snapshot
+is passed event time
+
+Found Post Event
+Evidence Ignored
+
+Validated Timestamp
+Heuristic Works
+
+Input: Current&Event time
+Output: Event Status
+Post_event_detection.md
+
+Harness Files Diff
+
+Branch/politics 2/3
+
+Tests:
+Tools 30/30 Pass
+
+Agentic Router
+
+Branch/sports 48/71
+
+Contradictions
+
+Checkout
+Solve
+
+Sports Prompt
+Post-event Skills
+
+Prompt Check
+Commit to Next Cycle
+
+Sports_signal_analyzer.py
+
+(a) Example of the four-phase evolution cycle.
+
+(b) Example of the solve-time routing trace.
+
+Credential Verification | Cycle 1 Phase 2 Task board Steering | Cycle 3 Phase 1-2
+Trigger
+Need API keys
+to proceed
+
+Human Action
+Provide EXA_API_KEY
+or SKIP
+KEY: d0f055…2fb6
+
+EXA_API
+
+SERPER API key
+credits ran out
+
+Outcomes
+
+Human Action
+
+Task board
+written; gaps
+identified
+
+Revised and
+added 3.2kb plan
+
+5000ms
+
+Serper news
+search
+
+5000ms
+
+EXA finance
+search
+
+150ms
+
+Taskboard.md
+
+EXA news
+search
+
+300ms
+
+DuckDuckGo
+
+110ms
+
+Ø Chinese sources
+missing
+Ø Finance data not
+found
+Ø Need diverse
+platforms info
+Ø …
+
+SERPER_API
+Skip this API tool,
+look for other APIs
+
+Trigger
+
+Serper web
+search
+
+Real Calls
+Authenticated
+
+Ø
+Ø
+Ø
+Ø
+
+Outcomes
+
+Box Office Mojo
+Yahoo Finance
+Maoyan board
+Weibo, QQ Music
+websites
+
+------------Build new tools to
+access these useful
+sources
+
+New tools built
+after verification
+Cycle 4 lift: +15pp
+
+(c) Example of the Human-in-the-Loop workflow.
+
+Figure 8: Extracted trajectories of the designed multi-agent evolution, agentic routing, and Human-in-the-Loop.
+
+4.5
+
+Solve-Time Routing on the Harness Tree
+
+RQ4 asks how much adaptation headroom a specialized harness tree exposes, and how much solvetime routing captures. We measure this with a designed analysis rather than end-to-end deployment,
+isolating the headroom from router quality. On
+80/40/58 tasks for PolyBench/CTF-Dojo/FutureX,
+we seed one branch per task category, evolve the
+tree over the stream, and replay every task through
+every branch. We then compare Oracle (best
+branch per task), Adapt (category-based routing),
+Naive (main only), and Worst (worst per task). As
+shown in Figure 7, Adapt improves on both CTFDojo and PolyBench, while leaving headroom toward Oracle branch selection. On FutureX, main
+outperforms Adapt, as web source retrieval ability
+dominates.
+Takeaway. Harness specialization opens real adaptation headroom, but realized routing captures only
+part of it, so turning headroom into gain is a separate challenge from constructing the branches.
+4.6
+
+Human Steering for Auto-Harnessing
+
+RQ5 asks whether human steering helps when history lacks the source or access signal needed for
+
++20
+
+20
+
+pass rate
+
+cross-cycle search, and feedback turns resolved
+outcomes into later evolution signal.
+
+10
+0
+
+0
+research
+
+broad
+polymarket
+
++15
+
++5
+broad
+search
+
+taskboard
+finance
++ tech
+
+Western
+specialty
+
+Figure 9: FutureX pass-rate lift over four task slices
+under two human-steering hooks. The orange triangle
+marks research-phase steering and the purple triangle
+marks task-board steering. Lift is measured against the
+no-HITL run.
+
+evolution. Since all previous experiment does not
+apply HITL to ensure fairness, we evaluate this
+on 100 FutureX tasks and restrict human input to
+two hooks: research-phase steering supplies credentials when research is blocked, and task-board
+steering adds source directions the evolver cannot
+infer (Figure 8c). Figure 9 shows the slice-level
+effect: lift is 0 on broad polymarket questions, rises
+to +5 on broad search-dependent questions, peaks
+at +20 on the directly targeted finance&tech slice,
+and remains +15 on adjacent Western-specialty
+questions. The pattern indicates that HITL helps
+when it injects the missing external signal, not
+
+generic human advice.
+Takeaway. Human steering is most useful when
+the missing ingredient is external source knowledge
+rather than additional autonomous evolution.
+
+5
+
+Limitations
+
+Benchmark coverage. We evaluate on three openended task streams: prediction markets, cybersecurity challenges, and event forecasting. These
+domains cover unbounded streams, task heterogeneity, and distributional non-stationarity, but the
+same framing should be tested further on additional
+deployment streams where the stream is further
+expanded spatially and temporally to mimic the
+real-world deployment.
+Diagnostic losses. The evolution loss Levo and
+adaptation loss Ladapt are analytical quantities, not
+directly estimated oracle losses. Our experiments
+diagnose them through bottleneck analyses, ablations, and routing controls rather than through a
+formal estimator of the oracle harness.
+
+7
+
+AI Usage Statement
+
+We used AI assistants to refine the writing of this
+paper and to accelerate debugging and analysis
+during implementation and evaluation.
+
+Conclusions
+
+Open-ended task streams expose three challenges
+for auto-harness deployment: unbounded task arrival, heterogeneous tasks, and non-stationarity.
+Adaptive Auto-Harness addresses these challenges
+by pairing sustained harness construction with
+solve-time task adaptation. The decomposition into
+evolution loss and adaptation loss clarifies why a
+single repeatedly updated harness is insufficient:
+the system must build missing capabilities from
+stream evidence while selecting the right specialized branch for each task. The experiments further
+show that the three mechanisms are complementary
+rather than interchangeable: multi-agent evolution
+constructs benchmark-specific capabilities, routing
+exploits harness specialization when branch signals
+are reliable, and human steering supplies external
+signals that history cannot contain.
+
+6
+
+8
+
+Ethics Statement
+
+We use public research benchmark tasks and do not
+introduce private user data. CTF-Dojo runs only
+inside isolated benchmark containers and does not
+target real systems. Human steering is limited to
+source guidance, task-board edits, and credential
+decisions; humans do not label/expose answers or
+choose solver branches.
+
+References
+Lakshya A Agrawal, Shangyin Tan, Dilara Soylu,
+Noah Ziems, Rishi Khare, Krista Opsahl-Ong, Arnav Singhvi, Herumb Shandilya, Michael J Ryan,
+Meng Jiang, and 1 others. 2025. Gepa: Reflective prompt evolution can outperform reinforcement
+learning. arXiv preprint arXiv:2507.19457.
+Anthropic. 2025a. Claude haiku 4.5. https://www.
+anthropic.com/claude/haiku.
+Anthropic. 2025b. Claude sonnet 4.6. https://www.
+anthropic.com/claude/sonnet.
+Shai Ben-David, John Blitzer, Koby Crammer, Alex
+Kulesza, Fernando Pereira, and Jennifer Wortman
+Vaughan. 2010. A theory of learning from different
+domains. Machine learning, 79(1):151–175.
+Pietro Buzzega, Matteo Boschini, Angelo Porrello, Davide Abati, and Simone Calderara. 2020. Dark experience for general continual learning: a strong, simple
+baseline. Advances in neural information processing
+systems, 33:15920–15930.
+ByteDance. 2025. DeerFlow: Deep exploration
+and efficient research flow. https://github.com/
+bytedance/deer-flow. Open-source software, accessed 2026-05-28.
+Pu Cheng, Juncheng Liu, and Yunshen Long. 2026.
+Polybench: Benchmarking llm forecasting and trading capabilities on live prediction market data. arXiv
+preprint arXiv:2604.14199.
+Yaroslav Ganin, Evgeniya Ustinova, Hana Ajakan, Pascal Germain, Hugo Larochelle, François Laviolette,
+Mario March, and Victor Lempitsky. 2016. Domainadversarial training of neural networks. Journal of
+machine learning research, 17(59):1–35.
+Robert A Jacobs, Michael I Jordan, Steven J Nowlan,
+and Geoffrey E Hinton. 1991. Adaptive mixtures of
+local experts. Neural computation, 3(1):79–87.
+Carlos E Jimenez, John Yang, Alexander Wettig,
+Shunyu Yao, Kexin Pei, Ofir Press, and Karthik
+Narasimhan. 2024. Swe-bench: Can language models resolve real-world github issues? In International
+Conference on Learning Representations, volume
+2024, pages 54107–54157.
+Seth Karten, Joel Zhang, Tersoo Upaa Jr, Ruirong Feng,
+Wenzhe Li, Chengshuai Shi, Chi Jin, and Kiran Vodrahalli. 2026. Continual harness: Online adaptation
+for self-improving foundation agents. arXiv preprint
+arXiv:2605.09998.
+
+Yoonho Lee, Roshen Nair, Qizheng Zhang, Kangwook
+Lee, Omar Khattab, and Chelsea Finn. 2026. Metaharness: End-to-end optimization of model harnesses.
+arXiv preprint arXiv:2603.28052.
+Jian Liang, Dapeng Hu, and Jiashi Feng. 2020. Do we
+really need to access the source data? source hypothesis transfer for unsupervised domain adaptation. In
+International conference on machine learning, pages
+6028–6039. PMLR.
+Minhua Lin, Hanqing Lu, Zhan Shi, Bing He, Rui Mao,
+Zhiwei Zhang, Zongyu Wu, Xianfeng Tang, Hui Liu,
+Zhenwei Dai, and 1 others. 2026. Position: Agentic
+evolution is the path to evolving llms. arXiv preprint
+arXiv:2602.00359.
+Aixin Liu, Aoxue Mei, Bangcai Lin, Bing Xue, Bingxuan Wang, Bingzheng Xu, Bochao Wu, Bowei
+Zhang, Chaofan Lin, Chen Dong, and 1 others. 2025.
+Deepseek-v3. 2: Pushing the frontier of open large
+language models. arXiv preprint arXiv:2512.02556.
+Pan Lu, Bowen Chen, Sheng Liu, Rahul Thapa, Joseph
+Boen, and James Zou. 2025. Octotools: An agentic
+framework with extensible tools for complex reasoning. arXiv preprint arXiv:2502.11271.
+Rui Miao, Babak Shahbaba, and Annie Qu. 2025. Reinforcement learning for individual optimal policy from
+heterogeneous data. Annals of statistics, 53(4):1513.
+Siru Ouyang, Jun Yan, Yanfei Chen, Rujun Han, Zifeng
+Wang, Bhavana Dalvi Mishra, Rui Meng, ChunLiang Li, Yizhu Jiao, Kaiwen Zha, and 1 others. 2026.
+Skillos: Learning skill curation for self-evolving
+agents. arXiv preprint arXiv:2605.06614.
+Noam Shazeer, Azalia Mirhoseini, Krzysztof Maziarz,
+Andy Davis, Quoc Le, Geoffrey Hinton, and Jeff
+Dean. 2017. Outrageously large neural networks:
+The sparsely-gated mixture-of-experts layer. arXiv
+preprint arXiv:1701.06538.
+Kimi Team, Tongtong Bai, Yifan Bai, Yiping Bao,
+SH Cai, Yuan Cao, Y Charles, HS Che, Cheng
+Chen, Guanduo Chen, and 1 others. 2026. Kimi
+k2. 5: Visual agentic intelligence. arXiv preprint
+arXiv:2602.02276.
+Dequan Wang, Evan Shelhamer, Shaoteng Liu, Bruno
+Olshausen, and Trevor Darrell. 2020. Tent: Fully
+test-time adaptation by entropy minimization. arXiv
+preprint arXiv:2006.10726.
+Guanzhi Wang, Yuqi Xie, Yunfan Jiang, Ajay Mandlekar, Chaowei Xiao, Yuke Zhu, Linxi Fan, and
+Anima Anandkumar. 2023. Voyager: An open-ended
+embodied agent with large language models. arXiv
+preprint arXiv:2305.16291.
+Zifeng Wang, Zizhao Zhang, Sayna Ebrahimi, Ruoxi
+Sun, Han Zhang, Chen-Yu Lee, Xiaoqi Ren, Guolong Su, Vincent Perot, Jennifer Dy, and 1 others.
+2022a. Dualprompt: Complementary prompting for
+rehearsal-free continual learning. In European conference on computer vision, pages 631–648. Springer.
+
+Zifeng Wang, Zizhao Zhang, Chen-Yu Lee, Han Zhang,
+Ruoxi Sun, Xiaoqi Ren, Guolong Su, Vincent Perot,
+Jennifer Dy, and Tomas Pfister. 2022b. Learning to
+prompt for continual learning. In Proceedings of
+the IEEE/CVF conference on computer vision and
+pattern recognition, pages 139–149.
+Z.ai. 2025. Glm-4.7. https://www.z.ai/.
+Zhiyuan Zeng, Jiashuo Liu, Siyuan Chen, Tianci He,
+Yali Liao, Yixiao Tian, Jinpeng Wang, Zaiyuan Wang,
+Yang Yang, Lingyue Yin, and 1 others. 2025. Futurex:
+An advanced live benchmark for llm agents in future
+prediction. arXiv preprint arXiv:2508.11987.
+Terry Yue Zhuo, Dingmin Wang, Hantian Ding, Varun
+Kumar, and Zijian Wang. 2025. Training language
+model agents to find vulnerabilities with ctf-dojo.
+arXiv preprint arXiv:2508.18370.
+
+A
+
+Benchmark and Evaluation Details
+
+Across all three benchmarks, tasks are evaluated
+in chronological order. The solver receives task
+xi with only the information available before its
+release time, while the evolver receives outcome
+labels only after the corresponding resolution time.
+Our analysis pipeline loads the first record for each
+instance_id, so retries or duplicate logs do not
+change the reported metrics. The three benchmarks
+together exercise the three open-ended-stream deployment dimensions identified in §1.
+A.1
+
+PolyBench
+
+Source and composition.
+PolyBench is a
+Polymarket-derived prediction-market stream with
+5,075 tasks from Feb 6–22, 2026. The stream spans
+politics, sports, finance, crypto, and entertainment
+markets, and each task is resolved against the official market outcome.
+Temporal ordering. For each market, we store the
+task release timestamp and the outcome resolution
+timestamp. Resolved labels are hidden from evolution until the corresponding market has resolved.
+Metrics. Let N be the total number of markets in
+the stream and let T be the set of executed trades,
+excluding gated tasks, empty decisions, and S KIP
+decisions. Let si ∈ {0, 1} indicate whether trade i
+is correct, bi be its confidence-weighted investment,
+and gi be its realized profit. The metrics reported
+for PolyBench are:
+Coverage = |TN | ,
+Acc = 100 · N1
+
+P
+
+i∈T si ,
+P
+g
+CWR = 100 · Pi∈T bii ,
+i∈T
+
+Return = Coverage · CWR.
+Accuracy therefore rewards both broad coverage
+and correct decisions. Return is a portfolio-style
+profitability metric: CWR captures the dollarweighted profit per unit invested over the markets
+the agent actually traded, and the Coverage scaling
+discounts a high CWR earned on only a thin slice of
+the stream. We report Return alongside Accuracy
+because Accuracy treats every trade equally and
+is blind to stake sizing, whereas under confidenceweighted investments a confident wrong trade can
+offset several confident correct ones; Return therefore reflects realized P&L rather than mere directional correctness.
+
+A.2
+
+CTF-Dojo
+
+Source and composition. CTF-Dojo is a 261challenge security-competition stream drawn from
+pwncollege/ctf-archive, chronologically ordered from 2011 to 2024. Challenges cover binary
+exploitation, web security, cryptography, reverse
+engineering, and forensics, exposing changes in
+challenge style and tooling over time.
+Sandbox and verification. Each challenge runs
+inside a per-task Docker sandbox with constrained
+network policy. Flags are submitted as text and
+verified by SHA-256 hash comparison against the
+official flag.
+Metrics. We report Pass@1, the percentage of challenges solved within the benchmark budget. All
+CTF-Dojo aggregate results use the same chronological ordering as the released stream.
+A.3
+
+FutureX
+
+Source and composition. FutureX is a 503question event-forecasting stream over 82 days
+from Jan–Apr 2026, drawn from FutureX-Past.
+Questions cover finance, technology, geopolitics,
+and entertainment, with both English and Chineselanguage variants. The zh-finance slice requires
+source discovery beyond default English-only retrieval.
+Temporal retrieval and filtering. FutureX tasks
+are historical, but web pages and search indices
+continue to change after the event. To avoid label leakage, each task is solved with a per-task
+cutoff date derived from its temporal metadata. In
+strict built-in retrieval, Wikipedia content is fetched
+through the revision API using the latest revision
+before the cutoff, DuckDuckGo results are fetched
+and filtered by extracted publication dates from
+htmldate and URL patterns, and structured economic series are queried with observation and realtime endpoints capped at the cutoff. For evolved
+tools executed through the sandbox, live command
+output is passed through an LLM temporal filter
+before the solver sees it: the filter receives the task,
+cutoff date, and retrieved content, then either returns C LEAN or replaces post-cutoff values, rows,
+and snippets with [REDACTED]. This preserves precutoff evidence while blocking dynamic web content that would reveal the resolved answer.
+Metrics. We report Pass@1 under the official FutureX criterion. Slice-level human-steering analyses use the same pass criterion and aggregate tasks
+by the groups shown in Figure 9.
+
+B
+
+Implementation and Reproducibility
+Details
+
+Execution protocol. All main runs use providerhosted LLM APIs with native tool calling and the
+same chronological task order used by the benchmarks. Reported numbers are generated from
+the corresponding results.jsonl files. Closed
+provider-hosted models do not expose parameter counts; we therefore report the evaluated task
+counts and evolution cycles rather than GPUhours. The full-system runs contain 5,075/261/503
+solve trajectories and 51/14/26 evolution cycles for
+PolyBench/CTF-Dojo/FutureX, respectively.
+Compute and resources. All model inference
+is performed through provider-hosted APIs; the
+primary Adaptive Auto-Harness runs use Claude
+Sonnet 4.6 for solving and Claude Opus 4.6 for
+evolution, with other provider-hosted models used
+only for the corresponding baseline rows. We do
+not train or fine-tune model weights, and no local
+GPU compute is used for model optimization. Local compute is used for orchestration, result aggregation, figure generation, and Docker-based benchmark execution, including the per-task CTF-Dojo
+and FutureX sandboxes. Because the evaluated
+closed models do not disclose parameter counts,
+task counts and evolution cycles are the main compute descriptors.
+Hyperparameters.
+Table 3 lists the perbenchmark hyperparameters used by all main runs.
+Because temperature is zero throughout, the reported metrics are point estimates rather than averages over re-samples.
+Seed harness. Table 4 reports what the evolver
+inherits before any cycle runs. The seed prompt is
+intentionally compact: PolyBench and CTF-Dojo
+seed prompts are 27 and 24 lines respectively, FutureX is longer because it documents the temporalretrieval contract. All three benchmarks start with
+zero seed skills, tools, and memory entries, so any
+harness component beyond the seed prompt and
+the FutureX infrastructure scaffold is constructed
+by the evolver itself; this isolates the gains reported
+in the main results from prior hand-engineering of
+the seed.
+Token cost and wall-clock. Table 5 summarises per-system token usage and wall-clock
+for the five most relevant systems. Solver tokens are summed from the per-task fields in
+results.jsonl; evolver-side tokens are omitted
+because the orchestrator did not persist them in the
+
+Table 3: Adaptive Auto-Harness hyperparameters across
+the three benchmarks. EGL is the Expected-Gain-fromLearning trigger that gates whether a cycle runs. All
+runs use T = 0 for both solver and evolver to attribute
+gains to the algorithm rather than sampling noise.
+Hyperparameter
+
+PolyBench CTF-Dojo
+
+FutureX
+
+Models
+Solver
+Evolver
+Router
+
+Sonnet 4.6 Sonnet 4.6 Sonnet 4.6
+Opus 4.6
+Opus 4.6
+Opus 4.6
+Sonnet 4.6 Sonnet 4.6 Sonnet 4.6
+
+Sampling & budget
+Solver temperature
+Evolver temperature
+Solver max turns
+Evolver max tokens
+
+0.0
+0.0
+80
+128k
+
+0.0
+0.0
+80
+128k
+
+0.0
+0.0
+80
+128k
+
+Stream & schedule
+Total tasks
+Batch size
+Evolution cycles
+EGL threshold
+EGL window
+Solve workers
+
+5,075
+100
+51
+0.05
+3
+24
+
+261
+20
+14
+0.05
+3
+8
+
+503
+20
+26
+0.05
+3
+10
+
+Multi-agent & routing
+Research parallel agents
+Build/verify retries
+Routing confidence threshold
+
+3
+3
+0.7
+
+3
+3
+0.7
+
+3
+3
+0.7
+
+Sandbox
+Solver sandbox network
+Evolver sandbox network
+
+none
+none
+
+none
+none
+
+bridge
+bridge
+
+Table 4: Seed harness shipped to the evolver before
+any cycle runs. Skills counts top-level skill directories;
+Memory counts JSONL entries; Infra indicates whether
+the seed includes an infrastructure directory.
+Benchmark
+
+Prompt LOC
+
+Skills
+
+Tools
+
+Memory
+
+Infra
+
+PolyBench
+CTF-Dojo
+FutureX
+
+27
+24
+114
+
+0
+0
+0
+
+0
+0
+0
+
+0
+0
+0
+
+no
+no
+yes
+
+released artifacts. Wall-clock is the sum of pertask elapsed seconds and excludes orchestration
+overhead.
+Temporal reveal. Each task stores a release timestamp and, when available, a resolution timestamp.
+Solver calls are filtered against the release time.
+Evolution cycles receive the trajectory immediately
+but receive outcome feedback only after the task
+has resolved, so unresolved tasks remain unlabeled
+history rather than leaked supervision.
+Workspace artifacts. The evolver workspace persists a task board, research logs, verifier notes, tests,
+and architecture notes across cycles. These artifacts
+are separate from the solver workspace: the evolver
+may update harness files during evolution, while
+the solve-time router only inspects branch metadata
+and selects a branch for the incoming task.
+Branch replay protocol. For the routing analysis
+
+Table 5: Solver token cost and wall-clock per system. Tokens are summed from per-task input_tokens
+/ output_tokens in results.jsonl. Wall-clock sums
+per-task elapsed seconds and excludes orchestration
+overhead. Evolver-side tokens were not persisted by the
+orchestrator in the released artifacts.
+System
+
+Bench
+
+In (M tok) Out (M tok) Hours Tasks/h
+
+Sonnet (no-evo) PolyBench
+CTF-Dojo
+FutureX
+
+35.3
+138.4
+55.5
+
+5.0
+2.1
+0.7
+
+25.6
+22.4
+34.2
+
+198.3
+11.7
+14.7
+
+A-Evolve
+
+PolyBench
+CTF-Dojo
+FutureX
+
+365.4
+111.3
+268.8
+
+4.2
+1.7
+1.2
+
+23.9
+11.4
+13.8
+
+212.3
+23.0
+36.5
+
+Meta-Harness
+
+PolyBench
+CTF-Dojo
+FutureX
+
+245.0
+142.7
+39.1
+
+9.6
+2.2
+0.5
+
+49.7
+20.0
+7.9
+
+102.1
+13.0
+63.8
+
+Multi-agent
+
+PolyBench
+CTF-Dojo
+FutureX
+
+264.2
+180.2
+130.7
+
+14.5
+2.5
+1.0
+
+78.0
+21.2
+12.1
+
+65.1
+12.3
+41.7
+
+Full System
+
+PolyBench
+CTF-Dojo
+FutureX
+
+233.2
+169.0
+25.6
+
+12.2
+2.4
+0.5
+
+59.5
+21.1
+6.6
+
+85.2
+12.4
+75.7
+
+in Appendix G, every branch in the evolved harness
+tree is replayed on a curated task subset to construct
+the Oracle and Worst controls. Oracle and Worst
+are post-hoc diagnostic bounds; the deployed router
+sees only task context and branch metadata, not
+labels or branch outcomes.
+Human-steering records. Human-steering events
+are author-provided system interventions rather
+than recruited human-subject annotations. Each
+event is logged with the triggering phase, requested
+external signal, and workspace location where the
+response is recorded; Table 13 reproduces the full
+event log. This makes steering auditable and keeps
+human input as source or access guidance rather
+than answer labels.
+
+C
+
+Benchmark Non-Stationarity
+Diagnostics
+
+Figures 12–14 provide descriptive diagnostics for
+the temporal structure of the three streams. These
+plots are not used as evaluation metrics; instead,
+they show why the benchmarks are not static IID
+pools and why a harness fitted to earlier observations can become mismatched to later tasks. Most
+panels are computed from task metadata, task text,
+or benchmark-side properties; panels that use outcomes or a baseline solver are included only as
+descriptive solvability proxies.
+PolyBench. Prediction markets shift in both difficulty and tradability over the evaluated period
+(Figure 12). Early markets are more often liquid
+and already decisive: the fraction of tradeable mar-
+
+kets drops from 97% early to 31% late, and the
+fraction whose maximum price exceeds 0.95 drops
+from 44% to 29%. At the same time, near-even
+markets increase from 18% to 35%, meaning later
+tasks more often require evidence beyond simply
+following a strong market consensus. The marketprice correctness proxy also changes over time,
+from 84% early to 77% late. Together, these shifts
+make a fixed prediction-market strategy brittle: calibration, abstention, and evidence gathering must
+adapt as the stream moves from liquid and decisive
+markets toward thinner and more ambiguous ones.
+CTF-Dojo. CTF-Dojo exposes a different form of
+non-stationarity: the stream expands into competitions and challenge conventions not present in the
+early history (Figure 13). The cumulative number
+of source competitions keeps increasing across the
+chronological order, and by the late stream the fraction of tasks from competitions unseen in the first
+third reaches 100%. The number of competitions
+represented in a 50-task window also varies substantially, so neighboring tasks can require different assumptions about file layout, scoring conventions, and intended exploitation style. The crosscompetition score coefficient of variation further
+indicates that competitions are not interchangeable
+pools; each event can calibrate difficulty and challenge design differently. This motivates persistent
+construction of reusable security skills, but also
+cautions against treating early CTF experience as
+uniformly transferable.
+FutureX. FutureX shifts along source, language,
+and difficulty dimensions (Figure 14). Batch-level
+baseline accuracy ranges from 20% to 80%, showing that chronological batches differ substantially
+in solvability. Later batches contain more Chinesetitled questions and more questions tied to platforms that are difficult to search directly, while
+the share of harder Level 3–4 questions increases
+sharply in the same region. Chinese-language
+answer requirements also appear mainly in later
+batches. These changes explain why FutureX
+stresses both construction and adaptation: the harness must acquire better source-finding and temporal retrieval behavior, while solve-time routing
+must select branches suited to the task’s language,
+source, and difficulty profile.
+
+D
+
+Further Experiments
+
+We include two supplemental diagnostics that clarify where the main gains come from without dupli-
+
+CTF-Dojo pass rate (%)
+
+LOW budget
+
+HIGH budget
+
+100
+80
+60
+
+93% 90%
+68% 73%
+
+58%
+
+69%
+
+40
+20
+0
+
+Haiku 4.5
+
+Sonnet 4.6
+
+Opus 4.7
+
+Figure 10: Evolver capability on CTF-Dojo. Pass rate
+improves with stronger evolver models; higher budget
+helps Haiku and Sonnet but gives little additional gain
+once Opus already reaches high performance.
+100
+
+CWR (%)
+
+80
+60
+
+All-evolved dilution
+-57 pp
+
++60%
++32%
+
+40
+
++15%
+
+20
+
++3%
+
+0
+PolyBenchevolved
+
+CTF-Dojoevolved
+
+FutureXevolved
+
+Source workspace
+
+Allevolved
+
+Figure 11: PolyBench workspace dilution. A
+PolyBench-evolved workspace reaches the highest
+CWR, while combining all evolved workspaces sharply
+reduces CWR, supporting the need for specialized harness branches rather than a single dense harness.
+
+cating the RQ analyses in §4.
+Evolver capability and construction budget. Figure 10 varies the evolver model and construction budget on CTF-Dojo. Stronger evolvers
+achieve higher pass rates, while additional budget mainly helps weaker evolvers and saturates for
+the strongest model.
+Cross-domain workspace dilution.
+Figure 11 compares PolyBench CWR when using
+workspaces evolved on different domains. The
+PolyBench-specific workspace performs best,
+while the all-evolved workspace loses 57 points
+of CWR, showing that mixing heterogeneous
+experience can dilute domain-relevant harness
+structure.
+
+E
+
+Table 6: Per-category Pass@1 (%) on CTF-Dojo. Categories are parsed from the detail field; binary/pwn
+merges the conventionally-equivalent CTF tags. Bold
+marks the best system per row.
+
+Per-Domain and Per-Category
+Breakdowns
+
+CTF-Dojo. Table 6 reports Pass@1 by category.
+The Full System gains the most on web (+27 over
+Sonnet) and crypto (+19); binary/pwn remains
+
+Category
+
+N Sonnet A-Evolve Meta-H. Multi Adapt. Full
+
+crypto
+binary/pwn
+web
+reverse
+forensics
+misc
+
+74
+41
+11
+65
+12
+58
+
+52.7
+4.9
+45.5
+49.2
+58.3
+20.7
+
+66.1
+11.5
+41.7
+62.7
+61.5
+23.5
+
+56.2
+2.5
+41.7
+48.7
+64.3
+29.5
+
+67.6
+7.0
+33.3
+59.7
+64.3
+34.1
+
+55.6 72.1
+4.8 14.8
+50.0 72.7
+57.0 66.2
+71.4 58.3
+40.5 25.6
+
+Overall
+
+261
+
+37.2
+
+45.2
+
+41.0
+
+47.9
+
+46.0 50.2
+
+Table 7: Per-slice Pass@1 (%) on FutureX. Language
+is detected from Chinese characters in the question;
+domain is inferred by keyword match (other catches
+unmatched questions). N is from the Sonnet baseline
+run. The zh, geopolitics row contains a single task
+and is reported for completeness only. Bold marks the
+best system per row.
+Lang Domain
+
+N Sonnet A-Evolve Meta-H. Multi Adapt. Full
+
+en
+en
+en
+en
+en
+en
+
+finance
+76
+tech
+8
+geopolitics
+43
+sports
+62
+entertainment 37
+other
+219
+
+21.1
+25.0
+41.9
+38.7
+27.0
+38.8
+
+53.9
+50.0
+62.8
+58.1
+43.2
+52.1
+
+21.1
+37.5
+37.2
+37.1
+21.6
+37.4
+
+52.6
+50.0
+62.8
+59.7
+40.5
+55.7
+
+43.4 56.6
+37.5 50.0
+60.5 65.1
+56.5 54.8
+48.6 37.8
+48.9 51.1
+
+zh
+zh
+zh
+zh
+
+finance
+geopolitics
+entertainment
+other
+
+10
+1
+25
+22
+
+0.0
+100
+0.0
+0.0
+
+0.0
+100
+0.0
+0.0
+
+0.0
+0
+0.0
+0.0
+
+30.0
+0
+0.0
+4.5
+
+0.0 20.0
+0
+0
+0.0 0.0
+0.0 4.5
+
+Overall
+
+503
+
+31.0
+
+47.5
+
+29.4
+
+49.5
+
+44.1 47.3
+
+the hardest category at 14.8% even after evolution
+and routing, consistent with the sandbox payloadhandling bottleneck identified in §4.3.
+FutureX. Table 7 reports Pass@1 by language and
+inferred domain. English-language slices benefit
+most from evolution; the small zh-finance slice illustrates the source-discovery bottleneck where neither evolution nor routing alone can recover when
+the platform is behind a search wall. Domains are
+inferred by keyword match on the question text,
+since FutureX results do not store the official domain tags; the other bucket therefore aggregates
+unmatched questions.
+PolyBench. Table 8 reports Accuracy/Return per
+inferred category. Sports dominates the portfolio ratio because liquid sports markets carry most of the
+dollar-weighted profit; politics carries near-zero return despite high accuracy. Categories are inferred
+by keyword match on the trajectory prompt’s Event
+description.
+
+Market Prediction Correct
+
+0.8
+
+0.8
+
+0.6
+
+0.6
+
+0.4
+0.2
+
+0.0
+06
+Feb
+1.0
+
+b 09
+
+b 10
+
+Fe
+
+Fe
+
+b 13
+
+b 14
+
+Fe
+
+Fe
+
+0.0
+06
+Feb
+
+Markets Near-Even (max price 0.4 0.6)
+
+early: 18%
+
+1.0
+
+Fe
+
+Fe
+
+0.8
+
+0.8
+
+0.6
+
+0.6
+
+0.4
+0.2
+
+late: 35%
+
+0.0
+06
+e
+Fb
+
+9
+
+0
+
+0
+Feb
+
+1
+Feb
+
+3
+
+4
+
+1
+Feb
+
+late: 29%
+
+1
+Feb
+
+Fe
+
+b 09
+
+Fe
+
+b 10
+
+Fe
+
+b 13
+
+Fe
+
+b 14
+
+Markets Tradeable (volume > $1K)
+
+Fe
+
+b 15
+
+1
+
+2
+Feb
+
+early: 97%
+
+0.4
+0.2
+
+0.0
+21 eb 06
+b
+e
+F
+F
+
+5
+
+1
+Feb
+
+Resolution Date
+
+early: 44%
+
+0.4
+
+b 21
+
+b 15
+
+Markets Already Decided (max price > 0.95)
+
+0.2
+
+late: 77%
+
+Fraction
+
+Fraction
+
+1.0
+
+early: 84%
+
+Fraction
+
+Fraction
+
+1.0
+
+late: 31%
+9
+
+0
+Feb
+
+0
+
+1
+Feb
+
+3
+
+1
+Feb
+
+4
+
+1
+Feb
+
+Resolution Date
+
+5
+
+1
+Feb
+
+1
+
+2
+Feb
+
+Figure 12: PolyBench non-stationarity. Market difficulty and tradability shift over time: later markets are less
+often decisive or liquid and more often near-even.
+
+60
+40
+20
+
+Text file
+Description only
+Script + output
+Crypto artifact
+Image / stego
+
+100
+80
+
+% of crypto tasks
+
+% of crypto tasks
+
+80
+
+0
+
+(b) Challenge input format
+
+Classical
+XOR
+RSA
+AES / block cipher
+ECC / DH
+
+60
+40
+20
+
+2011-14
+(n=16)
+
+2017-18
+(n=8)
+
+2019-21
+(n=24)
+
+2022-24
+(n=32)
+
+0
+
+(c) Files per challenge
+1 file
+2 files
+3+ files
+
+100
+
+% of crypto tasks (with files)
+
+(a) Cryptographic primitive
+100
+
+80
+60
+40
+20
+
+2011-14
+(n=16)
+
+2017-18
+(n=8)
+
+2019-21
+(n=24)
+
+2022-24
+(n=32)
+
+0
+
+2011-14
+(n=16)
+
+2017-18
+(n=8)
+
+2019-21
+(n=18)
+
+2022-24
+(n=30)
+
+Figure 13: CTF-Dojo non-stationarity. The chronological stream keeps introducing new competitions and
+increases cross-competition variability, so early challenge experience is not uniformly transferable.
+
+F
+
+Multi-Agent Evolution Dynamics
+
+Table 9 reports the full-stream system contrast (Noevo → Single-agent → Multi-agent) plus the timing
+of the multi-agent run, complementing rather than
+reproducing Figure 6. The figure runs the fourphase evolver against No-memory and No-feedback
+ablations on a curated subset of samples; the table
+here instead reports the headline metric of each
+system on the full benchmark, matching the Multiagent column of Table 2. The unique signal added
+is timing: the Peak column gives the cycle index
+at which the multi-agent run’s cumulative mean
+was highest, and a peak well before the final cycle
+is consistent with the overfitting trend in Figure 1.
+On PolyBench the multi-agent peak occurs at cycle
+22 of 51 and on FutureX at cycle 10 of 26, while
+CTF-Dojo continues to accumulate utility across
+all 14 cycles.
+
+G
+
+Routing Behaviour and Branch
+Performance
+
+This appendix expands the routing analysis behind
+Figure 7. We use two related but distinct subsets
+per benchmark: (i) the nav-run subset (CTF-Dojo:
+60 tasks, PolyBench: 100, FutureX: 80) on which
+the LLM router was deployed live and we observe
+its branch assignments; and (ii) the replay subset
+(CTF-Dojo: 40, PolyBench: 80, FutureX: 58), a
+subset of the same tasks for which every branch
+has been replayed end-to-end so each task carries
+a complete cross-venue score vector. The replay
+subset is necessarily smaller because some earlycycle branches did not exist for batch 1 tasks. Four
+per-task series are derived from the replay subset:
+Oracle = best venue, Adapt = the LLM router’s
+actual choice on the nav run, Naive = the fixed main
+venue (no branching), and Worst = worst venue.
+
+(a) Baseline Accuracy per Batch
+60
+
+% of tasks
+
+Accuracy (%)
+
+40
+30
+
+40
+30
+
+20
+
+20
+
+10
+
+10
+
+0
+
+0
+
+(c) Difficulty Level Shift
+
+70
+
+(d) Chinese-Language Answers
+
+30
+
+Level 1 (easy)
+Level 3-4 (hard)
+
+60
+
+25
+
+% of tasks
+
+50
+
+% of tasks
+
+Chinese title
+Unsearchable platform
+
+50
+
+50
+
+40
+30
+20
+
+20
+15
+10
+5
+
+10
+0
+
+(b) Language & Data Source Shift
+
+60
+
+0.0
+
+2.5
+
+5.0
+
+7.5
+
+10.0
+
+Batch Number
+
+12.5
+
+15.0
+
+17.5
+
+0
+
+0.0
+
+2.5
+
+5.0
+
+7.5
+
+10.0
+
+Batch Number
+
+12.5
+
+15.0
+
+17.5
+
+Figure 14: FutureX non-stationarity. Language, source accessibility, difficulty, and answer format shift across
+batches, creating solve-time harness mismatch when one static harness is reused for all tasks.
+Table 8: Per-category PolyBench metrics. Categories are inferred by keyword match on the trajectory prompt’s
+Event description; other catches unmatched markets. Each cell reports Accuracy (%) / Return (%). Bold marks
+the best system per row on Accuracy.
+
+Domain
+
+N
+
+Sonnet
+
+A-Evolve Meta-Harness Multi-agent
+
+Adaptive
+
+Full System
+
+politics
+372 18.3/−5
+sports
+1,120 23.8/+3
+finance
+240 19.6/+2
+crypto
+447 20.4/−3
+entertainment
+218 22.0/−2
+other
+2,678 22.6/+3
+
+11.3/+1
+16.4/+8
+18.3/+8
+17.7/+3
+12.8/+1
+20.7/+9
+
+71.8/−2
+55.8/+594
+64.6/+7
+66.9/+2
+64.7/+95
+40.8/+356
+
+87.9/−3
+81.7/+659
+81.7/+10
+89.3/+4
+89.4/+105
+75.4/+394
+
+87.6/−2
+80.0/+642
+77.1/+8
+88.4/+4
+87.6/+101
+72.3/+409
+
+87.1/−4
+84.6/+596
+80.4/+9
+90.8/+5
+89.0/+83
+76.2/+374
+
+Overall
+
+18.4/+7
+
+50.8/+320
+
+79.8/+351
+
+77.4/+352
+
+80.9/+330
+
+5,075 22.2/+2
+
+Table 9: Full-stream system contrast complementing
+the subset-based ablation in Figure 6. No-evo is the noevolution Sonnet baseline; Single is A-Evolve (singleagent evolver); Multi is the four-phase multi-agent
+evolver. The Peak column reports the cycle index at
+which the multi-agent run’s cumulative mean was highest, and Cycles is the total number of evolution cycles.
+Benchmark
+
+Metric
+
+No-evo
+
+Single
+
+Multi
+
+Peak
+
+Cycles
+
+PolyBench
+CTF-Dojo
+FutureX
+
+Acc
+Pass@1
+Pass@1
+
+22.2
+37.2
+31.0
+
+18.4
+45.2
+47.5
+
+79.8
+47.9
+49.5
+
+22
+1
+10
+
+51
+14
+26
+
+Where the router sends each task. Table 10
+reports the per-branch routing volume and pass
+rate over the nav-run subset. The router prompt
+(Appendix J) does allow a main fallback when no
+branch matches strongly, but on these subsets the
+router always identifies a regime-specific branch
+
+and never invokes that fallback. Branches with low
+realised pass rates (e.g. branch/pwn on CTF-Dojo,
+branch/lvl3 on FutureX) are not failing branches
+per se — the router sends genuinely hard tasks to
+them, and the corresponding tasks have low Oracle
+pass rates on the replay subset as well (Table 11).
+How much routing recovers of the adaptation
+gap. Table 11 gives the headline Oracle/Adapt/Naive/Worst comparison on the replay subset, with
+95% bootstrap CIs and Holm–Bonferroni-corrected
+paired Wilcoxon p-values. The Oracle−Naive
+gap, our empirical estimate of the adaptation
+loss Ladapt , is large and significant on CTF-Dojo
+(+37.5 pp, padj = 4.8 × 10−4 ) and PolyBench
+(+8.8 pp CWR, padj = 1.8 × 10−5 ); on FutureX
+the gap is smaller and not significant after correction, consistent with the §4.3 finding that source
+acquisition rather than branch choice is the binding
+
+Table 10: Per-branch routing volume on the RQ4 navigation analysis subsets (§4.5). Each row reports tasks the
+LLM router actually sent to that branch under the Adapt
+condition, alongside the resulting Pass@1 (CTF-Dojo,
+FutureX) or HitRate among traded markets (PolyBench).
+On these subsets the router never invoked the main fallback that its prompt allows (Appendix J).
+Bench Branch
+
+N routed
+
+Pass / HitRate (%)
+
+CTF-Dojo (60 tasks across 3 batches; per-task best-of-7 venues)
+branch/crypto
+20
+50.0
+branch/rev
+20
+30.0
+branch/pwn
+12
+0.0
+branch/misc
+4
+75.0
+branch/web
+2
+0.0
+branch/forensics
+2
+50.0
+PolyBench (100 tasks across 4 batches; per-task best-of-5 venues)
+branch/sports
+71
+67.6
+branch/finance
+14
+21.4
+branch/culture
+12
+33.3
+branch/politics-world
+3
+66.7
+FutureX (80 tasks across 3 batches; per-task best-of-5 venues)
+branch/lvl1
+28
+53.6
+branch/lvl2
+30
+30.0
+branch/lvl3
+8
+0.0
+branch/lvl4
+14
+14.3
+
+capability there. Adapt closes a substantial fraction of the gap on CTF-Dojo and PolyBench but
+trails Naive slightly on FutureX, again reflecting
+the source-acquisition bottleneck.
+Per-batch view. Table 12 reports the same series broken out by batch on the replay subset
+(only batches with full cross-branch replays are
+shown, so e.g. CTF-Dojo includes batches 2 and
+3 only). CTF-Dojo’s branch tree improves between these two batches (Oracle 45 → 65%) as
+new specialisations come online; PolyBench shows
+a quiet batch 4 followed by a sports-led recovery in batch 5; FutureX’s batch 3 has the widest
+Oracle−Adapt headroom, where the router’s levelbased branches were less reliable than main on the
+same tasks.
+
+H
+
+Human-in-the-Loop Event Log
+
+Table 13 reports the full HITL event log from
+the FutureX RQ5 run (§4.6). The run uses the
+curated 5-batch FutureX stream (Design C: 100
+tasks, 5 × 20) with two engineered regime shifts,
+a Sonnet 4.6 solver, an Opus 4.6 evolver, and
+hitl_enabled=true. The Analyst and Builder
+decide when to invoke each hook; the human responds via Telegram from a pre-authored cheatsheet. Two P2 (research-phase) events fire at cycle
+1 to bootstrap the search pipeline, and one substantive P3 (task-board) event fires at cycle 3 to steer
+the evolver toward Western and Chinese specialty
+
+Table 11: Numeric companion to Figure 7. Replaybased Oracle/Adapt/Naive/Worst comparison on the
+RQ4 subsets (§4.5). Oracle is the best venue per task;
+Adapt is the LLM router’s choice; Naive is the fixed
+main venue (no branching); Worst is the worst venue
+per task. CTF-Dojo and FutureX use Pass@1 (%); PolyBench uses CWR (%). Means are reported with 95%
+bootstrap CIs; gaps use the paired one-sided Wilcoxon
+signed-rank test with Holm–Bonferroni-corrected pvalues. The Oracle−Naive gap is the empirical adaptation loss Ladapt .
+
+N tasks
+Oracle
+Adapt
+Naive
+Worst
+Ladapt (Oracle−Naive)
+Adapt−Naive
+
+CTF-Dojo
+(Pass%)
+
+PolyBench
+(CWR%)
+
+40
+
+80
+
+58
+
+55.0 [40.0, 70.0] +12.0 [+2.1, +21.2]
+35.0 [20.0, 50.0] +5.9 [−6.6, +17.4]
+17.5 [7.5, 30.0] +3.2 [−7.5, +13.0]
+7.5 [0.0, 17.5] −10.6 [−25.9, +4.0]
++37.5
++17.5
+
+FutureX
+(Pass%)
+
+46.6 [32.8, 60.3]
+34.5 [22.4, 46.6]
+39.7 [27.6, 51.7]
+22.4 [12.1, 32.8]
+
++8.8
++2.7
+
++6.9
+−5.2
+
+Table 12: Per-batch breakdown of the Oracle/Adapt/Naive/Worst means on the RQ4 routing subsets. CTFDojo and FutureX use Pass@1 (%); PolyBench uses
+CWR (%). Adapt closes the Oracle−Naive gap most
+consistently on CTF-Dojo, where branch quality is stable; on FutureX the gap is small and noisy because
+source acquisition rather than branch choice dominates
+the failure mode.
+Benchmark
+
+Batch
+
+N Oracle Adapt Naive
+
+CTF-Dojo (Pass%)
+
+2 20
+3 20
+
+PolyBench (CWR%)
+
+2
+3
+4
+5
+
+FutureX (Pass%)
+
+2 20
+3 19
+4 19
+
+20
+20
+20
+20
+
+45.0
+65.0
+
+30.0
+40.0
+
++16.7 +11.6
++13.0 +7.8
++1.1 +1.1
++14.7 +5.2
+45.0
+57.9
+36.8
+
+40.0
+26.3
+36.8
+
+15.0
+20.0
+
+Worst
+10.0
+5.0
+
++7.8 −100.0
++1.9
+−8.9
++1.4
+−5.1
++0.5
+−4.7
+45.0
+52.6
+21.1
+
+40.0
+21.1
+5.3
+
+endpoints. The remaining P3 prompts (cycles 1,
+2, 4, and 5) return skip, matching the cheat-sheet
+protocol that the human only intervenes when the
+cheat-sheet has a relevant entry. The slice-level lift
+on each regime (0, +5, +20, +15, 0 on regimes
+1–5) is reported in Figure 9.
+
+I
+
+Run-Detail Analysis
+
+Table 14 reports per-task turn counts and elapsed
+seconds, complementing the aggregate cost summary in Table 5. Both distributions are rightskewed on CTF-Dojo and FutureX, where a small
+number of long-running tasks pull the mean above
+the median; we therefore report both. CTF-Dojo’s
+solver budget is consistently saturated — Sonnet’s
+mean of 89.4 turns reflects a large mass of tasks that
+loop until the cap, whereas the evolved variants typ-
+
+Table 13: Complete human-in-the-loop event log from the FutureX RQ5 run (Design C, 5 batches × 20 tasks). P2
+(cred.) is the research-phase credential hook; P3 (board) is the task-board steering hook. Two P2 events fire at
+cycle 1 to bootstrap the search pipeline; one substantive P3 event fires at cycle 3 to direct the evolver toward Western
+and Chinese specialty endpoints. The remaining P3 prompts return skip, matching the cheat-sheet protocol. API
+tokens supplied via Telegram are redacted.
+Cycle Hook
+1 P2 (cred.)
+
+Key
+
+Trigger context
+
+EXA_API_KEY
+
+Phase-2 research needs Exa
+search API.
+1 P2 (cred.) SERPER_API_KEY Phase-2 research needs Serper Google API.
+1 P3 (board) cycle1
+7 tasks fail: solver has no
+web search tool.
+2 P3 (board) cycle2
+9 tasks fail: search-pipeline
+entry never invokes search
+functions.
+deterministic fallback used;
+3 P3 (board) cycle3
+structured-data API gap.
+
+4 P3 (board) cycle4
+5 P3 (board) cycle5
+
+Human response
+[REDACTED] (key supplied)
+[REDACTED] (key supplied)
+skip
+skip
+
+“Specialty data tasks need direct endpoint
+integrations beyond generic web search.
+Build skills/tools for Western (US equities
+OHLC, Box Office Mojo, . . .) and Chinese
+(Eastmoney secid, Maoyan film board, KolRank, . . .) endpoints.”
+17 tasks fail: deterministic skip
+fallback used.
+20 tasks fail: Chinese niche- skip
+ranking API absent.
+
+ically reach a flag (or give up) earlier. PolyBench is
+dominated by direct decisions: most tasks submit
+immediately (turn count 1) because the prompt already contains the market context the solver needs.
+
+Table 14: Per-task solver turns and wall-clock seconds across systems and benchmarks. A turn is one tool call,
+including the final submit; a task that submits directly without other tool use therefore counts as 1. turns and sec
+are arithmetic means; median columns are added because both distributions are right-skewed on CTF-Dojo and
+FutureX. Wall-clock excludes orchestration overhead.
+
+PolyBench
+System
+Sonnet
+A-Evolve
+GEPA
+Meta-Harness
+Continual H.
+SkillOS
+OctoTools
+Multi-agent
+Adaptive
+Full System
+
+turns med
+1.0
+1.7
+2.1
+2.4
+2.3
+2.7
+5.2
+5.7
+2.8
+5.4
+
+1.0
+2.0
+2.0
+2.0
+2.0
+2.0
+4.0
+6.0
+3.0
+6.0
+
+CTF-Dojo
+
+sec med turns med
+18.2
+17.0
+30.4
+35.2
+27.4
+32.1
+68.6
+55.3
+43.7
+42.2
+
+18.1
+15.7
+22.5
+29.5
+21.6
+23.0
+63.5
+48.7
+38.3
+40.5
+
+89.4
+17.8
+50.1
+51.3
+15.3
+31.4
+44.1
+40.1
+29.7
+36.4
+
+48.0
+10.0
+33.0
+39.0
+12.0
+16.0
+35.0
+35.0
+25.0
+42.0
+
+sec
+308.4
+156.7
+250.3
+275.9
+115.3
+224.2
+264.8
+293.1
+281.9
+290.9
+
+FutureX
+med turns med
+282.8
+76.9
+219.7
+244.4
+82.3
+161.0
+253.7
+245.2
+238.1
+255.9
+
+sec
+
+med
+
+13.4 16.0 244.4 271.4
+16.9 6.0 98.8 41.9
+0.8 1.0
+4.6
+4.6
+4.6 4.0 56.4 50.4
+6.8 5.0 167.8 112.7
+5.3 4.0 120.3 84.1
+1.0 1.0 10.7 10.5
+11.3 3.0 86.4 36.2
+10.1 8.0 74.5 55.7
+4.2 4.0 47.6 38.6
+
+J
+
+System Prompts
+
+We reproduce the verbatim system prompts used by Adaptive Auto-Harness, exactly as the agents receive
+them. Curly-brace placeholders such as {benchmark_context}, {regime}, {workspace_extras}, and
+{categories} are substituted by the framework at runtime per benchmark or per regime; we leave them
+in place so the templating is visible.
+Solve-time router
+You are a fast task router. For each task you must pick exactly one branch
+from the list provided.
+Decision procedure:
+1. Read each branch's README, focusing on its "When to route here" section.
+2. Match the task description against each branch's positive signals
+(categories, keywords, metadata) and negative signals (NOT applicable).
+3. If exactly one specialized branch matches strongly → route there with
+high confidence (>= 0.7).
+4. If multiple branches partially match or none match clearly → route to
+"main" with confidence reflecting your uncertainty.
+5. Branches without a clear "When to route here" section should be treated
+as low-confidence candidates — prefer main unless the regime is obvious.
+Output JSON only:
+{"branch": "main", "confidence": 0.8, "reason": "brief reason"}
+
+Researcher
+You are a research agent — PHASE 2 of 4 in the evolution cycle.
+PHASE SEQUENCE:
+1. ANALYZE → analyst identified gaps, wrote task_board.md
+2. RESEARCH (you) → discover solutions for your assigned regime
+3. BUILD
+→ builder reads YOUR research to write code
+4. VERIFY
+→ verifier tests what the builder created
+UPSTREAM: The analyst assigned you regime "{regime}" because tasks
+are failing in that area.
+DOWNSTREAM: The builder will read your research records to decide
+what code to write. For each approach you test, document:
+- How to implement it (endpoint, arguments, response format)
+- What it covers and what it doesn't
+- Whether it works reliably (tested with real calls)
+RESEARCH APPROACH:
+1. Read /solver_workspace/ to see what's already implemented
+2. Read /evolver_workspace/research_log.jsonl to avoid retesting
+3. Search the web for solutions, libraries, APIs, reference code
+4. Test NEW approaches that complement what already exists
+You can utilize Full network access if that's available.
+Write findings to /evolver_workspace/tests/research_{regime}.jsonl.
+WORKSPACE LAYOUT:
+/solver_workspace/
+/evolver_workspace/
+research_log.jsonl
+tests/
+/trajectories/
+
+— solver workspace (read current code)
+— evolution state
+— existing records (read to avoid retesting)
+— write findings HERE
+— READ-ONLY solver conversations per task
+
+BASH OUTPUT IS CAPPED AT 100 KB PER CALL (first 50 KB + last 50 KB,
+middle elided). When reading trajectories or large logs, prefer
+`jq`, `grep`, `head`, `tail` over raw `cat` to keep context focused.
+
+{benchmark_context}
+
+Builder
+You are a builder — PHASE 3 of 4 in the evolution cycle.
+PHASE SEQUENCE:
+1. ANALYZE → analyst identified failure patterns in task_board.md
+2. RESEARCH → agents discovered solutions in research_log.jsonl
+3. BUILD (you) → implement solutions from verified research
+4. VERIFY
+→ verifier tests YOUR code
+UPSTREAM: Read research_log.jsonl for verified approaches (works=true).
+The task_board tells you which capabilities matter most.
+The architecture.md shows what's already built.
+DOWNSTREAM: The verifier will test your code. If verification fails,
+you get the report and can retry (max 3 attempts).
+WORKSPACE LAYOUT:
+/solver_workspace/
+— the solver's workspace
+prompts/system.md
+— solver prompt (update if needed)
+tools/
+— evolved tool scripts
+infra/
+— evolved infrastructure (if applicable)
+{workspace_extras} /evolver_workspace/
+task_board.md
+— failure regimes from analyst
+research_log.jsonl
+— verified approaches from research
+architecture.md
+— UPDATE with what you built
+/trajectories/
+— READ-ONLY solver conversations
+Read existing code first. Extend, don't rewrite.
+Do NOT run git — the framework handles commits.
+BASH OUTPUT IS CAPPED AT 100 KB PER CALL (first 50 KB + last 50 KB,
+middle elided). When scanning large files, prefer `jq`, `grep`,
+`head`, `tail` over raw `cat`.
+{benchmark_context}
+
+Verifier
+You are a verification agent — PHASE 4 of 4 in the evolution cycle.
+PHASE SEQUENCE:
+1. ANALYZE → analyst identified failure patterns
+2. RESEARCH → agents discovered solutions
+3. BUILD
+→ builder wrote code implementing those solutions
+4. VERIFY (you) → test the builder's code before it goes live
+UPSTREAM: The builder just wrote/modified code in /solver_workspace/.
+Your job is to verify it works before the next batch.
+DOWNSTREAM: If PASS, the code goes live. If FAIL, the builder gets
+your report and retries. Be specific about what failed.
+WORKSPACE LAYOUT:
+/solver_workspace/
+/evolver_workspace/
+task_board.md
+tests/
+/trajectories/
+
+— solver workspace (test code here)
+— evolution state
+— context for test cases
+— write your test scripts HERE
+— READ-ONLY solver conversations
+
+Output: VERDICT: PASS or FAIL, then list each test with its result.
+BASH OUTPUT IS CAPPED AT 100 KB PER CALL (first 50 KB + last 50 KB,
+middle elided). Prefer `jq`, `grep`, `head`, `tail` over raw `cat`
+when inspecting large files.
+{benchmark_context}
+
+Analyst
+You are a failure analyst — PHASE 1 of 4 in the evolution cycle.
+PHASE SEQUENCE:
+1. ANALYZE (you) → write task_board.md with failure patterns + priorities + TARGET
+2. RESEARCH
+→ agents investigate top-K gaps from YOUR task board
+3. BUILD
+→ builder implements solutions PER TARGET (main first, then branches)
+4. VERIFY
+→ verifier tests what the builder created per target
+Your task board DIRECTLY drives what gets researched and built next.
+Be specific about what capability is missing — vague gaps lead to
+unfocused research.
+This system uses NAVIGATION: git branches isolate solver strategies.
+Each task is routed to the best branch before solving. Your job includes
+deciding WHERE each fix should land.
+CRITICAL: TRANSFERABILITY ANALYSIS (do this BEFORE writing the task board)
+Naive evolution accumulates "shortcut artifacts" — skills, tools, prompt rules,
+or memory entries that helped one batch but break later tasks with different
+distribution. Examples seen in past runs:
+- A "stop searching at 6 queries" rule helped batch 7 (sports) at 95% but
+crashed batches 14-20 (Chinese music) to 15% because those tasks needed
+longer searches.
+- A `bls_forgery.md` skill with 40s overhead and hard-coded BLS curve
+parameters helped 1 BLS task but slowed all other crypto tasks.
+- 22 hard-coded "wrong flag" entries in system.md memorized past failures
+without abstracting the underlying lesson, bloating the prompt.
+Your job in Phase 1 is to AUDIT the evolution state for non-transferable
+artifacts BEFORE proposing more fixes. Use bash to:
+1. Compare per-CATEGORY pass rates ACROSS cycles (read multiple
+trajectories/batch_NNNN/index.txt files). If category X had 80% in
+early batches and 30% in recent batches — that's degradation.
+2. List recent additions to skills/, tools/, prompts/system.md, memory/
+and ask: which CATEGORIES does each artifact help vs. hurt?
+- Look for hard-coded task IDs, year-specific logic, single-domain rules
+- Look for prompt rules added recently that contradict older rules
+3. Check the strategy_tree.md routing stats: if a branch is dragging
+overall performance down (worse than main on its routed tasks),
+mark it for retirement.
+For each non-transferable artifact

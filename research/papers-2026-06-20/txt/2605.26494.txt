@@ -1,0 +1,1716 @@
+The MiniMax-M2 Series: Mini Activations
+Unleashing Max Real-World Intelligence
+
+arXiv:2605.26494v1 [cs.AI] 26 May 2026
+
+MiniMax1
+
+We introduce the MiniMax-M2 series, a family of Mixture-of-Experts language models built around the
+principle that mini activations can unleash maximum real-world intelligence. The flagship M2 contains
+229.9B total parameters with only 9.8B activated per token. Designed end-to-end for agentic deployment,
+the M2 series rests on three components: (i) agent-driven data pipelines producing large-scale, verifiable
+trajectories across agentic coding and agentic cowork, each grounded in an executable workspace and
+an artifact-aligned reward; (ii) Forge, a scalable agent-native RL system that adapts to long-horizon
+agent trajectories, paired with windowed-FIFO scheduling, prefix-tree merging, inference optimization,
+and a clean training–inference–agent decoupling that supports both white-box and black-box agents;
+(iii) the latest M2.7 checkpoint takes an early step toward self-evolution—autonomously debugging
+training runs and modifying its own scaffold. Across M2 through M2.7, this combination translates a
+mini-activation footprint into frontier-tier performance on agentic coding, deep search, office-task, and
+reasoning benchmarks.
+
+M2.7
+
+56.2
+
+M2.5
+
+55.4
+
+Gemini
+
+3.1 Pro
+
+Sonnet
+
+4.6
+
+Opus
+
+4.6
+
+57.2
+
+57.3
+
+GPT
+
+5.4
+
+57.7
+
+M2.7
+
+54.2
+
+52.7
+
+57
+
+M2.7
+
+50
+
+Gemini
+
+3.1 Pro
+M2.5
+
+M2.5
+
+Sonnet
+
+4.6
+
+51.3
+
+51
+
+M2.5
+
+55.6
+
+Opus
+
+4.6
+
+Opus
+
+4.6
+
+55
+
+GPT
+
+5.4
+
+58
+
+Gemini
+
+3.1 Pro
+
+50.3
+
+M2.7
+
+48.8
+
+46.3
+
+41
+
+M2.5
+
+Sonnet
+
+4.6
+
+44.8
+
+56.1
+
+54.2
+
+Opus
+
+4.6
+
+55.6
+
+GPT
+
+5.4
+
+4
+
+Multi-SWE Bench
+
+SWE Bench Pro
+
+Sonnet
+
+4.6
+
+Sonnet
+
+4.6
+
+M2.7
+
+Opus
+
+4.6
+
+M2.7
+
+Gemini
+
+3.1 Pro
+
+66.6
+
+66.6
+
+Gemini
+
+3.1 Pro
+
+M2.5
+
+41
+
+51.5
+
+GPT
+
+5.4
+
+Opus
+
+4.6
+
+47.2
+
+38.3
+
+Gemini
+
+3.1 Pro
+
+M2.7
+
+62.7
+
+M2.5
+
+Sonnet
+
+4.6
+
+Opus
+
+4.6
+
+75.7
+
+72.7
+
+GPT
+
+5.4
+
+57
+57
+71.2
+
+MLE-Bench lite
+
+VIBE-Pro
+
+54.6
+
+Sonnet
+
+4.6
+
+75.4
+
+64.2
+
+61.8
+
+57.6
+
+GPT
+
+5.4
+
+73.6
+
+Gemini
+
+3.1 Pro
+
+57
+
+M2.7
+
+Sonnet
+
+4.6
+
+Opus
+
+4.6
+
+52
+
+50
+
+GPT
+
+5.4
+
+57
+
+53
+
+M2.5
+
+42
+
+35
+
+GDPval-AA
+
+Toolathlon
+
+MM-ClawBench
+
+Artificial Analysis
+
+Figure 1 | Performance of MiniMax-M2.7 versus closed-weight frontier baselines across agentic coding,
+agentic cowork, and reasoning & knowledge benchmarks. With only ∼10 B activated parameters,
+MiniMax-M2.7 remains competitive with substantially larger and more compute-intensive systems.
+
+1 Please send correspondence to model@minimax.io.
+
+© 2026 MiniMax. All rights reserved
+
+The MiniMax-M2 Series: Mini Activations Unleashing Max Real-World Intelligence
+
+1. Introduction
+Large language models are rapidly migrating from short, single-turn dialogue to long-horizon agentic
+workflows: writing and shipping production code, navigating the open web, operating heterogeneous
+tools, and producing structured office artifacts across hundreds of interleaved reasoning and action
+steps (Anthropic, 2025; Google DeepMind, 2025; OpenAI, 2025). This shift exposes two distinct
+difficulties. First, the inherently ultra-long context of agentic tasks introduces formidable efficiency
+and cost bottlenecks during both training and inference, particularly under the stringent requirements
+of large-scale, high-availability production deployment. Second, deployment in the wild demands
+solving intrinsically complex and high-stakes tasks, such as production-grade software engineering
+and knowledge-intensive office automation.
+To address these twin challenges, we introduce the MiniMax-M2 series, a family of Mixture-ofExperts (MoE) language models built around a single design principle: mini activations can unleash
+maximum real-world intelligence. The flagship M2 is a 62-layer decoder-only Transformer with 229.9B
+total parameters and only 9.8B activated per token, organized as 256 fine-grained experts (Dai et al.,
+2024) with sigmoid gating, full multi-head attention with GQA (Ainslie et al., 2023), a 192K-token
+native context window, and a Multi-Token Prediction (MTP) module (DeepSeek-AI, 2024; Gloeckle
+et al., 2024) that doubles as a speculative-decoding draft path (Leviathan et al., 2023) at inference.
+Pre-training on 29.2T tokens establishes the base; the bulk of M2’s real-world capability is then
+constructed by an agent-native post-training pipeline whose components co-evolve from M2 through
+M2.5 to the latest M2.7.
+Main contributions. The continuous capability evolution and performance enhancements of the
+MiniMax-M2 series stem primarily from the following technical innovations:
+• We design high-fidelity, large-scale agent data pipelines tailored for agentic coding, collaborative work (cowork), reasoning, and general knowledge tasks, where each task is accompanied by
+its corresponding static/runtime environments, verifiable rewards, or credible feedback signals.
+We find that elevating the reward quality and credibility of each accepted trajectory—whether
+through executable verification signals or judge-model evidence checking—is of paramount
+importance to fully unleashing the inherent potential of the base model.
+• We build Forge, an agent-native RL system engineered for large-scale, general-purpose agentic
+reinforcement learning, which seamlessly admits both white-box and black-box (API-only)
+agents within a unified training loop. By decoupling key architectural components—including
+training, inference, and the agent itself—and pairing this separation with robustness-first
+algorithmic designs and a meticulous reward system, Forge achieves highly stable RL-time
+scaling. Furthermore, Forge incorporates windowed-FIFO scheduling to absorb trajectory-length
+variance, prefix-tree merging, and inference kernels co-designed with our deployment stack,
+thereby substantially boosting RL training efficiency and scalability.
+• We demonstrate, in M2.7, an early operational form of self-evolution: the model autonomously
+triages failed training runs on our own infrastructure, edits its own agent scaffold across tasks
+and experiments, and is evaluated by running multi-round self-improvement on representative
+ML-engineering tasks. The within-series gains from M2 → M2.5 → M2.7 on agentic benchmarks
+already reflect this, closing one of the most expensive human-in-the-loop bottlenecks in frontier
+model development.
+Results. Figure 1 previews the headline numbers for MiniMax-M2.7 across three capability areas.
+On agentic coding, M2.7 reaches 56.2 on SWE-bench Pro, 76.5 on SWE-bench Multilingual, 52.7
+on Multi-SWE-bench, and 57.0 on Terminal-Bench 2.0. On agentic cowork, it reaches 62.7 on MM
+Claw, 77.8 on BrowseComp, 50.0 on GDPval-AA, and 46.3 on Toolathlon. On reasoning & knowledge,
+2
+
+The MiniMax-M2 Series: Mini Activations Unleashing Max Real-World Intelligence
+
+M2.7 posts 94.2 on AIME 2026 and 89.8 on GPQA-Diamond. With only ∼10 B activated parameters,
+MiniMax-M2.7 approaches the performance of the strongest closed-weight frontier systems. We
+refer the reader to Section 8 for the full benchmark suite, per-benchmark analysis, and within-series
+progression.
+
+2. Pre-Training Architecture
+2.1. Overall Architecture
+M2 is a large-scale sparse language model based on a Mixture-of-Experts (MoE) architecture, designed
+to scale model capacity while maintaining a low per-token compute budget. It contains 229.9B total
+parameters, with 9.8B activated per token. The model is implemented as a 62-layer decoder-only
+Transformer with a hidden dimension of 3,072 and a vocabulary size of 200,064, and is pre-trained
+on 29.2T tokens with a maximum context length of 192K.
+Each Transformer block in M2 consists of a multi-head self-attention module followed by a Mixtureof-Experts (MoE) feed-forward layer. For attention, M2 adopts full multi-head attention across all
+layers, using 48 query heads and 8 key-value heads (GQA) (Ainslie et al., 2023). Rotary Position
+Embeddings (RoPE) (Su et al., 2024) are applied throughout the model. This design departs from
+the hybrid attention mechanisms explored in MiniMax-Text-01 (MiniMax, 2025b) and reflects our
+preference for full attention in large-scale settings (Section 2.2.2). The MoE feed-forward layer
+contains 256 fine-grained experts (Dai et al., 2024), with 8 experts activated per token. Routing is
+implemented using sigmoid gating with learnable expert-specific bias terms, which improves load
+balancing while greatly reducing reliance on auxiliary losses (Wang et al., 2024a) (Section 2.2.1). In
+addition to the standard next-token prediction objective, we incorporate a Multi-Token Prediction
+(MTP) module (Gloeckle et al., 2024) during pre-training. This module is expanded during continued
+pre-training via weight copying to support multi-step speculative decoding (Leviathan et al., 2023)
+(Section 2.3).
+2.2. Model Design Choice
+M2’s design space is dominated by two architectural decisions: how the feed-forward layer is sparsified,
+and how attention is structured across layers. Each decision was made by deliberately benchmarking
+against alternatives, with the rationale and supporting evidence detailed below.
+2.2.1. Mixture-of-Experts
+M2 employs a Mixture-of-Experts (MoE) architecture for its feed-forward layers, with three modifications targeting expressiveness, routing dynamics, and load balancing.
+Fine-Grained Experts. We adopt a fine-grained expert design that uses a larger number of smaller
+experts, increasing the total expert count while reducing per-expert FFN size. This increases the
+combinatorial diversity of routing and reduces variance in expert utilization across devices (Table 1).
+Sigmoid Gating. Instead of softmax-based top-𝑘 gating (Shazeer et al., 2017), we use sigmoid gating
+for expert routing. Each expert receives an independent activation score, removing the zero-sum
+constraint imposed by softmax. This allows multiple experts to be activated simultaneously with high
+confidence and leads to smoother routing dynamics during training.
+Expert Bias. We introduce learnable bias terms in the gating function as per-expert routing-score
+shifts. These biases are optimized jointly with model parameters and implicitly regulate expert
+
+3
+
+The MiniMax-M2 Series: Mini Activations Unleashing Max Real-World Intelligence
+
+Table 1 | Ablation studies for the MoE Fine-Grained Experts design and the Multi-Token Prediction
+(MTP) module, evaluated on MATH (Hendrycks et al., 2021b), MMLU (Hendrycks et al., 2021a),
+ARC-Challenge (Clark et al., 2018), KorBench (Ma et al., 2025), and HumanEval (Chen et al., 2021).
+Bold marks the highest score in each row.
+
+Model Configuration
+Activated Params
+Total Params
+Training Tokens
+
+num_experts
+topk
+
+Shots
+
+Baseline
+
+w/ MTP
+
+w/ Fine-Grained
+
+–
+–
+–
+–
+–
+
+2B
+17.8B
+500B
+32
+2
+
+2B
+17.8B
+500B
+32
+2
+
+2B
+17.8B
+500B
+128
+8
+
+19.6
+39.8
+27.4
+14.1
+29.7
+
+21.3
+39.7
+27.5
+15.0
+30.1
+
+24.1
+40.2
+27.8
+14.8
+32.5
+
+Benchmark Results
+MATH
+4-shot
+MMLU
+5-shot
+ARC-Challenge
+25-shot
+KorBench
+3-shot
+HumanEval
+0-shot
+
+utilization, allowing the auxiliary load-balancing loss to be greatly reduced.
+2.2.2. Attention
+M2 adopts full multi-head attention across all layers, departing from the hybrid design used in
+MiniMax-Text-01 (MiniMax, 2025b), which interleaves Lightning Attention (Qin et al., 2024) with
+full attention. Despite the theoretical appeal of efficient attention mechanisms, we found no variant
+that reliably matches full attention quality in production settings spanning reasoning, coding, and
+agent tasks.
+Evaluation Difficulty. The core challenge is reliably measuring quality loss. During MiniMax-Text-01
+development, our hybrid attention models appeared to match full attention on standard benchmarks
+(MMLU (Hendrycks et al., 2021a), BBH (Suzgun et al., 2023), MATH (Hendrycks et al., 2021b),
+LongBench (Bai et al., 2024)), but at a larger scale, clear deficits emerged in complex multi-hop
+reasoning. We developed proxy metrics to address these gaps, but the correlation between proxy
+metrics and real downstream performance is fragile—it may not hold at larger scales or on unseen
+task distributions. Moreover, the compute required for statistically significant evaluation grows
+substantially with task complexity, and different architectures interact unpredictably with data
+distributions and training recipes, making reliable comparisons exceptionally difficult.
+Infrastructure Gap. Linear and sparse attention infrastructure remains less mature than full attention.
+Many linear architectures are memory-bound even during training. For inference, key challenges
+remain: sensitivity to low-precision storage, lack of native prefix caching support, and unclear
+integration with speculative decoding.
+Hybrid SWA Experiments. We extensively explored hybrid Sliding Window Attention (Beltagy et al.,
+2020) variants for M2’s attention layers, continuing pre-training for hundreds of billions to trillions of
+tokens across multiple configurations—varying SWA/full attention ratios, adjusting RoPE settings,
+exploring intra-layer and inter-layer hybrids, analyzing attention patterns (induction heads (Olsson
+et al., 2022), retrieval heads (Wu et al., 2024)), and adding sink tokens (Xiao et al., 2024). During pre-
+
+4
+
+The MiniMax-M2 Series: Mini Activations Unleashing Max Real-World Intelligence
+
+training, all variants showed degraded performance on retrieval, multi-hop reasoning, and in-context
+learning tasks (Table 2). After SFT, the gap became more pronounced specifically at long context:
+on benchmarks exceeding 32K context (agent tasks and complex long-context evaluations), SWA
+variants performed significantly worse than full attention. On benchmarks within 32K, differences
+were mixed and small in absolute terms—SWA matched or even exceeded full attention on some
+instruction-following and shorter-horizon agent tasks (e.g., IFBench, XBench-ds), while full attention
+retained advantages on knowledge-intensive evaluations (e.g., GPQA-Diamond, MMLU-Pro); see
+Table 3. These findings suggest that hybrid SWA’s attention coverage limitations critically impact
+long-context capabilities while having minimal effect on shorter-context scenarios.
+Outlook. As context lengths grow and GPU compute scaling slows, sub-quadratic attention will
+become increasingly relevant. We are investing in better long-context data, evaluation methodologies,
+and infrastructure to enable this transition.
+Table 2 | Pretraining evaluation at the M2 architecture scale: full attention baseline vs. hybrid SWA,
+covering general knowledge (MMLU (Hendrycks et al., 2021a), MATH (Hendrycks et al., 2021b)),
+long-context retrieval (HELMET (Yen et al., 2024), RULER (Hsieh et al., 2024)), and in-context
+translation (MTOB (Tanzer et al., 2024)). Bold marks the highest score in each row.
+
+HELMET ICL
+MMLU
+MATH
+RULER 128K CWE
+RULER 128K MQ
+RULER 32K CWE
+RULER 32K MQ
+MTOB K-e Bleurt
+MTOB e-k ChrF
+
+Baseline
+
+w/ SWA
+
+75.8
+85.5
+60.3
+90.0
+99.0
+99.0
+99.0
+60.0
+44.8
+
+72.7
+85.6
+60.3
+72.0
+93.0
+99.0
+99.0
+45.0
+27.2
+
+2.3. Multi-Token Prediction
+M2 incorporates Multi-Token Prediction (MTP) (Gloeckle et al., 2024), which trains the model to
+predict the next 𝐾 tokens jointly. This design provides richer training signals and enables speculative
+decoding (Leviathan et al., 2023) at inference time.
+Pre-training Stage. During pre-training, M2 is trained with a single MTP module ( 𝐾 = 1) following
+the design of DeepSeek-V3 (DeepSeek-AI, 2024) (Figure 2), with an initial MTP loss weight of
+0.3, which is annealed to 0.1 during the decay phase. As shown in Table 1, our ablation indicates
+that MTP consistently improves model performance across benchmarks, with the largest gains on
+reasoning-heavy tasks.
+Expansion via Weight Copying. To support multi-step speculative decoding, we expand from one to
+three MTP modules ( 𝐾 = 3) during the decay phase of continued pre-training. Rather than random
+initialization, we copy weights from the main model to initialize the MTP modules. This strategy
+is critical for two reasons: (1) copy-initialized modules converge significantly faster than randomly
+initialized ones, which otherwise start with high loss and temporarily degrade the main model; (2)
+it minimizes disruption to the main model representations during the transition. After expansion,
+we first freeze the main model and train only the MTP modules for a short period until their loss
+stabilizes, then switch to joint training of all modules. We also explored keeping the main model
+5
+
+The MiniMax-M2 Series: Mini Activations Unleashing Max Real-World Intelligence
+
+Table 3 | SFT benchmark at the M2 architecture scale: full attention baseline vs. hybrid SWA, covering
+general reasoning/knowledge and agentic tasks. General benchmarks: AIME 2025 (Mathematical
+Association of America, 2025), ARC-AGI-1 (Chollet, 2019), GPQA-Diamond (Rein et al., 2024), MMLUPro (Wang et al., 2024b), IFBench (Pyatkin et al., 2025). Agent benchmarks: SWE-verified (Jimenez
+et al., 2024), Terminal-Bench (Merrill et al., 2026), BrowseComp-zh (Zhou et al., 2025), GAIA103 (Mialon et al., 2024), XBench-ds (Chen et al., 2025), 𝜏2 -Bench (Barres et al., 2025). Bold marks
+the highest score in each row.
+Baseline
+
+w/ SWA
+
+General Benchmarks
+AIME 2025
+86.7
+ARC-AGI-1
+38.9
+GPQA-Diamond
+75.3
+MMLU-Pro
+80.5
+IFBench
+23.1
+
+86.7
+39.6
+72.7
+80.1
+27.2
+
+Agent Benchmarks
+SWE-verified
+Terminal-Bench
+BrowseComp-zh
+GAIA-103
+XBench-ds
+𝜏2 -Bench retail
+𝜏2 -Bench telecom
+
+50.2
+23.8
+28.7
+51.5
+63.0
+67.5
+21.0
+
+54.7
+26.7
+32.8
+53.4
+58.0
+62.3
+32.5
+
+frozen throughout, but found that the MTP modules converged to a worse final quality under this
+MTP-only schedule than under joint training.
+Inference. At inference time, the three MTP modules generate draft tokens that are verified by the
+main model in a single forward pass, providing throughput improvement while maintaining identical
+output quality to standard autoregressive decoding.
+
+3. Pre-Training Data
+Training Data. The pre-training corpus encompasses a comprehensive and meticulously curated
+dataset, incorporating diverse sources including web documents, academic literature, books, programming code, and structured question-answering content. We employ a combination of model-based
+reward scoring and auxiliary classifiers to assess document quality across multiple dimensions, and
+apply a balanced sampling strategy that upweights high-quality content while retaining sufficient
+category diversity.
+Data Distribution. The pre-training data mixture is carefully balanced across domains, with code,
+mathematics, and STEM content significantly upsampled relative to their natural distribution. The
+remaining portion consists of general web content, books, and other domain-specific data, ensuring
+broad coverage of world knowledge and linguistic diversity. During the constant phase of pre-training,
+we train on a total of 19.9T tokens.
+Long-Context Extension. Following the initial pre-training phase, we adopt a multi-stage training
+procedure to progressively extend the model’s context window from 8K tokens through 32K and
+ultimately to 192K tokens. The decay phase uses a total data budget of 9.3T tokens, comprising
+6
+
+The MiniMax-M2 Series: Mini Activations Unleashing Max Real-World Intelligence
+
+Figure 2 | Multi-Token Prediction (MTP) module architecture used in M2.
+both short-text decay data and long-context data, where high-quality code concatenation, naturally
+long-form PDF documents, and thematically related document packing serve as the primary sources
+of long-context training samples. During the decay phase, we mix in high-quality data to consolidate
+the model’s capabilities while extending its effective context length.
+
+4. Post-Training Data Collection
+4.1. Agentic Coding
+We collect post-training data for agentic coding across three complementary domains: software
+engineering (SWE), application development (AppDev), and terminal interaction tasks, covering
+repository-level code evolution, full-stack development, and interactive terminal environments.
+4.1.1. Real-Data Driven Collection: Software Engineering Tasks
+Constructing training data for coding agents poses three coupled challenges: achieving broad task
+diversity, ensuring objective verifiability, and scaling to the volumes that large-scale training demands.
+GitHub serves as a rich and naturally structured source for collecting such data: a well-structured
+pull request captures a description, associated code changes, and test cases that provide objective
+correctness signals. However, raw PR data is inherently noisy and cannot be used directly, motivating
+our construction of a real-data driven SWE-scaling pipeline: an agent-driven automated data pipeline
+based on raw GitHub data to produce diverse, verifiable SWE-style datasets and environments.
+Specifically, the pipeline proceeds through the following six consecutive stages.
+• PR collection and filtering. The first stage of the pipeline involves large-scale crawling of
+public GitHub repositories with permissive licenses to collect pull requests and their linked
+issues, which together provide code diffs, test files, and problem statements. Since raw GitHub
+data is inherently noisy, we apply a rule-based quality filter on the PRs that were eventually
+merged, along with additional criteria such as the presence of relevant test cases.
+• Agent-synthesized multi-language Docker environments. In the SWE-scaling pipeline, we aim
+7
+
+The MiniMax-M2 Series: Mini Activations Unleashing Max Real-World Intelligence
+
+SWE-Scaling Pipeline
+1 Data Acquisition
+& Filtering
+
+2
+
+Environment
+Construction
+
+3
+
+PR Tagging &
+Routing
+
+4 Task Extraction
+& Verification
+
+5 Model-based task
+Validation
+
+6
+
+Merge
+
+Bug Fix
+GitHub
+PRs & Commits
+
+Agent builds runnable
+Docker environment
+
+Tag & route by
+PR type
+
+Extract PRs and golden
+patch pairs (F2P & P2P)
+
+LLM checks consistency
+between tests and problem
+
+Feature Add
+Bottom-up test points
+patch pass event tests
+
+• Bug Fix
+• Feature Add
+• Merged PRs
+• Has Tests
+• Quality Filters
+
+• Iterative build & selfcorrect
+• Inject expert knowledge
+
+• Performance Optim.
+• Test / Refactor
+• Others
+
+Transformation
+and Augmentation
+
+Perf. Opt.
+Extract perf. tests verify
+stable & improvement
+
+Augment missing info. to
+make each problem selfcontained and solvable
+
+7
+
+Final SWE
+Dataset
+
+SWE-Test
+Problem
+Description
+
+Increase
+difficulty
+
+Insert unit
+test first
+
+Review
+
+Others
+
+Analyze
+and review
+
+More task
+variants
+
+Runnable
+Docker
+Environment
+
+...
+
+Verifiable
+Reward
+
+Appdev Pipeline
+1
+
+Domain Expert
+Involvement
+
+2
+
+Meta Query &
+Query Sampling
+
+3
+
+Query Dedup &
+Filtering
+
+4
+
+Trajectory Sampling
+& Prompt distillation
+
+5 Rubric-based Reward
+& Agent-as-a-Verifier
+
+6
+
+Final Appdev Dataset
+
+Meta queries &
+prompts
+Expert-in-the-loop
+
+Frontend
+
+Android
+
+Expert define meta queries
+
+MinHash deduplication
+
+Expert system prompt
+as guidance
+
+Agent-as-a-Verifier
+Executions
+& Artifacts
+
+Backend
+
+iOS
+
+• Random seed sampling
+• LLM rewriting
+• Cover tech stacks, UI/UX,
+features, constraints
+
+Rubric-based filtering:
+• Tech stack rationality
+• Feature feasibility
+• Requirement clarity
+
+Prompt distillation to
+internalize expertencoded best practices
+
+Three-layer verification:
+• Execution layer
+• Interaction layer
+• Visual aesthetics layer
+
+Rubric-based
+rewards
+
+Figure 3 | The agentic coding data pipelines for SWE and AppDev tasks.
+to construct a runnable Docker environment for each PR. However, we observe that environment
+synthesis is less reliable in non-Python settings due to heterogeneous dependencies and version
+conflicts. To address this, we introduce an agent-driven execution loop that incorporates expert
+knowledge, enabling iterative generation and refinement of build scripts guided by execution
+feedback. The key dimensions we address are as follows:
+– Build system orchestration in compiled languages. Compiled languages such as Java, Go,
+Rust, and C++ require complex toolchain coordination, including compiler versions, build
+tools, and dependency resolution.
+– Heterogeneous execution and testing interfaces. Different languages expose distinct build
+and testing pipelines, requiring unified yet adaptable execution interfaces for environment
+setup and validation.
+– Repository-level structural variability. Differences in project organization and dependency
+specification across repositories necessitate adaptive strategies for code localization and
+test execution.
+• PR tagging and task diversification. After constructing the Docker environment for each
+PR, we perform PR-level tagging and routing. GitHub PRs span a broad taxonomy of task
+types, including bug fixes, feature additions, performance optimizations, refactoring, and test
+construction. Such routing is necessary because different task types require distinct formulations
+of downstream verifiable rewards.
+• Test-based verifiable reward construction. We design task-specific reward functions grounded
+in test-case execution, as different PR types require fundamentally different evaluation criteria.
+– Bug fix. For bug-fix scenarios, we extract F2P (Fail-to-Pass) and P2P (Pass-to-Pass) test
+cases. If a golden patch passes these tests, the data is considered valid. We then let the
+model act as an agent to fix the bug in a sandbox and verify correctness using both F2P and
+8
+
+The MiniMax-M2 Series: Mini Activations Unleashing Max Real-World Intelligence
+
+P2P tests. P2P tests are particularly important to ensure that no new bugs are introduced
+during the fix.
+– Feature addition. For feature additions, traditional F2P/P2P logic may not apply, since tests
+often depend on newly introduced code. Instead, we focus on extracting newly added test
+points and ensuring the golden patch passes them.
+– Performance optimization. Since performance optimization has no bug-fixing process,
+in such cases we extract P2P tests that can verify stable and significant performance
+differences before and after the optimization.
+• Model-based task validation. Raw GitHub PRs are often weakly structured, and their associated
+test cases may not fully specify the underlying issue, leading to ambiguous or under-specified
+tasks. To mitigate this, we employ a model to validate consistency between problem descriptions
+and test cases, and to enrich missing information when necessary, producing self-contained and
+executable task specifications.
+• Task transformations and augmentation. To maximize dataset diversity, we apply transformation and augmentation strategies to existing PRs, generating multiple task variants from a
+single source.
+– Bug injection. Additional bugs are introduced into the codebase to increase task difficulty
+and expand the distribution of repair scenarios.
+– Commit merging. Adjacent commits or PRs are merged to construct multi-step repair tasks
+of greater complexity, following an approach similar to SWE-Smith (Yang et al., 2024).
+– SWE-Test conversion. Bug-fix PRs are converted into SWE-Test tasks, in which the problem
+formulation is inverted: rather than fixing the bug, the agent must write a test case that fails
+on the pre-patch code and passes after the patch is applied, directly exercising test-writing
+capability while remaining fully verifiable.
+– Code review tasks. The agent performs static analysis, inspects code changes, and identifies
+potential defects without requiring a runnable environment. Consistency is verified by a
+secondary LLM, yielding approximately verifiable tasks that contribute meaningfully to
+overall task diversity.
+The SWE-scaling pipeline ultimately produces a large-scale training dataset, where each instance
+consists of a problem statement, a test-based verifiable reward, and a runnable Docker environment.
+For the M2 series models, the pipeline spans more than ten programming languages and covers a
+wide range of coding task categories.
+4.1.2. Expert-Driven Data Collection: Application Development Tasks (AppDev)
+While SWE tasks focus on modifications to existing repositories, such as bug fixes, feature additions,
+and refactoring, Application Development (AppDev) tasks require building complete applications from
+scratch. This poses distinct challenges: tasks cannot be directly extracted from existing codebases,
+quality signals require runtime verification beyond static analysis, and evaluation criteria span both
+functional correctness and subjective design quality. To address these challenges, we design an
+expert-in-the-loop data pipeline that combines domain expertise with automated verification at
+scale. Domain experts contribute meta queries encoding production-level technical patterns, craft
+system prompts that guide trajectory generation, and design evaluation rubrics spanning execution,
+interaction, and aesthetics. An Agent-as-a-Verifier (AaaV) framework then performs automated
+rejection sampling by deploying generated applications in sandboxed environments and validating
+them against expert-defined rubrics through tool-assisted interaction. This pipeline enables us to
+synthesize diverse, high-quality application development trajectories across multiple domains, such
+as frontend, backend, mobile, desktop, and simulation.
+9
+
+The MiniMax-M2 Series: Mini Activations Unleashing Max Real-World Intelligence
+
+Expert-in-the-Loop Query Synthesis. We synthesize diverse, high-quality development task queries
+through a combination of expert-designed meta queries and automated quality control. Domain
+experts from engineering teams contribute optimized meta queries that encode their domain knowledge. Each meta query serves as a template that captures essential technical patterns, specifying
+framework ecosystems (e.g., React + Zustand + Tailwind), architectural constraints, and realistic
+use cases grounded in production experience. Experts curate category-specific seed pools covering
+UI component libraries, CSS frameworks, build tools, SaaS integrations, and common application
+scenarios. These meta queries inject controlled variability: technology stacks, styling approaches,
+and functional requirements are sampled from expert-curated distributions to ensure both diversity
+and technical validity. The meta queries undergo iterative refinement based on downstream quality
+signals, allowing experts to prune patterns that consistently yield low-quality outputs and amplify
+those that produce well-structured development tasks.
+Diverse user queries are synthesized by combining meta queries with randomly sampled seeds,
+and then processed through LLM generation with high temperature to maximize variation. Each meta
+query is expanded into multiple concrete queries that describe specific development tasks, covering
+feature requirements, technology choices, and UI/UX specifications. To control redundancy, we apply
+MinHash-based deduplication, achieving approximate near-duplicate detection in linear time with
+configurable thresholds. Finally, we evaluate the quality of each query by employing LLM-as-a-judge
+on domain-specific rubrics, organized into three categories: Tech Stack Rationality (compatibility,
+selection appropriateness, combination validity), Feature Feasibility (technical achievability, description specificity, UI/UX logic), and Requirement Clarity (validity, scenario authenticity, expression
+coherence, completeness). Queries with scores below a specific threshold are rejected. This ensures
+that only well-formed, technically sound, and realistically scoped development tasks proceed to
+trajectory sampling.
+Trajectory Sampling with Expert System Prompts. Domain experts inject prior knowledge directly
+into the generation process through carefully designed system prompts. These prompts encode best
+practices that address known deficiencies in our early models. For example, for web frontend tasks,
+experts observed that the model exhibited suboptimal design habits, such as overusing templatelike gradient backgrounds. To counteract these tendencies, the system prompt articulates explicit
+design guidelines and quality standards spanning functional completeness, code integrity, content
+authenticity, and aesthetics. Beyond design guidance, the prompts encourage best practices in the
+development process: writing specifications before implementation, maintaining structured TODO
+lists for complex tasks, and performing self-verification through testing. We also collect trajectories
+specifically targeting skill usage and internalization, enabling models to learn when and how to
+leverage skills effectively. A key element of our approach is prompt distillation: during trajectory
+sampling, the model receives the full enriched system prompt, whereas during training, we selectively
+drop portions of this guidance. This partial asymmetry encourages the model to internalize expertencoded best practices as default behavior, reducing its reliance on explicit prompting at inference
+time.
+Rejection Sampling with Rubric-based Reward and Agent-as-a-Verifier. Unlike SWE tasks where
+test cases provide natural correctness signals, application development requires holistic evaluation
+across multiple dimensions that cannot be assessed through static code analysis alone. We address this
+through Agent-as-a-Verifier (AaaV), a framework that validates trajectories by deploying the generated
+applications in sandboxed environments and evaluating them through tool-assisted interaction. The
+evaluation proceeds through three hierarchical layers, yielding binary pass/fail judgments with
+mandatory evidence for each criterion:
+• Execution Layer validates whether the application can actually run. Specific checks include:
+10
+
+The MiniMax-M2 Series: Mini Activations Unleashing Max Real-World Intelligence
+
+file existence and syntax validity, dependency resolution and installability, build success and
+server initialization, HTTP status and absence of JavaScript errors on page load. Trajectories
+failing this layer are immediately rejected, as they represent non-functional outputs.
+• Interaction Layer assesses whether core functions work as intended. Using Playwright, the
+verifier agent checks: presence of expected interactive elements, responsiveness of buttons and
+forms, and end-to-end completion of core feature workflows. The agent navigates the deployed
+application, triggers user interactions, and observes state changes to determine whether specified
+functionality is actually implemented.
+• Visual Aesthetics Layer evaluates subjective quality dimensions: layout professionalism, visual
+hierarchy clarity, color scheme harmony, and adherence to modern UI design standards.
+The overall pass rate across layers serves as the reward signal for rejection sampling, with Execution
+Layer checks acting as hard gates for immediate rejection. This three-layer evaluation distinguishes
+AaaV from conventional LLM-as-a-Judge approaches: rather than assessing quality from static code
+or screenshots, the verifier agent actively interacts with the running application across multiple turns,
+scoring observed behavior against expert-defined rubrics. Crucially, the synergy between our rigorously
+filtered, diverse query distribution and this Agent-as-a-Verifier evaluation paradigm establishes a
+robust foundation for subsequent reinforcement learning, providing both a rich exploration space and
+reliable, environment-grounded reward signals.
+4.1.3. Terminal-Gym: Automated Task Synthesis and Environment Generation
+Beyond SWE-bench (Jimenez et al., 2024), Terminal-Bench (Merrill et al., 2026) evaluates agents
+on realistic, complex tasks within a fully functional terminal environment, placing significantly
+higher demands on LLMs’ system operation, debugging, and command-line capabilities. To enhance
+model performance on such capabilities, we propose Terminal-Gym, an automated data synthesis
+pipeline that systematically converts curated real-world programming scenarios into a diverse corpus
+of verifiable terminal tasks. By generating structured task schemas, dynamically evolving query
+difficulties, and automatically synthesizing robust Docker-based runtime environments, it provides a
+highly scalable training framework for terminal agents.
+Seed Dataset Selection. Terminal-Gym takes the complete Stack Overflow dataset as a foundation,
+which provides high-quality, real-world programming and system-operation scenarios at scale. After
+chronologically sorting the raw data to reconstruct complete posts, we apply rigorous rule-based
+filtering. We discard posts lacking accepted answers, low-score posts, and overly lengthy query-answer
+pairs. To focus strictly on terminal scenarios, we filter by tags, retaining only threads related to
+terminal operations, system configuration, debugging, scripting, and relevant software engineering
+workflows. Each remaining post is then annotated with multiple attributes, including problem quality,
+task type applicability, verifiability, task category, approximate complexity, environment requirements,
+and execution characteristics. We select only those posts that satisfy strict criteria: they must be
+scriptable, terminal-compatible, verifiable, Linux/Docker-relevant, and of moderate difficulty. Finally,
+we discard noisy or redundant content within each thread and select a single high-quality answer,
+forming the foundational Query-Answer Pair.
+Query Synthesis. We further rewrite the selected queries into structured task descriptions. This
+involves concretizing the execution context, including the necessary environment, required tools,
+expected input and output formats, and success criteria. These rewritten tasks are then graded into
+four tiers based on testability, completeness, and clarity; only tasks falling into the top two tiers are
+retained. The original Query-Answer Pairs are thus transformed into a structured schema containing
+a natural-language instruction, any necessary supporting files or scripts, and a succinct description of
+the expected terminal behavior.
+11
+
+The MiniMax-M2 Series: Mini Activations Unleashing Max Real-World Intelligence
+
+Synthesis Pipeline. Each structured schema undergoes a three-stage transformation into a complete
+terminal task.
+• Stage 1: Environment and Test Generation. An agent generates a Dockerfile and a corresponding
+test script for each task. The test is executed to verify functionality. If the test fails, structured
+diagnostic feedback is returned to the agent for iterative repair, which continues until the test
+passes or a maximum retry limit is reached.
+• Stage 2: Query Evolution and Unified Testing. Task instructions generated in previous steps often
+contain explicit hints, file paths, or expected environmental outputs. To address this, we apply
+a controlled query evolution process, systematically abstracting or removing these hints while
+ensuring semantic consistency. All resulting variants of a task are then evaluated using a unified
+test suite generated by LLMs. This unified testing approach forces the tests to validate the
+underlying logic of the task rather than overfitting to specific descriptive styles or explicit hints.
+Experimental results demonstrate the efficacy of this method in ensuring robust evaluation.
+• Stage 3: Difficulty Calibration. Finally, we rigorously filter out overly simplistic tasks. We
+preferentially sample task variants that contain fewer hints and exhibit lower zero-shot pass
+rates. This filtering process considers the historical pass rates of a reference solver and the
+number of repair iterations required during environment synthesis, ensuring the final benchmark
+remains highly challenging and discriminating.
+Ultimately, Terminal-Gym provides a highly scalable training framework for complex terminal
+operations, a foundation we are now evolving into the zero-intervention Anything2Docker system. Furthermore, given the growing importance of code security, we are further expanding CVE-Factory (Luo
+et al., 2026) to encompass the broader frontier of autonomous cybersecurity research, pushing the
+boundaries of AI-driven vulnerability analysis and proactive defense mechanisms.
+4.2. Agentic Cowork
+Beyond the verifiable signals available in coding and terminal tasks, real-world deployment also
+requires agents that can operate across heterogeneous professional environments—navigating the
+open web for primary sources, reasoning over financial spreadsheets, authoring presentation decks,
+and producing the broader range of office artifacts that end users actually consume. Agentic Cowork
+is the data-collection track behind these capabilities, organized around four domains: deep search and
+open-web research, knowledge-worker office tasks, financial analysis and spreadsheet operations, and
+slide generation. Although each domain operates over a distinct workspace and produces a distinct
+artifact, all four follow the same overall design. Tasks are instantiated on real, runnable workspaces;
+trajectories are distilled from a rotating set of strong teacher models under deliberately perturbed
+scaffolds; and acceptance is governed by a verification signal aligned with the artifact format, rather
+than by a single generic judge. For sub-tasks whose outcomes are not directly machine-verifiable, we
+collect multiple candidate responses and select among them through pairwise comparison along two
+axes—the reasoning-and-action trajectory and the final artifact—followed by a rubric-based filtering
+pass that enforces a strict accuracy and quality bar. In what follows we describe how each domain
+instantiates this shared pipeline.
+4.2.1. Deep Search and Open-Web Research
+This domain targets tasks that require an agent to navigate the open web, gather evidence across
+multiple sources, and synthesize a grounded answer. To produce such tasks at scale, we adopt a
+guide-and-rewrite synthesis strategy. Starting from a seed question, we iteratively rewrite the question
+12
+
+The MiniMax-M2 Series: Mini Activations Unleashing Max Real-World Intelligence
+
+and obscure the entities it relies on, until the task becomes difficult enough to discriminate between
+strong and weak agents. This procedure gives us continuous control over task difficulty, allowing
+easy variants to exercise basic retrieval and harder variants to demand deep, multi-step browsing
+and cross-source corroboration. To prevent the model from learning to fabricate plausible-sounding
+answers, every synthesized task is also paired with an explicit evidence specification, and a sampled
+trajectory is accepted only when its answer is grounded in actually retrieved evidence rather than
+recited from model memory. For broader, report-style queries that admit no unique short answer,
+we replace exact-match acceptance with a rubric-based judge that scores along factual accuracy,
+transparency, uncertainty handling, and risk disclosure. Trajectories are distilled from a rotating set
+of strong teacher models, and the surrounding scaffold is perturbed across runs so that the resulting
+policy generalizes beyond any single tool layout.
+4.2.2. Knowledge-Worker Office Tasks
+This domain covers the broad space of end-to-end professional deliverables—reports, slides, memos,
+structured documents—that knowledge workers produce as part of their daily work. We anchor the
+corpus to GDPval (Patwardhan et al., 2025), an established office-task benchmark, and extend it with
+a synthesis pipeline that mirrors how real professionals organize their work.
+Seed Curation. We first curate a usable subset of canonical tasks from the seed benchmark, filtering
+out items that fall outside what our agent harness can support, so that the seed portion provides a
+clean, executable anchor for the rest of the corpus.
+Hierarchical Synthesis. On top of this anchor, we produce a much larger self-synthesized corpus
+through a hierarchical, multi-stage procedure. We start from broad occupational categories sourced
+from public occupational databases and derive fine-grained subdivisions that incorporate cultural
+and regional diversity, ensuring broad coverage across industries, regions, and cultural contexts. For
+each subdivision, we generate concrete tasks together with detailed task descriptions that simulate
+real-world work scenarios, grounding the data in authentic professional activities rather than abstract
+or generic instructions. For each task, we further produce both a real workspace of supporting
+documents and several query versions at different levels of specificity, transforming high-level task
+descriptions into concrete, actionable problem settings and exposing the model to a spectrum of
+user-articulation styles. Each task additionally ships with a structured specification of the expected
+deliverable, so that synthesis, execution, and acceptance all share the same artifact format.
+Multi-Axis Rubric Acceptance. Acceptance is governed by a multi-axis rubric covering positive
+behaviors, negative behaviors, critical errors, regional appropriateness, and depth of reasoning,
+applied uniformly across both the seeded and the self-synthesized portions. A typed cleanup pass
+further removes trajectories that fabricate data, references, or entities, so that only artifacts meeting
+a strict factual standard remain in the final corpus.
+4.2.3. Financial Analysis and Spreadsheet Operations
+This domain covers two complementary task families that together span the daily work of a financial
+professional: financial information retrieval, computation, and reasoning grounded in real financial
+tools; and spreadsheet operations over real workbooks. The two families are constructed by distinct
+task-synthesis pipelines but share the same downstream acceptance and scaffolding regime.
+Evidence-Driven Synthesis. For the first family, we adopt the evidence-driven task-synthesis pipeline
+introduced in our earlier work (Chen et al., 2026), which inverts the conventional top-down authoring
+order: we first execute real financial tools to collect grounded execution traces, then reverse-derive
+tasks that are strictly entailed by those traces. This yields grounding by construction—every task is,
+13
+
+The MiniMax-M2 Series: Mini Activations Unleashing Max Real-World Intelligence
+
+by design, both executable and verifiable from observable tool outputs, and the reference answer is
+fully determined by what the tools actually return.
+Workbook-Walk Synthesis. For the second family, we instead build the corpus through a workbook
+walk, in the spirit of trajectory-driven synthesis approaches such as (Liu et al., 2025b). An agent runs
+a curated set of atomic spreadsheet operations against a seed workbook, the intermediate states it
+traverses are recycled as new seeds, and on each resulting trajectory we synthesize tasks in reverse
+order, deriving the answer from the trajectory and the question from the answer. A final pass diversifies
+the resulting question pool along phrasing and difficulty axes.
+Coverage. The first family targets retrieval, computation, and reasoning questions whose answers
+must be grounded in external financial data. The second family covers three sub-tracks: general and
+competition-level spreadsheet manipulation involving workbook-structure understanding, formula
+application, and cross-sheet operations; financial modeling spanning typical PE, VC, and M&A
+scenarios; and the reconstruction of structured workbooks from semi-structured source documents.
+Acceptance. Acceptance prefers a deterministic value-level match. Student artifacts are executed,
+their formulas are recalculated by an external engine, and the resulting cell values are compared
+against ground-truth workbooks. For deliverables whose form may legitimately vary, such as workbooks
+reconstructed from semi-structured documents or open-ended financial reasoning sub-tasks, we fall
+back to rubric-based or agent-based judging. Every task is additionally sampled under multiple
+scaffolds, so that the resulting policy is robust to variation in the tool interface.
+4.2.4. Slide Generation and Editing
+This domain targets both end-to-end deck creation and incremental slide editing, and the synthesis
+pipeline accordingly proceeds along two parallel streams. The first stream treats slide authoring as
+an open-ended generation problem. We curate a diverse set of source documents across business
+domains, and for each document derive queries that vary in description granularity, length, and
+language register, so that the resulting tasks span a realistic distribution of user requests. The second
+stream treats slide editing as a localized intervention problem. We sample real decks as seeds and
+generate editing instructions along multiple diversity axes, including the granularity of the edit (from
+individual elements through pages to the document level), the intent of the edit (content, style, or
+structure), and the complexity of the change. Trajectories are distilled from a rotating set of strong
+teacher models, with preference given to teachers whose generations exhibit the visual quality we
+want the student to inherit. Because slide artifacts are ultimately consumed visually, acceptance layers
+multiple complementary signals: execution success, functional correctness as judged by an agent,
+rule-based checks of basic layout aesthetics, and a final visual scorer that renders the deliverable
+and judges it as an image. To prevent the policy from overfitting to a single rendering toolkit, we
+additionally mix in trajectories produced under alternative slide-generation libraries.
+4.3. Reasoning-Intensive Tasks
+The core objective of reasoning data is to equip the model with the ability to engage in deep, structured
+thinking on complex problems—proving mathematical theorems, deriving scientific conclusions,
+designing algorithms, and constructing logical arguments. These tasks span numerous domains, and
+within every domain individual problems further admit a wide variety of valid solution strategies,
+resulting in a combinatorial space of tasks and approaches. This scale and diversity naturally motivates
+a scaling-driven approach. We scale along three complementary axes and simultaneously maintain a
+quality-assurance pipeline to ensure data correctness at volume.
+
+14
+
+The MiniMax-M2 Series: Mini Activations Unleashing Max Real-World Intelligence
+
+Query-Side Scaling. Expanding the set of unique problems, particularly in underrepresented difficulty
+bands, directly improves coverage and generalization. We combine curation from existing sources
+with targeted synthesis of novel problems addressing skill gaps identified through error analysis.
+Response-Side Scaling. Generating multiple correct solution paths per query improves reasoning
+diversity. Out-of-domain capability improves consistently as the number of responses per query
+increases, with benefits manifesting primarily in OOD generalization, indicating that diverse solution
+paths teach transferable reasoning strategies rather than solution memorization. We profile saturation
+characteristics across difficulty tiers and concentrate additional sampling where the model’s solution
+diversity remains low.
+Training-Side Scaling. Beyond expanding queries and responses independently, we study the optimal
+data mixture ratio—the relative proportion of query expansion versus response expansion—under
+fixed compute budgets. The former improves problem coverage and domain breadth, while the latter
+deepens the model’s command of the solution strategy space. We empirically calibrate this mixture
+per training stage based on where the current capability bottleneck lies, and adopt dynamic allocation
+that concentrates resources on the model’s weak areas.
+Quality Assurance. Scaling at volume introduces the risk of noise and incorrect data. To maintain
+correctness, we enforce quality control across every stage of the pipeline. For queries, we apply
+multi-stage cleaning that combines direct query tagging with cross-comparison of rollout responses to
+identify ambiguous or ill-formed problems. For verifiers, we conduct systematic case analysis to cover
+more boundary conditions and edge cases, ensuring verification logic remains accurate across diverse
+problem types. For answers, we cross-check correctness by comparing performance differentials
+across multiple models, flagging instances where disagreements indicate potential labeling errors.
+For responses, we apply a structured rubric-based scoring framework that evaluates reasoning traces
+along well-defined quality dimensions before inclusion in the training corpus.
+4.4. General-Purpose Conversation and Writing
+This track complements the agentic and reasoning corpora above with broad-coverage conversational
+data spanning writing, general question answering, and multi-turn dialogue. The corpus primarily
+consists of high-quality samples featuring long chain-of-thought (long CoT) reasoning, aimed at
+instilling reasoning capability into the model while preserving its general-purpose competence and
+providing a stable cold-start foundation for subsequent reinforcement learning.
+Each sub-domain carries a distinct emphasis. For writing, the primary focus is on style: high-quality
+queries are carefully curated so that responses adhere to a specific stylistic standard, capturing the
+nuances of tone, structure, and expression. A file system is additionally incorporated into the writing
+pipeline, enabling the model to read from and write to structured documents and thereby aligning
+its writing capabilities with real-world productivity scenarios. For general question answering, where
+queries tend to be relatively straightforward, the focus shifts to selecting among multiple candidate
+responses to satisfy preference-aligned quality requirements. For multi-turn dialogue, the emphasis
+lies in instruction- and rubric-following under more complex interactive settings—sustained coherence
+across many turns, cross-turn context tracking, and robust comprehension over long contexts.
+To further enhance the model’s capability and robustness, the dataset includes both tool-augmented
+and tool-free samples. Tool-augmented samples teach the model to effectively leverage external
+tools such as code interpreters and search engines when appropriate, while tool-free samples ensure
+that the model can reason independently without relying on external assistance. This balanced
+composition enables the model to adapt flexibly across diverse interaction scenarios.
+
+15
+
+The MiniMax-M2 Series: Mini Activations Unleashing Max Real-World Intelligence
+
+After generation, all data undergoes rigorous verification through automated verifiers (rule-based
+checkers and model-based evaluators), along with systematic quality checks to ensure both correctness
+and consistently high quality before being incorporated into the training pipeline.
+4.5. Role-Play and Persona Coherence
+To support persona-conditioned long-horizon dialogue—a major real-world deployment mode that
+the preceding general-conversation track does not exercise—we treat role-play as a distinct data track
+with its own formalization, benchmark, synthesis pipeline, and reward signal.
+We formalize role-play (MiniMax AI, 2026) as long-horizon conditional generation over the joint
+space {Worlds} × {Stories}, conditioned on {User Preferences}. The core objective is to maintain
+physical, narrative, and stylistic coherence across extended multi-turn conversations. Based on the
+insight that misalignment is objectively detectable while alignment is subjective, we introduce RolePlay Bench, which evaluates multi-turn self-play trajectories by penalizing specific failure modes (e.g.,
+out-of-character breaks, logic errors), yielding offline metrics that strongly correlate with online
+engagement. We synthesize training data via large-scale self-play between stylistically diverse expert
+models. To ensure quality and prevent mode collapse, we apply dispersion sampling across four axes,
+Best-of-N filtering, and periodic segment-level rewriting by an LLM-as-a-judge. We optimize the policy
+via RLHF using implicit and explicit feedback from real product interactions; these raw signals are
+denoised through causal inference and stratified bias removal to isolate genuine quality indicators,
+with entropy monitoring applied to mitigate reward hacking.
+
+5. Supervised Fine-Tuning
+We conduct Supervised Fine-Tuning (SFT) to instill the desired interleaved thinking behavior in M2,
+providing a strong starting point for the subsequent RL stage. Unlike conventional long Chain-ofThought (CoT) data where reasoning is confined to a single contiguous block, our SFT data interleaves
+thinking traces with intermediate actions and observations, enabling the model to reason, act, and
+revise within a unified trajectory. To produce such data at scale, we build a systematic data pipeline
+that performs large-scale rejection sampling against domain-specific reward signals followed by multistage data cleaning, yielding high-quality interleaved-thinking trajectories. The resulting SFT corpus
+spans four core domains—chat, reasoning, code, and cowork—covering both single-turn reasoning
+and multi-turn agentic interactions.
+
+6. Reinforcement Learning
+6.1. RL Algorithm
+6.1.1. Agent RL Modeling
+We formulate agent reinforcement learning by treating the LLM as a policy and everything outside
+the model’s generation process—including context management, memory access, and agent state
+transition—as the environment. This separation provides a clean abstraction that naturally extends
+the standard RL framework to accommodate the complexity of agentic systems.
+6.1.2. MDP Formulation
+We model the agent-environment interaction as a Markov Decision Process 𝑀 = (𝑆, 𝐴, 𝑇, 𝑅, 𝛾 ). At each
+step 𝑡 , the agent observes a state 𝑠𝑡 ∈ 𝑆—comprising the current context window content, including
+16
+
+The MiniMax-M2 Series: Mini Activations Unleashing Max Real-World Intelligence
+
+the task instruction, prior conversation history, tool outputs and any artifacts produced during the
+agent loop—and produces an action 𝑎𝑡 ∈ 𝐴, defined as a single-step LLM completion. This completion
+may contain natural language reasoning, a tool invocation request, an explicit context management
+operation, a communication with a sub-agent, or any combination thereof. The environment then
+executes the requested operations and returns an observation 𝑜𝑡 , which, together with possible context
+management operations, determines the next state:
+𝑠𝑡+1 = 𝑓trans ( 𝑠𝑡 , 𝑎𝑡 , 𝑜𝑡 ) ,
+
+(1)
+
+where 𝑓trans denotes an arbitrary state transition function that may change the accumulated context
+and the internal state of the agent loop. The trajectory 𝜏 = ( 𝑠0 , 𝑎0 , 𝑠1 , 𝑎1 , . . . , 𝑠𝑇 , 𝑎𝑇 ) constitutes a
+complete episode, and the policy 𝜋𝜃 ( 𝑎𝑡 | 𝑠𝑡 ) is parameterized by the LLM weights 𝜃.
+A key design principle is that the environment boundary is drawn at the model’s generation
+interface. All components that process, transform, or respond to the model’s outputs are treated as
+part of the environment dynamics:
+• Tool Environments: external tool execution (code interpreters, search engines, APIs) that
+returns structured observations in response to tool-call actions.
+• Agent Harness: the harness-level control flow that governs how the agent proceeds between LLM
+calls—including context management, branching logic, sub-agent delegation, and interactions
+with external modules.
+6.1.3. Training Objective
+A key consequence of this modeling is that 𝜋𝜃 is not required to explicitly reason about or control
+the environment and state transitions. Training operates on individual ( 𝑠𝑡 , 𝑎𝑡 ) pairs as atomic units:
+each pair constitutes a single training sample for the policy gradient. This decouples the policy from
+the mechanics of state evolution—the model need not be aware of whether 𝑠𝑡 resulted from a simple
+message append, an aggressive context truncation, or a complete history rewrite. Meanwhile, credit
+assignment, advantage estimation, and reward propagation can still be performed at the episode
+level over the full trajectory 𝜏, ensuring that the contribution of each ( 𝑠𝑡 , 𝑎𝑡 ) pair is evaluated in the
+context of the overall task outcome.
+6.1.4. Policy Optimization
+CISPO. We adapt Clipped Importance Sampling Policy Optimization (CISPO) (MiniMax, 2025a) to
+M2 series RL training. The objective function is:
+#
+"
+𝐺
+𝑖|
+∑︁ | 𝑜
+∑︁
+
+1
+sg 𝑟ˆ𝑖,𝑡 ( 𝜃) 𝐴ˆ𝑖,𝑡 log 𝜋𝜃 ( 𝑜𝑖,𝑡 | 𝑞, 𝑜𝑖,<𝑡 ) ,
+(2)
+𝐽CISPO ( 𝜃) = 𝔼 ( 𝑞,𝑎 )∼D , { 𝑜𝑖 } 𝐺 ∼𝜋𝜃 (· | 𝑞 ) Í𝐺
+𝑖=1
+old
+𝑖=1 | 𝑜𝑖 | 𝑖=1 𝑡 =1
+where 𝐺 is the number of rollout trajectories per prompt, | 𝑜𝑖 | is the token length of trajectory 𝑖, and
+sg(·) denotes the stop-gradient operator that prevents gradient flow through the importance weight.
+The importance sampling ratio is clipped asymmetrically:
+
+
+𝜋𝜃 ( 𝑜𝑖,𝑡 | 𝑞, 𝑜𝑖,<𝑡 )
+IS
+𝑟ˆ𝑖,𝑡 ( 𝜃) = clip
+, 0, 1 + 𝜖high .
+𝜋𝜃old ( 𝑜𝑖,𝑡 | 𝑞, 𝑜𝑖,<𝑡 )
+
+(3)
+
+IS prevents excessively large policy updates, while the zero lower bound
+The upper bound 1 + 𝜖high
+permits aggressive down-weighting of actions that become improbable under the current policy.
+
+17
+
+The MiniMax-M2 Series: Mini Activations Unleashing Max Real-World Intelligence
+
+The stop-gradient on the clipped ratio ensures that the importance weight modulates the gradient
+magnitude without introducing second-order terms, yielding a stable first-order update rule.
+The advantage estimate is computed via reward-to-go with a trajectory-level baseline:
+𝐴ˆ𝑖,𝑡 =
+
+𝑇
+∑︁
+
+(4)
+
+𝑟 𝑝 − 𝐵𝑖 ,
+
+𝑝=𝑡
+
+where 𝑟 𝑝 is the composite reward at step 𝑝 (defined below) and 𝐵𝑖 is the baseline computed over
+trajectory 𝑖 for variance reduction.
+6.1.5. Reward Design
+Standard outcome-based rewards are insufficient for credit assignment in agent trajectories that
+may span up to 192K tokens with thousands of intermediate actions. We design a composite reward
+framework with three components.
+Process Reward. We assign dense, intermediate rewards that target specific behavioral patterns
+throughout the trajectory, including penalties for language mixing and tool invocation format errors,
+and rewards for well-structured intermediate reasoning steps. These process rewards provide finegrained supervisory signal at each ( 𝑠𝑡 , 𝑎𝑡 ) pair, substantially improving credit assignment granularity
+over sparse outcome-only feedback.
+Task Completion Time Reward. Traditional RL objectives optimize solely for correctness, neglecting
+execution efficiency. For agentic tasks, functionally equivalent trajectories may differ dramatically in
+wall-clock latency due to sequential versus parallel tool execution and sub-agent invocation overhead.
+We incorporate relative completion time as an explicit reward:
+
+
+𝑇completion
+speed
+,
+(5)
+𝑟𝑡
+=ℎ
+𝑇baseline
+
+where ℎ (·) is a monotonically decreasing shaping function, 𝑇completion is the wall-clock time taken by
+the rollout, and 𝑇baseline is a reference completion time. This incentivizes the policy to discover and
+exploit parallelism opportunities, producing solutions that are both correct and efficient.
+Reward-to-Go with Baseline. To reduce gradient variance in long-horizon tasks, we adopt a rewardto-go formulation:
+𝑇
+∑︁
+𝐺𝑡 =
+𝛾 𝜏 − 𝑡 𝑟𝜏 .
+(6)
+𝜏=𝑡
+
+Combined with the trajectory-level baseline, this formulation concentrates gradient signal on actions
+whose consequences are not yet accounted for, improving credit assignment precision and stabilizing
+the optimization.
+The composite reward at each step is:
+process
+
+𝑟𝑡 = 𝛼 · 𝑟𝑡
+
+speed
+
++ 𝛽 · 𝑟𝑡
+
+perf
+
++ 𝑟𝑡
+
+,
+
+(7)
+
+where 𝛼 and 𝛽 are coefficients balancing dense behavioral feedback and efficiency incentives against
+the primary task performance signal.
+6.1.6. Mixed-Domain RL Training
+A critical challenge in training general-purpose agents is avoiding the trade-off between task-specific
+optimization and broad capability preservation. Single-domain RL training—fine-tuning exclusively
+18
+
+The MiniMax-M2 Series: Mini Activations Unleashing Max Real-World Intelligence
+
+on agentic tasks—risks catastrophic forgetting of the model’s foundational reasoning and general
+knowledge capabilities. Conversely, sequential multi-stage training across domains induces negative
+transfer, as gains in one domain erode performance in previously trained domains.
+We adopt a mixed-domain RL training strategy that addresses both issues. Training proceeds
+through multiple stages, and within each stage, training data is drawn simultaneously from four
+domains: reasoning, coding, agent, and general. This joint optimization ensures that the policy
+gradient updates are informed by a diverse task distribution at every training step, preventing the
+optimizer from overfitting to any single domain’s reward landscape.
+Across stages, we systematically adjust three axes:
+• Domain mixing ratios. The relative proportions of data from each domain are tuned per stage.
+Early stages emphasize foundational capabilities (reasoning and general domains) to consolidate
+the model’s base competence, while later stages progressively increase the proportion of agent
+and coding tasks to sharpen task-specific performance.
+• Context length. We expand the maximum context length at a per-domain granularity across
+stages. This curriculum-style progression enables the model to first master short-horizon
+decision-making before extending to the long-context trajectories characteristic of complex
+agent tasks.
+• Difficulty distribution. Within each domain, the difficulty distribution of training tasks shifts
+progressively toward harder instances. Early stages include a broad mix to establish robust
+foundations, while later stages concentrate on challenging scenarios that push the policy’s
+frontier.
+This mixed-domain strategy yields compounding benefits: it simultaneously improves the model’s
+foundational reasoning ability, task-specific quality across all target domains, and end-to-end user
+experience—since agents deployed in practice encounter a heterogeneous mix of requests that spans
+all four domains.
+6.2. RL Infrastructure
+6.2.1. Problem Formulation
+Training RL agents at scale requires simultaneously satisfying three desiderata that are fundamentally
+in tension—the “impossible triangle”:
+• System Throughput: maximizing the raw tokens processed per unit time, governed by rollout
+latency, training iteration time, data processing overhead, and I/O bandwidth.
+• Training Stability: bounding the variance of policy gradient updates to ensure monotonic
+improvement and convergence, i.e., 𝔼[Var(∇𝜃 𝐽 )] < 𝛿.
+• Agent Flexibility: supporting arbitrary agent architectures A ∈ Ωagent —from simple single-turn
+scaffolds to complex multi-agent systems with dynamic context management—without requiring
+agent-specific modifications to the training framework.
+We formulate the infrastructure optimization objective as maximizing the Effective Agent Training
+Yield:
+max 𝐽 ( 𝜃) = Throughput(A) × SampleEfficiency(A) ,
+
+(8)
+
+𝜃
+
+s.t. ∀A ∈ Ωagent ,
+
+𝔼[Var(∇𝜃 𝐽 )] < 𝛿,
+
+𝔼[∥ 𝐽 (𝑇 ) − 𝐽 ∗ ∥] < 𝜖.
+19
+
+The MiniMax-M2 Series: Mini Activations Unleashing Max Real-World Intelligence
+
+Each pair of these three goals creates a specific engineering tension. Maximizing throughput
+under heterogeneous agent rollout times (ranging from seconds to hours) conflicts with maintaining
+distributional consistency for stable training. Supporting arbitrary agent architectures conflicts with
+the tight coupling between agent state and training logic required for efficient data processing.
+Achieving stable credit assignment in long-horizon trajectories (up to 192K tokens) conflicts with
+throughput-optimal scheduling that biases toward short, easy tasks. The Forge infrastructure resolves
+these tensions through the architectural and algorithmic designs described below.
+6.2.2. System Architecture
+The Forge system is organized into three decoupled modules connected through a middleware
+abstraction layer (Figure 4). This architecture directly operationalizes the agent RL modeling described
+in the preceding subsection: the boundary between policy and environment—drawn at the model’s
+generation interface—maps onto the boundary between the Training/Inference Side and the Agent
+Side.
+White Box
+
+Black Box
+
+LLM Server
+
+Agent
+
+BlackBox
+Agent Loop
+
+Env Server
+
+API
+
+Reward Server
+
+Data Pool
+
+MiddleWare
+
+Gateway Server
+
+Completions
+
+Rewards
+
+prompt_ids
+
+outcome
+
+response_ids
+
+process
+
+···
+
+Engines
+
+Rollout Engine
+
+sync weights
+
+Train Engine
+
+Figure 4 | Overview of the Forge RL system. Three decoupled modules—Agent Side, Training/Inference
+Side, and the middleware abstraction layer (Gateway Server, Data Pool)—communicate through
+standardized interfaces, allowing the agent and the training loop to scale independently.
+Agent Side. This module encapsulates arbitrary agent implementations and orchestrates their
+interactions with external environments. Functioning as a pure trajectory producer, the agent side is
+entirely agnostic to training and inference mechanics. It drives the environment dynamics defined in
+the MDP formulation—executing tool calls, managing context, and accessing memory—and records
+the resulting ( 𝑠𝑡 , 𝑎𝑡 , 𝑜𝑡 ) tuples for downstream training consumption.
+Middleware Abstraction Layer. Two components bridge the agent and training sides. The Gateway
+Server provides a standardized communication interface that routes completion requests between
+20
+
+The MiniMax-M2 Series: Mini Activations Unleashing Max Real-World Intelligence
+
+agents and the LLM engine, abstracting away the heterogeneity of agent scaffolds. The Data Pool
+serves as distributed trajectory storage that asynchronously collects rollout data, fully decoupling the
+generation and training pipelines and enabling each to scale independently.
+Training and Inference Side. The Rollout Engine handles high-throughput token generation, serving
+as the policy 𝜋𝜃 that responds to Gateway requests. The Train Engine consumes processed trajectory
+sequences from the Data Pool, computes the CISPO policy gradient, and synchronizes updated weights
+back to the Rollout Engine.
+6.2.3. White-Box and Black-Box Agent Support
+The MDP formulation in the preceding subsection defines context management, tool execution, and
+memory access as environment dynamics. The infrastructure must support two distinct paradigms for
+how agents implement these dynamics, which differ in the degree of visibility the framework has into
+the agent’s internal state.
+White-Box Agents expose their context management logic to the training framework. The state
+transition 𝑠𝑡+1 = 𝑓CM (concat( 𝑠𝑡 , 𝑎𝑡 , 𝑜𝑡 )) is implemented within the framework itself, enabling the
+training pipeline to directly observe and backpropagate through context transformation operations.
+This tight integration allows the framework to construct training sequences that faithfully reflect
+the CM-induced distribution, ensuring that the policy is optimized over the true inference-time state
+distribution. White-box integration is particularly effective for agents with well-defined CM strategies
+(e.g., sliding-window truncation, periodic summarization), where the framework can reconstruct
+exact training states.
+Black-Box Agents treat the agent as an opaque trajectory producer. Agents route completion requests
+to the RL service Gateway without exposing their internal context management, memory compression,
+or multi-agent coordination logic. The framework collects only the externally visible ( 𝑠𝑡 , 𝑎𝑡 , 𝑜𝑡 ) tuples—
+where 𝑠𝑡 is the context as presented to the LLM at each completion request—and constructs training
+data from these observations. This non-intrusive paradigm supports arbitrary internal architectures,
+including deep thinking loops, aggressive context rewriting, and hierarchical multi-agent systems,
+delivering consistent improvements without requiring any agent-side modifications.
+The Gateway-based abstraction unifies both paradigms: white-box agents differ only in that their
+CM operations are registered with the framework for training-time reconstruction, while black-box
+agents rely solely on the observed request stream. This design has been validated across hundreds of
+distinct agent scaffolds and thousands of tool invocation formats.
+6.2.4. Windowed FIFO Scheduling
+Agent rollout completion times exhibit extreme variance—from seconds for simple API calls to hours
+for complex reasoning chains—creating a fundamental tension between throughput and distributional
+consistency. Strict FIFO scheduling preserves the data distribution but suffers from straggler-induced
+head-of-line (HoL) blocking. Fully greedy scheduling (fetching whichever trajectory completes first)
+maximizes throughput but causes severe distribution shift: early training batches are dominated
+by short, easy tasks, while hard tasks cluster in later batches, leading to gradient oscillation and
+optimization instability.
+We propose Windowed FIFO (Figure 5), a hybrid scheduling strategy that interpolates between
+these extremes. Given a generation queue 𝑄 = [𝑇0 , 𝑇1 , . . . , 𝑇𝑁 −1 ] with current head index 𝑖, the training
+scheduler may only fetch completed trajectories within a sliding window [𝑇𝑖 , 𝑇𝑖+𝑊 −1 ], where 𝑊 is the
+window size (e.g., 𝑊 = 0.3 𝑁 ). Within the window, the scheduler operates greedily—any completed
+
+21
+
+The MiniMax-M2 Series: Mini Activations Unleashing Max Real-World Intelligence
+
+trajectory may be fetched immediately, mitigating HoL blocking. Across window boundaries, strict
+ordering is enforced: trajectories beyond the window are blocked regardless of completion status,
+and the window advances only as head-of-window tasks are consumed.
+This provides a tunable trade-off controlled by 𝑊 : smaller values approach strict FIFO (maximum
+distributional consistency), while larger values approach greedy scheduling (maximum throughput).
+In practice, 𝑊 = 0.3 𝑁 maintains near-FIFO distributional properties while substantially reducing
+cluster idle time.
+Window Size
+(Anchored to the oldest active data entry)
+
+Generation Batch: 8
+Window Size: 4
+
+0
+
+1
+
+2
+
+3
+
+4
+
+5
+
+6
+
+7
+
+Initial State: All data generation originates from model version 0
+
+Remaining Window Capacity: 1
+
+Max Out-of-Order Tolerance: 3 = (4-1)
+Max Off-Policy Lag: 10 = 8 + 3 - 1
+
+7
+
+11
+
+12
+
+13
+
+...
+
+...
+
+...
+
+...
+
+0~10 have all completed training, except for 7
+
+Figure 5 | Windowed FIFO scheduling. The training scheduler only fetches completed trajectories
+within a sliding window of size 𝑊 over the generation queue: within the window, completion order is
+free (mitigating head-of-line blocking); across window boundaries, strict FIFO is enforced (preserving
+distributional consistency).
+
+6.2.5. Prefix Tree Merging for Training Acceleration
+In multi-turn agent trajectories, sequential message appending and context management operations
+produce extensive shared prefixes across training samples within the same rollout group. Traditional
+training treats each sample independently, redundantly recomputing common prefixes—a particularly
+severe source of waste in long-context agent scenarios.
+We propose prefix tree merging (Figure 6), which restructures training computation from linear
+sample processing to tree-structured computation. Multiple completions sharing a common prefix are
+merged into a single prefix tree: the shared prefix is computed exactly once in the forward pass, after
+which the computation branches into individual response segments. After the forward pass, the tree
+is deconstructed using stored metadata, and loss is computed independently per sample.
+This restructuring is mathematically equivalent to independent-sample training—the causal
+attention computation over a shared prefix produces identical activations regardless of whether it is
+computed once or 𝑘 times—guaranteeing zero approximation error. In practice, prefix tree merging
+achieves up to 40× training speedup with corresponding reductions in memory consumption, enabling
+longer sequences and larger batch sizes without any compromise in training fidelity.
+6.2.6. Inference Acceleration
+We employ three architectural optimizations to maximize generation throughput for agent RL rollouts.
+MTP-based Speculative Decoding. Multi-Token Prediction (MTP) modules are continuously co22
+
+The MiniMax-M2 Series: Mini Activations Unleashing Max Real-World Intelligence
+
+Completions
+
+long common context
+
+seq 1
+
+long common context
+
+seq 2
+
+long common context
+
+seq 2
+
+long common context
+
+seq 1
+
+seq 3
+
+Prefix Tree Merge
+
+Single Completion Tree
+
+seq 2
+
+seq 3
+
+Figure 6 | Prefix tree merging. Completions that share a common prefix within a training batch are
+merged into a tree; the shared prefix is computed exactly once in the forward pass and the computation
+branches into individual response segments. The tree is deconstructed before the loss is computed
+independently per sample, so the procedure is mathematically equivalent to independent-sample
+training while eliminating redundant prefix recomputation.
+trained with the RL policy via top- 𝐾 KL divergence loss. This co-training ensures that draft acceptance
+rates remain high throughout the non-stationary RL optimization process, preventing the distribution
+shift that would otherwise degrade speculative decoding performance as the policy evolves.
+Heterogeneous Prefill-Decode Disaggregation. Prefill and decode operations are decoupled into
+independently scheduled instances, eliminating the mutual interference that arises from mixed
+scheduling in Mixture-of-Experts (MoE) architectures. Each phase adopts parallelism strategies
+optimized for its computational profile, simultaneously maximizing global throughput and minimizing
+tail latency.
+Global L3 KV Cache Pool. A distributed, DFS-backed global KV cache maximizes prefix cache
+hit rates through group-level rollout scheduling. A cost-aware request router dynamically balances
+queuing delay against cache migration costs, maximizing cache locality without overloading individual
+instances and avoiding redundant prefilling across the multi-turn interactions characteristic of agent
+RL.
+
+7. Agentic Mechanism
+7.1. Interleaved Thinking
+LLM agents must orchestrate multi-step workflows that alternate between natural-language reasoning
+and external tool invocations such as code execution, web browsing, and API calls. A critical design
+question is how the model’s chain-of-thought (CoT) should interact with tool-use turns, and whether
+prior reasoning state should be preserved across interaction rounds. In MiniMax-M2, we adopt
+interleaved thinking as a first-class agent modeling principle: the model alternates between explicit
+deliberation and tool execution within a single trajectory, carrying the full reasoning state forward
+across turns.
+
+23
+
+The MiniMax-M2 Series: Mini Activations Unleashing Max Real-World Intelligence
+
+Interleaved chain-of-thought. We define interleaved thinking as a generation protocol in which the
+model produces reasoning tokens 𝑟𝑡 and action tokens 𝑎𝑡 in an alternating sequence:
+𝜏 = ( 𝑟1 , 𝑎1 , 𝑜1 , 𝑟2 , 𝑎2 , 𝑜2 , . . . , 𝑟𝑇 , 𝑎𝑇 , 𝑜𝑇 ) ,
+
+(9)
+
+where 𝑜𝑡 denotes the observation (tool output) returned after executing action 𝑎𝑡 . Each reasoning
+segment 𝑟𝑡 is conditioned on the full history ( 𝑟1 , 𝑎1 , 𝑜1 , . . . , 𝑟𝑡 −1 , 𝑎𝑡 −1 , 𝑜𝑡 −1 ), allowing the model to
+revise plans, update hypotheses, and incorporate new evidence before selecting the next actio

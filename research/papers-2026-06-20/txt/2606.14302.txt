@@ -1,0 +1,1997 @@
+Retrospective Progress-Aware Self-Refinement for LLM Agent Training
+Xinbei Ma1 * , Congmin Zheng1 , Jiyang Qiu1 , Jiale Hong1 , Yao Yao1 ,
+Xiangmou Qu2 , Jiaxin Yin2 , Xingyu Lou2,† , Jun Wang2,† ,
+Weiwen Liu1 , Weinan Zhang1 , Zhuosheng Zhang1,† , Hai Zhao1†
+1
+Shanghai Jiao Tong University, 2 OPPO Research Institute
+{sjtumaxb, zhangzs}@sjtu.edu.cn, zhaohai@cs.sjtu.edu.cn
+louxingyu@oppo.com, junwang.lu@gmail.com,
+
+arXiv:2606.14302v1 [cs.CL] 12 Jun 2026
+
+Abstract
+
+is to optimize the agent to select the best action
+at each step. However, long-horizon tasks require
+agents to go beyond step-level decision-making by
+maintaining metacognitive awareness of their task
+progress, serving as a continuous sense of what
+has been accomplished, what remains, and whether
+the current trajectory is on track (Lin et al., 2026;
+Li et al., 2025b; Han et al., 2025). In this sense,
+progress awareness offers an auxiliary signal that
+can help agents allocate effort appropriately across
+a multi-step episode.
+Motivated by this, we conduct a pilot study to
+investigate the potential of progress awareness and
+the difficulty of eliciting it. This online prompting
+substantially reduces task success, 8.6% on average, suggesting that forced self-assessment introduces noisy signals rather than useful guidance. In
+contrast, when the agent is provided with retrospective progress demonstrations constructed from completed trajectories and their outcomes, the average
+success rate increases 7.9%. This improvement indicates that progress information can be beneficial
+when it is grounded in reliable trajectory-level evidence. This asymmetry reveals that progress awareness is beneficial yet cannot be reliably elicited by
+prompting alone, motivating a dedicated training
+approach that learns progress assessment from retrospective trajectory outcomes.
+This paper proposes RePro (Retrospective
+Progress-Aware Training), a two-phase framework
+that learns progress awareness from retrospective
+trajectory outcomes and uses it as an auxiliary signal for agent training. RePro augments trajectories
+with a forward-then-reflect paradigm: the agent
+first forward to execute the task while generating
+online progress estimates; once completing the task
+and knowing the outcome, the agent retrospectively
+reassesses its step-wise progress anchored by the
+final result. Based on this, RePro first applies a
+stage of Retrospection Warmup: a small set of
+external-LLM demonstrations teaches the agent
+
+LLM-based agents trained with reinforcement
+learning optimize step-wise action prediction
+but lack metacognitive awareness of task
+progress, inducing a gap that hinders longhorizon scaling. A pilot study reveals that
+online progress prompting hurts performance
+while retrospective demonstrations help, yet
+this capability cannot emerge from outcomereward training alone. We present RePro,
+Retrospective Progress-Aware Training, a
+framework that trains agents to self-generate
+progress signals via a forward-then-reflect rollout paradigm: the agent executes actions online, then retrospectively reassesses its stepwise progress given the completed trajectory
+and known outcome. RePro initializes with a
+Retrospection Warmup that teaches reflection
+format from minimal external demonstrations,
+then further trains through RePro-PO with a
+composite reward that produces self-generated
+signals without continuous external supervision. Experiments on WebShop, ALFWorld,
+and Sokoban show that RePro enhances the
+Qwen family’s performance, with up to 12%
+absolute success rate gains.
+
+1
+
+Introduction
+
+LLM-based agents have significantly expanded
+their capabilities on long-horizon tasks, tackling
+complex real-world interactions across domains
+such as computer navigation (Yao et al., 2022; Xie
+et al., 2024; Liu et al., 2026), embodied planning
+(Shridhar et al., 2020; Zhang et al., 2025c; Wang
+et al., 2026b), and games and daily tasks (Merrill et al., 2026; Ye et al., 2026). Reinforcement
+learning-based approaches enable agents to explore
+solutions and optimize their actions toward verifiable rewards, resulting in substantial performance
+gains (DeepSeek, 2024; Feng et al., 2026; Dong
+et al., 2025b). A common major training objective
+* Work done during internship at OPPO.
+†
+
+Corresponding authors.
+
+1
+
+the forward-then-reflect format for retrospective
+reflection. After that, RePro-PO leverages the retrospective progress signal by a composite reward,
+comprising retrospective progress shaping, onlineretrospective alignment, and format regularization,
+producing per-step training signals that complement the sparse outcome reward.
+We evaluate RePro across LLMs of varying sizes
+on WebShop, ALFWorld, and Sokoban. On WebShop, RePro improves the absolute task success
+rate over baseline training by +8.98%, +11.57%,
+and +5.82% across different model sizes. It also
+yields consistent gains on ALFWorld and Sokoban,
+and outperforms all ablation variants. Progress
+quality analysis further shows that RePro agents
+develop metacognitive awareness: their progress
+estimates discriminate successful from failed trajectories significantly better than baselines. Our
+contributions are summarized in threefold:
+
+ods suffer from sparse terminal feedback (Guo
+et al., 2025; DeepSeek, 2024); process-based
+methods introduce intermediate reward models
+or subgoals (Lightman et al., 2024; Zou et al.,
+2026; Xi et al., 2026b; Zheng et al., 2026;
+Wang et al., 2026c), but require costly annotation or environment-specific design; and stepwise rewards derived from state changes depend on environment-specific signals (Lu et al.,
+2026). Progress-based methods address this issue by modeling task completion progress, either
+through heuristic estimates or stronger-LLM supervision (Zhang et al., 2025a, 2026b; Chai et al.,
+2025). Differently, our method uses minimal external supervision and learns progress awareness from
+the agent’s own completed trajectory outcomes, internalizing progress estimation into the agent itself
+without relying on an additional reward model.
+2.2
+
+1. Pilot study: We reveal a clear asymmetry between online progress prompting and retrospective demonstrations, showing that progress
+awareness requires dedicated training.
+
+Inference-time methods improve agent behavior
+without parameter updates by turning past experience into reusable guidance. Failed episodes are
+converted into verbal feedback or episodic memory
+(Shinn et al., 2023; Qu et al., 2024), while others
+ground reflection in execution states or evolving
+contextual playbooks (Kim et al., 2025; Guo et al.,
+2026; Cai et al., 2026; Zhang et al., 2025b). Recent work further extends reflection to uncertaintyaware test-time adaptation, reusable experiential
+heuristics, and pre-execution plan critique (Acikgoz et al., 2025; Ge et al., 2025; Allard et al., 2026;
+Wang et al., 2026a). These methods can elicit reflective behaviors already present in the base model,
+but do not directly train new reflection capabilities
+into the agent.
+Training-time methods instead aim to internalize
+reflection through learning. They improve metaintrospection or reward useful self-reflective tokens
+(Li et al., 2025a; Bensal et al., 2025), support staged
+self-correction and consistency-driven training (Kumar et al.; Zhang et al., 2026a), and enable selfevolution (Ou et al., 2026). Our work follows this
+line in internalizing self-improvement signals into
+the agent itself. However, rather than correcting
+individual actions, reasoning steps, or plans, our
+method introduces a retrospective progress-aware
+reflection, where the agent uses completed trajectory outcomes to retroactively assess task-level
+progress at intermediate steps. This yields selfgenerated progress targets that train the agent to
+track where it stands in a long-horizon task, with-
+
+2. RePro: We propose a forward-then-reflect
+framework with Retrospection Warmup and
+RePro-PO, enabling agents to learn selfgenerated progress metacognition.
+3. Empirical validation: RePro achieves consistent performance gains across three benchmarks
+and three model scales, supported by progressquality analysis.
+
+2
+
+Related Work
+
+2.1
+
+LLM Agent Training
+
+Self-Improving LLMs via Reflection
+
+LLM-based agent training has long drawn inspiration from reinforcement learning, showing that
+agent behavior can be improved by reusing past
+interaction trajectories as training signals (Xiong
+et al., 2024; Song et al., 2024; Cao et al., 2025).
+Becoming a dominant post-training method, recent
+critic-free policy optimization methods improve
+efficiency by estimating advantages from rollout
+groups, trajectory-level comparisons, or improved
+sampling strategies (Guo et al., 2025; DeepSeek,
+2024; Feng et al., 2026; Dong et al., 2025b,a;
+Zheng et al., 2025), and have been applied to tooluse and multi-environment agent training (Qian
+et al., 2026; Wang et al., 2025; Xi et al., 2026a).
+Reward design remains a central challenge
+in long-horizon agent RL. Outcome-based meth2
+
+out relying on an additional reward model.
+
+3
+
+fects. Online progress prompting consistently
+degrades performance (DS-v4: 35.9%→33.6%;
+GPT-5.1: 44.1%→29.3%; −8.6% on average),
+and random progress performs similarly poorly
+(31.2% and 32.4%), confirming that the degradation stems from unreliable online prediction disrupting decision-making rather than the progress
+format itself. By contrast, retrospective demonstrations substantially improve success rate on both
+models (DS-v4: 35.9%→44.1%, +8.2%; GPT-5.1:
+44.1%→51.6%, +7.5%; +7.9% on average). Random demonstrations yield only marginal gains (DSv4: +2.0%; GPT-5.1: +4.3%), suggesting that
+the improvement comes from meaningful progress
+signals rather than additional context alone. This
+asymmetry, that progress is informative in hindsight but harmful when predicted online, indicates
+that progress awareness cannot be reliably elicited
+by prompting alone and motivates a dedicated training approach to learn progress assessment from
+retrospective trajectory outcomes.
+
+Pilot Study
+
+Agentic tasks require multi-turn interaction, where
+an LLM agent maintains global awareness over a
+sequence of actions and observations. We investigate two questions: (i) Can progress awareness
+improve task success? and (ii) can agents produce
+reliable progress estimates? We conduct a controlled diagnostic experiment on WebShop (Yao
+et al., 2022) using DeepSeek-V4 (DeepSeek-AI,
+2026) and GPT-5.1 as agent backbones.
+Setup. The baseline agent interacts with the environment conditioned on the full interaction history.
+We evaluate two progress-aware variants.
+(i) Online prompting: the agent is prompted to
+verbalize a numeric progress estimate (0-100%)
+before each action during execution, without access
+to the trajectory outcome.
+(ii) Retrospective demonstration: we collect
+completed trajectories from a 100-sample training
+set and retrospectively annotate step-wise progress
+assessments using the known trajectory outcome.
+Each demonstration includes action-observation
+history and the current progress. At test time, we
+randomly sample three such demonstrations as incontext examples. At each step, the agent first
+generates its own progress assessment conditioned
+on these demonstrations. The demonstrations are
+then removed, and the agent predicts the next action
+with the generated progress assessment.
+We further include a dummy random progress estimation to test whether improvements come from
+meaningful progress signals rather than added context.
+51.6
+
+Success Rate (%)
+
+50
+40 35.9
+30
+20
+
+44.1
+33.6
+
+44.1
+
+4
+
+The pilot study shows that progress awareness improves task completion but cannot be reliably generated during execution. To address this, we propose
+RePro (Retrospective Progress-Aware Training),
+a two-stage framework that first learns retrospective self-assessment through supervised warmup,
+then refines it via reinforcement learning with taskoutcome feedback. RePro consists of a Retrospection Warmup stage (§4.3) and a progress-aware
+policy optimization stage, RePro-PO (§4.4).
+4.1
+
+DeepSeek-v4
+
+Baseline
+w/ progress
+w/ progress demo
+
+29.3
+
+Formulation
+
+Given a natural language goal g, an LLM-based
+agent interacts with an environment to complete the task. This interaction is modeled as
+a Partially Observable Markov Decision Process
+(POMDP) (Kaelbling et al., 1998), defined by the
+tuple (S, A, O, P, R), where S, A, O, P, and R
+denote the state space, action space, observation
+space, transition kernel, and reward function.
+At each step t, the agent receives a partial observation ot ∈ O of the underlying state st ∈ S, and
+samples an action from its policy conditioned on
+the interaction history ht = (g, o1 , a1 , . . . , ot ):
+
+48.4
+
+37.9
+31.2
+
+Retrospective Progress-Aware Training
+
+32.4
+
+GPT-5.1
+w/ random progress
+w/ random demo
+
+Figure 1: Pilot study results on WebShop. Online
+progress prompting hurts performance, while retrospective demonstrations for progress improve it.
+
+at ∼ πθ (· | ht ).
+
+(1)
+
+The environment transitions according to P(st+1 |
+st , at ), producing observation ot+1 . This sequen-
+
+Findings. Figure 1 reveals that online and retrospective progress awareness have opposite ef3
+
+Figure 2: Overview of RePro, our retrospective progress-aware training framework. (A) During forward-thenreflect, the agent executes actions with online progress estimates, then retrospectively reassesses step-wise progress
+after observing the final outcome. (B) Retrospection Warmup uses demonstrations to initialize retrospective
+reflection behavior. (C) Policy Update integrates retrospective progress into RL through progress shaping, onlineretrospective alignment, and format regularization rewards, enabling long-horizon agent training.
+
+retrospective estimate pt :
+
+tial interaction forms a trajectory
+τ = {g, [(ot , at )]Tt=1 },
+
+τretro = {g, [(ot , at , pt )]Tt=1 }.
+
+(2)
+
+which terminates upon an environment signal or
+agent decision at step T , yielding a task reward
+r = R(τ ). The policy πθ is optimized via RL to
+maximize the expected task reward.
+4.2
+
+The agent generates retrospective progress estimates p1 , . . . , pT conditioning on the complete trajectory and outcome. Unlike online predictions
+made under uncertainty, retrospective reflections
+are anchored by the known outcome. If the task
+succeeded, the agent knows the final step represents 100% completion, providing a supervisory
+signal for the last retrospective value. The trajectory length T is known, enabling the agent to calibrate intermediate values accordingly.
+
+Forward-then-Reflect
+
+The working pattern of the agent is redefined as
+forward-then-reflect.
+Forward Execution. At each step t, the agent
+generates a progress assessment and an action conditioned on the interaction history:
+(p̃t , at ) ∼ πθ (· | ht ),
+
+4.3
+
+(3)
+
+where p̃t ∈ [0, 100] is the online self-assessment of
+completion percentage, at is the action to execute.
+The environment executes at , returns observation
+ot+1 . The trajectory continues until the terminal
+step T , returning task reward r.
+
+Retrospection Warmup
+
+Since retrospection is not directly rewarded in agentic environments and remains difficult for untrained
+agents to perform, we first warm up the reflection
+module to provide a better initialization. Given
+completed trajectories with a successful outcome,
+we employ an external model πdemo (DeepSeekV4) to generate demonstrations of retrospective
+reflection, yielding the warmup dataset:
+
+Retrospective Reflection. Following each trajectory, the agent is prompted with a retrospective reflection prompt (Appendix A) to re-assess progress
+at each step given the complete trajectory τ and outcome r. We denote this prompted mode as πθretro :
+(p1 , . . . , pT ) ∼ πθretro (· | τ, r),
+
+(5)
+
+retro
+(p1 , . . . , pT ) ∼ πdemo
+(· | τ, r),
+
+(4)
+
+τ ∈ Dr=1 , (6)
+
+Dwarmup = {g, [(ot , at , pt )]Tt=1 }.
+
+where pt ∈ [0, 100] is the agent’s retrospective
+self-assessed progress of task completion at step
+t. The trajectory is then re-organized by replacing each online estimate p̃t with the corresponding
+
+(7)
+
+The agent is fine-tuned on these demonstrations to
+jointly predict actions and retrospective progress
+4
+
+θ (at |ot )
+clipped objective (ρt (θ) = ππold
+(at |ot ) ):
+
+assessments, learning the reflection format.
+
+LSFT = −Eτ ∈Dwarmup Lfwd + Lretro ,
+X
+log πθ (p̃t , at | ht ),
+Lfwd =
+
+At =
+
+
+
+Aepisode (τ )
+
+(8)
+
+step
+
+At
+
+(14)
+
+t
+
+4.4
+
+
+
+R(τ ) − mean {R(τj )}N
+Gt − mean {Gk | ok = ot }
+j=1
+
+
++ω
+·
+Fnorm {R(τj )}N
+Fnorm {Gk | ok = ot }
+j=1
+|
+{z
+}
+|
+{z
+}
+
+
+
+Lretro = log πθretro (p1 , . . . , pT | τ, r).
+
+
+LPG (θ) = −Eτ,t min ρt (θ)At , clip(ρt (θ), 1−ϵ, 1+ϵ)At .
+
+RePro-PO: Policy Optimization with
+Retrospective Progress
+
+5
+
+(15)
+
+This section presents empirical results of trainingbased Retrospective Progress Reflection across
+agentic benchmarks and foundation models, together with key empirical observations.
+
+The reward integrates the outcome task performance with progress-specific objectives.
+R(τ ) =
+
+T
+X
+
+rt + wb · Rformat .
+
+(9)
+
+5.1
+
+t=1
+
+rt = renv (t) + rp (t) + ralign (t) + rformat (t) (10)
+where renv is the environment reward (sparse, typically nonzero only at the terminal step), rp shapes
+step-wise progress differences, ralign drives online
+predictions toward retrospective quality, and rformat
+is based on format validity.
+rp (t) = β · (pt+1 − pt ),
+(11)
+1
+ralign (t) = α · max(0, 1 − |pt − p̃t |).
+T
+Rformat rewards format compliance and penalizes
+progress boundary violations (p1 ̸= 0 or pT ̸= 1
+for successful trajectories):
+Rformat = ±0.1 based on format validity,
+− wp (|p0 − 0| + ⊮[success] · |pT − 1|).
+(12)
+Following GiGPO (Feng et al., 2026), we compute hierarchical advantages at two granularities.
+The episode advantage Aepisode (τ ) normalizes the
+total return R(τ ) against trajectories rolled out
+step
+from the same task. The step advantage At compares discounted returns Gt among actions taken
+from the same anchor state, i.e., identical observations ok = ot that naturally recur across trajectories, where
+Gt =
+
+γ k rt+k = rt + γGt+1 .
+
+Setup
+
+Benchmarks Three widely used agentic environments are adopted as our benchmarks. (1) WebShop is an online shopping simulation where the
+agent must purchase a specific product matching
+user requirements in a simulated e-commerce website through text actions like search and click (Yao
+et al., 2022). Each episode is limited to 15 steps. (2)
+ALFWorld is a text-based household task environment where agents navigate rooms and manipulate
+objects to achieve goals (e.g., “put a clean apple in
+the refrigerator”) (Shridhar et al., 2020). Actions
+include navigation and object interactions like go
+to and take/put. Episodes are limited to 50 steps.
+(3) Sokoban. A puzzle environment where the
+agent pushes several boxes to designated target positions, given a puzzle map (Schrader, 2018). The
+action space includes moving in four directions and
+pushing boxes when adjacent.
+The trajectory reward Rtask of WebShop and
+ALFWorld is a final-step outcome-based reward
+without signals for intermediate steps. Differently,
+Sokoban has hybrid rewards, combining outcome
+reward with a sparse intermediate reward for each
+box’s success. Metrics of task Success Rate (SR)
+and Score from the environment are reported on
+256 test samples.
+
+For each step, progress reflection provides intermediate signals beyond sparse outcome reward:
+
+T −t
+X
+
+Experiments
+
+Baselines Baseline methods for comparison are
+twofold. (1) Prompting methods. Following our
+pilot study, we evaluate prompting methods that
+elicit online and retrospective progress estimates
+during inference, with random progress included
+as an ablation to control for the added prompt structure. (2) Training methods. We use standard
+GRPO (DeepSeek, 2024) and GiGPO (Zheng et al.,
+2025) as our primary RL training baselines. We
+
+(13)
+
+k=0
+
+Since rt incorporates progress shaping, Gt encodes when progress increases occur, enabling
+fine-grained credit assignment. The final advantage combines both levels and is optimized with a
+5
+
+further include a progress-aware prompting baseline, denoted as Meta Prompt, where the agent is
+explicitly prompted to predict progress at each step
+during training, but receives no progress-related
+reward. This baseline tests whether progress assessment can emerge from naive prompting alone
+under training. Since Meta Prompt uses the same
+progress-aware prompting format as our method,
+we use it as the reference baseline for computing
+∆ across methods. On the basis of Meta Prompt,
+two vanilla implementations of progress augmentation are evaluated. L1 denotes only adding format
+penalty in the reward function to the Meta Prompt,
+while L2 denotes directly using p̂t as the step reward rt in Equation 13.
+5.2
+
+across both model scales and environments. On
+WebShop, improvements remain stable from 1.5B
+to 7B models, suggesting that progress-aware training complements model scaling rather than depending on a specific model capacity. Across environments, RePro generalizes to both ALFWorld household planning and Sokoban spatial reasoning, supporting the hypothesis that retrospective progress
+awareness provides a general mechanism for longhorizon agent learning. On ALFWorld, RePro improves over the Meta Prompt baseline by +11.72
+SR for Qwen2.5-1.5B and +4.69 SR for Qwen2.57B. On Sokoban, it also yields gains of +3.12 SR
+for Qwen3-4B. The improvement on Sokoban is
+relatively smaller, which may be because its reward
+already provides partial process-oriented feedback.
+
+Main Results
+
+Progress awareness does not naturally emerge
+from prompting or outcome-oriented training.
+As shown in Table 1, explicitly prompting models to track progress fails to improve performance
+over the base prompt, and often degrades it. Retrospective prompting without training similarly
+yields limited gains, indicating that progress awareness cannot be reliably induced through prompting alone, especially for foundation open-source
+LLMs. Compared with GRPO and GiGPO, Meta
+Prompt induces longer reasoning traces and yields
+performance improvements in most settings. This
+suggests that progress-aware prompting provides a
+richer context for training, with additional tokens
+not necessarily becoming a burden. We further
+observe that outcome-oriented RL with progress
+prompt and simple leverage (L1/L2) produces inconsistent improvements across settings, indicating
+crafting prompt and shaping rewards alone are insufficient for learning stable progress awareness.
+
+6
+
+Analysis
+
+6.1
+
+Ablations and Variants
+
+We evaluate our full approach with ablations, including (1) Warmup Only: Performance after only
+warmup by supervised fine-tuning on retrospectivelabeled data without subsequent RL training. (2)
+Warmup + GiGPO: Two-phase training with SFT
+warmup followed by standard GiGPO without retrospective progress mechanism. (3) w/o Warmup:
+Directly initialize RL from base model with retrospective mechanism enabled. The following are
+variants that leverage progress assessments in different ways.
+(1) The Role of SFT Warmup. Warmup Only
+achieves substantially lower performance than RePro (crashing on 1.5B and 3B, -23.05% on 7B),
+despite achieving nearly perfect format accuracy.
+This suggests that supervised warmup teaches the
+format of retrospective reflection but does not
+yield effective progress awareness without taskreward grounding. Removing warmup destabilizes
+training for 1.5B and 3B models, indicating that
+warmup is critical for establishing the forward-thenreflect behavior. Using stronger warmup demonstrations further improves smaller models.
+(2) The Role of Retrospective Reflection. Comparisons against Warmup + GiGPO and L1 + Reshaping show that retrospective reflection contributes beyond format initialization or reward shaping alone. The benefit remains consistent across
+model scales, indicating that retrospective progress
+modeling scales effectively with model capacity.
+Further, retrospective progress deltas ∆p exhibit
+positive correlation with step-level advantages in
+
+RePro enables effective progress-aware agent
+training. Table 1 shows that RePro consistently
+outperforms all baselines on WebShop across 1.5B,
+3B, and 7B models, achieving absolute success rate
+gains of +8.98%, +11.57%, and +5.82% over the
+Meta Prompt baseline, respectively. Compared to
+progress-related variants, RePro further improves
+performance, demonstrating the effectiveness of
+retrospective progress modeling beyond vanilla reward engineering. Notably, RePro achieves strong
+performance across diverse environments, including ALFWorld and Sokoban (Table 2).
+RePro generalizes across model scales and task
+environments. RePro exhibits consistent gains
+6
+
+Qwen2.5-1.5B
+
+Qwen2.5-3B
+
+Qwen2.5-7B
+
+Method
+
+SR
+
+∆
+
+Score
+
+∆
+
+SR
+
+∆
+
+Score
+
+∆
+
+SR
+
+∆
+
+Score
+
+∆
+
+Prompting Methods
+Base Prompt
+Meta Prompt for Progress
+Random Progress
+Retro Progress
+Random Retro Progress
+
+0.4
+1.2
+0.8
+5.1
+2.0
+
+–
++0.8
++0.4
++4.7
++1.6
+
+5.0
+3.8
+13.2
+20.7
+18.5
+
+–
+-1.2
++8.2
++15.7
++13.5
+
+12.5
+16.4
+16.4
+10.6
+16.0
+
+–
++3.9
++3.9
+-1.9
++3.5
+
+36.5
+41.5
+52.4
+44.5
+48.4
+
+–
++5.0
++15.9
++8.0
++11.9
+
+14.1
+10.9
+10.2
+23.8
+12.5
+
+–
+-3.2
+-3.9
++9.7
+-1.6
+
+50.8
+41.4
+44.4
+51.5
+46.5
+
+–
+-9.4
+-6.4
++0.7
+-4.3
+
+Training Methods
+Best
+GRPO
+Avg
+Best
+GiGPO
+Avg
+Best
+Meta Prompt
+Avg
+Best
+L1
+Avg
+Best
+L2
+Avg
+
+66.41
+62.77
+67.97
+59.84
+73.44
+67.15
+68.75
+63.20
+75.00
+70.47
+
+-7.03
+-4.38
+-5.47
+-7.31
+–
+–
+-4.69
+-3.95
++1.56
++3.32
+
+81.22
+77.26
+81.35
+77.68
+89.82
+85.27
+84.51
+82.17
+88.01
+85.67
+
+-8.60
+-8.01
+-8.47
+-7.59
+–
+–
+-5.31
+-3.10
+-1.81
++0.40
+
+50.00
+44.53
+71.88
+63.57
+71.88
+68.16
+76.56
+71.68
+76.56
+70.86
+
+-21.88
+-23.63
++0.00
+-4.59
+–
+–
++4.68
++3.52
++4.68
++2.70
+
+71.02
+63.90
+83.94
+81.49
+84.41
+84.38
+88.53
+86.21
+88.60
+86.49
+
+-13.39
+-20.48
+-0.47
+-2.89
+–
+–
++4.12
++1.83
++4.19
++2.11
+
+73.29
+64.02
+74.22
+71.76
+78.91
+74.65
+80.86
+75.62
+75.39
+70.59
+
+-5.62
+-10.63
+-4.69
+-2.89
+–
+–
++1.95
++0.97
+-3.52
+-4.06
+
+82.18
+76.46
+83.98
+83.77
+85.93
+85.09
+91.74
+87.81
+87.54
+83.45
+
+-3.75
+-8.63
+-1.95
+-1.32
+–
+–
++5.81
++2.72
++1.61
+-1.64
+
+81.64
+76.13
+
++8.20
++8.98
+
+91.72
+87.56
+
++1.90
++2.29
+
+83.59
+79.73
+
++11.71
++11.57
+
+92.09
+90.75
+
++7.68
++6.37
+
+84.38
+80.47
+
++5.47
++5.82
+
+91.18
+89.13
+
++5.25
++4.04
+
+RePro (Ours)
+RePro
+
+Best
+Avg
+
+Table 1: Main results on WebShop across three model sizes. SR: success rate (%). For trained methods, we report
+both the best score (Best) and convergence window average (Avg). ∆: improvement over the corresponding baseline.
+Qwen2.5-1.5B on ALFWorld
+
+Qwen2.5-7B on ALFWorld
+
+Qwen3-4B on Sokoban
+
+Method
+
+SR
+
+∆
+
+Score
+
+∆
+
+SR
+
+∆
+
+Score
+
+∆
+
+SR
+
+∆
+
+Score
+
+∆
+
+Training Methods
+Best
+GiGPO
+Avg
+Best
+Meta Prompt
+Avg
+Best
+L1
+Avg
+Best
+L2
+Avg
+
+89.84
+84.38
+87.50
+78.48
+95.70
+88.05
+74.22
+65.62
+
++2.34
++5.90
+–
+–
++8.20
++9.57
+-13.28
+-12.86
+
+5.74
+5.49
+5.64
+4.47
+7.88
+5.81
+4.43
+3.63
+
++0.10
++1.02
+–
+–
++2.24
++1.34
+-1.21
+-0.84
+
+95.31
+90.08
+95.31
+91.37
+99.61
+97.81
+98.83
+96.60
+
++0.00
+-1.29
+–
+–
++4.30
++6.44
++3.52
++5.23
+
+7.82
+6.34
+7.97
+6.49
+9.78
+8.83
+9.29
+8.30
+
+-0.15
+-0.15
+–
+–
++1.81
++2.34
++1.32
++1.81
+
+86.72
+76.09
+85.16
+74.06
+89.84
+79.22
+88.28
+80.08
+
++1.56
++2.03
+–
+–
++4.68
++5.16
++3.12
++6.02
+
+6.21
+4.21
+5.94
+3.91
+6.53
+4.56
+6.44
+4.79
+
++0.27
++0.29
+–
+–
++0.60
++0.64
++0.50
++0.88
+
+99.22
+96.02
+
++11.72
++17.54
+
+9.42
+7.94
+
++3.78
++3.47
+
+100.00
+97.54
+
++4.69
++6.17
+
+10.26
+8.90
+
++2.29
++2.41
+
+88.28
+81.64
+
++3.12
++7.58
+
+6.61
+5.10
+
++0.67
++1.18
+
+RePro (Ours)
+RePro
+
+Best
+Avg
+
+Table 2: Main results on ALFWorld and Sokoban across three model sizes. SR: success rate (%). We report both the
+best score (Best) and convergence window average (Avg). ∆: improvement over the corresponding baseline.
+
+ate Discrimination serves as the primary metric,
+as it directly reflects whether progress estimates
+align with final task outcomes. Detailed metric
+definitions are provided in Appendix B.
+
+91.5% of training rollouts, suggesting that progress
+reflection provides meaningful credit assignment
+signals during policy optimization.
+6.2
+
+Progress Predictions
+
+6.2.2
+
+6.2.1 Progress Metrics
+Progress predictions lack objective ground truth
+in outcome-based agentic tasks, making direct accuracy evaluation infeasible. We therefore evaluate them through behavioral properties and outcome alignment. Specifically, we measure whether
+progress values can be stably extracted (Format
+Rate) and whether they distinguish successful from
+failed trajectories (Intermediate Discrimination).
+For further analysis, we also report descriptive indicators of progress dynamics, including Temporal
+Correlation, Monotonicity, Decline Rate, and
+Plateau Rate. Among these metrics, Intermedi-
+
+Findings
+
+Table 4 presents progress prediction analysis across
+different model sizes, comparing our RePro against
+the baseline. We focus analysis on retrospective
+progress, which serves as the supervision signal in
+our framework.
+Our method improves the progress prediction
+compared to the baseline. The critical metric,
+Intermediate Discrimination (IntermDisc), reveals stark differences. Baseline discrimination
+ranges from −1.07 to 1.86 (1.5B). RePro achieves
+substantially higher discrimination: 6.37 (1.5B),
+7
+
+Qwen2.5-1.5B
+
+Qwen2.5-3B
+
+Qwen2.5-7B
+
+Method
+
+SR
+
+∆
+
+Score
+
+∆
+
+SR
+
+∆
+
+Score
+
+∆
+
+SR
+
+∆
+
+Score
+
+∆
+
+RePro (Ours)
+RePro
+
+81.25
+
+–
+
+91.80
+
+–
+
+83.98
+
+–
+
+93.67
+
+–
+
+84.77
+
+–
+
+94.10
+
+–
+
+Ablations
+w/ 7B Warmup data
+Warmup + GiGPO
+Warmup Only
+w/o Warmup
+
+83.59
+75.00
+0.00
+NA
+
++2.34
+-6.25
+-81.25
+NA
+
+93.14
+88.44
+0.00
+NA
+
++1.34
+-3.36
+-91.80
+NA
+
+82.81
+78.91
+28.52
+NA
+
+-1.17
+-5.07
+-55.46
+NA
+
+91.28
+87.94
+32.49
+NA
+
+-2.39
+-5.73
+-61.18
+NA
+
+84.77
+79.69
+61.72
+80.08
+
++0.00
+-5.08
+-23.05
+-4.69
+
+94.10
+88.38
+71.94
+89.96
+
++0.00
+-5.72
+-22.16
+-4.14
+
+Variants
+L1+ Reshaping
+L1+ Reweighting
+L1+ Grouping
+
+72.27
+71.48
+75.78
+
+-8.98
+-9.77
+-5.47
+
+87.43
+83.55
+89.63
+
+-4.37
+-8.25
+-2.17
+
+72.66
+75.00
+73.83
+
+-11.32
+-8.98
+-10.15
+
+84.82
+87.62
+86.32
+
+-8.85
+-6.05
+-7.35
+
+80.08
+77.34
+78.13
+
+-4.69
+-7.43
+-6.64
+
+87.54
+88.98
+89.23
+
+-6.56
+-5.12
+-4.87
+
+Table 3: Results for ablation study and variants of our method, using the Best numbers.
+Qwen2.5-1.5B
+Metric
+
+Method
+
+Succ
+
+Failed ∆
+
+Qwen2.5-3B
+Failed ∆
+
+Succ
+
+Qwen2.5-7B
+Succ
+
+Failed ∆
+
+Primary Metrics
+Format
+IntermDisc↑
+
+Baseline 99.71 99.78 -0.07 99.59 99.41 +0.18
+Ours
+100.00 100.00 +0.00 100.00 100.00 +0.00
+Baseline
+1.86
+1.11
+Ours
+6.37
+31.62
+
+Analytical Metrics
+Baseline
+Temporal Corr
+Ours
+Baseline
+Monotonicity
+Ours
+
+99.20 97.57 +1.63
+100.00 100.00 +0.00
+−1.07
+11.14
+
+96.89
+78.14
+99.99
+99.60
+
+97.02
+75.64
+100.00
+99.26
+
+-0.13
++2.50
+-0.01
++0.34
+
+21.62
+94.71
+99.34
+100.00
+
+18.69
+60.72
+99.32
+92.76
+
++2.93
++33.99
++0.02
++7.24
+
+48.74
+96.52
+99.98
+99.99
+
+46.13
+79.24
+99.94
+95.72
+
++2.61
++17.28
++0.04
++4.27
+
+0.04
+1.28
+0.47
+27.08
+
+0.00
+2.88
+0.57
+33.03
+
++0.04
+-1.60
+-0.10
+-5.95
+
+2.72
+0.03
+78.49
+1.37
+
+3.01
+30.58
+82.18
+12.77
+
+-0.29
+-30.55
+-3.69
+-11.40
+
+0.15
+0.02
+99.98
+0.45
+
+0.42
+20.07
+99.86
+6.54
+
+-0.27
+-20.05
++0.12
+-6.09
+
+Failure Patterns
+Decline
+Plateau
+
+Baseline
+Ours
+Baseline
+Ours
+
+Table 4: Progress prediction metrics across model sizes with Meta prompt as the baseline. IntermDisc (Intermediate
+Discrimination) is the primary metric for outcome-based tasks.
+
+31.62 (3B), and 11.14 (7B). The 3B model shows
+particularly strong outcome awareness, with successful trajectories averaging 31 percentage points
+higher final progress than failures.
+
+and 6.54. These results indicate that the learned
+progress signal retains meaningful variation and
+can reflect setbacks even when the task fails.
+
+7
+
+The task achievement signal is observable. The
+auxiliary metrics show that task achievement signals differ systematically. The analytical metrics
+further show more coherent progress dynamics on
+successful trajectories. For our method, successful trajectories consistently obtain higher temporal
+correlation than failed ones, with gaps of +2.50,
++33.99, and +17.28, and higher monotonicity with
+gaps of +0.34, +7.24, and +4.27. Failure-pattern
+metrics provide complementary evidence: baseline
+predictions rarely decline, but often collapse into
+plateau behavior, especially on 3B and 7B, where
+failed trajectories have plateau rates of 82.18 and
+99.86. In contrast, RePro yields non-trivial decline rates on failed trajectories, 2.88/30.58/20.07,
+while reducing plateau rates on 3B and 7B to 12.77
+
+Conclusion
+
+This paper studies progress awareness as a metacognitive signal for long-horizon LLM-based agents.
+We show that while progress estimates can help
+agent execution when grounded in retrospective
+trajectory evidence, they do not reliably emerge
+from naive prompting or standard outcome-reward
+training. Motivated by this asymmetry, we propose RePro, a retrospective progress-aware training framework that learns progress signals from
+completed trajectories and uses them as auxiliary
+supervision for agent training. Through a forwardthen-reflect paradigm, Retrospection Warmup, and
+RePro-PO, RePro enables agents to incorporate
+progress-aware feedback without relying on continuous external supervision or an additional re8
+
+ward model. Experiments show consistent improvements across model scales and environments, with
+further analyses indicating improved progress estimation quality. Ultimately, these findings demonstrate the potential of progress awareness not only
+for execution, but also for fostering internal cognition within long-horizon tasks, opening promising
+avenues for future research in autonomous selfreflective agents.
+
+Pgpo: Enhancing agent reasoning via pseudocodestyle planning guided preference optimization. In
+Findings of the Association for Computational Linguistics: ACL 2025, pages 14966–14985.
+Huacan Chai, Zijie Cao, Maolin Ran, Yingxuan Yang,
+Jianghao Lin, Xin Peng, Hairui Wang, Renjie Ding,
+Ziyu Wan, Muning Wen, and 1 others. 2025. Parlmt: Learning to call functions in multi-turn conversation with progress awareness. arXiv preprint
+arXiv:2509.23206.
+
+Limitations
+
+DeepSeek. 2024. Deepseekmath: Pushing the limits of
+mathematical reasoning in open language models.
+
+RePro currently represents progress awareness
+through verbalized progress assessments. While
+this makes the signal interpretable and easy to supervise, other forms of progress representation,
+such as latent states or hidden-vector supervision,
+remain unexplored. Our evaluation covers representative long-horizon environments, including WebShop, ALFWorld, and Sokoban, but resource and
+infrastructure constraints prevent us from scaling
+to broader and more complex agent settings such
+as GUI automation or open-ended embodied interaction. Finally, progress awareness lacks naturally available ground-truth labels. RePro derives
+progress signals retrospectively from completed trajectories and outcomes, but future work could use
+human annotations or strong-LLM evaluations as
+pseudo-gold references to better calibrate progress
+estimation.
+
+DeepSeek-AI. 2026. Deepseek-v4: Towards highly
+efficient million-token context intelligence.
+Guanting Dong, Licheng Bao, Zhongyuan Wang,
+Kangzhi Zhao, Xiaoxi Li, Jiajie Jin, Jinghan Yang,
+Hangyu Mao, Fuzheng Zhang, Kun Gai, Guorui
+Zhou, Yutao Zhu, Ji-Rong Wen, and Zhicheng Dou.
+2025a. Agentic entropy-balanced policy optimization. CoRR, abs/2510.14545.
+Guanting Dong, Hangyu Mao, Kai Ma, Licheng Bao,
+Yifei Chen, Zhongyuan Wang, Zhongxia Chen, Jiazhen Du, Huiyang Wang, Fuzheng Zhang, Guorui
+Zhou, Yutao Zhu, Ji-Rong Wen, and Zhicheng Dou.
+2025b. Agentic reinforced policy optimization.
+CoRR, abs/2507.19849.
+Lang Feng, Zhenghai Xue, Tingcong Liu, and Bo An.
+2026. Group-in-group policy optimization for LLM
+agent training. In The Thirty-ninth Annual Conference on Neural Information Processing Systems.
+Yubin Ge, Salvatore Romeo, Jason Cai, Monica
+Sunkara, and Yi Zhang. 2025. Samule: Self-learning
+agents enhanced by multi-level reflection. In Proceedings of the 2025 Conference on Empirical Methods in Natural Language Processing, pages 16602–
+16621.
+
+References
+Emre Can Acikgoz, Cheng Qian, Heng Ji, Dilek
+Hakkani-Tür, and Gokhan Tur. 2025.
+Selfimproving llm agents at test-time. arXiv preprint
+arXiv:2510.07841.
+
+Dadi Guo, Tianyi Zhou, Dongrui Liu, Chen Qian, Qihan Ren, Shuai Shao, Zhiyuan Fan, Yi R. Fung, Kun
+Wang, Linfeng Zhang, and Jing Shao. 2026. Towards
+self-evolving agent benchmarks : Validatable agent
+trajectory via test-time exploration. In The Fourteenth International Conference on Learning Representations.
+
+Marc-Antoine Allard, Arnaud Teinturier, Victor Xing,
+and Gautier Viaud. 2026. Experiential reflective
+learning for self-improving llm agents. arXiv
+preprint arXiv:2603.24639.
+Shelly Bensal, Umar Jamil, Christopher Bryant,
+Melisa Russak, Kiran Kamble, Dmytro Mozolevskyi,
+Muayad Ali, and Waseem AlShikh. 2025. Reflect,
+retry, reward: Self-improving llms via reinforcement
+learning. arXiv preprint arXiv:2505.24726.
+
+Daya Guo, Dejian Yang, Haowei Zhang, Junxiao Song,
+Peiyi Wang, Qihao Zhu, Runxin Xu, Ruoyu Zhang,
+Shirong Ma, Xiao Bi, and 1 others. 2025. Deepseekr1 incentivizes reasoning in llms through reinforcement learning. Nature, 645(8081):633–638.
+
+Yuxuan Cai, Yipeng Hao, Jie Zhou, Hang Yan, Zhikai
+Lei, Rui Zheng, Zhenhua Han, Yutao Yang, Junsong
+Li, Qianjun Pan, Tianyu Huai, Qin Chen, Kai Chen,
+Bo Zhang, Xipeng Qiu, and Liang He. 2026. A
+benchmark for self-evolving agents via experiencedriven lifelong learning.
+
+Tingxu Han, Zhenting Wang, Chunrong Fang, Shiyu
+Zhao, Shiqing Ma, and Zhenyu Chen. 2025. Tokenbudget-aware LLM reasoning. In Findings of the Association for Computational Linguistics: ACL 2025,
+pages 24842–24855, Vienna, Austria. Association
+for Computational Linguistics.
+
+Zouying Cao, Runze Wang, Yifei Yang, Xinbei Ma,
+Xiaoyong Zhu, Bo Zheng, and Hai Zhao. 2025.
+
+9
+
+Leslie Pack Kaelbling, Michael L Littman, and Anthony R Cassandra. 1998. Planning and acting in
+partially observable stochastic domains. Artificial
+intelligence, 101(1-2):99–134.
+
+Xu, and 65 others. 2026. Terminal-bench: Benchmarking agents on hard, realistic tasks in command
+line interfaces. In The Fourteenth International Conference on Learning Representations.
+
+Jeonghye Kim, Sojeong Rhee, Minbeom Kim, Dohyung
+Kim, Sangmook Lee, Youngchul Sung, and Kyomin
+Jung. 2025. Reflact: World-grounded decision making in llm agents via goal-state reflection. In Proceedings of the 2025 Conference on Empirical Methods in
+Natural Language Processing, pages 33421–33453.
+
+Weixuan Ou, Yanzhao Zheng, Shuoshuo Sun, Wei
+Zhang, Baohua Dong, Hangcheng Zhu, Ruohui
+Huang, Gang Yu, Pengwei Yan, and Yifan Qiao. 2026.
+Serl: Self-examining reinforcement learning on opendomain. In Proceedings of the AAAI Conference
+on Artificial Intelligence, volume 40, pages 32619–
+32627.
+
+Aviral Kumar, Vincent Zhuang, Rishabh Agarwal, Yi Su,
+John D Co-Reyes, Avi Singh, Kate Baumli, Shariq
+Iqbal, Colton Bishop, Rebecca Roelofs, and 1 others.
+Training language models to self-correct via reinforcement learning. In The Thirteenth International
+Conference on Learning Representations.
+
+Cheng Qian, Emre Can Acikgoz, Qi He, Hongru
+WANG, Xiusi Chen, Dilek Hakkani-Tür, Gokhan
+Tur, and Heng Ji. 2026. ToolRL: Reward is all tool
+learning needs. In The Thirty-ninth Annual Conference on Neural Information Processing Systems.
+
+Jiaqi Li, Xinyi Dong, Yang Liu, Zhizhuo Yang, Quansen
+Wang, Xiaobo Wang, Song-Chun Zhu, Zixia Jia, and
+Zilong Zheng. 2025a. Reflectevo: Improving meta
+introspection of small llms by learning self-reflection.
+In Findings of the Association for Computational
+Linguistics: ACL 2025, pages 16948–16966.
+
+Yuxiao Qu, Tianjun Zhang, Naman Garg, and Aviral
+Kumar. 2024. Recursive introspection: Teaching language model agents how to self-improve. In The
+Thirty-eighth Annual Conference on Neural Information Processing Systems.
+Max-Philipp B. Schrader. 2018. gym-sokoban. https:
+//github.com/mpSchrader/gym-sokoban.
+
+Zheng Li, Qingxiu Dong, Jingyuan Ma, Di Zhang, Kai
+Jia, and Zhifang Sui. 2025b. Selfbudgeter: Adaptive
+token allocation for efficient LLM reasoning.
+
+Guangming Sheng, Chi Zhang, Zilingfeng Ye, Xibin
+Wu, Wang Zhang, Ru Zhang, Yanghua Peng, Haibin
+Lin, and Chuan Wu. 2024. Hybridflow: A flexible
+and efficient rlhf framework. arXiv preprint arXiv:
+2409.19256.
+
+Hunter Lightman, Vineet Kosaraju, Yuri Burda, Harrison Edwards, Bowen Baker, Teddy Lee, Jan Leike,
+John Schulman, Ilya Sutskever, and Karl Cobbe.
+2024. Let’s verify step by step. In The Twelfth International Conference on Learning Representations.
+
+Noah Shinn, Federico Cassano, Ashwin Gopinath,
+Karthik R Narasimhan, and Shunyu Yao. 2023. Reflexion: language agents with verbal reinforcement
+learning. In Thirty-seventh Conference on Neural
+Information Processing Systems.
+
+Junhong Lin, Xinyue Zeng, Jie Zhu, Song Wang, Julian
+Shun, Jun Wu, and Dawei Zhou. 2026. Plan and
+budget: Effective and efficient test-time scaling on
+reasoning large language models. In The Fourteenth
+International Conference on Learning Representations.
+
+Mohit Shridhar, Xingdi Yuan, Marc-Alexandre Côté,
+Yonatan Bisk, Adam Trischler, and Matthew
+Hausknecht. 2020. Alfworld: Aligning text and embodied environments for interactive learning. arXiv
+preprint arXiv:2010.03768.
+
+Zhaoyang Liu, JingJing Xie, Zichen Ding, Zehao Li,
+Bowen Yang, Zhenyu Wu, Xuehui Wang, Qiushi Sun,
+Shi Liu, Weiyun Wang, Shenglong Ye, Qingyun Li,
+Zeyue Tian, Gen Luo, Xiangyu Yue, Biqing Qi, Kai
+Chen, Bowen Zhou, Yu Qiao, and 2 others. 2026.
+ScaleCUA: Scaling open-source computer use agents
+with cross-platform data. In The Fourteenth International Conference on Learning Representations.
+
+Yifan Song, Da Yin, Xiang Yue, Jie Huang, Sujian
+Li, and Bill Yuchen Lin. 2024. Trial and error:
+Exploration-based trajectory optimization of llm
+agents. In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics
+(Volume 1: Long Papers), pages 7584–7600.
+
+Zhengxi Lu, Yuxiang Chai, Yaxuan Guo, Xi Yin, Liang
+Liu, Hao Wang, Han Xiao, Shuai Ren, Pengxiang
+Zhao, Guangyi Liu, and 1 others. 2026. Ui-r1: Enhancing efficient action prediction of gui agents by
+reinforcement learning. In Proceedings of the AAAI
+Conference on Artificial Intelligence, volume 40,
+pages 17608–17616.
+
+Hanyu Wang, Yuanpu Cao, Lu Lin, and Jinghui Chen.
+2026a. Preflect: From retrospective to prospective
+reflection in large language model agents. arXiv
+preprint arXiv:2602.07187.
+Qineng Wang, Wenlong Huang, Yu Zhou, Hang Yin,
+Tianwei Bao, Jianwen Lyu, Weiyu Liu, Ruohan
+Zhang, Jiajun Wu, Li Fei-Fei, and Manling Li. 2026b.
+ENACT: Evaluating embodied cognition with world
+modeling of egocentric interaction. In The Fourteenth International Conference on Learning Representations.
+
+Mike A Merrill, Alexander Glenn Shaw, Nicholas Carlini, Boxuan Li, Harsh Raj, Ivan Bercovich, Lin
+Shi, Jeong Yeon Shin, Thomas Walshe, E. Kelly
+Buchanan, Junhong Shen, Guanghao Ye, Haowei
+Lin, Jason Poulos, Maoyu Wang, Marianna Nezhurina, Di Lu, Orfeas Menis Mastromichalakis, Zhiwei
+
+10
+
+Taiyi Wang, Sian Gooding, Florian Hartmann, Oriana
+Riva, and Edward Grefenstette. 2026c. A subgoaldriven framework for improving long-horizon llm
+agents. arXiv preprint arXiv:2603.19685.
+
+Kongcheng Zhang, QI YAO, Shunyu Liu, Yingjie Wang,
+Baisheng Lai, Jieping Ye, Mingli Song, and Dacheng
+Tao. 2026a. Consistent paths lead to truth: Selfrewarding reinforcement learning for LLM reasoning.
+In The Thirty-ninth Annual Conference on Neural
+Information Processing Systems.
+
+Zihan Wang, Kangrui Wang, Qineng Wang, Pingyue
+Zhang, Linjie Li, Zhengyuan Yang, Xing Jin, Kefan Yu, Minh Nhat Nguyen, Licheng Liu, Eli Gottlieb, Yiping Lu, Kyunghyun Cho, Jiajun Wu, Li FeiFei, Lijuan Wang, Yejin Choi, and Manling Li. 2025.
+Ragen: Understanding self-evolution in llm agents
+via multi-turn reinforcement learning. Preprint,
+arXiv:2504.20073.
+
+Qizheng Zhang, Changran Hu, Shubhangi Upasani,
+Boyuan Ma, Fenglu Hong, Vamsidhar Kamanuru,
+Jay Rainton, Chen Wu, Mengmeng Ji, Hanchen Li,
+and 1 others. 2025b. Agentic context engineering:
+Evolving contexts for self-improving language models. arXiv preprint arXiv:2510.04618.
+Shiqi Zhang, Xinbei Ma, Yunqing Xu, Zouying Cao,
+Pengrui Lu, Haobo Yuan, Tiancheng Shen, Zhuosheng Zhang, Hai Zhao, and Ming-Hsuan Yang.
+2025c. Paracook: On time-efficient planning for
+multi-agent systems. Preprint, arXiv:2510.11608.
+
+Zhiheng Xi, Jixuan Huang, Chenyang Liao, Baodai
+Huang, Jiaqi Liu, Honglin Guo, yajie yang, Rui
+Zheng, Junjie Ye, Jiazheng Zhang, Wenxiang Chen,
+Wei He, Yiwen Ding, Guanyu Li, Zehui Chen,
+Zhengyin Du, Xuesong Yao, Yufei Xu, Jiecao Chen,
+and 5 others. 2026a. Agentgym-RL: An open-source
+framework to train LLM agents for long-horizon decision making via multi-turn RL. In The Fourteenth
+International Conference on Learning Representations.
+
+Xiuhui Zhang, Ning Gao, Xingyu Jiang, Yihui Chen,
+Yuheng Pan, Mohan Zhang, and Yue Deng. 2026b.
+Progress reward model for reinforcement learning
+via large language models. In The Thirty-ninth Annual Conference on Neural Information Processing
+Systems.
+
+Zhiheng Xi, Chenyang Liao, Guanyu Li, Zhihao Zhang,
+Wenxiang Chen, Binghai Wang, Senjie Jin, Yuhao
+Zhou, Jian Guan, Wei Wu, and 1 others. 2026b.
+Agentprm: Process reward models for llm agents
+via step-wise promise and progress. In Proceedings
+of the ACM Web Conference 2026, pages 4184–4195.
+
+Chujie Zheng, Shixuan Liu, Mingze Li, Xiong-Hui
+Chen, Bowen Yu, Chang Gao, Kai Dang, Yuqiong
+Liu, Rui Men, An Yang, and 1 others. 2025.
+Group sequence policy optimization. arXiv preprint
+arXiv:2507.18071.
+
+Tianbao Xie, Danyang Zhang, Jixuan Chen, Xiaochuan
+Li, Siheng Zhao, Ruisheng Cao, Toh J Hua, Zhoujun
+Cheng, Dongchan Shin, Fangyu Lei, and 1 others.
+2024. Osworld: Benchmarking multimodal agents
+for open-ended tasks in real computer environments.
+Advances in Neural Information Processing Systems,
+37:52040–52094.
+
+Congmin Zheng, Xiaoyun Mo, Xinbei Ma, Qiqiang
+Lin, Yin Zhao, Jiachen Zhu, Xingyu Lou, Jun Wang,
+Zhaoxiang Wang, Weiwen Liu, and 1 others. 2026.
+Adaptive milestone reward for gui agents. arXiv
+preprint arXiv:2602.11524.
+Jiaru Zou, Ling Yang, Jingwen Gu, Jiahao Qiu, Ke Shen,
+Jingrui He, and Mengdi Wang. 2026. ReasonfluxPRM: Trajectory-aware PRMs for long chain-ofthought reasoning in LLMs. In The Thirty-ninth
+Annual Conference on Neural Information Processing Systems.
+
+Weimin Xiong, Yifan Song, Xiutian Zhao, Wenhao Wu,
+Xun Wang, Ke Wang, Cheng Li, Wei Peng, and Sujian Li. 2024. Watch every step! llm agent learning
+via iterative step-level process refinement. In Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing, pages 1556–
+1572.
+Shunyu Yao, Howard Chen, John Yang, and Karthik
+Narasimhan. 2022. Webshop: Towards scalable realworld web interaction with grounded language agents.
+Advances in Neural Information Processing Systems,
+35:20744–20757.
+Bowen Ye, Rang Li, Qibin Yang, Yuanxin Liu, Linli
+Yao, Hanglong Lv, Zhihui Xie, Chenxin An, Lei Li,
+Lingpeng Kong, Qi Liu, Zhifang Sui, and Tong Yang.
+2026. Claw-eval: Towards trustworthy evaluation of
+autonomous agents. Preprint, arXiv:2604.06132.
+Danyang Zhang, Situo Zhang, Ziyue Yang, Zichen Zhu,
+Zihan Zhao, Ruisheng Cao, Lu Chen, and Kai Yu.
+2025a. Progrm: Build better gui agents with progress
+rewards. arXiv preprint arXiv:2505.18121.
+
+11
+
+A
+
+Implementation
+
+• Progress reward weights: β = 0.1 for
+hindsight progress shaping, α = 0.2 for
+online-retrospective alignment, αcorr = 0.3
+for episode-level correlation, and ±0.1 for format reward/penalty.
+
+Retrospective Progress Reflection Prompt
+You have just completed a task on an online
+shopping website. Now review the trajectory
+with the benefit of hindsight.
+
+All RL experiments use full-parameter fine-tuning
+with the same configuration as SFT. We train on
+PPU using the veRL framework (Sheng et al.,
+2024).
+
+Your trajectory (4 steps):
+Step 1: action="search[wireless mouse under 20
+dollars]"
+your_estimate=10%
+Step 2: action="click[item - Logitech wireless
+mouse]"
+your_estimate=35%
+Step
+3:
+action="click[add
+to
+cart]"
+your_estimate=70%
+Step
+4:
+action="click[buy
+now]"
+your_estimate=90%
+
+B
+
+Progress predictions lack objective ground truth
+in outcome-based tasks, precluding direct accuracy assessment. We instead evaluate predictions
+through behavioral properties and outcome alignment, progress pt (generated after observing outcomes). All metrics are computed separately for
+successful (rT ≥ 9.0) and failed (rT < 1.0) trajectories where applicable.
+
+Final outcome: SUCCEEDED (score=1.00)
+Re-assess what fraction of the
+genuinely completed at each step.
+
+task
+
+Progress Metrics
+
+was
+
+Guidelines:
+- Step 1 should be near 0 (task just started).
+- If SUCCEEDED, the last step should be near
+100.
+- Values should generally be non-decreasing.
+
+Primary Metrics. Format Rate (Format). Percentage of steps with valid progress extraction:
+
+First reason briefly in <think>...</think>,
+then output exactly 4 integers (0–100) in
+<hindsight_progress>v1,v2,v3,v4
+</hindsight_progress>.
+Example: <think>step 1 started, step 2 found
+item, step 3 bought it.</think>
+<hindsight_progress>0,60,100
+</hindsight_progress>
+
+Format =
+
+1 X |{t : pet ̸= null}|
+|E|
+Te
+
+(16)
+
+e∈E
+
+where E denotes the set of episodes and Te is the
+length of episode e. Measures the stability of
+progress output format across training.
+Intermediate Discrimination (IntermDisc).
+Gap between mean final progress of successful
+versus failed trajectories:
+
+(1) SFT Warmup (Phase 1) We construct
+hindsight-labeled data as described in §4.3:
+• Data source: Successful trajectories (score
+≥ 0.9 for WebShop, success=True for ALFWorld) from pre-trained GiGPO checkpoints
+
+IntermDisc = E[pT | rT ≥ 9.0]−E[pT | rT < 1.0]
+(17)
+This is the most critical metric for outcome-based
+tasks, measuring whether agents distinguish task
+outcomes through progress predictions.
+
+• Hindsight labeling: DeepSeek-v4 API (temperature=0) generates hindsight progress sequences
+• Training: Standard SFT with learning rate
+5 × 10−6 , batch size 8, 3 epochs.
+
+Analytical Metrics. Temporal Correlation
+(Corr). Pearson correlation between progress and
+relative step position:
+
+(2) RL Training (Phase 2).
+Following
+GiGPO (Feng et al., 2026) with modifications for
+hindsight progress reflection:
+
+
+
+t
+Corr = corr pt ,
+T
+
+• Rollout: 8 trajectories per batch, with a maximum horizon of 15 steps for WebShop.
+
+(18)
+
+For successful trajectories, progress should increase with task advancement, yielding a positive
+correlation (expected > 0.7). Failed trajectories
+may exhibit weaker correlation due to plateau patterns.
+
+• PPO hyperparameters: ϵclip = 0.2, γ =
+0.95, and KL coefficient βKL = 0.01.
+• Learning rate: 1 × 10−6 .
+• Training steps: 150 iterations.
+12
+
+Monotonicity Rate (Mono). Percentage of nondecreasing transitions (evaluated on successful trajectories only):
+T −1
+
+Mono =
+
+1 X
+⊮[pt+1 ≥ pt ]
+T −1
+
+(19)
+
+t=1
+
+Successful task execution should exhibit monotonically increasing progress. Expected value exceeds
+85% for coherent predictions. Not evaluated on
+failed trajectories, where plateau or decline may
+reflect accurate failure awareness.
+Decline Rate (Decline). Percentage of trajectories with substantial backward progress (descriptive, computed on failed trajectories):
+Decline =
+
+1 X
+⊮[∃t : pet+1 − pet < −10]
+|Efail |
+e∈Efail
+
+(20)
+Measures the frequency of progress regression.
+While undesirable in successful trajectories (hence
+evaluated via Mono), decline in failed trajectories
+may indicate accurate recognition of setbacks.
+Plateau Rate (Plateau). Percentage of trajectories with small overall progress range (descriptive,
+computed on failed trajectories):
+Plateau =
+
+1 X
+⊮[max pet − min pet < 20]
+t
+t
+|Efail |
+e∈Efail
+
+(21)
+Identifies trajectories where progress remains stagnant. Distinct from Collapse (10% threshold),
+Plateau uses a 20% threshold to capture trajectories
+showing minimal advancement without complete
+degeneration.
+All metrics are computed separately for online
+progress pt , retrospective progress pt , and across
+success/failure partitions, yielding up to four values
+per metric for comprehensive characterization.
+
+C
+
+The Use of Large Language Models
+
+LLMs were used solely in an auxiliary capacity,
+primarily for linguistic refinement (e.g., grammar
+correction, improved clarity, and removal of nonacademic expressions). Importantly, LLMs were
+not involved in generating research ideas, designing experiments, or conducting literature reviews.
+All conceptual contributions, experimental designs,
+and methodological decisions were entirely conceived and executed by the authors.
+
+13
+
+

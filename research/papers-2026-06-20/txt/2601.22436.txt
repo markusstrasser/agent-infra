@@ -1,0 +1,2442 @@
+Large Language Model Agents Are Not Always Faithful Self-Evolvers
+
+Weixiang Zhao 1 Yingshuo Wang 1 Yichen Zhang 1 Yang Deng 2
+Yanyan Zhao 1 Wanxiang Che 1 Bing Qin 1 Ting Liu 1
+
+Abstract
+
+static paradigms, these agents dynamically gather, store and
+reuse experiences from their interactions with the environment to inform future decisions (Gao et al., 2025; Cai et al.,
+2025; Bell et al., 2025; Hendrycks et al., 2025).
+
+arXiv:2601.22436v3 [cs.CL] 12 Jun 2026
+
+Self-evolving large language model (LLM) agents
+continually improve by accumulating and reusing
+past experience, yet it remains unclear whether
+they faithfully rely on that experience to guide
+their behavior. We present the first systematic investigation of experience faithfulness—the
+causal dependence of an agent’s decisions on
+the experience it is given—in self-evolving LLM
+agents. Using controlled causal interventions on
+both raw and condensed forms of experience,
+we comprehensively evaluate four representative
+frameworks across 13 LLM backbones and 9
+environments. Our analysis uncovers a striking asymmetry: while agents consistently depend on raw experience, they often disregard or
+misinterpret condensed experience, even when
+it is the only experience provided. This gap
+persists across single- and multi-agent configurations and across backbone scales. We trace
+its underlying causes to three factors: the semantic limitations of condensed content, internal processing biases that suppress experience,
+and task regimes where pretrained priors already
+suffice. These findings challenge prevailing assumptions about self-evolving methods and underscore the need for more faithful and reliable approaches to experience integration. Our
+code is available at: https://github.com/
+Dreamcatcher0622/Faithfulness.
+
+At the center of this paradigm is the use of experience.
+Such experience generally falls into two categories: raw
+and condensed (Hu et al., 2025; Zhang et al., 2025b). As
+demonstrated in the left part of Figure 1, raw experiences
+capture concrete historical traces, such as successful trajectories from similar tasks, that agents can directly reference
+or replay (Zhao et al., 2024a; Zhang et al., 2025a). Condensed experiences, by contrast, are distilled from those
+traces and encode transferable insights, including abstract
+plans or failure heuristics (Ouyang et al., 2025; Wang et al.,
+2025). Despite their central role, prior work has focused
+mainly on how such experiences are stored or represented,
+leaving it unclear whether agents actually and faithfully
+leverage them to improve performance. To address this, we
+present the first systematic investigation into the faithfulness of experience utilization in self-evolving LLM agents,
+organized around two core research questions (RQs).
+We begin by systematically examining (RQ1) is the performance improvement of self-evolving agents faithfully attributable to their use of past experiences? (§3 & §4). To
+answer this, we introduce a suite of controlled causal interventions targeting both raw and condensed experiences,
+and assess how such perturbations affect downstream behavior. To illustrate this, Figure 1 shows a motivating example
+where raw and condensed experiences are perturbed in different ways. We define experience faithfulness as the extent
+to which an agent’s behavior is causally grounded in its input
+experience—i.e., if perturbing the experience leads to significant behavioral changes, we consider the agent to have
+faithfully used it. Our evaluation spans four representative
+self-evolving frameworks, encompassing both offline (Zhao
+et al., 2024a) and online (Ouyang et al., 2025) paradigms,
+across single-agent and multi-agent settings (Zhang et al.,
+2025a). We benchmark 13 diverse LLM backbones across 9
+environments, including reasoning, web interaction, and embodied decision-making, providing comprehensive coverage
+of both model families and application settings.
+
+1. Introduction
+The emergence of self-evolving agents represents a pivotal
+step in the development of autonomous systems capable of
+continuous learning and adaptation (Zhao et al., 2024b; Dou
+et al., 2025; Silver & Sutton, 2025). Unlike the traditional
+1
+
+Harbin Institute of Technology, China 2 Singapore Management University, Singapore. Correspondence to: Yanyan Zhao
+<yyzhao@ir.hit.edu.cn>.
+Proceedings of the 43 rd International Conference on Machine
+Learning, Seoul, South Korea. PMLR 306, 2026. Copyright 2026
+by the author(s).
+
+We first show that agents are consistently more faithful
+
+1
+
+Large Language Model Agents Are Not Always Faithful Self-Evolvers
+Task Goal
+Please help me put the apples on the dining table into the
+refrigerator.
+
+Raw Experience
+Task Goal: Move the bananas from the kitchen counter into the fridge.
+Trajectory: 1. go to the kitchen counter. 2. pick up the bananas. 3. ...
+
+Condensed Experience
+1. When moving food items, first locate the item's current location.
+2. If placing fails, check whether the target place is open or closed.
+
+Trajectory
+1. go to the dining table. 2. locate the apples. 3. ...
+
+Intervention Types
+Raw Experience - Shuffle
+Task Goal: Move the bananas from the kitchen counter into the fridge.
+Output: 1. move to the refrigerator. 2. pick up the bananas. 3. ...
+
+Faithfulness Evaluation
+Trajectory
+1. go to the dining table. 2. locate the apples. 3. ...
+
+Raw Experience - Irrelevant
+Task Goal: Move the bananas from the kitchen counter into the fridge.
+Output: 1. go to the bathroom. 2. Turn on the tap. 3. ...
+
+Behavior Change
+
+Behavior Maintenance
+Faithfulness
+
+Condensed Experience - Corrupt
+1. When moving [ERROR INFO], first locate the item's current location.
+2. If [CORRUPTED], check whether the target place is open or closed.
+
+Causal Link Between
+Experience & Behavior
+
+Condensed Experience - Irrelevant
+1. Art expresses human creativity and emotion.
+2. Earth revolves around the sun.
+
+Faithfulness
+
+Unfaithfulness
+
+Figure 1. Examples of experience intervention and faithfulness evaluation. Given a task goal, the agent receives raw experience (concrete
+historical trajectories that succeed to complete the similar tasks) and condensed experience (abstract summaries or heuristics). We
+apply different types of interventions, such as shuffling, corrupting, or replacing experience with irrelevant content, to test whether such
+perturbations affect downstream behavior. A full taxonomy of intervention types is provided in Section 3. Faithfulness is determined by
+whether the agent’s behavior causally changes in response to the perturbed input.
+
+to raw experiences than to condensed ones when both are
+present, exhibiting substantial behavioral changes under
+raw experience perturbations but not under condensed ones
+(§4.1). We further demonstrate that this lack of faithfulness
+to condensed inputs persists even when raw experience is
+entirely absent, indicating that the problem is not due to competition or overshadowing (§4.2). Extending our analysis to
+collaborative multi-agent settings, this asymmetry remains:
+agents reliably exploit raw trajectories while largely ignoring the semantic content of condensed summaries (§4.3). Finally, this faithfulness disparity proves robust across model
+scales: while larger models achieve higher overall performance, they still fail to meaningfully ground their behavior
+in condensed experience (§4.4). These findings reveal a
+core limitation of current self-evolving agents: although
+they benefit from accumulated experience, they nonetheless
+display pronounced faithfulness failures—most notably in
+how they utilize condensed experience.
+
+lated experiences. Despite performance gains, agents often
+ignore or misuse condensed experience, revealing a significant gap between utility and faithfulness. Our study provides a principled framework to diagnose this issue and underscores the need for more reliable and interpretable mechanisms for experience-driven adaptation in LLM agents.
+
+2. Preliminaries
+We define self-evolving agents as agents that progressively
+improve their behavior by accumulating, retrieving, and exploiting past experiences, without modifying the underlying
+model parameters (Gao et al., 2025).
+After each interaction with the environment, the agent produces a trajectory τ and receives feedback r. From this
+(τ, r) pair, the system may store two types of experience:
+Raw Experience E raw : detailed traces of observations, actions, intermediate states, and rewards from successful trajectories that the agent can directly reference or replay.
+
+These findings naturally lead to our second question: (RQ2)
+why do self-evolving agents often fail to faithfully leverage
+condensed experiences? (§5) We trace this to a cascading
+triad of causes rooted in the three core components of selfevolving systems. First, condensed experiences themselves
+are often semantically limited—many encode only vague
+heuristics or generic summaries, lacking the specificity required to guide behavior (§5.1). Second, even when relevant
+content is present, agents often fail to utilize it due to internal processing biases (Mohsin et al., 2025) that favors local
+contextual signals over retrieved information (§5.2). Finally, the structure of the task further compounds this issue:
+for certain types such as knowledge-intensive benchmarks,
+agents often succeed by relying solely on their pretrained
+semantic priors (Shi et al., 2024), reducing the marginal
+utility of retrieved experience and diminishing the model’s
+incentive to incorporate external guidance at all (§5.3).
+
+Condensed Experience E cond : high-level summaries (e.g.,
+heuristics or causal lessons) distilled from both successful
+and failed trajectories, capturing generalizable structure.
+All accumulated experiences are stored in a shared external
+repository M = {E1 , E2 , . . . , En }, where each Ei is either
+a raw experience Eiraw or a condensed experience Eicond .
+At inference time, given a new task input x, the agent retrieves a relevant subset of experiences M (x) ⊂ M , which
+may contain M raw (x), M cond (x) or both, depending on the
+framework design. The retrieved experiences are used to
+augment the input and yield the output y.
+
+y = πθ [x; M raw (x); M cond (x)] ,
+We consider both offline self-evolving settings, where M is
+fixed, and online self-evolving settings, where M evolves
+dynamically with ongoing interactions.
+
+In summary, our findings challenge the common assumption
+that self-evolving agents faithfully leverage their accumu2
+
+Large Language Model Agents Are Not Always Faithful Self-Evolvers
+
+3. Causal Intervention on Experience
+
+behavioral sequences, our interventions aim to test whether
+agents rely on their temporal structure, semantic relevance,
+or simply their presence to guide decisions. We introduce
+three types of interventions designed to probe different aspects of raw experience utilization:
+
+To assess whether agents faithfully exploit retrieved experience during inference, we design controlled interventions
+that selectively perturb the raw or condensed experience.
+
+Empty: Remove all semantic content from retrieved raw
+experiences, while retaining their formatting cues (e.g.,
+prompts like “Here are two examples of successful trajectories:”). This differs from a simple ablation (w/o raw),
+which omits the experience section entirely.
+
+3.1. Experimental Setup
+Agent Framework. We evaluate four representative selfevolving agents. In the offline single-agent setting, we use
+ExpeL (Zhao et al., 2024a); for online single-agent settings,
+we include Dynamic Cheatsheet (Suzgun et al., 2025) and
+ReasoningBank (Ouyang et al., 2025); and for online multiagent, we use G-Memory (Zhang et al., 2025a). In all
+frameworks, the LLM backbone remains frozen, and behavioral adaptation arises solely from the accumulation,
+retrieval, and exploitation of external experiences. Further
+details are provided in Appendix A.
+
+Shuffle: Randomly shuffle the order of steps within each
+trajectory, preserving content tokens but disrupting temporal
+coherence and causal structure.
+Irrelevant: Replace retrieved trajectories with ones sampled
+from other unrelated tasks, preserving format and structure
+but removing topical and semantic relevance.
+
+Backbone Model. Our experiments span 10 LLMs, including closed-source models: GPT-4o(-mini) (Hurst et al.,
+2024), GPT-5.2 (Singh et al., 2025), Gemini-2.5-Flash
+(Comanici et al., 2025), Gemini-3-Pro (DeepMind, 2025)
+and Claude-Sonnet-4.6, which largely follow the official
+settings adopted in their respective agent frameworks. In
+addition, we include a range of open-weight Qwen3 (Yang
+et al., 2025a) variants, 1.7B–32B dense models, 30B-A3B,
+and 235B-A22B MoEs, to enable more systematic analysis
+across model scales and architectures.
+
+3.3. Condensed Experience Interventions
+Condensed experiences consist of distilled summaries. Unlike raw trajectories, they encode high-level abstractions
+such as heuristics or causal lessons. To probe the faithfulness, we introduce four types of interventions:
+Empty: Remove all semantic content from the condensed
+experience while preserving the formatting cues (e.g., “Here
+is a distilled insight from past trajectories:” followed by
+an empty slot). This is distinct from a full ablation (w/o
+cond), which omits the condensed experience entirely.
+
+Environment & Benchmark. Follow the official setting in
+each agent framework, we evaluate across 9 benchmarks in
+4 domains: (1) For knowledge-intensive question answering, we include HotpotQA (Yang et al., 2018), FEVER
+(Thorne et al., 2018), GPQA-Diamond (Rein et al., 2024),
+and MMLU-Pro Eng. (Wang et al., 2024). (2) For mathematical reasoning, we use AIME 2024 and Game of 24
+(Yao et al., 2023a; Suzgun & Kalai, 2024). (3) For embodied
+action, we adopt the interactive environment ALFWorld
+(Shridhar et al., 2021). (4) For web interaction, we evaluate
+on WebArena (Zhou et al., 2024) and WebShop (Yao et al.,
+2022). These provide a diverse testbed for experience-based
+adaptation (details in Appendix B).
+
+Corrupt: Randomly alter key components (e.g., distorting
+action references) to break internal coherence.
+Irrelevant: Replace the condensed summary with one that
+is entirely unrelated to the current task goal, using a generic
+and task-agnostic description.
+Filler: Replace the entire content of condensed experience
+with semantically empty placeholder tokens (e.g., special
+characters such as “%$#&”), preserving surface structure
+while removing all meaningful information.
+These interventions allow us to test whether performance
+gains arise from the actual semantics of condensed experience. More detailed examples and the rationale behind
+these intervention designs can be found in Appendix D.
+
+Implementation Details. Closed-source and large-scale
+open-weight models are accessed via official APIs, while
+other open-weight models are deployed locally with vLLM
+(Kwon et al., 2023) on NVIDIA A800 GPUs. We strictly
+follow the official configuration of each agent framework.
+Additional details are provided in Appendix C.
+
+4. Evaluation of Experience Faithfulness
+4.1. Faithfulness under Joint Raw & Condensed Access
+
+3.2. Raw Experience Interventions
+
+We begin by examining settings where both raw and condensed experiences are simultaneously provided to the agent.
+Figure 2 reports results in the offline ExpeL framework,
+while Figure 3 shows online performance using the Dynamic
+CheatSheet setup. To further validate the generality of our
+
+Raw experiences typically consist of full interaction trajectories, including observations, thoughts, and actions (Yao
+et al., 2023b). Since these experiences preserve fine-grained
+
+3
+
+Large Language Model Agents Are Not Always Faithful Self-Evolvers
+70
+
+HotpotQA
+Raw Exp. Interventions
+
+Condensed Exp. Interventions
+
+Success Rate %
+
+60
+50 ExpeL:47
+
+46 45 46
+
+49 50 49
+43
+
+39
+
+40
+
+100
+90
+
+ALFWorld
+Raw Exp. Interventions
+
+80 ExpeL:75
+70
+
+72.4
+
+69.4
+
+WebShop
+
+50
+
+Condensed Exp. Interventions
+76.9 76.9 73.9 75.4
+
+Raw Exp. Interventions
+
+40
+
+60
+
+30
+
+33
+
+ExpeL:30
+
+34
+
+33
+
+23
+
+40
+
+24
+
+30 29
+
+28
+
+50
+30
+
+Condensed Exp. Interventions
+
+20
+
+33.6
+
+30
+
+20
+
+20
+
+10
+
+10
+
+10
+
+0
+
+0
+
+0
+w/o Raw Exp.
+Raw Exp. - Empty
+
+2.2
+
+0
+
+0
+
+Raw Exp. - Shuffle
+Raw Exp. - Irrelevant
+
+w/o Condensed Exp.
+Condensed Exp. - Empty
+
+0
+
+Condensed Exp. - Corrupt
+Condensed Exp. - Irrelevant
+
+Condensed Exp. - Filler
+
+Figure 2. Intervention results on the ExpeL framework (offline, single-agent) using GPT-4o across three benchmarks. ExpeL consistently
+relies more on raw trajectories, while showing weak or inconsistent sensitivity to condensed summaries.
+50
+
+AIME 2024
+
+Raw Exp.
+Interventions
+
+Condensed Exp.
+Interventions
+
+Success Rate %
+
+40
+33.3 33.3
+
+DC-RS:30.0
+30
+
+30.0
+
+30.0
+26.7
+
+23.3
+
+20
+10
+0
+
+26.7
+23.3
+
+20.0
+
+Game of 24
+
+120
+Raw Exp.
+110
+Interventions
+100 DC-RS:99
+89
+90
+80
+70
+57
+60
+46
+50
+40
+34
+30
+20
+10
+0
+
+w/o Raw Exp.
+Raw Exp. - Empty
+
+70
+
+Condensed Exp.
+Interventions
+
+95
+
+94
+
+94
+
+60
+
+96
+
+GPQA Diamond
+
+Raw Exp.
+Interventions
+53
+
+52
+
+84
+
+50 DC-RS:48
+
+Condensed Exp.
+Interventions
+
+55
+
+52
+
+51
+47
+
+Raw Exp.
+Interventions
+60
+DC-RS:55
+52
+
+48
+
+46
+
+50
+
+42
+
+40
+
+40
+
+30
+
+30
+
+20
+
+20
+
+10
+
+10
+
+0
+
+Raw Exp. - Shuffle
+Raw Exp. - Irrelevant
+
+MMLU Pro Eng.
+
+70
+
+51
+
+47
+
+Condensed Exp.
+Interventions
+
+50
+
+49
+
+48
+
+49
+
+52
+
+41
+
+0
+
+w/o Condensed Exp.
+Condensed Exp. - Empty
+
+Condensed Exp. - Corrupt
+Condensed Exp. - Irrelevant
+
+Condensed Exp. - Filler
+
+Figure 3. Intervention results on the Dynamic CheatSheet (DC-RS) framework (online, single-agent) using GPT-4o. Raw experience
+perturbations significantly reduce performance, whereas condensed experience manipulations often have negligible impact.
+
+findings, we additionally replicate the same analysis on
+stronger models, including Qwen3-235B-A22B and ClaudeSonnet-4.6 (Appendix D.3). Across both open-weight and
+frontier closed-source models, we observe highly consistent patterns, affirming that the raw–condensed faithfulness
+asymmetry is not restricted to a particular model family.
+This setting provides our first set of faithfulness insights.
+
+altogether (w/o Condensed) has only marginal impact.
+These patterns suggest that agents either struggle to interpret condensed summaries or simply do not rely on them
+during decision-making—despite their explicit presence in
+the input. Taken together, this reveals a serious faithfulness
+gap in how agents purportedly “use” condensed experience.
+Consistent patterns across offline and online paradigms.
+Notably, these phenomena hold across both offline (ExpeL)
+and online (Dynamic CheatSheet) self-evolving paradigms.
+Despite their different mechanisms for experience accumulation, the resulting faithfulness patterns remain strikingly
+similar. In both cases, agents strongly depend on raw trajectories while exhibiting weak or inconsistent reliance on
+condensed summaries. This consistency across paradigms
+underscores that the faithfulness gap is a fundamental property of current self-evolving designs, rather than an artifact
+of a specific memory-update strategy.
+
+Faithfulness to raw experience is strong and robust.
+Across both frameworks, we find that removing raw experience (w/o Raw Exp.) reliably causes substantial performance degradation on most tasks, demonstrating that raw
+experience is indeed a primary contributor to performance.
+Perturbing raw trajectories, particularly through Empty or
+Irrelevant replacements, produces similarly severe declines. These results indicate that agents truly leverage the
+semantic and temporal structure encoded in raw trajectories.
+Condensed experience often has minimal behavioral influence. In contrast, most interventions on condensed experience lead to little or no change in behavior. Across
+both frameworks and nearly all tasks, perturbations such
+as Corrupt, Irrelevant, and Filler yield performance that is nearly indistinguishable from the unperturbed
+baseline. Likewise, even removing condensed experience
+
+Task-specific characteristics modulate experience sensitivity. We observe that in certain knowledge-intensive
+tasks such as GPQA-Diamond and MMLU-Pro Eng., the
+agent exhibits comparable sensitivity to both raw and condensed experience. This suggests that task type or structure
+may affect how different forms of experience are utilized, a
+4
+
+Large Language Model Agents Are Not Always Faithful Self-Evolvers
+
+Shopping
+
+80
+
+Success Rate %
+
+70
+
+ReasoningBank:59.460.4
+
+60
+
+56.7
+
+61.5
+
+70
+
+63.6
+
+60
+
+51.0
+
+50
+
+CMS
+
+80
+65.9
+
+60.4
+
+ReasoningBank:60.4
+
+70
+
+65.9
+59.3
+
+65.9
+
+60
+
+47.8
+
+50
+
+Reddit
+
+80
+
+70
+
+65.9
+
+60.4
+
+59.3
+
+ReasoningBank:49.1
+
+60
+
+47.8
+
+50
+
+40
+
+40
+
+30
+
+30
+
+30
+
+30
+
+20
+
+20
+
+20
+
+20
+
+10
+
+10
+
+10
+
+10
+
+0
+
+0
+
+0
+
+Condensed Exp. - Empty
+
+ReasoningBank:60.6
+54.1
+
+50
+
+40
+
+w/o Condensed Exp.
+
+Map
+
+80
+
+51.4
+
+56.0
+
+60.6
+
+62.4
+
+40
+
+0
+
+Condensed Exp. - Corrupt
+
+Condensed Exp. - Irrelevant
+
+Condensed Exp. - Filler
+
+Figure 4. Impact of condensed experience interventions on the ReasoningBank framework (online, single-agent) using Gemini-2.5-Flash
+across four WebArena sub-tasks. Despite the absence of raw experience, agents show only mild sensitivity to semantic manipulations of
+condensed experience, indicating limited semantic faithfulness.
+100
+90
+
+FEVER
+
+Ref-Raw Exp.
+Intervention
+
+Exe-Raw Exp.
+Intervention
+
+100
+
+Condensed Exp.
+Intervention
+
+90
+
+Success Rate %
+
+80
+70
+60
+
+80
+
+G-Memory:65
+61
+
+63
+
+61
+
+64
+
+63
+
+61
+
+65
+
+64
+
+65
+
+70
+
+63
+
+60
+
+50
+
+50
+
+40
+
+40
+
+30
+
+30
+
+20
+
+20
+
+10
+
+10
+
+0
+
+ALFWorld
+
+Ref-Raw Exp.
+Intervention
+
+Exe-Raw Exp.
+Intervention
+
+73.9
+
+G-Memory:72.4
+53.0
+
+57.5
+
+Condensed Exp.
+Intervention
+
+66.4
+50.8
+
+54.5
+
+70.9
+
+71.6
+
+71.6
+
+50.0
+
+0
+Ref-Raw Exp. Empty
+Ref-Raw Exp. Shuffle
+Ref-Raw Exp. Irrelevant
+
+Exe-Raw Exp. Empty
+Exe-Raw Exp. Shuffle
+Exe-Raw Exp. Irrelevant
+
+Condensed Exp. Empty
+Condensed Exp. Corrupt
+
+Condensed Exp. Irrelevant
+Condensed Exp. Filler
+
+Figure 5. Faithfulness interventions on the G-Memory framework (online, multi-agent) with GPT-4o-mini. Agents access two forms of
+raw experience (reference and execution) and one form of condensed experience.
+
+phenomenon we discuss further in §5.3.
+
+However, this utility does not imply faithful grounding.
+The agent’s responses remain surprisingly insensitive to
+semantic perturbations: interventions such as Corrupt,
+Irrelevant, and even Filler lead to only negligible
+degradation or even slight improvements.
+
+4.2. Faithfulness under Condensed-Only Input
+Given that agents exhibit stronger faithfulness to raw experiences than condensed ones, a natural follow-up question
+arises: Is this lack of faithfulness to condensed experiences
+due to the presence of raw experience overshadowing it? To
+isolate this effect, we examine the ReasoningBank framework, which provides only condensed experience and contains no raw trajectories. This setting enables a clean assessment of whether agents meaningfully rely on condensed
+summaries when no richer experience is available.
+
+These results suggest that while condensed experience does
+contribute to task success, the agent does not rely on its
+actual content in a faithful manner. Instead, performance
+gains may stem from superficial features, such as the presence of a text block or stylistic patterns (Empty), rather
+than genuine semantic grounding. We delve deeper into this
+phenomenon and its underlying causes in §5.
+Similar trends hold across other model families. We
+further replicate this evaluation using Qwen3-14B, Qwen332B, and the frontier model Gemini-3-Pro on the same
+ReasoningBank setup. As detailed in Appendix D.4, we observe highly consistent patterns across all models: semantic
+perturbations on condensed experience still fail to consistently degrade success rates. This suggests that the limited
+
+Condensed experience improves performance, but not
+through faithful utilization. As shown in Figure 4, removing condensed experience (w/o Condensed Exp.)
+leads to consistent performance drops across all four WebArena tasks, indicating that even in the absence of raw
+trajectories, condensed summaries provide useful guidance
+that agents can leverage to improve their behavior.
+
+5
+
+Large Language Model Agents Are Not Always Faithful Self-Evolvers
+Raw Exp. - Empty
+Raw Exp. - Shuffle
+
+Raw Exp. - Irrelevant
+
+Condensed Exp. - Empty
+Condensed Exp. - Corrupt
+
+Condensed Exp. - Irrelevant
+Condensed Exp. - Filler
+
+100
+
+Success Rate %
+
+80
+
+ExpeL:74.6 73.974.6
+
+70.971.6
+
+60
+
+ExpeL:68.7
+
+20
+9.0
+
+37.3 38.138.8
+33.6
+
+74.673.174.675.4
+
+76.1
+
+41.0
+29.9
+
+28.4
+
+29.1
+
+ExpeL:73.9 71.6
+
+71.671.6
+69.4
+
+ExpeL:74.6
+68.7
+
+73.1
+70.9 71.6
+68.7
+
+61.2
+
+59.7
+
+56.7
+
+40 ExpeL:35.1
+
+0
+
+ExpeL:83.6 83.682.885.186.6
+
+38.1
+
+41.0
+35.1
+29.6
+
+27.6
+
+34.3
+
+11.212.7
+
+Qwen3-1.7B
+
+Qwen3-4B
+
+Qwen3-8B
+
+Qwen3-14B
+
+Qwen3-30B-A3B
+
+Qwen3-32B
+
+Figure 6. Model-scale-wise analysis of intervention sensitivity across six Qwen3 models (1.7B to 32B) with ExpeL.
+
+faithfulness to condensed knowledge is a general behavioral
+tendency rather than a model-specific phenomenon.
+
+diagnosis of these task-dependent effects in §5.3.
+4.4. Faithfulness under Model Scaling
+
+4.3. Faithfulness under Multi-Agent Scenario
+
+Finally, we ask whether scaling model size improves the
+degree to which agents faithfully rely on provided experience. Using the ExpeL framework, we conduct controlled
+interventions across six Qwen3 variants (from 1.7B to 32B
+parameters), shown in Figure 6.
+
+To further assess whether our conclusions hold in collaborative multi-agent settings, we evaluate the G-Memory
+framework. Results under the GPT-4o-mini backbone are
+shown in Figure 5. We additionally replicate the same evaluation on the stronger frontier model GPT-5.2, together with
+complementary experiments based on Qwen3-235B-A22B
+(Appendix D.5). Across all backbones, we observe highly
+consistent trends, further confirming that the raw–condensed
+faithfulness asymmetry persists in multi-agent settings.
+
+Larger models perform better, but the faithfulness gap
+remains. As expected, scaling improves unperturbed success rates. Yet perturbation results show that, even at larger
+scales, models remain markedly more faithful to raw experience than to condensed representations.
+
+Raw experience from both sources is faithfully utilized.
+G-Memory accumulates two types of raw experience: (1)
+Reference Raw Experience (Ref-Raw Exp.), curated trajectories collected offline, and (2) Execution Raw Experience
+(Exe-Raw Exp.), accumulated autonomously during agent
+operation. In Figure 5, we find that perturbing either type
+consistently results in obvious performance degradation on
+ALFWorld, confirming that both human-curated and selfcollected raw experiences are faithfully utilized by the agent.
+
+Scaling does not resolve condensed-experience unfaithfulness. Notably, the condensed experience used in ExpeL
+is generated by the backbone model itself. Therefore, larger
+models should in principle produce higher-quality and more
+informative summaries. However, despite substantial performance improvements with scaling, both small and large
+models remain consistently insensitive to condensed experience interventions. This suggests that the observed unfaithfulness is not solely attributable to low-quality summaries,
+but reflects a more fundamental limitation in how current
+self-evolving agents utilize condensed experience.
+
+Condensed experience remains fragile. Consistent with
+our earlier findings, perturbations to the condensed experience yield only marginal effects. This further reinforces our
+central conclusion: although condensed experience can offer some utility, agents seldom anchor their decision-making
+process in its underlying semantics.
+
+These findings suggest that while parameter scaling enhances performance, it does not inherently resolve the core
+challenge of experience faithfulness.
+
+Faithfulness inconsistencies persist in knowledge reasoning tasks. However, in knowledge-grounded tasks such as
+FEVER, the impact of raw experience perturbation is less
+pronounced. This mirrors prior trends in GPQA-Diamond
+and MMLU-Pro Eng., where raw and condensed experience
+yield more comparable influence. We provide a detailed
+
+5. The Cause of Unfaithfulness
+In this section, we trace the cause of such counterintuitive
+unfaithfulness through the three foundational components
+of any self-evolving system: the experience itself (§5.1),
+the backbone model that processes it (§5.2), and the task
+6
+
+Large Language Model Agents Are Not Always Faithful Self-Evolvers
+Table 1. Error distribution for ReasoningBank on WebArena when
+the agent succeeds without condensed experience but fails with it.
+Distraction(%)
+
+Reliance(%)
+
+5.2. Suppression by Internal Biases
+Beyond the semantic limitations, unfaithfulness may also
+arise from internal processing biases that prevent the agent
+from effectively using retrieved memory. To examine this
+possibility, we analyze how information from different
+prompt segments propagates through the backbone’s layers
+and contributes to predictions (Simonyan et al., 2013).
+
+Premature(%)
+
+Gemini-2.5-Flash
+Shopping
+CMS
+Reddit
+Map
+
+45.2
+40.9
+26.7
+18.8
+
+32.3
+27.3
+33.3
+31.3
+
+22.6
+31.8
+40.0
+50.0
+
+Probing Method. We apply Integrated Gradients (IG)
+(Wang et al., 2023; Tang et al., 2025) to quantify how much
+each prompt segment influences the model’s output. For the
+h-th head in layer l, we compute:
+
+Qwen3-32B
+Shopping
+CMS
+Reddit
+Map
+
+79.2
+75.0
+61.9
+74.1
+
+8.3
+12.5
+9.5
+11.1
+Qwen3-14B
+
+12.5
+12.5
+28.6
+14.8
+
+Shopping
+CMS
+Reddit
+Map
+
+74.3
+86.7
+60.9
+72.7
+
+11.4
+6.7
+0
+9.1
+
+14.3
+6.7
+39.1
+18.2
+
+∂Lθ (Y |X)
+,
+∂Ah,l
+X X
+IGh,l [i, j].
+
+IGh,l = ATh,l ⊙
+(r)
+
+IGh,l =
+
+environment in which the agent operates (§5.3).
+
+1
+|Ts |
+
+(1)
+(2)
+
+xi ∈Ts yj ∈Y
+
+where Ts denotes a specific prompt segment and IGh,l [i, j]
+measures how token xi influences token yj . We then ag(r)
+gregate IGh,l over all heads and layers to derive a global
+attribution score IG(r) , which captures the segment’s overall
+influence on the model’s prediction. A low score suggests
+that the model largely disregards this segment.
+
+5.1. Semantic Limitations of Condensed Experience
+We first examine the role of the experience itself. A surprising observation from our interventions is that agents
+sometimes perform better when condensed experience is
+perturbed or removed. This suggests that condensed summaries may be uninformative or misaligned. To investigate
+this possibility, we analyze cases where the agent succeeds
+without condensed experience but fails when it is added. As
+shown in Table 1, most failures fall into three categories:
+
+We perform this analysis under the ExpeL framework with
+Qwen3-series models, segmenting each prompt into: (1)
+System Instruction, (2) Condensed Experience, (3) Raw
+Experience, and (4) Current Trajectory.
+Results & Analysis. Figure 7 shows results on ALFWorld
+using Qwen3-32B under three conditions: no intervention,
+Corrupt, and Irrelevant. Detailed settings and additional results on model sizes and interventions are provided
+in Appendix D.7. Three consistent patterns emerge:
+
+Distraction from the task goal. Condensed summaries
+can redirect the agent toward tasks implied by the retrieved
+heuristics rather than the actual user intent, leading to unnecessary detours or complete drift from the target. This
+is especially common for smaller models, where high-level
+heuristics easily override task grounding.
+
+Condensed experience remains underutilized. In all three
+settings, the IG scores attributed to condensed experience
+remain consistently low across layers, suggesting limited integration of such inputs regardless of their semantic quality.
+
+Overreliance on incorrect priors. Condensed experience
+often encodes assumptions about element types, layouts, or
+workflows that do not match the current state. Agents may
+rigidly follow these outdated patterns instead of inspecting
+the live page, resulting in invalid or misplaced actions.
+
+Raw experience shows stable faithful usage. Despite the
+low influence of condensed content, raw experience maintains a moderate and stable contribution, further supporting
+our earlier findings of its reliable utilization.
+
+Premature inference from prior patterns. Agents frequently jump to conclusions when summaries suggest that
+certain items “should” exist or actions “should” work, causing them to skip verification steps or terminate early. This
+mode is typical in models with strong semantic priors.
+
+Current trajectory dominates later layers. The most
+significant attribution consistently comes from the current
+trajectory segment, highlighting a strong local-context bias
+in prediction (Li et al., 2023; An et al., 2024).
+
+Overall, these failure modes indicate that condensed experience, when overly abstract, generic, or mismatched,
+can mislead agents by reinforcing ungrounded assumptions
+rather than aiding decision-making. Representative cases
+for each failure mode are provided in Appendix D.6.
+
+In summary, these trends suggest that even when presented
+with semantically rich (or intervened) summaries, condensed experience struggles to influence downstream behavior due to structural biases in the model’s attention flow.
+7
+
+Large Language Model Agents Are Not Always Faithful Self-Evolvers
+System Instruction
+Raw Experience
+
+Condensed Experience
+Current Trajectory
+
+System Instruction
+Raw Experience
+
+0.8
+
+Condensed Experience
+Current Trajectory
+
+0.7
+
+0.6
+
+0.6
+
+0.4
+0.3
+0.2
+
+0.5
+0.4
+0.3
+0.2
+
+0.1
+
+0.1
+
+0.0
+
+0.0
+
+0
+
+10
+
+20
+
+30
+
+Layers
+
+40
+
+50
+
+60
+
+Normalized IG Score
+
+0.7
+
+0.6
+0.5
+
+System Instruction
+Raw Experience
+
+0.8
+
+0.7
+
+Normalized IG Score
+
+Normalized IG Score
+
+0.8
+
+Condensed Experience
+Current Trajectory
+
+0.5
+0.4
+0.3
+0.2
+0.1
+
+0
+
+(a) Baseline without intervention.
+
+10
+
+20
+
+30
+
+Layers
+
+40
+
+50
+
+0.0
+
+60
+
+(b) Corrupt intervention.
+
+0
+
+10
+
+20
+
+30
+
+Layers
+
+40
+
+50
+
+60
+
+(c) Irrelevant intervention.
+
+Figure 7. Layer-wise Integrated Gradients attribution under the ExpeL framework using Qwen3-32B. Prompts are divided into four
+segments: System Instruction, Condensed Experience, Raw Experience, and Current Trajectory.
+Table 2. Intervention results on two multi-hop question answering
+tasks under the ExpeL framework with Qwen3-32B backbone. The
+evaluation metric is exact match.
+
+5.3. Task-Specific Dependence on Experience
+Finally, we analyze whether the task environment itself reduces the need for external experience. Many benchmarks
+in which agents exhibit low sensitivity to interventions, such
+as HotpotQA, GPQA, MMLU, and FEVER, primarily involve knowledge-intensive question answering. In these
+tasks, pretrained models already possess substantial factual
+knowledge and strong semantic priors (Shi et al., 2024),
+leaving retrieved experience with limited marginal value.
+
+ExpeL
+
+2Wiki-MultiHopQA
+
+Musique
+
+62
+
+48
+
+Raw Experience Intervention
+Empty
+Shuffle
+Irrelevant
+
+To further verify this, we evaluate two multi-hop question answering benchmarks: 2WikiMultiHopQA (Ho et al., 2020)
+and Musique (Trivedi et al., 2022). We apply interventions
+on ExpeL with Qwen3-32B and results are shown in Table 2.
+Each benchmark contributes 100 sampled examples, and we
+report exact match as the evaluation metric. More results on
+Qwen3-14B are in Appendix D.8.
+
+65
+63
+63
+
+43
+46
+47
+
+Condensed Experience Intervention
+Empty
+Corrupt
+Irrelevant
+Filler
+
+The results demonstrate that agents still exhibit limited faithfulness to both raw and condensed experience. This suggests
+that the utility of experience is highly task-dependent: when
+a task can be handled with the agent’s innate knowledge,
+the retrieved experience contributes little and thus fails to
+exert meaningful causal influence.
+
+63
+64
+65
+64
+
+47
+44
+45
+45
+
+evolve through interaction: agents dynamically accumulate,
+retrieve, and refine experiences during deployment (Chen
+et al., 2024; Zhang et al., 2025c; Suzgun et al., 2025). For
+instance, ReasoningBank (Ouyang et al., 2025) continuously
+distills reasoning patterns from recent episodes to enrich
+future responses. G-Memory (Zhang et al., 2025a) further
+extends this paradigm to multi-agent settings.
+
+6. Related Works
+
+While these methods offer promising pathways for autonomous improvement, little attention has been paid to
+whether agents faithfully rely on the retrieved experiences—a gap our work aims to address.
+
+Experience-Driven Self-Evolving Agents. Recent advances in self-evolving agents can be broadly categorized
+into two paradigms based on how experience is collected
+and utilized: offline and online approaches (Liu et al., 2025).
+
+Faithfulness of Language Models. Early studies on faithfulness focus on in-context learning of LMs, where the
+goal is to assess whether LMs genuinely leveraged humancurated in-context examples to guide their predictions (Min
+et al., 2022; Ye & Durrett, 2022; Shi et al., 2024). With the
+emergence of chain-of-thought (CoT) prompting (Wei et al.,
+2022), attention shift to the faithfulness of the reasoning process itself. A key line of research investigates whether the
+generated CoT rationale truly reflects the model’s internal
+
+Offline self-evolving agents construct memory from precollected datasets and utilize it in a fixed form during inference (Li & Qiu, 2023; Yang et al., 2023; Zhong et al., 2024;
+Zhao et al., 2024a; Fu et al., 2024; Zhou et al., 2025; Yang
+et al., 2025b). Representative systems such ExpeL rely on
+pre-stored examples of successful trajectories and distilled
+insights without memory updates at test time.
+In contrast, online paradigms allow experience memory to
+8
+
+Large Language Model Agents Are Not Always Faithful Self-Evolvers
+
+decision-making, or merely serves as a post-hoc justification (Lanham et al., 2023; Turpin et al., 2023; Arcuschin
+et al., 2025; Lewis-Lim et al., 2025; Chen et al., 2025). In
+contrast, we study faithfulness in self-evolving agentic settings, where experience is both dynamic and multifaceted,
+revealing emerging phenomena beyond static prompt usage.
+
+must therefore be engineered with equal care—not only to
+compress, but to preserve and transmit behavioral utility.
+This opens up promising directions for automatic condensation methods that optimize for alignment and usability,
+rather than surface brevity alone (Zhai et al., 2025).
+Second, our findings emphasize the need to rethink the
+timing of experience integration. Static prepending of memory to the input—irrespective of task, timing, or agent
+state—can lead to underutilization or even performance
+degradation. Instead, experience should be retrieved and
+injected dynamically, based on task demands, interaction
+history, and internal model uncertainty. Moreover, agents
+may not need experience for every task; indiscriminate use
+can dilute attention and reduce effectiveness. Incorporating
+experience as a interactively-triggered signal holds promise
+for more faithful and efficient adaptation (Jin et al., 2025;
+Zhang et al., 2025d; Zhao et al., 2026).
+
+7. Conclusion
+This work provides the first comprehensive assessment of
+whether self-evolving LLM agents faithfully rely on the
+experiences they accumulate. Through controlled interventions across raw and condensed experience, we reveal a
+persistent and systematic gap: agents reliably depend on
+raw trajectories but frequently overlook or misinterpret condensed summaries. Our deeper analysis attributes this unfaithfulness to the limited specificity of condensed content,
+internal processing biases of backbone, and task regimes
+where pretrained priors alone suffice. These findings call
+for future agents to incorporate experience in a way that is
+not only effective but also faithfully grounded.
+
+Together, these insights lay the groundwork for a new generation of self-evolving agents that are not only capable of
+learning from experience, but doing so in a manner that is
+faithful and behaviorally grounded.
+
+Acknowledgements
+References
+
+We thank the anonymous reviewers for their constructive
+comments and suggestions. This work was supported by the
+National Natural Science Foundation of China (NSFC) via
+grant 62441614 and 62576125, the Singapore Ministry of
+Education (MOE) Academic Research Fund (AcRF) Tier 1
+grant (Proposal ID: 24-SIS-SMU-002).
+
+An, S., Ma, Z., Lin, Z., Zheng, N., Lou, J.-G., and Chen,
+W. Make your llm fully utilize the context. Advances
+in Neural Information Processing Systems, 37:62160–
+62188, 2024.
+Arcuschin, I., Janiak, J., Krzyzanowski, R., Rajamanoharan, S., Nanda, N., and Conmy, A. Chain-of-thought
+reasoning in the wild is not always faithful. In Workshop
+on Reasoning and Planning for Large Language Models,
+2025.
+
+Impact Statement
+This work provides the first systematic investigation into the
+faithfulness of experience utilization in self-evolving LLM
+agents. Our findings reveal a persistent and overlooked
+asymmetry: while agents reliably exploit raw experience,
+they frequently neglect or misinterpret condensed experience—even when it is the only form of guidance available.
+These results call into question common assumptions underlying memory-based adaptation and raise important considerations for future development of reliable and controllable
+agents, especially in high-stakes environments.
+
+Bell, J., Quarantiello, L., Coleman, E. N., Li, L., Li, M.,
+Madeddu, M., Piccoli, E., and Lomonaco, V. The future
+of continual learning in the era of foundation models:
+Three key directions. arXiv preprint arXiv:2506.03320,
+2025.
+Cai, Y., Hao, Y., Zhou, J., Yan, H., Lei, Z., Zhen, R., Han,
+Z., Yang, Y., Li, J., Pan, Q., et al. Building self-evolving
+agents via experience-driven lifelong learning: A framework and benchmark. arXiv preprint arXiv:2508.19005,
+2025.
+
+Our analysis offers two concrete design takeaways for future
+self-evolving systems. First, it highlights the importance of
+carefully designing the content structure of condensed experience. Rather than abstract summaries or generic advice,
+effective condensed experience should be contextualized,
+task-relevant, and cognitively actionable. This finding resonates with the concept of context engineering (Mei et al.,
+2025; Hua et al., 2025), which reveals that the contextual
+inputs play a pivotal role in shaping agent behavior. Condensed experience, as a core component of this context,
+
+Chen, M., Li, Y., Yang, Y., Yu, S., Lin, B., and He, X.
+Automanual: Constructing instruction manuals by llm
+agents via interactive environmental learning. Advances
+in Neural Information Processing Systems, 37:589–631,
+2024.
+Chen, Y., Benton, J., Radhakrishnan, A., Uesato, J., Denison, C., Schulman, J., Somani, A., Hase, P., Wagner, M.,
+9
+
+Large Language Model Agents Are Not Always Faithful Self-Evolvers
+
+Roger, F., et al. Reasoning models don’t always say what
+they think. arXiv preprint arXiv:2505.05410, 2025.
+
+Hurst, A., Lerer, A., Goucher, A. P., Perelman, A., Ramesh,
+A., Clark, A., Ostrow, A., Welihinda, A., Hayes, A.,
+Radford, A., et al. Gpt-4o system card. arXiv preprint
+arXiv:2410.21276, 2024.
+
+Comanici, G., Bieber, E., Schaekermann, M., Pasupat, I.,
+Sachdeva, N., Dhillon, I., Blistein, M., Ram, O., Zhang,
+D., Rosen, E., et al. Gemini 2.5: Pushing the frontier
+with advanced reasoning, multimodality, long context,
+and next generation agentic capabilities. arXiv preprint
+arXiv:2507.06261, 2025.
+
+Jin, B., Zeng, H., Yue, Z., Yoon, J., Arik, S., Wang, D.,
+Zamani, H., and Han, J. Search-r1: Training llms to
+reason and leverage search engines with reinforcement
+learning. arXiv preprint arXiv:2503.09516, 2025.
+
+de Chezelles, T. L. S., Gasse, M., Lacoste, A., Caccia, M.,
+Drouin, A., Boisvert, L., Thakkar, M., Marty, T., Assouel,
+R., Shayegan, S. O., et al. The browsergym ecosystem for
+web agent research. Transactions on Machine Learning
+Research, 2025.
+
+Kwon, W., Li, Z., Zhuang, S., Sheng, Y., Zheng, L., Yu,
+C. H., Gonzalez, J. E., Zhang, H., and Stoica, I. Efficient
+memory management for large language model serving
+with pagedattention. In Proceedings of the ACM SIGOPS
+29th Symposium on Operating Systems Principles, 2023.
+
+DeepMind, G. Gemini 3 pro - model card. Google
+DeepMind, 2025.
+URL https://storage.
+googleapis.com/deepmind-media/
+Model-Cards/Gemini-3-Pro-Model-Card.
+pdf.
+Dou, S., Zhang, M., Huang, C., Chen, J., Chen, F., Liu, S.,
+Liu, Y., Liu, C., Zhong, C., Zhang, Z., et al. Evalearn:
+quantifying the learning capability and efficiency of
+llms via sequential problem solving. arXiv preprint
+arXiv:2506.02672, 2025.
+
+Lanham, T., Chen, A., Radhakrishnan, A., Steiner, B., Denison, C., Hernandez, D., Li, D., Durmus, E., Hubinger,
+E., Kernion, J., et al. Measuring faithfulness in chainof-thought reasoning. arXiv preprint arXiv:2307.13702,
+2023.
+Lewis-Lim, S., Tan, X., Zhao, Z., and Aletras, N. Analysing
+chain of thought dynamics: Active guidance or unfaithful
+post-hoc rationalisation? In Proceedings of the 2025
+Conference on Empirical Methods in Natural Language
+Processing, pp. 29826–29841, 2025.
+
+Fu, Y., Kim, D.-K., Kim, J., Sohn, S., Logeswaran, L., Bae,
+K., and Lee, H. Autoguide: Automated generation and
+selection of context-aware guidelines for large language
+model agents. Advances in Neural Information Processing Systems, 37:119919–119948, 2024.
+
+Li, X. and Qiu, X. Mot: Memory-of-thought enables chatgpt
+to self-improve. In Proceedings of the 2023 Conference
+on Empirical Methods in Natural Language Processing,
+pp. 6354–6374, 2023.
+
+Gao, H.-a., Geng, J., Hua, W., Hu, M., Juan, X., Liu, H., Liu,
+S., Qiu, J., Qi, X., Wu, Y., et al. A survey of self-evolving
+agents: On path to artificial super intelligence. arXiv
+preprint arXiv:2507.21046, 2025.
+
+Li, Y., Dong, B., Guerin, F., and Lin, C. Compressing
+context to enhance inference efficiency of large language
+models. In Proceedings of the 2023 conference on empirical methods in natural language processing, pp. 6342–
+6353, 2023.
+
+Hendrycks, D., Song, D., Szegedy, C., Lee, H., Gal, Y.,
+Brynjolfsson, E., Li, S., Zou, A., Levine, L., Han, B., et al.
+A definition of agi. arXiv preprint arXiv:2510.18212,
+2025.
+
+Liu, Y., Si, C., Narasimhan, K. R., and Yao, S. Contextual experience replay for self-improvement of language
+agents. In Proceedings of the 63rd Annual Meeting of
+the Association for Computational Linguistics (Volume 1:
+Long Papers), pp. 14179–14198, 2025.
+
+Ho, X., Nguyen, A.-K. D., Sugawara, S., and Aizawa, A.
+Constructing a multi-hop qa dataset for comprehensive
+evaluation of reasoning steps. In Proceedings of the 28th
+International Conference on Computational Linguistics,
+pp. 6609–6625, 2020.
+
+Mei, L., Yao, J., Ge, Y., Wang, Y., Bi, B., Cai, Y., Liu, J.,
+Li, M., Li, Z.-Z., Zhang, D., et al. A survey of context
+engineering for large language models. arXiv preprint
+arXiv:2507.13334, 2025.
+
+Hu, Y., Liu, S., Yue, Y., Zhang, G., Liu, B., Zhu, F., Lin, J.,
+Guo, H., Dou, S., Xi, Z., et al. Memory in the age of ai
+agents. arXiv preprint arXiv:2512.13564, 2025.
+
+Min, S., Lyu, X., Holtzman, A., Artetxe, M., Lewis, M.,
+Hajishirzi, H., and Zettlemoyer, L. Rethinking the role of
+demonstrations: What makes in-context learning work?
+In Proceedings of the 2022 Conference on Empirical
+Methods in Natural Language Processing, pp. 11048–
+11064, 2022.
+
+Hua, Q., Ye, L., Fu, D., Xiao, Y., Cai, X., Wu, Y., Lin,
+J., Wang, J., and Liu, P. Context engineering 2.0:
+The context of context engineering. arXiv preprint
+arXiv:2510.26493, 2025.
+10
+
+Large Language Model Agents Are Not Always Faithful Self-Evolvers
+
+Mohsin, M. A., Umer, M., Bilal, A., Memon, Z., Qadir,
+M. I., Bhattacharya, S., Rizwan, H., Gorle, A. R., Kazmi,
+M. Z., Mohsin, A., et al. On the fundamental limits of
+llms at scale. arXiv preprint arXiv:2511.12869, 2025.
+
+Tang, Z., Ji, B., Li, J., Wu, L., Gui, H., and Zhang, M.
+Revisiting long-context modeling from context denoising
+perspective. arXiv preprint arXiv:2510.05862, 2025.
+Thorne, J., Vlachos, A., Christodoulopoulos, C., and Mittal,
+A. Fever: a large-scale dataset for fact extraction and
+verification. In Proceedings of the 2018 Conference of
+the North American Chapter of the Association for Computational Linguistics: Human Language Technologies,
+Volume 1 (Long Papers), pp. 809–819, 2018.
+
+Ouyang, S., Yan, J., Hsu, I., Chen, Y., Jiang, K., Wang,
+Z., Han, R., Le, L. T., Daruki, S., Tang, X., et al. Reasoningbank: Scaling agent self-evolving with reasoning
+memory. arXiv preprint arXiv:2509.25140, 2025.
+Rein, D., Hou, B. L., Stickland, A. C., Petty, J., Pang, R. Y.,
+Dirani, J., Michael, J., and Bowman, S. R. Gpqa: A
+graduate-level google-proof q&a benchmark. In First
+Conference on Language Modeling, 2024.
+
+Trivedi, H., Balasubramanian, N., Khot, T., and Sabharwal,
+A. Musique: Multihop questions via single-hop question composition. Transactions of the Association for
+Computational Linguistics, 10:539–554, 2022.
+
+Shi, Z., Wei, J., Xu, Z., and Liang, Y. Why larger language
+models do in-context learning differently? In Proceedings of the 41st International Conference on Machine
+Learning, pp. 44991–45013, 2024.
+
+Turpin, M., Michael, J., Perez, E., and Bowman, S. Language models don’t always say what they think: Unfaithful explanations in chain-of-thought prompting. Advances in Neural Information Processing Systems, 36:
+74952–74965, 2023.
+
+Shinn, N., Cassano, F., Gopinath, A., Narasimhan, K., and
+Yao, S. Reflexion: Language agents with verbal reinforcement learning. Advances in Neural Information
+Processing Systems, 36:8634–8652, 2023.
+
+Wang, L., Li, L., Dai, D., Chen, D., Zhou, H., Meng, F.,
+Zhou, J., and Sun, X. Label words are anchors: An
+information flow perspective for understanding in-context
+learning. In Proceedings of the 2023 Conference on
+Empirical Methods in Natural Language Processing, pp.
+9840–9855, 2023.
+
+Shridhar, M., Thomason, J., Gordon, D., Bisk, Y., Han,
+W., Mottaghi, R., Zettlemoyer, L., and Fox, D. Alfred:
+A benchmark for interpreting grounded instructions for
+everyday tasks. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition, pp.
+10740–10749, 2020.
+
+Wang, Y., Ma, X., Zhang, G., Ni, Y., Chandra, A., Guo, S.,
+Ren, W., Arulraj, A., He, X., Jiang, Z., et al. Mmlu-pro:
+A more robust and challenging multi-task language understanding benchmark. Advances in Neural Information
+Processing Systems, 37:95266–95290, 2024.
+
+Shridhar, M., Yuan, X., Cote, M.-A., Bisk, Y., Trischler, A.,
+and Hausknecht, M. Alfworld: Aligning text and embodied environments for interactive learning. In International
+Conference on Learning Representations, 2021.
+
+Wang, Z. Z., Mao, J., Fried, D., and Neubig, G. Agent workflow memory. In Forty-second International Conference
+on Machine Learning, 2025.
+
+Silver, D. and Sutton, R. S. Welcome to the era of experience. Google AI, 1, 2025.
+
+Wei, J., Wang, X., Schuurmans, D., Bosma, M., Xia, F., Chi,
+E., Le, Q. V., Zhou, D., et al. Chain-of-thought prompting
+elicits reasoning in large language models. Advances in
+neural information processing systems, 35:24824–24837,
+2022.
+
+Simonyan, K., Vedaldi, A., and Zisserman, A. Deep inside convolutional networks: Visualising image classification models and saliency maps. arXiv preprint
+arXiv:1312.6034, 2013.
+Singh, A., Fry, A., Perelman, A., Tart, A., Ganesh, A.,
+El-Kishky, A., McLaughlin, A., Low, A., Ostrow, A.,
+Ananthram, A., et al. Openai gpt-5 system card. arXiv
+preprint arXiv:2601.03267, 2025.
+
+Yang, A., Li, A., Yang, B., Zhang, B., Hui, B., Zheng, B.,
+Yu, B., Gao, C., Huang, C., Lv, C., et al. Qwen3 technical
+report. arXiv preprint arXiv:2505.09388, 2025a.
+Yang, W., Xiao, J., Zhang, H., Zhang, Q., Wang, Y., and
+Xu, B. Coarse-to-fine grounded memory for llm agent
+planning. In Proceedings of the 2025 Conference on
+Empirical Methods in Natural Language Processing, pp.
+13040–13067, 2025b.
+
+Suzgun, M. and Kalai, A. T. Meta-prompting: Enhancing
+language models with task-agnostic scaffolding. arXiv
+preprint arXiv:2401.12954, 2024.
+Suzgun, M., Yuksekgonul, M., Bianchi, F., Jurafsky, D.,
+and Zou, J. Dynamic cheatsheet: Test-time learning
+with adaptive memory. arXiv preprint arXiv:2504.07952,
+2025.
+
+Yang, Z., Qi, P., Zhang, S., Bengio, Y., Cohen, W., Salakhutdinov, R., and Manning, C. D. Hotpotqa: A dataset for
+diverse, explainable multi-hop question answering. In
+11
+
+Large Language Model Agents Are Not Always Faithful Self-Evolvers
+
+Zhao, W., Wang, S., Hu, Y., Zhao, Y., Qin, B., Zhang, X.,
+Yang, Q., Xu, D., and Che, W. Sapt: A shared attention framework for parameter-efficient continual learning
+of large language models. In Proceedings of the 62nd
+Annual Meeting of the Association for Computational
+Linguistics (Volume 1: Long Papers), pp. 11641–11661,
+2024b.
+
+Proceedings of the 2018 conference on empirical methods
+in natural language processing, pp. 2369–2380, 2018.
+Yang, Z., Li, P., and Liu, Y. Failures pave the way: Enhancing large language models through tuning-free rule
+accumulation. In Proceedings of the 2023 Conference on
+Empirical Methods in Natural Language Processing, pp.
+1751–1777, 2023.
+
+Zhao, W., Wang, Y., Zhang, Y., Zhao, Y., Zhang, Y., Wu,
+Y., Tu, D., Qin, B., and Liu, T. Rethinking experience
+utilization in self-evolving language model agents. arXiv
+preprint arXiv:2605.07164, 2026.
+
+Yao, S., Chen, H., Yang, J., and Narasimhan, K. Webshop: Towards scalable real-world web interaction with
+grounded language agents. Advances in Neural Information Processing Systems, 35:20744–20757, 2022.
+Yao, S., Yu, D., Zhao, J., Shafran, I., Griffiths, T., Cao, Y.,
+and Narasimhan, K. Tree of thoughts: Deliberate problem
+solving with large language models. Advances in neural
+information processing systems, 36:11809–11822, 2023a.
+
+Zheng, L., Chiang, W.-L., Sheng, Y., Zhuang, S., Wu, Z.,
+Zhuang, Y., Lin, Z., Li, Z., Li, D., Xing, E., et al. Judging
+llm-as-a-judge with mt-bench and chatbot arena. Advances in neural information processing systems, 36:
+46595–46623, 2023.
+
+Yao, S., Zhao, J., Yu, D., Du, N., Shafran, I., Narasimhan,
+K. R., and Cao, Y. React: Synergizing reasoning and
+acting in language models. In The eleventh international
+conference on learning representations, 2023b.
+
+Zhong, W., Guo, L., Gao, Q., Ye, H., and Wang, Y. Memorybank: Enhancing large language models with long-term
+memory. In Proceedings of the AAAI Conference on Artificial Intelligence, volume 38, pp. 19724–19731, 2024.
+
+Ye, X. and Durrett, G. The unreliability of explanations in
+few-shot prompting for textual reasoning. Advances in
+neural information processing systems, 35:30378–30392,
+2022.
+
+Zhou, H., Chen, Y., Guo, S., Yan, X., Lee, K. H., Wang, Z.,
+Lee, K. Y., Zhang, G., Shao, K., Yang, L., et al. Memento:
+Fine-tuning llm agents without fine-tuning llms. arXiv
+preprint arXiv:2508.16153, 2025.
+
+Zhai, Y., Tao, S., Chen, C., Zou, A., Chen, Z., Fu, Q., Mai,
+S., Yu, L., Deng, J., Cao, Z., et al. Agentevolver: Towards efficient self-evolving agent system. arXiv preprint
+arXiv:2511.10395, 2025.
+
+Zhou, S., Xu, F. F., Zhu, H., Zhou, X., Lo, R., Sridhar, A.,
+Cheng, X., Ou, T., Bisk, Y., Fried, D., et al. Webarena:
+A realistic web environment for building autonomous
+agents. In The Twelfth International Conference on Learning Representations, 2024.
+
+Zhang, G., Fu, M., Wan, G., Yu, M., Wang, K., and Yan, S.
+G-memory: Tracing hierarchical memory for multi-agent
+systems. arXiv preprint arXiv:2506.07398, 2025a.
+Zhang, G., Fu, M., and Yan, S. Memgen: Weaving generative latent memory for self-evolving agents. arXiv
+preprint arXiv:2509.24704, 2025b.
+Zhang, Q., Hu, C., Upasani, S., Ma, B., Hong, F., Kamanuru,
+V., Rainton, J., Wu, C., Ji, M., Li, H., et al. Agentic context engineering: Evolving contexts for self-improving
+language models. arXiv preprint arXiv:2510.04618,
+2025c.
+Zhang, Y., Shu, J., Ma, Y., Lin, X., Wu, S., and Sang, J.
+Memory as action: Autonomous context curation for longhorizon agentic tasks. arXiv preprint arXiv:2510.12635,
+2025d.
+Zhao, A., Huang, D., Xu, Q., Lin, M., Liu, Y.-J., and Huang,
+G. Expel: Llm agents are experiential learners. In Proceedings of the AAAI Conference on Artificial Intelligence, volume 38, pp. 19632–19642, 2024a.
+12
+
+Large Language Model Agents Are Not Always Faithful Self-Evolvers
+
+A. Self-Evolving Agents
+We present detailed description of the four experience-driven self-evolving agents used in our experiments: ExpeL (Zhao
+et al., 2024a), Dynamic Cheatsheet (Suzgun et al., 2025), ReasoningBank (Ouyang et al., 2025) and G-Memory (Zhang et al.,
+2025a). Across all frameworks, agents adapt their behavior by accumulating, retrieving, and reusing external experiences
+stored in explicit memory structures, rather than by updating the parameters of the underlying language model. In the
+following, we summarize the core design principles and memory mechanisms of these agents in detail:
+• ExpeL is an offline self-evolving agent that enables a fixed language model to acquire and reuse experience across
+tasks without parameter updates. During an offline training phase, the agent interacts with a set of tasks and collects
+both successful and failed trajectories generated through trial and error. These experiences are stored in an experience
+pool and subsequently processed to extract natural-language insights that summarize effective strategies and general
+decision-making principles. In addition to abstracted insights, successful trajectories are retained to support examplebased recall. At inference time, the agent augments the model’s context with the extracted insights and retrieved
+successful experiences that are semantically similar to the current task. This design separates experience accumulation
+and knowledge extraction from deployment, allowing the agent to improve its task-solving behavior through offline
+experiential learning while keeping the underlying language model fixed during evaluation.
+• Dynamic Cheatsheet is an online self-evolving agent that equips a fixed language model with an external memory
+updated during inference. The agent maintains a compact memory consisting of reusable solution elements, such as
+heuristics, partial solution templates, and short code fragments, derived from its own prior generations. After each
+task, the agent examines the produced output and selectively updates the memory by preserving entries that appear
+useful, while modifying or removing ineffective ones. When handling subsequent inputs, the agent retrieves relevant
+memory contents and incorporates them into the prompt context to influence generation. This iterative process of
+generation, memory update, and retrieval forms a closed-loop mechanism that enables test-time behavioral adaptation
+over a sequence of tasks, without performing parameter updates or altering the underlying language model.
+• ReasoningBank embodies an instance of an online self-evolving agent. It keeps an ever-expanding memory that
+records condensed reasoning patterns distilled from the agent’s past interactions, covering both successful cases and
+failures. Following each task completion, the agent assesses its own performance and selectively incorporates newly
+acquired experiences into this memory repository. During inference, pertinent reasoning strategies are retrieved from
+the memory and incorporated into the agent’s context to guide future interactions. The system forms a closed feedback
+loop where experiences are continuously accumulated, accessed, and reused throughout deployment, enabling the
+agent’s behavior to progressively adapt over time.
+• G-Memory is an online self-evolving memory mechanism designed for multi-agent systems. It maintains a shared,
+persistent memory that records past multi-agent collaboration experiences across tasks, capturing both abstract insights
+and condensed interaction histories. When a new task arrives, relevant memory entries are retrieved and selectively
+injected into the contexts of different agents to support coordination and reasoning. After task completion, newly
+generated interactions and distilled insights are incorporated into the memory, updating its contents during deployment.
+This continual retrieval-and-update process enables agent teams to accumulate and reuse collaborative experience over
+time, allowing collective behavior to adapt without modifying the underlying language models.
+
+B. Environment and Benchmark
+B.1. Knowledge-Intensive Question Answering
+• HotpotQA (Yang et al., 2018) is a large-scale question answering benchmark designed to support multi-hop reasoning
+over natural language text. It contains question–answer pairs constructed from Wikipedia articles, where answering
+each question requires reasoning across multiple supporting documents. The questions are diverse in form, including
+standard factoid queries as well as comparison and yes/no questions, and are not constrained by predefined knowledge
+base schemas. We selected 100 questions from the distractor dev split following ExpeL for our experiments.
+• FEVER (Thorne et al., 2018) is a large-scale benchmark for claim verification against textual evidence. It consists of
+185,445 human-written claims derived from Wikipedia, each labeled as SUPPORTED, REFUTED, or NOT ENOUGH
+INFO. The claims are generated by mutating original Wikipedia statements and are verified in a separate annotation
+13
+
+Large Language Model Agents Are Not Always Faithful Self-Evolvers
+
+process, resulting in a collection that emphasizes evidence retrieval and textual entailment over natural language.
+Following G-Memory, we selected the first 100 questions of the validation set for our experiments.
+• GPQA-Diamond (Rein et al., 2024) is a carefully curated and challenging subset of the Graduate-Level Google-Proof
+Q&A (GPQA) benchmark. It comprises 198 expert-validated questions drawn from the natural sciences, including
+biology, chemistry, and physics. The questions are constructed to minimize the reliance on straightforward fact
+recall and instead emphasize a deeper conceptual understanding. All questions can be correctly answered by domain
+specialists, while they are frequently challenging for non-experts, reflecting the need for complex, multi-step reasoning
+rather than surface-level knowledge.
+• MMLU-Pro Eng. (Wang et al., 2024) is a professional-level subset of the MMLU benchmark that focuses on topics
+in physics and engineering. The questions are all formatted as multiple-choice problems. The full dataset includes
+1,299 questions in physics and 969 questions in engineering, from which we randomly selected 100 questions for our
+experiments. The problem content spans a range of subfields within the two disciplines and requires precise technical
+understanding to distinguish among closely related answer options.
+B.2. Mathematical Reasoning
+• AIME 2024 The American Invitational Mathematics Examination (AIME) is a well-established benchmark derived
+from a prestigious high-school mathematics competition. The competition is known for its integer-answer format and
+time-limited setting, which further emphasizes precision and logical rigor. It consists of 133 challenging problems
+covering algebra, combinatorics, number theory, geometry, and probability, each requiring non-trivial mathematical
+reasoning and multi-step solution processes.
+• Game of 24 (Yao et al., 2023a; Suzgun & Kalai, 2024) is a heuristic-oriented arithmetic task in which the goal is
+to construct an expression that evaluates to 24 by using four given numbers exactly once. The task features a small
+combinatorial search space but allows for diverse solution paths depending on operator ordering and grouping. For
+example, given the input “7 7 8 11” a valid solution is “8 × (7 + 7 − 11).” Solving this task requires systematic
+exploration of the solution space, along with strategic reasoning and pattern recognition. We adopt the 100 instances
+provided by (Suzgun & Kalai, 2024) to iteratively refine strategies across repeated attempts.
+B.3. Embodied Action
+• ALFWorld (Shridhar et al., 2021) is an embodied benchmark that aligns abstract, text-based environments with
+interactive visual-based scenes to execute household tasks. It builds on the ALFRED (Shridhar et al., 2020) benchmark
+by providing paired representations of the same underlying tasks, where agents can operate through high-level textual
+commands in a simulated environment. The tasks span multiple categories such as pick-and-place, cleaning, heating,
+and cooling, and require multi-step interaction with objects and receptacles distributed across diverse room layouts.
+The benchmark is constructed to maintain a shared underlying world state across modalities, enabling consistent
+correspondence between language-level actions and embodied executions. We utilized the 134 solvable tasks.
+B.4. Web Interaction
+• WebArena (Zhou et al., 2024) is a realistic and reproducible benchmark for web-based interaction tasks grounded
+in natural language instructions. WebArena provides 812 web navigation tasks that cover four common application
+domains: Shopping (187), CMS (182), Reddit (106) and Map (109). BrowserGym (de Chezelles et al., 2025) is used as
+the execution environment for WebArena. Each task is specified as a high-level natural language intent and requires
+agents to execute a sequence of concrete web interactions across dynamic pages and tools. The benchmark includes a
+curated set of long-horizon tasks with programmatic validation based on functional correctness of the final outcomes.
+• WebShop (Yao et al., 2022) is a large-scale web interaction benchmark that simulates realistic online shopping
+scenarios through a self-contained e-commerce environment. It includes over one million real-world products and
+12,087 crowdsourced natural language instructions, each specifying a product requirement to be fulfilled through a
+sequence of web-based actions. Given an instruction, an agent must navigate search results, inspect product pages,
+select appropriate options, and complete a purchase to satisfy the specified constraints. We follow the instructions of
+ExpeL to set the implementation details of the WebShop Environment. For WebShop tasks, we evaluated using the
+same 100 tasks used by ReAct (Yao et al., 2023b), Reflexion (Shinn et al., 2023) and ExpeL.
+14
+
+Large Language Model Agents Are Not Always Faithful Self-Evolvers
+
+C. Implementation Details
+• ExpeL We follow the official setup described in the ExpeL (Zhao et al., 2024a). For agent hyperparameters, the LLM
+decoding temperature is set to 0.0, and greedy decoding is used. During the experience gathering stage, the maximum
+number of reflection retries is set to 3. At evaluation time, ExpeL retrieves the top-k most similar successful trajectories
+and uses them as in-context demonstrations. The vector store is implemented with Faiss, the retriever uses kNN, and
+all task descriptions are embedded using the all-mpnet-base-v2 encoder.
+Different benchmarks adopt different interaction budgets and retrieval strategies. Specifically, for HotpotQA, each
+task is allowed up to 7 environment interaction steps, and up to 6 successful trajectories are retrieved as few-shot
+demonstrations during evaluation. For WebShop, each task allows up to 15 interaction steps, with up to 2 retrieved
+successful trajectories. For ALFWorld, each task allows up to 20 steps, and up to 2 successful trajectories are retrieved.
+• Dynamic Cheatsheet We follow the official experimental setup of Dynamic Cheatsheet (Suzgun et al., 2025). For agent
+hyperparameters, the LLM decoding temperature is set to 0.0, and greedy decoding is used. Across all benchmarks
+in Dynamic Cheatsheet, including AIME 2024, Game of 24, GPQA-Diamond, and MMLU-Pro Eng., we adopt the
+same retrieval configuration. Specifically, before each new task, the system computes cosine similarity between
+the embedding of the current query and embeddings of historical queries, and retrieves the top-3 most similar past
+input–output pairs from memory to support inference.
+• ReasoningBank Our experimental setup largely follows the configuration of ReasoningBank (Ouyang et al., 2025).
+For the agent, we set the decoding temperature to 0.7 and adopt greedy decoding as the decoding strategy. On the
+WebArena benchmark, each task is allowed a maximum of 30 interaction steps. We use text-embedding-ada-002 as the
+embedding model to encode queries and memory items, and employ cosine similarity for retrieval. For each new query,
+the agent retrieves the top-3 most relevant memory items, which are then injected into the agent’s prompt.
+Task outcomes are labeled as success or failure using LLM-as-a-judge (Zheng et al., 2023). The judge model, as
+well as the model used for memory extraction, is configured with a decoding temperature of 0.0, with the goal of
+maximizing determinism in the evaluation and extraction process. Each memory item follows a fixed schema consisting
+of three components: a Title, which concisely summarizes the underlying strategy; a Description, which provides a
+one-sentence abstract of the memory; and Content, which contains one to five sentences of distilled insights.
+• G-Memory We follow the experimental setup of G-Memory (Zhang et al., 2025a). For coarse-grained retrieval
+over the query graph, queries are encoded using a MiniLM sentence embedding model and matched with cosine
+similarity, retrieving the top-k most similar historical queries. For fine-grained retrieval, we further select the top-M
+relevant queries using an LLM-based relevance scorer and sparsify their interaction graphs with an LLM-based graph
+compression module. The values of k and M are treated as tunable hyperparameters. Query nodes are labeled with
+execution status from Failed, Resolved. All retrieved insights and interaction subgraphs are injected into agent prompts
+before task execution, and the memory graphs are updated after each task without any gradient-based training.
+
+D. Details of Intervention Design
+We provide additional details and design motivations for the intervention strategies used in our faithfulness evaluation. As
+discussed in §3, raw and condensed experiences differ substantially in their structure, abstraction level, and expected utility.
+Our intervention design reflects these differences while adhering to two principles: (1) targeting the failure modes most
+likely to occur in each experience type, and (2) ensuring minimal disruption to input formatting and inference pipelines. To
+concretize these designs, Table 3 presents illustrative examples of each intervention applied to ExpeL framework.
+D.1. Raw Experience Interventions
+Raw experiences consist of complete trajectories, often encoded as multi-step sequences of observations, actions, and
+outcomes. They are typically grounded in specific tasks and retain temporal and causal coherence.
+• Empty: This intervention removes the semantic content of the raw experience (e.g., deleting trajectory steps) while
+retaining the prompt structure (e.g., “Here are two examples of past successful trajectories:”). This allows us to test
+whether the agent benefits from the actual content or merely from the presence of a scaffolded context block.
+15
+
+Large Language Model Agents Are Not Always Faithful Self-Evolvers
+Table 3. An example of experience interventions.
+System Instruction
+Task Goal
+
+Question: Why did Grand Duke Kirill Vladimirovich Of Russia’s wife die?
+
+Raw Experience Interventions
+Original
+
+Here are some examples:
+Question: Who died first, Fleetwood Sheppard or George William Whitaker?
+Action 1: Search[Fleetwood Sheppard]
+Observation 1: Fleetwood Sheppard (1 January 1634 – 25 August 1698) was an English courtier.
+Action 2: Search[George William Whitaker]
+Observation 2: George William Whitaker (September 25, 1840 – March 6, 1916) was a painter.
+Action 3: Finish[Fleetwood Sheppard]
+Observation 3: Answer is CORRECT
+
+Empty
+
+Here are some examples:
+
+Shuffle
+
+Here are some examples:
+Question: Who died first, Fleetwood Sheppard or George William Whitaker?
+Observation 3: Answer is CORRECT
+Action 3: Finish[Fleetwood Sheppard]
+Action 1: Search[Fleetwood Sheppard]
+Observation 1: Fleetwood Sheppard (1 January 1634 – 25 August 1698) was an English courtier.
+Action 2: Search[George William Whitaker]
+Observation 2: George William Whitaker (September 25, 1840 – March 6, 1916) was a painter.
+
+Irrelevant
+
+Here are some examples:
+Question: What is the place of birth of Clara Novello’s father?
+Action 1: Search[Pavel Urysohn]
+Observation 1: Pavel Samuilovich Urysohn was a Soviet mathematician.
+Action 2: Search[Leonid Levin]
+Observation 2: Leonid Anatolievich Levin is a mathematician and computer scientist.
+Action 3: Finish[yes]
+
+Condensed Experience Interventions
+Original
+
+The following are some experience you gather on a similar task. Use these as references to help you perform this task:
+1. When encountering conflicting or ambiguous search results, perform a lookup for the exact name or title to verify
+identity and avoid confusion with similarly named individuals.
+2. If a search repeatedly returns incorrect or unrelated information, systematically refine the search query by incorporating
+contextual qualifiers, roles, or relationships to isolate the correct individual or entity.
+
+Empty
+
+The following are some experience you gather on a similar task. Use these as references to help you perform this task:
+
+Corrupt
+
+The following are some experience you gather on a similar task of question answering using Wikipedia API. Use these
+as references to help you perform this task:
+1. When encountering conflicting [CORRUPTED 561] ambiguous search results, perform a lookup for the exact name
+or [CORRUPTED 842] to verify identity and avoid confusion with similarly named individuals. [ERROR INFO]
+2. If a search repeatedly returns [CORRUPTED 746] or unrelated information, systematically refine the search query by
+incorporating contextual qualifiers, roles, [ERROR INFO] or relationships isolate the individual or entity.
+
+Irrelevant
+
+The following are some experience you gather on a similar task. Use these as references to help you perform this task:
+1. Literature contains various genres and styles.
+2. Art expresses human creativity and emotion.
+
+Filler
+
+The following are some experience you gather on a similar task. Use these as references to help you perform this task:
+1. ... $$$ ###
+2. *** ... ***
+
+• Shuffle: By randomly permuting the steps in each trajectory, we disrupt its internal temporal and causal structure while
+preserving token-level content. This tests whether the agent relies on coherent sequencing in trajectory usage.
+• Irrelevant: Retrieved trajectories are replaced with examples drawn from unrelated tasks with similar surface format.
+This targets the agent’s sensitivity to topical relevance and allows us to evaluate semantic grounding.
+16
+
+Large Language Model Agents Are Not Always Faithful Self-Evolvers
+70
+
+HotpotQA
+Raw Exp. Interventions
+
+Condensed Exp. Interventions
+
+Success Rate %
+
+60
+49
+50 ExpeL:46
+46 45 44
+46
+45 44
+43
+42
+40
+
+100
+90
+80
+70
+
+ALFWorld
+Raw Exp. Interventions
+
+ExpeL:72.4
+
+76.9
+
+Condensed Exp. Interventions
+
+67.9 70.9 70.2
+
+71.6 68.7
+
+60
+40
+
+20
+
+30
+
+41.0
+
+10
+
+0
+
+39
+
+36
+
+Condensed Exp. Interventions
+36
+
+35
+
+32
+28
+
+31
+
+10
+3.7 4.5
+
+0
+w/o Raw Exp.
+Raw Exp. - Empty
+
+ExpeL:41
+
+20
+
+20
+
+10
+
+40
+
+WebShop
+Raw Exp. Interventions
+
+30
+
+50
+30
+
+50
+
+0
+
+Raw Exp. - Shuffle
+Raw Exp. - Irrelevant
+
+w/o Condensed Exp.
+Condensed Exp. - Empty
+
+0
+
+1
+
+Condensed Exp. - Corrupt
+Condensed Exp. - Irrelevant
+
+Condensed Exp. - Filler
+
+Figure 8. Results on Qwen3-235B-A22B for HotpotQA, ALFWorld, and WebShop under ExpeL. We observe similar patterns as in
+GPT-4o: strong reliance on raw experience and inconsistent faithfulness to condensed summaries.
+
+We use three interventions for raw experience, as these cover the main axes of disruption: existence, ordering, and relevance.
+We avoid over-complicating the raw setting since its structure is already explicit and well-formed.
+D.2. Condensed Experience Interventions
+Condensed experiences are distilled textual summaries derived from past interactions, often presented as high-level heuristics,
+plans, or failure abstractions. Compared to raw trajectories, these summaries are more abstract, loosely structured, and
+typically lack strict ordering constraints.
+• Empty: We remove the content of the summary while preserving formatting (e.g., “Here is a distilled insight:”), in
+order to test whether performance is attributable to semantic content or merely to the presence of a template.
+• Corrupt: Key logical elements are randomly perturbed (e.g., inverting causal relations, altering conditionals, or
+replacing verbs), breaking the internal coherence while maintaining surface form. This helps assess whether the agent
+truly parses and applies the intended reasoning patterns.
+• Irrelevant: A summary from an unrelated task is inserted in place of the retrieved one, preserving general topic style
+while disrupting task alignment. This intervention probes reliance on contextual specificity.
+• Filler: The entire content is replaced with semantically meaningless placeholder tokens (e.g., sequences of special
+characters such as “%$#@&”). This isolates whether improvements stem from semantic value.
+Unlike raw trajectories, condensed summaries do not rely on internal ordering of steps or temporal structure. Therefore, we
+do not include a Shuffle variant in this setting. Instead, we introduce two complementary perturbations:
+Corrupt targets internal semantic consistency, testing whether the agent interprets specific logic embedded in the summary.
+Filler targets semantic emptiness under preserved surface form, to assess reliance on textual formatting. These design
+choices reflect the unique failure modes of abstracted experience and enable more fine-grained diagnosis of when and how
+condensed content influences behavior.
+D.3. Additional Results on Qwen3-235B-A22B and Claude-Sonnet-4.6 with ExpeL
+To verify the consistency of our findings across backbone models, we replicate the same intervention study using the
+open-weight Qwen3-235B-A22B and the frontier closed-source model Claude-Sonnet-4.6. The results, visualized in
+Figure 8 and Figure 9, align closely with the GPT-4o-based findings.
+First, agents remain highly sensitive to raw experience interventions. Across HotpotQA, ALFWorld, and WebShop, the
+removal of raw experience (especially Empty and Irrelevant) consistently results in substantial performance drops,
+reaffirming that the agent does not simply rely on priors but indeed benefits from retrieved raw trajectories. This trend
+17
+
+Large Language Model Agents Are Not Always Faithful Self-Evolvers
+70
+
+Success Rate %
+
+60
+
+HotpotQA
+Raw Exp. Interventions
+56
+
+ExpeL:53
+
+58
+
+Condensed Exp. Interventions
+
+58
+
+50
+
+56
+49
+
+47
+
+50
+
+ALFWorld
+
+110
+
+WebShop
+
+50
+
+Raw Exp. Interventions Condensed Exp. Interventions
+100
+92.54
+90.3 91.79 88.81
+87.31
+90 ExpeL:92.54
+83.58
+
+Raw Exp. Interventions
+
+40
+
+80
+
+34
+66.42
+
+70
+
+40
+
+30
+
+60
+50
+
+30
+
+29
+
+ExpeL:26
+20
+
+20
+
+40
+
+20
+
+Condensed Exp. Interventions
+
+23
+
+20
+
+26
+
+16
+
+30
+10
+
+20
+
+10
+
+10
+
+0
+
+0
+Raw Exp. - Empty
+Raw Exp. - Shuffle
+
+0
+
+Raw Exp. - Irrelevant
+
+Condensed Exp. - Empty
+Condensed Exp. - Corrupt
+
+Condensed Exp. - Irrelevant
+
+Condensed Exp. - Filler
+
+Figure 9. Results on Claude-Sonnet-4.6 for HotpotQA, ALFWorld, and WebShop under ExpeL. We observe similar patterns as in GPT-4o:
+strong reliance on raw experience and inconsistent faithfulness to condensed summaries.
+80
+
+Shopping
+
+70
+
+Success Rate %
+
+CMS
+
+70
+60
+
+60 ReasoningBank:52.4
+50.8 52.4 53.5
+50
+
+52.4
+
+53.5
+
+40
+
+40
+30
+
+30
+20
+
+20
+
+10
+
+10
+
+0
+
+47.8
+
+50
+
+45.6
+
+42.9
+
+30
+
+36.2
+
+40
+
+ReasoningBank:27.4
+29.2
+
+ReasoningBank:37.4
+
+Condensed Exp. - Empty
+
+Map
+
+50
+
+40
+
+48.4
+
+25.7
+
+20
+
+24.5
+
+20.7
+
+24.5
+
+10
+
+0
+
+w/o Condensed Exp.
+
+Reddit
+
+50
+
+20
+
+28.4
+
+25.7
+
+ReasoningBank:21.120.8
+
+22.9
+
+22.9
+
+10
+
+0
+
+Condensed Exp. - Corrupt
+
+30
+
+0
+
+Condensed Exp. - Irrelevant
+
+Condensed Exp. - Filler
+
+Figure 10. Condensed-only performance on the ReasoningBank framework (online, single-agent) using Qwen3-14B. Perturbing condensed
+experience has limited or inconsistent impact across tasks.
+
+remains evident even for stronger frontier models such as Claude-Sonnet-4.6, suggesting that scaling model capability does

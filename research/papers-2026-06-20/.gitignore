@@ -1,5 +1,5 @@
+# Only re-downloadable binaries + logs ignored. Outputs (txt, extractions, refute, plan)
+# are TRACKED — real work, and gitignore does NOT survive a peer `git clean -fdx`.
 *.pdf
-txt/
 *.log
 _smoke.err
-extractions/*.log

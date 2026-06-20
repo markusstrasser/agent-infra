@@ -1,0 +1,2281 @@
+ComplexMCP: Evaluation of LLM Agents in Dynamic, Interdependent, and
+Large-Scale Tool Sandbox
+
+Yuanyang Li 1 2 3 Xue Yang 3 Longyue Wang 3 Weihua Luo 3 Hongyang Chen 2 †
+
+1. Introduction
+
+arXiv:2605.10787v2 [cs.AI] 20 May 2026
+
+Abstract
+
+Recently, remarkable progress has been made in large language model (LLM) agents for addressing a wide range of
+real-world problems. Some agents can interact with search
+engines (Jin et al., 2025; Li et al., 2025a) or web (He et al.,
+2024), while others leverage code interpreters (Li et al.,
+2025b) to generate and execute code. Remarkably, certain
+systems are even capable of autonomously developing a
+software (Qian et al., 2024) or conducting entire scientific
+research workflows (Lu et al., 2024a).
+
+Current LLM agents are proficient at calling isolated APIs but struggle with the ”last mile” of
+commercial software automation. In real-world
+scenarios, tools are not independent; they are
+atomic, interdependent, and prone to environmental noise. We introduce ComplexMCP, a benchmark designed to evaluate agents in these rigorous
+conditions. Built on the Model Context Protocol
+(MCP), ComplexMCP provides over 300 systematically validated tools derived from 7 stateful
+sandboxes, ranging from office suites to financial
+systems. Unlike existing datasets, our benchmark
+utilizes a seed-driven architecture to simulate dynamic environment states and unpredictable API
+failures, ensuring a deterministic yet diverse evaluation.
+
+Although large language model (LLM) agents have shown
+promise in handling certain tool-use tasks, real-world scenarios are often significantly more complex. For instance,
+in enterprise software environments, an LLM may need
+to navigate hundreds or even thousands of intricate APIs.
+These APIs are typically abstract, fine-grained, and exhibit
+strong interdependencies—ranging from parameter passing
+and state management to access control and authentication.
+Moreover, APIs frequently encounter unexpected failures or
+edge cases. In such situations, the agent must not only detect
+errors but also autonomously adapt its strategy by exploring
+alternative pathways to accomplish the task. Compounding
+this challenge, it is often impractical to narrow down the
+candidate tool set a priori.
+
+We evaluate various LLMs across full-context and
+RAG paradigms, revealing a stark performance
+gap: even top-tier models fail to exceed a 60% success rate, far trailing human performance (90%+).
+Granular trajectory analysis identifies three fundamental bottlenecks: (1) tool retrieval saturation as action spaces scale; (2) over-confidence,
+where agents skip essential environment verifications; and (3) strategic defeatism, a tendency
+to rationalize failure rather than pursuing recovery. These findings underscore the insufficiency
+of current agents for interdependent workflows,
+positioning ComplexMCP as a critical testbed
+for the next generation of resilient autonomous
+systems. The codebase and benchmark implementation are publicly available at https://
+github.com/AIDC-AI/complex-mcp.
+
+Despite these practical demands, a critical gap remains in
+the research community: the lack of a benchmark that systematically evaluates an agent’s ability to robustly interact
+with complex, dynamic environments featuring large-scale,
+interrelated tools while demonstrating error resilience. Existing efforts fall short in several key aspects. ToolBench
+(Qin et al., 2023) and AnyToolBench (Du et al., 2024) leverage massive collections of real-world RESTful APIs scraped
+from the internet, but they do not simulate realistic execution
+environments, and the tools provided are largely independent of one another. BFCL (Patil et al., 2025) evaluates toolcalling correctness via abstract syntax tree (AST) matching
+without actually invoking real APIs, which improves stability but sacrifices environmental realism. TRAJECT-Bench
+(He et al., 2025) emphasizes trajectory-level, fine-grained
+evaluation metrics for LLM agent tool use. Meanwhile, τ Bench(Yao et al., 2024) and τ 2 -Bench (Barres et al., 2025)
+employ interactive sandboxes; however, they are limited to
+
+1
+Zhejiang University 2 Zhejiang Lab 3 Alibaba Group. Correspondence to: Hongyang Chen <hongyang@zhejianglab.org>.
+
+Proceedings of the 43 rd International Conference on Machine
+Learning, Seoul, South Korea. PMLR 306, 2026. Copyright 2026
+by the author(s).
+
+1
+
+ComplexMCP: Evaluating LLM Agents in Large-Scale Tool Sandboxes
+
+only two domains and a small number of tools, and their
+environments are precisely predefined—lacking the ambiguity and complexity of real-world settings. More recently,
+MCPEval (Liu et al., 2025), MCPWorld (Yan et al., 2025),
+MCP-Bench (Wang et al., 2025) and LiveMCPBench (Mo
+et al., 2025) construct benchmarks based on the Model Context Protocol (MCP) (Hou et al., 2025), requiring agents to
+orchestrate multiple tools to complete tasks. Nevertheless,
+even in these benchmarks, the individual tools largely remain functionally isolated, with limited or shallow inter-tool
+dependencies.
+
+computations (Li et al., 2025b). This tool-augmented architecture enables the agent to interact with its environment in a
+grounded and iterative manner. Formally, the agent’s behavior can be viewed as a partially observable Markov decision
+process (POMDP), where at each step t, the agent receives
+an observation Ot (e.g., user input or tool output) and selects
+a language action At+1 based on its history of interactions.
+The transition dynamics thus follow a Markovian structure:
+the next action depends only on the current observation and
+the agent’s internal state, abstractly captured as
+LLM
+
+Ot × St −−−→ At+1 ,
+
+To bridge these gaps, we present ComplexMCP, a rigorous
+evaluation framework designed to assess LLM agents within
+a large-scale, interdependent, and stochastic tool ecosystem.
+As summarized in Table 1, ComplexMCP distinguishes
+itself from prior work through three core pillars:
+
+with subsequent observations potentially conditioned on At
+through tool invocations or environmental feedback. This
+loop of observe–reason–act underpins the agent’s ability to
+perform extended reasoning and task execution.
+2.2. Benchmarking LLM Agents
+
+• Unified MCP Ecosystem: ComplexMCP orchestrates over 150 interdependent tools across 7 stateful
+sandboxes plus over 150 stateless APIs. Native to the
+Model Context Protocol, these tools require long-chain
+reasoning and complex state transitions rather than
+isolated calls.
+
+As agentic tasks involve multi-step reasoning, environmental interaction, and tool usage—far surpassing the scope of
+standard question answering—the development of rigorous
+and representative benchmarks for LLM agents (Yehudai
+et al., 2025) has become increasingly critical. Early efforts
+such as ToolBench (Qin et al., 2023) evaluate LLMs in
+large-scale tool-invocation settings, leveraging thousands
+of real-world RESTful APIs collected from the internet.
+To assess web-grounded agency, Mind2Web (Deng et al.,
+2023) and WebArena (Zhou et al., 2023) introduce handcrafted, browser-like toolsets that require agents to both
+reason about and act within realistic web environments.
+Subsequent work, including τ -Bench (Yao et al., 2024) and
+τ 2 -Bench (Barres et al., 2025), establishes controlled tool
+sandboxes to systematically study agent–environment interaction. BFCL (Patil et al., 2025) focuses on validating
+correctness in multi-turn API workflows through abstract
+syntax tree (AST) matching.
+
+• Seed-Driven Dynamics: A single seed governs both
+high-entropy environment initialization and executiontime perturbations (e.g., API failures). This mechanism ensures real-world stochasticity and environmental diversity while maintaining perfect scientific
+reproducibility.
+• Deterministic Fine-Grained Evaluation: We replace
+subjective LLM-based scoring with a rule-based system that compares environment state transitions against
+ground truth. This provides objective, fine-grained
+metrics to analyze agent failure modes beyond binary
+success.
+
+With the growing prevalence of tool use, a standardized
+protocol—Model Context Protocol (MCP) (Hou et al.,
+2025)—has emerged to unify tool interfaces for LLMs.
+Built upon MCP, new benchmarks such as MCPEval (Liu
+et al., 2025), MCPWorld (Yan et al., 2025), and MCPBench (Wang et al., 2025) provide consistent, server-based
+evaluation frameworks that facilitate fair comparison and
+reproducible agent assessment across diverse tool ecosystems.
+
+Conflict of Interest Disclosure. Authors Y.L., X.Y., L.W.,
+and W.L. are affiliated with Alibaba Group, where this work
+was conducted. Alibaba Group is involved in the development of Qwen-3-Max, which was among the models
+evaluated in this paper.
+
+2. Related Work
+2.1. LLM Agents
+
+3. ComplexMCP
+
+Building on Yao et al. (Yao et al., 2022), LLM agents operate
+by generating language-based actions that adhere to predefined formats, allowing them to invoke external tools—such
+as web search APIs for retrieving unknown information (Li
+et al., 2025a) or code interpreters for executing complex
+
+3.1. Problem Formalization
+We formalize the task of evaluating LLM agents in complex
+tool environments as a Seed-driven Goal-oriented Trajectory problem. Unlike traditional stateless tool-calling bench2
+
+ComplexMCP: Evaluating LLM Agents in Large-Scale Tool Sandboxes
+Table 1. Comparison of ComplexMCP with representative tool-use benchmarks. Our benchmark is the only one that simultaneously
+integrates a large-scale toolset with stateful, stochastic, and dynamic environments under a unified MCP-native architecture.
+Large-scale
+Toolset
+
+MCP
+Native
+
+Stateful
+Sandbox
+
+Seed-driven
+Diversity
+
+Environmental
+Stochasticity
+
+Deterministic
+Evaluation
+
+ToolBench (Qin et al., 2023)
+ToolSandbox (Lu et al., 2024b)
+τ -Bench (Yao et al., 2024)
+BFCL (Patil et al., 2025)
+MCPEval (Liu et al., 2025)
+MCP-Bench (Wang et al., 2025)
+LiveMCPBench (Mo et al., 2025)
+
+✓
+✗
+✗
+✓
+✗
+✓
+✓
+
+✗
+✗
+✗
+✗
+✓
+✓
+✓
+
+✗
+✓
+✓
+✗
+✗
+✗
+✗
+
+✗
+✗
+✗
+✗
+✗
+✗
+✗
+
+✗
+✗
+✗
+✗
+✗
+✗
+✓
+
+✗
+✓
+✓
+✓
+✗
+✗
+✗
+
+ComplexMCP (Ours)
+
+✓
+
+✓
+
+✓
+
+✓
+
+✓
+
+✓
+
+Benchmark
+
+marks, our environment emphasizes stateful transitions and
+interdependence between atomic tools.
+
+This mechanism guarantees that while the environment
+structure remains consistent, the specific instances (e.g.,
+the existence of a user or their specific permissions) vary
+entirely across different seeds; this decoupling of environment logic from its content forces the agent to dynamically
+perceive the environment through active tool-use rather than
+relying on hard-coded heuristics.
+
+Environment Definition We define a ComplexMCP task
+as a tuple M = ⟨S, T , I, σ, G, Φ⟩, where:
+• S is the state space representing the environment of
+the software sandbox.
+
+Interdependence and Trajectory The agent interacts
+with the environment over H steps, selecting actions at =
+LLM(I, {(ai , oi )}t−1
+i=1 ). Each execution is subject to seeddriven stochasticity η(σ), simulating real-world perturbations like network latency or transient errors. Crucially,
+tools are interdependent: a tool tj is only valid if the current state st contains specific attributes v produced by a
+preceding tool ti . The agent’s objective is to generate a
+trajectory τ such that the terminal state sH satisfies the goal
+G under the evaluation metric Φ. The evaluation metric will
+be discussed later.
+
+• T = {t1 , t2 , . . . , tn } is the toolset consisting of n
+atomic MCP-based tools. Each tool t ∈ T is a function
+t : S × A → S × O, where A is the argument space
+and O is the observation space.
+• I is the natural language instruction provided by the
+user, specifying the high-level objective.
+• σ ∈ Z+ is the random seed that deterministically
+controls the environment’s stochasticity.
+• G is the goal state or a set of conditions that S must
+satisfy upon completion.
+
+3.2. The ComplexMCP Ecosystem
+
+• Φ is the evaluation function that maps the final environment state and the action trajectory to a fine-grained
+score.
+
+ComplexMCP is built entirely upon the Model Context
+Protocol (MCP) (Hou et al., 2025), providing a standardized interface that decouples tool implementation from the
+agent’s reasoning logic. Our ecosystem integrates two distinct server paradigms to simulate diverse operational scenarios. The whole workflow of ComplexMCP is illustrated
+in Figure 1.
+
+Seed-driven State Instantiation To ensure environmental
+diversity and reproducibility, ComplexMCP employs a seeddriven instantiation mechanism. The initial state s0 ∈ S is
+derived via a deterministic mapping finit : (σ, C) → S.
+
+Stateless MCP Servers. These servers facilitate functional,
+independent operations such as mathematical computations,
+unit conversions, etc. They do not persist data between
+calls; each request is processed in isolation, representing the
+”atomic” tools common in existing benchmarks.
+
+Specifically, C represents a large-scale Synthetic Knowledge Base comprising diverse entities (e.g., user profiles,
+message histories, stock tickers) pre-generated by LLMs
+to mimic real-world distribution. During initialization, the
+seed σ parameterizes a pseudo-random number generator
+(PRNG), such that:
+s0 = Sample(C; PRNG(σ))
+
+Stateful MCP Servers. To emulate the intricacies of
+real-world software ecosystems, we introduce stateful
+servers that maintain a persistent environment state S
+
+(1)
+3
+
+ComplexMCP: Evaluating LLM Agents in Large-Scale Tool Sandboxes
+
+Figure 1. The Overview of ComplexMCP: Our framework integrates stateful sandboxes and stateless MCP servers via a seed-driven
+mechanism.
+
+throughout each agent rollout. This state is instantiated as a high-dimensional, nested dictionary that serves
+as a unified session store, encompassing chat history,
+trade history, and more. Any action at yielding side effects—such as dispatching a message or modifying a shopping cart—triggers a deterministic state transition St+1 =
+f (St , at ). Our framework comprises seven integrated
+applications: LightOS, LightTalk, LightShop,
+LightWeather, LightFlight, LightStock, and
+LightNews (see details in B.1). Collectively, these applications provide a rich set of over 150 interdependent
+tools. A representative topology of these dependencies is
+illustrated in Figure 2.
+
+Figure 2. A partial visualization of the inter-tool dependency network within the LightTalk application (showing only a selected
+subset of tools for clarity). Arrows denote prerequisite relationships and data flows. For example, a successful ”send message”
+operation in complex scenarios may necessitate a multi-step execution trajectory (highlighted in green): initiating network acceleration, resolving the target UID, verifying/lifting contact blocks
+and requiring privilege.
+
+3.3. Deterministic Fine-Grained Evaluation
+In ComplexMCP, we introduce a deterministic, fine-grained
+evaluation framework. To ensure objectivity and reproducibility, our assessment is entirely rule-based, eliminating
+the stochasticity and potential bias inherent in LLM-as-ajudge approaches.
+
+The total number of required changes (T ) is the count of
+elements that must be modified to reach the ground truth:
+
+The environment state (software configuration or status) is
+represented as a nested dictionary. Let envold denote the
+initial state, envgt the ground-truth target state, and envnew
+the state updated by the agent. We define the following
+metrics based on key-path trajectories (k1 , k2 , . . . , kj ):
+
+T =
+
+X
+
+h
+i
+I envgt (k1 , . . . , kj ) ̸= envold (k1 , . . . , kj )
+
+k1 ,...,kj ∈K
+
+(2)
+Where K denotes the set of key-path trajectories considered
+4
+
+ComplexMCP: Evaluating LLM Agents in Large-Scale Tool Sandboxes
+
+in the comparison; keys such as timestamps or randomly
+generated identifiers, which do not affect the correctness of
+the output, are excluded.
+The number of correctly modified elements (M ) measures
+successful updates:
+h
+X
+M=
+I envgt (k1 , . . . , kj ) ̸= envold (k1 , . . . , kj )
+k1 ,...,kj ∈K
+
+i
+∧ envgt (k1 , . . . , kj ) = envnew (k1 , . . . , kj )
+(3)
+The number of misbehaving elements (Mb ) quantifies unintended side effects or ”collateral damage” to states that
+should have remained unchanged:
+h
+X
+Mb =
+I envgt (k1 , . . . , kj ) = envold (k1 , . . . , kj )
+k1 ,...,kj ∈K
+
+i Figure 3. Distribution of task complexity within the instruction set.
+∧ envgt (k1 , . . . , kj ) ̸= envnew (k1 , . . . , kj ) (Top) Number of unique tools required per instruction; (Bottom)
+Total frequency of tool invocations within the ground-truth trajectories.
+
+(4)
+Based on these counts, we define the Completion Rate (Rc )
+and the Misbehaving Rate (Rb ) as follows:
+Rc =
+
+M
+,
+T
+
+Rb =
+
+Mb
+T
+
+4. Experiments
+We conduct a comprehensive evaluation of representative
+state-of-the-art commercial large language models (LLMs)
+to assess their performance on the ComplexMCP benchmark. The evaluated models include GPT-4o (Hurst et al.,
+2024), GPT-5 (Singh et al., 2025), the Gemini series (2.5Pro, 3-Pro, and 3-Flash) (Comanici et al., 2025; Google
+DeepMind, 2025a;b), the Claude series (Sonnet-3.5, 4, 4.5,
+and Opus-4) (Anthropic, a;b), the Llama-3 series (Dubey
+et al., 2024), Qwen3-Max (Yang et al., 2025), DeepSeekV3 (Liu et al., 2024), Kimi-K2 (Team et al., 2025), and
+GLM-4.7 (Zeng et al., 2025).
+
+(5)
+
+A trajectory is considered correct if and only if the agent
+achieves a full completion rate (Rc = 1) with no misbehaving actions (Rb = 0).
+3.4. Instruction Set Construction
+To rigorously evaluate the reasoning and planning capabilities of LLM agents, we manually curated a high-quality
+instruction set consisting of 47 diverse tasks. Each task is accompanied by a meticulously annotated ground-truth trajectory to facilitate objective assessment. A key feature of our
+dataset is that while each instruction necessitates the coordination of multiple tools to fulfill complex requirements, no
+explicit hints or tool names are provided within the queries.
+This design forces agents to rely entirely on their internal
+reasoning and environment perception to identify and invoke
+the appropriate tools. Furthermore, we have structured each
+task to ensure a unique, deterministic outcome, thereby guaranteeing the reproducibility and reliability of our evaluation
+framework.
+
+4.1. Main Results
+The ”Full-Context” Performance Adopting the ReAct
+paradigm (Yao et al., 2022) as our foundational prompting strategy, we evaluate the selected models across all 47
+test scenarios and quantify their performance through multiple dimensions. Beyond standard task success metrics, we
+meticulously profile the interaction dynamics by recording
+tool call statistics and token consumption.
+Specifically, we categorize tool interactions into three distinct types to better understand model failure modes: (1)
+Valid Invocations: Calls that strictly adhere to the expected
+schema and successfully trigger the intended logic. (2) Execution Failures: Invocations that are syntactically correct
+(proper function name and arguments) but fail during execution due to environmental constraints or logical errors, such
+
+The tasks in our instruction set exhibit significant complexity; as illustrated in Figure 3, the most challenging scenarios
+require coordination across more than 30 distinct tools and
+involve over 60 total invocations within the gold-standard
+execution path.
+5
+
+ComplexMCP: Evaluating LLM Agents in Large-Scale Tool Sandboxes
+
+as querying a non-existent UID or attempting an unauthorized transaction. (3) Syntactic Errors: Malformed calls
+characterized by hallucinated tool names or arguments that
+violate the predefined schema.
+
+input, the prompt-side input cost can be approximated as
+Lp · cuncached + 11Lp · ccached ,
+with a total prompt token volume of about 12 × Lp ≈
+360,000 tokens. Therefore, although caching substantially
+lowers the per-token price of repeated context, the aggregate
+volume of cached prompt tokens remains enormous. More
+importantly, these repeated tokens still contribute heavily to
+the prefill stage at every turn, creating considerable runtime
+overhead in addition to non-negligible cumulative cost. As
+illustrated in Figure 4, prompt repetition remains the dominant source of total input volume under the ”full-context”
+ReAct strategy.
+
+The comprehensive evaluation results are summarized in
+Table 2. As shown, Gemini-3-Flash (Google DeepMind,
+2025b) achieves the highest success rate at 55.31%, still far
+below the human performance of 93.61%.
+For the human baseline, we recruited three volunteers with
+extensive experience in LLM agents. To keep the comparison fair, they used the same MCP interface as the models,
+manually calling tools through terminal commands, and
+were given exactly the same instructions and tool documentation, with no extra hints. Each volunteer had only
+one attempt per task and solved each problem from scratch.
+We evaluated success with the same deterministic state-diff
+evaluator used for the models.
+
+(a) Token Count Distribution
+5.4%
+2.8%
+
+Notably, the top-tier model GPT-5.1 performs only moderately on this benchmark. We observed that GPT-5.1 often
+fails to recover from token errors and instead politely gives
+up. We discuss this behavior further in Section 4.2.
+
+Prompt
+
+LLM Generation
+
+Tool Feedback
+
+901
+
+1,750
+
+3.6%
+
+87.1%
+
+Token Categories
+Tool Feedback
+
+LLM Generation
+
+Figure 4. Distribution of token volume and estimated costs for
+Gemini-3-Flash under the ”full-context” ReAct strategy.
+
+Scaling Down the Action Space: Does API Retriever
+Help? To mitigate action-space explosion and thus reduce
+prompt overhead, prior works like ToolLLM (Qin et al.,
+2023) and RAG-MCP (Gan & Sun, 2025) employ kNNbased retrieval (Peterson, 2009) to fetch semantically relevant APIs. However, we investigate whether such semanticdriven methods can capture the latent dependencies and
+prerequisite tools essential to ComplexMCP. We evaluate
+this strategy across representative models to assess the tradeoff between efficiency and logical integrity. To evaluate
+this retrieval-based strategy, we consider two variants: a
+standard RAG approach and an iterative RAG framework:
+
+We observe that even with the asymmetric pricing of modern LLM APIs (e.g., Gemini-3-Flash (Google DeepMind,
+2025b)), where input tokens are significantly cheaper than
+output tokens (e.g., cached input, uncached input, and output
+tokens are priced approximately at a 0.1:1:6 ratio), the cumulative prompt overhead remains the dominant economic
+driver. For a task requiring 11 tool-calling rounds, the initial prompt is billed 12 times, effectively magnifying its
+cost by an order of magnitude. Specifically, the average
+per-component token length is distributed as follows:
+
+29,964
+
+9.3%
+
+91.9%
+
+The Token Bottleneck The ReAct paradigm, by design, mirrors multi-turn dialogues where the entire trajectory—including reasoning traces and tool outputs—is resubmitted as input at each iterative step. This leads to a
+compounding effect where the initial system prompt and
+early-turn history are consumed repeatedly. In our ”fullcontext” baseline evaluation, we populate the system prompt
+with comprehensive descriptions for over 300 tools (approximately 30,000 tokens).
+
+Prompt
+
+(b) Estimated Cost Distribution
+
+• RAG: We embed the question and retrieve the top-k
+most semantically relevant tools. These tools are then
+injected into the LLM’s system prompt as the initial
+action space.
+• Iterative RAG: Rather than performing retrieval upfront, we equip the LLM with a special tool named
+retrieve tools. This tool accepts a natural language search query and an integer k as inputs, dynamically fetching and returning the descriptions of the k
+most relevant tools based on the LLM’s current reasoning needs.
+
+Crucially, while the unique content size remains constant,
+the actual consumption is significantly amplified by the ReAct trajectory. For an average of 11 tool-calling iterations
+(12 model invocations), the static prompt of length Lp is submitted 12 times. If the first occurrence is billed as uncached
+input and the remaining 11 repetitions are billed as cached
+6
+
+ComplexMCP: Evaluating LLM Agents in Large-Scale Tool Sandboxes
+Table 2. Overall evaluation results of different LLMs on ComplexMCP. We report task performance, execution efficiency, and resource
+consumption, averaged across the 47 manually curated test scenarios. Each model was independently run three times. For the Task
+Performance metrics, we report the mean ± standard deviation across the three runs.
+Models
+
+Task Performance (%)
+
+Tool Call Statistics
+
+Token Length
+
+Success
+Rate ↑
+
+Completion
+Rate (Rc ) ↑
+
+Misbehaving
+Rate (Rb ) ↓
+
+Valid
+Invocations
+
+Invalid
+Invocations
+
+Syntactic
+Errors
+
+LLM
+Output
+
+Tool
+Response
+
+GPT-4o
+GPT-5.1
+
+14.89 ± 0.00
+19.14 ± 1.74
+
+26.67 ± 0.73
+24.63 ± 1.87
+
+2.64 ± 0.13
+1.42 ± 0.47
+
+3.94
+2.55
+
+0.85
+0.31
+
+0.02
+0.02
+
+351
+215
+
+788
+265
+
+Gemini-2.5-pro
+Gemini-3-flash
+Gemini-3-pro
+
+24.81 ± 2.01
+55.31 ± 0.00
+44.67 ± 1.74
+
+42.87 ± 1.90
+85.79 ± 0.50
+81.22 ± 0.51
+
+4.23 ± 0.57
+4.39 ± 0.19
+7.44 ± 2.84
+
+6.83
+10.23
+9.40
+
+0.81
+0.68
+0.70
+
+0.06
+0
+0.02
+
+584
+901
+871
+
+878
+1750
+1046
+
+Claude-sonnet-3.5
+Claude-sonnet-4
+Claude-sonnet-4.5
+Claude-opus-4
+
+26.26 ± 2.01
+38.29 ± 1.74
+39.71 ± 1.00
+41.84 ± 2.01
+
+54.36 ± 2.54
+75.78 ± 0.63
+76.51 ± 1.73
+75.48 ± 1.67
+
+7.72 ± 1.54
+8.34 ± 2.30
+5.86 ± 0.33
+7.43 ± 0.32
+
+6.89
+10.09
+9.57
+9.12
+
+0.77
+0.91
+0.65
+0.74
+
+0
+0
+0
+0
+
+960
+913
+552
+925
+
+874
+706
+911
+521
+
+Llama-3.1-8B-Instruct
+Llama-3.3-70B-Instruct
+Llama-3.1-405B-Instruct
+
+8.51 ± 0.00
+21.89 ± 1.00
+26.94 ± 1.00
+
+25.60 ± 0.81
+53.25 ± 2.60
+59.44 ± 0.48
+
+14.88 ± 1.66
+5.72 ± 0.37
+8.53 ± 1.21
+
+18.70
+6.25
+6.19
+
+6.55
+2.06
+1.31
+
+6.46
+0.15
+0.57
+
+1829
+634
+726
+
+1596
+593
+320
+
+Qwen-3-max
+
+31.20 ± 1.00
+
+64.10 ± 2.10
+
+6.34 ± 0.11
+
+8.45
+
+0.95
+
+0
+
+771
+
+1410
+
+DeepSeek-V3
+
+19.86 ± 1.00
+
+35.77 ± 2.86
+
+3.27 ± 0.19
+
+4.53
+
+1.44
+
+0.09
+
+371
+
+748
+
+Kimi-K2
+
+26.22 ± 2.65
+
+54.23 ± 0.75
+
+6.35 ± 0.42
+
+7.66
+
+1.23
+
+0.04
+
+938
+
+727
+
+GLM-4.7
+
+42.55 ± 0.00
+
+72.07 ± 2.46
+
+10.89 ± 1.05
+
+9.00
+
+0.89
+
+0.06
+
+337
+
+1163
+
+Human
+
+93.61 ± 1.74
+
+97.73 ± 1.18
+
+0.81 ± 0.27
+
+10.11
+
+0.51
+
+0
+
+-
+
+-
+
+We adopt the all-MiniLM-L6-v2 sentence transformer
+(Reimers & Gurevych, 2019) as our embedding model for
+both retrieval strategies.
+We evaluate two RAG strategies across two LLMs: Gemini3-flash (Google DeepMind, 2025b) and Claude-opus-4 (Anthropic, b). Task performance, average tool call statistics,
+and token consumption per query are summarized in Table 3. As illustrated, Iterative RAG achieves the highest
+performance with the lowest token consumption among the
+retrieval-based baselines. However, these vector-retrievalbased RAG methods still do not match the performance of
+the full-context method. This gap likely stems from the interdependencies between tools in ComplexMCP, which make
+it difficult to retrieve ”latent” tools. Specifically, without a
+comprehensive view of the full API set, the LLM may fail
+to invoke essential intermediate steps that are not explicitly
+surfaced by the retrieval mechanism.
+
+Figure 5. Distribution of challenge patterns identified through
+trajectory analysis.
+
+Tool Retrieval Saturation A significant bottleneck in
+early LLM agents was ”tool forgetting,” where performance
+degraded as the action space expanded. As the number
+of available tools increases, the overhead of processing
+extensive definitions often exceeds the model’s effective
+context window or dilutes its attentional focus. To investigate this phenomenon, we evaluated four models—GPT4o, DeepSeek-V3, Gemini-3-Flash, and Claude-Opus4—across a spectrum of distractor tools ranging from zero to
+the full set. Our results confirm that while recent SOTA models (e.g., Gemini-3-Flash and Claude-Opus-4) have largely
+mitigated this through enhanced long-context processing,
+others (e.g., GPT-4o and DeepSeek-V3) still suffer from cognitive overload when candidates exceed 300, as evidenced
+by the marked decline in their success and completion rates
+
+4.2. Challenge Analysis
+Through a granular analysis of execution trajectories, we
+identify several recurring failure patterns that persist even
+in state-of-the-art (SOTA) models, as shown in Figure 5.
+These challenges highlight the gap between current LLM
+capabilities and the requirements of complex, real-world
+agentic tasks.
+
+7
+
+ComplexMCP: Evaluating LLM Agents in Large-Scale Tool Sandboxes
+Table 3. Comparison of task performance, average tool call statistics, and token length for Gemini-3-flash and Claude-opus-4 using
+various RAG strategies. Each model was independently run three times. For the Task Performance metrics, results are reported as mean ±
+standard deviation across the three runs.
+Task Performance (%)
+
+Methods
+
+Gemini-3-flash
+(RAG, k=30)
+Gemini-3-flash
+(RAG, k=60)
+Gemini-3-flash
+(Iterative RAG)
+Claude-opus-4
+(RAG, k=30)
+Claude-opus-4
+(RAG, k=60)
+Claude-opus-4
+(Iterative RAG)
+
+Tool Call Statistics
+
+Token Length
+
+Success
+Rate ↑
+
+Completion
+Rate (Rc ) ↑
+
+Misbehaving
+Rate (Rb ) ↓
+
+Valid
+Invocations
+
+Invalid
+Invocations
+
+Syntactic
+Errors
+
+Prompt
+
+LLM
+Output
+
+Tool
+Response
+
+13.47 ± 2.01
+
+22.23 ± 2.25
+
+2.82 ± 0.68
+
+9.46
+
+6.45
+
+0.55
+
+3544
+
+828
+
+4703
+
+27.65 ± 1.74
+
+41.96 ± 1.33
+
+2.97 ± 0.41
+
+13.63
+
+3.38
+
+0.60
+
+6795
+
+543
+
+4645
+
+36.88 ± 2.01
+
+70.89 ± 1.02
+
+5.93 ± 0.66
+
+13.21
+
+1.63
+
+0.04
+
+334
+
+465
+
+4322
+
+11.34 ± 2.01
+
+21.74 ± 2.83
+
+2.26 ± 0.10
+
+4.77
+
+3.09
+
+0.34
+
+4113
+
+654
+
+3215
+
+24.82 ± 2.65
+
+41.34 ± 1.21
+
+3.62 ± 0.50
+
+6.97
+
+3.21
+
+0.09
+
+7926
+
+769
+
+3494
+
+25.52 ± 1.74
+
+54.40 ± 2.63
+
+5.61 ± 0.30
+
+11.57
+
+1.36
+
+0
+
+358
+
+872
+
+3473
+
+GPT-4o
+
+Gemini-3-Flash
+
+(see Figure 6).
+DeepSeek-V3
+
+(a) Success Rate
+70
+
+40
+30
+20
+
+60
+
+Rate (%)
+
+50
+
+Rate (%)
+
+Accuracy (%)
+
+8
+
+80
+
+60
+
+40
+
+0
+
+50
+
+100
+
+Number of Distractor Tools
+
+All (300+)
+
+0
+
+6
+4
+2
+
+20
+
+10
+
+(c) Misbehaving Rate (Rb)
+
+10
+
+100
+
+80
+
+0
+
+Claude-Opus-4
+
+(b) Completion Rate (Rc)
+
+0
+
+50
+
+100
+
+Number of Distractor Tools
+
+All (300+)
+
+0
+
+0
+
+50
+
+100
+
+Number of Distractor Tools
+
+Figure 7. An illustration of the ”over-confidence” failure mode.
+The agent ignores the pre-existing environmental state (the banana)
+and skips necessary cleanup steps (dashed path), taking an erroneous shortcut (red path) to checkout.
+
+All (300+)
+
+Figure 6. Scaling analysis of agent robustness against distractor
+tools. As the number of irrelevant tools increases, Success Rate (a)
+and Completion Rate Rc (b) decline for several models, illustrating
+the tool retrieval saturation bottleneck.
+
+for models to abort tasks prematurely upon encountering
+transient tool errors. Instead of retrying or invoking compensatory tools, models often misattribute recoverable glitches
+as terminal obstacles. This failure mode is remarkably
+prominent in GPT-5 (Singh et al., 2025). Despite its superior
+reasoning capabilities, the model frequently leverages its
+linguistic fluency to rationalize failure rather than pursuing
+fallback strategies (see Appendix C.2.1). Consequently, this
+”polite surrender” prevents GPT-5 from achieving high success rates, leading to its surprisingly mediocre performance
+on our benchmark.
+
+The ”Clean-Slate” Bias and Over-confidence The most
+pervasive and challenging failure mode identified in our
+benchmark is what we term the ”Clean-Slate” Bias. LLMs
+frequently exhibit over-confidence by assuming the environment is initialized to a default or empty state. In real-world
+scenarios, however, environments are often ”messy”—for
+instance, a shopping cart might already contain unpaid
+items from a previous session, or a network might have
+pre-existing proxy settings.
+We observe that models consistently bypass stateverification steps (e.g., checking the current contents of a
+cart, see in Figure 7) and proceed directly to execution (e.g.,
+adding new items and checking out). This lack of proactive environment sensing leads to unintended consequences,
+such as purchasing redundant products. This bias suggests
+that current agents are ”proactive executors” rather than
+”perceptive planners,” struggling to reconcile their internal
+plan with a dynamic, non-empty environment state.
+
+5. Limitations and Future Work
+Although ComplexMCP provides a robust benchmark for
+evaluating LLM agents in stateful environments, it currently
+features a curated set of 47 high-quality instructions. This
+scale is a deliberate trade-off to ensure the absolute determinism and logical integrity of the evaluation. Unlike
+benchmarks that rely on automated generation, each task in
+ComplexMCP necessitates manual expert mapping of intricate tool interdependencies and the meticulous annotation
+of ground-truth trajectories. This rigorous, labor-intensive
+
+Strategic Defeatism in Error Recovery Beyond overconfidence, we identify Strategic Defeatism: a tendency
+8
+
+ComplexMCP: Evaluating LLM Agents in Large-Scale Tool Sandboxes
+
+Acknowledgement
+
+process is essential to provide the fine-grained, state-based
+metrics required for reliable agent assessment, albeit at a
+higher cost of time and human effort.
+
+We gratefully acknowledge the support of Alibaba Group
+for this research. We also sincerely appreciate the valuable
+discussions and insightful feedback from our colleagues and
+collaborators at Alibaba Group, which have significantly
+improved the quality of this work. In addition, this research
+was supported in part by the National Natural Science Foundation of China under Grant 62271452.
+
+In future work, we plan to significantly expand the instruction set by incorporating a wider variety of multi-domain
+scenarios. By scaling the task diversity while maintaining
+our stringent manual verification standards, we aim to further enhance the evaluative power of ComplexMCP and
+provide an even more comprehensive testbed for the next
+generation of autonomous agents.
+
+References
+Anthropic. Introducing claude 3.5 sonnet, a.
+https://www.anthropic.com/news/
+claude-3-5-sonnet.
+
+6. Conclusion
+In this work, we introduced ComplexMCP, a rigorous
+benchmark designed to evaluate LLM agents within largescale, interdependent, and stochastic tool ecosystems. By
+leveraging the Model Context Protocol (MCP) and a seeddriven dynamic architecture, we provide a deterministic yet
+realistic testbed for assessing the ”last mile” of software
+automation. Our comprehensive evaluation reveals a significant performance gap between state-of-the-art models
+and human performance, highlighting critical failure modes
+such as the ”Clean-Slate” bias and the difficulty of navigating latent tool interdependencies. Furthermore, our analysis
+of RAG strategies demonstrates that while iterative retrieval
+improves efficiency, it remains inferior to full-context methods in capturing implicit tool dependencies. We believe
+ComplexMCP serves as a vital resource for the community,
+steering the development of the next generation of robust,
+perceptive, and truly autonomous agents capable of handling
+the complexities of real-world software environments.
+
+URL
+
+Anthropic. Introducing claude 4, b. URL https://www.
+anthropic.com/news/claude-4.
+Barres, V., Dong, H., Ray, S., Si, X., and Narasimhan, K.
+tau2-bench: Evaluating conversational agents in a dualcontrol environment. arXiv preprint arXiv:2506.07982,
+2025.
+Comanici, G., Bieber, E., Schaekermann, M., Pasupat, I.,
+Sachdeva, N., Dhillon, I., Blistein, M., Ram, O., Zhang,
+D., Rosen, E., et al. Gemini 2.5: Pushing the frontier
+with advanced reasoning, multimodality, long context,
+and next generation agentic capabilities. arXiv preprint
+arXiv:2507.06261, 2025.
+Deng, X., Gu, Y., Zheng, B., Chen, S., Stevens, S., Wang,
+B., Sun, H., and Su, Y. Mind2web: Towards a generalist agent for the web. Advances in Neural Information
+Processing Systems, 36:28091–28114, 2023.
+
+Impact Statement
+
+Du, Y., Wei, F., and Zhang, H. Anytool: Self-reflective,
+hierarchical agents for large-scale api calls. arXiv preprint
+arXiv:2402.04253, 2024.
+
+This paper introduces ComplexMCP, a benchmark designed
+to advance the development of robust and autonomous LLM
+agents in complex software environments. By providing a
+rigorous, seed-driven sandbox with interdependent tools and
+stochastic dynamics, our work directly contributes to the
+reliability and safety of AI systems intended for real-world
+automation. The identification of critical failure modes,
+such as the ”Clean-Slate” bias, provides a clear roadmap
+for the research community to develop agents that are more
+perceptive and cautious, thereby reducing the risk of unintended actions or data corruption in enterprise and financial
+systems. Furthermore, by adopting the Model Context Protocol (MCP), we promote the standardization of tool-use
+interfaces, facilitating more transparent, reproducible, and
+interoperable AI research across the industry.
+
+Dubey, A., Jauhri, A., Pandey, A., Kadian, A., Al-Dahle,
+A., Letman, A., Mathur, A., Schelten, A., Yang, A., Fan,
+A., et al. The llama 3 herd of models. arXiv e-prints, pp.
+arXiv–2407, 2024.
+Gan, T. and Sun, Q. Rag-mcp: Mitigating prompt bloat
+in llm tool selection via retrieval-augmented generation.
+arXiv preprint arXiv:2505.03275, 2025.
+Google DeepMind. Gemini 3 pro, 2025a. URL https:
+//deepmind.google/models/gemini/pro/.
+Google DeepMind. Gemini 3 flash, 2025b.
+https://deepmind.google/models/
+gemini/flash/.
+
+URL
+
+He, H., Yao, W., Ma, K., Yu, W., Dai, Y., Zhang, H., Lan,
+Z., and Yu, D. Webvoyager: Building an end-to-end
+9
+
+ComplexMCP: Evaluating LLM Agents in Large-Scale Tool Sandboxes
+
+web agent with large multimodal models. arXiv preprint
+arXiv:2401.13919, 2024.
+
+Mo, G., Zhong, W., Chen, J., Chen, X., Lu, Y., Lin, H.,
+He, B., Han, X., and Sun, L. Livemcpbench: Can
+agents navigate an ocean of mcp tools? arXiv preprint
+arXiv:2508.01780, 2025.
+
+He, P., Dai, Z., He, B., Liu, H., Tang, X., Lu, H., Li, J.,
+Ding, J., Mukherjee, S., Wang, S., et al. Traject-bench: A
+trajectory-aware benchmark for evaluating agentic tool
+use. arXiv preprint arXiv:2510.04550, 2025.
+
+Patil, S. G., Mao, H., Yan, F., Ji, C. C.-J., Suresh, V., Stoica,
+I., and Gonzalez, J. E. The berkeley function calling
+leaderboard (bfcl): From tool use to agentic evaluation
+of large language models. In Forty-second International
+Conference on Machine Learning, 2025.
+
+Hou, X., Zhao, Y., Wang, S., and Wang, H. Model context
+protocol (mcp): Landscape, security threats, and future
+research directions. arXiv preprint arXiv:2503.23278,
+2025.
+
+Peterson, L. E. K-nearest neighbor. Scholarpedia, 4(2):
+1883, 2009.
+
+Hurst, A., Lerer, A., Goucher, A. P., Perelman, A., Ramesh,
+A., Clark, A., Ostrow, A., Welihinda, A., Hayes, A.,
+Radford, A., et al. Gpt-4o system card. arXiv preprint
+arXiv:2410.21276, 2024.
+
+Qian, C., Liu, W., Liu, H., Chen, N., Dang, Y., Li, J., Yang,
+C., Chen, W., Su, Y., Cong, X., et al. Chatdev: Communicative agents for software development. In Proceedings of the 62nd Annual Meeting of the Association for
+Computational Linguistics (Volume 1: Long Papers), pp.
+15174–15186, 2024.
+
+Jin, B., Zeng, H., Yue, Z., Yoon, J., Arik, S., Wang, D.,
+Zamani, H., and Han, J. Search-r1: Training llms to
+reason and leverage search engines with reinforcement
+learning. arXiv preprint arXiv:2503.09516, 2025.
+
+Qin, Y., Liang, S., Ye, Y., Zhu, K., Yan, L., Lu, Y., Lin, Y.,
+Cong, X., Tang, X., Qian, B., et al. Toolllm: Facilitating
+large language models to master 16000+ real-world apis.
+arXiv preprint arXiv:2307.16789, 2023.
+
+Langley, P. Crafting papers on machine learning. In Langley,
+P. (ed.), Proceedings of the 17th International Conference
+on Machine Learning (ICML 2000), pp. 1207–1216, Stanford, CA, 2000. Morgan Kaufmann.
+
+Reimers, N. and Gurevych, I. Sentence-bert: Sentence
+embeddings using siamese bert-networks. arXiv preprint
+arXiv:1908.10084, 2019.
+
+Li, X., Dong, G., Jin, J., Zhang, Y., Zhou, Y., Zhu, Y., Zhang,
+P., and Dou, Z. Search-o1: Agentic search-enhanced
+large reasoning models. arXiv preprint arXiv:2501.05366,
+2025a.
+
+Singh, A., Fry, A., Perelman, A., Tart, A., Ganesh, A.,
+El-Kishky, A., McLaughlin, A., Low, A., Ostrow, A.,
+Ananthram, A., Nathan, A., Luo, A., Helyar, A., Madry,
+A., Efremov, A., et al. Openai gpt-5 system card, 2025.
+URL https://arxiv.org/abs/2601.03267.
+
+Li, X., Zou, H., and Liu, P. Torl: Scaling tool-integrated rl.
+arXiv preprint arXiv:2503.23383, 2025b.
+Liu, A., Feng, B., Xue, B., Wang, B., Wu, B., Lu, C., Zhao,
+C., Deng, C., Zhang, C., Ruan, C., et al. Deepseek-v3
+technical report. arXiv preprint arXiv:2412.19437, 2024.
+
+Team, K., Bai, Y., Bao, Y., Chen, G., Chen, J., Chen,
+N., Chen, R., Chen, Y., Chen, Y., Chen, Y., et al.
+Kimi k2: Open agentic intelligence. arXiv preprint
+arXiv:2507.20534, 2025.
+
+Liu, Z., Qiu, J., Wang, S., Zhang, J., Liu, Z., Ram, R., Chen,
+H., Yao, W., Heinecke, S., Savarese, S., et al. Mcpeval: Automatic mcp-based deep evaluation for ai agent
+models. In Proceedings of the 2025 Conference on Empirical Methods in Natural Language Processing: System
+Demonstrations, pp. 373–402, 2025.
+
+Wang, Z., Chang, Q., Patel, H., Biju, S., Wu, C.-E., Liu,
+Q., Ding, A., Rezazadeh, A., Shah, A., Bao, Y., et al.
+Mcp-bench: Benchmarking tool-using llm agents with
+complex real-world tasks via mcp servers. arXiv preprint
+arXiv:2508.20453, 2025.
+Yan, Y., Wang, S., Du, J., Yang, Y., Shan, Y., Qiu, Q., Jia, X.,
+Wang, X., Yuan, X., Han, X., et al. Mcpworld: A unified
+benchmarking testbed for api, gui, and hybrid computer
+use agents. arXiv preprint arXiv:2506.07672, 2025.
+
+Lu, C., Lu, C., Lange, R. T., Foerster, J., Clune, J., and Ha,
+D. The ai scientist: Towards fully automated open-ended
+scientific discovery. arXiv preprint arXiv:2408.06292,
+2024a.
+
+Yang, A., Li, A., Yang, B., Zhang, B., Hui, B., Zheng, B.,
+Yu, B., Gao, C., Huang, C., Lv, C., et al. Qwen3 technical
+report. arXiv preprint arXiv:2505.09388, 2025.
+
+Lu, J., Holleis, T., Zhang, Y., Aumayer, B., Nan, F., Bai,
+F., Ma, S., Ma, S., Li, M., Yin, G., Wang, Z., and Pang,
+R. Toolsandbox: A stateful, conversational, interactive
+evaluation benchmark for llm tool use capabilities, 2024b.
+URL https://arxiv.org/abs/2408.04682.
+
+Yao, S., Zhao, J., Yu, D., Du, N., Shafran, I., Narasimhan,
+K. R., and Cao, Y. React: Synergizing reasoning and
+10
+
+ComplexMCP: Evaluating LLM Agents in Large-Scale Tool Sandboxes
+
+acting in language models. In The eleventh international
+conference on learning representations, 2022.
+Yao, S., Shinn, N., Razavi, P., and Narasimhan, K. taubench: A benchmark for tool-agent-user interaction in
+real-world domains. arXiv preprint arXiv:2406.12045,
+2024.
+Yehudai, A., Eden, L., Li, A., Uziel, G., Zhao, Y., BarHaim, R., Cohan, A., and Shmueli-Scheuer, M. Survey on evaluation of llm-based agents. arXiv preprint
+arXiv:2503.16416, 2025.
+Zeng, A., Lv, X., Zheng, Q., Hou, Z., Chen, B., Xie, C.,
+Wang, C., Yin, D., Zeng, H., Zhang, J., et al. Glm-4.5:
+Agentic, reasoning, and coding (arc) foundation models.
+arXiv preprint arXiv:2508.06471, 2025.
+Zhou, S., Xu, F. F., Zhu, H., Zhou, X., Lo, R., Sridhar, A.,
+Cheng, X., Ou, T., Bisk, Y., Fried, D., et al. Webarena:
+A realistic web environment for building autonomous
+agents. arXiv preprint arXiv:2307.13854, 2023.
+
+11
+
+ComplexMCP: Evaluating LLM Agents in Large-Scale Tool Sandboxes
+
+A. LLM Agent Prompts
+The system prompts employed by LLM Agents for both the full-context strategy and the two RAG-based strategies are
+presented below.
+
+Full-context System Prompt:
+You are an AI assistant with access to a set of tools (APIs). When you need to use
+a tool, invoke it by outputting a JSON object enclosed by <tool> and </tool> in the
+following format:
+<tool>
+{"name":
+</tool>
+
+"tool name", "arguments":
+
+{"arg1":
+
+value1, "arg2":
+
+value2, ...}}
+
+After you submit the tool call in this format, I will execute it and return the
+result to you. Below is the list of available tools and their descriptions:
+$ALL TOOLS
+
+RAG System Prompt:
+You are an AI assistant with access to a set of tools (APIs). When you need to use
+a tool, invoke it by outputting a JSON object enclosed by <tool> and </tool> in the
+following format:
+<tool>
+{"name":
+</tool>
+
+"tool name", "arguments":
+
+{"arg1":
+
+value1, "arg2":
+
+value2, ...}}
+
+After you submit the tool call in this format, I will execute it and return the
+result to you. Below is the list of available tools and their descriptions:
+$RETRIEVED TOOLS(query, topk)
+
+Iterative RAG System Prompt:
+You are an AI assistant with access to a set of tools (APIs). When you need to use
+a tool, invoke it by outputting a JSON object enclosed by <tool> and </tool> in the
+following format:
+<tool>
+{"name":
+</tool>
+
+"tool name", "arguments":
+
+{"arg1":
+
+value1, "arg2":
+
+value2, ...}}
+
+After you submit the tool call in this format, I will execute it and return the
+result to you. Below is the list of available tools and their descriptions:
+- {’tool name’: ’retrieve tools’, ’description’: ’As there are too many tools
+available, use this tool to find the most relevant tools based on your query and a
+requested number k.’, ’arguments’: {’query’: {’type’: ’str’, ’description’: "A
+description of the task or requirements used to find relevant tools (e.g. ’I need
+to add two numbers’; ’I want to know that time is it now’)"}, ’k’: {’type’: ’int’,
+’description’: ’Maximum number of the most relevant tools to return’}}, ’returns’:
+{’type’: ’list’, ’description’: ’A list of up to k tools most relevant to the
+provided query’}}
+
+12
+
+ComplexMCP: Evaluating LLM Agents in Large-Scale Tool Sandboxes
+
+B. Tool Set
+ComplexMCP encompasses a diverse ecosystem of 15 MCP servers, providing a total of 315 distinct tools. These servers
+are categorized into 7 stateful servers, which maintain persistent environment states and side effects, and 8 stateless
+servers, which handle independent functional operations. The following sections provide detailed specifications for these
+components.
+B.1. Stateful Servers
+Stateful servers simulate realistic software environments where tool invocations depend on and modify the underlying
+system state.
+B.1.1. L IGHT OS
+Description LightOS serves as the foundational operating layer for all other stateful applications within the sandbox.
+It acts as a central coordinator, providing a unified virtualized temporal reference (pseudo-timestamp) for all integrated
+services to ensure temporal consistency across complex interaction trajectories.
+• now()
+Returns an ISO-formatted timestamp string. To ensure scientific reproducibility, the virtual time is deterministically
+derived from the initialized environment seed.
+• health()
+Performs a system-level diagnostic check and returns a boolean value indicating whether the operating system and its
+dependent services are functioning nominally.
+B.1.2. L IGHT TALK
+Description LightTalk simulates a multi-functional social platform requiring complex state management. It emphasizes tool interdependencies, such as the prerequisite of resolving UIDs before interaction and the necessity of network
+optimization for latency-sensitive tasks.
+• get my uid()
+Retrieves the unique identifier (UID) of the currently authenticated agent.
+• get my name()
+Retrieves the display name of the current agent’s session.
+• get all contacts()
+Fetches the complete directory of all contacts in the user’s social circle.
+• get contacts(page: int)
+Retrieves a paginated list of contacts, with each page containing up to 10 entries.
+• get uid from name(name: str)
+Performs a precise lookup to resolve a contact’s display name into their corresponding UID.
+• fuzzy search uids from name(name: str)
+Identifies potential UIDs based on partial or misspelled names using fuzzy matching.
+• get contact info(uid: str)
+Fetches detailed metadata for a specific contact, including online status and relationship flags.
+• get contacts by tag(tag: str)
+Filters and returns contacts associated with a specific user-defined label.
+• get contacts by gender(gender: str)
+Filters contacts based on demographic attributes (e.g., ’male’, ’female’).
+13
+
+ComplexMCP: Evaluating LLM Agents in Large-Scale Tool Sandboxes
+
+• edit remark(uid: str, remark: str)
+Updates or creates a personalized note/alias for a specific contact.
+• delete remark(uid: str)
+Removes the personalized remark associated with a contact.
+• send message(uid: str, content: str)
+Dispatches a text message to a recipient identified by their UID.
+• send image(uid: str, img url: str)
+Sends an image via a publicly accessible URL to a specific contact.
+• get chat history(uid: str)
+Retrieves the chronological log of messages exchanged with a specific contact.
+• delete message(uid: str, mid: str)
+Permanently deletes a specific message identified by its Message ID (MID).
+• delete chat history(uid: str)
+Clears the entire conversation history with a target contact.
+• mark as read(uid: str)
+Clears unread indicators for a specific individual chat thread.
+• mark as unread(uid: str)
+Manually flags a chat thread as unread for later follow-up.
+• post moment(content: str, img urls: list[str])
+Publishes a new post to the agent’s social timeline with optional image attachments.
+• get my moments()
+Retrieves all social posts previously published by the current agent.
+• get all moments(uid: str)
+Accesses the complete social timeline of a specific contact.
+• get last k moments(uid: str, k: int)
+Fetches the K most recent posts from a contact’s timeline.
+• get moment(uid: str, index: int)
+Retrieves a specific moment post based on its chronological index.
+• like moment(uid: str, moid: str)
+Registers a ’like’ on a specific post identified by its Moment ID (MOID).
+• unlike moment(uid: str, moid: str)
+Removes a previously registered ’like’ from a specific moment.
+• comment moment(uid: str, moid: str, content:
+Posts a primary comment on a contact’s moment.
+
+str)
+
+• comment comment(uid: str, moid: str, content: str)
+Creates a nested reply within an existing comment thread on a moment.
+• withdraw comment moment(uid: str, moid: str, my cid:
+Deletes the user’s own primary comment from a specific moment.
+• withdraw comment comment(uid: str, moid: str, cid:
+Removes the user’s own nested reply from a specific comment thread.
+• delete moment(moid: str)
+Permanently removes a post from the user’s own timeline.
+14
+
+str)
+str, my cid:
+
+str)
+
+ComplexMCP: Evaluating LLM Agents in Large-Scale Tool Sandboxes
+
+• get shared url of moment(uid: str, moid: str)
+Generates a shareable external link for a specific social post.
+• get shared url of contact(uid: str)
+Generates a shareable profile URL for a specific contact.
+• create group chat(uids: list[str])
+Initializes a multi-party group conversation with a specified list of members.
+• list all groups()
+Returns metadata for all groups of which the current agent is a member.
+• get group info(gid: str)
+Retrieves membership lists, owner details, and metadata for a Group ID (GID).
+• send message to group(gid: str, content: str, at:
+Sends a group text message with optional ’@’ mentions for specific UIDs.
+• send image to group(gid: str, img url: str, at:
+Sends an image to a group chat with optional member mentions.
+
+list[str])
+
+list[str])
+
+• get group chat history(gid: str)
+Retrieves the full message logs for a specified group chat.
+• rename group(gid: str, name: str)
+Modifies the display name of an existing group chat.
+• change owner of group(gid: str, uid: str)
+Transfers administrative ownership of a group to another member.
+• invite new member(gid: str, uid: str)
+Invites an additional contact into an existing group conversation.
+• quit group(gid: str)
+Exits the specified group chat session.
+• delete group(gid: str)
+Permanently dissolves a group (available only to the group owner).
+• mark as read in group(gid: str)
+Flags all messages in a group chat as read.
+• mark as unread in group(gid: str)
+Flag a group chat as having new, unread messages.
+• block(uid: str)
+Prevents a contact from sending messages or viewing moments.
+• unblock(uid: str)
+Restores normal interaction permissions for a previously blocked contact.
+• delete contact(uid: str)
+Removes a contact from the user’s directory.
+• acc network()
+Optimizes virtual network throughput to mitigate stochastic environment noise.
+• list ip choices()
+Lists available network localization/IP options for the current session.
+• change my ip(where: str)
+Modifies the virtual IP address to simulate geographic location changes.
+15
+
+ComplexMCP: Evaluating LLM Agents in Large-Scale Tool Sandboxes
+
+• ask for privilege()
+Requests elevated access rights for administrative or restricted software features.
+B.1.3. L IGHT S HOP
+Description LightShop simulates a complete e-commerce ecosystem, featuring stateful shopping carts, inventory management, and a transactional financial system. Agents must navigate through catalogs, manage cart states, and perform
+authenticated checkout procedures.
+• list all shop categories()
+Retrieves all available marketplace categories to facilitate structured shop browsing.
+• get shop id by name(shop name: str)
+Resolves a shop’s display name into its unique Shop ID (SID).
+• list all shops by category(category: str)
+Filters the marketplace to return all shops belonging to a specific business category.
+• search shops(shop name: str) / fuzzy search shops(shop name: str)
+Performs exact or error-tolerant searches for shops based on partial or misspelled names.
+• list items(sid: str)
+Lists all products currently available for sale in a specific shop.
+• get item info(sid: str, tid: str)
+Retrieves granular details for a specific item (TID), including pricing, description, and real-time stock levels.
+• search items(item name: str) / fuzzy search items(item name:
+Global search tools to find products across all available shops in the marketplace.
+• search items in shop(sid:
+
+str, item name:
+
+str)
+
+str) / fuzzy search items in shop(...)
+
+Scoped search tools to find specific products within a single target shop.
+• add to cart(sid: str, tid: str, cnt: int)
+Adds a specific quantity of an item to the agent’s persistent shopping cart.
+• get cart summary()
+Provides a high-level overview of the current cart, including total price and itemized entries.
+• delete item in cart(caid: str)
+Removes an item from the cart using its unique Cart Item ID (CAID).
+• check balance()
+Queries the current user’s account balance to determine purchasing power.
+• wait payment password()
+Simulates a secure authentication step required to authorize a financial transaction.
+• checkout all()
+Executes the purchase of all items in the cart, updating account balance and inventory states.
+• get trans history()
+Retrieves a list of all successful past transactions with associated metadata.
+• get trans info(trid: str)
+Fetches detailed logs for a specific transaction identified by its Transaction ID (TRID).
+• delete trans history(trid: str)
+Permanently removes a transaction record from the user’s history.
+16
+
+ComplexMCP: Evaluating LLM Agents in Large-Scale Tool Sandboxes
+
+• star shop(sid: str) / unstar shop(sid: str)
+Manages the user’s favorited shop list for rapid access to preferred merchants.
+• star item(sid: str, tid: str) / unstar item(sid:
+Toggles the ”starred” status for specific products across different shops.
+
+str, tid:
+
+str)
+
+• get starred shops()
+Returns a collection of all shops currently marked as favorites by the user.
+• get my starred items()
+Retrieves all individual products that the agent has previously favorited.
+B.1.4. L IGHT W EATHER
+Description LightWeather provides a simulated meteorological service, offering real-time observations, multi-day forecasts, and historical climate data. It also includes an interactive alerting system and sensor station metadata to evaluate an
+agent’s ability to monitor environmental changes.
+• list cities()
+Lists all urban locations supported by the weather service.
+• get current weather(location: str)
+Retrieves real-time weather parameters for a specific city, including temperature and humidity.
+• get forecast(location: str, days: int)
+Fetches a multi-day weather forecast, providing projected conditions and temperature ranges.
+• get hourly forecast(location: str, hours:
+Provides short-term, hour-by-hour meteorological projections.
+
+int)
+
+• get precip probability(location: str, next hours: int)
+Returns the hourly probability of precipitation (0–100%) for the specified duration.
+• get wind forecast(location: str, hours: int)
+Forecasts wind speed, direction, and gust intensity over a given period.
+• get uv index(location: str)
+Retrieves the current Ultraviolet (UV) index and the associated health risk level.
+• get air quality(location: str)
+Fetches the Air Quality Index (AQI) and its categorical rating (e.g., ’Moderate’).
+• get sun times(location: str)
+Provides precise sunrise and sunset times for the current date.
+• list stations()
+Returns a comprehensive list of all active weather stations and their identifiers.
+• get station info(station id: str)
+Retrieves station metadata, including geographic elevation and operational status.
+• get station observation(station id: str)
+Accesses direct sensor readings from a specific weather station.
+• get historical weather(location: str, start: str, end:
+Fetches past weather records based on a specified date range (YYYY-MM-DD).
+• get climate summary(location: str, year: int)
+Provides annual climate trends and notable meteorological events for a given year.
+17
+
+str)
+
+ComplexMCP: Evaluating LLM Agents in Large-Scale Tool Sandboxes
+
+• compare climate(location1: str, location2: str)
+Highlights key differences in annual averages and climate patterns between two regions.
+• get weather alerts(location: str)
+Retrieves active regional weather warnings (e.g., storm or heatwave alerts).
+• create alert(location: str, condition: str, threshold: float)
+Configures a custom monitoring alert triggered when a parameter (e.g., wind speed) exceeds a threshold.
+• list alerts()
+Displays all custom alerts currently active within the agent’s session.
+• delete alert(alert id: str)
+Removes a previously configured custom weather alert.
+• set primary location(location: str)
+Configures a default city for session-level weather queries.
+• get primary location()
+Retrieves the currently set primary location for the user session.
+• estimate travel weather(route: list[str])
+Simulates weather conditions along a multi-city travel trajectory.
+• convert temperature(value: float, from unit: str, to unit:
+A functional utility to convert values between Celsius, Fahrenheit, and Kelvin.
+
+str)
+
+B.1.5. L IGHT F LIGHT
+Description LightFlight simulates a global aviation reservation system, incorporating flight scheduling, multi-class seat
+inventory, and passenger profile management. It enforces realistic transactional constraints, such as mandatory payment
+authentication and a structured refund policy for cancellations.
+• list all cities()
+Retrieves a complete directory of all cities serviced by airports within the LightFlight network.
+• list airports by city(city: str)
+Lists all operational airports located within a specific metropolitan area.
+• search airports(airport name: str)
+Performs a keyword-based search to identify airports by their name, code, or partial string.
+• search flights(departure: str, arrival: str, date: str)
+Identifies available Flight IDs (FIDs) between an origin and destination on a specific date (YYYY-MM-DD).
+• get flight details(fid: str)
+Retrieves exhaustive flight metadata, including schedules, durations, and pricing across different cabin classes.
+• get fids by departure(departure: str) / get fids by arrival(arrival:
+Filters the flight database to return all FIDs originating from or arriving at a target city.
+
+str)
+
+• check seat availability(fid: str, seat class: str)
+Queries the real-time seat inventory for specific cabin classes (e.g., ’economy’, ’business’, ’first’).
+• check passengers()
+Returns the list of registered passengers in the agent’s profile, including linked LightTalk identities.
+• add passenger(name: str, light talk uid: str)
+Registers a new passenger, optionally linking their record to a LightTalk UID for cross-platform data integration.
+18
+
+ComplexMCP: Evaluating LLM Agents in Large-Scale Tool Sandboxes
+
+• remove passenger(passenger idx: int)
+Deletes a passenger record from the profile based on its zero-based list index.
+• add to booking(fid: str, seat class: str, passenger idx:
+Adds a specific seat and passenger combination to the pending booking cart.
+
+int)
+
+• check bookings()
+Provides an itemized view of all booking items (both paid and unpaid) in the current session.
+• remove from booking(bid: str)
+Removes an unpaid item from the booking cart using its unique Booking ID (BID).
+• wait payment password()
+Simulates the secure authentication step required before the agent can finalize flight transactions.
+• checkout bookings()
+Finalizes payment for all pending bookings, updating seat inventory and account balance.
+• cancel booking(bids: list[str])
+Processes a cancellation request for paid bookings, enforcing a stateful 95% refund policy.
+• check balance()
+Queries the financial account for the available funds within the LightFlight system.
+• get booking history()
+Retrieves a chronological record of all past flight transactions and travel metadata.
+• star airport(aid: str) / unstar airport(aid: str)
+Manages the user’s collection of favorited airports for expedited navigation and search.
+• get my starred airports()
+Retrieves a collection of all airports currently marked as favorites by the agent.
+B.1.6. L IGHT S TOCK
+Description LightStock simulates a dynamic financial trading environment, including equity market discovery, multiple
+order types (market, limit, and stop-loss), and account tier management (Basic vs. VIP). It incorporates realistic financial
+constraints such as trading passwords, margin requirements, and daily trade limits.
+• list all sectors()
+Retrieves a sorted list of all industry sectors available for stock classification.
+• list all tickers by sector(sector: str)
+Lists all ticker symbols associated with a specific industry sector.
+• search stocks(query: str)
+Searches for equities by ticker symbol or company name using keyword matching.
+• get stock details(ticker: str)
+Fetches comprehensive metadata for a specific ticker, including price-to-earnings (P/E) ratio, market capitalization, and
+company description.
+• place market order(ticker: str, side: str, quantity:
+Executes an immediate buy or sell order at the current prevailing market price.
+
+int)
+
+• place limit order(ticker: str, side: str, quantity: int, limit price:
+float)
+Places an order to execute only at a specified price or better, freezing necessary funds as margin.
+19
+
+ComplexMCP: Evaluating LLM Agents in Large-Scale Tool Sandboxes
+
+• place stop loss order(ticker: str, quantity: int, stop price: float)
+Configures an automated sell order triggered when the price falls to a specific level (VIP-only feature).
+• cancel order(oid: str)
+Rescinds a pending limit or stop-loss order and releases any associated frozen margin.
+• get portfolio()
+Retrieves the agent’s current equity holdings, including quantity and average cost basis.
+• get pending orders()
+Lists all active, non-executed orders currently remaining in the order book.
+• get trade history()
+Retrieves a chronological log of all successfully executed trades and associated fees.
+• get day trades remaining()
+Queries the remaining number of day trades allowed for the current session (Basic users only).
+• get account summary()
+Returns a high-level overview of account health, user tier, and various balance types (trading, savings, margin).
+• transfer funds(amount: float, direction: str)
+Facilitates the movement of capital between ’savings’ and ’trading’ sub-accounts.
+• wait trade password()
+Simulates the mandatory secure authentication step required before order execution or account upgrades.
+• check vip price()
+Retrieves the current fee required to upgrade the account status to VIP.
+• upgrade to vip()
+Activates VIP status, unlocking advanced capabilities such as stop-loss orders and unlimited day trading.
+• toggle watchlist(ticker: str)
+Adds or removes a specific stock ticker from the agent’s personalized monitoring list.
+• get watchlist details()
+Retrieves real-time pricing and key performance metrics for all stocks in the watchlist.
+• set price alert(ticker: str, price: float)
+Configures a notification trigger for when a specific stock reaches a target price.
+• remove price alert(ticker: str)
+Deletes an existing price monitoring alert for the specified ticker.
+B.1.7. L IGHT N EWS
+Description LightNews acts as a simulated digital media repository, providing access to real-time and archived news
+articles across various editorial categories. It supports complex information retrieval tasks, including keyword-based search
+with temporal constraints and full-text content extraction.
+• list all sections()
+Retrieves a comprehensive list of available news categories (e.g., ’Technology’, ’Politics’, ’World’).
+• get last k news(section: str, k: int)
+Fetches the K most recent headlines and summaries from a specified editorial section.
+• search(section: str, query: str, maxn: int, begin date: str, end date:
+str)
+Performs a multi-criteria search within a specific section, supporting keyword matching and optional ISO-formatted
+date range filtering.
+20
+
+ComplexMCP: Evaluating LLM Agents in Large-Scale Tool Sandboxes
+
+• get details(nid: str)
+Retrieves the full body text, author information, and associated metadata for a specific News ID (NID).
+• get news url(nid: str)
+Generates a shareable, unique URL for a specific news article to facilitate cross-platform distribution.
+B.2. Stateless Servers
+Stateless servers are a category of MCP servers designed to handle requests in a self-contained manner, without retaining
+any client-specific state or context between interactions. This architecture ensures that each transaction is independent,
+making the servers highly scalable, reliable, and easy to replicate. The following table details the stable stateless MCP
+servers implemented in this system.
+Server Name & Description
+Math
+Provides a comprehensive suite of fundamental and advanced mathematical operations.
+
+Tools
+add, sub, mul, div, pow, sqrt, abs val,
+mod, floor div, max val, min val, round val,
+log, exp, sin, cos, tan, asin, acos, atan,
+sinh, cosh, tanh, factorial, gcd, lcm,
+deg to rad, rad to deg, is even, is odd,
+is prime, nth fibonacci, sum of list,
+product of list, mean, median, mode,
+variance, standard deviation, clamp, hypot,
+cbrt
+sha256, sha1, md5, hmac sha256, pbkdf2 hex,
+Crypto
+Offers a collection of essential crypto- random bytes, random hex, base64 encode,
+base64 decode, xor cipher, xor dec,
+graphic primitives and utilities.
+simple caesar, rot13, timing safe compare,
+derive key, entropy estimate hex,
+uuid4, hex to bytes, bytes to hex,
+urlsafe b64 encode, urlsafe b64 decode,
+hmac sign hex, hmac verify hex,
+checksum sha256 hex, random choice,
+secure token urlsafe, file digest,
+xor bytes hex
+molar mass, empirical formula,
+Chem
+Delivers core chemical computation and for- percent composition, balance simple reaction,
+mula manipulation tools.
+is balanced, ph from concentration,
+concentration from ph, ideal gas pressure,
+convert moles to grams,
+convert grams to moles, normalize formula,
+element list, combustion products,
+is organic, simple smiles validate,
+mole fraction, clamp
+Time
+days diff, date to weekday, iso seconds diff,
+Offers precise date and time manipulation convert time units, add seconds iso
+utilities, focusing on ISO standards, durations, and temporal offsets.
+Network
+whois lookup, nmap scan, dnsrecon lookup,
+Provides robust network diagnostic and OS- dnstwist lookup, dig lookup, host lookup,
+INT reconnaissance tools, including DNS osint overview
+lookups and security scanning.
+Table 4. List of Implemented Stateless MCP Servers
+
+21
+
+ComplexMCP: Evaluating LLM Agents in Large-Scale Tool Sandboxes
+
+Server Name & Description
+String
+Equipped with a wide range of text processing and linguistic analysis functions.
+
+Tools
+tokenize, detokenize, normalize whitespace,
+remove punctuation, count words, word freq,
+sentence split, simple summarize,
+levenshtein, jaccard similarity,
+ngrams, to lower, to upper, title case,
+snake case, camel case, slugify,
+extract numbers, hash text, base64 encode,
+base64 decode, is palindrome, regex search,
+replace, truncate, read time estimate,
+remove stopwords, simple paraphrase,
+syllable estimate, ordinal, count chars,
+template render
+convert temperature, convert angle,
+Unit
+A versatile conversion engine supporting convert length, convert energy,
+a vast array of physical units, from basic convert force, convert pressure,
+dimensions to complex technical data.
+convert power, convert speed,
+convert area, convert mass, convert volume,
+convert computer data, convert density,
+convert time, convert batch,
+list supported units
+bfs, dfs, shortest path dijkstra,
+Graph
+Implements core graph theory algorithms, is bipartite, connected components,
+including traversal, pathfinding, and struc- topological sort, mst kruskal,
+tural analysis for complex networks.
+shortest path unweighted, path exists,
+adjacency matrix, adjacency list to matrix,
+degree centrality, is connected,
+graph complement, random erdos renyi
+Table 5. List of Implemented Stateless MCP Servers (Continued)
+
+C. Case Study
+In this section, we present representative case studies selected from the execution trajectories of LLM agents to provide a
+qualitative analysis of their decision-making processes.
+C.1. Correct Cases:
+C.1.1. C ASE 1
+Query: Mark the messages from Sean Baker as read.
+Seed: 42
+GPT-4o
+<tool>
+{"name": "get_uid_from_name", "arguments": {"name": "Sean Baker"}}
+</tool>
+<response>
+{"status":"ok","output":"user_3vqHCiKM2saQAe3kERMPjn"}
+</response>
+<tool>
+{"name": "mark_as_read", "arguments": {"uid": "user_3vqHCiKM2saQAe3kERMPjn"}}
+</tool>
+<response>
+
+22
+
+ComplexMCP: Evaluating LLM Agents in Large-Scale Tool Sandboxes
+
+{"status":"ok","output":"You have successfully marked the messages from contact ‘
+Sean Baker‘ (UID=user_3vqHCiKM2saQAe3kERMPjn) as read"}
+</response>
+You have successfully marked the messages from Sean Baker as read.
+[END]
+
+• Correctness: ✓
+• Completion Rate Rc = 11
+• Misbehaving Rate Rb = 01
+C.1.2. C ASE 2
+Query: Help me buy 10 kg of seedless grapes from LightShop.
+Seed: 1
+Gemini-3-Flash
+<tool>
+{"name": "search_items", "arguments": {"item_name": "seedless grapes"}}
+</tool>
+<response>
+{"status":"ok","output":[]}
+</response>
+<tool>
+{"name": "search_items", "arguments": {"item_name": "grapes"}}
+</tool>
+<response>
+{"status":"ok","output":[]}
+</response>
+<tool>
+{"name": "list_all_shop_categories", "arguments": {}}
+</tool>
+<response>
+{"status":"ok","output":["books","electronics","fashion","fruit","sports_equipment","
+vegetable"]}
+</response>
+<tool>
+{"name": "list_all_shops_by_category", "arguments": {"category": "fruit"}}
+</tool>
+<response>
+{"status":"ok","output":["Pomegranate Pavilion"]}
+</response>
+<tool>
+{"name": "get_shop_id_by_name", "arguments": {"shop_name": "Pomegranate Pavilion"}}
+</tool>
+<response>
+{"status":"ok","output":"shop_7EpQHsj32kNUr7nLXfCAAs"}
+</response>
+<tool>
+{"name": "list_items", "arguments": {"sid": "shop_7EpQHsj32kNUr7nLXfCAAs"}}
+</tool>
+<response>
+{"status":"ok","output":[{"tid":"item_2YnLcoeZC7Zrw3w6sTkJHo","name":"braeburn apple
+(1kg)","price":1.18,"star":false},{"tid":"item_QJArpa9SH7PZvqYmY549BY","name":"
+cantaloupe (1/2 pc)","price":2.12,"star":false},{"tid":"
+item_mhHob7L3f2thyjYmwZMgmx","name":"coconut (1 pc)","price":1.92,"star":false
+},{"tid":"item_cqNMJscxt9Z746snqMdnPa","name":"empire apple (1kg)","price":1.37,"
+
+23
+
+ComplexMCP: Evaluating LLM Agents in Large-Scale Tool Sandboxes
+
+star":false},{"tid":"item_PyuJGV7f42zJcTK5vyy8Ed","name":"golden delicious apple
+(1kg)","price":1.26,"star":false},{"tid":"item_xNJY8u84Jc2RqoCnbBTgBr","name":"
+grape (1kg)","price":2.34,"star":false},{"tid":"item_BZigPTWnXQV34izbQBWymY","
+name":"idared apple (1kg)","price":0.93,"star":false},{"tid":"
+item_UNCDDNp7k7aMEy4CobvG7c","name":"kanzi apple (1kg)","price":1.9,"star":false
+},{"tid":"item_G2t4pxaBsyiXPMDgSD7fJW","name":"mangosteen (500g)","price":4.67,"
+star":false},{"tid":"item_vv7djJkuyWyWuCJyWwQrVk","name":"nectarine (1kg)","price
+":2.29,"star":false},{"tid":"item_TWSqydhTX3gofSk9E466vJ","name":"red delicious
+apple (1kg)","price":1.17,"star":false},{"tid":"item_XxaUHZx2nptkpXZS5saDWV","
+name":"sweetango apple (1kg)","price":1.33,"star":false},{"tid":"
+item_5BYBHiTLV3QRC8uXDcp33A","name":"thompson seedless grape (1kg)","price
+":1.93,"star":false}]}
+</response>
+<tool>
+{"name": "check_balance", "arguments": {}}
+</tool>
+<response>
+{"status":"ok","output":57126}
+</response>
+<tool>
+{"name": "add_to_cart", "arguments": {"cnt": 10, "sid": "shop_7EpQHsj32kNUr7nLXfCAAs
+", "tid": "item_5BYBHiTLV3QRC8uXDcp33A"}}
+</tool>
+<response>
+{"status":"ok","output":"Added 10 x ’thompson seedless grape (1kg)’ (ID:
+item_5BYBHiTLV3QRC8uXDcp33A) to your cart."}
+</response>
+<tool>
+{"name": "get_cart_summary", "arguments": {}}
+</tool>
+<response>
+{"status":"ok","output":[{"caid":"cart_jJiBSXew5EqPXXvzZ87kuh","sid":"
+shop_7EpQHsj32kNUr7nLXfCAAs","tid":"item_5BYBHiTLV3QRC8uXDcp33A","count":10}]}
+</response>
+<tool>
+{"name": "wait_payment_password", "arguments": {}}
+</tool>
+<response>
+{"status":"ok","output":"The user has entered the correct payment password."}
+</response>
+<tool>
+{"name": "checkout_all", "arguments": {}}
+</tool>
+<response>
+{"status":"ok","output":"Checkout successful. Transaction ID:
+trans_Eezd3HD8osr9kjAwwhbw3E."}
+</response>
+I have successfully purchased 10 kg of Thompson seedless grapes for you from the "
+Pomegranate Pavilion" shop in LightShop.
+[END]
+
+• Correctness: ✓
+• Completion Rate Rc = 44
+• Misbehaving Rate Rb = 04
+C.1.3. C ASE 3
+Query: I have a meeting in Singapore on July 15. Please help me book a flight from Chicago to Singapore for either July 13
+or July 14. If the weather in Singapore on July 10 is good, book a business class seat; otherwise, book an economy class seat.
+24
+
+ComplexMCP: Evaluating LLM Agents in Large-Scale Tool Sandboxes
+
+Seed: 12
+Claude-Opus-4
+<response>
+{"status":"ok","output":"2026-07-04 07:19:09"}
+</response>
+<tool>
+{"name": "get_forecast", "arguments": {"days": 7, "location": "Singapore"}}
+</tool>
+<response>
+{"status":"ok","output":[{"date":"2026-07-04","condition":{"id":"snow","name":"Snow
+","description":"Snowfall with varying accumulation rates depending on
+temperature and humidity."},"temp_c":26.1,"precip_mm":0.0},{"date":"2026-07-05","
+condition":{"id":"thunderstorm","name":"Thunderstorm","description":"
+Thunderstorms with lightning, heavy rain, gusty winds, and possible hail."},"
+temp_c":28.6,"precip_mm":2.7},{"date":"2026-07-06","condition":{"id":"cloudy","
+name":"Cloudy","description":"Overcast skies, limited sunshine. Cooler
+temperatures."},"temp_c":34.8,"precip_mm":14.8},{"date":"2026-07-07","condition
+":{"id":"thunderstorm","name":"Thunderstorm","description":"Thunderstorms with
+lightning, heavy rain, gusty winds, and possible hail."},"temp_c":26.2,"precip_mm
+":0.0},{"date":"2026-07-08","condition":{"id":"cloudy","name":"Cloudy","
+description":"Overcast skies, limited sunshine. Cooler temperatures."},"temp_c
+":26.5,"precip_mm":18.5},{"date":"2026-07-09","condition":{"id":"sunny","name":"
+Sunny","description":"Clear sky with abundant sunshine. Little to no cloud cover
+."},"temp_c":35.4,"precip_mm":14.1},{"date":"2026-07-10","condition":{"id":"sunny
+","name":"Sunny","description":"Clear sky with abundant sunshine. Little to no
+cloud cover."},"temp_c":34.8,"precip_mm":2.9}]}
+</response>
+<tool>
+{"name": "search_flights", "arguments": {"arrival": "Singapore", "date":
+"2026-07-13", "departure": "Chicago"}}
+</tool>
+<response>
+{"status":"ok","output":["flight_23B6NKD6SXf77G4AQmMPKx"]}
+</response>
+<tool>
+{"name": "search_flights", "arguments": {"arrival": "Singapore", "date":
+"2026-07-14", "departure": "Chicago"}}
+</tool>
+<response>
+{"status":"failed","output":"No flights found for Chicago -> Singapore on
+2026-07-14"}
+</response>
+<tool>
+{"name": "get_flight_details", "arguments": {"fid": "flight_23B6NKD6SXf77G4AQmMPKx
+"}}
+</tool>
+<response>
+{"status":"ok","output":{"fid":"flight_23B6NKD6SXf77G4AQmMPKx","departure":"Chicago,
+Chicago O’Hare International Airport","arrival":"Singapore, Singapore Changi
+Airport","depature_time":"2026-07-13 14:02:10","arrival_time":"2026-07-14
+12:33:10","duration":"1351 min","price":{"ecomony":10000,"business":20000,"first
+":45000.0},"seat_count":{"economy":28,"business":2,"first":2}}}
+</response>
+<tool>
+{"name": "check_passengers", "arguments": {}}
+</tool>
+<response>
+{"status":"ok","output":[]}
+</response>
+<tool>
+{"name": "get_my_name", "arguments": {}}
+
+25
+
+ComplexMCP: Evaluating LLM Agents in Large-Scale Tool Sandboxes
+
+</tool>
+<response>
+{"status":"ok","output":"Chase Shaw"}
+</response>
+<tool>
+{"name": "get_myuid", "arguments": {}}
+</tool>
+<response>
+{"status":"ok","output":"user_VffA2PHphcZfATBu5p6hMR"}
+</response>
+<tool>
+{"name": "add_passenger", "arguments": {"light_talk_uid": "
+user_VffA2PHphcZfATBu5p6hMR", "name": "Chase Shaw"}}
+</tool>
+<response>
+{"status":"ok","output":"You have successfully added a new passenger : {’name’: ’
+Chase Shaw’, ’light_talk_uid’: ’user_VffA2PHphcZfATBu5p6hMR’}, index = 0"}
+</response>
+<tool>
+{"name": "add_to_booking", "arguments": {"fid": "flight_23B6NKD6SXf77G4AQmMPKx", "
+passenger_idx": 0, "seat_class": "business"}}
+</tool>
+<response>
+{"status":"ok","output":"You have successfully added one booking into list"}
+</response>
+<tool>
+{"name": "LightFlight_wait_payment_password", "arguments": {}}
+</tool>
+<response>
+{"status":"ok","output":"The user has already entered the correct password"}
+</response>
+<tool>
+{"name": "checkout_bookings", "arguments": {}}
+</tool>
+<response>
+{"status":"ok","output":"You have successfully checkout all bookings"}
+</response>
+<tool>
+{"name": "get_uid_from_name", "arguments": {"name": "Brown"}}
+</tool>
+<response>
+{"status":"failed","output":"Contact Brown not found"}
+</response>
+<tool>
+{"name": "fuzzy_search_uids_from_name", "arguments": {"name": "Brown"}}
+</tool>
+<response>
+{"status":"ok","output":["Christian Brown (user_NZAvtgH8nWVNhTkTd4LseT)"]}
+</response>
+<tool>
+{"name": "send_message", "arguments": {"content": "Arrival time in Singapore:
+2026-07-14 12:33:10", "uid": "user_NZAvtgH8nWVNhTkTd4LseT"}}
+</tool>
+<response>
+{"status":"ok","output":"You have successfully sent one message to Christian Brown (
+user_NZAvtgH8nWVNhTkTd4LseT)"}
+</response>
+I have successfully booked your flight from Chicago to Singapore.
+**Flight Details:**
+- **Flight ID:** flight_23B6NKD6SXf77G4AQmMPKx
+- **Departure:** Chicago (ORD) on 2026-07-13 14:02:10
+
+26
+
+ComplexMCP: Evaluating LLM Agents in Large-Scale Tool Sandboxes
+
+- **Arrival:** Singapore (SIN) on 2026-07-14 12:33:10
+- **Class:** Business Class (selected due to sunny weather forecast for Singapore on
+July 10)
+I have also notified your classmate, Christian Brown, of your arrival time
+(2026-07-14 12:33:10) as requested.
+[END]
+
+• Correctness: ✓
+• Completion Rate Rc = 12
+12
+0
+• Misbehaving Rate Rb = 12
+
+C.2. Incorrect Cases
+C.2.1. C ASE 1
+Query: Like the latest post in Jeremy Guzman’s Moments on LightTalk.
+Seed: 42
+GPT-5.1
+<tool>
+{"name": "get_uid_from_name", "arguments": {"name": "Jeremy Guzman"}}
+</tool>
+<response>
+{"status":"ok","output":"user_KE9GL2kCPiWqo6s43vsaai"}
+</response>
+<tool>
+{"name":"get_last_k_moments","arguments":{"uid":"user_KE9GL2kCPiWqo6s43vsaai","k
+":1}}
+</tool>
+<response>
+{"status":"ok","output":[{"moid":"m

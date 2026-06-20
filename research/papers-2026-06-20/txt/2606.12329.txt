@@ -1,0 +1,838 @@
+PROJECTMEM: A Local-First, Event-Sourced Memory and
+Judgment Layer for AI Coding Agents
+Ripon Chandra Malo*
+University of Utah
+
+Tong Qiu
+University of Utah
+
+arXiv:2606.12329v1 [cs.AI] 10 Jun 2026
+
+June 2026
+
+Abstract
+AI coding assistants now support a growing share of software work, from quick scripts to production applications. Yet
+these agents remain largely stateless: each new session re-reads project files, re-derives prior decisions, and—most
+costly—may repeat debugging attempts that already failed. Reconstructing this context can consume an estimated
+5,000–20,000 tokens per session; the bottleneck is often not model capability but missing project memory. We
+present projectmem, an open-source, local-first memory and judgment layer for AI coding agents. projectmem
+records development as an append-only, plain-text event log of typed events—issues, attempts, fixes, decisions,
+and notes—and deterministically projects that log into compact, AI-readable summaries served through the Model
+Context Protocol (MCP). Beyond storage, projectmem adds a deterministic pre-action gate that warns an agent
+before it repeats a previously failed fix or edits a known-fragile file. We frame this as Memory-as-Governance:
+memory that does not merely answer the agent but acts on its next action. The system runs fully offline with no
+telemetry; its immutable log also serves as a provenance trail for reproducible, auditable AI-assisted development.
+projectmem ships as a three-dependency Python package (14 MCP tools, 19 CLI commands, 37 automated tests)
+and is evaluated through a two-month self-study across 10 projects comprising 207 logged events. Source code:
+https://github.com/riponcm/projectmem.
+
+1
+
+Introduction
+
+Large-language-model (LLM) coding agents have rapidly become everyday development infrastructure: from an
+individual developer rapidly prototyping an idea, to an engineering team shipping features, to a researcher writing
+analysis code, developers increasingly drive their work through an AI assistant rather than typing it by hand. These
+agents are powerful within a single session but stateless across sessions. When the conversation window closes, the
+agent loses durable project-specific state. The next session often begins by re-reading source files, re-asking questions
+answered yesterday, re-deriving architectural decisions, and—a particularly costly failure mode—re-attempting fixes
+that have already been tried and have already failed.
+This is not a model-quality problem; it is an architecture problem. Recent empirical work on agentic software
+engineering documents exactly these pathologies. An empirical study of failed agentic pull requests on GitHub finds that
+they frequently exhibit “repeated application of the same fix without proper testing or evolution” [6]; a complementary
+analysis shows that a single root-cause error propagates through an agent’s subsequent decisions into cascading task
+failure, and that agents can learn from such failures—but only after the fact [26]. Surveys of agentic programming
+likewise identify cross-session memory and context tracking “beyond the token limit” as a central open challenge [21].
+The context cost is concrete: re-establishing context by re-reading a project consumes thousands of tokens per session,
+and the per-turn cost of long-context re-submission grows with horizon even under aggressive prompt caching, whereas
+a memory system’s read cost is roughly fixed after a one-time write [15]. These studies point to a common failure mode:
+repeated mistakes are costly, and the cheapest moment to stop a repetition is before it happens—not after.
+A natural response is to give agents memory, and a substantial literature now does (Section 2). However, the
+dominant designs share a set of properties poorly suited to everyday software development: they are built around vector
+* Corresponding author: ripon.malo@utah.edu
+
+1
+
+databases or LLM-in-the-loop fact extraction (introducing nondeterminism and recurring read cost), they are oriented
+toward conversational personalization rather than engineering correctness, they are frequently cloud- or server-hosted
+(a barrier for sensitive or proprietary code), and—most importantly—they primarily answer the agent. Even the closest
+coding-agent peer, which independently converges on a plain-text, file-based, no-vector-database design for the same
+reason (agents “lose coherence across sessions, forget project conventions, and repeat known mistakes” [20]), prevents
+repetition passively—by supplying conventions as context the agent must choose to read. These systems do not generally
+judge the agent in the sense used here: to our knowledge, none deterministically intervenes before an action on the
+basis of that project’s own recorded failures.
+Contributions.
+
+We present projectmem and make four contributions:
+
+1. An event-sourced, plain-text memory substrate for coding agents: an append-only log of typed events (issue /
+attempt / fix / decision / note) from which a compact, AI-readable summary is deterministically projected. The log
+is grep-able, diff-able, and git-native—no vector database, no embeddings (Section 3).
+2. A judgment layer: a deterministic, history-derived pre-action gate that warns an agent before it repeats a previouslyfailed fix or edits a file with a record of churn or open issues. We argue that this identifies an underexplored design
+point, which we name Memory-as-Governance (Sections 2, 3).
+3. A local-first, tool-agnostic system: a native MCP server (14 typed tools) that serves identical memory to multiple
+MCP-capable clients, plus a universal Markdown bridge for non-MCP tools—running fully offline with default-on
+secret redaction (Section 4).
+4. An open-source implementation and a usage study: a three-dependency Python package with 37 automated tests,
+evaluated through estimated token-cost analysis and a 207-event, 10-project self-study (Section 7).
+
+2
+
+Related Work
+
+We organize prior work into four threads—retrieval-oriented agent memory, project memory for coding agents, learning
+from failure, and pre-action guardrails—and then state the gap that projectmem fills.
+Retrieval-oriented agent memory. The dominant paradigm extracts, consolidates, and retrieves salient context into
+vector and/or graph stores to overcome a fixed context window. Li et al. [10] characterize essentially all such systems
+as Memory-as-Tool—one query in, one flat top-k list of passages out. MemGPT/Letta pages context in and out like
+an operating system over a tiered, mutable memory with function-call self-editing [13]; Mem0 dynamically extracts
+and vector-indexes salient conversational facts, its graph variant Mem0g adding only marginal accuracy [4]; A-MEM
+organizes memory as a Zettelkasten knowledge network of LLM-generated, dynamically-linked notes [24]; Zep/Graphiti
+is a temporally-aware knowledge-graph engine retrieved via embeddings and reranking [16]; and MemMachine
+combines a vector database and a graph database (and exposes an MCP server), explicitly optimizing retrieval
+accuracy [22]. Most recently, Memanto pairs a typed semantic-memory schema with information-theoretic retrieval,
+reporting state-of-the-art accuracy on the LongMemEval and LoCoMo QA suites via single-query reads [1]. Its client is
+open-source, but retrieval is delegated to a hosted service (Moorcheh; free tier plus metered paid usage), so Memanto is
+neither local nor offline. We view it as independent evidence for typed memory, aimed at retrieval fidelity rather than the
+local-first, plain-text, action-gating design we pursue. Generative Agents introduced the append-only natural-language
+memory stream with recency/importance/relevance retrieval and reflection [14]—an intellectual ancestor of our event log,
+though its retrieval is LLM-scored and lossy where ours is deterministic and exact—while MemoryBank deliberately
+forgets via an Ebbinghaus curve [25], the opposite of our never-forget audit trail. The cognitive-architecture framing
+of CoALA [19] maps classical working/episodic/semantic/procedural memory onto LLM agents. These systems
+are predominantly embedding- or graph-backed, conversational or personalization-oriented, frequently cloud-hosted,
+typically mutable, and evaluated on QA benchmarks; crucially, all augment context rather than gate an action. A recent
+benchmark of memory in LLM agents finds that no current architecture masters all of accurate retrieval, test-time
+learning, long-range understanding, and conflict resolution [8]—independent evidence that the design space remains
+unsaturated.
+
+2
+
+Project memory for coding agents. A smaller, very recent thread targets persistent memory for software-engineering
+agents specifically. Closest to our work is Codified Context, which—like projectmem and independently—adopts a
+plain-text, file-based, no-vector-database design served over an MCP server, motivated by the identical observation
+that agents “lose coherence across sessions, forget project conventions, and repeat known mistakes” [20]. It pairs a
+Markdown “hot-memory constitution” of conventions with on-demand specification documents retrieved by keyword.
+The decisive difference is mechanism: Codified Context prevents repetition passively—it supplies conventions as
+context the agent must read, and its drift detector fires at session start from git-commit divergence, not from the project’s
+logged failures and not per action. projectmem instead derives a deterministic, per-action warning from an immutable,
+append-only event log of typed failures. The event-sourcing substrate itself has been proposed concurrently for
+autonomous SE agents (an append-only log of intentions and effects from which state is deterministically projected [5]),
+which we read as validation of the substrate; projectmem adds the judgment layer, cross-project memory, and humanlegibility on top. We note that MCP support is increasingly common—both MemMachine and Codified Context expose
+MCP servers [20, 22]—so projectmem’s contribution rests not on the protocol but on the combination of local-first,
+event-sourced plain text, and a deterministic judgment gate. MCP itself [2] is the standard that makes the system
+tool-agnostic; its security literature concerns untrusted, network-reachable servers [7], a threat class projectmem
+sidesteps by being local, read-mostly, and auditable.
+Learning from failure (post-hoc). A line of work has agents learn from their own mistakes. Reflexion stores verbal
+feedback on a failed trial in an episodic buffer that improves the next trial without weight updates [17], and recent
+work shows agents can attribute a cascading failure to its root cause and iteratively recover from it [26]. These are
+retrospective: they react after a failure within a task or across trials. projectmem is, in effect, Reflexion’s episodic
+memory externalized—made persistent across sessions and projects, structured into a fixed typed schema, and converted
+from a post-hoc next-trial hint into a pre-action gate.
+Pre-action guardrails. A distinct lineage does intercept actions before execution. AGrail is the closest category
+match: a boolean pre-action gate that blocks an agent’s action, with a memory module that iteratively optimizes its safety
+checks over a lifetime [11]. ToolSafe performs proactive step-level pre-execution reasoning [12], and LlamaFirewall
+layers jailbreak, alignment, and insecure-code checks at runtime [3]; Meta-Policy Reflexion consolidates reflections into
+predicate-like rules with admissibility checks at inference [23]. These share projectmem’s timing—intervening before
+the action—but differ in mechanism and objective: their gates are LLM- or RL-trained and therefore non-deterministic,
+and they target generic safety or code-security categories (jailbreak, prompt injection, insecure code) or administratorspecified risks, not a particular project’s own recorded failed fixes. projectmem’s gate is a deterministic lookup keyed to
+the project’s failure history—no model call, no training, reproducible.
+A third axis: Memory-as-Governance. Extending the vocabulary of Li et al. [10], we distinguish Memory-as-Tool
+(passive, query-in/passages-out), Memory-as-Cognition (access interleaved with reasoning), and the cell projectmem
+occupies, Memory-as-Governance: memory that acts on the agent, deterministically intervening on the action side rather
+than merely being read. The retrieval thread augments context but never gates; the guardrail thread gates but on generic,
+model-trained safety rather than project history; the coding-agent thread shares our substrate but prevents repetition only
+passively. We are not aware of a prior system that is simultaneously (i) local-first and offline, (ii) event-sourced over
+immutable, human-readable plain text, (iii) MCP-native, (iv) equipped with a deterministic pre-action judgment gate
+derived from the project’s own failure history, and (v) cross-project. Table 1 situates projectmem against the strongest
+representatives of each thread.
+
+3
+
+System Design
+
+Design principles. projectmem follows four principles: (i) immutability—memory is an append-only event log, never
+edited in place, yielding a replayable audit trail; (ii) human-legibility—memory is plain text (JSON Lines + Markdown),
+so it is grep-able, diff-able, reviewable in a pull request, and versioned by git; (iii) locality—all state lives in the
+repository and on the machine, with no network dependency; and (iv) determinism —the summary the agent reads is a
+pure projection of the log, and the judgment gate is a deterministic lookup, not an LLM call.
+
+3
+
+Table 1: Capability comparison along properties relevant to AI-assisted software development. This compares design capabilities,
+not head-to-head task accuracy; these systems are not measured on a common benchmark. Entries reflect the cited papers and public
+descriptions available at the time of writing. Pre-action judgment denotes a gate before an action: projectmem’s is deterministic and
+derived from the project’s own failure history, distinct from the guardrails (AGrail, LlamaFirewall), whose gates are model-trained
+and target generic safety/security categories. ✓ yes ◦ partial ✗ no.
+System
+MemGPT/Letta [13]
+Mem0 [4]
+Gen. Agents [14]
+A-MEM [24]
+Zep [16]
+MemMachine [22]
+Memanto [1]
+Reflexion [17]
+Meta-Policy R. [23]
+LlamaFirewall [3]
+AGrail [11]
+ESAA [5]
+Codified Ctx. [20]
+projectmem
+
+LocalPlain-text
+Event-sourced Pre-action MCP- Crossfirst
+(no vector DB) / immutable
+judgment native project
+◦
+✗
+—
+◦
+✗
+✗
+✗
+✓
+✓
+✓
+◦
+✓
+✓
+✓
+
+✗
+✗
+✓
+✓
+✗
+✗
+✗
+✓
+✓
+—
+✗
+✓
+✓
+✓
+
+✗
+✗
+◦
+✗
+◦
+✗
+◦
+◦
+◦
+✗
+✗
+✓
+✗
+✓
+
+✗
+✗
+✗
+✗
+✗
+✗
+✗
+◦
+✓
+✓
+✓
+✗
+✗
+✓
+
+✗
+✗
+✗
+✗
+✗
+✓
+✗
+✗
+✗
+✗
+✗
+✗
+✓
+✓
+
+✗
+◦
+✗
+✗
+◦
+◦
+✗
+✗
+✗
+✗
+✗
+✗
+✗
+✓
+
+Domain
+general/chat
+chat/personal
+simulation
+general
+chat
+personal/chat
+general/QA
+tasks/code
+tasks
+code security
+agent safety
+SE (pattern)
+AI coding
+AI coding
+
+Event schema. Development is recorded as typed events. The five core types are issue (a problem is opened),
+attempt (a fix is tried, with outcome worked/failed/partial), fix (a confirmed resolution that closes an
+issue), decision (an architectural or product choice), and note (a durable gotcha or setup detail). Each event carries
+a timestamp, an optional location (for example, file:line), and free text. Events are appended to the project log:
+{"type":"issue", "id":"0042","at":"run.py:42","text":"pipeline crashes on empty input
+"}
+{"type":"attempt","issue":"0042","outcome":"failed","text":"guarded with if-not-x -still crashes"}
+{"type":"attempt","issue":"0042","outcome":"worked","text":"reordered validation
+before parse"}
+{"type":"fix",
+"issue":"0042","text":"validate inputs before parsing"}
+
+Projection. The file the agent actually reads, summary.md, is regenerated deterministically from the event log (a
+regenerate step, conceptually a fold over events). Because the summary is derived, never authoritative, it can be
+rebuilt at any time and can never drift from the underlying history—in contrast to mutable-memory designs where the
+agent overwrites its own state. A second projection, PROJECT_MAP.md, captures detected repository structure and
+stack.
+The judgment model. The central design choice is that a logged attempt with outcome failed is not merely
+stored for later reading—it becomes an actionable warning. When the agent (or a git pre-commit hook) is about to touch
+a file, precheck_file(path) consults the event log for failed attempts, open issues, and high churn associated
+with that path and returns a warning before the action proceeds, e.g. “you tried this 2 days ago—it failed.” The check
+reads only memory, never file contents, and is a deterministic lookup. This converts a passive episodic memory into
+a pre-action governance mechanism: future sessions can act with knowledge of prior failed approaches rather than
+rediscovering them.
+
+4
+
+4
+
+Architecture
+
+Figure 1 shows the data lifecycle. Four capture sources feed a single event log; two deterministic projections distill it;
+an MCP server exposes it to any AI client; and a judgment gate reads the same log to warn before risky actions. A
+machine-wide global store carries library-level gotchas across projects.
+global gotcha store
+~/.projectmem/global
+
+Capture
+Projection (auto-regenerated)
+
+git hooks
+
+summary.md
+file watcher
+pjm CLI
+
+distilled memory
+
+events.jsonl
+append-only · immutable
+
+MCP server
+14 tools
+
+PROJECT_MAP.md
+
+AI client
+Claude · Cursor
+
+Codex · Antigravity
+
+structure
+
+MCP write-tools
+every step, one log:
+
+issue → attempt (failed) →
+attempt (worked) → fix
+
+reads the log
+
+warn
+
+Judgment gate
+precheck_file · pre-commit
+
+warns: “you tried this 2 days ago —
+it failed”
+→ ∼30 min re-debugging saved
+
+Figure 1: projectmem data lifecycle. Four capture sources append to one immutable event log; deterministic projections distill it into
+AI-readable files; a native MCP server serves them to any client; and a judgment gate reads the same log to warn before a repeat
+failure or a fragile-file edit. A machine-wide global store carries library gotchas across projects.
+
+Capture. Memory is populated with limited manual bookkeeping. projectmem installs git hooks (pre/post-commit,
+post-merge) that classify commits into events, an opt-in real-time file-churn watcher, the pjm CLI (19 commands), and
+MCP write-tools the agent calls directly. On initialization it can backfill memory from recent git history.
+Access via MCP. The server (built on FastMCP) exposes 14 typed tools: 9 read and 5 write. The read tools
+cover the session-start summary, issue lookup, event search, scoring, token-budgeted context, global gotchas,
+and the precheck_file(path) judgment gate. The write tools mirror the event schema: log_issue,
+record_attempt, record_fix, add_decision, and add_note. Each tool is hardened to return readable
+text on any error rather than crashing the session, and runs inside a stdout-suppression context so ordinary output cannot
+corrupt the JSON-RPC stdio stream. Because the interface is MCP, the same server can be consumed by multiple
+MCP-capable clients; a universal Markdown bridge and a pjm wrap command extend the same memory to non-MCP
+tools.
+Cross-project memory. Library-level lessons (e.g. “this date library drops the timezone unless constructed in
+UTC”) are stored in a machine-wide global store and re-surfaced in any project whose detected stack matches, via
+get_global_gotchas. Stack detection reads manifests such as package.json, pyproject.toml, and
+Cargo.toml. The store syncs nothing to the cloud.
+Privacy. The entire system is local. There is no telemetry and no network call in the core path; secret redaction
+is on by default so that tokens and keys are scrubbed before they are ever written to the log. Because memory is an
+append-only plain-text artifact, it is auditable by the same tools (git, grep, code review) a team already trusts.
+
+5
+
+Project A
+failed attempt on vite
+or note “gotcha: . . . ”
+
+signal filter
+
+global store
+
+Project B
+
++ stack / library match
+
+~/.projectmem/global
+
+same stack (vite)
+
+get_global_gotchas
+warns, w/ source_project
+
+Figure 2: Cross-project memory. A library-level lesson logged in one project is filtered for signal, promoted to a machine-wide store
+keyed by stack, and automatically surfaced—with source attribution—in any later project that uses the same library. Entirely local;
+no cloud sync.
+
+5
+
+Operational Capabilities
+
+Beyond the core memory substrate, projectmem includes supporting mechanisms that make the substrate usable in
+ordinary development workflows. We summarize the operational capabilities that distinguish the implementation from
+the underlying design.
+Repository backfill. A memory layer is less useful on day one if it is empty. On an existing repository, pjm init
+immediately backfills memory from recent git history—deduplicated and classified into events—and auto-detects the
+stack (reading pyproject.toml, package.json, Cargo.toml, go.mod) to pre-populate the project map. A
+mature project therefore starts with a populated memory and an accurate structural summary in a single command,
+rather than requiring the agent to re-read the entire codebase.
+Automatic capture. Once initialized, memory accrues with limited bookkeeping. Git hooks (post-commit, postmerge) classify commits in the background—reverts and force-pushes become failed-approach events, repeated edits to
+one file become churn signals—and an opt-in file-churn watcher records high-activity files in real time. The developer
+workflow remains largely unchanged while the log accumulates.
+Cross-project (global) memory. Lessons that are really about a library rather than a single repository are promoted
+to a machine-wide store and resurfaced in any future project using the same dependency (Figure 2). Promotion is
+gated by a signal filter: failed or partial attempts always promote (the outcome is the signal), while decisions and
+notes promote only when explicitly marked as durable lessons (gotcha:, lesson:, avoid:, never, . . . ). A selfcurating cache records every library this machine has ever seen in a manifest, so the mechanism is language-agnostic,
+and word-boundary matching plus a stack filter keep a React project’s lessons out of a Go project’s context. Each
+surfaced gotcha carries its source_project attribution. Thus, a library-level lesson learned in one project can be
+surfaced in a later project that uses the same dependency, without cloud synchronization.
+Security: secret redaction by default. Because the log is plain text that is often committed to git, an accidental paste
+of a credential would otherwise persist on disk. projectmem scrubs the user-supplied text of every event before it is
+written, replacing matches with [REDACTED:<kind>] and emitting a notice. Patterns are anchored to recognizable,
+minimum-length prefixes—OpenAI/Anthropic sk- keys, GitHub tokens, AWS AKIA IDs, Google AIza keys, Slack
+and Stripe tokens, JWTs, Bearer tokens, and PEM private-key headers—so ordinary debugging prose is never altered;
+the behavior is pinned by dedicated true- and false-positive tests. Redaction is on by default and wrapped defensively so
+a scrubber fault can never block the primary write. This makes the local-first storage model safer for repositories that
+may later be committed to version control.
+Estimated ROI and token-budgeted injection. pjm score summarizes a project’s failure-prevention posture and
+reports estimated hours, tokens, and dollars saved, with a machine-readable JSON form. For non-MCP tools, pjm
+wrap and get_context assemble a token-budgeted context block—active warnings, recent decisions, relevant fixes,
+and the pertinent slice of the project map—so the agent receives a bounded memory context matched to the available
+token budget.
+
+6
+
+Visualization. pjm visualize renders a single local, interactive HTML dashboard with four views—a failure
+heatmap over files, an ROI dashboard, an interactive project map, and an issue/attempt/fix timeline—making the
+otherwise-invisible accumulated memory legible to a human reviewer at a glance.
+
+6
+
+Implementation
+
+Package and distribution. projectmem is implemented in Python (≥ 3.10), published on PyPI, and installed with
+pip install projectmem followed by pjm init. It has three runtime dependencies and a footprint under
+5 MB, and exposes three console entry points: projectmem, the pjm alias, and pjm-mcp (the MCP server). The
+CLI is a Typer application of 19 commands; the file watcher uses watchdog; the dashboard is generated as a
+self-contained D3.js page. There is no database engine and no network client in the core path—the entire system is files
+plus a stdio server.
+Storage layout. All per-project state is human-readable text under .projectmem/; machine-wide state lives under
+~/.projectmem/global/:
+.projectmem/
+events.jsonl
+# append-only event log -- the source of truth
+summary.md
+# deterministic projection the agent reads
+PROJECT_MAP.md
+# detected stack + structure
+AI_INSTRUCTIONS.md # workflow rules served at session start
+issues/0042-*.md
+# per-issue history (token-efficient reads)
+.current_issue
+# marker for issue attribution
+viz.html
+# optional 4-view dashboard (pjm visualize)
+~/.projectmem/global/ # cross-project gotchas, keyed by library
+.promotable.json
+# self-curating set of known libraries
+
+The append path. Every write—from the CLI, a git hook, or an MCP tool—funnels through a single function,
+storage.append_event, which (i) normalizes the timestamp to ISO-8601 Zulu, (ii) runs secret redaction over the
+user-supplied text fields before anything touches disk (Section 5), (iii) appends one JSON object to events.jsonl,
+and (iv) invokes auto_promote_event to consider the event for the global store. Centralizing the write path
+guarantees that redaction, promotion, and timestamp hygiene apply uniformly and cannot be bypassed by a particular
+entry point. The log is never edited in place; correcting the record means appending a new event.
+Deterministic projection. summary.md is not authored; it is regenerated by folding over events.jsonl (pjm
+regenerate). The fold is pure and idempotent, so the summary can be rebuilt from scratch at any time and can never
+silently diverge from history—the property that makes the plain-text substrate trustworthy as an audit trail.
+MCP server engineering. The server is built on FastMCP and exposes 14 typed tools. Two robustness measures make it safe inside a host’s stdio loop: every tool body runs under a @safe_tool wrapper that catches
+exceptions and returns readable text rather than crashing the session, and inside a stdout-suppression context so
+that stray print/echo calls cannot corrupt the JSON-RPC stream. The project root is resolved deterministically
+as --root → $PROJECTMEM_ROOT → a parent-directory walk for .projectmem/ (mirroring how git locates
+.git/). Tool parameters carry real JSON-schema descriptions and constraints—search_events.limit is
+bounded to [1, 100], record_attempt.outcome is pattern-checked against worked|failed|partial, and
+get_context.tokens to [100, 20000]—so malformed calls are rejected at the schema layer.
+Hook wiring. A subtle portability issue shaped the hook design: git invokes hooks under a non-interactive shell that
+does not source .bashrc/.zshrc, so a bare command -v pjm fails for the many users whose interpreter lives in
+a conda/pyenv/venv environment. projectmem therefore resolves the absolute path to pjm at install time and bakes it
+into the hook, with a runtime fallback for the rare relocated binary. The post-commit and post-merge hooks run capture
+in the background with both streams redirected, so memory accrues silently without writing over the shell prompt.
+7
+
+5,000–20,000
+
+No memory layer
+
+Markdown mode
+
+~2,500
+
+MCP mode
+(projectmem)
+
+800–1,500
+
+0
+
+2500
+
+5000
+
+up to 50%+
+fewer tokens
+
+7500
+
+10000 12500 15000 17500 20000
+
+Tokens loaded per session (lower is better)
+
+Figure 3: Estimated tokens loaded per session by mode (lower is better). projectmem’s MCP mode replaces a full context rederivation with a small fixed read. Estimated from self-study usage—ranges, not a controlled benchmark.
+
+Cross-client configuration. To reduce first-run configuration errors, pjm init prints an MCP configuration block
+with the absolute sys.executable baked in, avoiding the PATH-inheritance issue observed in some hosts. The
+implementation supports multiple MCP-capable clients through the same stdio server entry point.
+Global-memory promotion. auto_promote_event applies the signal filter of Section 5 and a word-boundary,
+stack-aware library match before writing to the global store; the promotable-library set is a self-curating cache populated
+from every manifest this machine has seen, which is what makes the mechanism language-agnostic without a hard-coded
+library list.
+Testing. The implementation is covered by 37 automated tests with continuous integration on Python 3.10–3.12,
+including dedicated true- and false-positive tests that pin the secret-redactor’s behavior (it must scrub real credentials yet
+never alter ordinary debugging prose). pjm visualize and pjm score (Section 5) round out the developer-facing
+surface.
+
+7
+
+Evaluation
+
+We evaluate projectmem along four facets: estimated token cost, self-study usage, compatibility validation, and
+auditability. We are explicit about what is measured and what is estimated.
+Estimated token cost. The session-start cost of operating with memory is a small fixed read rather than a full
+re-derivation of project context. In MCP mode the agent loads roughly 800–1,500 tokens via get_summary() and
+related calls; the Markdown bridge costs roughly 2,500 tokens; operating with no memory layer costs an estimated
+5,000–20,000 tokens per session reconstructing context, consistent with the per-turn long-context costs analyzed
+by Pollertlam and Kornsuwannawit [15]. Figure 3 summarizes the comparison, an estimated reduction exceeding 50%
+per session. We stress that these are usage estimates over ranges, not a controlled benchmark.
+Self-study (real data). We instrumented our own development across ten real projects spanning machine learning,
+web applications, audio tooling, a landing site, and research code. Over roughly two months (Mar 30–May 29, 2026)
+projectmem accumulated 207 real events. Figure 4 plots cumulative events over time against the flat zero-line of a
+stateless agent: memory monotonically compounds and never resets. Figure 5 shows the composition of the captured
+events and their distribution across the (anonymized) projects. The captured memory is dominated by durable notes and
+decisions—precisely the project knowledge a stateless agent discards each session—together with the issue/attempt/fix
+triples that the judgment layer consumes. We do not claim a causal productivity improvement from this self-study;
+rather, it validates that the event log accumulates structured project memory in realistic use.
+Compatibility validation. Because projectmem exposes one MCP server, the same memory is served without
+modification to several MCP-capable clients; we verified the configuration end-to-end against a real project in four
+8
+
+Cumulative events
+
+200
+
+207 events
+remembered
+
+150
+100
+50
+0
+
+Stateless agent — resets to 0 every session
+
+Apr 01
+
+May 01
+
+Apr 15
+
+May 15
+
+Figure 4: Cumulative events in memory across ten self-study projects (real event log, N = 207, Mar 30–May 29 2026). A stateless
+agent (dashed) holds nothing across sessions; projectmem’s memory compounds.
+
+126 (61%)
+
+Notes / gotchas
+52 (25%)
+
+Decisions
+11 (5%)
+
+Attempts
+Issues
+
+10 (5%)
+
+Fixes
+
+8 (4%)
+
+0
+
+20
+
+40
+
+60
+
+80
+
+100
+
+120
+
+97
+
+ML project
+Dev tool
+Content-gen app
+Audio app
+Landing site
+Research code
+Search app
+Global store
+Voice app
+Infographic
+
+140
+
+25
+21
+17
+16
+9
+8
+6
+4
+4
+
+0
+
+Events logged (N = 207)
+
+20
+
+40
+
+60
+
+80
+
+100
+
+Events logged
+
+(a) Event-type composition (N = 207).
+
+(b) Events per project (names anonymized).
+
+Figure 5: Real captured memory. Most events are durable notes and decisions—the knowledge a stateless agent loses each
+session—alongside the issue/attempt/fix records the judgment layer acts on.
+
+MCP-capable clients. This realizes, at the protocol layer, the tool decoupling that agent infrastructure increasingly calls
+for, and means a project’s memory survives a change of AI tool mid-project.
+Auditability as reproducibility. Because every AI-assisted change is recorded as an immutable, timestamped, plaintext event, the log doubles as an automatic provenance trail. This is directly relevant to the reproducibility concerns
+raised for LLM-assisted software engineering [18]: the record of what was changed, what was tried, and why is captured
+as a byproduct of normal work and is reviewable with standard version-control tools.
+
+8
+
+Limitations and Future Work
+
+Limitations. projectmem’s judgment is only as good as its logged history: on a cold project with no events, the gate
+has nothing to warn about (the backfill of Section 5 mitigates but does not eliminate this cold start). The deterministic
+check may also false-positive, flagging a file whose past failure is no longer relevant to a superficially similar but
+valid new change; the warning is advisory by default for this reason. By design, projectmem performs no semantic
+vector retrieval—a deliberate trade of fuzzy recall for determinism, legibility, and zero read-time model cost—so it
+is complementary to, not a replacement for, embedding-based memory where broad semantic recall is the goal. The
+current system is single-user and local. Finally, the token-economics figures are usage estimates rather than a controlled
+benchmark, and the capability comparison in Table 1 contrasts design properties rather than task accuracy.
+Future work. Several directions follow naturally. (1) A controlled repeat-failure benchmark. The single most valuable
+next result is a measured one: the fraction of injected, previously-failed fixes the gate blocks, across a corpus of seeded
+projects—a “failures-prevented-per-N -commits” metric that would convert the design-capability argument of Table 1
+
+9
+
+into a quantitative prevention rate and, to our knowledge, define a benchmark the dev-tool memory category currently
+lacks. (2) Optional semantic retrieval. A local, opt-in embedding index over the event log would add fuzzy recall for
+free-text search while preserving the deterministic gate as the authoritative judgment path—the two are complementary,
+not competing. (3) Earlier, diff-aware judgment. The gate currently fires at the commit boundary and keys on the file
+being touched; moving it to the agent’s tool-call boundary (a pre-action hook) and reasoning over the specific hunk
+being changed would warn the instant a change begins to resemble a previously-failed one—intervening before the edit,
+not at commit time. (4) A universal agent bridge. Extending the existing Markdown bridge, a single initialization could
+emit the native instruction files of many tools at once (e.g. .cursor/rules/, AGENTS.md, Copilot instructions),
+widening tool reach beyond MCP-native hosts. (5) Multi-user synchronization. A conflict-free merge of append-only
+event logs—in the spirit of local-first software [9]—would let a team share one project memory over their existing
+git remote, with no central server, extending the audit trail to collaborative settings. (6) Learned judgment. The
+deterministic gate could be augmented (never replaced) by a learned component that ranks which historical failures are
+most likely to recur, while the plain-text log keeps every decision auditable.
+
+9
+
+Conclusion
+
+AI coding agents lose project knowledge every time a session ends, and one cost of this amnesia is repeated failure.
+We presented projectmem, a local-first, event-sourced, plain-text memory layer that adds a deterministic pre-action
+judgment gate—memory that does not merely answer the agent but can constrain its next action. By keeping memory
+immutable, human-legible, offline, and tool-agnostic over MCP, projectmem provides a practical substrate for auditable
+AI-assisted software development. The system is available as open-source software.
+
+Acknowledgments
+We thank the University of Utah, and the open-source communities behind the Model Context Protocol, Typer, watchdog,
+and D3.js. projectmem was built independently as open-source software-engineering infrastructure.
+
+Availability
+Source code: https://github.com/riponcm/projectmem (MIT-licensed). Package: pip install
+projectmem. Documentation: https://projectmem.dev.
+
+A
+
+Client Configuration Summary
+
+projectmem is configured once per project. After pip install projectmem, running pjm init in the repository initializes the local memory directory and prints the MCP server configuration for supported clients. The canonical
+server invocation is the Python module over stdio:
+python -m projectmem.mcp_server
+The initializer uses sys.executable to record the absolute interpreter path, which avoids PATH inheritance
+problems in hosts that launch MCP servers from non-interactive shells. The server resolves the project root as
+--root → $PROJECTMEM_ROOT → a parent-directory walk for .projectmem/. Client-specific configuration
+files change over time, so the public documentation provides the current JSON/TOML blocks and verification commands:
+https://projectmem.dev/guide.
+
+10
+
+References
+[1] Seyed Moein Abtahi, Rasa Rahnema, Hetkumar Patel, Neel Patel, Majid Fekri, and Tara Khani. Memanto: Typed
+semantic memory with information-theoretic retrieval for long-horizon agents. arXiv preprint arXiv:2604.22085,
+2026. URL https://arxiv.org/abs/2604.22085.
+Introducing the model context protocol.
+[2] Anthropic.
+model-context-protocol, 2024.
+
+https://www.anthropic.com/news/
+
+[3] Sahana Chennabasappa, Cyrus Nikolaidis, Daniel Song, David Molnar, Stephanie Ding, Shengye Wan, Spencer
+Whitman, Lauren Deason, Nicholas Doucette, Abraham Montilla, Alekhya Gampa, Beto de Paola, Dominik
+Gabi, James Crnkovich, Jean-Christophe Testud, Kat He, Rashnil Chaturvedi, Wu Zhou, and Joshua Saxe.
+LlamaFirewall: An open source guardrail system for building secure AI agents. arXiv preprint arXiv:2505.03574,
+2025. URL https://arxiv.org/abs/2505.03574.
+[4] Prateek Chhikara, Dev Khant, Saket Aryan, Taranjeet Singh, and Deshraj Yadav. Mem0: Building productionready AI agents with scalable long-term memory. arXiv preprint arXiv:2504.19413, 2025. URL https:
+//arxiv.org/abs/2504.19413.
+[5] Elzo Brito dos Santos Filho. ESAA: Event sourcing for autonomous agents in LLM-based software engineering.
+arXiv preprint arXiv:2602.23193, 2026. URL https://arxiv.org/abs/2602.23193.
+[6] Ramtin Ehsani, Sakshi Pathak, Shriya Rawal, Abdullah Al Mujahid, Mia Mohammad Imran, and Preetha
+Chatterjee. Where do AI coding agents fail? an empirical study of failed agentic pull requests in GitHub. arXiv
+preprint arXiv:2601.15195, 2026. URL https://arxiv.org/abs/2601.15195.
+[7] Xinyi Hou, Yanjie Zhao, Shenao Wang, and Haoyu Wang. Model context protocol (MCP): Landscape, security
+threats, and future research directions. arXiv preprint arXiv:2503.23278, 2025. URL https://arxiv.org/
+abs/2503.23278.
+[8] Yuanzhe Hu, Yu Wang, and Julian McAuley. Evaluating memory in LLM agents via incremental multi-turn
+interactions. arXiv preprint arXiv:2507.05257, 2025. URL https://arxiv.org/abs/2507.05257.
+[9] Martin Kleppmann, Adam Wiggins, Peter van Hardenberg, and Mark McGranaghan. Local-first software: You
+own your data, in spite of the cloud. In Proc. ACM SIGPLAN Onward!, 2019. doi: 10.1145/3359591.3359737.
+[10] Zihan Li, Xingyu Fan, Feifei Li, and Wenhui Que. MemCog: From memory-as-tool to memory-as-cognition
+in conversational agents. arXiv preprint arXiv:2605.28046, 2026. URL https://arxiv.org/abs/2605.
+28046.
+[11] Weidi Luo, Shenghong Dai, Xiaogeng Liu, Suman Banerjee, Huan Sun, Muhao Chen, and Chaowei Xiao. AGrail:
+A lifelong agent guardrail with effective and adaptive safety detection. arXiv preprint arXiv:2502.11448, 2025.
+URL https://arxiv.org/abs/2502.11448.
+[12] Yutao Mou, Zhangchi Xue, Lijun Li, Peiyang Liu, Shikun Zhang, Wei Ye, and Jing Shao. ToolSafe: Enhancing
+tool invocation safety of LLM-based agents via proactive step-level guardrail and feedback. arXiv preprint
+arXiv:2601.10156, 2026. URL https://arxiv.org/abs/2601.10156.
+[13] Charles Packer, Sarah Wooders, Kevin Lin, Vivian Fang, Shishir G. Patil, Ion Stoica, and Joseph E. Gonzalez.
+MemGPT: Towards LLMs as operating systems. arXiv preprint arXiv:2310.08560, 2023. URL https://
+arxiv.org/abs/2310.08560.
+[14] Joon Sung Park, Joseph C. O’Brien, Carrie J. Cai, Meredith Ringel Morris, Percy Liang, and Michael S. Bernstein.
+Generative agents: Interactive simulacra of human behavior. In Proc. ACM Symposium on User Interface Software
+and Technology (UIST), 2023. doi: 10.1145/3586183.3606763. arXiv:2304.03442.
+[15] Natchanon Pollertlam and Witchayut Kornsuwannawit. Beyond the context window: A cost-performance analysis
+of fact-based memory vs. long-context LLMs for persistent agents. arXiv preprint arXiv:2603.04814, 2026. URL
+https://arxiv.org/abs/2603.04814.
+11
+
+[16] Preston Rasmussen, Pavlo Paliychuk, Travis Beauvais, Jack Ryan, and Daniel Chalef. Zep: A temporal knowledge
+graph architecture for agent memory. arXiv preprint arXiv:2501.13956, 2025. URL https://arxiv.org/
+abs/2501.13956.
+[17] Noah Shinn, Federico Cassano, Edward Berman, Ashwin Gopinath, Karthik Narasimhan, and Shunyu Yao.
+Reflexion: Language agents with verbal reinforcement learning. In Advances in Neural Information Processing
+Systems (NeurIPS), 2023. arXiv:2303.11366.
+[18] Mohammed Latif Siddiq, Arvin Islam-Gomes, Natalie Sekerak, and Joanna C. S. Santos. Large language
+models for software engineering: A reproducibility crisis. arXiv preprint arXiv:2512.00651, 2025. URL
+https://arxiv.org/abs/2512.00651.
+[19] Theodore R. Sumers, Shunyu Yao, Karthik Narasimhan, and Thomas L. Griffiths. Cognitive architectures for
+language agents. arXiv preprint arXiv:2309.02427, 2023. URL https://arxiv.org/abs/2309.02427.
+[20] Aristidis Vasilopoulos. Codified context: Infrastructure for AI agents in a complex codebase. arXiv preprint
+arXiv:2602.20478, 2026. URL https://arxiv.org/abs/2602.20478.
+[21] Huanting Wang, Jingzhi Gong, Huawei Zhang, and Zheng Wang. AI agentic programming: A survey of techniques,
+challenges, and opportunities. arXiv preprint arXiv:2508.11126, 2025. URL https://arxiv.org/abs/
+2508.11126.
+[22] Shu Wang, Edwin Yu, Oscar Love, Tom Zhang, Tom Wong, Steve Scargall, and Charles Fan. MemMachine: A
+ground-truth-preserving memory system for personalized AI agents. arXiv preprint arXiv:2604.04853, 2026.
+URL https://arxiv.org/abs/2604.04853.
+[23] Chunlong Wu and Zhibo Qu. Meta-policy reflexion: Reusable reflective memory and rule admissibility for
+resource-efficient LLM agents. arXiv preprint arXiv:2509.03990, 2025. URL https://arxiv.org/abs/
+2509.03990.
+[24] Wujiang Xu, Kai Mei, Hang Gao, Juntao Tan, Zujie Liang, and Yongfeng Zhang. A-MEM: Agentic memory for
+LLM agents. arXiv preprint arXiv:2502.12110, 2025. URL https://arxiv.org/abs/2502.12110.
+[25] Wanjun Zhong, Lianghong Guo, Qiqi Gao, He Ye, and Yanlin Wang. MemoryBank: Enhancing large language
+models with long-term memory. In Proc. AAAI Conference on Artificial Intelligence, 2024. arXiv:2305.10250.
+[26] Kunlun Zhu, Zijia Liu, Bingxuan Li, Muxin Tian, Yingxuan Yang, Jiaxun Zhang, Pengrui Han, Qipeng Xie,
+Fuyang Cui, Weijia Zhang, Xiaoteng Ma, Xiaodong Yu, Gowtham Ramesh, Jialian Wu, Zicheng Liu, Pan Lu,
+James Zou, and Jiaxuan You. Where LLM agents fail and how they can learn from failures. arXiv preprint
+arXiv:2509.25370, 2025. URL https://arxiv.org/abs/2509.25370.
+
+12
+
+

@@ -1,0 +1,2137 @@
+FlowBank: Query-Adaptive Agentic Workflows
+Optimization through Precompute-and-Reuse
+1
+
+1
+
+1
+
+1
+
+Lingzhi Yuan , Chenghao Deng , Fangxu Yu , Souradip Chakraborty ,
+2
+1
+Mohammad Rostami , Furong Huang
+2
+
+University of Maryland, College Park, Amazon
+
+Large Language Model (LLM)-based multi-agent systems are increasingly powerful, but current agentic
+workflow optimization paradigms make an unsatisfying trade-off. Task-level methods spend substantial offline
+compute yet deploy only a single workflow, leaving complementary candidates unused, while query-level
+methods synthesize a new workflow for each query at substantial inference cost. Our motivating analysis shows
+that these paradigms are more complementary than competing: workflows discovered during offline search
+often solve different subsets of queries, and many queries handled by expensive query-level generation can
+already be solved by cheaper precomputed workflows. This suggests a different objective: rather than searching
+for one universally best workflow or regenerating a workflow for every instance, we should build a compact
+bank of reusable, complementary workflows and select among them adaptively at inference time. Doing
+so requires solving three coupled problems: generating complementary rather than redundant candidates,
+compressing them into a small deployable portfolio, and assigning each query to the right workflow under a
+performance–cost trade-off. To this end, we present FlowBank, a three-stage framework for portfolio-based
+agentic workflow optimization. Diversifying proposes DiverseFlow to steer search toward under-covered queries
+and produce a high-coverage candidate pool. Curating proposes CuraFlow to compress this pool into a compact
+portfolio with minimal redundancy. Matching casts deployment as edge-value prediction on a query-workflow
+bipartite graph and routes each incoming query to the portfolio member with the best predicted utility. Across
+five benchmarks, FlowBank achieves the highest average score among the evaluated methods while remaining
+cost-competitive, improving over the strongest automated and handcrafted baselines by 4.26% and 14.92%
+relative, respectively.
+Project Page: https://agentic-flowbank.github.io
+
+Query
+Level
+
+MATH
+
+Perf. and Cost
+
+69.3
+
+Co
+st
+
+Lack of Adaptivity
+
+67.4
+
+ro
+
+FlowBank
+AFlow
+MaAS
+ScoreFlow
+ADAS
+
+P
+LU
+
+Query Adaptivity
+Affordability
+
+67.9
+
+Expensive
+
+MM
+
+FlowBank
+(Ours)
+
+-1.65
+
+84.3
+
+MB
+PP
+
+Task
+Level
+
+C
+AM
+
+arXiv:2606.11290v1 [cs.LG] 9 Jun 2026
+
+1
+
+83.5
+
+DROP
+
+Figure 1: FlowBank turns workflows from one-shot solutions into reusable assets. Left: Rather than committing
+to a single universal workflow or generating a new workflow for every query, FlowBank builds a compact portfolio
+of complementary workflows offline and assigns each query to the member with the best predicted utility. Right:
+This portfolio view recovers query-level adaptivity without the full per-query generation cost, yielding a stronger
+performance–cost trade-off across five benchmarks. (The plotted cost axis is inverted so that higher values correspond
+to lower actual cost.)
+
+Corresponding author(s): Furong Huang https://furong-huang.com/; Email furongh@umd.edu
+
+FlowBank : Query-Adaptive Agentic Workflows Optimization through Precompute-and-Reuse
+
+1. Introduction
+Large Language Models (LLMs) have enabled increasingly capable agentic systems across question answering (Yang et al., 2018, Kwiatkowski et al., 2019, Nakano et al., 2021, Wang et al., 2024a, Yu et al., 2024,
+2026), code generation (Chen et al., 2021, Austin et al., 2021, Guo et al., 2024), web navigation (Zhou
+et al., 2023, Deng et al., 2023), and beyond. However, single-agent systems often struggle with intricate
+real-world requirements, catalyzing a paradigm shift toward multi-agent systems, wherein coordinated
+ensembles of specialized agents tackle complex tasks Hong et al. (2023), Du et al. (2024), Wu et al. (2024).
+This raises a central challenge: how to design agentic workflows that are accurate, efficient, and robust
+across diverse queries (Zhuge et al., 2024, Liu et al., 2023). While many human-designed workflows have
+been proposed Wang et al. (2022), Du et al. (2024), Hong et al. (2023), Nori et al. (2023), Wang et al.
+(2024b), the design space of possible agent topologies, communication patterns, and configurations grows
+rapidly with system complexity, rendering manual design increasingly untenable and motivating automated
+workflow optimization Zhuge et al. (2024), Hu et al. (2024), Zhang et al. (2024), Shang et al. (2024).
+Existing automated workflow optimization methods largely follow two strategies. Task-level methods run
+multiple rounds of offline search and then deploy a single universal workflow for all queries, enabling stable
+and low-cost deployment but enforcing a one-size-fits-all policy (Zhuge et al., 2024, Zhang et al., 2024, Hu
+et al., 2024, Shang et al., 2024, Nie et al., 2025, Zheng et al., 2025, Wang et al., 2026). Query-level methods
+instead synthesize a workflow on the fly for each query, offering stronger adaptivity but pushing substantial
+reasoning and search cost into inference (Wang et al., 2025c, Ye et al., 2025, Zhang et al., 2025b, Yue et al.,
+2025, Gao et al., 2025, Wang et al., 2025a). The resulting trade-off leaves a natural question: can we recover
+query-level adaptivity without paying the full cost of per-query workflow generation?
+Our motivating analysis reveals two under-exploited forms of workflow complementarity. Within task-level
+search, workflows that are not selected as the single final winner often solve queries that the chosen workflow
+misses, so they retain substantial reuse value. Across paradigms, a meaningful portion of the gains achieved
+by expensive query-level generation can be recovered by cheaper static workflows under query-wise selection,
+suggesting that part of the online cost is redundant. Taken together, these observations motivate a FlowBank
+perspective: rather than commit to one workflow or regenerate a new one for every query, we should
+precompute a bank of complementary workflows offline and reuse it adaptively at test time.
+Turning this perspective into a practical system is challenging. (C1) First, diversified bank construction requires
+more than collecting individually strong workflows: existing search procedures optimize candidates largely
+in isolation, so naively keeping high-scoring outputs tends to produce near-duplicates. (C2) Second, compact
+subset distilling is necessary because retaining every discovered workflow increases deployment complexity
+and selector burden, even though marginal coverage gains quickly diminish. (C3) Third, query-adaptive
+selecting remains difficult because the value of a reusable bank is realized only if the system can efficiently
+match each incoming query to the workflow that offers the best performance–cost trade-off.
+To address these challenges, we introduce FlowBank, a portfolio-based framework organized around three
+stages: Diversifying, Curating, and Matching. (S1) Complementarity-oriented Workflow Diversification:
+we use DiverseFlow to steer search toward under-covered queries and produce a candidate pool that is
+complementary rather than merely individually high-scoring. (S2) Coverage-aware Combinatorial Curation:
+we use CuraFlow to perform coverage-aware combinatorial search and compress this pool into a compact,
+high-coverage portfolio. (S3) Bipartite graph-based Matching: we cast deployment as edge-value prediction
+on a query-workflow bipartite graph and assign each incoming query to the portfolio member with the best
+predicted performance–cost trade-off. As shown in Figure 1, by separating heavy offline workflow discovery
+from lightweight online selecting, FlowBank recovers much of the adaptivity of query-level methods while
+2
+
+FlowBank : Query-Adaptive Agentic Workflows Optimization through Precompute-and-Reuse
+
+preserving the deployment efficiency of offline methods. In this way, FlowBank turns workflows into reusable
+assets rather than one-shot design outcomes.
+Across five benchmarks spanning mathematical reasoning (Hendrycks et al., 2021, Ding et al., 2024), question
+answering (Wang et al., 2024a), reading comprehension (Dua et al., 2019), and code generation (Austin
+et al., 2021), FlowBank achieves the highest average score among the evaluated methods while remaining
+competitive in inference cost, improving over the strongest automated baseline by 4.26% and the strongest
+handcrafted baseline by 14.92% relative, respectively. These results show that selecting from a curated
+workflow bank is more effective than committing to a single workflow or a single paradigm.
+Our main contributions are summarized as follows:
+• We identify two under-exploited forms of workflow complementarity: discarded task-level workflows
+retain set-level reuse value, and part of the gain from query-level generation can be recovered through
+adaptive reuse of cheaper precomputed workflows.
+• We propose FlowBank, a three-stage framework that builds a reusable workflow bank through diversified search, coverage-aware curation, and graph-based query-adaptive matching.
+• We demonstrate that FlowBank achieves the strongest average performance and competitive performance–
+cost trade-offs across five benchmarks, validating portfolio-based workflow reuse as a stronger alternative to committing to a single workflow or a single paradigm.
+
+2. Motivating Observations on Workflow Complementarity
+2.1. Problem Formulation
+Agentic Workflows. Given a task dataset D, an agentic workflow ω(⋅) is defined as a computation graph of
+LLM calls that maps a query q ∈ D to a prediction ω(q). An ideal workflow aims to produce correct answers
+with lower token usage, balancing accuracy and computational cost. To quantify this, we evaluate the utility
+of ω on a query q using two metrics: (1) the performance e(ω, q) ∈ [0, 1], measured by a task-specific
+evaluation function, and (2) the cost c(ω, q) > 0, defined as the total token consumption incurred by ω
+while processing q.
+Agentic Workflow Optimization. Agentic workflow optimization aims to maximize the performance of a
+workflow on a training dataset Dtrain ⊂ D. Existing agentic workflow optimization methods generally fall
+into two paradigms.
+Task-level optimization produces a static workflow for all queries in Dtrain to maximize the overall performance,
+i.e., ωstat = arg maxω ∑q∈Dtrain e(ω, q). This workflow is chosen through multiple candidates discovered
+through iterative exploration of the workflow space. The per-query cost is affordable in deployment, as
+tokens are only consumed during workflow execution. But using a single workflow for all queries may limit
+deployment performance due to the lack of query adaptation.
+q
+
+Query-level optimization uses a meta-generator Gϕ to design a dynamic workflow ωdyn = Gϕ (q) for each
+query q ∈ D. The optimization objective is to maximize the average performance of dynamic workflow
+∗
+on Dtrain through adjusting the parameters of Gϕ , i.e., ϕ = arg maxϕ ∑q∈Dtrain e(Gϕ (q), q). The per-query
+cost of this paradigm includes both workflow generation and workflow execution. This paradigm enjoys
+query adaptation by workflow customization but the high inference cost can make large-scale deployment
+expensive.
+3
+
+FlowBank : Query-Adaptive Agentic Workflows Optimization through Precompute-and-Reuse
+
+2.2. Motivating Analysis
+Potential of Reusing Workflows through Task-level Searching. Task-level workflow optimization explores many candidate workflows, but deployment ultimately uses only one.
+This raises a natural question: do the remaining workflows
+still provide reusable value as a set? To quantify this on a finite
+dataset D, we define the coverage of a workflow set
+Coverage(Ω) =
+
+1
+∑ max e(ω, q).
+∣D∣ q∈D ω∈Ω
+
+(1)
+
+Top-k vs. Combinatorial Best-k Coverage
+0.800
+0.775
+0.750
+0.725
+0.700
+0.675
+0.650
+0.625
+
+Top-k by accuracy
+Combinatorial best-k
+
+1
+2
+3
+4
+5
+6
+7
+8
+We instantiate this analysis with AFlow (Zhang et al., 2024),
+Subset size k
+a representative task-level workflow optimizer that performs
+offline Monte Carlo tree search and ultimately deploys a Figure 2: Coverage on MATH for workflow sets
+fixed workflow. Specifically, we study the 20 candidate built from AFlow candidates.
+workflows produced by 20 rounds of AFlow optimization on
+MATH (Hendrycks et al., 2021). For each set size k ∈ {1, . . . , 20}, we first select the top-k workflows ranked
+by individual accuracy. As shown by the blue curve in Fig. 2, the coverage of this set increases steadily with k,
+indicating that unselected workflows for final deployment still retain reusable value when combined as a
+set. We then compare it with the combinatorially best size-k set, obtained by exhaustive search over all (20
+)
+k
+subsets, shown by the orange curve. The consistent gap between the two curves shows that accuracy-based
+construction is suboptimal for set coverage. This suggests a workflow pool optimized for single-workflow
+accuracy may not be the best one for set-level reuse.
+
+Cost per query (×10 3 $)
+
+Performance (Token F1 Score)
+
+Potential of Reducing Redundant Workflow Generation
+ScoreFlow vs. Oracle Selector
+for Query Adaptation. To examine whether the extra in100
+1.6
+87.72
+ference cost for query adaptation is always necessary, we use
+82.68
+1.4
+80
+ScoreFlow (Wang et al., 2025c) as a representative query-level
+ScoreFlow
+1.2
+1.35
+37%
+method, which uses DPO to train a meta-generator and de60
+1.0
+signs a customized workflow for each query at inference time.
+0.8
+We combine it with the best static workflow by AFlow. For
+40
+0.80
+0.6
+each query, an oracle chooses the workflow with higher perStatic
+63%
+0.4
+formance, breaking ties in favor of the one with lower cost. As
+20
+Select
+Static
+Workflow
+shown in Fig. 3, a substantial fraction of the queries solved
+0.2
+Select ScoreFlow
+by ScoreFlow can be handled by the cheaper static workflow.
+0
+0.0
+ScoreFlow
+Oracle Selector
+This suggests that token cost in query-level method can be
+reduced by diverting queries smartly. The oracle’s superior Figure 3: Performance–cost comparison on
+performance–cost trade-off further highlights the potential of DROP between ScoreFlow and an oracle selecintegrating static and query-level workflows within a unified tor.
+framework rather than treating them as competing paradigms.
+These observations reveal substantial potential in workflow complementarity: reusing multiple static workflows can improve coverage, and combining static and query-level workflows can further improve the
+performance–cost trade-off. Realizing this potential, however, requires addressing two challenges. (1)
+Workflow pool construction: traditional task-level methods optimize workflows for individual accuracy, which
+is suboptimal for building a high-coverage workflow pool. (2) Query-adaptive selection: the gains can be
+4
+
+FlowBank : Query-Adaptive Agentic Workflows Optimization through Precompute-and-Reuse
+
+realized only if the system chooses the right workflow for each query at inference time efficiently. These
+challenges directly motivate our design of FlowBank.
+
+3. Methodology
+To address the above challenges, FlowBank adopts a portfolio-based methodology for workflow deployment.
+Rather than searching for a single universally best workflow, we aim to build, curate, and deploy a compact
+set of complementary workflows. Concretely, as shown in Figure 4, FlowBank consists of three stages.
+In Diversifying, DiverseFlow explores the workflow search space to generate a raw candidate pool with
+broad query coverage. In Curating, CuraFlow distills this pool into a compact portfolio that preserves most
+attainable coverage while removing redundant workflows. In Matching, we cast workflow assignment as
+edge-value prediction on a query-workflow bipartite graph and select the portfolio member with the best
+predicted utility.
+3.1. Diversifying via DiverseFlow
+Workflow Candidate Pool Generation. We propose DiverseFlow, built on Monte Carlo tree search (MCTS),
+to generate a workflow candidate pool with broad coverage. It inherits a four-step search structure for each
+round in (Zhang et al., 2024). (1) Among the discovered workflows, one is sampled as the parent workflow.
+(2) Conditioned on the parent workflow and tree-structured optimization experience, the optimizer LLM
+proposes a new workflow in the code space. (3) The new workflow is then evaluated on Dtrain and added to
+the candidate pool. (4) The optimization experience of the current round is tagged as Success/Failure based
+on whether it outperforms the parent and is then attached to the tree.
+Performance-oriented Warm-up. During the first N0 rounds, DiverseFlow runs a warm-up phase to
+initialize the candidate pool with high-performing individual workflows. At each round, a parent workflow
+is sampled from the current pool according to
+1
+P(ωi ) = ρ ⋅ n + (1 − ρ) ⋅
+
+exp(α(η(ωi ) − ηmax ))
+∑ j=1 exp(α(η(ω j ) − ηmax ))
+n
+
+,
+
+(2)
+
+where ηmax = maxω∈Ωt−1 η(ω). We set the workflow sampling weight to η(ω) = ∑q∈Dtrain e(ω, q), so that
+workflows with stronger performance are more likely to be sampled as parents for further expansion. The
+value of α and ρ control the exploration–exploitation trade-off. This warm-up phase initializes the pool
+with strong individual workflows. However, optimizing for individual performance alone is not sufficient for
+maximizing pool coverage as illustrated in Section 2.2. High-performing workflows can still be redundant,
+while workflows that contribute unique coverage may be overlooked if their aggregate performance is less
+prominent.
+Complementarity-oriented Expansion. To address this challenge, we switch DiverseFlow into a complementarityoriented expansion phase after the warm-up stage. The search structure remains unchanged. For workflow
+weights η(ω) in Equation (2), we now use query-weighted performance ∑q∈Dtrain µ(q) ⋅ e(ω, q), where the
+query weight is given by
+µ(q)
+1
+µ(q) =
+, µ(q) =
+.
+(3)
+n
+∑q∈Dtrain µ(q)
+1 + ∑i=0 e(ωi , q)
+5
+
+FlowBank : Query-Adaptive Agentic Workflows Optimization through Precompute-and-Reuse
+
+(1) Diversifying via DiverseFlow
+
+(3) Graph-based Query Adaptive Matching
+Query 𝒒
+
+1
+C
+
+5
+
+6
+
+8
+
+A
+
+3
+B
+
+…
+
+7
+
+Query
+Level
+
+2
+
+Workflow 𝝎
+
+Task
+Level
+
+4
+
+A
+B
+
+Training
+
+C
+
+Parent Node Sampling Propbility
+
+Two-Phase MCTS
+Performance-oriented Warmup
+Complementarity-oriented Expansion
+
+A
+
+B
+
+A
+
+B
+
+(2) Curating via CuraFlow
+
+Candidate Pool
+𝛀𝐫𝐚𝐰
+
+Portfolio Cardinality
+Coverage
+
+GNN Predictor
+𝑓%
+
+C
+𝝎𝐝𝐲𝐧
+
+C
+…
+
+Coverage-aware Subset Search
+max
+Coverage(𝛀𝐫𝐚𝐰 )
+𝛀⊂𝛀𝐫𝐚𝐰,|𝛀|)*
+
+𝒌∗
+
+𝑫𝐭𝐫𝐚𝐢𝐧
+
+2 3 4
+
+5
+
+6
+
+7 … 𝒌
+
+𝑣",$
+
+𝑣,",$ = 𝑓% (𝑞, 𝜔)
+
+Masked Edge Value Prediction
+Edge Value 𝑣!,# = 1 − 𝜆 ⋅ 𝑒̃!,# + 𝜆 ⋅ (1 − 𝑐̃!,# )
+
+𝜏 ⋅ Coverage(𝛀𝐫𝐚𝐰 )
+
+1
+
+Deployment
+
+New Query
+
+Curated Portfolio
+𝛀∗
+
+Figure 4: Overview of FlowBank. DiverseFlow first builds a diverse raw pool Ωraw through performance-oriented
+∗
+warm-up followed by coverage-oriented expansion. CuraFlow then selects a compact portfolio Ω that retains most
+attainable coverage while pruning redundant workflows. Given a new query, a bipartite query–workflow matcher
+predicts each portfolio member’s utility under the performance–cost trade-off and executes the highest-scoring workflow.
+
+Here µ(q) reflects the difficulty of q to the pool. It reaches the maximum of 1 when no workflow solves q.
+Thus, the workflow with higher performance on "difficult" queries with greater µ(q) are more likely to be
+sampled as the parent to expand (a toy example provided in Figure 4), which steers the MCTS to search
+workflows that could solve uncovered questions.
+Finalizing Candidate Pool. After completing the two-phase search of DiverseFlow, we further augment
+the candidate pool by incorporating a query-level workflow generation method, ScoreFlow. We evaluate it by
+executing the generated workflow on its corresponding query and aggregating the resulting performance
+over Dtrain . We denote the final candidate pool by Ωraw , which includes both the workflows discovered by
+DiverseFlow and the additional ScoreFlow-based dynamic workflow.
+3.2. Curating via CuraFlow
+From a High-Coverage Pool to a Compact Portfolio. The diversified candidate pool produced in Stage 1
+provides broad query coverage, but using the full pool directly is neither necessary nor desirable. Many
+workflows are partially redundant, and enlarging the pool yields diminishing marginal gains in coverage
+while increasing the cost of downstream matching and deployment complexity. We therefore introduce
+CuraFlow, a coverage-aware combinatorial curation procedure that consolidates the raw pool into a compact
+portfolio by searching for the smallest subset that preserves most of the attainable coverage.
+
+6
+
+FlowBank : Query-Adaptive Agentic Workflows Optimization through Precompute-and-Reuse
+
+Why DiverseFlow and CuraFlow are Complementary. Adding workflows in Stage 1 and removing
+workflows in Stage 2 optimize different objectives at different levels. DiverseFlow is a candidate-generation
+stage: it deliberately expands Ωraw so the system can discover a wide range of behaviors, including rare but
+useful workflows whose value may only become apparent when compared jointly with others. CuraFlow is a
+subset-selection stage: after this diversity has been exposed, it solves a combinatorial selection problem to
+keep the smallest portfolio that preserves the coverage achieved by the larger pool. In this sense, Stage 1
+increases the recall of useful workflow behaviors, while Stage 2 improves the precision and deployability of
+the final portfolio. Without DiverseFlow, CuraFlow would have little complementary material to preserve;
+without CuraFlow, DiverseFlow would leave the system with an unnecessarily redundant and expensive pool.
+We provide a more detailed analysis in Appendix E.3.
+Coverage-aware Portfolio Search. We initialize the portfolio cardinality k at 1 and expand it incrementally.
+For each cardinality k, we identify the size-k subset that maximizes coverage:
+∗
+
+Ωk =
+
+arg max Coverage(Ω).
+
+Ω⊆Ωraw , ∣Ω∣=k
+
+(4)
+
+Exhaustive enumeration over all combinatorial subsets remains feasible when k is modest and the candidate
+pool is of moderate size. Among size-k subsets with equal coverage, we prefer the one with the lowest
+mean pairwise correlation between members’ per-query performance vectors. This encourages behavioral
+heterogeneity within the curated portfolio.
+Optimal Cardinality for the Portfolio. To keep portfolio search tractable and control the scale of the
+∗
+matching stage, we use k as the target size of the curated portfolio. Because coverage is a submodular set
+function, its marginal gain diminishes as more workflows are added. As a result, a subset of size k can retain
+most of the candidate pool’s coverage while removing redundant workflows, even when k is much smaller
+than K. Practically, we choose the optimal portfolio size as
+∗
+
+k = min{k ∶
+
+max
+
+Ω⊂Ωraw ,∣Ω∣=k
+
+Coverage(Ω) ≥ τ ⋅ Coverage(Ωraw )}
+
+(5)
+
+i.e., the minimum cardinality of a subset whose coverage exceeds a saturation ratio τ ∈ (0, 1] of the full
+∗
+candidate pool. If τ falls on the plateau of the coverage curve for a given benchmark, the resulting k may be
+∗
+∗
+slightly overestimated. In that case, we pass both Ωk and Ωk−1 to the matching stage as alternative curated
+portfolios and treat the portfolio size as a tunable hyperparameter.
+3.3. Graph-Based Query-Adaptive Matching
+Casting Workflow Selection as Edge-Value Prediction on a Bipartite Graph. Given the curated portfolio
+∗
+Ω obtained in Section 3.2, the last challenge is query-level assignment: for a new query, which portfolio
+member should execute it? A flat multiclass classifier over workflows would treat portfolio members as
+unrelated labels and force each query to have a unique winner, even though multiple workflows may be
+equally good under the deployment trade-off. We instead cast query-adaptive workflow selection as edgevalue prediction on a query-workflow bipartite graph. This formulation makes the supervision pairwise by
+design, so the selector can exploit relational patterns across similar queries and similar workflows while
+naturally accommodating ties in workflow utility.
+
+7
+
+FlowBank : Query-Adaptive Agentic Workflows Optimization through Precompute-and-Reuse
+
+Bipartite Graph Construction and Node Representation Space. The bipartite graph is defined as G =
+∗
+∗
+(D ∪ Ω , E), where D is the set of query nodes and Ω is the set of workflow nodes. Each query node is
+initialized with an embedding of the query text, and each workflow node is initialized with an embedding
+of its workflow description (refer to Appendix C.4 and D for more details). A heterogeneous GNN then
+maps the two node types into a shared hidden representation space through type-specific transformations,
+so that query semantics, workflow behavior, and their cross-type interactions can all inform the matching
+∗
+decision. For every pair (q, ω) ∈ Dtrain × Ω , we create an edge (q, ω) ∈ E whose supervision value combines
+performance and cost:
+vq,ω = (1 − λ) ⋅ ẽq,ω + λ ⋅ (1 − c̃q,ω ).
+(6)
+where ẽq,ω and c̃q,ω are the normalized performance and cost of workflow ω on query q over Dtrain , and
+λ ∈ [0, 1] controls the deployment trade-off between performance and token cost.
+Masked Training of a Lightweight Edge-Value Predictor. We train a heterogeneous 2-layer GNN encoder
+followed by an MLP decoder to predict v̂q,ω = f θ (q, ω). During training, we randomly sample minibatches
+∗
+of edges from Dtrain × Ω and mask their supervision values. The model receives the node representations
+together with the unmasked portion of the graph, propagates information over the bipartite structure, and
+predicts the masked edge values. We optimize a per-edge binary cross-entropy loss with soft targets on the
+masked edges. Because supervision is defined independently for every edge rather than as a single-winner
+class label for each query, ties between multiple workflows with the same vq,ω are handled naturally: all tied
+edges simply share the same target value, and the model is not forced to arbitrarily separate them during
+training.
+Inductive Selecting for a New Query. At deployment, a new query q is embedded, added to the graph
+∗
+as a new query node, and connected to every workflow node in Ω . A single forward pass yields predicted
+∗
+edge values f θ (q, ω) for all ω ∈ Ω . The selector is then defined as πθ (q) = arg maxω∈Ω∗ f θ (q, ω), and the
+selected workflow πθ (q) is executed on q to produce the final answer. If multiple workflows receive the same
+predicted value, we break ties by preferring the lower-cost workflow on the training data, and use a fixed
+deterministic order only if the cost is also tied. The inference cost of matching a new query is one GNN
+forward pass over a small graph, negligible compared to the cost of executing any workflow in the portfolio.
+
+4. Experiments
+4.1. Experimental Setup
+Tasks and Benchmarks. We evaluate FlowBank on five public benchmarks covering four domains: (1)
+math reasoning, MATH (Hendrycks et al., 2021), AMC (Ding et al., 2024); (2) code generation, MBPP
+(Austin et al., 2021); (3) question answering, MMLU Pro (Wang et al., 2024a) and (4) reading comprehension, DROP (Dua et al., 2019). Following prior work, each benchmark is split into training and test sets
+with a 1∶4 ratio for workflow optimization and final evaluation. More details can be found in Appendix C.1.
+Baselines. We compare FlowBank with two series of baselines: (1)manually designed workflows:
+Chain-of-Thought (Wei et al., 2022), ComplexCoT (Fu et al., 2022), Self-Consistency (Wang et al., 2022),
+Multi-agent Debate (Du et al., 2024), Self-Refine (Madaan et al., 2023), MedPrompt (Nori et al., 2023),
+MultiPersona (Wang et al., 2024b); (2) automated workflow optimization methods: GPTSwarm (Zhuge
+8
+
+FlowBank : Query-Adaptive Agentic Workflows Optimization through Precompute-and-Reuse
+
+Table 1: Performance & Cost Comparison with 13 baselines across 5 benchmarks. Performance results are bolded/un−3
+derlined based on the ranking across all methods, while Cost metrics (unit: ×10 $ per 1K tokens) are highlighted
+within the automated optimization block and FlowBank.
+MATH
+Method
+IO
+
+AMC
+
+MBPP
+
+DROP
+
+MMLU Pro
+
+Average
+
+Perf.
+
+Cost
+
+Perf.
+
+Cost
+
+Perf.
+
+Cost
+
+Perf.
+
+Cost
+
+Perf.
+
+Cost
+
+Perf.
+
+Cost
+
+56.58
+
+0.51
+
+53.59
+
+0.53
+
+72.92
+
+0.08
+
+75.49
+
+0.08
+
+50.89
+
+0.03
+
+60.44
+
+0.22
+
+Manually Designed Agentic Workflows
+CoT
+
+55.76
+
+0.53
+
+52.47
+
+0.54
+
+74.29
+
+0.08
+
+77.96
+
+0.11
+
+51.35
+
+0.04
+
+60.98
+
+0.23
+
+ComplexCoT
+
+54.39
+
+0.62
+
+49.52
+
+0.64
+
+71.68
+
+0.10
+
+77.74
+
+0.33
+
+64.03
+
+0.35
+
+63.85
+
+0.42
+
+Self-Consistency
+
+57.82
+
+3.38
+
+53.89
+
+3.44
+
+73.98
+
+0.52
+
+78.33
+
+0.74
+
+50.93
+
+0.34
+
+61.49
+
+1.51
+
+Multi-agent Debate
+
+58.92
+
+7.66
+
+53.82
+
+7.96
+
+74.68
+
+0.86
+
+78.65
+
+1.64
+
+57.56
+
+0.88
+
+63.86
+
+3.45
+
+Self-Refine
+
+55.14
+
+1.08
+
+52.88
+
+1.06
+
+71.07
+
+0.27
+
+76.71
+
+0.34
+
+43.75
+
+0.46
+
+57.96
+
+0.62
+
+MedPrompt
+
+56.69
+
+5.64
+
+55.19
+
+5.49
+
+71.85
+
+0.61
+
+81.77
+
+1.75
+
+52.79
+
+0.63
+
+62.77
+
+2.58
+
+MultiPersona
+
+57.41
+
+0.56
+
+53.74
+
+0.58
+
+70.38
+
+0.28
+
+76.13
+
+0.29
+
+61.70
+
+0.36
+
+63.87
+
+0.41
+
+58.37
+
+1.14
+
+63.43
+
+2.54
+
+Automated Agentic Workflow Optimization Methods
+GPTSwarm
+
+54.94
+
+1.69
+
+55.42
+
+ADAS
+AgentSquare
+
+9.04
+
+71.26
+
+0.25
+
+78.37
+
+0.51
+
+56.17
+
+2.95
+
+62.76
+
+1.35
+
+47.33
+
+3.22
+
+72.34
+
+58.78
+
+1.79
+
+72.73
+
+0.77
+
+81.17
+
+0.98
+
+59.71
+
+1.05
+
+63.22
+
+1.71
+
+0.52
+
+76.84
+
+0.76
+
+63.75
+
+0.75
+
+66.70
+
+1.02
+
+AFlow (Qwen3-8B)
+
+63.24
+
+3.23
+
+62.75
+
+2.51
+
+79.37
+
+1.02
+
+77.08
+
+1.05
+
+64.62
+
+1.47
+
+68.56
+
+1.79
+
+AFlow (GPT-4o)
+
+63.99
+
+2.77
+
+63.77
+
+4.86
+
+83.77
+
+0.57
+
+80.26
+
+1.02
+
+65.61
+
+0.89
+
+70.40
+
+1.95
+
+MaAS
+
+65.02
+
+2.43
+
+63.36
+
+2.70
+
+79.08
+
+ScoreFlow
+
+62.00
+
+2.36
+
+60.15
+
+3.51
+
+83.63
+
+2.04
+
+76.64
+
+1.64
+
+62.31
+
+1.29
+
+68.09
+
+1.90
+
+1.70
+
+82.10
+
+1.42
+
+64.58
+
+2.62
+
+69.51
+
+2.37
+
+FlowBank
+
+69.34
+
+1.78
+
+67.94
+
+2.49
+
+84.26
+
+1.62
+
+83.49
+
+1.06
+
+67.40
+
+1.52
+
+73.40
+
+1.65
+
+et al., 2024), ADAS (Hu et al., 2024), AgentSquare (Shang et al., 2024), AFlow (Zhang et al., 2024), MaAS
+(Zhang et al., 2025b), ScoreFlow (Wang et al., 2025c).
+LLM Backbones. For ADAS and AgentSquare, we use GPT-4o (OpenAI, 2024a) as the optimizer LLM. For
+AFlow, we evaluate two variants using GPT-4o and Qwen3-8B (Yang et al., 2025) as the optimizer LLM
+respectively, treating each as a separate baseline. For ScoreFlow, we use Qwen3-8B as the generator to
+design a workflow based on the given query. For FlowBank, we use Qwen3-8B as the optimizer at Stage
+1. To ensure a fair comparison, we use GPT-4o mini (OpenAI, 2024b) with a fixed temperature of 0 as the
+executor LLM and across all agentic workflows. More details can be found in Appendix C.2.
+Implementation Details. We run AFlow and ADAS for 30 search iteration rounds, and AgentSquare for
+20. For ScoreFlow, we follow the official setting in their codebase and train its generator via Score-DPO
+for 3 epochs on each benchmark’s training split For FlowBank, Stage 1 runs the optimizer for 30 rounds
+with 7 warm-up rounds to construct a diverse candidate workflow pool. Stage 2 fixes the saturation ratio at
+9
+
+FlowBank : Query-Adaptive Agentic Workflows Optimization through Precompute-and-Reuse
+
+∗
+
+∗
+
+τ = 0.96 and curates two compact portfolios of sizes k and k − 1. Stage 3 then trains the query-adaptive
+selector over a grid of cost weights λ on each dataset. We provide more implementation details in Appendix
+C.3 and C.4.
+4.2. Performance & Cost Analysis
+Main Results. Table 1 shows that FlowBank achieves the best average performance (73.40) among all
+methods and consistently ranks first across all five benchmarks. Compared with the strongest automated
+baseline, AFlow (GPT-4o) at 70.40, FlowBank improves by 3.00 absolute points (4.26% relative), despite using
+Qwen3-8B rather than GPT-4o as the optimizer. The gain over the strongest manually designed workflow,
+MultiPersona at 63.87, is even larger at 9.53 points (14.92% relative). At the benchmark level, FlowBank
+attains the best results on MATH (69.34), AMC (67.94), MMLU Pro (67.40), DROP (83.49), and MBPP (84.26),
+surpassing the next best method by clear margins on several reasoning-intensive tasks. Overall, these results
+show that the performance gains come from FlowBank’s 3-stage framework itself, rather than simply from
+using a stronger optimizer model. See Appendix D for more detailed case study.
+
+Performance--Cost Pareto Frontier across 5 Benchmarks
+75.0
+72.5
+
+Average performance
+
+Performance–Cost Trade-off. Beyond raw
+accuracy, FlowBank remains efficient. Its
+average inference cost is 1.65, below AFlow
+(GPT-4o) at 1.95 and ScoreFlow at 2.37, while
+its average performance is higher than both.
+AgentSquare is cheaper at 1.02, but it trails
+FlowBank by 6.70 points in average performance, leaving it off the preferred utility frontier. As Figure 5 shows, no compared method
+offers both higher average performance and
+lower average cost than FlowBank. This result shows that FlowBank improves both task
+effectiveness and the overall performance–
+cost balance.
+
+70.0
+
+Pareto frontier
+Baseline (IO)
+Manually-designed
+Automated optimization
+FlowBank (ours)
+
+FlowBank (Ours)
+AFlow (GPT-4o)
+ScoreFlow
+
+AFlow (Qwen3-8B)
+
+67.5
+65.0
+
+MultiPersona
+
+62.5
+60.0
+
+MaAS
+
+AgentSquare
+ComplexCoT
+
+ADAS
+
+Multi-agent Debate
+GPTSwarm
+
+MedPrompt
+Self Consistency
+
+CoT
+IO
+Self Refine
+
+57.5
+0.2
+
+0.5
+
+1
+
+2
+
+Average cost (×10 3 $ in log scale)
+
+5
+
+Figure 5: Performance–cost trade-off across all methods.
+FlowBank is on the Pareto frontier.
+
+4.3. Framework Analysis
+Ablation Study. Table 2 compares the full
+system against four variants to isolate the contributions of each component. Compared with Row 2, the full
+system replaces AFlow with DiverseFlow in Stage 1, yielding a portfolio with higher oracle performance
+and, in turn, better final performance, which confirms the value of constructing a more diverse candidate
+pool. Compared with Row 3, CuraFlow improves over the top-k accuracy set by using combinatorial search
+to directly maximize coverage, leading to a stronger oracle portfolio and higher downstream performance
+as well. Compared with Row 4, training the selector on the full candidate pool without curation causes
+noticeable degradation, suggesting that redundancy makes it harder for the selector to exploit the distinct
+strengths of individual workflows. Finally, compared with Row 5, the bipartite-graph based GNN selector
+consistently outperforms an independent flat MLP classifier, validating the benefit of explicitly modeling
+query–workflow interactions over a graph. Overall, the best results are achieved only when all three stages
+are activated together.
+
+10
+
+FlowBank : Query-Adaptive Agentic Workflows Optimization through Precompute-and-Reuse
+
+Table 2: Ablation study of FlowBank on MATH and DROP. “Oracle” denotes the performance of an oracle selector on
+test data.
+Method
+
+MATH
+
+DROP
+
+Stage 1
+
+Stage 2
+
+Stage 3
+
+Perf.
+
+Oracle
+
+Perf.
+
+Oracle
+
+✓
+× (AFlow)
+✓
+✓
+✓
+
+✓
+✓
+× (Top-k Accuracy set)
+× (Full candidate pool)
+✓
+
+✓
+✓
+✓
+✓
+× (MLP Classifier)
+
+69.34
+67.69
+67.90
+68.11
+68.72
+
+83.74
+79.01
+80.66
+92.04
+83.74
+
+83.49
+82.98
+82.37
+82.45
+82.83
+
+90.47
+89.95
+86.73
+96.59
+90.47
+
+AMC
+
+MMLU Pro
+
+Hyperparameter Effects. Figure 6 studies
+70
+saturation point 3.50
+Performance
+67.40
+Cost (×10 3 $) 1.6
+67.94
+3.25 67.4
+67.63
+two key hyperparameters in FlowBank and
+68
+67.02
+66.97
+66.48
+3.00
+1.5
+shows that AMC performance increases from
+67.2 1.52
+1.50
+66
+1.49
+1.48
+2.75
+67.06
+61.07 at K=1 to 67.94 at K=5 before dipping
+67.02
+67.02
+1.4
+2.66
+64
+2.50 67.0
+2.57
+66.92
+2.52
+2.49
+slightly at K=6. This pattern supports the im2.35 2.25
+66.83 1.3
+62 61.07
+2.18
+66.8
+Performance
+portance of choosing the saturation point for a
+1.28
+2.00
+3
+1.25
+Cost (×10 $)
+60
+1.2
+compact, diverse portfolio for the third stage to
+1
+2
+3
+4
+5
+6
+0.0
+0.1
+0.2
+0.3
+0.4
+0.5
+Portfolio size K
+Cost
+regularization
+weight
+learn the selector over a portfolio with an appropriate number of workflows. On MMLU Pro, Figure 6: Left: Impact of portfolio size k on AMC; Right: Impact
+larger λ steadily lowers inference cost while of cost regularization weight λ on MMLU Pro.
+performance stays stable for λ ∈ [0.1, 0.4] and
+drops at λ=0.5, showing the balance between effect and token efficiency. Overall, FlowBank is robust to
+moderate changes in λ and maintains a strong performance–cost trade-off without heavy tuning.
+
+5. Related Work
+LLM-based Agentic Workflow. Recent work has shown that LLMs can benefit substantially from explicit
+workflow design rather than a single prompt-response pass. Representative manually designed strategies
+include Chain-of-Thought, Self-Consistency, debate-based collaboration, and iterative refinement, as well as
+more specialized designs such as MedPrompt, MultiPersona and MetaGPT (Wei et al., 2022, Wang et al.,
+2022, Du et al., 2024, Madaan et al., 2023, Nori et al., 2023, Wang et al., 2024b, Hong et al., 2023). These
+methods demonstrate the value of workflow structure and prompting, but they usually rely on manually
+designed workflows.
+Automated Agentic Workflow Optimization. Another line of work studies how to automatically discover
+and optimize workflows, including task-level offline workflow search methods such as GPTSwarm, ADAS,
+AgentSquare, AFlow and Weak-for-strong, as well as more adaptive query-level online generation systems
+such as MAS-GPT, ScoreFlow, MaAS, MasRouter and DyFlow (Zhuge et al., 2024, Hu et al., 2024, Shang et al.,
+2024, Zhang et al., 2024, Ye et al., 2025, Wang et al., 2025c, Zhang et al., 2025b, Yue et al., 2025, Nie et al.,
+2025, Wang et al., 2025b). These methods reduce manual effort and often improve average task performance,
+but most either optimize for a single final workflow or shift substantial workflow construction to inference
+time. In contrast, FlowBank constructs a compact portfolio of complementary workflows offline and learns
+to select the best one for each query at inference time, making our method closer to a precompute-and-reuse
+framework than to either single-workflow optimization or fully online workflow generation.
+
+11
+
+FlowBank : Query-Adaptive Agentic Workflows Optimization through Precompute-and-Reuse
+
+6. Conclusion
+We revisit agentic workflow optimization from a different perspective. Rather than choosing between a
+single workflow for all queries and synthesizing a new workflow for every query, we ask how to recover
+query-level adaptivity through offline computation and reusable workflow assets. FlowBank operationalizes
+this idea with three stages—Diversifying, Curating, and Matching—that discover complementary workflows,
+distill them into a compact portfolio, and assign each query to the right workflow at inference time. Across
+five benchmarks, this precompute-and-reuse strategy delivers the strongest average performance among
+the evaluated methods while maintaining competitive cost. More detailed discussion about limitations and
+future directions can be found at Appendix F.
+
+7. Acknowledgment
+Yuan, Deng, Chakraborty and Huang are supported by DARPA HR001124S0029-AIQ-FP-019, National
+Science Foundation TRAILS Institute (2229885). Private support was provided by Open Philanthropy and
+Apple. The Authors acknowledge the National Artificial Intelligence Research Resource (NAIRR) Pilot for
+contributing to this research result.
+
+12
+
+FlowBank : Query-Adaptive Agentic Workflows Optimization through Precompute-and-Reuse
+
+References
+Jacob Austin, Augustus Odena, Maxwell Nye, Maarten Bosma, Henryk Michalewski, David Dohan, Ellen
+Jiang, Carrie Cai, Michael Terry, Quoc Le, et al. Program synthesis with large language models. arXiv
+preprint arXiv:2108.07732, 2021.
+Mark Chen, Jerry Tworek, Heewoo Jun, Qiming Yuan, Henrique Ponde De Oliveira Pinto, Jared Kaplan,
+Harri Edwards, Yuri Burda, Nicholas Joseph, Greg Brockman, et al. Evaluating large language models
+trained on code. arXiv preprint arXiv:2107.03374, 2021.
+Yitong Cui, Liu Liu, Baosheng Yu, Jiayan Qiu, Xikai Zhang, Likang Xiao, Yixing Liu, and Quan Chen. Spogw:
+a score-based preference optimization method via group-wise comparison for workflows. arXiv preprint
+arXiv:2510.04089, 2025.
+Xiang Deng, Yu Gu, Boyuan Zheng, Shijie Chen, Sam Stevens, Boshi Wang, Huan Sun, and Yu Su. Mind2web:
+Towards a generalist agent for the web. Advances in Neural Information Processing Systems, 36:28091–28114,
+2023.
+Mucong Ding, Chenghao Deng, Jocelyn Choo, Zichu Wu, Aakriti Agrawal, Avi Schwarzschild, Tianyi Zhou,
+Tom Goldstein, John Langford, Anima Anandkumar, et al. Easy2hard-bench: Standardized difficulty labels
+for profiling llm performance and generalization. Advances in Neural Information Processing Systems, 37:
+44323–44365, 2024.
+Yilun Du, Shuang Li, Antonio Torralba, Joshua B Tenenbaum, and Igor Mordatch. Improving factuality and
+reasoning in language models through multiagent debate. In Forty-first international conference on machine
+learning, 2024.
+Dheeru Dua, Yizhong Wang, Pradeep Dasigi, Gabriel Stanovsky, Sameer Singh, and Matt Gardner. Drop: A
+reading comprehension benchmark requiring discrete reasoning over paragraphs. In Proceedings of the
+2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human
+Language Technologies, Volume 1 (Long and Short Papers), pages 2368–2378, 2019.
+Batu El, Mert Yuksekgonul, and James Zou. Inefficiencies of meta agents for agent design. In ICML 2025
+Workshop on Programmatic Representations for Agent Learning, 2025. URL https://openreview.net/
+forum?id=cnKYqIgNy5.
+Tao Feng, Yanzhen Shen, and Jiaxuan You. Graphrouter: A graph-based router for llm selections. arXiv
+preprint arXiv:2410.03834, 2024.
+Yao Fu, Hao Peng, Ashish Sabharwal, Peter Clark, and Tushar Khot. Complexity-based prompting for
+multi-step reasoning. arXiv preprint arXiv:2210.00720, 2022.
+Hongcheng Gao, Yue Liu, Yufei He, Longxu Dou, Chao Du, Zhijie Deng, Bryan Hooi, Min Lin, and Tianyu
+Pang. Flowreasoner: Reinforcing query-level meta-agents. arXiv preprint arXiv:2504.15257, 2025.
+Daya Guo, Qihao Zhu, Dejian Yang, Zhenda Xie, Kai Dong, Wentao Zhang, Guanting Chen, Xiao Bi, Yifan
+Wu, YK Li, et al. Deepseek-coder: when the large language model meets programming–the rise of code
+intelligence. arXiv preprint arXiv:2401.14196, 2024.
+Dan Hendrycks, Collin Burns, Saurav Kadavath, Akul Arora, Steven Basart, Eric Tang, Dawn Song, and
+Jacob Steinhardt. Measuring mathematical problem solving with the math dataset. arXiv preprint
+arXiv:2103.03874, 2021.
+13
+
+FlowBank : Query-Adaptive Agentic Workflows Optimization through Precompute-and-Reuse
+
+Matthew Ho, Chen Si, Zhaoxiang Feng, Fangxu Yu, Yichi Yang, Zhijian Liu, Zhiting Hu, and Lianhui Qin.
+Arcmemo: Abstract reasoning composition with lifelong llm memory. arXiv preprint arXiv:2509.04439,
+2025.
+Sirui Hong, Mingchen Zhuge, Jonathan Chen, Xiawu Zheng, Yuheng Cheng, Jinlin Wang, Ceyao Zhang, Zili
+Wang, Steven Ka Shing Yau, Zijuan Lin, et al. Metagpt: Meta programming for a multi-agent collaborative
+framework. In The twelfth international conference on learning representations, 2023.
+Shengran Hu, Cong Lu, and Jeff Clune. Automated design of agentic systems. arXiv preprint arXiv:2408.08435,
+2024.
+Tom Kwiatkowski, Jennimaria Palomaki, Olivia Redfield, Michael Collins, Ankur Parikh, Chris Alberti,
+Danielle Epstein, Illia Polosukhin, Jacob Devlin, Kenton Lee, et al. Natural questions: a benchmark for
+question answering research. Transactions of the Association for Computational Linguistics, 7:453–466,
+2019.
+Xiaoxiao Li. When single-agent with skills replace multi-agent systems and when they fail. arXiv preprint
+arXiv:2601.04748, 2026.
+Zijun Liu, Yanzhe Zhang, Peng Li, Yang Liu, and Diyi Yang. Dynamic llm-agent network: An llm-agent
+collaboration framework with agent team optimization. arXiv preprint arXiv:2310.02170, 2023.
+Yinyi Luo, Yiqiao Jin, Weichen Yu, Mengqi Zhang, Srijan Kumar, Xiaoxiao Li, Weijie Xu, Xin Chen, and
+Jindong Wang. Agentark: Distilling multi-agent intelligence into a single llm agent. arXiv preprint
+arXiv:2602.03955, 2026.
+Aman Madaan, Niket Tandon, Prakhar Gupta, Skyler Hallinan, Luyu Gao, Sarah Wiegreffe, Uri Alon, Nouha
+Dziri, Shrimai Prabhumoye, Yiming Yang, et al. Self-refine: Iterative refinement with self-feedback.
+Advances in neural information processing systems, 36:46534–46594, 2023.
+Reiichiro Nakano, Jacob Hilton, Suchir Balaji, Jeff Wu, Long Ouyang, Christina Kim, Christopher Hesse,
+Shantanu Jain, Vineet Kosaraju, William Saunders, et al. Webgpt: Browser-assisted question-answering
+with human feedback. arXiv preprint arXiv:2112.09332, 2021.
+Fan Nie, Lan Feng, Haotian Ye, Weixin Liang, Pan Lu, Huaxiu Yao, Alexandre Alahi, and James Zou. Weakfor-strong: Training weak meta-agent to harness strong executors. arXiv preprint arXiv:2504.04785,
+2025.
+Harsha Nori, Yin Tat Lee, Sheng Zhang, Dean Carignan, Richard Edgar, Nicolo Fusi, Nicholas King, Jonathan
+Larson, Yuanzhi Li, Weishung Liu, et al. Can generalist foundation models outcompete special-purpose
+tuning? case study in medicine. arXiv preprint arXiv:2311.16452, 2023.
+OpenAI. Hello GPT-4o, 2024a. URL https://openai.com/index/hello-gpt-4o/. Accessed: 2026-0430.
+OpenAI. GPT-4o mini: Advancing cost-efficient intelligence, 2024b. URL https://openai.com/index/
+gpt-4o-mini-advancing-cost-efficient-intelligence/. Accessed: 2026-04-30.
+Siru Ouyang, Jun Yan, I-Hung Hsu, Yanfei Chen, Ke Jiang, Zifeng Wang, Rujun Han, Long Le, Samira Daruki,
+Xiangru Tang, Vishy Tirumalashetty, George Lee, Mahsan Rofouei, Hangfei Lin, Jiawei Han, Chen-Yu Lee,
+and Tomas Pfister. Reasoningbank: Scaling agent self-evolving with reasoning memory. In The Fourteenth
+International Conference on Learning Representations, 2026. URL https://openreview.net/forum?
+id=jL7fwchScm.
+14
+
+FlowBank : Query-Adaptive Agentic Workflows Optimization through Precompute-and-Reuse
+
+Yu Shang, Yu Li, Keyu Zhao, Likai Ma, Jiahe Liu, Fengli Xu, and Yong Li. Agentsquare: Automatic llm agent
+search in modular design space. arXiv preprint arXiv:2410.06153, 2024.
+Kun Wang, Guibin Zhang, ManKit Ye, Xinyu Deng, Dongxia Wang, Xiaobin Hu, Jinyang Guo, Yang Liu, and
+2
+Yufei Guo. MAS : Self-generative, self-configuring, self-rectifying multi-agent systems. arXiv preprint
+arXiv:2509.24323, 2025a.
+Xuezhi Wang, Jason Wei, Dale Schuurmans, Quoc Le, Ed Chi, Sharan Narang, Aakanksha Chowdhery, and
+Denny Zhou. Self-consistency improves chain of thought reasoning in language models. arXiv preprint
+arXiv:2203.11171, 2022.
+Yanbo Wang, Zixiang Xu, Yue Huang, Xiangqi Wang, Zirui Song, Lang Gao, Chenxi Wang, Xiangru Tang, Yue
+Zhao, Arman Cohan, et al. Dyflow: Dynamic workflow framework for agentic reasoning. arXiv preprint
+arXiv:2509.26062, 2025b.
+Yinjie Wang, Ling Yang, Guohao Li, Mengdi Wang, and Bryon Aragam. Scoreflow: Mastering llm agent
+workflows via score-based preference optimization. arXiv preprint arXiv:2502.04306, 2025c.
+Yubo Wang, Xueguang Ma, Ge Zhang, Yuansheng Ni, Abhranil Chandra, Shiguang Guo, Weiming Ren, Aaran
+Arulraj, Xuan He, Ziyan Jiang, et al. Mmlu-pro: A more robust and challenging multi-task language
+understanding benchmark. Advances in Neural Information Processing Systems, 37:95266–95290, 2024a.
+Zhenhailong Wang, Shaoguang Mao, Wenshan Wu, Tao Ge, Furu Wei, and Heng Ji. Unleashing the emergent
+cognitive synergy in large language models: A task-solving agent through multi-persona self-collaboration.
+In Proceedings of the 2024 Conference of the North American Chapter of the Association for Computational
+Linguistics: Human Language Technologies (Volume 1: Long Papers), pages 257–279, 2024b.
+Zixu Wang, Bingbing Xu, Yige Yuan, Huawei Shen, and Xueqi Cheng. Do we always need query-level workflows? rethinking agentic workflow generation for multi-agent systems. arXiv preprint arXiv:2601.11147,
+2026.
+Jason Wei, Xuezhi Wang, Dale Schuurmans, Maarten Bosma, Fei Xia, Ed Chi, Quoc V Le, Denny Zhou, et al.
+Chain-of-thought prompting elicits reasoning in large language models. Advances in neural information
+processing systems, 35:24824–24837, 2022.
+Qingyun Wu, Gagan Bansal, Jieyu Zhang, Yiran Wu, Beibin Li, Erkang Zhu, Li Jiang, Xiaoyun Zhang, Shaokun
+Zhang, Jiale Liu, et al. Autogen: Enabling next-gen llm applications via multi-agent conversations. In First
+conference on language modeling, 2024.
+Jiawei Xu, Arief Koesdwiady, Sisong Bei, Yan Han, Baixiang Huang, Dakuo Wang, Yutong Chen, Zheshen
+Wang, Peihao Wang, Pan Li, et al. Rethinking the value of multi-agent workflow: A strong single agent
+baseline. arXiv preprint arXiv:2601.12307, 2026.
+Wujiang Xu, Zujie Liang, Kai Mei, Hang Gao, Juntao Tan, and Yongfeng Zhang. A-mem: Agentic memory for
+llm agents. arXiv preprint arXiv:2502.12110, 2025.
+An Yang, Anfeng Li, Baosong Yang, Beichen Zhang, Binyuan Hui, Bo Zheng, Bowen Yu, Chang Gao, Chengen
+Huang, Chenxu Lv, et al. Qwen3 technical report. arXiv preprint arXiv:2505.09388, 2025.
+Zhilin Yang, Peng Qi, Saizheng Zhang, Yoshua Bengio, William Cohen, Ruslan Salakhutdinov, and Christopher D Manning. Hotpotqa: A dataset for diverse, explainable multi-hop question answering. In Proceedings
+of the 2018 conference on empirical methods in natural language processing, pages 2369–2380, 2018.
+15
+
+FlowBank : Query-Adaptive Agentic Workflows Optimization through Precompute-and-Reuse
+
+Rui Ye, Shuo Tang, Rui Ge, Yaxin Du, Zhenfei Yin, Siheng Chen, and Jing Shao. Mas-gpt: Training llms to
+build llm-based multi-agent systems. arXiv preprint arXiv:2503.03686, 2025.
+Fangxu Yu, Lai Jiang, Haoqiang Kang, Shibo Hao, and Lianhui Qin. Flow of reasoning: Training llms for
+divergent reasoning with minimal examples. arXiv preprint arXiv:2406.05673, 2024.
+Fangxu Yu, Xingang Guo, Lingzhi Yuan, Haoqiang Kang, Hongyu Zhao, Lianhui Qin, Furong Huang, Bin Hu,
+and Tianyi Zhou. Tsrbench: A comprehensive multi-task multi-modal time series reasoning benchmark for
+generalist models. arXiv preprint arXiv:2601.18744, 2026.
+Yanwei Yue, Guibin Zhang, Boyang Liu, Guancheng Wan, Kun Wang, Dawei Cheng, and Yiyan Qi. Masrouter:
+Learning to route llms for multi-agent systems. In Proceedings of the 63rd Annual Meeting of the Association
+for Computational Linguistics (Volume 1: Long Papers), pages 15549–15572, 2025.
+Guibin Zhang, Kaijie Chen, Guancheng Wan, Heng Chang, Hong Cheng, Kun Wang, Shuyue Hu, and Lei Bai.
+Evoflow: Evolving diverse agentic workflows on the fly. arXiv preprint arXiv:2502.07373, 2025a.
+Guibin Zhang, Luyang Niu, Junfeng Fang, Kun Wang, LEI BAI, and Xiang Wang. Multi-agent architecture
+search via agentic supernet. In Forty-second International Conference on Machine Learning, 2025b. URL
+https://openreview.net/forum?id=imcyVlzpXh.
+Jiayi Zhang, Jinyu Xiang, Zhaoyang Yu, Fengwei Teng, Xionghui Chen, Jiaqi Chen, Mingchen Zhuge, Xin
+Cheng, Sirui Hong, Jinlin Wang, et al. Aflow: Automating agentic workflow generation. arXiv preprint
+arXiv:2410.10762, 2024.
+Mingda Zhang, Haoran Luo, Tiesunlong Shen, Qika Lin, Xiaoying Tang, Rui Mao, and Erik Cambria.
+Flowsteer: Interactive agentic workflow orchestration via end-to-end reinforcement learning. arXiv
+preprint arXiv:2602.01664, 2026.
+Yuanshuo Zhang, Yuchen Hou, Bohan Tang, Shuo Chen, Muhan Zhang, Xiaowen Dong, and Siheng Chen.
+FLORA: GNNs as predictors of agentic workflow performances. In The Fourth Learning on Graphs Conference,
+2025c. URL https://openreview.net/forum?id=RmlDI5kUxa.
+Yuxuan Zhao, Sijia Chen, and Ningxin Su. On the uncertainty of large language model-based multi-agent
+systems. arXiv preprint arXiv:2602.04234, 2026.
+Chengqi Zheng, Jianda Chen, Yueming Lyu, Wen Zheng Terence Ng, Haopeng Zhang, Yew-Soon Ong, Ivor
+Tsang, and Haiyan Yin. Mermaidflow: Redefining agentic workflow generation via safety-constrained
+evolutionary programming. arXiv preprint arXiv:2505.22967, 2025.
+Wanjun Zhong, Lianghong Guo, Qiqi Gao, He Ye, and Yanlin Wang. Memorybank: Enhancing large language
+models with long-term memory. Proceedings of the AAAI conference on artificial intelligence, 38(17):
+19724–19731, 2024.
+Han Zhou, Xingchen Wan, Ruoxi Sun, Hamid Palangi, Shariq Iqbal, Ivan Vulić, Anna Korhonen, and
+Sercan Ö Arık. Multi-agent design: Optimizing agents with better prompts and topologies. arXiv preprint
+arXiv:2502.02533, 2025.
+Shuyan Zhou, Frank F Xu, Hao Zhu, Xuhui Zhou, Robert Lo, Abishek Sridhar, Xianyi Cheng, Tianyue Ou,
+Yonatan Bisk, Daniel Fried, et al. Webarena: A realistic web environment for building autonomous agents.
+arXiv preprint arXiv:2307.13854, 2023.
+16
+
+FlowBank : Query-Adaptive Agentic Workflows Optimization through Precompute-and-Reuse
+
+Runchuan Zhu, Bowen Jiang, Lingrui Mei, Fangkai Yang, Lu Wang, Haoxiang Gao, Fengshuo Bai, Pu Zhao,
+Qingwei Lin, Saravan Rajmohan, and Dongmei Zhang. AdaptFlow: Adaptive workflow optimization via
+meta-learning. In Christos Christodoulopoulos, Tanmoy Chakraborty, Carolyn Rose, and Violet Peng, editors,
+Findings of the Association for Computational Linguistics: EMNLP 2025, pages 3287–3302, Suzhou, China,
+November 2025. Association for Computational Linguistics. ISBN 979-8-89176-335-7. doi: 10.18653/v1/
+2025.findings-emnlp.175. URL https://aclanthology.org/2025.findings-emnlp.175/.
+Mingchen Zhuge, Wenyi Wang, Louis Kirsch, Francesco Faccio, Dmitrii Khizbullin, and Jürgen Schmidhuber.
+Gptswarm: Language agents as optimizable graphs. In Forty-first International Conference on Machine
+Learning, 2024.
+
+A. Notations
+This appendix summarizes the main symbols used in Section 2 and Section 3.
+Table 3: Notation summary for the formulation and the three stages of FlowBank.
+Symbol
+
+Meaning
+
+D
+Dtrain
+q
+ω
+ω(q)
+e(ω, q)
+c(ω, q)
+ωstat
+Gϕ
+q
+ωdyn = Gϕ (q)
+Ω
+Ωraw
+µ(q)
+Coverage(Ω)
+∗
+k
+τ
+∗
+Ω
+∗
+G = (D ∪ Ω , E)
+vq,ω
+ẽq,ω
+c̃q,ω
+λ
+f θ (q, ω)
+πθ (q)
+
+Task dataset.
+Training split.
+Input query.
+Agentic workflow.
+Workflow prediction on q.
+Workflow performance on q.
+Workflow token cost on q.
+Static workflow shared by all queries.
+Meta-generator for dynamic workflows.
+Dynamic workflow generated for q.
+A set consists of workflows.
+Raw candidate workflow pool.
+Complementarity-aware weight of query q.
+Set-level utility of subset Ω.
+Chosen portfolio size.
+Coverage saturation ratio.
+Final curated portfolio.
+Query-workflow bipartite graph.
+Edge supervision value for (q, ω).
+Normalized effect of ω on q.
+Normalized cost of ω on q.
+Effect-cost trade-off weight.
+Predicted value of matching q with ω.
+Selected workflow for query q.
+
+B. Algorithm Table
+Algorithm 1 summarizes Stage 1, where DiverseFlow maintains a growing workflow pool and shifts from
+performance-oriented search to coverage-oriented search. Algorithm 2 summarizes CuraFlow, the combi17
+
+FlowBank : Query-Adaptive Agentic Workflows Optimization through Precompute-and-Reuse
+
+natorial curation procedure in Stage 2. Algorithm 3 describes Stage 3, where a lightweight graph-based
+selector predicts the best workflow for each query.
+Algorithm 1 DiverseFlow for Building a High-Coverage Candidate Pool
+Require: Training split Dtrain , search budget N, warm-up rounds N0
+Ensure: Raw workflow pool Ωraw
+Initialize workflow pool Ω0 with seed workflows
+for t = 1 to N do
+if t ≤ N0 then
+Score each workflow in Ωt−1 by its aggregate performance on Dtrain
+else
+Compute query weights µ(q) from the current pool coverage on Dtrain
+Re-score each workflow in Ωt−1 by weighted performance under µ(q)
+end if
+parent
+Sample a parent workflow ω
+from Ωt−1
+new
+parent
+Ask the optimizer LLM to propose a new workflow ω
+conditioned on ω
+and search experience
+new
+Execute ω
+on Dtrain to obtain per-query effect and token cost
+new
+parent
+Compare ω
+against ω
+under the current scoring rule and record success/failure feedback
+new
+Update the workflow pool: Ωt ← Ωt−1 ∪ {ω }
+end for
+return Ωraw ← Ω N
+
+Algorithm 2 CuraFlow for Combinatorial Portfolio Curation
+Require: Raw candidate pool Ωraw , training split Dtrain , saturation ratio τ
+Ensure: Candidate curated portfolios for the matching stage
+for k = 1 to ∣Ωraw ∣ do
+Enumerate size-k subsets Ω ⊆ Ωraw
+Compute Coverage(Ω) on Dtrain
+∗
+Select Ωk = arg max∣Ω∣=k Coverage(Ω)
+Break ties by preferring lower mean pairwise correlation between per-query effect vectors
+end for
+∗
+Find the smallest k such that
+∗
+Coverage(Ωk∗ ) ≥ τ ⋅ Coverage(Ωraw )
+∗
+∗
+Form candidate curated portfolios from Ωk∗ and, when applicable, Ωk∗ −1
+∗
+return candidate portfolios Ω for Stage 3
+
+C. Detailed Experimental Setup
+C.1. Datasets and Splits
+We evaluate all methods on five public benchmarks spanning four domains: MATH and AMC for mathematical reasoning, MBPP for code generation, MMLU Pro for question answering, and DROP for reading
+comprehension. Following prior workflow-optimization work (Hu et al., 2024, Zhang et al., 2024, Wang
+et al., 2025c, Nie et al., 2025), we split each benchmark into training and test sets with a 1∶4 ratio, where
+the training split is used for workflow search, curation, or selector training, and the test split is reserved for
+final evaluation. Table 4 summarizes the resulting dataset statistics.
+For MATH, we follow previous works (Hu et al., 2024, Zhang et al., 2024) in selecting 605 problems from four
+typical problem types (Combinatorics & Probability, Number Theory, Pre-algebra, Pre-calculus) at difficulty
+18
+
+FlowBank : Query-Adaptive Agentic Workflows Optimization through Precompute-and-Reuse
+
+Algorithm 3 Query-Adaptive Matching over the Curated Portfolio
+∗
+
+Require: Curated portfolio Ω , training split Dtrain , trade-off coefficient λ, new query q
+Ensure: Selected workflow πθ (q)
+∗
+Build bipartite graph G = (Dtrain ∪ Ω , E) with complete query-workflow edges
+′
+∗
+for all (q , ω) ∈ Dtrain × Ω do
+Compute normalized effect ẽq′ ,ω and normalized cost c̃q′ ,ω
+Assign edge supervision value vq′ ,ω = (1 − λ)ẽq′ ,ω + λ(1 − c̃q′ ,ω )
+end for
+′
+Train a heterogeneous 2-layer GNN with an MLP decoder to predict f θ (q , ω) from node embeddings and observed
+edges
+∗
+Add the new query q as a query node and connect it to every workflow in Ω
+∗
+Perform one forward pass to obtain f θ (q, ω) for all ω ∈ Ω
+Select the best workflow:
+πθ (q) ← arg maxω∈Ω∗ f θ (q, ω)
+Break ties by preferring the lower-cost workflow
+return πθ (q)
+Table 4: Statistics of the training and test splits for the five benchmarks.
+Dataset
+
+Training
+
+Testing
+
+MATH
+AMC
+MBPP
+DROP
+MMLU Pro
+
+119
+165
+86
+200
+260
+
+486
+655
+341
+800
+1040
+
+level 5. For AMC, we use the Easy2Hard benchmark (Ding et al., 2024) and retain problems whose IRT
+difficulty ratings fall in [0.25, 0.40], resulting in 841 problems in total. For MMLU Pro, we exclude the
+duplicated math category and then uniformly sample 100 problems from each of the remaining 13 categories,
+yielding 1,300 problems.
+C.2. Model Configurations
+We use GPT-4o (OpenAI, 2024a) and Qwen3-8B (Yang et al., 2025) as optimizer-side large language models
+in different methods, depending on each baseline’s design. Specifically, ADAS and AgentSquare use GPT-4o
+as the optimizer LLM. For AFlow, we report two variants, one with GPT-4o and the other with Qwen3-8B as
+the optimizer, and treat them as separate baselines. ScoreFlow uses Qwen3-8B as the generator for workflow
+design, and FlowBank also uses Qwen3-8B as the optimizer in Stage 1.
+To keep execution-time comparison fair across all agentic workflows, we use GPT-4o mini (OpenAI, 2024b)
+with temperature fixed to 0 as the executor LLM throughout the experiments. For GPT-4o, we use the default
+configuration. For Qwen3-8B, we use temperature 0.7 in non-reasoning mode.
+C.3. Baselines and Setup
+We compare FlowBank against two categories of baselines. The first category consists of manually designed
+workflows, including Chain-of-Thought (Wei et al., 2022), ComplexCoT (Fu et al., 2022), Self-Consistency
+(Wang et al., 2022), Multi-agent Debate (Du et al., 2024), Self Refine (Madaan et al., 2023), MedPrompt
+19
+
+FlowBank : Query-Adaptive Agentic Workflows Optimization through Precompute-and-Reuse
+
+(Nori et al., 2023), and MultiPersona (Wang et al., 2024b). The second category consists of automated
+workflow optimization methods, including four task-level methods: GPTSwarm (Zhuge et al., 2024), ADAS
+(Hu et al., 2024), AgentSquare (Shang et al., 2024), AFlow (Zhang et al., 2024) and two query-level methods:
+MaAS (Zhang et al., 2025b) and ScoreFlow (Wang et al., 2025c).
+For manually designed workflows, we implement each method according to its standard formulation. For
+CoT, we prepend the instruction “let’s think step by step” before answer generation. For ComplexCoT, we
+use a more structured prompt that instructs the model to identify variables, formulate a plan, execute the
+solution, and verify the result. For Self-Consistency, we sample n = 5 CoT responses and aggregate them
+using an LLM-based ensemble vote. For Self-Refine, we first generate an initial CoT solution and then
+perform up to three rounds of review and revision, with early stopping when the reviewer judges the current
+answer to be correct. For Multi-Agent Debate, three agents independently produce CoT solutions, exchange
+their answers for two rounds of debate, and then produce a final prediction through ensemble voting. For
+MultiPersona, a single LLM call identifies task-relevant personas and simulates a multi-turn collaboration
+among them within one generation. For MedPrompt, we retrieve the top-3 most similar few-shot exemplars
+using embedding similarity, sample five conditioned solutions, and ensemble the resulting predictions.
+For search-based baselines, we follow the standard optimization budgets and implementation settings
+whenever applicable. Specifically, we run AFlow and ADAS for 30 search iterations, and AgentSquare for 20
+iterations. For GPTSwarm, we adopt the edge-optimization framework with REINFORCE training, following
+the official implementation settings, with a learning rate of 0.1, an initial connection probability of 0.5, and a
+per-problem moving-average baseline. For MaAS, we follow the default configuration reported in the original
+paper Zhang et al. (2025b), using a four-layer query-aware controller trained for four sampling repetitions
+and GPT-4o mini as the TextGrad-based prompt-refinement model. For ScoreFlow, we follow the official
+setting in its released codebase and train the generator with Score-DPO for three epochs on the training split
+of each benchmark. All methods are evaluated under the same executor model and test protocol described
+above.
+C.4. Implementation Details of FlowBank
+Our implementation follows the three-stage framework introduced in Section 3. In Stage 1, we run DiverseFlow with Qwen3-8B as the optimizer for 30 rounds on the training split, using 7 warmup rounds before
+the main diversified search. After that, we also incorporate ScoreFlow into the final candidate pool Ωraw .
+Specifically, for each training query, ScoreFlow first generates a workflow and then executes it on that query.
+We record the resulting prediction and total token cost, including both workflow generation and execution,
+and treat these query-wise outputs as ScoreFlow’s candidate performance. In this way, ScoreFlow can be
+represented in the same result–cost format as other workflows for downstream curation.
+In Stage 2, we fix the saturation ratio to τ = 0.96 and run coverage-aware curation on each benchmark to
+∗
+∗
+obtain two compact portfolio candidates with sizes k and k − 1, respectively. In practice, the raw candidate
+pool remains moderate, with ∣Ωraw ∣ = 30 + 1 = 31, where the additional candidate comes from ScoreFlow.
+Moreover, as shown in Figure 8, performance typically saturates once the portfolio size reaches at most
+k = 6. Since both the candidate-pool size and the effective search range are small, exhaustive subset search
+is computationally affordable in our setting. This design gives a near-saturated portfolio together with a
+slightly smaller alternative, which supports the subsequent performance–cost trade-off analysis.
+For larger candidate pools or target portfolio sizes, CuraFlow admits a scalable greedy variant in place of
+exhaustive subset enumeration. Starting from the empty set, this variant grows the portfolio one workflow
+at a time, and at each step adds the candidate with the largest marginal increase in Coverage. Under our
+20
+
+FlowBank : Query-Adaptive Agentic Workflows Optimization through Precompute-and-Reuse
+
+definition of Coverage as the average query-wise best performance over a workflow set, the resulting objective
+is monotone submodular as long as per-query performance is nonnegative. Therefore, for any fixed budget k,
+the greedy portfolio achieves at least a (1 − 1/e) fraction of the optimal size-k Coverage. In practice, one can
+first build the nested greedy sequence and then select the smallest k whose Coverage reaches the saturation
+threshold, preserving the core behavior of CuraFlow while scaling to substantially larger search spaces.
+In Stage 3, following Feng et al. (2024), we first use GPT-4o to generate a natural-language description for
+each workflow in the curated portfolio (specific examples provided in Appendix D). We then encode both
+user queries and workflow descriptions using OpenAI’s text-embedding-3-small model, construct the
+bipartite query–workflow graph, and train the GNN-based selector over a grid of cost regularization weights
+λ ∈ [0, 0.1, 0.2, 0.3, 0.4, 0.5] on each benchmark. At inference time, the selector predicts the most suitable
+workflow for each query under the learned performance–cost trade-off. All GNN-based selectors are trained
+on a single NVIDIA RTX A5000 GPU with 24 GB of memory. Each run uses approximately 300–400 MB
+of GPU memory, allowing us to evaluate multiple hyperparameter configurations concurrently on a single
+device. A 500-step training run takes approximately 7–8 minutes, and a complete hyperparameter sweep
+can be finished within one hour of wall-clock time on a single GPU.
+
+D. Case Study
+D.1. AMC
+• AMC W1
+Description
+Three-way diverse-prompt ensemble (no code verification). Custom operator generates 3 independent solutions under different instruction styles — SOLVE_PROMPT (general), ANALYTICAL_SOLVE_PROMPT (deductive analysis), and VERBOSE_SOLVE_PROMPT (verbose explanation) — then ScEnsemble selects the most consistent answer via majority voting. Four LLM
+calls in total. Lighter than W2/W3 because it does not use Programmer-based verification. It is
+suited to AMC problems where reframing the question through different prompt styles surfaces
+the correct reasoning path more reliably than a single fixed prompt.
+Python Code
+SOLVE_PROMPT = """
+You are a math problem solver. Please solve the following problem step by step, showing all
+your work and providing a final answer in a box.
+Problem:
+{problem}
+Solution:
+"""
+ANALYTICAL_SOLVE_PROMPT = """
+You are a math problem solver. Please solve the following problem step by step, showing all
+your work and providing a final answer in a box. Focus on breaking down the problem into
+smaller parts and analyze each part carefully.
+Problem:
+
+21
+
+FlowBank : Query-Adaptive Agentic Workflows Optimization through Precompute-and-Reuse
+
+{problem}
+Solution:
+"""
+VERBOSE_SOLVE_PROMPT = """
+You are a math problem solver. Please solve the following problem step by step, showing all
+your work and providing a final answer in a box. Be as detailed as possible in your
+explanation, and make sure to explain the reasoning behind each step.
+Problem:
+{problem}
+Solution:
+"""
+class Workflow:
+def __init__(self, name, llm_config, dataset):
+self.name = name
+self.dataset = dataset
+self.llm = create_llm_instance(llm_config)
+self.custom = operator.Custom(self.llm)
+self.sc_ensemble = operator.ScEnsemble(self.llm)
+async def __call__(self, problem: str):
+# Three diverse-style candidates, then ensemble-vote
+prompts = [SOLVE_PROMPT, ANALYTICAL_SOLVE_PROMPT, VERBOSE_SOLVE_PROMPT]
+solutions = [await self.custom(input=problem, instruction=p) for p in prompts]
+best_solution = await self.sc_ensemble(solutions=solutions, problem=problem)
+return best_solution, self.llm.usage_tracker.get_summary()["total_cost"]
+
+Assigned Query Example
+Suppose a and b are single-digit positive integers chosen independently and at random. What is
+2
+the probability that the point (a, b) lies above the parabola y = ax − bx?
+• AMC W2
+Description
+Three-way analytical Custom ensemble with code verification. Generates 3 independent analytical solutions using a Custom operator with a focused analytical prompt, ensembles them via
+ScEnsemble majority voting, then verifies the best solution with a Programmer operator that
+executes Python code. Effective for AMC problems that benefit from diverse analytical reasoning
+plus computational validation.
+Python Code
+ANALYTICAL_SOLVE_PROMPT = """
+You are a math problem solver. Please solve the following problem step by step, showing all
+your work and providing a final answer in a box. Focus on breaking down the problem into
+smaller parts and analyze each part carefully. Make sure to explain your reasoning and
+avoid assumptions.
+Problem:
+
+22
+
+FlowBank : Query-Adaptive Agentic Workflows Optimization through Precompute-and-Reuse
+
+{problem}
+Solution:
+"""
+class Workflow:
+def __init__(self, name, llm_config, dataset):
+self.name = name
+self.dataset = dataset
+self.llm = create_llm_instance(llm_config)
+self.custom = operator.Custom(self.llm)
+self.sc_ensemble = operator.ScEnsemble(self.llm)
+self.programmer = operator.Programmer(self.llm)
+async def __call__(self, problem: str):
+# Three samples from the same analytical prompt, then ensemble-vote
+solutions = [
+await self.custom(input=problem, instruction=ANALYTICAL_SOLVE_PROMPT)
+for _ in range(3)
+]
+best_solution = await self.sc_ensemble(solutions=solutions, problem=problem)
+# Verify the ensemble pick with executed Python code
+final_solution = await self.programmer(problem=problem, analysis=best_solution)
+return final_solution, self.llm.usage_tracker.get_summary()["total_cost"]
+
+Assigned Query Example
+Two distinct numbers a and b are chosen randomly from the set {2, 2 , 2 , ..., 2 }. What is the
+probability that loga b is an integer?
+2
+
+3
+
+25
+
+• AMC W3
+Description
+Three-way diverse-prompting ensemble with code verification. Generates 3 solutions using different prompt strategies (logical reasoning, thorough explanation, concise structure), ensembles
+via ScEnsemble, then verifies the chosen solution with a Programmer operator. Effective for
+AMC problems where varied reasoning approaches increase coverage of the solution space and
+code execution catches arithmetic slips.
+Python Code
+LOGICAL_PROMPT = "You are a math problem solver. Please solve the following problem step by
+step, showing all your work and providing a final answer in a box. Focus on logical
+reasoning and clarity."
+THOROUGH_PROMPT = "You are a math problem solver. Please solve the following problem step by
+step, showing all your work and providing a final answer in a box. Be thorough and explain
+your thought process."
+CONCISE_PROMPT = "You are a math problem solver. Please solve the following problem step by
+step, showing all your work and providing a final answer in a box. Make sure your solution
+is concise and well-structured."
+
+23
+
+FlowBank : Query-Adaptive Agentic Workflows Optimization through Precompute-and-Reuse
+
+class Workflow:
+def __init__(self, name, llm_config, dataset):
+self.name = name
+self.dataset = dataset
+self.llm = create_llm_instance(llm_config)
+self.custom = operator.Custom(self.llm)
+self.sc_ensemble = operator.ScEnsemble(self.llm)
+self.programmer = operator.Programmer(self.llm)
+async def __call__(self, problem: str):
+# Three diverse-style candidates, then ensemble-vote
+prompts = [LOGICAL_PROMPT, THOROUGH_PROMPT, CONCISE_PROMPT]
+solutions = [await self.custom(input=problem, instruction=p) for p in prompts]
+best_solution = await self.sc_ensemble(solutions=solutions, problem=problem)
+# Verify with executed Python code
+final_solution = await self.programmer(problem=problem, analysis=best_solution)
+return final_solution, self.llm.usage_tracker.get_summary()["total_cost"]
+
+Assigned Query Example
+Kiana has two older twin brothers. The product of their three ages is 128. What is the sum of
+their three ages?
+• AMC W4
+Description
+Classify-then-solve conditional routing workflow. First classifies the problem into a category
+(geometry, combinatorics, number theory, or algebra) via a Custom operator with a classifier
+prompt, then routes the query to a domain-specialist Custom call whose prompt is tailored
+for that category. Two LLM calls total — the cheapest WF in the AMC pool. Effective when
+domain-specific reasoning strategies significantly outperform generic prompting; weak when
+the classifier mis-routes.
+Python Code
+CLASSIFY_PROMPT = """Analyze this math problem and classify it into exactly one category.
+Output ONLY the category name, nothing else.
+Categories:
+- ALGEBRA: equations, inequalities, functions, polynomials, sequences
+- GEOMETRY: shapes, angles, areas, volumes, coordinate geometry
+- COMBINATORICS: counting, probability, permutations, combinations
+- NUMBER_THEORY: divisibility, primes, modular arithmetic, digits
+"""
+ALGEBRA_PROMPT = """You are an algebra specialist. Solve this problem using algebraic
+techniques:
+- Set up equations from the problem conditions
+- Solve systematically (substitution, elimination, factoring)
+- Check your answer satisfies all original conditions
+Put your final answer in \\boxed{{}}.
+"""
+
+24
+
+FlowBank : Query-Adaptive Agentic Workflows Optimization through Precompute-and-Reuse
+
+GEOMETRY_PROMPT = """You are a geometry specialist. Solve this problem using geometric
+reasoning:
+- Draw a mental picture and label key points/lengths/angles
+- Apply relevant theorems (Pythagorean, similar triangles, circle properties)
+- Use coordinate geometry if the problem involves positions
+Put your final answer in \\boxed{{}}.
+"""
+COMBINATORICS_PROMPT = """You are a combinatorics specialist. Solve this problem using counting
+techniques:
+- Identify what is being counted or the probability space
+- Choose the right technique: multiplication principle, combinations, inclusion-exclusion,
+complementary counting
+- Double-check by considering small cases if possible
+Put your final answer in \\boxed{{}}.
+"""
+NUMBER_THEORY_PROMPT = """You are a number theory specialist. Solve this problem using numbertheoretic techniques:
+- Consider divisibility rules, prime factorizations, modular arithmetic
+- Look for patterns in small cases
+- Apply relevant theorems (CRT, Fermat's little theorem, etc.)
+Put your final answer in \\boxed{{}}.
+"""
+class Workflow:
+"""Classify problem type, then route to a domain-specialist prompt."""
+def __init__(self, name, llm_config, dataset):
+self.name = name
+self.dataset = dataset
+self.llm = create_llm_instance(llm_config)
+self.custom = operator.Custom(self.llm)
+async def __call__(self, problem: str):
+# Classify into one of four math domains
+category = (await self.custom(input=problem, instruction=CLASSIFY_PROMPT)).strip().upper
+()
+# Route to a specialist prompt (algebra is the default)
+if "GEOMETRY" in category:
+specialist = GEOMETRY_PROMPT
+elif "COMBINATORICS" in category:
+specialist = COMBINATORICS_PROMPT
+elif "NUMBER" in category:
+specialist = NUMBER_THEORY_PROMPT
+else:
+specialist = ALGEBRA_PROMPT
+solution = await self.custom(input=problem, instruction=specialist)
+return solution, self.llm.usage_tracker.get_summary()["total_cost"]
+
+Assigned Query Example
+What is the volume of a cube whose surface area is twice that of a cube with volume 1?
+• AMC W5
+
+25
+
+FlowBank : Query-Adaptive Agentic Workflows Optimization through Precompute-and-Reuse
+
+Description
+ScoreFlow query-level workflow generator. Unlike fixed-graph workflows that apply one static
+computation graph to every query, ScoreFlow synthesizes a custom workflow on-the-fly for each
+individual query at inference time. An optimizer LLM inspects the query and produces a tailored
+graph before execution. The exposed cost includes both the generated workflow’s runtime
+cost and ScoreFlow’s own generation overhead, making it more expensive than fixed-graph
+candidates. Strong overall accuracy, especially on queries where fixed routing heuristics fail;
+provides genuine per-query adaptability that cannot be replicated by any single fixed graph.
+Python Code
+class Workflow:
+def __init__(
+self,
+config,
+problem
+) -> None:
+self.problem = problem
+self.config = create(config)
+self.gid = None
+self.custom = operator.Custom(self.config, self.gid, self.problem)
+self.sc_ensemble = operator.ScEnsemble(self.config, self.gid, self.problem)
+self.programmer = operator.Programmer(self.config, self.gid, self.problem)
+self.review = operator.Review(self.config, self.gid, self.problem)
+async def run_workflow(self):
+"""
+This is a workflow graph.
+"""
+step1 = await self.custom(instruction="Can you break down the problem into smaller steps
+and explain the reasoning behind each step?")
+step2 = await self.custom(instruction="Can you solve the problem by providing a detailed
+solution?")
+solution = await self.sc_ensemble(solutions=[step1, step2])
+final_solution = await self.programmer(analysis=solution)
+reviewed_solution = await self.review(pre_solution=final_solution)
+return reviewed_solution
+
+Assigned Query Example
+A singles tournament had six players. Each player played every other player only once, with no
+ties. If Helen won 4 games, Ines won 3 games, Janet won 2 games, Kendra won 2 games and
+Lara won 2 games, how many games did Monica win?
+
+D.2. MBPP
+• MBPP W1
+
+26
+
+FlowBank : Query-Adaptive Agentic Workflows Optimization through Precompute-and-Reuse
+
+Description
+ScoreFlow query-level workflow generator. Unlike fixed-graph workflows that apply one static
+computation graph to every query, ScoreFlow synthesizes a custom workflow on-the-fly for each
+individual query at inference time. An optimizer LLM inspects the query and produces a tailored
+graph before execution. The exposed cost includes both the generated workflow’s runtime
+cost and ScoreFlow’s own generation overhead, making it more expensive than fixed-graph
+candidates. Strong overall accuracy, especially on queries where fixed routing heuristics fail;
+provides genuine per-query adaptability that cannot be replicated by any single fixed graph.
+Python Code
+class Workflow:
+def __init__(
+self,
+config,
+problem
+) -> None:
+self.problem = problem
+self.config = create(config)
+self.code_generate = operator.CustomCodeGenerate(self.config, self.problem)
+self.sc_ensemble = operator.ScEnsemble(self.config, self.problem)
+self.test = operator.Test(self.config, self.problem)
+async def run_workflow(self):
+"""
+This is a workflow graph.
+"""
+solution_1 = await self.code_generate(instruction="Can you analyze this problem step by
+step and generate a function to find the nth decagonal number?")
+solution_2 = await self.code_generate(instruction="Can you think of another way to
+generate a function to find the nth decagonal number?")
+solution_3 = await self.code_generate(instruction="Can you provide a different approach
+to generate a function to find the nth decagonal number?")
+ensembled_solution = await self.sc_ensemble(solutions=[solution_1, solution_2,
+solution_3])
+tested_solution = await self.test(solution=ensembled_solution)
+return tested_solution
+
+Assigned Query Example
+Write a function to find the nth decagonal number.
+def is_num_decagonal(n):
+• MBPP W2
+Description
+Clarify-Solve-Iterate pipeline without ensembling. First a Custom operator r

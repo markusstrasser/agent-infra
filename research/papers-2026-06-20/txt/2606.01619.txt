@@ -1,0 +1,2194 @@
+ReSkill
+
+R E S KILL: Reconciling Skill Creation
+with Policy Optimization in Agentic RL
+
+Zelin He1,∗,† , Haotian Lin2,∗ , Boran Han3,‡ , Wei Zhu3,‡ ,
+Haoyang Fang3 , Bernie Wang3 , Xuan Zhu3 , Runze Li1 , Matthew Reimherr1,2
+
+arXiv:2606.01619v2 [cs.AI] 8 Jun 2026
+
+Code
+
+Website
+
+Abstract
+Agentic reinforcement learning (RL) enables LLM agents to improve continuously
+from environment rewards, yet the resulting policies do not systematically accumulate reusable strategies that generalize across tasks. Modular skills can provide such
+reusable strategies, yet existing skill-augmented RL methods decouple skill creation
+from policy optimization, risking adopting skills that conflict with the evolving policy.
+Inspired by Anthropic’s Skill Creator, we introduce R E S KILL, an RL-in-the-loop skill
+creation framework that reconciles skill evolution with policy learning. R E S KILL exploits the group-wise structure of GRPO to naturally embed three mechanisms with
+only marginal additional overhead: (1) an assertion-driven skill creator that diagnoses
+failures from past experience and proposes conditional, trigger-based skill revisions;
+(2) within-group rollout sampling that enables controlled comparison of skill versions,
+capturing which version best supports the policy’s ongoing learning; and (3) Thompson
+Sampling with adaptive discounting to balance exploration and exploitation in skill
+version selection as the policy evolves. Across several domains, R E S KILL consistently
+outperforms existing memory and skill-based RL methods, with the largest gains on
+unseen tasks. Analysis of the skill lifecycle shows skills being automatically created,
+tested, refined, and pruned as the policy improves, demonstrating reconciled skill-policy
+co-evolution.
+
+1
+
+Introduction
+
+Large language models (LLMs) have enabled autonomous agents capable of multi-turn interaction with
+complex environments (Yao et al., 2023; Liu et al., 2024). Agentic reinforcement learning (RL), where
+agents are trained from verifiable environment rewards, has emerged as a promising paradigm (Jin
+et al., 2025; Wei et al., 2025; Da et al., 2025), yet the resulting policies do not systematically accumulate
+transferable problem-solving strategies across tasks. Recent work has shown that modular skills, reusable
+snippets encoding task-specific strategies, can fill this gap (Wang et al., 2023; Zheng et al., 2025; Ni et al.,
+2026). A pioneering effort is Anthropic’s Skill Creator (Anthropic, 2026), which automates skill creation
+through an iterative human-in-the-loop testing process (Figure 1(a)). However, the Skill Creator operates
+on a static policy at inference time and relies on human feedback. A natural question arises: can we build
+an RL-in-the-loop skill creation process that dynamically creates and evaluates skills alongside an evolving policy?
+Recent approaches accumulate experiential knowledge during RL training through memory evolution
+(Zhang et al., 2026), principle distillation (Wu et al., 2025), and skill distillation (Xia et al., 2025). However,
+∗ Equal contribution.
+
+‡ Project lead.
+
+1 The Pennsylvania State University
+
+† Work done during an internship at Amazon.
+2 Amazon IntelliHub
+
+1
+
+3 AWS AI Labs
+
+Human-in-the-Loop
+Skill Creation (Anthropic)
+
+RL-in-the-Loop
+Skill Creation (Ours)
+
+User
+
+GRPO Training
+G rollouts per task
+
+Task examples + feedback
+
+Skill Creator
+
+Human
+Feedback
+
+Blind Delivery
+
+Analogous
+to
+
+Analogous
+to
+
+Same conditions
+
+Human Review
+
+Skill Creator
+
+RewardDriven
+Feedback
+
+Within-Group
+... Samping
+Same task,
+same policy
+
+Analogous
+to
+
+Verifier
+
+(a)
+
+(b)
+
+Figure 1: (a) Inspired by Anthropic’s human-in-the-loop Skill Creator, R E S KILL recasts skill creation
+as an RL-in-the-loop process. (b) Compared with decoupled skill-update methods, R E S KILL evaluates
+different skill versions inside the policy optimization loop and uses rewards for guided updates, achieving
+reconciled skill-policy updates.
+
+they adopt external knowledge without principled testing, treating skill creation and policy learning as
+separate processes (Figure 1(b)). Yet this approach risks skill-policy conflict, as externally produced skills
+may not align with the evolving policy. Ideally, whether a skill benefits learning should be assessed by
+testing it during policy training itself.
+In this paper, we propose R E S KILL, a framework that reconciles skill creation with policy learning.
+R E S KILL embeds the Anthropic Skill Creator cycle into the RL training loop and makes use of the groupwise structure of GRPO (Shao et al., 2024): each training step samples a group of rollouts from the same
+task under the same policy, allowing us to assign competing skill versions within the same group and
+directly compare their effects. To orchestrate this allocation, Thompson Sampling (Thompson, 1933) with
+adaptive discounting is introduced to balance exploration and exploitation in skill version control as the
+policy evolves. Each rollout thus serves a triple role: (i) policy optimization via GRPO gradients, (ii) failure
+diagnosis and skill revision through an assertion-driven creator adapted from Anthropic’s Skill Creator,
+and (iii) bandit evaluation that accepts or rejects skill versions based on how they support the policy’s
+ongoing learning. Our method introduces marginal training overhead and requires no additional rollout
+budget.
+We compare R E S KILL against existing memory and skill-based agentic RL baselines on embodied reasoning (ALFWorld) and agentic search (seven benchmarks) across multiple model scales, with additional
+experiments on coding (InterCode-SQL), web shopping (WANDS), and science discovery (ScienceWorld).
+R E S KILL achieves substantially improved performance, with the largest gains on unseen and hard tasks.
+The skill lifecycle analysis shows skills being automatically created, tested, refined, and pruned as the
+policy improves. Furthermore, the co-evolved policy can adapt to new domains (ALFWorld to ScienceWorld) at test time through skill creation alone, indicating that reconciled training develops a general
+capacity to follow and benefit from new skills.
+
+2
+
+2
+
+Preliminaries
+
+Agentic Reinforcement Learning with Skills. We consider an LLM-based agent with policy πθ that
+interacts with an environment over multiple turns via a tool engine T . Given a task q ∼ D and a
+skill bank S that provides strategic guidance with conditional loading, the agent generates a trajectory
+τ = (q, s0 , a0 , o0 , . . . , sK , aK ), where at ∼ πθ (· | τ<t , st ; T ) is the agent’s action, ot = T ( at ) is the
+environment observation, and st ⊆ S is the subset of skills whose triggers fire. The learning objective
+maximizes the expected reward r (τ ): maxπθ Eq∼D, τ ∼πθ (·|q,S ;T ) [r (τ )].
+Group Relative Policy Optimization (G RPO). G RPO (Shao et al., 2024) optimizes the policy using
+group-relative advantages. For each task q ∼ D , G RPO samples G trajectories {τi }iG=1 from the current
+
+
+policy πθ (· | q, S ; T ) and optimizes JGRPO (θ ) = Eq∼D , τi ∼πθ (·|q, S ; T ) LGRPO (θ; {τi }iG=1 ) with a static
+old
+skill bank S , where:
+|τ |
+
+LGRPO (θ; {τi }iG=1 ) =
+
+
+1 G 1 i
+min ri,t Âi , clip(ri,t , 1−ϵ, 1+ϵ) Âi − βDKL ,
+∑
+G i∑
+|
+τ
+|
+=1 i t =1
+
+(1)
+
+ri,t is the token-level importance sampling ratio, Âi is the group-normalized advantage, ϵ is the clip ratio,
+and β controls the KL divergence penalty DKL (details in Appendix C.2). All G rollouts in a group share
+the same task q and policy πθ , differing only in their stochastic trajectories, providing a natural controlled
+setting for comparing skill versions (§3.1).
+
+3
+
+Reconciling Skill Creation with Policy Learning
+
+Figure 2 illustrates the overall framework. We first describe how within-group skill testing integrates into
+G RPO training, enabling each rollout to simultaneously serve policy optimization, failure diagnosis, and
+skill evaluation (§3.1). We then present the skill creator pipeline that produces candidate skill versions
+from ongoing training experience (§3.2). Finally, we introduce Thompson Sampling to allocate rollouts
+between competing skill versions while maintaining training efficiency (§3.3). The complete procedure is
+summarized in Algorithm 2.
+
+3.1
+
+RL Training with Within-Group Skill Testing
+
+Within-Group Sampling. To evaluate whether a skill benefits the evolving policy, we need to observe
+how the policy behaves under it. However, dedicated testing rollouts are expensive in multi-turn settings,
+and training under a single fixed skill bank loses adaptivity as skills change. We leverage GRPO’s group
+structure to address both issues: for each rollout i in a group, a version assignment vi is drawn from the
+Thompson Sampling posterior (§3.3), and the rollout is generated under the corresponding skill bank
+Svi . The R E S KILL objective extends JGRPO by replacing the static skill bank S with a version-dependent
+assignment:
+h
+i
+
+JR E S KILL (θ ) = Eq∼D, vi ∼TS(αv ,β v ), τi ∼πθ
+
+old
+
+(·|q, Svi ; T )
+
+LGRPO (θ; {τi }iG=1 ) ,
+
+(2)
+
+where LGRPO is defined in Eq. (1) and the blue terms denote the components introduced by R E S KILL:
+vi ∼ TS(αv , β v ) assigns each rollout to either Snew or Sold via Thompson Sampling, and Svi is the skill
+bank under the assigned version. Since all G rollouts share the same task q and policy πθ , the only
+variable is the skill version, enabling controlled comparison. At the same time, varying skills within the
+group builds the policy’s capacity to reconcile with new skills.
+Triple-Duty Rollouts. This formulation allows each rollout to simultaneously serves three purposes
+without additional cost: (1) its reward provides G RPO gradients for policy optimization; (2) its completed
+trajectories feed an experience reservoir R that drives the skill creator (§3.2); and (3) its outcome under
+the assigned version updates the Thompson Sampling posteriors for the accept/reject decision (§3.3).
+The total rollout count remains identical to standard G RPO.
+3
+
+3
+
+Adaptive Thompson Sampling
+Version Assignment (every step)
+
+1
+
+RL Training with Within-Group Skill Testing
+Agent
+
+Task + Set Assignment
+Old Skills
+
+Assign
+
+Trajectories + Rewards
+
+Environment
+
+New Skills
+Old Skills
+
+Task
+
+Prior Update with Adaptive
+Discount (every step)
+
+Old Skills
+
+Skill Set
+
+New Skills
+Old Skills
+
+Policy Model
+
+New Skills
+
+Accept/Reject (every
+
+step)
+
+Accept:
+
++
+
+Reject:
+
+New
+candidate as
+
+New Candidate
+Trigger:
+
+After examine | look
+
+When to use:
+
+Object matches task
+target
+
+Action:
+
+Old Skills
+
+Execute target-object
+take
+
+Policy Update
+
+Success / failure
+counts
+2
+
+via GRPO
+
+Skill Creator Pipeline
+
+Skill Version Creator
+Add
+Modify
+
+Rewards
+Trajectories
+pairs
+Experience Reservoir
+
+Assertion-based Grading
+
+Delete
+
+...
+
+Rubrics
+Profile
+
+Success / Failure + Old / New pairs
+
+Figure 2: Overview of R E S KILL. (1) RL training with within-group skill testing (§3.1). (2) RL-in-the-loop
+skill creation (§3.2). (3) RL-guided skill evolution with Thompson Sampling (§3.3).
+
+3.2
+
+RL-in-the-Loop Skill Creation
+
+The within-group sampling (§3.1) presents a cost free skill evaluation mechanism; this section describes
+the skill creator pipeline that produces candidate skill versions for evaluation. We adapt the diagnosisproposal-validation loop inspired by Anthropic’s Skill Creator (Anthropic, 2026), replacing human
+feedback with evolving policy trajectories and verifiable reward signals from the RL training loop. Full
+details are in Appendix C.3 and C.4.
+Experience Reservoir. The original Skill Creator requires a human practitioner to supply execution
+examples for diagnosis. We replace this manual step with a continuously refreshed experience reservoir
+R that collects success-failure trajectory pairs from ongoing RL training, each trajectory is annotated
+with its skill version label vi and reward r (τi ). Since R evolves alongside the policy, it always reflects the
+current behavioral landscape and provides the raw material for the diagnosis-proposal loop described
+below.
+Conditional Skill Loading. Each skill Sk = (ck , trigk ) is composed of structured content ck (situational
+applicability, action guidance, and counterexamples) with an iteratively refined trigger condition trigk
+parameterized by type. At each step, only skills whose triggers fire are loaded into the context, yielding
+the active subset of S . Each loaded skill includes a when_to_use field that describes when its guidance
+should be followed, allowing the policy to decide whether the triggered skill is relevant to the current
+state.
+Assertion-Based Failure Grading. Rather than only diagnosing individual trajectories, we also build
+a general failure profile across the entire reservoir. A dynamic assertion set A = {ϕj } of rule-based
+predicates is applied uniformly to all trajectories, yielding per-assertion pass rates r̂ j = |R|−1 ∑τ ∈R ϕj (τ ).
+An LLM-based analyzer receives these pass rates together with a stratified sample of trajectories and
+produces two outputs: (1) a prevalence-ranked failure diagnosis that guides skill revision, and (2) updates
+to A itself to keep the assertion set aligned with the policy’s shifting failure landscape.
+4
+
+History-Informed Skill Revision. Given the current skill bank, failure diagnosis with representative
+episodes, and the tracked history of prior proposals with their accept/reject outcomes, a skill creator
+agent proposes a candidate version Snew : a coherent set of ADD, MODIFY, and DELETE operations. Before
+entering testing, each proposed trigger’s firing rate is validated against the reservoir to ensure sufficient
+activation coverage. We now have the newly proposed Snew and Sold . In the next section, we introduce
+how rollouts are allocated between Snew and Sold , and when to accept or reject.
+
+3.3
+
+RL-Guided Skill Evolution with Thompson Sampling
+
+Unlike Anthropic’s Skill Creator, which evaluates
+skills under a frozen policy, we evaluate how skills
+perform as the policy actively trains with them
+over multiple steps. This multi-step evaluation introduces two considerations: (1) since the policy
+evolves during the evaluation window, earlier observations become increasingly stale and must be
+gradually discounted; and (2) since every rollout
+also serves policy optimization, so allocation should
+favor the more promising version to maintain training efficiency. These considerations naturally motivate Thompson Sampling (Thompson, 1933) with
+adaptive discounting as the allocation mechanism.
+
+Algorithm 1 R E S KILL (Full version in Appendix C)
+1: Input: Policy πθ0 , steps T, evolution freq. Ke .
+2: for t = 1, . . . , T do
+3:
+[Within-Group Skill Testing]
+4:
+Sample task q; draw skill version vi .
+// Eq. (3)
+5:
+Generate trajectories {τi }iG=1 under assigned skill
+Svi ; compute rewards {ri }.
+6:
+Update πθ by solving J R E S KILL (θ ).
+// Eq. (2)
+7:
+Add {(τi , vi , ri )} to experience reservoir R.
+8:
+Update posterior Beta(αv , β v ).
+// Eq. (4)
+9:
+if t mod Ke = 0 then
+10:
+[Skill Evolution] Accept or reject Snew .
+11:
+[Skill Creation] Diagnose failures from R; propose new Snew .
+12:
+Reset posteriors; begin new test.
+13:
+end if
+14: end for
+
+Skill Version Assignment. We treat the old and new
+skill versions as two arms, with success probabilities
+pold ∼ Beta(αold , β old ) and pnew ∼ Beta(αnew , β new ), both initialized as Beta(1, 1) at the start of each
+evaluation cycle. Before generating the GRPO rollout group at training step t, we estimate Pr( pnew > pold )
+by Monte Carlo sampling and define
+πt (new) = Clip(Pr( pnew > pold ), ε ts , 1 − ε ts ) ,
+
+πt (old) = 1 − πt (new).
+
+Here, ε ts enforces a minimum level of exploration. We then assign versions independently within the
+GRPO group:
+
+vi ∼ Categorical {new : πt (new), old : πt (old)} ,
+i = 1, . . . , G.
+(3)
+As evidence accumulates across steps, the group-level allocation probability shifts toward the betterperforming skill version while preserving controlled within-group comparison.
+Policy-Aware Posterior Update. As the policy evolves, recent steps provide the most informative signal
+about a skill version’s current effectiveness, but a single step may lack sufficient samples for a reliable
+estimate. We therefore aggregate across the evaluation window but discount earlier evidence as the
+policy evolves. At each step t, existing pseudo-counts are shrunk by wt before incorporating mt successes
+out of nt new episodes:
+α v ← wt · α v + m t ,
+
+β v ← w t · β v + ( n t − m t ),
+
+wt = (1 + nt /M )−1 ,
+
+(4)
+
+where v ∈ {new, old} and M > 0 is a memory parameter. Since Thompson Sampling allocates different
+sample sizes to each version, the discount adapts accordingly: a version with fewer observations (nt ≪ M)
+retains more prior evidence (wt → 1), while one with many observations (nt ≫ M) can aggressively
+discount the past (wt → 0).
+The optimal value of M varies across settings. We estimate M from data via sequential predictivelikelihood maximization over completed evaluation cycles (Appendix C.5). At each cycle boundary, the
+system selects the M that best explains the observed reward sequence under the discounted Beta model,
+requiring no manual tuning.
+5
+
+Figure 4: Training dynamics on held-out validation subsets. Top: method comparison; Bottom: version
+evaluation strategy ablation (auto-accept: all proposed skills adopted without testing; uniform: equal
+allocation between versions without Thompson Sampling). Unseen splits report step-weighted score (Feng
+et al., 2025b). Full test-set results in Tables 1 and 2.
+
+Accept/Reject Decision. At the end of each cycle, the discounted posterior reflects how each version
+performed as the policy evolved with it. The candidate is accepted if E[ pnew ] > E[ pold ] under the
+discounted Beta posterior from Eq. (4). If accepted, Snew becomes the new baseline; otherwise the skill
+bank reverts to Sold , and the next evolution cycle begins immediately.
+
+4
+
+Experiments
+
+4.1
+
+Setup
+
+Environments. We evaluate on five domains spanning embodied, retrieval, and tool-use reasoning.
+(1) Embodied reasoning: ALFWorld (Shridhar et al., 2021), a text-based household environment evaluated
+on seen and unseen task configurations. (2) Agentic search: agents answer factual questions via iterative
+search and reasoning. We train on NQ (Kwiatkowski et al., 2019) and HotpotQA (Yang et al., 2018), and
+evaluate generalization on five unseen datasets: PopQA (Mallen et al., 2023), TriviaQA (Joshi et al., 2017),
+2WikiMHQA (Ho et al., 2020), MuSiQue (Trivedi et al., 2022), and Bamboogle (Trivedi et al., 2023). (3) Science
+discovery, coding, and web shopping: we further extend to ScienceWorld (electricity tasks) (Wang et al.,
+2022), InterCode-SQL (Yang et al., 2023), and WANDS (Chen et al., 2022) to assess broad applicability.
+Baselines. We compare R E S KILL against four categories of methods. (1) Baselines: ReAct base model
+and closed-source model (Claude 4.5 Sonnet). (2) Evolvement methods: memory and procedure evolution
+without policy training, including R EME (Cao et al., 2025) and M EMRL (Zhang et al., 2026). (3) Skill-only
+baselines: using the oracle skill bank from S KILLRL (Xia et al., 2025), we test retrieval-based loading
+(BM25, HippoRAG (Gutiérrez et al., 2024)) and full skill loading (long-context) on the base model without
+RL. (4) RL-based methods: G RPO (Shao et al., 2024) (no skills), M EMRL (+RL), E VOLVER (Wu et al., 2025),
+I NSPO (Zhou et al., 2026), and S KILLRL.
+Implementation Details. We use Qwen3-4B-Instruct-2507 and Qwen3-8B (Yang et al., 2025) as base
+models; unless otherwise specified, results report the 4B model. For fair comparison, all evolve, skill,
+RL-based methods and R E S KILL use the same Claude 4.5 Sonnet for skill or memory creation (base-model
+alternative ablated in Table 2). For R E S KILL, we set the evolution frequency Ke =5 and skill bank size to 8
+(sensitivity analysis in Appendix C.7). Full training hyperparameters are in Appendix B.1.
+
+6
+
+Table 1: Main results (mean±std over 3 replicates, %). † Per-cell best of BM25, HippoRAG, and long-context
+skill augmentation; ‡ per-cell best of ReMe and MemRL. Best per model scale bolded. Benchmark details
+in Appendix B.3.
+ALFWorld
+
+Seen
+
+Proprietary
+
+Unseen
+
+Method
+
+Pick&Place
+
+Transform
+
+Examine
+
+Avg
+
+Pick&Place
+
+Transform
+
+Examine
+
+Avg
+
+Overall
+
+Sonnet 4.5
+
+89.8±0.0
+
+73.5±2.1
+
+96.2±5.4
+
+82.5±1.5
+
+73.2±4.2
+
+72.0±0.0
+
+100.0±0.0
+
+76.1±1.3
+
+79.2±1.5
+
+Qwen3-4B-Instruct
+Baseline
+
+ReAct
+
+54.7±0.0
+
+28.1±0.0
+
+28.6±0.0
+
+37.1±0.0
+
+30.8±0.0
+
+28.9±0.0
+
+66.7±0.0
+
+32.8±0.0
+
+35.0±0.0
+
+w/ Evolve
+w/ Skill
+
+Best‡
+Best†
+
+60.5±1.6
+61.6±2.6
+
+44.6±0.7
+43.1±3.1
+
+79.5±3.6
+61.5±0.0
+
+54.5±0.9
+51.0±2.5
+
+45.5±3.0
+50.4±7.0
+
+58.2±2.3
+68.0±3.5
+
+55.6±7.9
+74.1±8.5
+
+52.7±0.4
+63.4±3.4
+
+53.6±0.5
+57.5±2.6
+
+w/ RL
+
+GRPO
+MemRL (+RL)
+EvolveR
+INSPO
+SkillRL
+R E S KILL
+
+93.8±1.0
+89.8±2.9
+70.6±2.0
+78.0±0.0
+89.8±0.0
+91.6±0.0
+
+62.3±5.9
+75.8±1.9
+85.2±0.3
+77.6±0.0
+85.9±0.0
+88.7±0.0
+
+53.8±0.0
+71.8±4.4
+61.5±0.0
+61.5±0.0
+61.5±0.0
+76.9±0.0
+
+74.8±3.2
+81.2±0.4
+76.7±0.4
+76.4±0.0
+85.7±0.0
+90.0±0.0
+
+86.2±3.7
+78.9±2.8
+69.9±1.4
+82.9±5.2
+69.9±1.4
+87.4±2.9
+
+72.0±3.5
+76.6±0.5
+77.9±1.6
+87.0±1.0
+86.9±1.3
+89.6±1.9
+
+68.5±8.5
+94.4±5.6
+94.4±5.6
+83.3±4.5
+88.9±0.0
+96.3±6.4
+
+75.9±4.1
+79.1±1.5
+77.9±0.4
+79.6±3.9
+82.1±1.3
+89.6±0.8
+
+75.3±3.7
+80.2±0.6
+77.3±0.4
+78.0±1.9
+83.9±0.6
+89.8±0.4
+
+Baseline
+
+ReAct
+
+73.4±0.0
+
+44.8±0.0
+
+64.3±0.0
+
+59.3±0.0
+
+69.2±0.0
+
+65.0±0.0
+
+66.7±0.0
+
+64.9±0.0
+
+62.0±0.0
+
+‡
+
+Qwen3-8B
+
+w/ Evolve
+w/ Skill
+
+Best
+Best†
+
+79.1±4.0
+79.1±3.9
+
+58.3±2.5
+56.4±3.1
+
+61.5±0.0
+64.1±11.8
+
+66.2±2.8
+66.4±2.5
+
+57.7±7.0
+76.4±3.7
+
+76.4±1.7
+80.4±1.5
+
+57.4±6.9
+72.2±0.0
+
+65.7±1.2
+74.6±2.0
+
+65.9±1.8
+70.7±1.9
+
+w/ RL
+
+GRPO
+MemRL (+RL)
+EvolveR
+INSPO
+SkillRL
+R E S KILL
+
+93.8±1.0
+86.4±3.4
+88.7±2.6
+90.4±1.6
+95.5±1.0
+96.5±1.0
+
+72.1±5.3
+78.5±0.7
+79.8±2.1
+79.2±1.6
+82.8±3.2
+81.4±2.2
+
+66.7±4.4
+84.6±7.7
+74.4±4.4
+71.8±3.6
+87.2±4.4
+94.9±3.6
+
+80.7±1.9
+83.1±0.8
+83.3±0.4
+83.2±1.6
+89.0±0.4
+90.2±0.7
+
+82.1±1.4
+82.1±2.8
+70.7±2.4
+88.1±2.0
+82.9±2.4
+99.3±1.0
+
+81.8±3.4
+83.3±1.9
+89.2±0.2
+89.2±1.5
+78.3±2.1
+91.2±2.4
+
+79.6±3.2
+75.9±3.2
+83.3±5.6
+81.5±6.9
+94.4±5.6
+100.0±0.0
+
+81.6±2.3
+81.6±0.9
+82.8±1.3
+87.8±1.4
+82.6±1.7
+95.3±1.3
+
+81.1±1.7
+82.3±0.4
+83.1±0.9
+85.5±1.1
+85.8±0.8
+92.7±0.8
+
+Search
+Seen
+
+Proprietary
+
+Unseen
+
+Method
+
+NQ
+
+HotpotQA
+
+Avg
+
+PopQA
+
+TriviaQA
+
+2WikiMHQA
+
+MuSiQue
+
+Bamboogle
+
+Avg
+
+Overall
+
+Sonnet 4.5
+
+26.7±0.7
+
+36.8±0.5
+
+31.7±0.3
+
+43.8±0.5
+
+67.8±0.4
+
+31.1±0.5
+
+17.6±1.3
+
+57.1±0.9
+
+41.7±0.3
+
+38.6±0.3
+
+Qwen3-4B-Instruct
+Baseline
+
+ReAct
+
+21.3±0.0
+
+30.3±0.0
+
+25.8±0.0
+
+29.4±0.0
+
+40.7±0.0
+
+30.7±0.0
+
+9.3±0.0
+
+30.4±0.0
+
+27.8±0.0
+
+27.2±0.0
+
+w/ Evolve
+w/ Skill
+
+Best‡
+Best†
+
+30.4±1.2
+31.6±0.5
+
+35.6±1.1
+36.0±0.3
+
+32.9±0.8
+33.6±0.1
+
+39.4±0.7
+42.1±1.5
+
+57.3±0.6
+55.1±1.0
+
+34.9±1.3
+30.9±2.1
+
+11.1±1.0
+10.8±1.0
+
+41.3±2.3
+42.1±0.5
+
+35.4±0.2
+34.9±1.5
+
+34.5±0.5
+34.5±1.0
+
+w/ RL
+
+GRPO
+MemRL (+RL)
+EvolveR
+INSPO
+SkillRL
+R E S KILL
+
+48.0±0.0
+48.7±0.0
+49.3±0.0
+48.6±0.2
+51.0±0.0
+51.6±0.8
+
+52.4±1.2
+51.4±1.8
+49.8±0.4
+53.6±0.6
+51.3±0.0
+53.7±1.2
+
+50.2±0.6
+50.1±0.9
+49.6±0.2
+51.1±0.3
+51.2±0.0
+52.6±0.2
+
+42.9±0.0
+48.2±0.0
+46.6±0.4
+46.5±0.0
+48.5±0.0
+49.7±0.2
+
+66.7±0.0
+65.3±0.0
+65.7±0.0
+63.0±0.0
+65.0±0.0
+66.9±1.0
+
+40.9±1.3
+35.8±0.8
+43.4±1.1
+44.0±2.0
+39.7±0.0
+45.7±0.6
+
+18.3±0.7
+15.9±1.0
+16.7±1.5
+15.8±0.2
+15.3±0.0
+18.3±0.6
+
+40.3±2.8
+44.3±2.6
+43.2±2.1
+42.4±1.7
+44.8±0.0
+47.5±0.9
+
+42.0±0.5
+41.9±0.7
+43.1±0.3
+42.3±0.5
+42.4±0.0
+45.4±0.1
+
+44.6±0.3
+44.2±0.7
+45.0±0.2
+45.1±0.3
+45.1±0.0
+47.6±0.1
+
+Baseline
+
+ReAct
+
+30.2±0.0
+
+32.0±0.0
+
+31.1±0.0
+
+37.2±0.0
+
+52.1±0.0
+
+30.8±0.0
+
+9.8±0.0
+
+35.2±0.0
+
+32.8±0.0
+
+32.2±0.4
+
+w/ Evolve
+w/ Skill
+
+Best‡
+Best†
+
+29.5±0.7
+32.8±0.5
+
+36.2±1.1
+39.2±1.3
+
+32.9±0.5
+36.0±0.4
+
+37.5±0.4
+42.6±0.0
+
+57.2±1.8
+57.0±0.9
+
+27.5±1.7
+30.6±1.3
+
+11.9±1.0
+11.2±0.2
+
+40.3±1.6
+40.8±1.6
+
+34.1±0.6
+35.5±0.6
+
+33.8±0.5
+35.2±0.5
+
+w/ RL
+
+GRPO
+MemRL (+RL)
+EvolveR
+INSPO
+SkillRL
+R E S KILL
+
+48.0±0.0
+48.3±0.0
+49.3±0.0
+48.7±0.0
+48.7±0.0
+49.0±0.0
+
+51.9±0.8
+54.8±0.3
+53.1±0.3
+55.2±0.8
+56.1±0.6
+58.3±0.0
+
+49.9±0.4
+51.6±0.2
+51.2±0.2
+51.9±0.4
+52.4±0.3
+53.7±0.0
+
+51.8±0.0
+49.8±0.0
+51.2±0.0
+48.2±0.0
+47.2±0.0
+52.3±0.2
+
+63.7±0.0
+65.7±0.0
+65.7±0.0
+64.7±0.0
+64.7±0.0
+68.7±0.6
+
+40.7±1.2
+41.2±0.9
+43.9±1.3
+39.4±1.5
+47.4±0.3
+47.6±1.0
+
+16.2±0.7
+19.0±0.5
+16.7±0.0
+16.9±0.4
+20.8±0.2
+22.6±1.3
+
+43.5±0.5
+42.1±2.6
+45.6±0.0
+42.1±2.3
+48.3±0.8
+50.4±0.0
+
+43.1±0.5
+43.8±0.4
+44.5±0.3
+42.3±0.2
+45.3±0.1
+48.0±0.2
+
+45.3±0.4
+46.2±0.3
+46.6±0.1
+45.0±0.1
+47.5±0.0
+49.8±0.1
+
+Qwen3-8B
+
+Figure 3: Performance on additional benchmarks: ScienceWorld (electricity tasks), InterCode-SQL, and
+WANDS. The gap between R E S KILL and baselines widens consistently on harder or out-of-domain tasks.
+
+7
+
+4.2
+
+Main Results
+
+Table 1 summarizes performance across benchmarks, model scales, and seen/unseen splits; Figure 4
+shows validation curves during training, comparing R E S KILL against G RPO, skill-augmented RL methods,
+and two key ablation variants.
+Consistent Gains Across Benchmarks and Scales. R E S KILL outperforms all baselines on both benchmarks at both model scales (Table 1). Non-RL methods trail by 22.0–32.3% on ALFWorld and 13.1–14.6%
+on Search, underscoring the importance of policy optimization; R E S KILL lifts over vanilla G RPO by 3.0–
+14.5%, demonstrating the value of skill guidance. Most importantly, R E S KILL outperforms the strongest
+memory and skill-augmented RL baseline by 5.9%/6.9% on ALFWorld and 2.5%/2.3% on Search (4B/8B),
+a gap attributable to reconciling skill evolution with the evolving policy rather than treating the two as
+independent processes.
+Amplified Gains on Unseen Tasks. The gains are particularly strong on unseen tasks. On ALFWorld (8B),
+R E S KILL achieves 95.3% on unseen tasks, a 12.7% gap over S KILLRL (82.6%) that is substantially larger
+than its seen-split margin (1.2%). On Search, R E S KILL’s improvement over S KILLRL on unseen splits is
+about 2.1× larger than on seen splits. Figure 4 reveals that methods track closely in early training, but
+R E S KILL pulls ahead on unseen splits in later stages, presumably because reconciled evolution retains
+only skill versions that generalize better.
+Broad Applicability. The pattern of amplified gains on harder and out-of-domain tasks is further
+validated across three extension domains (Figure 3). On ScienceWorld, R E S KILL reaches 48.8% on OOD
+tasks, nearly doubling S KILLRL (26.9%), whose static skill bank degrades sharply on unseen task variants.
+On InterCode-SQL, methods perform comparably on Hard queries, but R E S KILL pulls ahead on Extrahard (63.6% vs. 55.3% S KILLRL), where compositional SQL reasoning benefits most from evolved skills.
+WANDS shows consistent gains across optimization horizons, with R E S KILL reaching 86.6% on the harder
+3-opt setting vs. S KILLRL’s 82.1%. Across all three domains, the gap between R E S KILL and the strongest
+baseline widens as task difficulty increases.
+
+4.3
+
+Framework Analysis
+Table 2: Framework analysis (%). Each variant modifies one component from the full R E S KILL system.
+
+Importance of Reconciled Evolution. One key
+design in R E S KILL is evaluating whether a proposed skill version reconciles with the current
+policy before adopting it. Figure 4 (bottom row)
+makes this visible: the auto-accept curve (red),
+which injects every proposed skill without testing, rises initially but then collapses mid-training
+on ALFWorld and never recovers, with permanent
+damage to the final performance on both benchmarks (62.7% and 45.3%, Table 2). On ALFWorld,
+this falls below vanilla G RPO (75.3%), meaning
+untested skill injection actively harms the policy.
+The uniform allocation curve (blue) is more stable
+but remains behind R E S KILL (orange), as ineffective skill versions consume half the rollouts
+throughout the evaluation window,
+
+Variant
+
+ALFWorld
+
+Search
+
+R E S KILL
+
+89.8±0.4
+
+47.6±0.1
+
+Co-Evolution Order
+Skill-first, then policy
+Policy-first, then skill
+
+79.4±0.2
+71.3±1.8
+
+45.5±0.5
+45.9±0.0
+
+Skill Version Testing
+w/o testing (auto-accept)
+w/ uniform allocation
+
+62.7±0.2
+73.2±1.7
+
+45.3±0.6
+46.0±0.0
+
+Evidence Aggregation (wt , Eq. 4)
+Last-step only (wt =0)
+Uniform (wt =1)
+
+76.9±1.0
+86.5±1.6
+
+46.7±0.2
+47.0±0.0
+
+Skill Creator
+w/o assertion-based analyzer
+w/ base-model skill creator
+
+84.7±1.3
+85.0±0.5
+
+46.7±0.1
+47.1±0.1
+
+reducing sample efficiency and depressing the final result (46.0% vs. 47.6% on Search). R E S KILL’s
+Thompson Sampling design reconciles skill evolution with the policy by testing versions under real
+training conditions before adoption, avoiding both failure modes.
+8
+
+Figure 6: Cost analysis on ALFWorld (4B), reported as ratios vs. G RPO. Left two: training step time and
+context length. Right two: inference time per episode and context length. R E S KILL (star) achieves the
+highest accuracy ratio while maintaining competitive overhead.
+Robustness to Skill Creator Choice. A natural concern is whether the improvements primarily reflect
+the stronger LLM (Claude 4.5 Sonnet) used for skill creation. To ablate this, we replace Claude with the
+base model itself (Qwen3-4B-Instruct) for skill creation. This incurs a 4.8% drop on ALFWorld and only
+0.5% on Search (Table 2), while still outperforming all existing RL baselines (Table 1), confirming that
+the gains mainly stem from the reconciled skill-policy co-evolution mechanism rather than the creator’s
+capacity.
+Ablation Study. Table 2 isolates the contribution of each remaining component. (1) Co-evolution order: replacing simultaneous co-evolution with sequential alternatives (skill-first or policy-first) drops
+performance by 10.4–18.5% on ALFWorld and 1.7–2.1% on Search, showcasing the importance of joint
+co-evolution rather than separate stages. (2) Adaptive weighting: replacing the recency discount (Eq. 4)
+with last-step only (wt =0) drops by 12.9%/0.9%, as a single step provides too few samples for reliable
+skill version selection. Uniform weighting (wt =1) narrows the gap to 3.3%/0.6% but does not account
+for policy drift, treating stale evidence equally with recent observations even as the policy evolves.
+(3) Assertion-based analyzer: removing it in favor of direct per-episode LLM diagnosis costs 5.1%/0.9%,
+showing that a general failure profile across the reservoir yields more targeted skill revisions than
+individual trajectory inspection.
+Efficiency. Figure 6 reports training and inference
+overhead on ALFWorld (4B) as ratios relative to
+G RPO. R E S KILL maintains competitive speed in
+both training and inference while achieving substantially higher accuracy. Unlike S KILLRL and
+E VOLVER which load all skills unconditionally
+across turns, R E S KILL’s conditional trigger mechanism fires only relevant skills, keeping context
+compact over long interactions. As an ablation,
+we replace conditional triggers with general triggers and observe training context length increase
+to 1.29× G RPO, confirming the effectiveness of Figure 5: Test-time cross-domain adaptation from
+conditional triggers.
+ALFWorld to ScienceWorld. R E S KILL rapidly adapts
+skills to a new domain while baselines remain near
+Test-Time Cross-Domain Adaptation. To test the
+zero. Right panel shows accepted and rejected skill
+generalization capacity of our reconciled trainoperations during adaptation.
+ing, we freeze the policy trained on ALFWorld
+and run the full R E S KILL pipeline at test time on
+ScienceWorld without policy updates (Figure 5). R E S KILL rapidly adapts its skill bank to the new domain
+and achieves strong generalization, while baseline models fail to evolve for the new domain at test time.
+
+9
+
+Figure 7: Skill-policy co-evolution on ALFWorld (left) and Search (right). Training curves are shown with
+colored stage bands alongside key skill operations: + add (new skill created) and − delete (internalized
+skill pruned).
+
+4.4
+
+Qualitative Analysis
+
+Skill Lifecycle. Figure 7 annotates key skill operations alongside training curves. Both benchmarks
+exhibit staged co-evolution: early stages build foundational skills (workflow sequencing on ALFWorld,
+search-then-verify on Search), while later stages prune internalized ones and shift toward refinement
+and precision as the policy exposes subtler failure modes.
+Case Studies. We conduct case studies and observe that the model learns to selectively adopt triggered
+skills as reusable problem-solving strategies within its reasoning process. Details are in Appendix F.
+
+5
+
+Related Work
+
+We discuss the most closely related work here; broader context on reinforcement learning for LLMs,
+tool-integrated agents, and bandit methods is provided in Appendix D.
+Prompt and Skill Optimization. The performance of LLM agents is highly sensitive to their guiding
+instructions (Zhou et al., 2025). Automated prompt optimization approaches use paraphrasing (Zhou
+et al., 2023), LLM-based optimizers (Yang et al., 2024), or textual gradients (Pryzant et al., 2023; Yüksekgönül et al., 2025) to improve instructions, but operate offline. In the skill domain, prior work extracts
+experiential rules from trajectories (Shinn et al., 2023; Zhao et al., 2024), builds open-ended skill libraries
+(Wang et al., 2023), and distills reusable workflows from agent experience (Wang et al., 2024). Anthropic’s
+Skill Creator (Anthropic, 2026) automates the creation of modular, trigger-based skills with controlled
+blind testing, but cannot be directly integrated into a reinforcement learning process. These methods
+produce valuable skills but do not reconcile creation with policy training.
+Memory and Skill-Based Reinforcement Learning. Recent work brings skill and memory optimization
+into RL training: M EMRL (Zhang et al., 2026) evolves episodic memory alongside policy training,
+E VOLVER (Wu et al., 2025) self-distills experience principles retrieved during RL, S KILLRL (Xia et al.,
+2025) distills teacher-model skills with trigger-based activation, and I NSPO (Zhou et al., 2026) maintains
+instruction candidates sampled per rollout group. However, all these approaches treat skill creation and
+policy learning as separate processes. R E S KILL closes this gap by reconciling skill evolution with policy
+training through within-group testing and reward-based selection.
+
+6
+
+Conclusion
+
+We introduced R E S KILL, a framework that reconciles skill creation with policy learning by embedding
+assertion-driven skill revision, within-group skill testing, and adaptive Thompson Sampling into the
+10
+
+G RPO training loop at zero additional rollout cost. Across five benchmark domains, R E S KILL consistently
+outperforms existing skill and memory-based RL methods, with the largest gains on unseen tasks.
+Limitations and future directions are discussed in Appendix A.
+
+References
+Anthropic. Skill creator. https://github.com/anthropics/skills/tree/main/skills/skill-creator,
+2026. GitHub repository.
+Baran Atalar, Eddie Zhang, and Carlee Joe-Wong. Neural bandit based optimal LLM selection for a
+pipeline of tasks. arXiv preprint arXiv:2508.09958, 2025.
+Djallel Bouneffouf and Raphael Feraud. Survey: Multi-armed bandits meet large language models, 2025.
+URL https://arxiv.org/abs/2505.13355.
+Zouying Cao, Jiaji Deng, Li Yu, Weikang Zhou, Zhaoyang Liu, Bolin Ding, and Hai Zhao. Remember me,
+refine me: A dynamic procedural memory framework for experience-driven agent evolution. arXiv
+preprint arXiv:2512.10696, 2025.
+Dingyang Chen, Qi Zhang, and Yinglun Zhu. Efficient sequential decision making with large language
+models. In Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing, pages
+9157–9170, 2024.
+Yan Chen, Shujian Liu, Zheng He, Imed Sulem, and Jaclyn Cho. WANDS: Dataset for product search
+relevance assessment. In Proceedings of the 44th European Conference on Information Retrieval, pages
+128–141, 2022.
+Jeff Da, Clinton Wang, Xiang Deng, Yuntao Ma, Nikhil Barhate, and Sean Hendryx. Agent-rlvr: Training
+software engineering agents via guidance and environment rewards. arXiv preprint arXiv:2506.11425,
+2025. URL https://arxiv.org/abs/2506.11425.
+Xiangxiang Dai, Jin Li, Xutong Liu, Anqi Yu, and John Lui. Cost-effective online multi-LLM selection
+with versatile reward models. arXiv preprint arXiv:2405.16587, 2024.
+Jiazhan Feng, Shang Huang, Xin Qu, Ge Zhang, Yujia Qin, Bing Zhong, Chaojie Jiang, Jiangjie Chi,
+and Weiwen Zhong. Retool: Reinforcement learning for strategic tool use in llms. arXiv preprint
+arXiv:2504.11536, 2025a.
+Lang Feng, Zhenghai Xue, Tingcong Liu, and Bo An. Group-in-group policy optimization for llm agent
+training. arXiv preprint arXiv:2505.10978, 2025b.
+Daya Guo, DeJian Yang, HeJun Zhang, Junxiao Song, Ruoyu Zhang, Runxin Xu, Qihao Zhu, Shirong Ma,
+Peiyi Wang, Xiao Bi, et al. Deepseek-r1: Incentivizing reasoning capability in llms via reinforcement
+learning. arXiv preprint arXiv:2501.12948, 2025.
+Bernal Jiménez Gutiérrez, Yiheng Zhu, Zhuo Huang, Ryo Kamoi, Kung-Hsiang Huang, Dilek HakkaniTür, and Yu Su. HippoRAG: Neurobiologically inspired long-term memory for large language models.
+Advances in Neural Information Processing Systems, 37, 2024.
+Xanh Ho, Anh-Khoa Duong Nguyen, Saku Sugawara, and Akiko Aizawa. Constructing a multi-hop
+QA dataset for comprehensive evaluation of reasoning steps. In Proceedings of the 28th International
+Conference on Computational Linguistics, pages 6609–6625, 2020.
+Harper Hua, Zhen Han, Zhengyuan Shen, Jeremy Lee, Patrick Guan, Qi Zhu, Sullam Jeoung, Yueyan
+Chen, Yunfei Bai, Shuai Wang, et al. Sql-trail: Multi-turn reinforcement learning with interleaved
+feedback for text-to-sql. arXiv preprint arXiv:2601.17699, 2026.
+11
+
+Dongfu Jiang, Yuxuan Lu, Ziyao Li, Zehao Lyu, Ping Nie, Hao Wang, Anbang Su, Hao Chen, Kai Zou,
+Chao Du, et al. Verltool: Towards holistic agentic reinforcement learning with tool use. arXiv preprint
+arXiv:2509.01055, 2025.
+Bowen Jin, Hansi Zeng, Zhenrui Yue, Jinsung Yoon, Sercan Arik, Dong Wang, Hamed Zamani, and Jiawei
+Han. Search-r1: Training llms to reason and leverage search engines with reinforcement learning. arXiv
+preprint arXiv:2503.09516, 2025. URL https://arxiv.org/abs/2503.09516.
+Mandar Joshi, Eunsol Choi, Daniel Weld, and Luke Zettlemoyer. TriviaQA: A large scale distantly
+supervised challenge dataset for reading comprehension. In Proceedings of the 55th Annual Meeting of
+the Association for Computational Linguistics, pages 1601–1611, 2017.
+Tom Kwiatkowski, Jennimaria Palomaki, Olivia Redfield, Michael Collins, Ankur Parikh, Chris Alberti,
+Danielle Epstein, Illia Polosukhin, Jacob Devlin, Kenton Lee, et al. Natural questions: A benchmark
+for question answering research. Transactions of the Association for Computational Linguistics, 7:452–466,
+2019.
+Tor Lattimore and Csaba Szepesvári. Bandit Algorithms. Cambridge University Press, 2020.
+Xian Li, Henry Zou, and Peng Liu. Torl: Scaling tool-integrated rl. arXiv preprint arXiv:2503.23383, 2025.
+Xiao Liu, Hao Yu, Hanchen Zhang, Yifan Xu, Xuanyu Lei, Hanyu Lai, Yu Gu, Hangliang Ding, Kaiwen
+Men, Kejuan Yang, Shudan Zhang, Xiang Deng, Aohan Zeng, Zhengxiao Du, Chenhui Zhang, Sheng
+Shen, Tianjun Zhang, Yu Su, Huan Sun, Minlie Huang, Yuxiao Dong, and Jie Tang. Agentbench:
+Evaluating llms as agents. In International Conference on Learning Representations, 2024. URL https:
+//arxiv.org/abs/2308.03688.
+Zichen Liu, Changyu Chen, Wenjun Li, Penghui Qi, Tianyu Pang, Chao Du, Wee Sun Lee, and Min Lin.
+Understanding r1-zero-like training: A critical perspective. arXiv preprint arXiv:2503.20783, 2025.
+Alex Mallen, Akari Asai, Victor Zhong, Rajarshi Das, Daniel Khashabi, and Hannaneh Hajishirzi. When
+not to trust language models: Investigating effectiveness of parametric and non-parametric memories.
+In Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics, pages 9802–9822,
+2023.
+Jingwei Ni, Yihao Liu, Xinpeng Liu, Yutao Sun, Mengyu Zhou, Pengyu Cheng, Dexin Wang, Erchao
+Zhao, Xiaoxi Jiang, and Guanjun Jiang. Trace2skill: Distill trajectory-local lessons into transferable
+agent skills. arXiv preprint arXiv:2603.25158, 2026. URL https://arxiv.org/abs/2603.25158.
+Long Ouyang, Jeffrey Wu, Xu Jiang, Diogo Almeida, Carroll Wainwright, Pamela Mishkin, Chong Zhang,
+Sandhini Agarwal, Katarina Slama, Alex Ray, et al. Training language models to follow instructions
+with human feedback. Advances in Neural Information Processing Systems, 35:27730–27744, 2022.
+Ofir Press, Muru Zhang, Sewon Min, Ludwig Schmidt, Noah A Smith, and Mike Lewis. Measuring and
+narrowing the compositionality gap in language models. Findings of the Association for Computational
+Linguistics: EMNLP 2023, 2023.
+Reid Pryzant, Dan Iter, Jerry Li, Yin Tat Lee, Chenguang Zhu, and Michael Zeng. Automatic prompt
+optimization with “gradient descent” and beam search. In Proceedings of the 2023 Conference on Empirical
+Methods in Natural Language Processing, pages 7957–7968, 2023.
+Rafael Rafailov, Archit Sharma, Eric Mitchell, Christopher D Manning, Stefano Ermon, and Chelsea Finn.
+Direct preference optimization: Your language model is secretly a reward model. Advances in Neural
+Information Processing Systems, 36:53728–53741, 2023.
+Daniel J Russo, Benjamin Van Roy, Abbas Kazerouni, Ian Osband, and Zheng Wen. A tutorial on
+Thompson sampling. Foundations and Trends in Machine Learning, 11(1):1–96, 2018.
+12
+
+Timo Schick, Jane Dwivedi-Yu, Roberto Dessì, Roberta Raileanu, Maria Lomeli, Eric Hambro, Luke Zettlemoyer, Nicola Cancedda, and Thomas Scialom. Toolformer: Language models can teach themselves to
+use tools. Advances in Neural Information Processing Systems, 36:68539–68551, 2023.
+Zhihong Shao, Peiyi Wang, Qihao Zhu, Runxin Xu, Junxiao Song, Xiao Bi, Haowei Zhang, Mingchuan
+Zhang, YK Li, Y Wu, et al. Deepseekmath: Pushing the limits of mathematical reasoning in open
+language models. arXiv preprint arXiv:2402.03300, 2024.
+Guangming Sheng, Chi Zhang, Zilingfeng Ye, Xibin Wu, Wang Zhang, Ru Zhang, Yanghua Peng, Haibin
+Lin, and Chuan Wu. Hybridflow: A flexible and efficient rlhf framework. Proceedings of the Twentieth
+European Conference on Computer Systems, pages 1279–1297, 2025.
+Noah Shinn, Federico Cassano, Ashwin Gopinath, Karthik Narasimhan, and Shunyu Yao. Reflexion:
+Language agents with verbal reinforcement learning. Advances in Neural Information Processing Systems,
+36:8634–8652, 2023.
+Mohit Shridhar, Xingdi Yuan, Marc-Alexandre Côté, Yonatan Bisk, Adam Trischler, and Matthew
+Hausknecht. ALFWorld: Aligning Text and Embodied Environments for Interactive Learning.
+In Proceedings of the International Conference on Learning Representations (ICLR), 2021. URL https:
+//arxiv.org/abs/2010.03768.
+Aleksandrs Slivkins. Introduction to multi-armed bandits. Foundations and Trends in Machine Learning, 12
+(1–2):1–286, 2019.
+Huatong Song, Jinhao Jiang, Yingqian Min, Jie Chen, Zhipeng Chen, Wayne Xin Zhao, Lei Fang, and
+Ji-Rong Wen. R1-searcher: Incentivizing the search capability in llms via reinforcement learning. arXiv
+preprint arXiv:2503.05592, 2025.
+William R Thompson. On the likelihood that one unknown probability exceeds another in view of the
+evidence of two samples. Biometrika, 25(3/4):285–294, 1933.
+Harsh Trivedi, Niranjan Balasubramanian, Tushar Khot, and Ashish Sabharwal. MuSiQue: Multihop
+questions via single hop question composition. Transactions of the Association for Computational Linguistics,
+10:539–554, 2022.
+Harsh Trivedi, Niranjan Balasubramanian, Tushar Khot, and Ashish Sabharwal. Interleaving retrieval
+with chain-of-thought reasoning for knowledge-intensive multi-step questions. In Proceedings of the
+61st Annual Meeting of the Association for Computational Linguistics, pages 10014–10037, 2023.
+Guanzhi Wang, Yuqi Xie, Yunfan Jiang, Ajay Mandlekar, Chaowei Xiao, Yuke Zhu, Linxi Fan, and Anima
+Anandkumar. Voyager: An open-ended embodied agent with large language models. arXiv preprint
+arXiv:2305.16291, 2023. URL https://arxiv.org/abs/2305.16291.
+Ruoyao Wang, Peter Jansen, Marc-Alexandre Côté, and Prithviraj Ammanabrolu. ScienceWorld: Is your
+agent smarter than a 5th grader? In Proceedings of the 2022 Conference on Empirical Methods in Natural
+Language Processing, pages 11279–11298, 2022.
+Zora Zhiruo Wang, Jiayuan Mao, Daniel Fried, and Graham Neubig. Agent workflow memory. arXiv
+preprint arXiv:2409.07429, 2024.
+Jason Wei, Xuezhi Wang, Dale Schuurmans, Maarten Bosma, Fei Xia, Ed Chi, Quoc V Le, Denny Zhou,
+et al. Chain-of-thought prompting elicits reasoning in large language models. Advances in Neural
+Information Processing Systems, 35:24824–24837, 2022.
+Zhepei Wei, Wenlin Yao, Yao Liu, Weizhi Zhang, Qin Lu, Liang Qiu, Changlong Yu, Puyang Xu, Chao
+Zhang, Bing Yin, Hyokun Yun, and Lihong Li. Webagent-r1: Training web agents via end-to-end
+multi-turn reinforcement learning. In Findings of the Association for Computational Linguistics: EMNLP,
+2025. URL https://arxiv.org/abs/2505.16421.
+13
+
+Rong Wu, Xiaoman Wang, Jianbiao Mei, Pinlong Cai, Daocheng Fu, Cheng Yang, Licheng Wen, Xuemeng
+Yang, Yufan Shen, Yuxin Wang, et al. Evolver: Self-evolving llm agents through an experience-driven
+lifecycle. arXiv preprint arXiv:2510.16079, 2025.
+Peng Xia, Jianwen Chen, Hanyang Wang, Jiaqi Liu, Kaide Zeng, Yu Wang, Siwei Han, Yiyang Zhou,
+Xujiang Zhao, Haifeng Chen, et al. Skillrl: Evolving agents via recursive skill-augmented reinforcement
+learning. arXiv preprint arXiv:2502.08234, 2025.
+Zhiyang Xue, Liang Zheng, Qingyun Liu, Yilun Li, Xiangru Zheng, Zian Ma, and Bo An. Simpletir: Endto-end reinforcement learning for multi-turn tool-integrated reasoning. arXiv preprint arXiv:2509.02479,
+2025.
+An Yang, Anfeng Li, Baosong Yang, Beichen Zhang, Binyuan Hui, Bo Zheng, Bowen Yu, Chang Gao,
+Chengen Huang, Chenxu Lv, et al. Qwen3 technical report. arXiv preprint arXiv:2505.09388, 2025.
+Chengrun Yang, Xuezhi Wang, Yifeng Lu, Hanxiao Liu, Quoc V Le, Denny Zhou, and Xinyun Chen.
+Large language models as optimizers. In The Twelfth International Conference on Learning Representations,
+2024.
+John Yang, Akshara Prabhakar, Karthik Narasimhan, and Shunyu Yao. InterCode: Standardizing and
+benchmarking interactive coding with execution feedback. In Advances in Neural Information Processing
+Systems, volume 36, 2023.
+Zhilin Yang, Peng Qi, Saizheng Zhang, Yoshua Bengio, William W. Cohen, Ruslan Salakhutdinov, and
+Christopher D. Manning. HotpotQA: A dataset for diverse, explainable multi-hop question answering.
+In Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing, pages 2369–2380,
+2018.
+Shunyu Yao, Howard Chen, John Yang, and Karthik Narasimhan. Webshop: Towards scalable real-world
+web interaction with grounded language agents. Advances in Neural Information Processing Systems, 35:
+20744–20757, 2022.
+Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran, Karthik Narasimhan, and Yuan Cao. React: Synergizing reasoning and acting in language models. In International Conference on Learning
+Representations, 2023. URL https://arxiv.org/abs/2210.03629.
+Qiying Yu, Zheng Zhang, Ruofei Zhu, Yufeng Yuan, Xiaochen Zuo, Yu Yue, Weinan Dai, Tianrun Fan,
+Guoyin Liu, Lei Liu, et al. Dapo: An open-source llm reinforcement learning system at scale. arXiv
+preprint arXiv:2503.14476, 2025.
+Tao Yu, Rui Zhang, Kai Yang, Michihiro Yasunaga, Dongxu Wang, Zifan Li, James Ma, Irene Li, Qingning
+Yao, Shanelle Roman, Zilin Zhang, and Dragomir Radev. Spider: A large-scale human-labeled dataset
+for complex and cross-domain semantic parsing and text-to-SQL task. In Proceedings of the 2018
+Conference on Empirical Methods in Natural Language Processing, pages 3911–3921, 2018.
+Mert Yüksekgönül, Federico Bianchi, Joseph Boen, Sheng Liu, Pan Lu, Zhi Huang, Carlos Guestrin, and
+James Zou. Optimizing generative AI by backpropagating language model feedback. Nature, 639(8055):
+609–616, 2025.
+Shengtao Zhang, Jiaqian Wang, Ruiwen Zhou, et al. Memrl: Self-evolving agents via runtime reinforcement learning on episodic memory. arXiv preprint arXiv:2601.03192, 2026.
+Andrew Zhao, Daniel Huang, Quentin Xu, Matthieu Lin, Yong-Jin Liu, and Gao Huang. Expel: Llm
+agents are experiential learners. In Proceedings of the AAAI Conference on Artificial Intelligence, volume 38,
+pages 19632–19642, 2024.
+14
+
+Boyuan Zheng, Michael Y. Fatemi, Xiaolong Jin, Zora Zhiruo Wang, Apurva Gandhi, Yueqi Song,
+Yu Gu, Jayanth Srinivasa, Gaowen Liu, Graham Neubig, and Yu Su. Skillweaver: Web agents can
+self-improve by discovering and honing skills. arXiv preprint arXiv:2504.07079, 2025. URL https:
+//arxiv.org/abs/2504.07079.
+Han Zhou, Xingchen Wan, Ruoxi Sun, Hamid Palangi, Shariq Iqbal, Ivan Vulić, Anna Korhonen, and
+Sercan Ö Arık. Multi-agent design: Optimizing agents with better prompts and topologies. arXiv
+preprint arXiv:2502.02533, 2025.
+Han Zhou, Xingchen Wan, Ivan Vulić, and Anna Korhonen. Agentic policy optimization via instructionpolicy co-evolution. Proceedings of the 43rd International Conference on Machine Learning (ICML), 2026.
+Yongchao Zhou, Andrei Ioan Muresanu, Ziwen Han, Keiran Paster, Silviu Pitis, Harris Chan, and Jimmy
+Ba. Large language models are human-level prompt engineers. In The Eleventh International Conference
+on Learning Representations, 2023.
+
+A
+
+Limitations and Future Work
+
+Evolution frequency. As shown in the sensitivity analysis (Figure 9, Appendix C.7), performance on
+ALFWorld degrades when evolution frequency is too low (Ke =20). We observe that infrequent evolution
+causes the policy to adapt to a fixed skill context; subsequent skill updates then introduce distribution
+shift that leads to training instability. The evolution frequency remains a hyperparameter requiring
+per-domain tuning, and we view adaptive evolution scheduling as a promising future direction.
+Skill invocation. Our trigger-based design loads skills into context whenever trigger conditions match,
+which avoids additional inference steps but gives the model less control over when skills are applied. A
+natural alternative is to formulate skills as explicit tool calls, providing fine-grained invocation control
+at the cost of extra generation steps per decision point. Exploring tool-call formulations that maintain
+rollout efficiency, for example through batched or amortized skill invocation, is a promising direction.
+Skill capacity burden. Adding skills to the context increases the cognitive load on the base model,
+and we observe two failure modes in practice (see case studies in Appendix F). First, smaller models
+sometimes conflate skill guidance with environment actions, emitting skill names as if they were executable commands rather than incorporating the skill’s advice into their reasoning. Second, models
+may over-apply a skill in situations where it is inapplicable, lacking the capacity to recognize when to
+disengage. Both failures suggest that skill-augmented RL would benefit from training the policy to treat
+skills as reasoning-time guidance rather than action-time directives, for example through format-aware
+reward shaping or explicit separation of skill invocation from action generation.
+
+B
+
+Experimental Details
+
+B.1
+
+Training Details and Hyperparameters
+
+We build on the VeRL framework (Sheng et al., 2025) with Ray-based distributed training.
+Table 3 lists the key training hyperparameters for each benchmark. All benchmarks use the same
+learning rate and KL loss type; differences arise from environment characteristics (e.g., longer contexts
+for ScienceWorld, larger batch sizes for Search due to shorter episodes).
+
+B.2
+
+Baseline Implementation Details
+
+Unless otherwise specified, all baselines use the original publicly available codebase from their respective
+papers and share the same training/evaluation data splits as R E S KILL. For RL-based baselines, we use
+identical environment configurations, learning rates, batch sizes, sequence lengths, and hardware as
+15
+
+Table 3: Training hyperparameters across benchmarks. All experiments use the Adam optimizer with no
+warmup. Each node has 8×A100 GPUs.
+Parameter
+
+ALFWorld
+
+Search
+
+ScienceWorld
+
+InterCode-SQL
+
+WANDS
+
+Reinforcement Learning
+Learning rate
+Batch size
+Mini batch size
+Group size G
+KL coefficient
+Max prompt length
+Max response length
+Training steps
+Nodes
+
+1e-6
+16
+64
+8
+0.01
+4096
+512
+120
+2
+
+1e-6
+256
+256
+5
+0.001
+4096
+512
+250
+1
+
+1e-6
+16
+64
+8
+0.01
+6000
+1024
+150
+2
+
+1e-6
+128
+128
+5
+0.001
+4096
+512
+150
+2
+
+1e-6
+16
+64
+8
+0.01
+4096
+512
+150
+2
+
+Skill Creator
+Skill bank size
+Evolution frequency Ke
+Exploration bound ε ts
+Reservoir size
+
+8
+5
+0.15
+200
+
+8
+5
+0.15
+200
+
+8
+5
+0.15
+200
+
+8
+5
+0.15
+200
+
+8
+5
+0.15
+200
+
+R E S KILL (Table 3). Unless otherwise specified, all methods that require an LLM for skill, memory, or
+instruction creation use the same Claude Sonnet 4.5 API for fair comparison.
+Base Models. We evaluate two reference models without any training or augmentation. ReAct (Yao et al.,
+2023) prompts the base model with a reasoning-plus-action format, interleaving chain-of-thought traces
+with environment actions. Claude Sonnet 4.5 uses the same ReAct prompt under identical evaluation
+protocols, serving as a proprietary reference.
+Evolvement Methods. R EME (Cao et al., 2025) is a dynamic procedural memory framework that extracts,
+stores, and retrieves actionable memories from agent trajectories to iteratively improve performance.
+M EMRL (Zhang et al., 2026) designs a two-phase retrieval mechanism combining semantic matching
+with Q-value-driven filtering to identify high-utility memories from past experience. In the evolve-only
+variant, memories are created from base model rollouts and retrieved at inference without policy updates.
+We additionally construct a M EMRL (+RL) variant where the same memory system operates concurrently
+with GRPO policy optimization: Q-values for memory utility are updated online from training rewards
+while the policy is simultaneously trained, serving as an RL-based baseline. The best of R EME and
+M EMRL is reported as “Best‡ ” in Table 1.
+Skill-Only Baselines. We use the high-quality skill bank produced by S KILLRL’s (Xia et al., 2025)
+distillation pipeline (originally created using o3) and directly adopt it as a fixed skill bank to test retrievalbased skill utilization on the base model without RL. We evaluate three retrieval strategies: BM25 keyword
+matching, HippoRAG (Gutiérrez et al., 2024) which augments retrieval with knowledge-graph traversal for
+more semantically grounded skill selection, and long-context loading where the entire skill bank is placed
+in the model’s context window. The best result across these strategies is reported as “Best† ” in Table 1.
+RL-Based Methods. E VOLVER (Wu et al., 2025) operates in alternating cycles of online interaction
+and offline self-distillation. After each training phase, a distiller LLM analyzes successful and failed
+trajectories and extracts “guiding principles” (from successes) and “cautionary principles” (from failures),
+stored in a curated experience base with semantic deduplication. During training, the agent retrieves
+relevant principles via embedding similarity to guide its reasoning. Principle quality is tracked via
+Laplace-smoothed success rates, with low-scoring principles pruned periodically.
+I NSPO (Zhou et al., 2026) maintains a population of instruction candidates sampled per rollout group
+during GRPO training. Each instruction carries an importance weight updated as a moving average
+of recent rewards. The population is periodically pruned and replenished by an LLM-based optimizer
+16
+
+that reflects on failure trajectories and proposes new candidates. At inference, only the highest-weight
+instruction is used.
+S KILLRL (Xia et al., 2025) distills modular skills from training trajectories using a teacher LLM, where
+each skill consists of a title, an actionable principle, and a triggering condition. Skills are injected into the
+policy’s context via template-based retrieval during both training and evaluation. After validation epochs,
+failed trajectories trigger recursive skill addition: the teacher identifies unaddressed failure patterns and
+proposes new skills, which are permanently added to the bank.
+
+B.3
+
+Benchmark Details
+
+ALFWorld. ALFWorld (Shridhar et al., 2021) is an embodied reasoning benchmark where agents interact
+with household environments via text commands. The action space consists of approximately 14 verb
+templates (e.g., go to, take, put, open, examine), with a maximum horizon of 50 steps and binary reward
+(10 on task completion, 0 otherwise). We train on approximately 3,800 games and group the six task types
+into three categories: Pick&Place, Transform (averaging Heat, Cool, and Clean), and Examine. Evaluation
+uses 140 seen and 134 unseen game configurations; we report per-category success rates, seen/unseen
+averages (micro-averaged over all games in each split), and an overall success rate weighted by split size.
+Agentic Search. We follow the multi-dataset evaluation protocol of Search-R1 (Jin et al., 2025). Agents
+answer factual questions via iterative retrieval: the action space is two actions (issue a search query or
+submit a final answer), with a maximum of 4 turns and binary reward (1 on exact match, 0 otherwise).
+Retrieval uses E5-base-v2 dense embeddings over a Wikipedia corpus (∼18M passages), returning the
+top-3 passages per query. We train on ∼3,000 questions from NQ (Kwiatkowski et al., 2019) and HotpotQA
+(Yang et al., 2018). Seen evaluation datasets: NQ (300) and HotpotQA (300). Unseen datasets: PopQA (Mallen
+et al., 2023) (303), TriviaQA (Joshi et al., 2017) (300), 2WikiMultiHopQA (Ho et al., 2020) (300), MuSiQue
+(Trivedi et al., 2022) (300), and Bamboogle (Press et al., 2023) (125). We report per-dataset accuracy,
+seen/unseen averages weighted by dataset size, and overall accuracy across all 1,928 examples.
+WANDS (Web Shopping). We construct a web shopping environment inspired by WebShop (Yao et al.,
+2022), built from the WANDS product search dataset (Chen et al., 2022) due to licensing concerns with the
+original WebShop data. Agents must find and purchase a product matching a goal specification (category,
+attributes, configurable options, price constraint). The action space is two actions (search or click), with a
+maximum of 15 steps and binary reward (10 if the correct product is purchased with all required options
+selected, 0 otherwise). Tasks are categorized by the number of options that must be correctly selected:
+2-opt (two required options) and 3-opt (three required options, harder). Training uses 3,000 products
+from the Furniture domain; evaluation uses 496 held-out products spanning both seen (Furniture) and
+unseen (Kitchen & Tabletop) domains. We report accuracy stratified by option complexity (2-opt and
+3-opt).
+ScienceWorld. ScienceWorld (Wang et al., 2022) is an interactive science simulation where agents perform
+multi-step experiments. We use the electricity split, which contains two task types: identifying power
+components and testing conductivity. The action space consists of approximately 26 verb templates
+(e.g., pick up, pour, activate, connect, focus on), with a maximum of 50 steps and binary reward (10
+if task score exceeds 70%, 0 otherwise). For in-distribution evaluation (Test-ID), we use the dev split
+of 230 episodes with the same task types but held-out variations; for out-of-distribution evaluation
+(Test-OOD), we use 155 episodes from related but distinct task variants (conductivity with unknown
+materials, renewable energy). We report ID and OOD accuracy.
+InterCode-SQL. InterCode-SQL (Yang et al., 2023) evaluates interactive SQL generation over Spider
+databases (Yu et al., 2018). Agents iteratively write and execute SQL queries with execution feedback
+before submitting a final answer; the action space is two actions (execute exploratory query or submit),
+17
+
+with a maximum of 10 turns and binary reward (10 on execution result match with the ground truth, 0
+otherwise). Following SQL-Trail (Hua et al., 2026), training uses 1,027 difficulty-balanced queries, filtered
+via pass@6 to exclude trivially solvable and impossible cases. Evaluation uses 1,000 examples from 20
+held-out Spider databases.
+
+C
+
+Additional Details and Results
+
+C.1
+
+Pseudocode
+
+Algorithm 2 R E S KILL: Reconciled Skill-Policy Co-Evolution
+1: Input: Policy πθ0 , training steps T, evolution frequency Ke .
+2: Initialize: Skill bank S=∅, reservoir R←∅, posteriors (αv , β v )←(1, 1) for v∈{new, old}, memory M̂ ←∞.
+3: for t = 1, . . . , T do
+4:
+[Within-Group Skill Testing (§3.1)]
+5:
+Sample task q ∼ D . Compute πt (new) from the current Beta posteriors; for each rollout i, sample vi ∼
+Categorical({new : πt (new), old : 1 − πt (new)}).
+6:
+Load active skills from Svi ; generate trajectories {τi }iG=1 ∼ πθt−1 (·|q, Svi ; T ); compute rewards {ri }.
+7:
+Update policy: θt ← arg maxθ J R E S KILL (θ; θt−1 , {τi }, {ri }).
+// role 1: policy update
+8:
+Add {(τi , vi , ri )} to experience reservoir R.
+// role 2: experience collection
+9:
+wt ←(1+nt / M̂ )−1 ; αv ←wt αv +mt ; β v ←wt β v +(nt −mt ), for v∈{new, old}.
+// role 3: version evaluation
+10:
+if t mod Ke = 0 then
+11:
+[Skill Evolution (§3.3)] Accept Snew if E[ pnew ]>E[ pold ]; update M̂ via predictive-likelihood.
+12:
+[Skill Creation (§3.2)] Grade R with assertions; diagnose; propose new Snew .
+13:
+Reset posteriors: (αv , β v ) ← (1, 1); begin testing Snew vs. Sold .
+14:
+end if
+15: end for
+16: Return optimized policy πθT and skill bank S .
+
+C.2
+
+Grpo Objective
+
+For completeness, the full G RPO objective (Shao et al., 2024) is:
+#
+"
+|τi |
+
+1
+1 G
+I · min ri,t Âi , clip(ri,t , 1−ϵ, 1+ϵ) Âi − βDKL ,
+JGRPO (θ ) = Eτ ∼πold
+G i∑
+I ∑ i,t
+=1 ∑t i,t t=1
+where
+ri,t (θ ) =
+
+πθ (τi,t |τi,<t )
+,
+πθold (τi,t |τi,<t )
+
+Âi =
+
+ri − mean({r j } G
+j =1 )
+std({r j }G
+j =1 )
+
+(5)
+
+.
+
+Here, ri,t (θ ) is the token-level importance sampling ratio, Âi is the group-normalized advantage, ϵ is
+the clip ratio, and β controls the KL divergence penalty DKL (πθ ∥πref ). The indicator Ii,t masks out
+environment observation tokens so that gradients are computed only over the agent’s own tokens (Jin
+et al., 2025; Xue et al., 2025).
+
+C.3
+
+Skill Creator Pipeline: Full Details
+
+Inspired by Anthropic’s Skill Creator (Anthropic, 2026), our skill creator pipeline decomposes skill
+creation into the following stages: reservoir collection, assertion grading, contrastive analysis, insight
+aggregation and semantic grouping, skill recommendation, and skill authoring. We present each stage in
+execution order.
+C.3.1
+
+Reservoir Collection and Contrastive Analysis
+
+Each G RPO rollout produces trajectories tagged with a version assignment vi ∈ {Snew , Sold } and binary
+reward r (τi ). The reservoir R stores these trajectories in a last-in-first-out structure, enforcing diversity
+by retaining at most one success and one failure per version per task. That is, for each task the reservoir
+holds up to four episodes (new-success, new-failure, old-success, old-failure), replacing older entries as
+new rollouts arrive.
+18
+
+When skill creation is triggered, the reservoir is sampled into task groups. We prioritize groups with
+diversity: those containing both successes and failures, and both active and inactive skill conditions. Each
+group receives a separate LLM call comparing the episodes within it: success vs. failure, new-skill vs.
+old-skill, and the specific actions at which behavior diverges. The LLM produces a structured insight per
+group containing: a behavioral finding, a failure-mode label, the failure and success action snippets, an
+assessment of whether active skills helped or hurt, and a confidence level. This step condenses the raw
+reservoir into a manageable set of grounded insights for downstream diagnosis.
+C.3.2
+
+Assertion Grading and Diagnosis
+
+Assertion Types. The assertion grader G maintains a dynamic set of rule-based assertions A = {ϕj },
+where each assertion is a predicate over trajectories generated by the LLM-based diagnoser. Assertions
+capture behavioral properties at varying granularity: whether a particular action pattern appears (or is
+absent) in a trajectory, whether two actions occur in the correct temporal order (e.g., searching before
+submitting), whether the agent avoids unproductive repetition, whether the trajectory falls within
+expected length bounds, and whether the environment’s observations indicate the agent reached certain
+states. The diagnoser creates, modifies, and deletes assertions as the policy’s failure landscape evolves.
+Grading. Given the failure reservoir R, the grader evaluates every trajectory against all assertions,
+producing per-assertion pass rates:
+r̂ j = |R|−1 ∑ 1[check j (τ, params j )].
+
+(6)
+
+τ ∈R
+
+Here, τ denotes a trajectory in the reservoir and params j denotes assertion-specific parameters. Low pass
+rates identify prevalent failure modes. The grading is entirely rule-based, enabling evaluation of the full
+reservoir rather than a subsample.
+Diagnoser. The diagnoser receives one-liner summaries extracted from the contrastive insights alongside
+the per-assertion pass rates and the current skill bank summary. It produces three outputs: (1) assertion
+CRUD operations that evolve A by adding, deleting, or modifying assertions as behavior shifts; (2)
+semantic clustering that groups insights by underlying failure mode, selecting a representative per group;
+and (3) a quantitative failure diagnosis connecting assertion pass rates to the identified clusters.
+C.3.3
+
+Skill Recommendation and Authoring
+
+Recommender. The recommender receives the insight groups (with expanded representative insights
+showing full action snippets), the current skill library with per-skill diagnostics (trigger rate, age), the
+version history of prior proposals with their accept/reject outcomes, and the environment’s action
+vocabulary. It proposes 1–3 operations (ADD, MODIFY, or DELETE), each specifying: the operation type,
+intent (what to change and why), and supporting evidence (which insight group motivates it). The
+recommender does not write skill content; it focuses purely on strategic decisions.
+The recommender is also informed of the skill lifecycle stage: when the library is below capacity it favors
+ADD operations to build coverage, and as skills accumulate toward Kmax it shifts toward MODIFY and
+DELETE to refine and prune. Beyond lifecycle guidance, it prioritizes unaddressed failure clusters for
+additions, skills whose guidance contradicts observed successful behavior for modifications, and skills
+the policy has internalized (chronically low trigger rates or high reward regardless of skill presence) for
+deletions.
+Author. The author receives the recommended operations along with selected experience summaries and
+available action patterns, focusing on creating the skill content.
+For each operation, the author writes:
+19
+
+• Skill content ck : Three structured fields (≤500 characters total):
+– when_to_use: Situational applicability (≤25 words)
+– action: Concrete behavioral guidance (≤50 words)
+– examples: DO/DON’T action snippets grounded in the referenced insights
+• Trigger condition trigk : Type (general, beginning, or action-pattern) and regex pattern derived from
+the action vocabulary
+The author’s output constitutes the candidate version Snew , which then enters the trigger validation gate
+(§C.4) before A/B testing.
+
+C.4
+
+Trigger Condition Types and Validation
+
+C.4.1
+
+Trigger Types
+
+Each skill Sk = (ck , trigk ) has a deterministic trigger condition evaluated at every step of a rollout. The
+trigger determines whether the skill’s content is loaded into the agent’s context at that step.
+General Triggers. Skills with trigger_type = general fire at every step of every episode. These encode
+broad strategic principles applicable regardless of the agent’s current state.
+Beginning Triggers. Skills with trigger_type = beginning fire only at step t = 0 (episode initialization).
+These provide planning-level guidance for how to approach the task without cluttering mid-episode
+prompts.
+Action-Pattern Triggers. Skills with trigger_type = action_pattern fire when the agent’s previous
+action at−1 matches a regex pattern stored in trigger_pattern. For example, a skill targeting search
+refinement might use trigger_pattern = "search\[.*\]" to activate only after the agent has just
+performed a search action. This enables context-sensitive guidance: a skill about interpreting search
+results only appears after a search, not during unrelated actions.
+The trigger evaluation is fully deterministic and requires no LLM calls:
+
+
+if typek = general
+
+1
+trigk (t, at−1 ) =
+
+
+
+
+
+1 [ t = 0]
+
+if typek = beginning
+
+1[regex(patternk , at−1 )]
+
+if typek = action_pattern
+
+(7)
+
+At step t, the active skill bank is Sactive (t) = {Sk ∈ S : trigk (t, at−1 ) = 1}.
+C.4.2
+
+Selective Loading via when_to_use
+
+Even after trigger-based filtering, multiple skills may be active simultaneously. Each skill’s content ck
+includes a when_to_use field describing its situational applicability in natural language. The agent reads
+these descriptions as part of the prompt and decides during reasoning whether each loaded skill is
+relevant to the current state. This creates a two-level filtering effect:
+1. Deterministic trigger: Gates whether the skill’s content enters the prompt at all.
+2. In-context applicability: The when_to_use field tells the policy when the loaded guidance should
+be followed.
+The trigger condition serves the routing role, and when_to_use serves the relevance-filtering role.
+C.4.3
+
+Trigger Validation and Optimization
+
+Motivated by Skill Creator’s description optimization phase, we validate proposed triggers before the
+version enters A/B testing to ensure sufficient activation coverage. A skill that never fires cannot be
+20
+
+meaningfully evaluated and wastes the testing budget on a version that behaves identically to Sold .
+Trigger Rate Estimation. For each proposed skill in Snew with an action-pattern trigger, the pipeline
+estimates the trigger’s firing rate over the reservoir:
+h
+i
+(τ )
+p̂trigger = |R|−1 ∑ 1 ∃ t : regex(patternk , at ) = true ,
+(8)
+τ ∈R
+
+(τ )
+
+where at is the action at step t of trajectory τ. This estimates the fraction of episodes in which the skill
+would activate at least once.
+Validation Gate. A proposed skill passes validation if p̂trigger ≥ δtrig (default δtrig = 0.5). If any proposed
+skill in Snew fails this gate, the entire version proposal is rejected and sent back to the version author for
+rewriting, with the low trigger rate provided as feedback. The retry loop allows up to 3 attempts before
+the evolution cycle is skipped entirely. Skills with general or beginning triggers bypass this validation,
+as they fire unconditionally or at a known rate.
+
+C.5
+
+Adaptive Staleness Correction: Details
+
+This appendix motivates the adaptive discount rule wt = 1/(1 + nt /M ) from Eq. (4), grounds it in the
+Bayesian posterior update, and provides the full procedure for estimating M from data.
+C.5.1
+
+Motivation: From Bayesian Updates to Adaptive Discounting
+
+We begin from the standard Beta-Bernoulli posterior update and show how the discount rule emerges
+naturally from the desire to control the influence of new observations relative to accumulated evidence.
+The Posterior Mean as a Weighted Average. After observing mt successes in nt episodes at step t, the
+standard (undiscounted) Beta posterior update αt = αt−1 + mt yields a posterior mean that is a weighted
+average of the prior estimate and the new observation:
+µt =
+
+S t −1
+nt
+mt
+µ
++
+,
+S t −1 + n t t −1 S t −1 + n t n t
+
+(9)
+
+where St−1 = αt−1 + β t−1 is the total pseudo-count. The weight on new evidence is nt /(St−1 + nt ): the
+more data observed so far (St−1 large), the less each new batch shifts the estimate. In a stationary setting,
+this is optimal; the posterior concentrates as evidence accumulates.
+The Problem Under Non-Stationarity. When the policy evolves, the success probability p a,t drifts across
+steps. Since we evaluate skills alongside an evolving policy, earlier observations reflect a different policy’s
+interaction with the skill and no longer represent the skill’s current effectiveness. The accumulated
+pseudo-count St−1 reflects all past policies, not just the current one. A large St−1 anchors the estimate
+to stale evidence, making it slow to respond to genuine changes in how the skill performs under the
+evolving policy. To faithfully assess whether a skill helps the current policy, we must discount this stale
+evidence so that the accept/reject decision reflects recent, policy-aligned performance.
+Discounting as Effective Sample Size Control. A geometric discount αt = w · αt−1 + mt shrinks the
+accumulated pseudo-count before each update, reducing the effective sample size of old evidence. With
+discount factor w, the posterior mean becomes:
+µt =
+
+w · St −1
+nt
+mt
+µ
++
+.
+w · St −1 + n t t −1 w · St −1 + n t n t
+
+(10)
+
+The key quantity is the ratio of old-to-new influence: w · St−1 : nt . With a constant w, this ratio depends
+on the entire allocation history through St−1 . In our setting, Thompson Sampling causes the per-arm
+episode count nt to vary by 5–10× across steps. The same constant w cannot be appropriate for both
+extremes: after a step with few episodes, the accumulated estimate is noisy and should be retained; after
+21
+
+a step with many episodes, the new observation is precise and old evidence should be discounted more
+aggressively.
+The M-Parameterization. To decouple the discount from the allocation history, we set wt = M/( M +
+nt ) = 1/(1 + nt /M ). This adapts automatically to each step’s allocation:
+• When nt ≪ M (few new episodes): wt ≈ 1, so old evidence is mostly retained because the new batch
+is too small to be trusted alone.
+• When nt = M (the crossover point): wt = 1/2, so old pseudo-counts are halved and old and new
+evidence contribute equally.
+• When nt ≫ M (many new episodes): wt ≈ 0, so old evidence is aggressively discounted because the
+new batch alone provides a reliable estimate.
+We call M the memory parameter: it controls how many recent observations the system effectively remembers. A small M gives short memory (fast adaptation, more noise); a large M gives long memory (slow
+adaptation, more stability).
+C.5.2
+
+Predictive-Likelihood Criterion
+
+The memory parameter M need not be hand-tuned: the evolution procedure itself generates the data
+required to estimate it. Each completed A/B test window produces a sequence of per-step observations (mt , nt ) for each arm. A well-chosen M should make the discounted posterior predictive: given
+observations from steps 1, . . . , t−1, the model under a good M should assign high probability to the
+outcome actually observed at step t. By scoring candidate values of M on how well they predict one step
+ahead, accumulated across all steps and all completed tests, we obtain a natural maximum-likelihood
+estimator. Before any test has completed, we initialize with M → ∞ (equivalently wt = 1, no discounting),
+corresponding to the uninformative case. Once a few test cycles finish, the accumulated one-step-ahead
+likelihoods provide a reliable signal for M.
+Setup. Suppose we have K completed tests, each spanning T training steps. Test k provides per-step
+(k,a)
+
+(k,a)
+
+per-arm data d(k,a) = {(mt , nt )}tT=1 for each arm a ∈ { A, B}, where mt is the number of successes
+and nt is the number of episodes assigned to arm a at step t. We use β p for the Beta parameter to
+distinguish it from the KL penalty β in Eq. (1).
+BetaBinomial Predictive Probability. Given current posterior parameters (α̃, β̃ p ), the predictive probability of observing m successes in n trials is:
+P(m | n, α̃, β̃ p ) =
+
+ 
+n B(m + α̃, n − m + β̃ p )
+,
+m
+B(α̃, β̃ p )
+
+(11)
+
+where B(·, ·) is the Beta function.
+Per-Arm Log-Likelihood. For a candidate memory parameter M and one arm’s data sequence d =
+{(mt , nt )}tT=1 , we define the sequential predictive log-likelihood ℓ( M; d) via the following procedure:
+1. Initialize α0 = 1, β p,0 = 1
+
+(uniform Beta(1, 1) prior).
+
+2. For t = 1, . . . , T:
+M
+(a) Discount: α̃t = MM
++nt · αt−1 , β̃ p,t = M+nt · β p,t−1 .
+
+(b) Score: ℓt = log P(mt | nt , α̃t , β̃ p,t )
+
+(Eq. 11).
+
+(c) Update: αt = α̃t + mt , β p,t = β̃ p,t + (nt − mt ).
+3. Return ℓ( M; d) = ∑tT=1 ℓt .
+22
+
+Figure 8: Per-arm discount weights wt = 1/(1 + nt / M̂ ) during training on Search. Solid lines use the
+online M̂k ; dotted lines use the final M̂. The two arms’ weights are anti-correlated: Thompson Sampling
+allocates more episodes to the favored arm, lowering its wt (more forgetting), while the minority arm
+retains more history. Green/red vertical lines indicate accepted/rejected evolution cycles.
+
+Total Objective. The total log-likelihood over all tests and arms is:
+K
+
+L( M) = ∑
+
+∑
+
+
+ℓ M; d(k,a) ,
+
+(12)
+
+k =1 a∈{ A,B}
+
+and the MLE is M̂ = arg max M L( M ). Since M is a single scalar and L( M ) is cheap to evaluate (a sum of
+log-likelihoods over completed tests), we find the optimum by grid search over M ∈ [1, 2000].
+Online Estimation. Since L( M ) decomposes additively across tests, it can be updated incrementally. After
+each completed test k, we compute Lk ( M ) = Lk−1 ( M ) + ℓ( M; d(k,A) ) + ℓ( M; d(k,B) ) and re-optimize
+M̂k = arg max M Lk ( M ). This requires O(|grid| × T ) work per new test, with no need to re-score history.
+C.5.3
+
+Empirical Validation
+
+We validate the online estimation procedure on the Search domain (Figure 8). Dotted lines show the
+discount weights under the final M̂ (computed from all data up to step 250); solid lines show the weights
+under the online M̂k (estimated incrementally after each completed test). During the first ∼50 steps,
+the system is still initializing from the uniform prior (M = ∞, no discounting) and the online weights
+gradually deviate from this uninformative starting point as the first test cycles complete. After this
+warm-up, the online estimate stabilizes and the solid curves closely track the dotted curves, confirming
+rapid convergence without a separate calibration phase.
+The discount weights reveal the adaptive allocation behavior. When Thompson Sampling favors the
+new skill (allocating more episodes to it), the new arm’s wt drops (more forgetting) while the old arm’s
+wt rises (more retention), because the old arm receives fewer episodes and its estimate is noisier. This
+anti-correlation is visible throughout: around step 30, the new skill dominates allocation; conversely,
+around step 175, the old skill dominates. The discount thus automatically gives more memory to the
+under-sampled arm at each step.
+
+C.6
+
+Full Baseline Results
+
+Table 1 reports per-cell best values for non-RL methods to save space. Table 4 expands these into
+individual method results. All values are mean±std over 3 random seeds.
+
+23
+
+Table 4: Full results for non-RL baselines (%). These methods are summarized as Best† (skill-only) and
+Best‡ (evolve) in Table 1. BM25, H IPPO RAG, and L ONG - CONTEXT load skills from S KILL RL’s oracle
+skill bank via retrieval or full injection. R E M E and M EM RL evolve memories/procedures without policy
+training.
+ALFWorld
+
+Seen
+Method
+
+Unseen
+
+Pick&Place
+
+Transform
+
+Examine
+
+w/ Skill
+
+BM25
+HippoRAG
+Long-context
+
+57.1±4.3
+51.4±6.8
+61.6±2.6
+
+26.0±4.7
+22.5±2.2
+43.1±3.1
+
+61.5±0.0
+53.8±0.0
+43.6±4.4
+
+w

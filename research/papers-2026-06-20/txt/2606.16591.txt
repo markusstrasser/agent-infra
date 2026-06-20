@@ -1,0 +1,2181 @@
+SING: Synthetic Intention Graph for Scalable Active Tool Discovery in
+LLM Agents
+*
+
+Qiao Xiao1 * Haochen Shi2 * Yisen Gao2 Wenbin Hu2
+Huihao Jing2 Tianshi Zheng2 Baixuan Xu2 Ziheng Zhang3
+Weiqi Wang2 Haoran Li2 Jiaxin Bai4 † Yangqiu Song2
+1
+Cornell University 2 The Hong Kong University of Science and Technology
+3
+The Ohio State University 4 Hong Kong Baptist University
+Abstract
+
+arXiv:2606.16591v2 [cs.CL] 16 Jun 2026
+
+Large language model (LLM) agents increasingly rely on agent harnesses that manage context, tools, and multi-turn execution, making
+tools a central interface for acting in realistic
+digital environments. As harness-connected
+tool ecosystems expand to hundreds or thousands of APIs, services, and task-specific
+skills, exhaustive tool schema injection becomes costly and imposes a closed-world assumption that limits agents to a predefined
+static inventory. Retrieval-augmented tool selection offers a natural alternative, but existing
+one-shot retrieval methods often fail to align
+isolated tool descriptions with the agent’s true
+task intention, especially in long-horizon tasks
+where required capabilities emerge through decomposition, observations, and newly induced
+subgoals. We propose SING, an intentionaware active tool discovery framework that
+builds an intention–tool graph linking user intentions, tool capabilities, and tool collaboration patterns, and dynamically retrieves tools
+according to evolving task states. Using a unified corpus of 7,471 tools, we evaluate SING on
+three real-world tool-use benchmarks. SING
+improves Global Recall@5 by up to 59.8%
+and downstream success rate by up to 28.9%
+over baselines, while reducing full-corpus toolschema exposure by 99.8%, demonstrating that
+intention-aware graph structure enables more
+accurate and context-efficient tool discovery in
+large-scale agentic ecosystems.
+
+1
+
+Introduction
+
+Large language models (LLMs) have achieved substantial progress in reasoning, planning, and natural
+language interaction (Brown et al., 2020; Cao et al.,
+2025), but modern LLM agents are increasingly
+not deployed as standalone models. Instead, they
+are embedded in agent harnesses: external execution systems that organize task runs by managing
+context, tools, and control flow (OpenAI, 2026).
+These harnesses turn model outputs into concrete
+
+actions and feed observations back to the model,
+making tools a central interface through which
+agents operate in complex digital environments
+rather than merely answer natural-language queries.
+This shift is especially evident in recent openworld and computer-use settings, where benchmarks and runtimes such as ClawBench (Zhang
+et al., 2026), OSWorld (Xie et al., 2024), and WildClawBench (Ding et al., 2026) evaluate agents on
+realistic tasks involving live websites, file systems,
+terminals, and external services. In such harnessbased environments, tool ecosystems are no longer
+small fixed collections: they can grow to hundreds
+or thousands of APIs, services, and task-specific
+skills that agents may need to access during execution.
+A common tool-use paradigm is to inject all
+available tool schemas into the model context
+before execution (Patil et al., 2025; Yao et al.,
+2024). However, this context-injection strategy
+becomes increasingly ineffective as the tool ecosystem scales. Exposing hundreds or thousands of
+schemas consumes substantial context budget, introduces many irrelevant tools, and can weaken the
+model’s retention of task-critical information (Liu
+et al., 2024). More fundamentally, exhaustive
+schema injection imposes a closed-world assumption: the agent can only select from a predefined
+static inventory, rather than identifying, requesting,
+or experimenting with capabilities required by the
+evolving task state. As agent ecosystems continue
+to expand, tool use must therefore move beyond
+passive selection from a fixed context toward active discovery and retrieval of relevant tools during
+execution.
+A natural way to move beyond exhaustive tool
+injection is retrieval-augmented tool discovery: instead of exposing the full inventory, the agent retrieves a small set of candidate tools from a large
+tool library. This alleviates context explosion and
+enables models to interact with large real-world
+
+Database Querying
+36 (5%)
+
+Others 11 (1%)
+
+Documentation
+& Search
+83 (11%)
+Media
+Processing &
+Assets
+44 (6%)
+Design &
+Visualization
+52 (7%)
+Browser &
+Android Tools
+38 (5%)
+
+Task & Project
+Mgmt 22 (3%)
+
+CRM &
+Productivity Apps
+81 (10%)
+
+Reference &
+Calculators 54
+(7%)
+
+Document
+Retrieval
+
+Productivity
+AI assistants &
+Models 57 (7%)
+
+Content &
+Media
+Specialized
+Dev &
+Tooling
+
+Maps & Location
+services 46 (6%)
+
+bilities, and tool collaboration patterns, allowing
+agents to retrieve tools through structured intention matching and graph propagation. At inference
+time, SING uses a dynamic ReAct-style process to
+update discovery according to evolving task states
+and observations, so that newly induced subgoals
+can trigger additional tool retrieval instead of being
+constrained by a fixed one-shot candidate set.
+Our main contributions are summarized as follows:
+
+Cloud Infra
+
+• We propose an active tool discovery framework that jointly models user intentions and
+tool structures to retrieve relevant servers and
+tools in large, heterogeneous tool spaces.
+
+Crypto &
+Financial
+Data
+40 (5%)
+
+Code tools &
+Docs 81(10%)
+Analytics &
+Monitoring
+51 (7%)
+
+Cloud Dev & Admin
+83 (11%)
+
+• We collect a large-scale MCP tool library containing 779 servers and 7,471 tools, and construct an intention–tool graph that captures
+tool capabilities and collaboration patterns.
+
+Figure 1: Domain distribution of the MCP server corpus,
+consisting of 779 servers grouped into 15 domains.
+
+tool ecosystems (Gan and Sun, 2025; Moon et al.,
+2024). However, existing retrieval-based methods still struggle to align retrieved tools with true
+task intention. They typically follow a one-shot
+paradigm, retrieving tools before environment interaction by matching the initial user utterance, or
+the model’s immediate interpretation of it, against
+isolated tool descriptions. This paradigm is fragile
+for real-world long-horizon tasks that require multiturn interaction: user intent is often ambiguous,
+compositional, or only partially specified, while
+the required capabilities emerge through task decomposition, intermediate observations, and newly
+induced subgoals (Yu et al., 2026). For example,
+a user may ask for the distance between two national parks, which superficially matches map or
+search tools, but successful execution may require
+geocoding both locations, extracting coordinates,
+and performing a numerical distance calculation.
+A retrieval system that only matches the surface
+request to isolated tool descriptions can miss these
+prerequisite and downstream capabilities.
+To address these limitations, we propose SING,
+an intention-aware active tool discovery framework for scalable tool ecosystems. Motivated by
+prior work on user intent recognition and intention
+knowledge graphs (Bai et al., 2026; Bodonhelyi
+et al., 2024), SING explicitly models tool discovery around task intentions rather than isolated tool
+descriptions. It builds an intention–tool graph that
+links abstract user intentions, concrete tool capa-
+
+• We validate SING on MCP-Universe (Luo
+et al., 2025), MCP-Atlas (Bandi et al., 2026),
+and MCP-Bench (Wang et al., 2025), improving Global Recall@5 by up to 59.8% and
+downstream success rate by up to 28.9% while
+reducing full-corpus tool-schema exposure by
+99.8%.
+
+2
+
+Related Work
+
+2.1
+
+Tool Augmented LLMs
+
+Tool use enables LLM agents to interact with
+external resources such as search engines, APIs,
+databases, and execution environments. Early work
+such as ReAct (Yao et al., 2023) establishes the
+basic reasoning–action paradigm, where models
+interleave reasoning, tool invocation, observation,
+and plan refinement.
+To improve tool-use ability, supervised finetuning methods train models on annotated or synthetic tool-use demonstrations. Representative
+work such as Toolformer (Schick et al., 2023), Gorilla (Patil et al., 2024), and ToolLLM (Qin et al.,
+2024) teaches models to imitate valid API calls
+and tool-use trajectories. However, SFT is limited
+by the coverage and quality of offline demonstrations, and mainly encourages imitation rather than
+improvement through interaction.
+Recent reinforcement-learning methods such as
+ToolRL (Qian et al., 2026), ReTool (Feng et al.,
+2025), and ToRL (Li et al., 2025) instead optimize
+tool use through execution feedback. By learning
+
+from interaction outcomes, these methods better
+capture the agentic nature of tool use, improving
+when to invoke tools, which tools to select, and
+how to refine actions.
+Despite this progress, existing tool-learning
+methods mostly assume that candidate tools or
+APIs are already available. In realistic agentic
+ecosystems, tool use is increasingly open-world:
+agents must first discover relevant tools from a
+large, heterogeneous, and evolving tool space before deciding how to use them (Steinberger et al.,
+2026; Ding et al., 2026). This motivates tool discovery in a scalable tool library.
+2.2
+
+Tool Retrieval and Discovery
+
+Tool retrieval addresses the open-world step before
+tool use: identifying which tools should be exposed
+to an agent from a large, heterogeneous, and evolving ecosystem. Most methods formulate this as
+an information retrieval problem, ranking tool descriptions or API documents by relevance to the
+user request. Recent work improves this paradigm
+through better representations or retrieval structures: Tool2Vec (Moon et al., 2024) learns usagedriven tool embeddingsz, AnyTool (Du et al., 2024)
+performs hierarchical retrieval over large API collections, and ToolRerank (Zheng et al., 2024) refines candidates with adaptive, hierarchy-aware
+reranking.
+MCP-Zero (Fei et al., 2025) moves beyond
+single-shot retrieval by enabling active tool discovery: agents can detect capability gaps, generate structured requests for missing tools, and discover tools through hierarchical routing. However,
+its routing still matches model-generated requests
+to natural-language descriptions, which are fragile on both sides. On the target side, MCP tool
+descriptions are often incomplete or ambiguous,
+with smells such as unclear purpose, missing usage guidance, unstated limitations, and opaque parameters (Hasan et al., 2026). On the query side,
+real-world tool-use interactions often contain ambiguous, underspecified, compositional, and crossturn intentions that are difficult to compress into a
+single generated request (Yu et al., 2026).
+SING addresses these limitations by formulating
+tool discovery as intention-aware graph retrieval.
+It models structural relations among tasks, servers,
+and tools, enabling agents to discover not only individually relevant tools, but also collaborative tool
+structures needed for complex tasks.
+
+3
+
+Methodology
+
+In this section, we present SING, a framework comprising three key components shown in Fig. 2: (i)
+intention graph construction, (ii) a dynamic ReAct
+framework, and (iii) tool discovery layer.
+3.1
+
+Intention Graph Construction
+
+The intention graph is designed to expose the functional structure of a tool ecosystem, where tools are
+not isolated descriptions but are connected through
+shared goals and multi-step collaboration patterns.
+We use intentions as an intermediate abstraction
+between user requests and tool schemas because
+downstream tasks are usually expressed as goals,
+while tool descriptions often describe low-level operations or incomplete affordances. To obtain such
+intentions, we synthesize realistic tool-use queries
+and expand them into tool chains before extracting
+atomic verb-object intentions, rather than deriving
+intentions directly from schemas, which tends to
+produce generic and weakly task-aligned labels.
+3.1.1 Intention Synthesis
+Query synthesis. For each tool, we synthesize
+single tool queries from its parent server information, tool description, and schema. We prompt
+an LLM to generate several natural language instructions together with their corresponding tool
+calls, including the target tool name andconcrete
+argument values. To avoid trivial queries or direct
+paraphrases of tool descriptions, we filter too similar query by embedding similarity and low quality
+samples using LLM-as-a-judge.
+Chain expansion. To generate more complex
+tasks, we expand single-tool queries into multitool chains that capture tool collaboration patterns.
+Candidate next tools are selected using two signals.
+First, we use an LLM to normalize tool inputs and
+outputs into unified type labels, and prioritize candidates with compatible input-output types. Second, we ask an LLM to judge whether a candidate
+tool can naturally extend the current query and tool
+chain. If valid, the LLM rewrites the query into a
+more complex multi-step task with the extended
+tool chain.
+Atomic intention extraction. For each tool t, we
+use an LLM to extract a small set of atomic intentions from its synthesized queries Qt and schema
+σ(t). Each atomic intention is a concise verbobject phrase that describes a context-independent
+
+Offline: Intention Graph Construction
+
+Step 2: Multi-turn Collaboration Edges
+
+Step 1: Single turn Intention Generation
+
+Tool
+
+Schema based
+Query Generation
+
+Query 1
+Query 2
+Query 3
+
+…
+
+Establish
+Collaboration
+links
+
+Tool A
+Intention
+
+Dedup &
+Selection
+
+Tool B
+
+Synthetic Intention Graph
+Intention
+Tool
+
+Cooperation
+Judgement
+
+Tool C
+
+Server
+Collaboration
+edge
+
+Online: Retrieval
+User Query
+(Natural Language)
+
+Find upcoming NLP
+conferences in 2025,
+search by keyword
+"transformers", show
+deadlines and filter
+by date range.
+
+Pipeline 1: Intention PPR
+
+Intention
+generation for
+each subtask
+Subtask 1
+
+Subtask 1 PPR
+Subtask 2 PPR
+Subtask 3 PPR
+
+text frequency
+analysis...
+
+Combined Search
+Result
+
+Subtask 2
+filter by date...
+
+Pipeline 2: Query Semantic match
+
+LLM Subtask
+Decomposition
+
+Subtask 3
+search conferences
+by keyword...
+
+Server
+Semantic
+Matching
+
+Embedding
+Similarity
+
+Semantic
+Matched Servers
+
+max cosine similarity between
+{{whole query, subtasks}, server summary}
+
+Global Query
+Alignment
+
+Pipeline 1 Results
+
+Score Fusion
+& Output
+
+（Matched Severs & Tool ）
+
+Pipeline 2 Results
+
+（Matched Severs & Tool ）
+
+Top K Discovered Servers & tools
+✓ Server: call_for_papers
+✓ Tool: get_events
+✓ Tool: filter_by_date
+
+Score Fusion
+
+Tool Execution
+
+Figure 2: Overview of SING.
+
+user goal supported by the tool. We denote the normalized intention set of tool t as I(t). To reduce
+redundancy, semantically similar intentions are
+merged across tools and servers, producing shared
+intention nodes for future steps. Appendix C.1 and
+Table 6 provide an example of query and intention
+synthesis for a GitHub tool chain.
+3.1.2 Graph Construction
+We construct a heterogeneous intention-tool graph
+G = (V, E), where V = Vs ∪ Vt ∪ Vi contains
+server, tool, and intention nodes. We add two types
+of structural edges E. For each tool t under server
+s, we add a has_tool edge from s to t. For each
+normalized intention i associated with t, we add
+a has_intention edge between t and i. Since
+intentions are globally normalized, tools from different servers can share intention nodes, enabling
+cross-server semantic connections beyond names,
+descriptions, or schemas.
+Beyond the MCP hierarchy, we use synthesized
+multi-tool chains to capture tool collaboration. For
+each chain, we add directed tool_next edges between adjacent tools and undirected tool_cooccur
+edges between tools appearing in the same chain.
+
+Repeated relations are merged and assigned logscaled frequency weights, w(ta , tb ) = log(1+ca,b ),
+where ca,b denotes how often the relation appears.
+These weights are used by Personalized PageRank
+(PPR) in the discovery stage.
+3.2
+
+Dynamic ReACT Framework
+
+We formulate SING as a dynamic ReAct-style
+framework that interleaves reasoning, tool discovery, tool invocation, and response generation. Let
+x denote the user request, and let Hj−1 and Tj−1
+denote the interaction history and accessible tool
+set before step j. The accessible tool set T0 is
+initialized as empty.
+At step j, the agent samples a reasoning trace τj , an action type ρj
+∈
+{D ISCOVER, I NVOKE, R ESPOND}, and action
+content rj given previous observations:
+
+(τj , ρj , rj ) ∼ πθ · | x, Hj−1 , Desc(Cj−1 ) . (1)
+When ρj = D ISCOVER, the agent converts rj into a state-conditioned query q (j) =
+ϕθ (x, Hj−1 , rj ). The discovery pipeline R, including server-level discovery and tool-level reranking,
+retrieves new tools ∆Tj = R(q (j) ). The accessible
+
+tool set is updated as Tj = Tj−1 ∪ ∆Tj , and the
+history is augmented with the discovery action and
+retrieved tool descriptions. When ρj = I NVOKE,
+the action content specifies a tool call rj = (uj , ξj ),
+where uj ∈ Tj−1 . The tool returns an observation
+oj = uj (ξj ), and the history is updated as
+
+Hj = Hj−1 ⊕ τj , I NVOKE(uj , ξj ), oj . (2)
+
+where SKs denotes the top-Ks retrieved servers
+and T (s) denotes the tools provided by server s.
+For each subtask xi , SING scores each candidate
+tool t ∈ T using three complementary signals:
+tool-description matching, intention matching, and
+graph relevance:
+
+In this case, the accessible tool set remains unchanged, i.e., Tj = Tj−1 . When ρj = R ESPOND,
+the agent terminates execution and returns rj as the
+final response.
+
++ λint max sim(xi , z) (5)
+z∈I(t)
+
+3.3
+
+Discovery Layer
+
+Since tools are organized by MCP servers, SING
+adopts a hierarchical discovery pipeline that first
+retrieves relevant servers and then reranks the tools
+within them.
+3.3.1 Server-Level Discovery
+Given the user request x, the agent first decomposes
+it into a global discovery request xglobal and a set of
+subtasks {x1 , . . . , xn } with the progress moves on.
+The global request preserves the overall task intent,
+while the subtasks capture fine-grained functional
+needs.
+Server-level discovery combines direct semantic
+matching with intention-guided graph propagation.
+For direct matching, we score each server by its
+maximum embedding similarity to either xglobal
+or any subtask xi . For graph propagation, we extract query-side intentions from the subtasks, match
+them to intention nodes in the graph, and use the
+matched intentions as PPR seeds. We also seed
+tool nodes that are semantically relevant to the
+request, allowing evidence to propagate through
+server–tool–intention links and tool collaboration
+edges. The resulting PPR score provides a graphbased relevance signal for each server.
+The final server score is a weighted combination
+of normalized semantic and graph-based scores:
+b + λppr gb(s),
+scoreserver (s) = λsem d(s)
+(3)
+b is the normalized direct semantic score
+where d(s)
+computed by cosine similarity and gb(s) is the normalized PPR score. The top-Ks servers are then
+passed to tool-level discovery.
+3.3.2 Tool-Level Discovery
+Tool-level discovery reranks only the tools contained in the retrieved servers. Let
+[
+T =
+T (s),
+(4)
+s∈SKs
+
+scoretool (t | xi ) = λdesc sim(xi , desc(t))
+
++ λgraph gb(t),
+where desc(t) is the tool description, I(t) is the
+set of intentions connected to t, and gb(t) is the
+normalized PPR score of the tool node. For each
+subtask, we return the top-N tools, and the union
+of these tools forms the discovered tool set.
+
+4
+
+Experiments
+
+4.1
+
+MCP Server Corpus
+
+To evaluate SING in a realistic large-scale setting,
+we build a unified tool library from public MCP
+sources, including Glama, Smithery, and MCPHub,
+yielding 1,141 MCP servers. To ensure evaluation
+stability and reproducibility, we filter out servers
+that cannot be reliably deployed in standalone settings, including deprecated or platform-managed
+servers, servers requiring private workspaces or
+user-specific credentials, and servers depending on
+non-text inputs. For essential servers that require
+only standard API authentication, we manually configure the necessary tokens. This process removes
+31.7% of the initial collection, resulting in a final
+corpus of 779 servers and 7,471 tools. We further
+group the retained servers into 15 broad domains
+and report the distribution in Figure 1. The comparison of diversity of our environments with other
+works is demonstrated in Appendix A.3.
+4.2
+
+Experimental Setup and Metrics
+
+To construct the tool discovery layer, we use the
+MCP server corpus described in Section 4.1 as
+the retrieval corpus and employ DeepSeek-V3.2
+(Liu et al., 2025) for intention synthesis and graph
+construction. This process produces an intention–
+tool graph with 31,756 nodes and 57,524 edges,
+which serves as the retrieval backbone. Unless
+otherwise specified, we use Qwen3-Embedding8B (Zhang et al., 2025) as the embedding extractor
+and set all retrieval weights to 1.
+We evaluate SING under two retrieval settings.
+The Global setting retrieves from the full MCP
+
+Table 1: MCP-Universe task-level evaluation results across task categories and overall performance. We report
+success rate (SR, %) and average evaluator score (AE, %). The best performance are bold-faced.
+
+Setting
+
+Default
+
+Repository Financial
+Location
+3D
+Browser
+Web
+Navigation Management Analysis Designing Automation Searching
+
+Method
+
+Ground Truth Server
+
+Overall
+SR
+
+AE
+63.0%
+
+31.4%
+
+17.9%
+
+60.0%
+
+47.4%
+
+38.2%
+
+42.0%
+
+40.3%
+
+Restricted MCP-Zero
+Restricted SING
+
+22.9%
+28.6%
+
+28.6%
+32.1%
+
+60.0%
+70.0%
+
+57.9%
+42.1%
+
+41.2%
+50.0%
+
+44.0%
+50.0%
+
+39.0% 51.2%
+47.1% 69.5%
+
+Global
+Global
+
+28.6%
+31.4%
+
+25.0%
+26.4%
+
+62.5%
+65.0%
+
+36.8%
+52.6%
+
+35.3%
+52.9%
+
+22.0%
+46.0%
+
+35.0% 46.7%
+45.1% 72.7%
+
+MCP-Zero
+SING
+
+Table 2: Task-level evaluation results on MCP-Atlas and MCP-Bench. All values are reported as percentages. For
+MCP-Atlas, we report pass rate and mean coverage; for MCP-Bench, we report LLM-judge metrics and the overall
+score. Bold-faced denotes the best result within each discovery setting.
+Setting
+
+Method
+
+MCP-Atlas
+Pass Rate Mean Coverage
+
+MCP-Bench
+Task Completion
+
+Tool Usage
+
+Planning Effectiveness
+
+Task
+Information
+Tool
+Parameter Dependency Parallelism and
+Fulfillment Grounding Appropriateness Accuracy Awareness
+Efficiency
+
+Overall
+
+(%)
+
+(%)
+
+65.2%
+
+71.0%
+
+53.5%
+
+72.6%
+
+74.6%
+
+74.4%
+
+62.3%
+
+55.4%
+
+73.8%
+
+Restricted MCP-Zero
+Restricted SING
+
+45.4%
+49.6%
+
+56.7%
+59.5%
+
+49.5%
+50.1%
+
+62.9%
+66.8%
+
+68.9%
+71.4%
+
+68.3%
+68.3%
+
+58.7%
+60.1%
+
+34.9%
+33.4%
+
+67.6%
+68.4%
+
+Global
+Global
+
+34.0%
+40.2%
+
+47.1%
+51.0%
+
+48.2%
+50.5%
+
+61.1%
+67.1%
+
+68.0%
+67.4%
+
+68.0%
+69.0%
+
+57.7%
+60.8%
+
+33.0%
+35.3%
+
+66.7%
+67.5%
+
+Default
+
+Ground Truth Server
+
+MCP-Zero
+SING
+
+corpus, testing open-world discovery in a large
+and noisy tool ecosystem. The Restricted setting
+retrieves only from servers associated with the corresponding benchmark, reducing the search space
+while retaining non-trivial distractors. We assess
+server discovery using Recall@5, Full-Recall@5,
+and Mean Reciprocal Rank (MRR). Recall@5 measures whether at least one gold server appears in the
+retrieved results, whereas Full-Recall@5 requires
+all gold servers to be retrieved. MRR evaluates
+ranking quality by the rank of thePfirst relevant
+server, computed as MRR = N1 N
+i=1 1/ranki ,
+where ranki denotes the rank of the first relevant
+server for example i. Together, these metrics capture partial coverage, complete target coverage, and
+ranking quality.
+Beyond retrieval quality, we also evaluate downstream task execution. Unlike conventional toolretrieval settings that assume a fixed gold tool
+subset, tools discovered in our setting are executable, and non-gold tools may still solve the
+task when they provide equivalent or complementary functionality. We therefore evaluate SING
+on three complementary MCP benchmarks: MCPUniverse (Luo et al., 2025), MCP-Atlas (Bandi
+et al., 2026), and MCP-Bench (Wang et al., 2025).
+MCP-Universe focuses on domain-specific tasks
+with execution-based evaluation, MCP-Atlas covers broad multi-step tasks over real servers with
+
+Score
+
+claims-based scoring, and MCP-Bench emphasizes
+fuzzy, dependency-driven tool orchestration using both rule-based and LLM-judge evaluation.
+Unless otherwise specified, we follow the original evaluation protocols of each benchmark. We
+use DeepSeek-V4-Pro (DeepSeek-AI, 2026) as
+the runner model and Kimi-K2.5 (Team et al.,
+2026) as the judge model for benchmarks requiring
+LLM-based evaluation. As baselines, we compare
+SING with embedding-based one-shot retrieval and
+MCP-Zero, a dynamic ReAct-style active discovery framework. Additional benchmark details are
+provided in Appendix D.
+4.3
+
+Server Discovery Accuracy
+
+Table 3 reports server discovery accuracy under the
+Global and Restricted settings. E MBEDDING O NLY
+denotes one-shot retrieval with Qwen3-Embedding8B, while MCP-Z ERO is the active-discovery baseline that decomposes each task into subtasks and
+retrieves top-5 servers.
+SING achieves the best overall performance
+across all three benchmarks. The gains are most
+pronounced in the Global setting, where the server
+pool is large and noisy: compared with MCPZ ERO, SING improves Recall@5 by 0.112, 0.110,
+and 0.119 on MCP-Bench, MCP-Universe, and
+MCP-Atlas, respectively, corresponding to relative
+gains of 14.2%, 25.3%, and 59.8%. It also im-
+
+Dataset
+
+Method
+
+Recall@5 Full-Recall@5
+
+MRR
+
+Embedding Only
+MCP-Zero
+SING
+
+0.7436
+0.7901
+0.9022
+
+0.5673
+0.6250
+0.7692
+
+0.7798
+0.8631
+0.9199
+
+MCP-Universe Embedding Only
+MCP-Universe MCP-Zero
+MCP-Universe SING
+
+0.3111
+0.4339
+0.5438
+
+0.2457
+0.3664
+0.3750
+
+0.1797
+0.2948
+0.5089
+
+MCP-Atlas
+MCP-Atlas
+MCP-Atlas
+
+0.1612
+0.1985
+0.3172
+
+0.0200
+0.0260
+0.0540
+
+0.2284
+0.2647
+0.4362
+
+Global setting
+MCPBench
+MCPBench
+MCPBench
+
+Embedding Only
+MCP-Zero
+SING
+
+Embedding Only
+MCP-Zero
+SING
+
+0.9471
+0.9487
+0.9936
+
+0.8846
+0.8750
+0.9808
+
+0.9856
+0.9952
+1.0000
+
+MCP-Universe Embedding Only
+MCP-Universe MCP-Zero
+MCP-Universe SING
+
+0.7974
+0.8606
+0.9116
+
+0.6983
+0.7284
+0.8233
+
+0.7071
+0.8691
+0.9348
+
+MCP-Atlas
+MCP-Atlas
+MCP-Atlas
+
+0.4646
+0.5263
+0.5897
+
+0.1380
+0.1820
+0.2680
+
+0.6505
+0.6917
+0.7456
+
+Embedding Only
+MCP-Zero
+SING
+
+proves MRR by 0.057, 0.214, and 0.172 on the
+three benchmarks.
+SING remains effective in the Restricted setting, improving Recall@5 over MCP-Z ERO by
+0.045, 0.051, and 0.063 on MCP-Bench, MCPUniverse, and MCP-Atlas, respectively. These results indicate that intention-aware graph discovery
+helps both in open-world retrieval and in selecting
+among already relevant candidate servers. Results
+with different decomposition models are provided
+in Table 4.
+4.4
+
+Downstream Task Evaluation
+
+Because non-ground-truth tools may also provide
+equivalent or complementary functionality, we further evaluate SING in executable task environments. Table 1 reports the MCP-Universe results.
+SING consistently outperforms MCP-Zero under
+both discovery settings, improving the overall success rate by 8.1 and 10.1 percentage points in the
+Restricted and Global settings, respectively, corresponding to relative gains of 20.8% and 28.9%.
+Notably, SING also surpasses the D EFAULT setting,
+where only the ground-truth servers are provided,
+by 6.8 and 4.8 percentage points in overall success rate under Restricted and Global discovery.
+This suggests that intention-guided retrieval does
+more than identify relevant servers: by constructing more focused, subtask-specific tool contexts, it
+can also reduce irrelevant tool noise and facilitate
+downstream inference.
+
+105
+104
+103
+102
+
+Restricted setting
+MCPBench
+MCPBench
+MCPBench
+
+All-tools-in-context
+SING (ours)
+
+106
+
+Exposed schema tokens
+
+Table 3: Server discovery performance across three
+MCP benchmarks under Global and Restricted retrieval
+settings.
+
+100
+
+101
+
+102
+
+103
+
+Number of MCP Tools (pool size)
+
+104
+
+Figure 3: Schema-token exposure under A LL - TOOLS IN - CONTEXT and SING retrieval as the MCP tool pool
+size increases.
+
+Table 2 reports results on MCP-Atlas and MCPBench. On MCP-Atlas, SING improves over MCPZero in both pass rate and mean coverage under
+both Restricted and Global settings, with particularly clear gains in the more challenging Global
+setting. Its absolute performance remains below
+D EFAULT, which is consistent with the lower retrieval accuracy observed for MCP-Atlas. On
+MCP-Bench, SING also achieves higher overall
+scores than MCP-Zero under both settings, indicating stronger end-to-end task execution despite
+the benchmark’s fuzzy and dependency-driven tool
+requirements. Together, these results show that
+SING’s intention-aware discovery improves not
+only retrieval accuracy, but also practical tool-use
+performance across diverse execution-based benchmarks.
+4.5
+
+Tool Schema Exposure Cost
+
+To assess the token efficiency of SING, we measure the average number of exposed tool-schema tokens across the three benchmarks under the Global
+setting as the tool pool size increases. As shown
+in Figure 3, the context cost of A LL - TOOLS - IN CONTEXT grows rapidly with the size of the tool
+library, since every additional tool introduces more
+schema text into the prompt. In contrast, SING
+keeps the exposed schema cost nearly constant by
+retrieving only a small task-relevant subset, making its context overhead largely independent of the
+full library size. In the full-corpus setting, SING
+reduces schema exposure from 693,574 to 1,298
+tokens on average, a 99.8% reduction.
+
+Figure 4: Analysis of SING discovery behavior. Left: failure analysis on MCP-Atlas under Restricted and Global
+retrieval settings. Right: visualization of a sample of 40 tools and 120 intentions with 2D UMAP.
+
+4.6
+
+Analysis and Discussion
+
+Error analysis. We conduct failure analysis on
+MCP-Atlas because it contains broad multi-step
+tasks over diverse MCP servers and has a lower
+success rate than the other benchmarks, making
+it useful for studying how discovery errors affect
+downstream execution. For each failed trajectory,
+we prompt an LLM judge to inspect the execution trace, including the task, discovery queries,
+retrieved tools, tool calls, outputs, and final answer,
+and assign one primary failure source. Query Formulation covers failures where the agent fails to
+express the correct tool need during planning or
+decomposition. Retrieval covers cases where the
+query is valid but discovery fails to return a tool
+with the required capability. Tool Use refers to
+incorrect use of an available tool, such as wrong
+arguments, malformed calls, incorrect call order,
+or output misinterpretation. Reasoning / Other includes failures after the required tools are available
+and used, such as incomplete reasoning, premature
+stopping, forgotten constraints, or execution issues.
+Detailed definitions, prompts, and examples are
+provided in Appendices A.1 and C.3.
+As shown in Figure 4 left, SING reduces failed
+tasks from 273 to 252 in the Restricted setting and
+from 329 to 299 in the Global setting. The main
+gains come from fewer retrieval errors: compared
+with MCP-Zero, SING reduces such failures from
+84 to 64 under Restricted discovery and from 156
+to 91 under Global discovery. This indicates that
+intention-aware graph retrieval is especially useful
+in large, noisy MCP libraries. Meanwhile, some
+execution-stage errors remain or increase slightly
+because improved retrieval allows more trajecto-
+
+ries to reach later stages, exposing bottlenecks in
+parameter filling, output parsing, tool sequencing,
+and final reasoning. Overall, SING shifts the bottleneck from upstream discovery to downstream
+agent execution.
+Why intentions help discovery. Intention nodes
+enrich raw tool descriptions with goal-level semantics. As shown in Figure 4 right, tool and intention embeddings are locally aligned, indicating that
+synthesized intentions capture functional meanings
+closely related to tool usage. This abstraction better matches subtask queries, which are typically
+expressed as user goals rather than schema-level descriptions. In addition, shared or similar intentions
+connect functionally related tools, including tools
+across different servers, enabling effective propagation through PPR. Thus, intention-aware discovery
+benefits from higher-level functional structure beyond direct semantic matching.
+
+5
+
+Conclusion
+
+This paper introduces SING, an intention-aware
+graph framework for scalable tool discovery in
+large tool ecosystems. SING constructs an
+intention–tool graph that links user intentions and
+tools, enabling agents to retrieve tools through
+structured intention matching and graph propagation. Experiments on three benchmarks show
+that SING improves server discovery accuracy and
+downstream task performance while substantially
+reducing tool-schema exposure. These results suggest that our method offers a practical path toward
+more accurate, context-efficient, and adaptive tool
+use in large-scale agentic ecosystems.
+
+Limitations
+While SING improves tool discovery in large MCP
+ecosystems and multi-step tasks, several limitations
+remain.
+Evaluation Cost. Downstream MCP evaluation
+is costly because it requires multi-step agent interactions, real tool calls, and LLM-based judging.
+Therefore, our experiments focus on a practical
+evaluation setting with strong cost-effective models. Future work can further examine SING across
+broader model families and agent backbones.
+Execution Variability. Real-world MCP execution is less controlled than static retrieval evaluation. Tool outputs may vary due to live service
+updates, availability, or changing external content,
+and downstream performance can also depend on
+the agent’s generated tool arguments. SING reduces upstream discovery failures, but it does not
+remove all variability inherent to real-world tooluse environments.
+
+Ethical Considerations
+This work complies with the ACL Code of Ethics.
+All MCP servers used in our corpus are collected
+from publicly available MCP repositories or marketplaces, and all downstream evaluations are conducted on public MCP benchmarks. We do not
+collect or release non public user data, private
+workspaces, API keys, access tokens, or user credentials. For servers that require authentication,
+credentials are used only for local evaluation and
+are excluded from all released artifacts. When using public MCP servers and external APIs, we follow the corresponding terms of service.
+We used LLMs to assist with grammar polishing,
+wording refinement, LaTeX editing, and limited
+code debugging. They were not used to generate,
+design the core research ideas, or draw scientific
+conclusions. All LLM assisted outputs were manually reviewed and revised by the authors.
+
+References
+Jiaxin Bai, Zhaobo Wang, Junfei Cheng, Dan Yu, Zerui
+Huang, Weiqi Wang, Xin Liu, Chen Luo, Yanming
+Zhu, Bo Li, and Yangqiu Song. 2026. Intention
+knowledge graph construction for user intention relation modeling. In Proceedings of the 19th Conference of the European Chapter of the Association
+for Computational Linguistics (Volume 1: Long Papers), pages 466–484, Rabat, Morocco. Association
+for Computational Linguistics.
+
+Chaithanya Bandi, Ben Hertzberg, Geobio Boo, Tejas
+Polakam, Jeff Da, Sami Hassaan, Manasi Sharma,
+Andrew Park, Ernesto Hernandez, Dan Rambado,
+Ivan Salazar, Rafael Cruz, Chetan Rane, Ben Levin,
+Brad Kenstler, and Bing Liu. 2026. Mcp-atlas: A
+large-scale benchmark for tool-use competency with
+real mcp servers. Preprint, arXiv:2602.00933.
+Anna Bodonhelyi, Efe Bozkir, Shuo Yang, Enkelejda Kasneci, and Gjergji Kasneci. 2024. User
+intent recognition and satisfaction with large language models: A user study with chatgpt. ArXiv,
+abs/2402.02136.
+Tom B. Brown, Benjamin Mann, Nick Ryder, Melanie
+Subbiah, Jared Kaplan, Prafulla Dhariwal, Arvind
+Neelakantan, Pranav Shyam, Girish Sastry, Amanda
+Askell, Sandhini Agarwal, Ariel Herbert-Voss,
+Gretchen Krueger, Tom Henighan, Rewon Child,
+Aditya Ramesh, Daniel M. Ziegler, Jeffrey Wu,
+Clemens Winter, and 12 others. 2020. Language
+models are few-shot learners. In Proceedings of the
+34th International Conference on Neural Information
+Processing Systems, NIPS ’20, Red Hook, NY, USA.
+Curran Associates Inc.
+Pengfei Cao, Tianyi Men, Wencan Liu, Jingwen Zhang,
+Xuzhao Li, Xixun Lin, Dianbo Sui, Yanan Cao, Kang
+Liu, and Jun Zhao. 2025. Large language models for
+planning: A comprehensive and systematic survey.
+Preprint, arXiv:2505.19683.
+Aili Chen, Chi Zhang, Junteng Liu, Jiangjie Chen,
+Chengyu Du, Yunji Li, Ming Zhong, Qin Wang,
+Zhengmao Zhu, Jiayuan Song, Ke Ji, Junxian He,
+Pengyu Zhao, and Yanghua Xiao. 2026. Dive: Scaling diversity in agentic task synthesis for generalizable tool use. Preprint, arXiv:2603.11076.
+DeepSeek-AI. 2026. Deepseek-v4: Towards highly efficient million-token context intelligence. Technical
+report, Hugging Face model repository. Accessed:
+2026-05-21.
+Shuangrui Ding, Xuanlang Dai, Long Xing, Shengyuan
+Ding, Ziyu Liu, Yang JingYi, Penghui Yang, Zhixiong Zhang, Xilin Wei, Xinyu Fang, and 1 others. 2026. Wildclawbench: A benchmark for realworld, long-horizon agent evaluation. arXiv preprint
+arXiv:2605.10912.
+Yu Du, Fangyun Wei, and Hongyang Zhang. 2024. Anytool: Self-reflective, hierarchical agents for largescale api calls. arXiv preprint arXiv:2402.04253.
+Shiqing Fan, Xichen Ding, Liang Zhang, and Linjian
+Mo. 2025. Mcptoolbench++: A large scale ai agent
+model context protocol mcp tool use benchmark.
+Preprint, arXiv:2508.07575.
+Xiang Fei, Xiawu Zheng, and Hao Feng. 2025. Mcpzero: Active tool discovery for autonomous llm
+agents. Preprint, arXiv:2506.01056.
+Jiazhan Feng, Shijue Huang, Xingwei Qu, Ge Zhang,
+Yujia Qin, Baoquan Zhong, Chengquan Jiang, Jinxin
+
+Chi, and Wanjun Zhong. 2025. Retool: Reinforcement learning for strategic tool use in llms. arXiv
+preprint arXiv:2504.11536.
+Tiantian Gan and Qiyao Sun. 2025. Rag-mcp: Mitigating prompt bloat in llm tool selection via retrievalaugmented generation. Preprint, arXiv:2505.03275.
+Mohammed Mehedi Hasan, Hao Li, Gopi Krishnan Rajbahadur, Bram Adams, and Ahmed E Hassan. 2026.
+Model context protocol (mcp) tool descriptions are
+smelly! towards improving ai agent efficiency with
+augmented mcp tool descriptions. arXiv preprint
+arXiv:2602.14878.
+Xuefeng Li, Haoyang Zou, and Pengfei Liu. 2025.
+Torl: Scaling tool-integrated rl. arXiv preprint
+arXiv:2503.23383.
+Aixin Liu, Aoxue Mei, Bangcai Lin, Bing Xue, Bingxuan Wang, Bingzheng Xu, Bochao Wu, Bowei
+Zhang, Chaofan Lin, Chen Dong, and 1 others. 2025.
+Deepseek-v3. 2: Pushing the frontier of open large
+language models. arXiv preprint arXiv:2512.02556.
+Nelson F. Liu, Kevin Lin, John Hewitt, Ashwin Paranjape, Michele Bevilacqua, Fabio Petroni, and Percy
+Liang. 2024. Lost in the middle: How language models use long contexts. Transactions of the Association
+for Computational Linguistics, 12:157–173.
+Wenrui Liu, Zixiang Liu, Elsie Dai, Wenhan Yu,
+Lei Yu, Tong Yang, Jinjun Han, and Hong Gao.
+2026. Mcpagentbench: A real-world task benchmark for evaluating llm agent mcp tool use. Preprint,
+arXiv:2512.24565.
+Ziyang Luo, Zhiqi Shen, Wenzhuo Yang, Zirui Zhao,
+Prathyusha Jwalapuram, Amrita Saha, Doyen Sahoo,
+Silvio Savarese, Caiming Xiong, and Junnan Li. 2025.
+Mcp-universe: Benchmarking large language models with real-world model context protocol servers.
+Preprint, arXiv:2508.14704.
+Guozhao Mo, Wenliang Zhong, Jiawei Chen, Qianhao
+Yuan, Xuanang Chen, Yaojie Lu, Hongyu Lin, Ben
+He, Xianpei Han, and Le Sun. 2026. Livemcpbench:
+Can agents navigate an ocean of mcp tools? Preprint,
+arXiv:2508.01780.
+Suhong Moon, Siddharth Jha, Lutfi Eren Erdogan, Sehoon Kim, Woosang Lim, Kurt Keutzer, and Amir
+Gholami. 2024. Efficient and scalable estimation of
+tool representations in vector space. arXiv preprint
+arXiv:2409.02141.
+OpenAI. 2026. Harness engineering: leveraging Codex
+in an agent-first world. https://openai.com/
+index/harness-engineering/. [Accessed 21-052026].
+Shishir G. Patil, Huanzhi Mao, Fanjia Yan, Charlie
+Cheng-Jie Ji, Vishnu Suresh, Ion Stoica, and Joseph
+Gonzalez. 2025. The berkeley function calling leaderboard (bfcl): From tool use to agentic evaluation of
+large language models. In International Conference
+on Machine Learning.
+
+Shishir G Patil, Tianjun Zhang, Xin Wang, and Joseph E
+Gonzalez. 2024. Gorilla: Large language model
+connected with massive apis. Advances in Neural
+Information Processing Systems, 37:126544–126565.
+Cheng Qian, Emre Can Acikgoz, Qi He, Hongru Wang,
+Xiusi Chen, Dilek Hakkani-Tur, Gokhan Tur, and
+Heng Ji. 2026. Toolrl: Reward is all tool learning
+needs. Advances in Neural Information Processing
+Systems, 38:105523–105553.
+Yujia Qin, Shihao Liang, Yining Ye, Kunlun Zhu, Lan
+Yan, Yaxi Lu, Yankai Lin, Xin Cong, Xiangru Tang,
+Bill Qian, and 1 others. 2024. Toolllm: Facilitating
+large language models to master 16000+ real-world
+apis. In International Conference on Learning Representations, volume 2024, pages 9695–9717.
+Timo Schick, Jane Dwivedi-Yu, Roberto Dessì, Roberta
+Raileanu, Maria Lomeli, Eric Hambro, Luke Zettlemoyer, Nicola Cancedda, and Thomas Scialom. 2023.
+Toolformer: Language models can teach themselves
+to use tools. Advances in neural information processing systems, 36:68539–68551.
+Peter Steinberger, Vincent Koc, Shakker, Ayaan
+Zaidi, Tak Hoffman, Gustavo Madeira Santana, Vignesh, github-actions[bot], Shadow, Josh Avant,
+Val Alexander, Seb Slight, Mariano, Christoph
+Nakazawa, clawsweeper[bot], Nimrod Gutman,
+Tyler Yust, Pavan Kumar Gondhi, Jacob Tomlinson, and 11 others. 2026. openclaw/openclaw.
+https://github.com/openclaw/openclaw.
+Kimi Team, Tongtong Bai, Yifan Bai, Yiping Bao,
+S. H. Cai, Yuan Cao, Y. Charles, H. S. Che, Cheng
+Chen, Guanduo Chen, Huarong Chen, Jia Chen, Jiahao Chen, Jianlong Chen, Jun Chen, Kefan Chen,
+Liang Chen, Ruijue Chen, Xinhao Chen, and 307
+others. 2026. Kimi k2.5: Visual agentic intelligence.
+Preprint, arXiv:2602.02276.
+Wenhao Wang, Peizhi Niu, Zhao Xu, Zhaoyu Chen,
+Jian Du, Yaxin Du, Xianghe Pang, Keduan Huang,
+Yanfeng Wang, Qiang Yan, and Siheng Chen. 2026.
+Mcp-flow: Facilitating llm agents to master realworld, diverse and scaling mcp tools. Preprint,
+arXiv:2510.24284.
+Zhenting Wang, Qi Chang, Hemani Patel, Shashank
+Biju, Cheng-En Wu, Quan Liu, Aolin Ding, Alireza
+Rezazadeh, Ankit Shah, Yujia Bao, and Eugene Siow.
+2025. Mcp-bench: Benchmarking tool-using llm
+agents with complex real-world tasks via mcp servers.
+Preprint, arXiv:2508.20453.
+Tianbao Xie, Danyang Zhang, Jixuan Chen, Xiaochuan
+Li, Siheng Zhao, Ruisheng Cao, Toh J Hua, Zhoujun
+Cheng, Dongchan Shin, Fangyu Lei, and 1 others.
+2024. Osworld: Benchmarking multimodal agents
+for open-ended tasks in real computer environments.
+Advances in Neural Information Processing Systems,
+37:52040–52094.
+
+Zhangchen Xu, Adriana Meza Soria, Shawn Tan,
+Anurag Roy, Ashish Sunil Agrawal, Radha Poovendran, and Rameswar Panda. 2025. Toucan: Synthesizing 1.5m tool-agentic data from real-world mcp
+environments. Preprint, arXiv:2510.01179.
+
+unit constraint, or producing a query that is too
+broad or too narrow to match any usable tool.
+For the default setting where no discovery step
+exists, this category is not applicable.
+
+Shunyu Yao, Noah Shinn, Pedram Razavi, and Karthik
+Narasimhan. 2024. τ -bench: A benchmark for toolagent-user interaction in real-world domains. ArXiv,
+abs/2406.12045.
+
+(2) Discovery Error. discovery errors occur
+when the agent issues a semantically valid
+tool request, but the discovery module fails
+to return any tool with the capability required
+for the corresponding task. This category reflects a capability mismatch introduced by the
+discovery stage, rather than a strict mismatch
+with the annotated ground-truth tool. When
+the retrieved set contains a functionally equivalent tool, the failure is attributed to downstream tool use instead of discovery. This
+category is not applicable to the default setting, where tools are directly exposed without
+discovery.
+
+Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak
+Shafran, Karthik Narasimhan, and Yuan Cao. 2023.
+React: Synergizing reasoning and acting in language
+models. In International Conference on Learning
+Representations, volume 2023.
+Peijie Yu, Wei Liu, Yifan Yang, Jinjian Li, Zelong
+Zhang, Xiao Feng, and Feng Zhang. 2026. Benchmarking LLM tool-use in the wild. In The Fourteenth
+International Conference on Learning Representations.
+Yanzhao Zhang, Mingxin Li, Dingkun Long, Xin Zhang,
+Huan Lin, Baosong Yang, Pengjun Xie, An Yang,
+Dayiheng Liu, Junyang Lin, and 1 others. 2025.
+Qwen3 embedding: Advancing text embedding and
+reranking through foundation models. arXiv preprint
+arXiv:2506.05176.
+Yuxuan Zhang, Yubo Wang, Yipeng Zhu, Penghui Du,
+Junwen Miao, Xuan Lu, Wendong Xu, Yunzhuo Hao,
+Songcheng Cai, Xiaochen Wang, Huaisong Zhang,
+Xian Wu, Yi Lu, Minyi Lei, Kai Zou, Huifeng Yin,
+Ping Nie, Liang Chen, Dongfu Jiang, and 2 others.
+2026. Clawbench: Can ai agents complete everyday
+online tasks? Preprint, arXiv:2604.08523.
+Yuanhang Zheng, Peng Li, Wei Liu, Yang Liu, Jian
+Luan, and Bin Wang. 2024. Toolrerank: Adaptive and hierarchy-aware reranking for tool retrieval. In Proceedings of the 2024 joint international
+conference on computational linguistics, language
+resources and evaluation (LREC-COLING 2024),
+pages 16263–16273.
+
+A
+
+Additional Details
+
+A.1
+
+Failure Analysis Taxonomy
+
+Each failed trajectory is assigned exactly one primary error category, corresponding to the earliest
+root cause that prevents task completion. Downstream symptoms triggered by that root cause are
+not relabeled.
+(1) Query Formulation Error. The agent fails to
+express the correct tool need at the planning
+or decomposition stage, before discovery can
+help. The diagnostic signal is that the queries
+in search_details do not cover one or more
+required goals of the task, such as missing an
+implicit upstream step, ignoring a temporal or
+
+(3) Tool-Use Error. A required server or tool
+is available to the agent, either retrieved or
+exposed by the default setting, and the agent
+calls it but uses it incorrectly. Sub types include wrong arguments, schema mismatches,
+malformed JSON, wrong call order, missing prerequisite calls, misinterpretation of
+tool output, and selecting a distractor over
+a present correct tool.
+(4) Reasoning / Other Error. All required tools
+are available and were used correctly, but the
+task still fails for reasons that are not discovery
+or tool-use-related. Sub types include incomplete final reasoning, such as missing a claim
+that was actually retrieved during execution;
+premature stopping or self misjudged completion; forgetting an earlier user constraint at
+answer time; and external execution failures
+such as timeouts, server unavailability, step
+limits, context limits, or sandbox errors.
+A.2
+
+Server Discovery with Different
+Decomposition Models
+
+Table 4 further studies the influence of decomposition models on server discovery. Overall,
+DeepSeek-V4-Pro achieves the strongest performance, especially under the global setting. One
+possible reason is that the tool-side intentions in our
+graph are generated by DeepSeek-V3.2. Therefore,
+decomposition models from the same DeepSeek
+family may produce subtasks and query-side intentions with a more similar linguistic style and seman-
+
+Table 4: Server discovery performance on each benchmark with different decomposition models.
+MCP Sources
+
+Decompose Model Benchmark
+
+Recall@5 Full-Recall@5
+
+MRR
+
+0.9744
+0.9310
+0.5777
+
+1.0000
+0.9112
+0.7339
+
+Restricted setting
+
+MCPhub
+
+DeepSeek-V3.2
+
+MCPBench
+MCP-Universe
+MCP-Atlas
+Average
+
+0.7251
+
+0.5036
+
+0.8162
+
+DeepSeek-V4-Pro
+
+MCPBench
+MCP-Universe
+MCP-Atlas
+
+0.9936
+0.9116
+0.5897
+
+0.9810
+0.8230
+0.2680
+
+1.0000
+0.9348
+0.7456
+
+Average
+
+0.7293
+
+0.5110
+
+0.8298
+
+Kimi-K2.5
+
+MCPBench
+MCP-Universe
+MCP-Atlas
+
+0.9776
+0.9397
+0.5839
+
+0.9420
+0.8790
+0.2520
+
+0.9952
+0.9340
+0.7371
+
+Average
+
+0.7316
+
+0.5120
+
+0.8238
+
+MCPBench
+MCP-Universe
+MCP-Atlas
+
+0.9840
+0.9181
+0.5896
+
+0.9520
+0.8410
+0.2580
+
+1.0000
+0.9445
+0.7439
+
+Average
+
+0.7298
+
+0.5060
+
+0.8314
+
+MCPBench
+MCP-Universe
+MCP-Atlas
+
+0.8189
+0.4547
+0.2881
+
+0.6827
+0.3750
+0.0420
+
+0.8550
+0.4056
+0.3823
+
+Kimi-K2.6
+
+0.9327
+0.8664
+0.2460
+
+Global setting
+DeepSeek-V3.2
+
+DeepSeek-V4-Pro
+
+Kimi-K2.5
+
+Kimi-K2.6
+
+Average
+
+0.4004
+
+0.2140
+
+0.4476
+
+MCPBench
+MCP-Universe
+MCP-Atlas
+
+0.8974
+0.5438
+0.3172
+
+0.7600
+0.3750
+0.0540
+
+0.9199
+0.5089
+0.4262
+
+Average
+
+0.4523
+
+0.2310
+
+0.5105
+
+MCPBench
+MCP-Universe
+MCP-Atlas
+
+0.9006
+0.5244
+0.3021
+
+0.7880
+0.3660
+0.0580
+
+0.9258
+0.5057
+0.3930
+
+Average
+
+0.4383
+
+0.2340
+
+0.4906
+
+MCPBench
+MCP-Universe
+MCP-Atlas
+
+0.8846
+0.5309
+0.3092
+
+0.7690
+0.3790
+0.0520
+
+0.8926
+0.4841
+0.4108
+
+Average
+
+0.4423
+
+0.2320
+
+0.4911
+
+Extra Details of Server Collection
+
+We first crawled MCP server metadata from MCPhub, Glama, and Smithery. Because these marketplaces changed frequently and were sometimes
+unavailable, we use a fixed Glama snapshot as
+the final source to reduce platform-induced noise.
+We then clean the noisy metadata and apply an
+execution-based extraction pipeline: extracting
+launch configurations, deploying servers when
+possible, querying successfully launched servers
+
+MCPhub
+
+Web Crawling
+
+Data Cleaning
+
+Automated Server
+Execution
+
+Structured Server Information
+
+tic distribution. This upstream–downstream consistency can make the generated discovery queries
+better aligned with the intention nodes in the graph,
+leading to more accurate server discovery. In contrast, models from different families may express
+the same functional need with different wording
+or abstraction levels, which can slightly weaken
+intention matching even when the decomposition
+itself is reasonable.
+A.3
+
+Glama
+
+Installation
+Method
+
+Tool
+Schema
+
+Tool
+Description
+
+Server
+Description
+
+Missing
+description ?
+
+LLM
+Completion
+
+Figure 5: Overview of our MCP server collection and
+metadata extraction pipeline.
+
+through the MCP interface, and collecting their
+tool schemas. For missing server or tool descriptions, we use an LLM to complete the metadata
+from available server information, tool names, and
+schemas. This yields a structured server–tool library for graph construction and discovery evaluation, as shown in Figure 5.
+To distinguish between reported collection scale
+and the scale actually used in evaluation, we compare SING with recent MCP-related studies, including MCPToolBench++ (Fan et al., 2025), MCPAgentBench (Liu et al., 2026), MCP-Flow (Wang
+et al., 2026), LiveMCPBench (Mo et al., 2026),
+MCP-Zero (Fei et al., 2025), DIVE (Chen et al.,
+2026), and TOUCAN (Xu et al., 2025). Table 5 shows that SING evaluates the largest explicitly reported unique experimental server–tool
+pool among these works.
+
+Table 5: Comparison of MCP-related studies by collected and actually used scale. S/T denotes servers/tools;
+N/S denotes not specified.
+Study
+
+Collected
+
+MCPTool
+Bench++
+MCPAgent
+Bench
+MCP-Flow
+LiveMCPBench
+MCP-Zero
+
+Numbers
+
+Domains
+
+>4K S
+
+12 domains
+
+9,714 S /
+>20K T
+1,166 S /
+11,536 T
+5,588 configs
+308 S /
+2,797 T
+
+Experimented / Used
+Numbers
+
+12 S / 87 T;
+1,509 samples
+N/S unique S/T;
+2 general
+∼4K T exp.
+356 S;
+10 domains
+6,439 traj.
+
+6 domains
+N/S
+
+DIVE
+
+373 T
+
+2 general +
+4 expert
+
+TOUCAN
+
+∼2,800 specs
+
+N/S
+
+SING (Ours)
+
+1,141 S /
+21,618 T
+
+8 major /
+15 sub.
+
+70 S / 527 T
+308 S /
+2,797 T
+N/S exact S/T
+495 S /
+>2,000 T
+779 S /
+7,471 T
+
+B
+
+Prompts
+
+B.1
+
+Single-Tool Query Generation Prompt
+
+We use the following prompt to synthesize realistic
+user instructions and corresponding function-call
+arguments for each individual MCP tool.
+GENERATE_PROMPT = """You are generating realistic user
+instructions for an MCP (Model Context Protocol) tool.
+Given the tool information below, generate {n_queries} diverse
+user instructions that would naturally invoke this tool.
+For each instruction, also provide the corresponding function
+call arguments.
+Tool information:
+- Server: {server_name}
+- Server description: {server_desc}
+- Tool name: {tool_name}
+- Tool description: {tool_desc}
+{param_section}
+Rules:
+1. Each instruction should be a natural user request (as if a
+user is asking an AI assistant)
+2. Instructions should be DIVERSE -- vary the specific
+entities, parameters, and complexity
+3. Arguments must match the tool's parameter schema -- use
+realistic values
+4. Do NOT use placeholder values like "xxx" or "example" -use realistic but fictional data
+5. Output ONLY a JSON array, each element has "
+source_instruction" (string) and "arguments" (object)
+Example output format:
+[
+{{"source_instruction": "Find all flights from New York to
+London on December 15th", "arguments": {{"origin": "JFK",
+"destination": "LHR", "date": "2024-12-15"}}}},
+{{"source_instruction": "Search for the cheapest flights to
+Tokyo next week", "arguments": {{"destination": "NRT", "
+date": "2024-12-20", "sort": "price"}}}}
+]
+Generate {n_queries} diverse instructions:"""
+
+B.2
+
+Multi-Tool Query Extension Prompt
+
+We use the following prompt to extend an existing
+user query with an additional MCP tool from the
+
+same server when the extension forms a natural
+workflow.
+EXTEND_PROMPT = """You are extending a user's query to
+naturally incorporate an additional MCP tool from the
+same server.
+Server: {server_name}
+Server description: {server_desc}
+Current user query: "{current_query}"
+Tools already being used:
+{used_tools_section}
+Available additional tools (NOT yet used):
+{available_tools_section}
+Your task:
+1. Evaluate whether any of the available tools can NATURALLY
+extend the user's query
+2. The extension must be a logical follow-up or complement -NOT forced or artificial
+3. The extended query should read as a SINGLE coherent user
+request that naturally requires both old and new tools
+Key criteria for a MEANINGFUL extension:
+- The new tool provides genuine additional value (e.g.,
+transforming results, enriching data, performing a next
+step)
+- A real user would plausibly combine these tools in one
+request
+- It is NOT just restating the same question, repeating
+similar functionality, or doing something unrelated
+- The tools should have a clear logical dependency or workflow
+connection
+If NO tool can meaningfully extend the query, return:
+{{"can_extend": false, "reason": "brief explanation"}}
+If extension IS meaningful, return:
+{{"can_extend": true, "extended_query": "the full extended
+user request combining all tools", "new_tool": "
+exact_tool_name_from_available_list", "new_arguments":
+{{}}, "reason": "why this extension is natural"}}
+Output ONLY valid JSON:"""
+
+B.3
+
+Batch Intention Generation Prompt
+
+We use the following prompt to generate toolaction intentions from synthesized queries.
+BATCH_INTENTION_PROMPT = """You are analyzing user queries
+that invoke MCP tools to generate tool-action intentions.
+For EACH tool, based on its sample queries, generate 3-4
+intention phrases. Each intention MUST follow this
+format:
+"[verb] [specific data object/resource]"
+Rules:
+1. Each intention should describe a CONCRETE tool action, e.g.
+"fetch historical stock prices", "geocode address to
+coordinates", "parse HTML table into structured data"
+2. Include 1-2 intentions for IMPLICIT prerequisite or followup actions -- tools the user would ALSO need in the same
+workflow but didn't explicitly mention
+3. Do NOT describe user scenarios or personas -- no "A
+researcher wants to..." or "planning a trip..."
+4. Do NOT rephrase the tool description -- focus on WHAT DATA
+the tool operates on and HOW
+5. Keep each intention 4-8 words, starting with an action verb
+Output ONLY a JSON object mapping tool_key to intention array,
+no explanation.
+Example: {{"ServerA__geocode": ["resolve city names to GPS
+coordinates", "convert postal codes to lat/lng", "
+prepare location input for route planning", "validate
+address format before geocoding"]}}
+Tools to analyze:
+
+{tool_entries}"""
+
+C
+
+Examples
+
+C.1
+
+Query and Intention Synthesis Example
+
+Table 6 shows an example of our query and intention synthesis process. Starting from a single
+GitHub server, we synthesize a natural language
+query and expand it into a multi-tool chain. For
+each tool in the chain, we extract atomic intentions
+that describe reusable user goals supported by the
+tool, rather than directly paraphrasing the tool description.
+Item
+
+Example
+
+Server
+Query
+
+github
+Search Rust machine learning repositories, inspect
+repository code files, and search for specific implementation patterns.
+search_repositories → github_get_code →
+search_code
+
+Chain
+Step 1
+
+Step 2
+
+Step 3
+
+Tool: search_repositories. Desc.: Searches
+for repositories on GitHub. I/O: repository search
+query → repository search results. Intentions: filter
+projects by creation date; rank repositories by fork
+count; validate repository metadata before cloning.
+Tool: github_get_code. Desc.: Retrieves code
+files from a GitHub repository. I/O: repository URL
+and file filters → repository code files. Intentions:
+extract specific function implementations; filter code
+files by path patterns; retrieve code metadata and
+structure.
+Tool: search_code. Desc.: Searches code across
+GitHub repositories. I/O: code search query → code
+search results. Intentions: validate code patterns
+before analysis; locate specific function implementations.
+
+Table 6: Example of query and intention synthesis for
+one GitHub tool chain.
+
+C.2
+
+Tool Substitutability Example on
+MCP-Atlas
+
+Table C.2 illustrates that the official gold trajectory
+is not always the only valid solution path. In the
+global MCP ecosystem, different servers may expose functionally similar tools, such as geocoding,
+web search, or local computation tools.
+C.3
+
+Error Examples by Type
+
+Table 8 presents representative failures from our
+MCP-Atlas error analysis. These examples clarify
+the distinction between query formulation, discovery, tool use, and reasoning failures.
+
+Table 7: A representative MCP-Atlas execution under
+the 779-server global pool (task 689cd6f8. . . fee).
+Both gold-trajectory servers (national parks,
+mcp_code_executor) are bypassed: SING returns five
+alternative geocoders, the agent fails over from Google
+Maps to OpenStreetMap, and computes the Haversine
+distance with the LLM itself. Coverage score: 1.0 (1/1
+claim fully covered).
+Prompt: “Calculate the straight-line distance in km between Gates of the
+Arctic National Park and Glacier Bay National Park.”
+Gold servers: national parks, mcp_code_executor (neither used)
+1
+
+search_tools(query="geocode national park lat
+top_k=5)
+mcp_google_maps,
+→ 5 servers from 779-pool:
+mcp-google-maps-alt, playwright, open-streetmap-mcp
+
+2
+
+get_tool_schema(mcp_google_maps.get_geocode)
+→ tools: [] (server unavailable)
+
+3
+
+get_tool_schema(open-streetmap-mcp.geocode_address)
+→ schema OK; takes address: str, returns lat, lon, . . .
+
+4
+
+execute_tool(open-streetmap-mcp.geocode_address,
+addr="Gates of the Arctic National Park")
+→ lat=66.8661, lon=-155.1352
+
+5
+
+execute_tool(open-streetmap-mcp.geocode_address,
+addr="Glacier Bay National Park")
+→ lat=58.8142, lon=-136.8721
+
+–
+
+LLM Haversine (no tool call)
+→ ≈ 1,279 km (claim: 1,283.5 km, judged fulfilled)
+
+D
+
+Benchmark Comparison
+
+lon",
+amap,
+
+This section summarizes the downstream task
+benchmarks used in our evaluation. Table 9 provides a compact comparison of MCP-Universe,
+MCP-Atlas, and MCP-Bench in terms of task scale,
+server/tool settings, task style, cross-server requirements, and evaluation protocols.
+
+Table 8: Representative failure examples for each error
+category in the MCP-Atlas error analysis. Each row
+shows the user task, the relevant discovery / tool-use
+evidence, and the root cause of failure.
+Category
+
+Example failure trajectory
+
+Query
+Formulation
+
+Task. “What was the moon phase the day
+when the author of The Haunting of Hill
+House died, but in the book’s publication
+year?”
+Issued queries. Only variants of “moon
+phase historical date” and a generic
+“wikipedia knowledge search”.
+Failure. The decomposition skips the implicit
+upstream sub-goal of identifying the author
+and her death date (Shirley Jackson, 1965); no
+query ever targets a biography-lookup tool, so
+discovery is never given a chance to surface a
+usable tool for the missing sub-goal.
+
+Discovery
+
+Task. “From the cloud NoSQL
+video-game-store database, how many Twitter
+posts were made in the year Kobe Bryant
+passed away?”
+Issued query. “cloud nosql video game store
+database query twitter posts” (semantically
+appropriate).
+Retrieved. mongodb::list-databases,
+mongodb::db-stats, fetch::fetch, . . .
+Failure. The required data lives in a
+Cassandra / Astra DB, but discovery
+consistently returns only MongoDB- and
+fetch-style tools across more than fifteen
+reformulations. No functionally equivalent
+NoSQL client is ever returned, so the agent
+cannot reach the social-media collection
+regardless of how it calls the available tools.
+
+Tool Use
+
+Task. “Translate the message of the first
+commit made on 2025-07-25 in the repo A2A
+to Spanish.”
+Available. github::list_commits,
+git::git_log, . . . (the correct capability is
+retrieved).
+Failure. The agent calls
+github::list_commits with
+owner="a2aproject" instead of the correct
+owner="google", retrieving commits from
+an unrelated fork; it later translates the wrong
+commit. The tool was the right one and was
+actually invoked—only the parameter binding
+was wrong.
+
+Reasoning / Task. “What is the credit line of the Met’s
+Other
+painting Aristotle with a Bust of Homer, and
+what was the full name of the mother of its
+artist?”
+Trace. metmuseum-mcp::
+search-museum-objects →
+get-museum-object →
+open-library::get_authors_by_name;
+the agent correctly retrieves both the credit
+line and Rembrandt’s mother’s full name.
+Failure. The final answer omits an explicit
+claim that Rembrandt is the artist of the
+painting, which is required by the judge. All
+discovery and tool calls are correct; the failure
+is in answer construction—a retrieved fact
+that is never stated in the response.
+
+Table 9: Comparison of the three downstream task benchmarks used in our evaluation. We list only dataset-level
+properties; our execution statistics are reported separately in the main results.
+Property
+
+MCP-Universe (Luo et al.,
+2025)
+
+MCP-Atlas (Bandi et al.,
+2026)
+
+MCP-Bench (Wang et al.,
+2025)
+
+# Tasks
+
+206
+
+500
+
+104
+
+Server pool
+
+1–3 servers per task, scoped by
+domain
+
+36 real-world MCP servers
+(∼307 tools)
+
+28 fixed MCP servers (∼250
+tools)
+
+GT servers per task
+
+1–3, fixed by domain
+
+2–4, derived from gold trajectory
+
+1 (Single), 2 (Multi-2), 3
+(Multi-3) + 10 distractor
+servers
+
+Task domains
+
+7 explicit domains: financial analysis, location & navigation, repository management, browser automation,
+web search, 3D design, multiserver
+
+No official category; broadly
+cross-domain (real estate,
+healthcare, finance, travel,
+entertainment, code, etc.)
+
+No formal category; tasks span
+biomedical, scientific, financial, geographic, cultural, and
+developer-tooling servers
+
+Task generation
+
+Human-curated
+
+Human-curated narratives with
+annotated gold trajectories
+
+LLM-synthesized with dualtrack design
+
+Task style
+
+Role-played but procedurally
+precise instructions with explicit numerical/format constraints
+
+Long colloquial narratives encoding implicit temporal and
+factual constraints (e.g. “the
+month Fred White passed
+away”)
+
+Paired fuzzy user description
+(visible to agent) + concrete
+description and dependency
+graph (visible only to judge)
+
+Cross-server requirement
+
+Optional in most domains; explicit in the multi-server split
+(25 tasks)
+
+Almost always cross-server (2–
+4 servers per task)
+
+Mandatory by design for Multi2/Multi-3; Single tasks still
+issue many calls within one
+server
+
+Evaluation protocol
+
+Per-task programmatic evaluators (rule-based, with LLMas-judge for the web-search domain)
+
+GTFA fact-claim coverage,
+judged by an LLM
+
+Six-dimension LLM judge (fulfillment, grounding, tool appropriateness, parameter accuracy,
+dependency awareness, parallelism) combined with rulebased schema metrics
+
+Native metrics
+
+Success Rate (all evaluators
+must pass)
+
+Pass Rate (coverage ≥ 0.75)
+and Mean Coverage
+
+Overall Score ∈ [0, 1], aggregated from schema understanding, task completion, tool selection, and planning effectiveness
+
+

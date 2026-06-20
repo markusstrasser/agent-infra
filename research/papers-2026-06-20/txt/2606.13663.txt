@@ -1,0 +1,2045 @@
+HyperTool: Beyond Step-Wise Tool Calls for Tool-Augmented Agents
+Yaxin Du*1,2 , Yifan Zhou*1 , Yujie Ge1 , Jiajun Wang1 ,
+Xianghe Pang1 , Shuo Tang1 , Tuney Zheng2 , Bryan Dai 2 ,
+Jian Yang3 , Siheng Chen1 ,
+1
+2
+Shanghai Jiao Tong University, IQuest Research, 3 Beijing University of Aeronautics and Astronautics,
+* Equal Contribution ; Correspondence: sihengc@sjtu.edu.cn
+
+(a) Step-level
+
+1
+
+Long trace
+
+Tool-augmented LLM agents commonly rely
+on step-wise atomic tool calls, where each invocation, observation, and value transfer is exposed in the main reasoning trace. This creates
+an execution-granularity mismatch: locally deterministic tool workflows are unfolded into
+repeated model-visible decisions, consuming
+context and forcing the model to manage lowlevel dataflow in the trace. We introduce HyperTool, a unified executable MCP-style tool
+interface that changes the model-visible unit
+of tool execution. A model invokes HyperTool
+with a code block that can call existing tools
+through their original schemas, manipulate returned values, and pass intermediate results
+locally, folding deterministic tool subroutines
+into a single outer call. To train models to use
+this interface, we synthesize HyperTool-format
+trajectories from cross-tool compositional tasks
+and verify them in real MCP environments. On
+MCP-Universe, HyperTool improves average
+accuracy from 15.69% to 35.29% on Qwen332B and from 9.93% to 33.33% on Qwen3-8B,
+and surpass GPT-OSS and Kimi-k2.5 on average accuracy, showing that our HyperTool can
+substantially improve multi-step tool use.
+
+Fragmented
+
+arXiv:2606.13663v1 [cs.CL] 11 Jun 2026
+
+Abstract
+
+(b) Trace-level
+
+Reasoning
+
+Reasoning
+
+Action &
+Observation
+
+Action &
+Observation
+
+Reasoning
+Prune
+Hide
+
+Reasoning
+
+Reasoning
+
+Compress
+
+Action &
+Observation
+...
+
+Action &
+Observation
+
+Summary
+
+Reasoning
+
+Reasoning
+
+Action &
+Observation
+
+Action &
+Observation
+...
+
+Answer
+
+Answer
+
+(c) HyperTool
+
+HyperTool Block
+Action/Tool
+
+Local state
+
+...
+
+Reasoning
+HyperTool Block
+
+...
+Lost details
+
+Answer
+Compact trace
+High-Level thinking
+
+Figure 1: Comparison of context management
+paradigms in tool-augmented agents. (a) Step-wise execution expands atomic calls and observations into the
+trace. (b) Trace-level compression shortens the trace after expansion. (c) HyperTool manages context at execution time by folding dependent tool operations into one
+executable block and returning only the task-relevant
+result.
+
+tool call a model-visible transition: each observation is written back into the main trace before the
+next action.
+The atomic design of current tool interfaces conflicts with the compositional demand of real tooluse tasks. The issue is that a task-level operation
+is often implemented as a chain of lower-level tool
+calls, while the outer reasoning process only needs
+the composed result. For example, answering the
+distance between two places may require geocoding both locations and then computing their distance, but the agent does not need to reason over the
+intermediate coordinates themselves. In the stepwise format, this single distance-query operation
+is unfolded into multiple model-visible transitions,
+exposing geocoding outputs, coordinates, and the
+final calculation separately in the main trace. This
+creates two central challenges. First, it causes context inflation: long tool observations accumulate in
+the reasoning trace even when only a few fields are
+actually needed(Qin et al., 2023). Second, it causes
+reasoning fragmentation: the model must repeat-
+
+Introduction
+
+Agentic systems powered by large language models (LLMs) (Vaswani et al., 2017; Touvron et al.,
+2023; OpenAI, 2023; Yang et al., 2024, 2025) are
+increasingly applied across diverse environments.
+At their core, these agents integrate LLMs with a
+large set of tools, where each tool follows the MCPstyle interface (Hou et al., 2025): natural-language
+descriptions, input schemas, and structured calling
+formats. To solve tasks, agents typically inspect
+relevant information and perform reasoning step
+by step, invoking tools sequentially until the task
+is completed (Yao et al., 2022; Schick et al., 2023;
+Qin et al., 2023; Mialon et al., 2023). This interface
+is simple and general, but it makes every atomic
+1
+
+edly return to the main decision loop for low-level
+deterministic operations, interleaving high-level
+task reasoning with procedural state transfer(Wang
+et al., 2024). Although these sub-tasks are ultimately executed by tools, explicitly unfolding their
+full call sequence in the main trace disrupts the
+overall reasoning structure and imposes unnecessary cognitive burden on the agent.
+Prior work on tool-agent context management
+mostly operates at the trace level. A direct approach is context pruning or compression, which
+reduces trace length but may discard intermediate values needed by later steps(Jiang et al., 2023).
+More structured methods use task-specific caching
+or summarization to retain compact state, but often
+rely on workflow-specific assumptions and generalize poorly across heterogeneous tools(Packer et al.,
+2023). Subagent-based methods go further by hiding low-level execution from the main context, but
+this coarser delegation reduces transparency and
+makes intermediate control or recovery more difficult(Wu et al., 2024; Shen et al., 2023). Overall,
+these methods reduce context overhead by discarding, compressing, or hiding execution traces, but
+they do not change the underlying execution granularity of tool use.
+To move context management from post-hoc
+trace compression to execution-time control, we
+propose HyperTool, a unified MCP-compatible
+executable interface whose input is a code block.
+Inside the block, existing tools can be invoked
+through their original schemas, while intermediate outputs can be stored, transformed, filtered, and
+passed across calls using ordinary program logic.
+This unified format supports both atomic tool calls
+and multi-tool subroutines within the same interface. By shifting local execution into the block,
+HyperTool improves context management and tooluse expressivity at the same time: transient observations and deterministic state transfer stay out of the
+main trace, while code can compose tools, transform intermediate values, and define temporary
+helper functions. This allows the agent to maintain
+a compact high-level trace while constructing taskspecific partial tools that are difficult to express
+through isolated atomic calls.
+To make models learn this capability, we construct HyperTool-format trajectories for supervised
+fine-tuning. Exposing HyperTool only defines a
+new action space; the model must still learn when
+to invoke a block, how to compose tools inside it,
+and when to return intermediate observations to
+
+the main reasoning trace. We therefore synthesize
+cross-tool compositional tasks, roll out HyperTool
+trajectories in real MCP environments, and keep
+only execution-correct and evidence-consistent examples. This shifts supervision from isolated
+atomic calls to executable tool subroutines, teaching the model both block construction and appropriate tool-operation grouping.
+We evaluate HyperTool on MCP-Universe using
+Qwen3-8B and Qwen3-32B. Finetuned on HyperTool trajectories substantially improves average accuracy, reaching 33.33% on Qwen3-8B and 35.29%
+on Qwen3-32B, compared with 9.93% and 15.69%
+for the corresponding base models. Notably, the
+Qwen3-32B HyperTool model is competitive with
+recent agentic/open models such as GPT-OSS and
+Kimi-k2.5, while outperforming all non-HyperTool
+baselines built on the same Qwen3 backbones.
+Our contributions are summarized as follows:
+• We identify overly fine-grained tool execution
+as a key limitation: step-wise calls expose intermediate observations and tool dependencies to
+the model, inflating the context and fragmenting
+reasoning.
+• We propose HyperTool, a unified executable
+tool interface that preserves the original MCP
+tool schema while allowing atomic calls and locally deterministic multi-tool workflows to be
+expressed within the same code-block format.
+• We construct verified HyperTool-format trajectories for supervised fine-tuning and show consistent gains on MCP-Universe, improving average
+accuracy from 9.93% to 33.33% on Qwen3-8B.
+
+2
+
+Related Work
+
+2.1
+
+Tool-Augmented Agents and Tool
+Interfaces
+
+Tool-augmented agents extend LLMs by allowing
+models to interact with external tools, APIs, and
+environments during inference. Prior work has
+studied API-style tool use through reasoning-action
+interleaving, self-supervised tool-call learning, and
+instruction-tuned tool-use trajectories (Yao et al.,
+2022; Schick et al., 2023; Qin et al., 2023). Recent
+tool ecosystems and benchmarks further scale this
+setting to large API and MCP-style tool spaces (Li
+et al., 2023; Qin et al., 2023; Basu et al., 2024; Luo
+et al., 2025; Mo et al., 2025; Wang et al., 2025;
+Du et al., 2025; Wang et al., 2026). These works
+establish a common interface in which tools are
+2
+
+ification Φ(T ), the agent maintains an execution
+trace ht = (q, a<t , o<t ), where a<t and o<t denote
+previous actions and observations. At step t, the
+model emits an action
+
+described by schemas and invoked through structured calls. HyperTool is complementary rather
+than alternative to this interface: it is exposed as an
+MCP-style tool and invokes existing tools through
+their original schemas. Its goal is not to change
+how tools are specified, but to change the execution
+granularity of tool use, allowing local deterministic
+workflows to be executed inside one block instead
+of being exposed as repeated model-visible calls.
+2.2
+
+at ∼ πθ (· | ht , Φ(T )),
+which is executed by the environment to produce
+an observation ot . The trace is then updated as
+ht+1 = ht ∪ {(at , ot )}.
+Under the standard MCP-style interface, each
+action is an atomic tool call:
+
+Agent Execution Abstractions
+
+A second line of work abstracts agent execution to
+reduce the context cost of long, tool-intensive workflows. These methods operate at different execution
+levels. ① Program-based agents use code as an expressive action representation, allowing models to
+combine computation, control flow, and environment interaction within executable programs (Gao
+et al., 2023; Chen et al., 2022; Wang et al., 2024,
+2023; Yu et al., 2025). While powerful, they typically treat code as a general action language or
+task artifact, rather than as a wrapper for grouping existing tool calls. ② Workflow-level methods compile execution structures, such as dependency graphs or replayable workflow blueprints,
+before execution (Kim et al., 2023; Parmar, 2026;
+Du et al., 2026a; Ye et al., 2025a; Du et al., 2026b).
+They reduce repeated model invocation at the plan
+level, but assume the workflow can be specified
+upfront. ③ Trace-level context-management methods reduce long interaction histories through pruning, compression, summarization, memory modules, subagents, or context folding (Sun et al., 2025;
+Ye et al., 2025b; Jiang et al., 2023). These methods manage the trace after step-wise execution has
+exposed intermediate observations. HyperTool abstracts a different level: it keeps MCP tools explicit,
+but changes the model-visible unit of tool execution by folding locally deterministic tool chains
+into one executable block.
+
+3
+
+Method
+
+3.1
+
+Problem Formulation
+
+at = Call(τt , xt ),
+
+τt ∈ T ,
+
+where τt is the selected tool and xt is its input.
+Thus, a workflow with k dependent tool operations
+must be expressed as k model-visible transitions.
+This atomic execution granularity is simple and
+general, but it exposes every intermediate observation, value transfer, and procedural step to the main
+reasoning trace.
+3.2
+
+HyperTool Framework
+
+HyperTool changes the model-visible unit of tool
+execution. Instead of requiring every MCP-style
+tool operation to appear as a separate transition,
+HyperTool exposes a unified executable interface:
+at = Block(St ),
+where St is a bounded executable program written over the primitive tools in T . The HyperTool
+runtime executes St , allows existing tools to be invoked through their original schemas, and returns a
+single block-level observation ot to the outer trace.
+Inside a HyperTool block, the model can call existing tools, store returned values as local variables,
+parse and filter observations, perform lightweight
+computation, define temporary helper functions,
+and pass intermediate values directly across calls.
+This format subsumes ordinary atomic tool calling:
+if St contains only one primitive call Call(τt , xt ),
+HyperTool reduces to the standard tool-call interface. If St contains multiple dependent calls, HyperTool expresses them as one executable subroutine rather than multiple model-visible transitions.
+The intended use case is a locally deterministic tool workflow whose intermediate observations
+support local dataflow but do not require task-level
+deliberation. For example, a block may retrieve
+candidates, parse fields, filter results, compute derived values, and aggregate evidence before returning a compact result. These intermediate states
+
+Tool-augmented agents solve tasks by repeatedly
+interacting with external tools. At each step, the
+model chooses an action, the tool environment executes it, and the returned observation is appended
+to the execution trace. We formulate this process
+as an interaction between a model and a tool environment.
+Given a user query q and a tool set T with spec3
+
+(a) HyperTool Framework
+State ℎ𝑡
+
+Agent 𝜋𝜃
+
+HyperTool Block 𝑆𝑡
+Local Compute
+
+Tool Calls
+Query + History
+(Action & Obs.)
+
+·Reason
+·Decide
+·Generate Block 𝑆𝑡
+
+…+
+
+Environment
+
+Observation 𝑜𝑡
+
+Update State ℎ𝑡+1
+
+·Execute block
+·Capture result
+
+Block-level
+result only
+
+Append (𝑎𝑡 , 𝑜𝑡 )
+to trace
+
+Value Passing
+
+Z
+
++
+
+Processing hidden from main trace
+
+(b) Training Data Synthesis Pipeline
+2.Trajectory Rollout
+
+1.Task Construction
+1) Seed Entity
+
+1) HyperTool Execution Loop
+Write Code
+Plan next step
+MetaTool Block
+
+2) Multi-tool Data
+Collection
+
+def process( )
+{...}
+res1= call_tool(tool1, param)
+param2 = process(res1)
+res2 = call_tool(tool2, param2)
+result = res2
+
+3) Derive Constraints
+
+Failed block
+
+Guided by
+HyperTool Rules
+
+Return
+Error
+
+Execute in
+Environment
+
+Rule-based Filtering
+Correct block
+Pass
+
+Failed
+Code
+Repairer
+
+Code Intent
+Checker
+
+Execute Pass
+
+B. Tool Response Compression
+
+Observation
+
+Step 1
+
+Step 2
+
+summarized
+
+...
+
+…
+Tool errors Unresolved Malformed
+Failures Block Syntax
+
+Trajectory Judger
+Evidence supports answer
+Correct interpretation
+
+Step 2
+
+Step 1
+
+4) Compositional
+Task
+
+3.Verification & Filtering
+
+2) trajectory optimization
+A. Local Code Repair
+
+Step n-1
+
+Step n
+
+raw
+
+current
+
+Constraint satisfied
+Cross-step consistency
+
+High-quality
+Trajectories
+
+Figure 2: Overview of the HyperTool framework and data construction pipeline. (a) We synthesize compositional
+tasks, roll out HyperTool-format trajectories with local repair and trajectory-level context compression, and verify
+the resulting traces for execution correctness and evidence consistency. (b) HyperTool is exposed as an executable
+MCP-style tool. The agent writes a code block that invokes existing tools, performs local computation, and passes
+intermediate values internally. Only the final block-level observation is returned to the main reasoning trace.
+
+can remain inside the executable block. In contrast, observations that may change the task plan,
+reveal an unknown schema, invalidate the current
+direction, or require semantic judgment should be
+returned to the main reasoning trace. Thus, HyperTool does not replace the underlying MCP tools; it
+changes which parts of tool execution are exposed
+as separate model-visible transitions.
+3.3
+
+let a teacher model interact with the corresponding MCP tool environment. During this process,
+the model invokes domain-relevant tools to collect
+factual attributes from multiple sources and dimensions.
+Based on the collected tool outputs, the model
+induces a set of mutually independent but complementary constraints. These constraints are
+grounded in real returned values: numerical thresholds, entity attributes, identifiers, temporal information, and other condition values are derived from
+tool observations rather than hallucinated. We require the constraints to span different tools or data
+dimensions, so that no single primitive call can directly determine the answer. Instead, the answer
+must be identified through cross-source composition, local filtering, comparison, or aggregation.
+This construction makes the intended solution
+path compositional. A correct trajectory must coordinate multiple tools, pass intermediate values
+across calls, and perform secondary processing
+over returned results. These tasks therefore create
+natural opportunities for HyperTool blocks, where
+dependent tool operations can be implemented as
+local executable subroutines.
+
+Data Synthesis
+
+The HyperTool interface defines a new action format, but the model must still learn how to use it. In
+particular, it must learn three behaviors: when to
+invoke a HyperTool block, how to implement internal tool composition inside the block, and when
+intermediate observations should return to the outer
+reasoning trace rather than remain local.
+We construct HyperTool-format training trajectories through a three-stage pipeline: compositional
+task construction, HyperTool trajectory rollout, and
+execution-and-evidence verification. The resulting
+data provides supervision at the level of executable
+tool subroutines rather than isolated atomic calls.
+This teaches the model to internalize locally deterministic tool workflows while preserving task-level
+reasoning in the main trace.
+
+3.3.2 HyperTool Trajectory Collection
+Training HyperTool requires trajectories that go
+beyond ordinary stepwise tool calls, teaching the
+model not only which tools to call but also how
+to group dependent operations and where to place
+
+3.3.1 Compositional Task Construction
+The first stage constructs training questions that
+require genuine multi-tool composition. For each
+domain, we start from real entities as seeds and
+4
+
+execution boundaries. We design a data collection pipeline that produces boundary-aware HyperTool demonstrations through three complementary
+mechanisms: context compression, local repair,
+and trajectory verification.
+HyperTool Trajectory Rules We treat HyperTool
+as a directly callable MCP-style tool, while the underlying tools are provided in the system prompt
+with their names, input schemas, and expected outputs. We use three rules to guide trajectory generation. (1) Reasoning Precedence: Before each tool
+call, the model generates reasoning content related
+to the current operation rather than invoking the
+tool directly. (2) Blockwise Execution: When a task
+can be decomposed into deterministic tool calls,
+the model should combine multiple calls and simple processing steps into a single HyperTool code
+block; if subsequent steps require complex semantic reasoning or outputs are uncertain, the model
+should call tools step by step. (3) Internal Logic:
+Each HyperTool block must be self-contained, contain only executable logic, and assign the final tool
+output or processed result to the variable ‘result‘.
+Status-only strings or ‘print‘ outputs must not be
+used as final results. These rules collectively constrain tool usage, reasoning generation, and output
+format, producing HyperTool trajectories that are
+structured, traceable, and suitable for training.
+Context Compression During rollout, long trajectories may contain many previous tool responses
+that are no longer central to the current decision.
+To keep data generation focused on the current step,
+we maintain two traces: a full trace for archival and
+final data storage, and a denoised trace for subsequent model prompting. Older tool responses in the
+denoised trace are summarized using a language
+model conditioned on the task, prior trajectory, tool
+name, tool arguments, and full tool output. The
+summary retains information relevant for task solving, preserves key values such as numbers, URLs,
+and entity names, and removes format noise or irrelevant details. This compression is used only
+during trajectory synthesis. Its role is to fold earlier
+rollout context so that the teacher model can focus
+on the current HyperTool decision while the full
+original trace remains available for verification and
+data storage.
+Local Repair of Failed Tool Blocks Generated
+HyperTool blocks may fail because of syntax errors, schema mismatches, or runtime errors. When
+a block fails, the system records the original assistant message, code, and error, and constructs a
+
+repair prompt for the model. A static intent check
+ensures the repaired code still targets the same resource and operation type; if not, the model retries,
+with a bounded number of attempts to prevent infinite loops. Successful repairs are executed and
+appended to the trace, while failures are preserved
+to avoid polluting prior or subsequent steps.
+3.3.3 Trajectory Verification
+Candidate trajectories are not used directly as supervision. We verify them through executioncorrectness filtering and evidence-consistency
+checking.
+Execution-correctness filtering. We remove trajectories with structural or runtime defects, including malformed block syntax, missing tool invocations, environment-level tool errors, unresolved execution failures, and other obvious anomalies. This
+step ensures that retained trajectories demonstrate
+valid HyperTool execution rather than accidental
+code behavior.
+Evidence-consistency verification. We then verify
+the full trajectory with an LLM judge. The judge
+checks whether the final answer is supported by
+returned tool evidence, whether intermediate results are interpreted correctly, whether conclusions
+remain consistent across blocks, and whether the final response satisfies all task constraints. To reduce
+single-run variance, we query the judge multiple
+times and retain only trajectories that pass majorityvote verification.
+3.4
+
+Supervised Fine-Tuning
+
+After verification, we convert each retained trajectory into a supervised training example using the
+same chat/tool format as inference. The loss is applied to model-generated assistant turns, including
+reasoning text and HyperTool code blocks. Tool observations are treated as environment outputs and
+excluded from the prediction target.
+Training on these trajectories teaches the model
+to emit executable HyperTool blocks, compose existing MCP tools through local program logic, and
+decide whether subsequent operations should remain inside the block or return to step-wise interaction. This supervision shifts learning from predicting isolated atomic tool calls to learning executable
+tool subroutines for multi-step tool use.
+
+4
+
+Experiments
+
+Implementation. We train our HyperTool based
+on open-source LLM Qwen3 (Yang et al., 2025)
+5
+
+Table 1: Main results on MCP-Universe. We compare two groups of systems: off-the-shelf agentic models used
+without task-specific fine-tuning, and Qwen3-based baselines. SFT denotes supervised fine-tuning; indicates
+models evaluated without SFT, while \ indicates models fine-tuned on our collected HyperTool trajectory data.
+Within each Qwen3 backbone group, bold marks the best result and underline marks the second-best result.
+Model
+
+Method
+
+MCP-Universe
+
+SFT
+
+Financial Repository
+Location
+Web
+Avg. Avg.
+Analysis Management Navigation Search Acc. Score
+Agentic Models
+GPT-OSS
+–
+62.50
+14.28
+25.71
+26.00 32.13 50.43
+GLM-5.1
+–
+55.00
+42.86
+28.57
+36.00 36.60 53.40
+Gemini-2.5-Flash
+–
+25.00
+30.77
+30.77
+19.51 25.58 39.84
+Kimi-k2.5
+–
+51.28
+44.44
+17.14
+25.00 34.17 56.96
+DeepSeek-V4-Flash –
+57.50
+39.29
+29.41
+45.83 44.00 47.22
+Baselines
+Base
+17.14
+3.57
+17.14
+4.00
+9.93 28.75
+AgentFold (Ye et al., 2025b)
+27.78
+17.81
+25.71
+16.00 21.63 37.81
+ReCode (Yu et al., 2025)
+25.00
+10.71
+14.29
+10.00 15.03 32.70
+BrowseMaster (Pang et al., 2025)
+21.50
+14.29
+11.43
+4.00
+18.60 30.97
+Qwen3-8B
+CodeAct (Wang et al., 2024)
+20.00
+14.29
+22.86
+22.00 20.92 38.75
+ReAct (Yao et al., 2022)
+\
+32.50
+7.14
+25.71
+16.00 20.92 35.09
+HyperTool (Ours)
+\
+62.50
+25.00
+28.57
+18.00 33.33 48.42
+Base
+35.00
+3.57
+20.00
+4.00
+15.69 31.99
+AgentFold (Ye et al., 2025b)
+52.40
+26.94
+14.30
+16.00 27.13 42.20
+ReCode (Yu et al., 2025)
+40.00
+25.00
+11.43
+6.00
+19.60 38.41
+BrowseMaster (Pang et al., 2025)
+37.50
+21.43
+17.14
+10.00 20.91 36.16
+Qwen3-32B
+CodeAct (Wang et al., 2024)
+42.50
+25.00
+14.29
+20.00 25.49 42.04
+ReAct (Yao et al., 2022)
+\
+40.00
+21.43
+20.00
+16.00 24.18 41.28
+HyperTool (Ours)
+\
+62.50
+21.43
+34.29
+22.00 35.29 53.18
+
+4.1
+
+series model with 8B parameters and 32B parameters in total respectively. We set the max tool
+call number as 50 and max context tokens as 128k,
+any trajectory exceed any of these settings will be
+forcibly terminated.
+
+Main Results.
+
+To evaluate whether HyperTool improves MCPstyle multi-tool execution, we conduct all experiments on MCP-Universe under the same evaluation budget: each trajectory is limited to at most
+50 tool calls and 128k context tokens. Table 1 reports performance on four domains, together with
+average accuracy and average score. We compare
+two settings: off-the-shelf agentic models evaluated without task-specific fine-tuning, and Qwen3based methods, including both non-SFT baselines
+and SFT models. For supervised training, we use
+GLM-5.1 (Zeng et al., 2026) to synthesize training
+tasks, generate trajectories, and filter the resulting
+data. To ensure a fair comparison, the ReAct-SFT
+baseline uses the same training tasks and the same
+GLM-5.1-based trajectory generation and filtering
+pipeline as HyperTool.
+The results reveal four main findings. ❶ HyperTool outperforms all Qwen3-based execution and
+context-management baselines in the overall metrics on both 8B and 32B backbones, reaching 48.42
+average score on 8B and 53.18 on 32B. ❷ For a fair
+SFT comparison, we also train a ReAct model using the same synthesized tasks, the same trajectory
+generator, and the same filtering strategy. HyperTool still substantially outperforms ReAct-SFT, improving average accuracy from 20.92% to 33.33%
+
+Benchmark. We compare our method with
+other baselines on a general benchmark: MCPUniverse (Luo et al., 2025). We evaluate on four
+domains: web search, financial analysis, location
+navigation and repository management to test the
+general capabilities of agents.
+Baseline. We compare HyperTool with representative agent frameworks and execution abstractions for multi-step reasoning and environment
+interaction. Specifically, we include ReAct (Yao
+et al., 2022), which performs step-by-step atomic
+tool interaction; CodeAct (Wang et al., 2024)
+and ReCode (Yu et al., 2025), which formulate
+agent behavior through executable code generation; BrowseMaster (Pang et al., 2025), a programmatic web-browsing agent framework; and
+AgentFold (Ye et al., 2025b), which improves longhorizon agent execution through proactive context
+management. These baselines represent different
+approaches to reducing the limitations of purely
+atomic execution and provide strong comparisons
+for evaluating HyperTool’s execution abstraction.
+6
+
+Fin. 20.5
+
+None
+Evidence Filtering
+
+40
+
+Fin.
+
+40
+
+Repo.
+Web.
+
+Context Comp.
+Context Comp.+Local Repair
+
+60
+
+28
+
+70
+63.5
+
+Loc.
+20
+
+40
+
+60
+
+Success Rate (%)
+
+82.1
+80
+
+(a) Data Synthesis
+
+34.38
+
+Repo.
+
+7.14
+
+Web.
+
+10
+
+Loc.
+
+11.43
+5
+
+Table 2: Ablation study on execution interface design.
+denotes the instruction model without SFT, while \
+denotes SFT on the corresponding trajectory data.
+
+Execution Filtering
+Execution+Evidence Filtering
+
+62.5
+
+28.57
+18
+
+25
+
+45
+
+Pass Rate (%)
+
+Interface
+
+Fin.
+
+Repo.
+
+Loc.
+
+Web.
+
+Avg.
+
+\
+\
+
+ReAct
+Atomic+HyperTool
+HyperTool-only
+
+32.50
+47.50
+62.50
+
+7.14
+14.19
+25.00
+
+25.71
+25.71
+28.57
+
+16.00
+20.00
+18.00
+
+20.92
+26.85
+33.33
+
+65
+
+(b) Trajectory Verification
+
+Figure 3: Ablation study on the HyperTool components.
+(a) The impact of Context Compression and Local Repair on the data synthesis success rate. (b) The effect
+of Execution and Evidence Filtering on the sft model
+performance.
+
+1,800
+
+Token Count (k)
+
+70%
+
+ReAct-SFT Tokens
+
+HyperTool Tokens
+
+ReAct-SFT Accuracy
+
+HyperTool Accuracy
+
+1,500
+
+on 8B and from 24.18% to 35.29% on 32B. ❸ The
+largest gains appear in composition-heavy domains
+such as Financial Analysis, where both scales reach
+62.50% accuracy, suggesting that executable local
+blocks are useful for value passing, filtering, and
+aggregation across tool outputs. ❹ This superior
+performance is directly driven by HyperTool’s expanded tool orchestration capacity; as detailed in
+Table 3 in the Appendix, it executes significantly
+more primitive tools within fewer interaction turns,
+effectively bypassing the context bottlenecks that
+typically truncate long ReAct trajectories. ❺ Even
+with the 8B backbone, HyperTool narrows the gap
+to strong off-the-shelf agents, surpassing GPT-OSS
+(32.13%) and Gemini-2.5-Flash (25.58%) in average accuracy.
+4.2
+
+SFT
+25
+
+1,379K
+
+50%
+
+1,200
+
+1,099K
+999K
+
+916K
+
+40%
+
+900
+
+822K
+
+861K
+
+30%
+
+686K
+
+600
+
+300
+
+0
+
+60%
+
+Accuracy (%)
+
+None
+Local Repair
+
+20%
+199K
+
+Financial
+Analysis
+
+10%
+
+Repository
+Management
+
+Location
+Navigation
+
+Web
+Search
+
+0%
+
+Figure 4: Task Accuracy (%) and Average Token Consumption (in thousands, k) comparison between ReActSFT and HyperTool-SFT on MCP Universe.
+
+cial Analysis (62.50% vs. 47.50%) and Repository
+Management (25.00% vs. 14.19%). By maintaining a single, expressive interface, the agent avoids
+action-space heterogeneity and can focus entirely
+on determining internal execution and task logic.
+Component Ablation. To evaluate the contribution of individual modules, we isolate the effects of
+Context Compression and Local Repair during the
+trajectory rollout stage, as well as Execution Filtering and Evidence Filtering during the trajectory
+verification stage. Figure 3 presents the synthesis pass rates and downstream task accuracy under
+these configurations, revealing two critical insights:
+❶ Rollout modules prevent generation failure.
+Removing Context Compression severely drops the
+pass rate in context-heavy tasks (e.g., Web Search
+70.0%→41.0%) as the agent struggles with severe
+context inflation. Furthermore, removing Local
+Repair leaves minor syntax errors unresolved; disabling both halves the success rate in Financial
+Analysis (40.0%→20.5%). ❷ Strict filtering guarantees downstream accuracy. Omitting Execution
+or Evidence Filtering pollutes the SFT dataset with
+malformed or reasoning-inconsistent trajectories.
+This noise crashes the final average accuracy from
+33.33% down to 18.06% and 21.05%, respectively,
+demonstrating that rigorous verification is essential
+for effective model fine-tuning.
+
+Ablation studies
+
+Execution Interface Ablation To determine the
+optimal execution interface design, we conduct an
+ablation study on the Qwen3-8B backbone, evaluating whether HyperTool should serve as a unified
+interface for all interactions (HyperTool-only) or
+be reserved exclusively for multi-step workflows
+(Atomic+HyperTool hybrid). Table 2 presents the
+performance across these configurations, revealing
+two clear trends: ❶ A unified action space maximizes performance. The HyperTool-only mode
+achieves a significantly higher average accuracy
+(33.33%) compared to the hybrid setting (26.85%)
+and the ReAct baseline (20.92%). This indicates
+that forcing smaller models to dynamically classify and switch between different execution interfaces introduces unnecessary cognitive load. ❷
+Minimizing heterogeneity benefits complex domains. The advantage of interface unification is
+most pronounced in demanding tasks like Finan7
+
+#### Question
+I live in J Gateway Condo, Singapore. My friend lives in Park Place Residences at PLQ, Singapore. We want to find a
+meeting point between our two locations. Find a single 'cafe' (must be of type 'cafe') such that the estimated driving
+time from J Gateway Condo to the cafe is as close as possible to the walking time from Park Place Residences at
+PLQ to the cafe. Report the Name and Place ID of the cafe.
+#### Steps
+[Hypertool] Step 1: Resolve both user addresses into coordinates via dual geocoding
+google-maps.maps_geocode(address="J Gateway...") + google-maps.maps_geocode(a
+ddress="Park Place...")
+[Atomic] Step 2: Get midpoint along driving route, then retrieve cafes around it
+google-maps.maps_search_places(query="cafe", location=midpoint, radius=5000)
+[Hypertool] Step 3: Compare candidate cafes under driving-vs-walking time objective
+google-maps.maps_distance_matrix(mode="driving", ...) + google-maps.maps_dist
+ance_matrix(mode="walking", ...)
+[Hypertool] Step 4: Score candidates and select the minimum time-gap cafe
+internal_scoring(abs(t_drive - t_walk), filter type contains "cafe", min gap)
+[Atomic] Step 5: Reset search space around Park Place for better candidates
+google-maps.maps_search_places(query="cafe", location=Park Place, radius=5000)
+[Hypertool] Step 6: Re-score expanded nearby candidate set and select final best cafe
+candidate_filter_and_rank(candidate_set, objective="min_abs_gap") + distance_
+matrix(...)
+......
+[Atomic] Step 7: Verify final selected place identity
+google-maps.maps_search_places(query="Knots Cafe & Living (Paya Lebar)")
+
+Hypertool Code Block (Step 6)
+Repeated candidate evaluations are aggregated into one argmin-scoring Hypertool
+j_gateway_addr = "J Gateway Condo, Singapore"
+park_place_addr = "Park Place Residences at PLQ, Singapore"
+cafe_addresses, cafe_names, cafe_place_ids = [……], [……], [……]
+driving_result = call_tool("google-maps", "maps_distance_matrix", {"origins":
+[j_gateway_addr], "destinations": cafe_addresses, "mode": "driving"})
+walking_result = call_tool("google-maps", "maps_distance_matrix", {"origins":
+[park_place_addr], "destinations": cafe_addresses, "mode": "walking"})
+driving_times, walking_times = [],[]
+for i in range(len(cafe_addresses)):
+driving_times.append(driving_result["result"]["results"][0]["elements"][i]
+["duration"]["value"])
+walking_times.append(walking_result ["result"]["results"][0]["elements"][i]
+["duration"]["value"])
+results_list = []
+for i in range(len(cafe_names)):
+diff = abs(driving_times[i] - walking_times[i])
+results_list.append({"name": cafe_names[i], "place_id": cafe_place_ids[i],
+"driving_time": driving_times[i], "walking_time": walking_times[i], "diff": d
+iff})
+results_list.sort(key=lambda x: x["diff"])
+result = results_list
+Final Results
+
+Figure 5: Case study of HyperTool on a location-navigation task. The left panel shows the agent’s reasoning
+trajectory, where standard atomic tool calls are interleaved with HyperTool blocks. The right panel details the
+HyperTool code block generated at Step 6. HyperTool locally batches, computes, and sorts tool outputs, returning
+only the task-relevant result while keeping intermediate procedural details out of the main trace.
+80
+15.5
+5.2
+
+80%
+
+60%
+
+31.9
+44.6
+
+71.0
+
+30.2
+
+8.2
+
+31.3
+
+40%
+3.8
+
+20%
+
+53.1
+
+48.0
+28.4
+
+24.3
+
+0%
+
+Average lines per call
+
+Share within domain (%)
+
+100%
+
+60
+50
+
+Repo.
+Atomic
+
+Loc.
+
+Web.
+
+Chaining
+
+Δ 64.3
+
+40
+30
+
+Δ 46.5
+
+20
+
+Δ 20.1
+
+10
+0
+
+Fin.
+
+ing, Transform, Aggregate, and Helper—based on
+their operational roles (detailed descriptions are
+provided in Appendix B.1). Figure 6 illustrates
+the usage distribution of these categories across
+different domains alongside their programmatic
+complexity (lines of code), revealing two major
+trends: ❶ Orchestration of primitive tools. Over
+half (55.7%) of the blocks expand beyond a single
+Atomic call, led by tool Chaining (35.4%). This
+confirms the model tends to synthesize workflows
+rather than relying on traditional atomic calls. ❷
+Internalization of procedural logic. Aggregate
+and Helper blocks exhibit the highest complexity,
+averaging 44.73 and 42.67 lines of code (LOC).
+Across domains, Aggregate blocks require more extensive implementations because the agent writes
+custom data processing algorithms to manipulate
+the results of tool calls, peaking in Repository Management at 75.4 LOC. This density demonstrates
+that intricate logic is fully digested locally, shielding the main trace from context inflation.
+
+70
+
+Δ 18.0
+
+Fin.
+
+Transform
+
+Repo.
+Aggregate
+
+Loc.
+
+Web.
+
+Helper
+
+Figure 6: Analysis of HyperTool’s functional expansion
+and programmatic complexity.
+
+4.3
+
+Analysis
+
+Token Efficiency. Figure 4 evaluates token consumption and task accuracy across all 253 evaluated trajectories from the MCP-Universe benchmark, comparing the ReAct-SFT baseline with HyperTool. The results reveal two clear trends: ❶
+HyperTool significantly improves overall efficiency. It delivers higher average accuracy (33.33%
+vs. 20.92%) while reducing the global average
+token load (816k vs. 955k). This advantage is
+most striking in Financial Analysis, where HyperTool nearly doubles ReAct’s accuracy (62.50% vs.
+32.5%) while using over 78% fewer tokens (199k
+vs. 916k), validating that local execution boundaries effectively mitigate context inflation. ❷ Increased token usage reflects deeper exploration.
+Although HyperTool consumes more tokens in Web
+Search (1,379k vs. 861k), this increase is not a regression. Instead, it reflects the agent successfully
+navigating deeper into complex multi-step workflows.
+Tool-Behavior Analysis. To systematically analyze agent behavior, we categorize HyperTool
+blocks into five functional types—Atomic, Chain-
+
+Case Study. To directly illustrate dynamic context
+management, Figure 5 captures the agent interleaving execution modes in a complex location task.
+For exploratory and verification actions (Steps 5
+and 7), the agent uses standard Atomic calls to
+maintain high-level strategic control. However,
+for the intensive candidate evaluation (Step 6), it
+deploys a HyperTool block. This self-contained
+subroutine locally batches requests to the distance
+matrix MCP tool, computes absolute time gaps
+(|tdrive − twalk |), and sorts candidates. By internalizing this dense procedural loop, the agent distills the optimal destination (“Knots Cafe & Living”) while pruning verbose intermediate metrics.
+8
+
+This powerfully demonstrates HyperTool’s ability
+to bridge high-level planning with deterministic
+execution, rigorously shielding the main trace from
+context inflation.
+
+Yaxin Du, Yuzhu Cai, Yifan Zhou, Cheng Wang,
+Yu Qian, Xianghe Pang, Qian Liu, Yue Hu, and Siheng Chen. 2026a. Swe-dev: Evaluating and training autonomous feature-driven software development.
+Preprint, arXiv:2505.16975.
+
+5
+
+Yaxin Du, Junru Song, Yifan Zhou, Cheng Wang, Jiahao
+Gu, Zimeng Chen, Menglan Chen, Wen Yao, Yang
+Yang, Ying Wen, and Siheng Chen. 2026b. g 2 -reader:
+Dual evolving graphs for multimodal document qa.
+Preprint, arXiv:2601.22055.
+
+Conclusion
+
+We introduced HyperTool, a unified executable
+MCP-style tool interface that changes the modelvisible unit of tool execution. By folding locally deterministic tool workflows into executable blocks,
+HyperTool keeps transient observations and value
+transfers inside the block while preserving highlevel reasoning in the main trace. We construct verified HyperTool-format trajectories to teach models when and how to compose tools internally.
+Experiments on MCP-Universe show consistent
+gains over step-wise baselines, suggesting that toolaugmented agents should learn not only which tools
+to call, but also the appropriate granularity at which
+tool execution should be exposed.
+
+Yaxin Du, Yuanshuo Zhang, Xiyuan Yang, Yifan Zhou,
+Cheng Wang, Gongyi Zou, Xianghe Pang, Wenhao
+Wang, Menglan Chen, Shuo Tang, and 1 others. 2025.
+Infomosaic-bench: Evaluating multi-source information seeking in tool-augmented agents. arXiv
+preprint arXiv:2510.02271.
+Luyu Gao, Aman Madaan, Shuyan Zhou, Uri Alon,
+Pengfei Liu, Yiming Yang, Jamie Callan, and Graham Neubig. 2023. Pal: Program-aided language
+models. In International conference on machine
+learning, pages 10764–10799. PMLR.
+Xinyi Hou, Yanjie Zhao, Shenao Wang, and Haoyu
+Wang. 2025. Model context protocol (mcp): Landscape, security threats, and future research directions.
+arXiv preprint arXiv:2503.23278.
+
+Limitations
+HyperTool introduces a promising execution abstraction for tool-augmented agents by replacing
+stepwise atomic tool calls with executable blocks.
+However, its current design is most suitable for
+locally deterministic tool subroutines, such as retrieval, filtering, computation, and aggregation,
+where intermediate results can be processed within
+a block without frequent model-level intervention.
+In addition, our training data covers a range of compositional tool-use tasks, but the diversity and scale
+of HyperTool trajectories can be further expanded.
+Larger trajectory collections across more domains,
+tool ecosystems, and task structures may improve
+the model’s generalization to unseen workflows and
+help it learn more robust block-boundary decisions.
+We leave these extensions to future work.
+
+Huiqiang Jiang, Qianhui Wu, Chin-Yew Lin, Yuqing
+Yang, and Lili Qiu. 2023. Llmlingua: Compressing
+prompts for accelerated inference of large language
+models. In Proceedings of the 2023 conference on
+empirical methods in natural language processing,
+pages 13358–13376.
+Sehoon Kim, Suhong Moon, Ryan Tabrizi, Nicholas
+Lee, Michael W Mahoney, Kurt Keutzer, and Amir
+Gholami. 2023. An llm compiler for parallel function
+calling. arXiv preprint arXiv:2312.04511.
+Minghao Li, Feifan Song, Bowen Yu, Haiyang Yu,
+Zhoujun Li, Fei Huang, and Yongbin Li. 2023.
+API-Bank: A benchmark for tool-augmented LLMs.
+arXiv preprint arXiv:2304.08244.
+Ziyang Luo, Zhiqi Shen, Wenzhuo Yang, Zirui Zhao,
+Prathyusha Jwalapuram, Amrita Saha, Doyen Sahoo,
+Silvio Savarese, Caiming Xiong, and Junnan Li. 2025.
+MCP-Universe: Benchmarking large language models with real-world model context protocol servers.
+arXiv preprint arXiv:2508.14704.
+
+References
+Kinjal Basu, Ibrahim Abdelaziz, Kelsey Bradford,
+Maxwell Crouse, Kiran Kate, Sadhana Kumaravel,
+Saurabh Goyal, Asim Munawar, Yara Rizk, Xin
+Wang, Luis Lastras, and Pavan Kapanipathi. 2024.
+NESTFUL: A benchmark for evaluating LLMs on
+nested sequences of API calls. arXiv preprint
+arXiv:2409.03797.
+
+Grégoire Mialon, Roberto Dessì, Maria Lomeli, Christoforos Nalmpantis, Ram Pasunuru, Roberta Raileanu,
+Baptiste Rozière, Timo Schick, Jane Dwivedi-Yu,
+Asli Celikyilmaz, Edouard Grave, Yann LeCun, and
+Thomas Scialom. 2023. Augmented language models: a survey. arXiv preprint arXiv:2302.07842.
+
+Wenhu Chen, Xueguang Ma, Xinyi Wang, and
+William W Cohen. 2022. Program of thoughts
+prompting: Disentangling computation from reasoning for numerical reasoning tasks. arXiv preprint
+arXiv:2211.12588.
+
+Guozhao Mo, Wenliang Zhong, Jiawei Chen, Xuanang
+Chen, Yaojie Lu, Hongyu Lin, Ben He, Xianpei Han,
+and Le Sun. 2025. LiveMCPBench: Can agents
+navigate an ocean of MCP tools? arXiv preprint
+arXiv:2508.01780.
+
+9
+
+OpenAI. 2023. GPT-4 technical report. arXiv preprint
+arXiv:2303.08774.
+
+Wenhao Wang, Peizhi Niu, Gongyi Zou, Xiyuan Yang,
+Jingxing Wang, Haoting Shi, Yaxin Du, Jingyi Chai,
+Xianghe Pang, Shuo Tang, Yanfeng Wang, and Siheng Chen. 2026. Mcp-persona: Benchmarking llm
+agents on real-world personal applications via environment simulation. Preprint, arXiv:2606.02470.
+
+Charles Packer, Vivian Fang, Shishir_G Patil, Kevin
+Lin, Sarah Wooders, and Joseph_E Gonzalez. 2023.
+Memgpt: towards llms as operating systems. arXiv
+preprint arXiv:2310.08560.
+
+Xingyao Wang, Yangyi Chen, Lifan Yuan, Yizhe Zhang,
+Yunzhu Li, Hao Peng, and Heng Ji. 2024. Executable
+code actions elicit better LLM agents. arXiv preprint
+arXiv:2402.01030.
+
+Xianghe Pang, Shuo Tang, Rui Ye, Yuwen Du, Yaxin
+Du, and Siheng Chen. 2025. Browsemaster: Towards
+scalable web browsing via tool-augmented programmatic agent pair. arXiv preprint arXiv:2508.09129.
+
+Qingyun Wu, Gagan Bansal, Jieyu Zhang, Yiran Wu,
+Beibin Li, Erkang Zhu, Li Jiang, Xiaoyun Zhang,
+Shaokun Zhang, Jiale Liu, and 1 others. 2024. Autogen: Enabling next-gen llm applications via multiagent conversations. In First conference on language
+modeling.
+
+Abhinav Singh Parmar. 2026. Separating intelligence
+from execution: A workflow engine for the model
+context protocol. arXiv preprint arXiv:2605.00827.
+Yujia Qin, Shihao Liang, Yining Ye, Kunlun Zhu, Lan
+Yan, Yaxi Lu, Yankai Lin, Xin Cong, Xiangru Tang,
+Bill Qian, Sihan Zhao, Lauren Hong, Runchu Tian,
+Ruobing Xie, Jie Zhou, Mark Gerstein, Dahai Li,
+Zhiyuan Liu, and Maosong Sun. 2023. ToolLLM:
+Facilitating large language models to master 16000+
+real-world apis. arXiv preprint arXiv:2307.16789.
+
+An Yang, Anfeng Li, Baosong Yang, Beichen Zhang,
+Binyuan Hui, Bo Zheng, Bowen Yu, Chang Gao,
+Chengen Huang, Chenxu Lv, Chujie Zheng, Dayiheng Liu, Fan Zhou, Fei Huang, Feng Hu, Hao Ge,
+Haoran Wei, Huan Lin, Jialong Tang, and 41 others. 2025. Qwen3 technical report. arXiv preprint
+arXiv:2505.09388.
+
+Timo Schick, Jane Dwivedi-Yu, Roberto Dessì, Roberta
+Raileanu, Maria Lomeli, Luke Zettlemoyer, Nicola
+Cancedda, and Thomas Scialom. 2023. Toolformer:
+Language models can teach themselves to use tools.
+arXiv preprint arXiv:2302.04761.
+
+An Yang, Baosong Yang, Binyuan Hui, Bo Zheng,
+Bowen Yu, Chang Zhou, Chengpeng Li, Chengyuan
+Li, Dayiheng Liu, Fei Huang, Guanting Dong, Haoran Wei, Huan Lin, Jialong Tang, Jialin Wang, Jian
+Yang, Jianhong Tu, Jianwei Zhang, Jianxin Ma, and
+43 others. 2024. Qwen2 technical report. arXiv
+preprint arXiv:2407.10671.
+
+Yongliang Shen, Kaitao Song, Xu Tan, Dongsheng Li,
+Weiming Lu, and Yueting Zhuang. 2023. Hugginggpt: Solving ai tasks with chatgpt and its friends
+in hugging face. Advances in Neural Information
+Processing Systems, 36:38154–38180.
+
+Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak
+Shafran, Karthik Narasimhan, and Yuan Cao. 2022.
+React: Synergizing reasoning and acting in language
+models. arXiv preprint arXiv:2210.03629.
+
+Weiwei Sun, Miao Lu, Zhan Ling, Kang Liu, Xuesong
+Yao, Yiming Yang, and Jiecao Chen. 2025. Scaling
+long-horizon llm agent via context-folding. arXiv
+preprint arXiv:2510.11967.
+
+Rui Ye, Shuo Tang, Rui Ge, Yaxin Du, Zhenfei Yin,
+Siheng Chen, and Jing Shao. 2025a. Mas-gpt: Training llms to build llm-based multi-agent systems.
+Preprint, arXiv:2503.03686.
+
+Hugo Touvron, Thibaut Lavril, Gautier Izacard, Xavier
+Martinet, Marie-Anne Lachaux, Timothée Lacroix,
+Baptiste Rozière, Naman Goyal, Eric Hambro, Faisal
+Azhar, Aurelien Rodriguez, Armand Joulin, Edouard
+Grave, and Guillaume Lample. 2023. LLaMA: Open
+and efficient foundation language models. arXiv
+preprint arXiv:2302.13971.
+
+Rui Ye, Zhongwang Zhang, Kuan Li, Huifeng Yin,
+Zhengwei Tao, Yida Zhao, Liangcai Su, Liwen
+Zhang, Zile Qiao, Xinyu Wang, and 1 others.
+2025b. Agentfold: Long-horizon web agents with
+proactive context management. arXiv preprint
+arXiv:2510.24699.
+
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob
+Uszkoreit, Llion Jones, Aidan N. Gomez, Lukasz
+Kaiser, and Illia Polosukhin. 2017. Attention is all
+you need. arXiv preprint arXiv:1706.03762.
+
+Zhaoyang Yu, Jiayi Zhang, Huixue Su, Yufan Zhao,
+Yifan Wu, Mingyi Deng, Jinyu Xiang, Yizhang Lin,
+Lingxiao Tang, Yingchao Li, Yuyu Luo, Bang Liu,
+and Chenglin Wu. 2025. Recode: Unify plan and action for universal granularity control. arXiv preprint
+arXiv:2510.23564.
+
+Guanzhi Wang, Yuqi Xie, Yunfan Jiang, Ajay Mandlekar, Chaowei Xiao, Yuke Zhu, Linxi Fan, and
+Anima Anandkumar. 2023. Voyager: An open-ended
+embodied agent with large language models. arXiv
+preprint arXiv:2305.16291.
+
+Aohan Zeng, Xin Lv, Zhenyu Hou, Zhengxiao Du,
+Qinkai Zheng, Bin Chen, Da Yin, Chendi Ge,
+Chenghua Huang, Chengxing Xie, and 1 others. 2026.
+Glm-5: from vibe coding to agentic engineering.
+arXiv preprint arXiv:2602.15763.
+
+Wenhao Wang, Peizhi Niu, Zhao Xu, Zhaoyu Chen,
+Jian Du, Yaxin Du, Xianghe Pang, Keduan Huang,
+Yanfeng Wang, Qiang Yan, and 1 others. 2025.
+Mcp-flow: Facilitating llm agents to master realworld, diverse and scaling mcp tools. arXiv preprint
+arXiv:2510.24284.
+
+10
+
+A
+
+Experimental setup
+
+A.1
+
+SFT Setup
+
+all baseline comparisons, we utilize the official default system prompts provided by the benchmark
+without any task-specific few-shot demonstrations.
+During inference, the generation hyperparameters
+are uniformly set to a temperature of 1.0, relying
+on the models’ default top-p and top-k sampling
+configurations, with a maximum generation limit
+of 8,192 new tokens per turn. To ensure standardized environment execution, we do not impose a
+global timeout on the overall task duration. However, strict execution boundaries are enforced at the
+tool interaction level: individual standard MCP tool
+calls are subject to a 120-second timeout, whereas
+HyperTool code block executions are allocated a
+timeout of up to 600 minutes to fully accommodate extensive local processing and data aggregation. For the final evaluation, the agent’s ultimate
+responses are rigorously extracted from the generated <answer></answer> tags using regular expressions. Both Accuracy and Average Score metrics are subsequently computed using the official
+built-in evaluator provided by the MCP-Universe
+framework, ensuring a completely fair, objective,
+and reproducible assessment.
+
+To construct a high-quality training set, we employ GLM-5.1 as the teacher model to synthesize
+compositional tasks and roll out trajectories, followed by GPT-4o acting as the trajectory judge to
+strictly verify execution and reasoning consistency.
+The final supervised fine-tuning (SFT) dataset comprises 10,422 verified HyperTool trajectories. As
+illustrated in Figure 7, the token length of these
+trajectories exhibits a prominent long-tail distribution. While the majority of samples are concentrated between 5,000 and 15,000 tokens, a significant portion extends up to 60,000 tokens, reflecting
+the extensive context required for compositional
+multi-tool workflows. To accommodate the longtail token distribution of our dataset and efficiently
+manage the memory footprint of long-context training, our infrastructure is orchestrated via Ray and
+Megatron-LM. During training, the maximum sequence length is explicitly set to 65,536 tokens
+(64k context window).
+For the hyperparameters, we use a global batch
+size of 64 and train the models for 3 epochs. The
+models are optimized using the Adam optimizer
+with a weight decay of 0.1 (β1 = 0.9, β2 = 0.95).
+The peak learning rate is set to 5e-5, following a
+cosine learning rate decay schedule with a 10%
+warmup fraction and a minimum learning rate of
+1e-6. Under this hardware and configuration, the
+total training time is approximately 4 hours for the
+Qwen3-8B model and 31 hours for the Qwen3-32B
+model.
+
+Number of Samples
+
+1,500
+1,250
+1,000
+750
+500
+250
+0
+
+10,000
+
+20,000
+
+30,000
+
+40,000
+
+Number of Tokens
+
+50,000
+
+60,000
+
+Figure 7: Token length distribution of the verified HyperTool SFT dataset.
+
+A.2
+
+HyperTool Interface
+
+B.1
+
+Taxonomy of HyperTool Blocks
+
+To systematically analyze how the agent utilizes
+local execution boundaries, we classify the generated HyperTool code blocks into five functional
+categories based on their programmatic structure,
+tool orchestration complexity, and dataflow logic:
+Atomic. The block serves as a minimal wrapper
+around a single primitive tool call without any additional logic or data manipulation.
+Chaining. The block executes a linear sequence
+of dependent tool calls, where the output of one
+tool is directly passed as an argument to a subsequent tool. By internalizing these linear dependencies, Chaining blocks effectively hide intermediate
+procedural states from the main reasoning trace.
+Transform. The block invokes one or more
+tools and subsequently applies deterministic data
+manipulation logic—such as parsing nested JSONs,
+filtering list elements, or extracting specific
+fields—before returning the result. It acts as a local
+data processor to prune verbose or noisy observations.
+Aggregate. The block executes multiple tool
+calls (often via loops) and applies custom computational algorithms to aggregate their results. Typi-
+
+1,750
+
+0
+
+B
+
+Evaluation Protocol
+
+We evaluate our models on the MCP-Universe
+benchmark under a strict zero-shot setting. For
+11
+
+cal operations include sorting candidates, finding
+minimum/maximum values , or computing derived
+metrics across multiple sources.
+Helper. Representing the highest level of execution abstraction, the agent defines internal, reusable
+Python helper functions (‘def helper():...‘) within
+the block. This structure is deployed to manage
+highly repetitive operations, complex state transitions, or recursive data fetching across multiple
+primitive tools before yielding the final, distilled
+answer to the global context.
+B.2
+
+Model Method
+
+\
+\
+
+#Tool Using #Tool Calling Turns
+
+Base
+AgentFold
+Recode
+Browsemaster
+CodeAct
+React
+Hypertool
+
+5.58
+5.38
+12.72
+5.84
+4.26
+26.92
+47.55
+
+5.58
+5.38
+12.72
+5.84
+4.26
+26.92
+20.76
+
+6.84
+11.78
+16.20
+7.85
+9.22
+28.81
+21.76
+
+Table 3: Comparison of tool usage statistics across base
+and SFT models. denotes the instruction model without SFT, while \ denotes SFT on the corresponding
+trajectory data.
+
+HyperTool Examples
+from 29.8% to 54.9%. This indicates that highly
+compressed, multi-step results can occasionally
+induce overconfidence, leading the agent to skip
+necessary secondary verifications. Furthermore,
+Wrong argument passing remains relatively stable
+(22.0%→19.2%), highlighting schema alignment
+as a persistent challenge for LLMs regardless of
+the execution paradigm.
+
+To provide a concrete illustration of how these
+blocks operate in practice and reduce the reasoning
+overhead, Figures 9–11 present a detailed comparison between a standard step-wise MCP trajectory
+and our internalized HyperTool execution blocks
+(including both atomic and multi-call scenarios).
+
+C
+
+Additional Results and Case Studies
+
+Execution Dynamics Analysis. Table 3 compares tool usage statistics across different methods
+based on Qwen3-8B backbone by measuring actual primitive tools executed (# Tool using), modelvisible actions (# Tool calling), and total interaction
+turns. The granular breakdown reveals two clear
+trends: ❶ Stepwise paradigms suffer from strict
+action coupling. In standard stepwise baselines
+like ReAct-SFT, actual tool usage strictly mirrors
+model-visible calls (e.g., exactly 26.92 for both).
+This rigid one-to-one mapping forces every single tool operation to consume an interaction turn,
+inevitably leading to rapid context inflation. ❷ HyperTool decouples task capacity from context
+overhead. By internalizing dense tool workflows
+into local executable blocks, HyperTool orchestrates nearly double the number of primitive tools
+for deeper task exploration (26.92→47.55). Despite this massive increase in actual tool utilization,
+it significantly reduces both external model-visible
+calls (26.92→20.76) and overall interaction turns
+(28.81→21.76). This empirical evidence directly
+confirms that HyperTool drastically expands the
+agent’s operational capacity without inflating the
+global reasoning trace.
+
+8.30%
+
+8.25%
+7.00%
+
+Error Categories
+29.75%
+
+10.50%
+
+9.48%
+
+Premature final answer
+Wrong argument passing
+
+MCP Stepwise
+
+Block execution error
+
+Avg. % per error type
+
+Evidence misinterpretation
+
+8.20%
+
+HyperTool
+Avg. % per error type
+
+54.85%
+
+Missing evidence
+Wrong tool selection
+
+22.50%
+
+19.23%
+
+22.00%
+
+Figure 8: Distribution of failure modes for the MCP
+Stepwise baseline and HyperTool.
+
+Error Analysis. Figure 8 compares the error distribution between the MCP Stepwise baseline and
+HyperTool across all evaluated trajectories. The
+results demonstrate a fundamental shift in failure modes when utilizing local execution boundaries, characterized by three key observations:
+❶ Elimination of routing errors. HyperTool
+completely eradicates Wrong tool selection errors
+(8.3%→0.0%). By encapsulating dependent operations within blocks, the model effectively bypasses intermediate routing confusion. ❷ Significant reduction in execution crashes. Block execution errors drop substantially from 22.5% to
+8.2%, confirming that delegating complex workflows to locally executed code reduces the cognitive burden of state tracking. ❸ Shift towards
+premature termination. As low-level mechanical errors are resolved, Premature final answer
+emerges as the dominant failure mode, surging
+
+D
+
+Potential Risk
+
+While HyperTool significantly enhances tool orchestration efficiency, it introduces specific challenges that warrant consideration. 1) Execution
+12
+
+Security: The core mechanism of HyperTool relies
+on the agent dynamically generating and executing
+Python code blocks. Without strict isolation, this
+exposes the host environment to Remote Code Execution (RCE) vulnerabilities, whether from malicious prompt injections or unintended infinite loops.
+Deploying HyperTool in real-world systems strictly
+necessitates robust sandboxing (e.g., Dockerized
+environments or restricted interpreters) and readonly API access constraints. 2) Interpretability
+Trade-offs: By internalizing complex procedural
+logic into local blocks, HyperTool inherently hides
+intermediate execution states from the main reasoning trace. While this prevents context inflation, it makes diagnosing subtle algorithmic errors
+(e.g., an incorrect sorting condition within an Aggregate block) more challenging, as the agent only
+observes the final output. 3) Reliance on Code
+Generation Capability: The efficacy of HyperTool is bottlenecked by the base model’s inherent
+coding proficiency. While our SFT pipeline effectively activates this capability in smaller models like Qwen3-8B, deploying this framework to
+zero-shot, non-code-optimized models may result
+in frequent syntax errors or schema hallucinations,
+necessitating robust local repair modules.
+
+E
+
+Prompts
+
+In this section, we present prompts used in HyperTool , including HyperTool Agent which is used
+to define execution strategies and rules (E.1) , Trajectory Judge which is used to verify the reasoning
+chain and final answer (E.2) , HyperTool Code Repairer (E.3) , Code Intent Reviewer (E.4) , and Tool
+Response Summarizer (E.5).
+
+13
+
+Case 1: Standard Step-wise MCP Trajectory
+Task: Find a single ’cafe’ such that driving time from J Gateway Condo to the cafe is closest to walking time from
+Park Place Residences at PLQ to the cafe.
+Step-wise MCP trajectory:
+1. maps_geocode(address="J Gateway Condo, Singapore")
+-> lat=1.3357764, lng=103.7424381
+2. maps_geocode(address="Park Place Residences at PLQ, Singapore")
+-> lat=1.3163901, lng=103.8927333
+3. maps_search_places(query="cafe", location={"latitude": 1.32608325, "longitude": 103.8175857}, radius=5000)
+-> initial cafe candidates
+4. maps_distance_matrix(origins=["J Gateway Condo, Singapore"], destinations=[initial cafe candidates],
+mode="driving")
+5. maps_distance_matrix(origins=["Park Place Residences at PLQ, Singapore"], destinations=[initial cafe candidates],
+mode="walking")
+6. Compare |driving_time - walking_time| for all initial candidates
+-> best initial candidate: Ms Durian | Speciality Bakery & Cafe, diff=1953
+7. maps_search_places(query="cafe", location={"latitude": 1.3163901, "longitude": 103.8927333}, radius=5000)
+-> expanded candidate set near Park Place Residences at PLQ
+8. maps_distance_matrix(origins=["J Gateway Condo, Singapore"], destinations=[expanded cafe candidates],
+mode="driving")
+9. maps_distance_matrix(origins=["Park Place Residences at PLQ, Singapore"], destinations=[expanded cafe candidates],
+mode="walking")
+10. Compare |driving_time - walking_time| for all expanded candidates
+-> best candidate: Knots Cafe & Living (Paya Lebar), driving_time=1812, walking_time=1654, diff=158
+11. maps_search_places(query="Knots Cafe & Living (Paya Lebar)")
+-> types=["cafe", "restaurant", "point_of_interest", "store", "food", "establishment"]
+Final answer:
+{"stops": [{"name": "Knots Cafe & Living (Paya Lebar)", "place id": "ChIJKXkHO4sX2jERhWTgW68Gs44"}]}
+
+Figure 9: Trajectory trace for Case 1: Standard Step-wise MCP execution.
+
+14
+
+Case 2: One-call HyperTool Block
+Assistant reasoning: Let me start by geocoding both locations and searching for cafes.
+HyperTool call:
+j_gateway = call_tool("google-maps", "maps_geocode", {"address": "J Gateway Condo, Singapore"})
+park_place = call_tool("google-maps", "maps_geocode", {"address": "Park Place Residences at PLQ, Singapore"})
+result = {"j_gateway": j_gateway, "park_place": park_place}
+Tool response:
+{
+"j_gateway": {"status": true, "result": {"location": {"lat": 1.3357764, "lng": 103.7424381}, "formatted_address":
+"2 Gateway Dr, Singapore 608533", "place_id": "ChIJ3dTg3A8Q2jERI61lPg1ExlM"}},
+"park_place": {"status": true, "result": {"location": {"lat": 1.3163901, "lng": 103.8927333}, "formatted_address":
+"2 Paya Lebar Rd, Singapore 409053", "place_id": "ChIJ42A__8IZ2jERXCRt0_s38Nc"}}
+}
+
+Figure 10: Trajectory trace for Case 2: One-call HyperTool Block (Atomic execution).
+
+Case 3: Multi-call HyperTool Block
+Assistant reasoning: Let me now calculate the driving time from J Gateway Condo and walking time from Park Place
+Residences for each of these cafes.
+HyperTool call:
+j_gateway_addr = "J Gateway Condo, Singapore"
+park_place_addr = "Park Place Residences at PLQ, Singapore"
+driving_result = call_tool("google-maps", "maps_distance_matrix", {"origins": [j_gateway_addr], "destinations":
+cafe_addresses, "mode": "driving"})
+walking_result = call_tool("google-maps", "maps_distance_matrix", {"origins": [park_place_addr], "destinations":
+cafe_addresses, "mode": "walking"})
+driving_times, walking_times = [], []
+for i in range(len(cafe_addresses)):
+driving_times.append(driving_result["result"]["results"][0]["elements"][i]["duration"]["value"])
+walking_times.append(walking_result["result"]["results"][0]["elements"][i]["duration"]["value"])
+results_list = []
+for i in range(len(cafe_names)):
+diff = abs(driving_times[i] - walking_times[i])
+results_list.append({"name": cafe_names[i], "place_id": cafe_place_ids[i], "driving_time": driving_times[i],
+"walking_time": walking_times[i], "diff": diff})
+results_list.sort(key=lambda x: x["diff"])
+result = results_list
+Tool response:
+[
+{"name": "Knots Cafe & Living (Paya Lebar)", "place_id": "ChIJKXkHO4sX2jERhWTgW68Gs44", "driving_time": 1812,
+"walking_time": 1654, "diff": 158},
+{"name": "Keng Wah Sung Cafe", "place_id": "ChIJ47NO1xcY2jERyFbfhYX2QFU", "driving_time": 1669, "walking_time":
+209, "diff": 1460},
+{"name": "The Upper Room Restaurant & Cafe", "place_id": "ChIJ0_8xYqAZ2jERpqkRsZovOZM", "driving_time": 1673,
+"walking_time": 3216, "diff": 1543}
+]
+
+Figure 11: Trajectory trace for Case 3: Multi-call HyperTool Block.
+
+15
+
+E.1
+
+Prompt Template of HyperTool Agent
+
+You are a helpful assistant. Put your final answer in <answer></answer> part.
+
+HyperTool Strategy
+IMPORTANT: To maximize efficiency and reduce latency, you should prioritize HyperTool
+Strategy over sequential turn-based calls whenever the workflow is predictable.
+When to use HyperTool (Single code block)
+• The task can be decomposed into a clear sequence of tool calls (A → B → C).
+• The required data flow between steps is straightforward and can be handled with simple logic
+(e.g., filtering, extraction, loops).
+• The structure of tool outputs is either:
+– Known from prior experience, OR
+– Can be reliably inferred, OR
+– Not critical to control flow (i.e., minor parsing errors will not break the pipeline).
+When NOT to use HyperTool (Call tools one by one)
+• The next step depends heavily on interpreting the semantics of previous outputs (non-trivial
+reasoning).
+• The structure of tool outputs is unclear and critical for downstream steps.
+• The workflow may require significant adaptation after observing intermediate results.
+Execution Standard
+Important:
+• If the logic is deterministic, do not wait for the system to respond between steps. Combine the
+calls, process the data locally within the block, and return the final consolidated result.
+• Do not include any reasoning content in the code block, including as comments (e.g., lines
+starting with #).
+Inference Key Rules:
+1. The only tool you can call directly is HyperTool. Other tools can only be called through
+HyperTool by using call_tool(server_name, tool_name, {"param": "value"})—note
+double braces in format string.
+2. You must carefully read the tool descriptions and the tool output format, and use the exact
+argument names as specified without deviation.
+3. Do not introduce unsupported facts; use reasoning to interpret tool results, but ensure
+conclusions are evidence-grounded. If a tool returns empty, None, or unexpected output, you
+MUST diagnose and retry with a corrected approach.
+4. The variables in different HyperTool code blocks are not reusable.
+5. Carefully follow the tool output format and implement simple data processing logic within the
+HyperTool code block to extract the required information. Only use fields explicitly provided
+in the tool output, and eliminate any irrelevant or noisy data.
+6. Remember each HyperTool code block must use "result" as the variable name to store the
+final result. "result" must contain the actual data returned by tool calls (or
+processed/extracted values derived from it), never a hand-written status string like "done" or
+"completed". Do not use print statements to print the result.
+E.2
+
+Prompt of Trajectory Judge
+
+Task
+$QUESTION$
+
+Trajectory
+$TRAJECTORY$
+
+Agent’s Final Answer
+$AGENT_ANSWER$
+
+16
+
+Evaluation Steps
+Step 1: Reconstruct the final reasoning chain
+Trace backward from the final answer to find the minimal set of tool calls, code executions, and
+reasoning steps that directly support it. Ignore earlier abandoned or corrected attempts.
+Step 2: Verify each step in the final chain
+For each step, check:
+• Is the Python code logically correct for its stated purpose?
+• Does the agent correctly read and interpret the tool output?
+• Are intermediate conclusions consistent with the tool outputs?
+Step 3: Check for selective reporting / post-hoc rationalization
+This is critical. Ask:
+• Did the agent compute multiple variants of a metric (e.g., different date ranges, open vs. close,
+close vs. intraday high) and then selectively report only the variant that supports its
+conclusion?
+• Does the agent’s chosen metric definition match the standard interpretation implied by the task
+wording? For example:
+– “price increased from date A to date B” → should use closing prices on those two specific
+dates, not open-to-intraday-high or any other cherry-picked combination.
+– “revenue in Q2” → should use the Q2 figure, not an annualized estimate.
+If the agent uses a non-standard definition without explicit justification, treat this as a failure
+even if the arithmetic is correct.
+• If the agent tried multiple definitions and only one of them satisfies the task condition, but the
+agent presents that one as the answer without acknowledging the others failed, this is selective
+reporting → score 0.
+Step 4: Verify the final answer
+• Does the final answer directly follow from the last valid reasoning step?
+• Is the stated conclusion actually supported by the data, under the standard metric definition
+(not a cherry-picked one)?
+Step 5: Check completeness
+• Does the final answer directly and completely address every sub-question in the task?
+• Is the answer specific enough (concrete values, names, conclusions)?
+
+Scoring Rules
+Score 1 only if ALL of the following hold:
+• The final reasoning chain is logically valid end-to-end
+• The agent correctly interprets all tool outputs in the chain
+• The final answer is consistent with the chain’s conclusion
+• The metric / method / source used matches the standard interpretation implied by the task (no
+cherry-picking of favorable definitions)
+• No evidence of selective reporting: the agent did not try multiple metric variants and report
+only the one that fits
+• Any task-specified method or source is visibly followed
+• The final answer is complete and directly addresses the task
+Score 0 if ANY of the following:
+• A logical or computational error exists in the final reasoning chain
+• The agent misreads a tool output (wrong key, wrong type, off-by-one, etc.)
+• The final answer contradicts the reasoning chain
+• A clearly stated required method / source was ignored or substituted
+• The agent uses a non-standard metric definition without justification (e.g.,
+open-to-intraday-high instead of close-to-close for a price change claim)
+• The agent computed multiple metric variants and selectively reported only the one supporting
+
+17
+
+its preferred conclusion
+• The trajectory provides no evidence supporting the final answer
+• The final answer is incomplete, vague, or missing required parts
+Note on truncated tool outputs: Judge based on what is visible. Do not penalize for truncation
+unless the missing part was demonstrably necessary to reach the answer.
+
+Output Format
+Return exactly this JSON (no markdown, no extra text):
+{
+“score”: 0 or 1,
+“selective_reporting_check”: “One sentence: did the agent try multiple
+metric
+definitions? Which ones passed/failed? Was only the passing one
+reported?”,
+“metric_definition_check”: “One sentence: does the agent’s chosen metric
+match
+the standard interpretation of the task wording?”,
+“reason”: “2–4 sentences explaining the key reason for the score.
+Cite the specific step or code that passed or failed.”
+}
+
+E.3
+
+Prompt of HyperTool Code Repairer
+
+You are a code repair assistant. A HyperTool code block failed during execution. Your job is to fix
+the code so it achieves the same goal as described in the original reasoning. You may add
+necessary exploratory steps (e.g., listing a directory before fetching a file) if they help reach the
+same goal. Do NOT change the final goal or overall strategy.
+
+Available Tools
+$TOOLS_INFO$
+
+Reasoning that led to this code
+$THINKING$
+The code above produced an error.
+Error details: $ERROR_CONTENT$
+Determine whether this error can be fixed while keeping the same overall goal as the original
+reasoning.
+Allowed fixes
+• Fix argument names, data types, syntax errors, or parsing logic.
+• Add exploratory intermediate steps WITHIN the same code block (e.g., list a directory to
+discover the correct file path, then fetch the file), as long as the code still completes the
+original final goal afterward.
+Not allowed
+• Add reasoning content or comments inside the code block (e.g., lines starting with #).
+• Change the final goal (e.g., targeting a different resource, repo, or object).
+• Abandon the original strategy and replace it with something unrelated.
+Your response
+• If the error can be fixed → call HyperTool__HyperTool with the corrected code.
+• If the error cannot be fixed (broken tool / network / auth / permission / rate limit / service
+unavailable / tool does not exist) → do NOT call any tool, respond with exactly: False
+
+18
+
+E.4
+
+Prompt of Code Intent Reviewer
+
+You are a code intent reviewer. A HyperTool code block failed and was rewritten by a repair
+assistant. Your job: judge whether the fixed code preserves the SAME final goal as described in
+the original reasoning.
+
+Original reasoning (the intent behind the original code)
+$REASONING$
+
+Original code (before fix)
+$ORIG_CODE$
+
+Fixed code (after fix)
+$NEW_CODE$
+
+Judgment Criteria
+VALID if:
+• The fixed code targets the same resource / API / object as the original.
+• The final operation type (fetch / write / compute / query) is unchanged.
+• Only argument values, syntax, variable names, or parsing logic changed.
+• Exploratory steps were added (e.g., list directory first), but the original goal is still completed
+afterward.
+INVALID if:
+• The target resource, repo, endpoint, or object changed.
+• The final operation type changed (e.g., fetch → hardcode, write → read).
+• The original goal was dropped or replaced with a different task.
+• The code only does exploration and never completes the original goal.
+Reply strictly in one of these two formats (no other text):
+VALID: <one sentence reason>
+INVALID: <one sentence reason>
+E.5
+
+Prompt of Tool Response Summarizer
+
+You are a precise information extractor. Your task: Extract and retain ONLY the information from
+the tool response that is related to the tool’s intent and potentially useful for solving the original
+query. Remove all irrelevant, redundant, or unhelpful content.
+Follow these rules:
+1. Reference the query and history: Use the original query and historical interactions to
+understand what information might be useful for solving the problem.
+2. Conservative retention: When in doubt, preserve information instead of deleting it.
+3. Make it informative but concise: Keep useful URLs and key evidence. Remove formatting
+noise and irrelevant verbosity.
+4. Preserve numerical precision: All numbers (prices, coordinates, IDs, percentages, counts,
+etc.) must be copied verbatim from the source. Never round, abbreviate, or paraphrase
+numeric values.
+5. Handle unhelpful responses: If fully unhelpful, return a short statement like “No helpful
+information found.”
+
+Original Task
+$QUESTION$
+
+Conversation History (for context)
+$HISTORY$
+
+Tool Call That Produced This Response
+Tool: $TOOL_NAME$
+Arguments: $TOOL_ARGS$
+
+Raw Tool Response to Summarize
+
+19
+
+$TOOL_RESPONSE$
+Please provide a concise summary of the tool response above, retaining all information relevant to
+the original task.
+
+20
+
+

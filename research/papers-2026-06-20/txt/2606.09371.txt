@@ -1,0 +1,1700 @@
+Capability-Aligned Hierarchical Learning for Tool-Augmented LLMs
+Haotong Yang and Ting Long* and Yi Chang*
+Jilin University
+haotong25@mails.jlu.edu.cn, longting@jlu.edu.cn, yichang@jlu.edu.cn
+
+arXiv:2606.09371v1 [cs.AI] 8 Jun 2026
+
+Abstract
+high-level planning
+
+Tool learning enables LLMs to invoke external tools to accomplish tasks. Prior studies
+have demonstrated the effectiveness of a hierarchical structure: a high-level policy handles global planning and decomposes tasks
+into manageable sub-tasks, and a low-level policy focuses on invoking tools to solve these
+sub-tasks. However, these works typically optimize the high-level and low-level policies
+separately, leading to planner-executor misalignment and limiting LLM performance on
+tool-use tasks. In this paper, we propose a
+method called Capability-Aligned Hierarchical Learning (CAHL), which leverages RLVR
+to jointly optimize both policies, enabling better alignment between the high-level planner
+and the low-level executor. Experiments on
+constrained tool-use benchmarks (API-Bank
+and BFCL) and an open-ended environment
+(Bamboogle) demonstrate the effectiveness of
+CAHL. Our code is available at https://
+github.com/al123123123-123/htl.
+
+1
+
+Low-level execution
+
+Find the average closing price of Apple stock in the past 10 days?
+Available tools:
+volume_traded(company, date): Get stock's trading volume
+closing_price(company, Nday): Get past N days' closing prices
+average_compute(data_list): Compute the average of a list of data
+
+average Apple's closing price over the past 10 days.
+subtask granularity exceeds low-level's capability
+
+…
+
+Can not handle
+
+1 get Apple‘s closing price for day 1 → 2 get Apple’s
+closing price for day 2 → … → 11 average all prices.
+subtask granularity fails below low-level's capability
+
+P1Day = closing_price(”Apple”, 1)Wrong tool
+
+(a) high-level planner misaligns with low-level capability
+1 get Apple’s closing price of past 10 days → 2 average prices.
+result = average_compute( ? )
+
+Wrong order
+
+(b) low-level executor misaligns with high-level instruction
+1 get Apple’s closing price of past 10 days → 2 average prices.
+price_10_days = closing_price(”Apple”, 10)
+result = average_compute(price_10_days)
+
+(c) planner-executor alignment
+
+Introduction
+
+Figure 1: Misalignment between high-level planning
+and low-level execution. The planner may generate subtasks that are logically reasonable but difficult for the
+low-level executor to realize with available tool schemas,
+while the executor may fail to align with the planner’s
+underlying intent.
+
+Tool learning refers to the ability of large language
+models (LLMs) to invoke external tools (Schick
+et al., 2023; Qin et al., 2024a), such as APIs (Qin
+et al., 2024b; Patil et al., 2024), web search engines (Lazaridou et al., 2022; Jin et al., 2025), to
+accomplish tasks that cannot be solved by text generation alone. For example, given the query What’s
+the weather in Beijing today?, directly relying on
+text generation alone would likely produce outdated information, since LLMs cannot know realtime weather from training data. To address this,
+LLM calls a weather API with the argument (city:
+Beijing) and incorporates the returned real-time
+information into its response.
+However, this single-turn paradigm, where the
+model performs one tool call, receives its output,
+
+and produces a final answer, only suffices for relatively simple queries (Yao et al., 2022; Li et al.,
+2023). In realistic tool-use scenarios, even seemingly simple user requests may require the model to
+coordinate multiple tools with different functional
+scopes and parameter requirements. Consider the
+query in Figure 1: Find the average closing price of
+Apple stock in the past ten days. Answering this requires: (1) getting Apple’s closing price for the past
+10 days; (2) averaging those prices. Solving this in
+a single turn would lead to incorrect or incomplete
+answers, as a single tool invocation cannot cover
+the multiple steps required above.
+
+* Corresponding authors.
+
+1
+
+To address that, recent works have adopted hierarchical decision making for tool learning (Xu
+et al., 2023; Wang et al., 2023; Prasad et al., 2024).
+A high-level planner first decomposes the user request into a sequence of sub-tasks (e.g., [search
+past 10 days closing price, average the
+price]), and a low-level executor then translates
+each sub-task into concrete tool calls with appropriate parameters.
+However, existing hierarchical methods typically
+optimize the planner and executor separately: the
+planner is trained to generate logically correct
+sub-task sequences based on the query, without
+awareness of whether the executor can actually succeed at those sub-tasks. The executor, in turn, is
+trained independently to map sub-tasks to tool calls.
+This independent optimization leads to a plannerexecutor misalignment: the planner may propose
+sub-tasks that are theoretically sound but do not
+match the executor’s actual tool-use capability. As
+shown in Figure 1(a), an overly coarse-grained subtask cannot be parsed into an executable tool, while
+an overly fine-grained sub-task may force unnecessary low-level details that are already encapsulated
+by existing tools. On the other hand, the executor may fail to align with the planner’s underlying
+intent, as shown in Figure 1(b).
+To address the planner-executor misalignment,
+we propose Capability-Aligned Hierarchical
+Learning (CAHL). Instead of separately optimizing the planner and the executor, CAHL jointly
+optimizes them based on Reinforcement Learning
+with Verifiable Rewards(RLVR). This joint optimization encourages the planner to adapt the granularity of its instructions to the executor’s actual
+capabilities, while enabling the executor to adjust
+its strategy to match the planner’s intent. Extensive experiments on constrained benchmarks (APIBank, BFCL) and unconstrained open-ended environments (Bamboogle) demonstrate the effectiveness of CAHL. Notably, CAHL achieves consistent
+improvements over strong single-level and hierarchical baselines across constrained and open-ended
+tool-use benchmarks. In summary, our main contributions are as follows:
+
+ners and executors to adapt to each other through
+verifiable task-level feedback.
+• We evaluate CAHL on constrained and openended tool-use benchmarks, showing consistent
+improvements over baselines.
+
+2
+
+Related Work
+
+Early explorations of tool learning relied on incontext learning (Lazaridou et al., 2022; Paranjape
+et al., 2023; Kim et al., 2023; Cummins et al., 2025;
+Xu et al., 2023; Prasad et al., 2024), which supplies few-shot tool invocation exemplars and API
+specifications within the prompt to guide LLMs in
+invoking external tools. With the construction of
+large-scale instruction datasets such as ToolBench
+(Qin et al., 2024b), ToolACE (Liu et al., 2025), and
+xLAM (Zhang et al., 2025a), supervised fine-tuning
+(SFT) became the dominant paradigm (Patil et al.,
+2024; Acikgoz et al., 2025; Chen et al., 2024). SFT
+enhances the adherence to tool invocation schemas
+and precision in following complex API execution
+protocols, but recent work shows that these methods fail to generalize to unseen tools and complex
+multi-step tasks
+(Zeng et al., 2024; Chu et al., 2025; Guo et al.,
+2025). More recently, reinforcement learning (RL)
+has been adopted to optimize tool use via interaction feedback (Li et al., 2025; Jin et al., 2025).
+ToolRL (Qian et al., 2025) introduces fine-grained
+reward decomposition, separating format correctness from semantic correctness to provide denser
+signals for optimization. ToolZero (Zeng et al.,
+2025a) further demonstrates that RL, without SFT
+warm-up, can elicit intrinsic tool-use capabilities
+directly from base models. In addition, ToolSample (Feng et al., 2025) improves sample efficiency
+by incorporating dynamic task sampling and curriculum learning strategies.
+Another line of work studies hierarchical tool
+use, where a high-level planner decomposes a user
+request into sub-tasks and a low-level executor
+maps these sub-tasks into concrete tool calls (Xu
+et al., 2023; Wang et al., 2023; Prasad et al., 2024).
+This plan-then-execute paradigm improves interpretability and scalability for long-horizon tool-use
+tasks by separating global task decomposition from
+local tool execution. However, most existing hierarchical methods optimize the planner and executor
+separately. As a result, the planner may generate
+sub-tasks that are logically reasonable but difficult
+
+• We identify planner-executor misalignment in existing hierarchical tool learning methods, where
+planner-generated sub-tasks do not match the
+executor’s actual tool-use capability.
+• We propose CAHL, a joint optimization framework based on RLVR, which encourages plan2
+
+high-level planner
+high-level policy
+
+Calculate triangle areas:
+15×20 m, 25×30 ft, 35×40 in.
+
+optimize
+
+optimize
+
+1 calculate the triangle area for 15×20 m (m²) 2 calculate the triangle area for 15×20 m (m²) 25×30
+ft (ft²) 3 calculate the triangle area for 15×20 m (m²) 35×40 in (in²).
+
+name: area_triangle,
+tools lib
+parameters:
+{base: int, height: int, unit: str}
+description:
+calculate the area of a triangle.
+
+……
+
+low-level policy
+
+optimize
+
+{name: area_triangle, 1
+parameters: {base: 15,
+height: 20, unit: “m^2”}}
+
+low-level policy
+
+optimize
+
+{name: area_triangle, 2
+parameters: {base: 25,
+height: 30, unit: “ft^2”}}
+
+low-level policy
+
+optimize
+
+{name: area_triangle, 3
+parameters: {base: 35,
+height: 40, unit: “in^2”}}
+
+Tool execution
+
+low-level executor
+
+Figure 2: Overview of Capability-Aligned Hierarchical Learning.
+
+π(ak | sk ) that maps the state sk to a tool-use action ak , so as to maximize the expected cumulative
+reward:
+" T
+#
+X
+k
+max Eπ
+γ R(sk , ak ) .
+(1)
+
+for the low-level executor to realize with the available tool schemas. Meanwhile, the executor may
+fail to align with the planner’s underlying intent,
+leading to misordered, incomplete, or redundant
+tool invocations.
+
+π
+
+3
+
+k=0
+
+Problem Definition
+4
+
+In this paper, we study the problem of tool use,
+where LLMs are required to accomplish userspecified tasks by invoking external tools. Formally, given a user query q and a predefined
+set of available tools T = {t1 , t2 , . . . , tK },
+the LLM must generate a sequence of actions
+{a1 , a2 , . . . , ak }, where each ai can be either a
+text response or a tool invocation.
+According to previous works (Li et al., 2025;
+Yu et al., 2025; Qian et al., 2025; Zeng et al.,
+2025b), tool-use problem can be naturally formulated as a decision-making problem and defined as a Markov Decision Process (MDP) tuple M = (S, A, P, R, γ). S denotes the state
+space. For a state sk at step k (sk ∈ S), it summarizes the user query q and the interaction history {(a1 , o1 ), (a2 , o2 ), . . . , (ak−1 , ok−1 )}, providing the necessary context for the model to select
+appropriate tools. Here ok denotes the observations
+returned by the executed tools at step k. A denotes
+the action space. An action ak corresponds to either
+invoking a tool tk ∈ T with specified arguments or
+a text response (e.g., intermediate reasoning or a
+final answer).
+P denotes the transition function P(sk+1 |
+sk , ak ), which transfers from state sk to sk+1 when
+action ak is executed. R denotes reward R(sk , ak ),
+is the feedback on task performance after executing action ak . γ denotes the discount factor, and
+γ ∈ (0, 1] controls the relative importance of immediate versus future rewards. Under the MDP
+formulation, given a state sk ,
+the objective of tool use task is to learn a policy
+
+Methodology
+
+To address planner-executor misalignment in hierarchical tool learning, we propose CAHL in this
+paper. As shown in Figure 2, CAHL is a hierarchical framework with a high-level planner and a
+low-level executor. Unlike prior work, we jointly
+optimize both policies using RLVR, encouraging
+the planner to match its instruction granularity to
+the executor’s capabilities, and the executor to align
+its strategy with the planner’s intent. We next describe the high-level policy, the low-level policy,
+and their joint optimization.
+4.1
+
+High-level policy
+
+The high-level policy is designed to synthesize a
+comprehensive execution plan Z in a single pass,
+providing a global context that specifies the overall tool-use structure and intended execution flow.
+Formally, given the user query q, available tool set
+T , the high policy πh generates the global plan:
+Z ∼ πh (· | q, T ),
+
+(2)
+
+where Z denotes the global plan, which is composed of an ordered sequence of k sub-tasks Z =
+[z1 , z2 , . . . , zk ]. Each sub-task zk is a structured
+instruction that encapsulates both the tool and the
+corresponding argument filling:
+zk = ⟨tk , {(p, vp ) | p ∈ Params(tk ), vp ← Extract(q)}⟩,
+(3)
+
+where tk ∈ T represents the selected tool for the
+k-th step, and Params(tk ) denotes the set of required parameters for tool invocation tk . The value
+3
+
+where vp ⊆ Z denotes that the value string vp
+appears as a substring within the generated plan
+Z. I[·] is the indicator function, which outputs 1
+when the generated arguments match the expected
+values (e.g., specific city names or dates) prior to
+final structured parsing, and 0 otherwise.
+The execution-level reward assesses the correctness of the generated plan based on its induced execution trajectory. Specifically, given
+a global plan Z, the low-level policy follows
+this plan and produces an execution trajectory
+τ = {a1 , a2 , . . . , ak }, where each element aj
+corresponds to either a concrete tool invocation
+or a natural language output at step j. The
+execution-level reward is defined as the average
+step-wise alignment between the generated execution trajectory and the ground-truth sequence
+G = {g1 , g2 , . . . , gn }:
+
+vp signifies the specific argument value extracted
+directly from the user query q. Notably, the parameters specified by the high-level policy are not fixed:
+during local execution, they may be adaptively refined based on the actual tool feedback returned at
+previous steps.
+4.2
+
+Low-level Policy
+
+The low-level policy is designed to execute individual tool invocation conditioned on the tool specification, intended arguments provided by the highlevel policy, and the actual feedback from previous
+execution steps. It refines the tool arguments when
+necessary, performs the corresponding tool invocation, and returns the execution result to update the
+interaction state. Specifically, the low-level policy
+πl is formulated as:
+ak ∼ πl (· | F1:k , zk , T ),
+
+(4)
+k
+
+where F1:k denotes the feedbacks of the previous
+k − 1 execution steps. ak denotes the final executable output generated by the low-level policy,
+which can be either (1) reasoning text (e.g., intermediate thoughts or a final answer), or (2) a
+tool invocation formatted as a code snippet or a
+machine-readable JSON object.
+4.3
+
+R(h,exe) =
+
+(7)
+
+j=1
+
+Here Score(aj , gj ) is computed based on the
+alignment between the executed action produced by
+the low-level policy and the corresponding groundtruth. If both aj and gj correspond to tool invocations, and the executed tool name and all associated
+argument values in aj exactly match those specified in gj , Score(aj , gj ) is set to 1; If both aj and
+gj are natural language responses (e.g., intermediate reasoning traces or final answers), Score(aj , gj )
+is defined as the semantic similarity between the
+two outputs. In all other cases, such as action
+type mismatch or structurally invalid executions,
+Score(aj , gj ) is set to 0. That is:
+
+Joint Optimization via RLVR
+
+To align the high-level policy’s planning granularity with the low-level policy’s execution capabilities, we design a series of verifiable rewards for
+each policy and jointly optimize both policies with
+GRPO (Shao et al., 2024).
+High-level Reward. The high-level reward Rh
+evaluates whether the generated plan leads to accurate parameter inference and correct execution
+behavior under the given context. Specifically, the
+high-level reward is defined as
+Rh = R(h,param) + R(h,exe) ,
+
+1X
+Score(aj , gj ).
+k
+
+
+
+if gj ∈ Atool ,
+I[aj = gj ],
+Score(aj , gj ) = CosSim(aj , gj ), if gj ∈ Atext ,
+
+0,
+otherwise.
+
+(8)
+
+By grounding the high-level reward in the actual
+execution of the low-level policy, this executionaware design enables effective feedback from lowlevel execution outcomes to high-level planning.
+As a result, the planner is encouraged to generate
+global plans that are not only structurally valid but
+also well-aligned with the execution capabilities
+of the low-level policy and the ultimate tool-use
+objective.
+
+(5)
+
+where R(h,param) is the parameter-level reward, and
+R(h,exe) is the execution-level reward.
+The parameter-level reward R(h,param) evaluates
+whether the high-level policy can extract correct
+argument from the provided context. Suppose the
+V denotes the set of all argument values contained
+within these ground truth tool invocations, the parameter reward is defined by:
+X
+R(h,param) =
+I(vp ⊆ Z),
+(6)
+
+Low-level Reward.
+ward is defined as:
+
+Formally, the low-level re-
+
+Rl = R(l,form) + R(l,syn) + R(l,sem) ,
+
+vp ∈V
+
+4
+
+(9)
+
+where R(l,form) denotes the format-level reward
+that evaluates structural validity, R(l,syn) denotes
+the syntax-level reward that assesses schema compliance, and R(l,sem) denotes the semantic-level
+reward that measures semantic correctness.
+The format-level reward is a binary reward,
+which verifies whether the generated output ak contains all required special tokens (e.g., XML tags)
+in the strict order specified by the prompt.
+
+by the model that corresponds to the ground-truth
+tool invocation gj .
+(3) Parameter value: we check whether the argument values are exactly matched,
+
+rv =
+
+X 
+
+I Valuegj [p] = Valuet(gj ) [p] ,
+
+(14)
+
+gj ∈G
+
+where p is the parameter’s name. Valuegj [p] and
+Valuet(gj ) [p] denote the values of parameter p in
+the ground-truth tool invocation gj and the modelgenerated tool invocation t(gj ), respectively. I[·] is
+the indicator function.
+
+(
+1,
+R(l,form) =
+0,
+
+all tokens present and ordered,
+otherwise.
+(10)
+The syntax-level reward evaluates whether the
+parameters in the generated output ak strictly adhere to the predefined tool schema, including the
+correctness of argument structure and compliance
+with data type constraints. Specifically, for a tool
+invocation tk in ak , we employ a validation function to verify if the parameter p of tool invocation
+tk conforms to the structure and data types defined
+in the tool environment’s schema: if no tool call is
+detected, the reward is 0; If tool calls are present
+and all extracted arguments pass the schema validation, the reward is 1; otherwise, the reward is -1.
+That is:
+
+Model training. We optimize both high-level
+policy and low-level policy with GRPO (Shao et al.,
+2024). Specifically, for each input query q, the highlevel policy πh samples a group of n candidate
+global plans, denoted as Z = {Z (1) , . . . , Z (n) }.
+Each plan Z (i) is parsed into a sequence of subtasks
+Z (i) = [z1 , z2 , . . . , zk ]. The high-level trainer
+waits until the low-level executor completes the
+entire sequence. Upon completion, it evaluates the
+(1)
+(2)
+(n)
+comprehensive rewards {Rh , Rh , ..., Rh } via
+Eq. (5). The policy πh is then optimized based
+on the group advantage derived from the reward
+distribution within Z (i) :
+h 
+
+i
+(i)
+Lh (θh ) = −EZ (i) ∼πh A Z (i) , Rh log πh Z (i) | q; T ,
+
+
+0,
+if at contains no tool invocation,
+
+
+
+R(l,syn) = 1,
+if ∀p ∈ Params(tk ), p is valid in schema,
+
+
+
+−1, otherwise.
+(11)
+
+(i)
+where A(Z (i) , Rh ) denotes the group advantage
+of Z (i) .
+
+The semantic-level reward, conditioned on
+valid formatting, measures the semantic alignment between the predicted tool invocation T ′ =
+{t1 , t2 , ..., tk } and the ground-truth invocation G =
+{g1 , . . . , gn }. Specifically, we focus on:
+(1) Tool name: we measure whether the intersection over union (IoU) of selected tool names,
+
+For a task zi specified by the global plan Z, the
+low-policy πl sample a group of execution Ai =
+(i)
+(i)
+{a1 , . . . , am }. Upon the tool of each generated
+output executed, we compute the corresponding
+(1)
+(2)
+(m)
+instant rewards {Rl , Rl , ..., Rl } of the lowlevel policy via Eq. (9). The low-level policy is
+then optimized with:
+
+rn =
+
+|NG ∩ NT′ |
+∈ [0, 1],
+|NG ∪ NT′ |
+
+(15)
+
+(12)
+
+h 
+
+
+i
+(i)
+(j)
+(i)
+Ll (θl ) = −Ea(i) ∼π A aj , Rl
+log πl aj | F1:i , zi , T ,
+j
+
+where NG and NT′ are the sets of tool names in G
+and T ′ .
+(2) Parameter name: we measure if the correct
+arguments are identified,
+rp =
+
+X |Params(gj ) ∩ Params(t(gj ))|
+gj ∈G
+
+|Params(gj ) ∪ Params(t(gj ))|
+
+
+
+(i)
+
+l
+
+(j)
+
+where A aj , Rl
+
+
+
+(16)
+denotes the group advantage
+
+(i)
+
+of aj . The training details of CAHL are illustrated
+in Algorithm 1.
+
+, (13)
+
+5
+
+Experiments
+
+We conduct extensive experiments to evaluate the
+performance of CAHL, focusing on the following
+research questions: (i) Is CAHL more effective
+
+where Params(·) represents the set of parameter
+names. t(gj ) denotes the tool invocation produced
+5
+
+Table 1: Main results across BFCL, API-Bank, and Bamboogle. Best and second-best performances are highlighted
+in bold and underlined. In BFCL, Relevance evaluates whether the model correctly determines if tool use is required
+for a given query, while Irrelevance measures whether the model can correctly avoid unnecessary tool invocations
+when no tool is needed. “–” indicates that the corresponding Bamboogle result is unavailable because we could not
+find public checkpoints for Tool-N1 and ToolSample to reproduce the evaluation under the same setting.
+Benchmark
+
+Metric
+
+Qwen EASYTool TUMIX Tool-N1 ToolRL ToolSample CAHL
+
+Overall Acc
+Non-Live AST
+Live Acc
+Multi Turn
+Relevance
+Irrelevance
+
+47.68
+68.98
+63.31
+8.88
+72.22
+71.93
+
+36.39
+59.50
+50.26
+0.75
+88.89
+44.00
+
+58.52
+84.36
+74.26
+16.71
+88.89
+79.16
+
+53.91
+77.57
+73.39
+10.00
+77.78
+77.85
+
+56.96
+85.21
+73.39
+13.25
+83.33
+75.87
+
+60.25
+86.42
+76.85
+18.50
+83.33
+78.44
+
+61.10
+87.37
+78.31
+18.75
+83.33
+79.43
+
+API-Bank
+
+Overall
+Level 1
+Level 2
+Level 3
+
+58.29
+65.4
+43.3
+44.3
+
+54.61
+61.15
+35.82
+44.27
+
+73.70
+76.19
+53.73
+76.34
+
+60.47
+70.7
+46.3
+36.6
+
+61.81
+72.2
+56.7
+32.8
+
+64.99
+73.2
+65.7
+39.7
+
+75.54
+81.7
+64.2
+62.6
+
+Bamboogle
+
+Accuracy
+
+69.6
+
+68.8
+
+73.6
+
+-
+
+72.0
+
+-
+
+75.2
+
+5.2
+
+Baselines
+
+BFCL
+
+than existing methods (RQ1)? (ii) How does joint
+optimization affect overall performance (RQ2)?
+(iii) Can CAHL perform tool use more efficiently
+and reliably than baseline methods (RQ3)? (iv)
+Does CAHL effectively mitigate planner-executor
+misalignment (RQ4)? Additional evaluations, including training convergence and computational
+cost analysis, are provided in the Appendix A.5
+and Appendix A.6.
+5.1
+
+We compare CAHL with six representative baselines ranging from foundational models to state-ofthe-art tool-use frameworks: Qwen-2.5-Instruct
+(Qwen et al., 2025), Tool-N1 (Zhang et al., 2025b),
+ToolRL (Qian et al., 2025), ToolSample (Feng
+et al., 2025), EASYTool (Yuan et al., 2025), and
+TUMIX (Chen et al., 2025). Detailed descriptions
+and architectural configurations for each baseline
+framework are provided in Appendix A.1.
+
+Training and Evaluation
+5.3
+
+Training. Following ToolSample (Feng et al.,
+2025), we adopt a 4,000-sample composite dataset
+consisting of ToolACE (Liu et al., 2025), Hammer (Lin et al., 2024), and xLAM (Zhang et al.,
+2025a). To support CAHL’s joint optimization, we
+reorganize the original tool-use trajectories into
+role-specific training instances: atomic execution
+instances for the executor and trajectory-level planning targets for the planner. Further details are
+provided in Appendix A.2.
+
+Main Results (RQ1)
+
+Table 1 shows that CAHL achieves the best overall
+performance on the evaluated benchmarks while
+remaining competitive across fine-grained metrics,
+demonstrating its effectiveness in tool-use tasks.
+On BFCL, CAHL achieves 61.10% overall accuracy, with the best performance on Non-Live
+AST, Live Acc, Multi Turn, and Irrelevance. This
+suggests that CAHL improves both schema-level
+tool invocation and execution reliability. Although EASYTool and TUMIX obtain higher Relevance scores, Relevance mainly measures the preexecution decision of whether a tool call is needed,
+rather than the correctness of the subsequent tooluse trajectory. In particular, EASYTool achieves
+high Relevance but much lower Irrelevance, suggesting that it may be more inclined to trigger tool
+calls even when they are unnecessary. In contrast,
+CAHL achieves the best Irrelevance score while
+also leading on execution-related metrics, indicating that it improves reliable tool execution without
+encouraging excessive tool invocation.
+
+Evaluation. To thoroughly assess the effectiveness of CAHL, we evaluate our method on three
+representative benchmarks: the Berkeley Function
+Calling Leaderboard (BFCL) (Yan et al., 2024) for
+structural and functional correctness, API-Bank
+(Li et al., 2023) for complex multi-turn interactive
+tool-use, and Bamboogle (Press et al., 2023) for
+unconstrained, multi-hop reasoning. The details of
+benchmarks are discussed is provided in Appendix
+A.3.
+6
+
+Single-level
+
+LowOnly
+
+FreezeLow
+
+FreezeHigh
+
+Ours
+
+Overall
+Non-live
+Live
+Multi
+Rel.
+Irrel.
+
+56.96
+85.21
+73.39
+13.25
+83.33
+75.87
+
+59.24
+85.19
+76.02
+20.52
+77.78
+67.03
+
+50.34
+72.81
+65.66
+11.37
+83.33
+71.22
+
+53.30
+76.50
+66.62
+15.25
+72.22
+77.72
+
+61.10
+87.37
+78.31
+18.75
+83.33
+79.43
+
+73.03
+80.20
+68.66
+53.44
+
+75.54
+81.70
+64.18
+62.60
+
+ & R X Q W
+
+BFCL
+
+61.81
+72.18
+56.72
+32.82
+
+73.37
+79.95
+70.15
+54.96
+
+67.50
+71.18
+56.72
+61.83
+
+    
+
+    
+
+        
+  
+
+ 7 R R O 5 /
+     
+
+ 2 X U V
+     
+  
+ 
+
+     
+
+    
+    
+
+ 
+
+  D   $ Y J     7 R R O  & D O O V   E   , Q Y D O L G  7 R R O  & D O O V       F   5 H G X Q G D Q W  5 D W L R    
+
+Figure 3: Efficiency and quality analysis on API-Bank.
+CAHL reduces invalid tool invocations and redundant
+execution loops.
+
+stantially underperform CAHL on both BFCL and
+API-Bank. This shows that optimizing only one
+side of the hierarchy is insufficient: when either the
+planner or the executor is frozen, the two components cannot fully adapt to each other’s capability
+boundaries. In contrast, CAHL jointly optimizes
+both components, enabling the planner to generate
+more executable sub-tasks and the executor to better follow high-level intent; (2) the frozen variants
+consistently underperform LowOnly, and they can
+even fall below Single-level on BFCL. This indicates that simply introducing a hierarchical structure does not guarantee better tool use. If only the
+executor is optimized while the high-level planner
+is frozen, the executor may be constrained by mismatched high-level guidance, causing it to perform
+worse than direct single-level inference; if only the
+planner is optimized while the low-level executor
+is frozen, the planner cannot benefit from reciprocal executor adaptation and may still generate
+sub-tasks whose distribution or granularity is difficult for the executor to realize. Therefore, a jointly
+optimized high-level planner is necessary; otherwise, hierarchical guidance can limit rather than
+improve execution performance; (3) LowOnly outperforms Single-level on both benchmarks. Since
+LowOnly uses the trained low-level executor alone
+during inference, this result indicates that our training pipeline also strengthens the executor itself
+beyond the single-level RL baseline. Overall, these
+results show that CAHL’s gains do not come merely
+from reinforcement learning or hierarchical decomposition alone, but from joint optimization that
+aligns and improves both the planner and the executor.
+
+On API-Bank, CAHL achieves 75.54% overall
+accuracy, obtaining the best overall performance,
+the best Level 1 result and strong Level 3 performance. Compared with ToolSample, CAHL
+slightly trails on Level 2 but performs better on both
+the overall benchmark and Level 3. Since ToolSample focuses on improving RL training through
+dynamic sampling and curriculum learning, while
+CAHL directly aligns high-level planning with lowlevel execution through joint optimization,
+this suggests that joint optimization is especially
+beneficial for tool-use tasks involving longer dependency chains and more complex multi-step execution.
+CAHL underperform TUMIX on level 3, we
+assume that is because TUMIX trades substantially
+more inference turns and tokens for stronger multiagent deliberation and error correction.
+Finally, on Bamboogle, CAHL reaches 75.2%
+accuracy, outperforming other baselines. Since
+Bamboogle evaluates final-answer correctness in
+open-ended multi-hop QA with web search tools
+rather than intermediate tool-call accuracy, this result suggests that CAHL generalizes well to openended tasks.
+5.4
+
+        
+   
+
+API-Bank
+Overall
+Level 1
+Level 2
+Level 3
+
+   
+
+ 3 H U F H Q W D J H    
+
+Metric
+
+ 4 Z H Q
+
+ 3 H U F H Q W D J H    
+
+Table 2: Ablation results on BFCL and API-Bank.
+
+Ablation Study (RQ2)
+
+We evaluate four variants to examine the contribution of joint optimization: (i) Single-level
+is a single-tier tool-use agent, i.e., ToolRL; (ii)
+LowOnly uses the trained low-level executor alone
+for inference, without invoking the high-level planner; (iii) FreezeLow freezes the low-level executor
+and only optimizes the high-level planner; and (iv)
+FreezeHigh freezes the high-level planner and only
+optimizes the low-level executor.
+Results in Table 2 provide three main observations: (1) both FreezeLow and FreezeHigh sub-
+
+5.5
+
+Efficiency and Quality Analysis (RQ3)
+
+To evaluate execution efficiency and reliability, we
+conduct a trajectory-level analysis on 150 randomly
+sampled single turn API-Bank tasks without limit7
+
+Table 3: Case study illustrating the mitigation of plannerexecutor misalignment. The decoupled baseline generates an overly abstract plan, causing the executor to drop
+constraints and hallucinate parameters. CAHL enforces
+strict parameter anchoring via an aligned planner.
+
+ing the maximum number of tool calls. We report
+three metrics: the average number of tool calls
+per successful task, the invalid invocation rate, and
+the redundant call ratio. Invalid invocations include
+schema violations, incorrect parameters, and execution errors, while redundant calls refer to repeated
+or unnecessary tool invocations. Lower values indicate more concise and reliable tool-use trajectories.
+As shown in Figure 3, CAHL produces shorter
+and more reliable execution trajectories: (1) CAHL
+requires only 1.04 tool calls per successful task,
+compared with 1.24 for ToolRL, indicating that it
+completes tasks with fewer unnecessary actions.
+(2) CAHL reduces the invalid invocation rate to
+16.92%, substantially lower than Qwen (28.48%)
+and ToolRL (30.49%), suggesting better schema
+compliance and parameter grounding. (3) CAHL
+lowers the redundant call ratio to 1.51%, compared
+with 6.53% for Qwen and 11.89% for ToolRL,
+showing that it is less likely to enter repetitive or
+ineffective tool-use loops. Overall, these results
+indicate that CAHL improves not only final task
+performance but also the quality and efficiency of
+intermediate tool execution.
+5.6
+
+Case Study: Mitigating Planner-Executor Misalignment
+Context & User Goal:
+• Detailed Goal: "I have been experiencing migraines. Please update my
+medical profile to register this new symptom. My username is Jerry and the
+required password is zxcvbn."
+Current State: Symptom identified. Ready for profile update.
+Remaining Task: Execute the highly-constrained PersonalInfoUpdate
+API.
+Decoupled Baseline Output:
+[Untuned High-Level Plan]:
+"Subtask: Update the user’s medical profile with the new symptom."
+<tool_call>
+{ "name": "PersonalInfoUpdate",
+"parameters": { "username": "Jerry", "symptom": "migraine", "password":
+"password123" } }
+</tool_call>
+[Critique]: Planner-Executor Misalignment & Hallucination
+× Misalignment: The planner issues an overly abstract instruction, dropping
+the critical password constraint.
+× Hallucination: The executor, forced to complete the API schema without
+guidance, hallucinates a fake password, causing a fatal API error.
+Ours (CAHL) Output:
+[Aligned High-Level Plan]:
+"Subtask: Call PersonalInfoUpdate for username ’Jerry’ with symptom ’migraine’. Required authentication: password is ’zxcvbn’."
+<think> Guided by the plan, I will inject the exact credentials... </think>
+<tool_call>
+{ "name": "PersonalInfoUpdate",
+"parameters": { "username": "Jerry", "symptom": "migraine", "password":
+"zxcvbn" } }
+</tool_call>
+[Analysis]: Capability-Aligned Execution
+✓ Success: The co-optimized planner precisely matches the executor’s schema
+needs, explicitly anchoring the strict constraints and preventing hallucination.
+
+Case Study (RQ4)
+
+To further analyze how CAHL addresses plannerexecutor misalignment, we conduct a case study
+comparing CAHL with a decoupled hierarchical
+baseline on the same constrained multi-step task.
+As shown in Table 3, the decoupled baseline has
+a planner and an executor, but they are not jointly
+optimized. Its unaligned planner issues overly abstract instructions that drop critical constraints (e.g.,
+passwords), while the executor, lacking sufficient
+high-level guidance, hallucinates missing parameters to satisfy the API schema, leading to execution failure. In contrast, CAHL jointly optimizes
+the planner and the executor: the planner anchors
+required constraints and produces schema-aware
+guidance, while the executor faithfully grounds this
+guidance into valid tool calls. This case highlights
+the importance of joint optimization for plannerexecutor alignment, where the planner must adapt
+its instructions to the executor’s executable action
+space and the executor must reliably realize the
+planner’s intent during tool execution.
+
+6
+
+ment in hierarchical tool learning. CAHL jointly
+optimizes a high-level planner and a low-level
+executor with verifiable rewards, encouraging
+planner-generated sub-tasks to match the executor’s actual tool-use capability, while enabling the
+executor to adjust its strategy to match the planner’s intent. Experiments show that CAHL improves task performance and execution reliability
+compared with strong baselines.
+
+7
+
+Limitations
+
+The hierarchical design of CAHL, while beneficial
+for complex tasks, introduces additional computational overhead compared to single-level agents.
+Specifically, the mandatory high-level planning
+stage before each low-level execution not only increases inference latency but also adds to the overall training cost. This reflects a fundamental tradeoff between computational efficiency and execution reliability: the overhead is essentially the price
+paid for better handling of complex task in tool
+
+Conclusion
+
+We propose Capability-Aligned Hierarchical Learning (CAHL) to address planner-executor misalign8
+
+usage. Future work could explore more efficient
+planning strategies as well as asynchronous execution between planning and acting to mitigate this
+overhead.
+
+Bowen Jin, Hansi Zeng, Zhenrui Yue, Jinsung Yoon,
+Sercan Arik, Dong Wang, Hamed Zamani, and Jiawei
+Han. 2025. Search-r1: Training llms to reason and
+leverage search engines with reinforcement learning.
+arXiv preprint arXiv:2503.09516.
+
+References
+
+Geunwoo Kim, Pierre Baldi, and Stephen McAleer.
+2023. Language models can solve computer tasks.
+Advances in Neural Information Processing Systems,
+36:39648–39677.
+
+Emre Can Acikgoz, Jeremiah Greer, Akul Datta,
+Ze Yang, William Zeng, Oussama Elachqar, Emmanouil Koukoumidis, Dilek Hakkani-Tur, and
+Gokhan Tur. 2025. Can a single model master both
+multi-turn conversations and tool use? coalm: A
+unified conversational agentic language model. In
+Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 1:
+Long Papers), pages 12370–12390.
+
+Angeliki Lazaridou, Elena Gribovskaya, Wojciech
+Stokowiec, and Nikolai Grigorev. 2022. Internetaugmented language models through few-shot
+prompting for open-domain question answering.
+arXiv preprint arXiv:2203.05115.
+Minghao Li, Yingxiu Zhao, Bowen Yu, Feifan Song,
+Hangyu Li, Haiyang Yu, Zhoujun Li, Fei Huang,
+and Yongbin Li. 2023. Api-bank: A comprehensive
+benchmark for tool-augmented llms. In Proceedings
+of the 2023 Conference on Empirical Methods in
+Natural Language Processing, pages 3102–3116.
+
+Yongchao Chen, Jiefeng Chen, Rui Meng, Ji Yin,
+Na Li, Chuchu Fan, Chi Wang, Tomas Pfister, and
+Jinsung Yoon. 2025. Tumix: Multi-agent testtime scaling with tool-use mixture. arXiv preprint
+arXiv:2510.01279.
+
+Xuefeng Li, Haoyang Zou, and Pengfei Liu. 2025.
+Torl: Scaling tool-integrated rl. arXiv preprint
+arXiv:2503.23383.
+
+Zehui Chen, Kuikun Liu, Qiuchen Wang, Wenwei
+Zhang, Jiangning Liu, Dahua Lin, Kai Chen, and
+Feng Zhao. 2024. Agent-flan: Designing data and
+methods of effective agent tuning for large language
+models. In Findings of the Association for Computational Linguistics ACL 2024, pages 9354–9366.
+
+Qiqiang Lin, Muning Wen, Qiuying Peng, Guanyu
+Nie, Junwei Liao, Jun Wang, Xiaoyun Mo, Jiamu
+Zhou, Cheng Cheng, Yin Zhao, and 1 others. 2024.
+Hammer: Robust function-calling for on-device language models via function masking. arXiv preprint
+arXiv:2410.04587.
+
+Tianzhe Chu, Yuexiang Zhai, Jihan Yang, Shengbang Tong, Saining Xie, Dale Schuurmans, Quoc V
+Le, Sergey Levine, and Yi Ma. 2025. Sft memorizes, rl generalizes: A comparative study of
+foundation model post-training. arXiv preprint
+arXiv:2501.17161.
+
+Weiwen Liu, Xu Huang, Xingshan Zeng, Shuai Yu,
+Dexun Li, Shuai Wang, Weinan Gan, Zhengying Liu,
+Yuanqing Yu, Zezhong WANG, and 1 others. 2025.
+Toolace: Winning the points of llm function calling. In The Thirteenth International Conference on
+Learning Representations.
+
+Chris Cummins, Volker Seeker, Dejan Grubisic, Baptiste Roziere, Jonas Gehring, Gabriel Synnaeve, and
+Hugh Leather. 2025. Llm compiler: Foundation language models for compiler optimization. In Proceedings of the 34th ACM SIGPLAN International
+Conference on Compiler Construction, pages 141–
+153.
+
+Bhargavi Paranjape, Scott Lundberg, Sameer Singh,
+Hannaneh Hajishirzi, Luke Zettlemoyer, and
+Marco Tulio Ribeiro. 2023. Art: Automatic multistep reasoning and tool-use for large language models. arXiv preprint arXiv:2303.09014.
+
+Zihao Feng, Xiaoxue Wang, Bowen Wu, Hailong Cao,
+Tiejun Zhao, Qun Yu, and Baoxun Wang. 2025. Toolsample: Dual dynamic sampling methods with curriculum learning for rl-based tool learning. arXiv
+preprint arXiv:2509.14718.
+
+Shishir G Patil, Tianjun Zhang, Xin Wang, and Joseph E
+Gonzalez. 2024. Gorilla: Large language model
+connected with massive apis. Advances in Neural
+Information Processing Systems, 37:126544–126565.
+Archiki Prasad, Alexander Koller, Mareike Hartmann,
+Peter Clark, Ashish Sabharwal, Mohit Bansal, and
+Tushar Khot. 2024. Adapt: As-needed decomposition and planning with language models. In Findings of the Association for Computational Linguistics:
+NAACL 2024, pages 4226–4252.
+
+Daya Guo, Dejian Yang, Haowei Zhang, Junxiao
+Song, Ruoyu Zhang, Runxin Xu, Qihao Zhu, Shirong Ma, Peiyi Wang, Xiao Bi, and 1 others. 2025.
+Deepseek-r1: Incentivizing reasoning capability in
+llms via reinforcement learning. arXiv preprint
+arXiv:2501.12948.
+
+Ofir Press, Muru Zhang, Sewon Min, Ludwig Schmidt,
+Noah A Smith, and Mike Lewis. 2023. Measuring
+and narrowing the compositionality gap in language
+models. In Findings of the Association for Computational Linguistics: EMNLP 2023, pages 5687–5711.
+
+Edward J Hu, Yelong Shen, Phillip Wallis, Zeyuan
+Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang,
+Weizhu Chen, and 1 others. 2022. Lora: Low-rank
+adaptation of large language models. ICLR, 1(2):3.
+
+9
+
+Cheng Qian, Emre Can Acikgoz, Qi He, Hongru Wang,
+Xiusi Chen, Dilek Hakkani-Tür, Gokhan Tur, and
+Heng Ji. 2025. Toolrl: Reward is all tool learning
+needs. arXiv preprint arXiv:2504.13958.
+
+models. In The eleventh international conference on
+learning representations.
+Yuanqing Yu, Zhefan Wang, Weizhi Ma, Shuai Wang,
+Chuhan Wu, Zhiqiang Guo, and Min Zhang. 2025.
+Steptool: Enhancing multi-step tool usage in llms via
+step-grained reinforcement learning. In Proceedings
+of the 34th ACM International Conference on Information and Knowledge Management, pages 3952–
+3962.
+
+Yujia Qin, Shengding Hu, Yankai Lin, Weize Chen,
+Ning Ding, Ganqu Cui, Zheni Zeng, Xuanhe Zhou,
+Yufei Huang, Chaojun Xiao, and 1 others. 2024a.
+Tool learning with foundation models. ACM Computing Surveys, 57(4):1–40.
+Yujia Qin, Shihao Liang, Yining Ye, Kunlun Zhu, Lan
+Yan, Yaxi Lu, Yankai Lin, Xin Cong, Xiangru Tang,
+Bill Qian, and 1 others. 2024b. Toolllm: Facilitating
+large language models to master 16000+ real-world
+apis. In The Twelfth International Conference on
+Learning Representations.
+
+Siyu Yuan, Kaitao Song, Jiangjie Chen, Xu Tan,
+Yongliang Shen, Kan Ren, Dongsheng Li, and Deqing Yang. 2025. Easytool: Enhancing llm-based
+agents with concise tool instruction. In Proceedings
+of the 2025 Conference of the Nations of the Americas Chapter of the Association for Computational
+Linguistics: Human Language Technologies (Volume
+1: Long Papers), pages 951–972.
+
+Qwen, :, An Yang, Baosong Yang, Beichen Zhang,
+Binyuan Hui, Bo Zheng, Bowen Yu, Chengyuan
+Li, Dayiheng Liu, Fei Huang, Haoran Wei, Huan
+Lin, Jian Yang, Jianhong Tu, Jianwei Zhang, Jianxin
+Yang, Jiaxi Yang, Jingren Zhou, and 25 others. 2025. Qwen2.5 technical report. Preprint,
+arXiv:2412.15115.
+
+Aohan Zeng, Mingdao Liu, Rui Lu, Bowen Wang, Xiao
+Liu, Yuxiao Dong, and Jie Tang. 2024. Agenttuning: Enabling generalized agent abilities for llms. In
+Findings of the Association for Computational Linguistics: ACL 2024, pages 3053–3077.
+
+Timo Schick, Jane Dwivedi-Yu, Roberto Dessì, Roberta
+Raileanu, Maria Lomeli, Eric Hambro, Luke Zettlemoyer, Nicola Cancedda, and Thomas Scialom. 2023.
+Toolformer: Language models can teach themselves
+to use tools. Advances in Neural Information Processing Systems, 36:68539–68551.
+
+Yirong Zeng, Xiao Ding, Yutai Hou, Yuxian Wang,
+Li Du, Juyi Dai, Qiuyang Ding, Duyu Tang, Dandan
+Tu, Weiwen Liu, and 1 others. 2025a. Tool zero:
+Training tool-augmented llms via pure rl from scratch.
+In Findings of the Association for Computational
+Linguistics: EMNLP 2025, pages 9135–9147.
+
+Zhihong Shao, Peiyi Wang, Qihao Zhu, Runxin Xu,
+Junxiao Song, Xiao Bi, Haowei Zhang, Mingchuan
+Zhang, YK Li, and 1 others. 2024. Deepseekmath:
+Pushing the limits of mathematical reasoning in open
+language models. arXiv preprint arXiv:2402.03300.
+
+Yirong Zeng, Xiao Ding, Yuxian Wang, Weiwen Liu,
+Yutai Hou, Wu Ning, Xu Huang, Duyu Tang, Dandan
+Tu, Bing Qin, and 1 others. 2025b. itool: Reinforced
+fine-tuning with dynamic deficiency calibration for
+advanced tool use. In Proceedings of the 2025 Conference on Empirical Methods in Natural Language
+Processing, pages 13901–13916.
+
+Lei Wang, Wanyu Xu, Yihuai Lan, Zhiqiang Hu, Yunshi
+Lan, Roy Ka-Wei Lee, and Ee-Peng Lim. 2023. Planand-solve prompting: Improving zero-shot chain-ofthought reasoning by large language models. In Proceedings of the 61st annual meeting of the association for computational linguistics (volume 1: long
+papers), pages 2609–2634.
+
+Jianguo Zhang, Tian Lan, Ming Zhu, Zuxin Liu, Thai
+Hoang, Shirley Kokane, Weiran Yao, Juntao Tan,
+Akshara Prabhakar, Haolin Chen, and 1 others. 2025a.
+xlam: A family of large action models to empower ai
+agent systems. In NAACL (Long Papers).
+
+Yihong Wu, Liheng Ma, Lei Ding, Muzhi Li, Xinyu
+Wang, Kejia Chen, Zhan Su, Zhanguang Zhang,
+Chenyang Huang, Yingxue Zhang, and 1 others.
+2025. It takes two: Your grpo is secretly dpo. arXiv
+preprint arXiv:2510.00977.
+
+Shaokun Zhang, Yi Dong, Jieyu Zhang, Jan Kautz,
+Bryan Catanzaro, Andrew Tao, Qingyun Wu, Zhiding
+Yu, and Guilin Liu. 2025b. Nemotron-research-tooln1: Exploring tool-using language models with reinforced reasoning. arXiv preprint arXiv:2505.00024.
+
+Binfeng Xu, Zhiyuan Peng, Bowen Lei, Subhabrata
+Mukherjee, Yuchen Liu, and Dongkuan Xu. 2023.
+Rewoo: Decoupling reasoning from observations for
+efficient augmented language models. arXiv preprint
+arXiv:2305.18323.
+
+A
+
+Appendix
+
+A.1
+
+Detailed Baseline Descriptions
+
+Fanjia Yan, Huanzhi Mao, Charlie Cheng-Jie Ji, Tianjun
+Zhang, Shishir G Patil, Ion Stoica, and Joseph E Gonzalez. 2024. Berkeley function calling leaderboard.
+
+To provide a comprehensive benchmark context for
+resolving planner-executor misalignment, we delineate the architectural and optimization characteristics of the six baselines referenced in Section 5.2:
+
+Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak
+Shafran, Karthik R Narasimhan, and Yuan Cao. 2022.
+React: Synergizing reasoning and acting in language
+
+• Qwen-2.5-7B-Instruct (Qwen et al., 2025)
+serves as our foundational backbone model. It
+10
+
+is heavily instruction-tuned for general promptfollowing across multi-turn user intent tracking but operates without targeted parametric
+enforcement for fine-grained tool schema restrictions.
+
+the KL regularization term of GRPO, and set the
+generation temperature to 1.0. Models are initialized from Qwen-2.5-Instruct-7B and fine-tuned in a
+parameter-efficient manner using LoRA (Hu et al.,
+2022) with a rank of 16, with acceleration provided
+by the Unsloth library2 . The details of our prompts
+are shown in Appendix Figure 5.
+
+• Tool-N1 (Zhang et al., 2025b) utilizes an early
+reinforcement learning baseline that optimizes
+tool operations through sparse binary rewards
+derived exclusively from final environment execution outcomes, lacking intermediate processoriented step supervision.
+
+A.3
+
+We conduct evaluations on three widely used benchmarks to assess both atomic tool invocation accuracy and long-horizon tool-use performance: BFCL
+V3 (Yan et al., 2024) and API-Bank (Li et al.,
+2023), we show the statistics of the two benchmarks in table 4 and table 5.
+API-Bank targets more complex, multi-step tooluse scenarios, where models must interact with
+multiple APIs over long horizons to complete structured tasks. The benchmark categorizes tasks into
+three levels based on interaction complexity. We
+evaluate model performance using overall accuracy
+and report results separately on Level 1, Level 2,
+and Level 3, corresponding to single-step API calls,
+multi-step API interactions with simple dependencies, and long-horizon, multi-API tool-use with
+complex dependencies, respectively. API-Bank
+evaluates multi-turn planning and reasoning with
+an average of 2.91 turns per dialogue, it predominantly features single-call turns (363) over multicall turns (122).
+BFCL V3 focuses on individual tool invocation
+under strict function schemas, targeting precise argument selection and compliance with the required
+format. On this benchmark, we report overall accuracy as well as a set of fine-grained accuracy-based
+metrics that evaluate different invocation scenarios, including non-live AST accuracy (structural
+and argument-level correctness for non-live calls),
+live accuracy (execution success for live APIs),
+multi-Turn accuracy (correctness over multi-turn
+interactions), relevance detection (identifying when
+a tool call is required), and irrelevance detection
+(identifying when no tool call is needed).
+Bamboogle is a representative multi-hop question answering benchmark for evaluating free-form
+tool use in open-ended QA scenarios. Unlike BFCL
+and API-Bank, it does not evaluate the correctness
+of intermediate tool invocations or impose strict
+constraints on tool-call parameters. Instead, models are equipped with a web search tool and evalu-
+
+• ToolRL (Qian et al., 2025) introduces an advanced GRPO-based optimization framework
+that incorporates dense, structural, and semantic reward parameters to penalize formatting
+errors during sequential tool invocations. However, it operates purely as a single-level policy
+under intense long-context input dilution.
+• ToolSample (Feng et al., 2025) enhances
+ToolRL by introducing dynamic curriculum
+training paths and specialized sequence difficulty samplers to prioritize complex and borderline execution trajectories during policy adaptation.
+• EASYTool (Yuan et al., 2025) structures a
+prompt-engineered hierarchical workflow that
+manually orchestrates problem-solving boundaries into disconnected multi-agent planning
+and grounding steps. It performs inference
+without joint backpropagation parameter cooptimization.
+• TUMIX (Chen et al., 2025) represents a complex multi-agent framework that implements
+iterative consensus loops to execute test-time
+computation expansion. While proficient at error correction, its multiple conversation turns
+incur extreme scaling overhead and latency
+costs.
+A.2
+
+Implementation Details
+
+We train our CAHL models using the TRL framework1 , a reinforcement learning framework for language models, on 2 NVIDIA A40 GPUs for 15
+epochs. To encourage policy exploration, following (Wu et al., 2025), we generate 2 responses
+per query in high-level policy training and 4 responses per query in low-level policy training, omit
+1
+
+Experiment Details
+
+2
+
+https://github.com/huggingface/trl
+
+11
+
+https://github.com/unslothai/unsloth
+
+ ( [ H F  5 H Z D U G
+ 6 H P  5 H Z D U G
+ 6 X E  P H W U L F V  6 F R U H
+ 7 R W D O  5 H Z D U G
+
+ + L J K  / H Y H O  7 R W D O
+ / R Z  / H Y H O  7 R W D O
+   
+
+ 7 R W D O  5 H Z D U G
+
+    
+
+Table 4: Statistics of the API-Bank Evaluation
+Set.
+
+   
+
+    
+
+   
+
+    
+
+ 
+
+    
+
+     
+
+ 7 U D L Q L Q J  6 W H S V
+
+   
+
+      
+
+                 
+
+ 7 U D L Q L Q J  6 W H S V
+
+VALUE
+
+D OMAINS C OVERED
+T OTAL API S
+T OTAL D IALOGUES
+T OTAL T URNS
+AVG . T URNS
+
+8
+73
+314
+914
+2.91
+
+Turn Breakdown:
+S INGLE -C ALL
+M ULTI -C ALL
+R ETRIEVE +C ALL
+P LAN +R ETRIEVE
+
+363
+122
+50
+50
+
+Figure 4: The convergence of high-level and low-level
+rewards.
+
+in Figure 4. We observe a coarse-to-fine learning pattern: the high-level policy stabilizes earlier,
+reaching a relatively high reward within 12,000
+steps, while the low-level executor continues to
+improve over a longer training horizon of about
+60,000 steps.
+This pattern is consistent with the different roles
+of the two policies. The high-level planner mainly
+learns to produce executable sub-task decompositions with appropriate granularity, while the lowlevel executor must further learn schema-compliant
+tool invocation, argument grounding, and feedbackconditioned execution. Therefore, the early stabilization of the planner provides a more consistent
+planning distribution, allowing the executor to refine its tool-use behavior under more stable highlevel guidance. This supports the central motivation of CAHL: joint optimization helps the planner
+and executor gradually adapt to each other’s capabilities, rather than optimizing them in isolation.
+We also observe a transient decrease in the lowlevel total reward around 25,000 steps. This may
+reflect a temporary adaptation phase, where the
+executor adjusts to more structured and constraintaware plans produced by the increasingly stable
+high-level policy. After this phase, the low-level
+reward continues to improve, suggesting that the
+executor gradually learns to ground high-level intent into executable tool calls.
+
+Table 5: Breakdown of the BFCL Benchmark.
+
+A.4
+
+   
+
+    
+
+  E   / R Z  / H Y H O  5 H Z D U G V
+
+  D   + L J K  / H Y H O  5 H Z D U G V
+S TATISTIC
+
+ 3 D U D P  5 H Z D U G
+ 6 \ Q  5 H Z D U G
+
+C ATEGORY
+
+D IM .
+
+C OUNT P URPOSE
+
+N ON -L IVE
+
+AST
+I RREL .
+
+1,150
+240
+
+S YNTAX
+H ALLUC .
+
+L IVE
+
+AST
+R EL .
+I RREL .
+
+1,351
+18
+882
+
+E XEC .
+S ELECT
+H ALLUC .
+
+M ULTI -T URN D IAL .
+
+800
+
+R EASON
+
+The Training of CAHL.
+
+Algorithm 1 The Training of CAHL.
+1: Input: User Query q, Tool Set T , Policies
+
+πh , πl
+2: Z ← (πh (· | q, T ), n)
+3: for Z (i) in Z do
+
+F1 ← {q}
+[z1 , . . . , zm ] ← Parse(Z (i) )
+6:
+for zk in [z1 , . . . , zm ] do
+7:
+Ak ← (πl (· | F1:k , zk , T ), m)
+8:
+Calculate reward Rl according to Eq. (9)
+9:
+πl ← GRPO Update(Ak , Rl )
+10:
+a∗ ← SelectBest(Ak )
+11:
+F1:k ← UpdateHistory(F1:k , zk , a∗ )
+12:
+end for
+(i)
+13:
+Calculate reward Rh according to Eq. (5)
+14: end for
+(i)
+15: πh ← GRPO Update(Z, {Rh }n
+i=1 )
+4:
+5:
+
+Table 6: Cost comparison. Multiple and Single denote
+multi-turn and single-turn dialogue scenarios, respectively. Both training and testing are performed on an
+NVIDIA A40 (48GB). Time is measured in seconds (s).
+
+Testing
+
+A.5
+
+ 6 X E  P H W U L F V  6 F R U H
+
+ated by final answer accuracy. This goal-oriented
+setting requires the model to decide when to search,
+interpret retrieved evidence, and synthesize the final answer across multiple reasoning steps.
+
+Reward Analysis
+
+To analyze how CAHL learns reliable tool use, we
+visualize the rewards of the high-level planner and
+the low-level executor during training, as shown
+
+Training
+
+Method
+
+Multiple (s)
+
+Single (s)
+
+VRAM (GB)
+
+VRAM (GB)
+
+ToolRL
+Ours
+
+7.79
+13.21
+
+4.44
+7.21
+
+19.16
+19.50
+
+15
+36†
+
+† Includes 21GB (high-level policy) and 15GB (low-level policy).
+
+12
+
+A.6
+
+Computational Cost Analysis
+
+Although our method achieves strong performance
+on the benchmark, the hierarchical architecture inevitably introduces additional memory consumption and inference latency. We compare CAHL
+with ToolRL in terms of GPU memory usage and
+inference time, and the results are reported in Table
+6. As shown in Table 6, the inference latency for
+multi-turn tasks increases to 13.21s (compared to
+7.79s for ToolRL). This is an expected result of
+our sequential two-step inference process, which
+generates a high-level plan before low-level execution. However, thanks to our efficient LoRA
+implementation, the additional memory overhead
+during inference is negligible, with VRAM usage
+remaining comparable to the baseline (19.50GB vs.
+19.16GB). In contrast, the training memory consumption approximately doubles (36GB vs. 15GB),
+reflecting the resource requirements for simultaneously optimizing two policies. Despite this overhead, the additional cost is a reasonable trade-off
+for the substantial improvements in execution reliability and reduction of invalid tool calls, which
+are critical for real-world tool-use applications. Notably, the overhead mainly stems from the hierarchical decision process, and can be further optimized
+through model compression or context compression strategies. In practice, reliable tool execution is often more critical than marginal inference
+speedups, making this trade-off acceptable in many
+real-world scenarios.
+
+13
+
+High Level Planner Prompt
+# Role
+You are an Expert Task Decomposition Engine. Your goal is to map complex natural language requests into a strictly ordered list of atomic
+executable steps.
+# Core Philosophy & Requirements
+1. **Atomic Decomposition**: Break the user request into logical, sequential sub-tasks.
+2. **Parameter-Driven Description**: For each sub-task, assume there is an underlying tool. You must:
+- Identify the implicit tool.
+- **Traverse the tool's parameters** to ensure no detail is missed.
+- Synthesize a natural language sentence that explicitly mentions the values or context for every necessary parameter.
+3. **Natural Language Only**: The output must be a plain English sentence describing the action and its data. **Do not** include tool
+names, function calls, variable assignments, or symbols like `->`.
+4. **Format**: Output **ONLY** valid JSON.
+# Output Schema
+```json
+{
+"Tasks": [
+"Description of step 1 including all relevant parameter values",
+"Description of step 2 including all relevant parameter values"
+]
+}
+
+Low Level Executor Prompt
+# Role
+You are a helpful multi-turn dialogue assistant acting as an **Executor**. Your primary function is to leverage available tools to solve user
+tasks or provide direct responses when tools are unnecessary.
+# Available Tools
+{tools}
+# Workflow
+1. **Analyze**: Recall context and determine the user's immediate goal.
+2. **Decide**:
+- If a tool is needed: Construct the tool call with precise parameters.
+- If NO tool is needed: Formulate a direct text response.
+3. **Refine**: Apply data transformation and merge parameters if necessary.
+# Output Format
+You must output a **SINGLE** block. Do not output both a tool call and a response in the same turn.
+**Option 1: Tool Call (JSON)**
+```plaintext
+<think>
+Reasoning on why this tool is selected and how parameters are derived.
+</think>
+<tool_call>
+{json_string}
+</tool_call>
+```
+**Option 2: Direct Response (Text)**
+```plaintext
+<think>
+Reasoning on why no tool is needed (e.g., chit-chat, clarification, or answering from memory).
+</think>
+<response>
+Your natural language response here.
+</response>
+```
+
+Figure 5: High-Level Planner Prompt & Low-Level Executor Prompt.
+
+14
+
+

@@ -1,0 +1,1511 @@
+From Failed Trajectories to Reliable LLM Agents:
+Diagnosing and Repairing Harness Flaws
+Mengzhuo Chen†,‡,§ , Junjie Wang†,‡ , Zhe Liu†,‡ , Yawen Wang†,‡ , Qing Wang†,‡
+† State Key Laboratory of Complex System Modeling and Simulation Technology, Beijing, China
+‡ Institute of Software, Chinese Academy of Sciences, Beijing, China
+
+arXiv:2606.06324v1 [cs.SE] 4 Jun 2026
+
+§ University of Chinese Academy of Sciences, Beijing, China
+
+Abstract—LLM-based agents increasingly rely on harnesses
+that provide execution environments, tool interfaces, context, lifecycle orchestration, observability, verification, and governance.
+Existing self-improving agents and automatic harness evolution
+methods mainly improve agents through runtime supervision,
+prompt optimization, workflow search, or harness modification
+based on final outcomes. However, they often fail to diagnose
+where the responsible evidence lies in failed trajectories and
+which harness layer causes the unreliable behavior, resulting in
+broad, indirect, or poorly scoped changes. This paper proposes
+H ARNESS F IX, a trace-guided framework for diagnosing agent
+failures and repairing agent harnesses. H ARNESS F IX compiles
+raw execution traces and harness code into a Harness-aware
+Trace Intermediate Representation (HTIR), which normalizes
+fragmented trajectory evidence and captures step-level provenance and control-flow relations. It then attributes failures to
+responsible trajectory steps and harness layers, consolidates
+recurring diagnoses into actionable flaw records, and maps them
+to scoped repair operators. Finally, H ARNESS F IX generates and
+validates harness patches under flaw-specific repair specifications to reduce target flaws without introducing unacceptable
+regressions. We evaluate H ARNESS F IX on SWE-Bench Verified,
+Terminal-Bench 2.0 Verified, GAIA and AppWorld. Across these
+benchmarks, H ARNESS F IX improves held-out test performance
+over the initial harnesses by 15.2%–50.0%, outperforms humandesigned and self-evolution baselines, and reveals recurring
+harness-flaw patterns across ETCLOVG layers.
+Index Terms—LLM agents, harness engineering, trace analysis,
+failure attribution, software engineering agents, regression-aware
+improvement
+
+I. I NTRODUCTION
+LLM agents are increasingly used for long-horizon tasks
+in repository-level software engineering, terminal-based workflows, open-ended research, and application automation [1],
+[2], [3], [4], [5]. Unlike standalone LLM usage, these agents
+repeatedly interact with external environments through model
+invocations, tool calls, observations, intermediate artifacts,
+state changes, and final submissions. As a result, the reliability
+of such systems depends not only on the base model, but
+also on the agent harness: the runtime infrastructure that
+wraps the model and governs how it acts [6], [7], [8]. Recent harness-engineering work characterizes this infrastructure
+using the seven-layer ETCLOVG taxonomy, including Execution, Tooling, Context, Lifecycle, Observability, Verification,
+and Governance [9]. For example, the tool interface determines
+
+how actions are exposed and invoked; context and memory
+determine what the model sees; and lifecycle and orchestration
+govern execution flow and task state.
+When failures occur, improving the harness is often more
+practical than modifying the base model, which is typically
+expensive to retrain, fine-tune, or redeploy. However, harness
+improvement is far from straightforward. Unlike traditional
+software systems, where business logic is explicitly encoded
+in control flow and data structures [10], [11], [12], the behavior
+of agents is largely determined at runtime through model inference, shaped by prompts, retrieved context, tool interfaces, and
+orchestration policies [9], [13], [14]. Consequently, failures
+cannot usually be mapped directly to specific locations in
+the harness implementation, such as source code or prompts.
+Instead, they emerge in execution trajectories that interleave
+natural language reasoning, tool interactions, environmental
+feedback, and intermediate state transitions. The languageheavy, reasoning-driven, and non-deterministic nature of these
+trajectories makes traditional debugging and repair techniques
+substantially less effective [15], [16].
+Existing efforts on self-improving agents and automatic
+harness evolution only partially address this problem. One line
+of work focuses on runtime or supervisory optimization, using
+lightweight supervision and adaptive correction to bypass
+issues at execution time, suppress errors temporarily, or add
+external patches around the agent [17], [18], [19], [20]. While
+such strategies can improve observed performance, they often
+do so without fixing the underlying harness flaw that caused
+the failure. Another line of work is primarily outcome-driven
+rather than diagnosis-driven: it optimizes prompts, workflows,
+or harness logic based on final scores, success rates, or
+efficiency metrics [6], [21], [22], [23], [24], without first
+identifying where the responsible evidence lies in the trajectory
+and which harness layer failed. Without such targeted causal
+diagnosis, the resulting improvements are often broad, indirect,
+or poorly scoped.
+In this work, we aim to start from failed agent trajectories, diagnose the responsible runtime steps in detail, and
+use this evidence to localize harness flaws and repair them
+correspondingly. This goal raises three key challenges. First,
+failure evidence is fragmented across language-heavy and
+reasoning-driven traces, spanning multi-step interactions, tool
+
+TABLE I: Harness layers and their responsibilities.
+Harness layer
+
+Responsibilities
+
+Execution Environment and Sandbox
+Tool Interface
+Context and Memory
+Lifecycle and Orchestration
+Observability
+Verification and Evaluation
+Governance and Security
+
+Provides safe, isolated, reproducible environments in which agent actions run with bounded autonomy.
+Governs how agents discover, describe, select, and invoke tools, including schemas, documentation, and error feedback.
+Determines what the model sees at each step: context window, session state, summaries, retrieved evidence, and persistent memory.
+Controls agent execution flow: think-act-observe loops, retries, task-state management, multi-agent coordination, and termination.
+Records traces, logs, tool calls, errors, and cost information well enough to diagnose failures and monitor behavior.
+Connects tasks to feedback through readiness checks, intermediate validation, final output evaluation, and regression testing.
+Defines permissions, identities, policies, approvals, and audit trails that constrain agent authority.
+
+invocations, natural-language reasoning and environment responses, which makes precise diagnosis difficult. Second, even
+if a failure can be localized within an execution trajectory,
+it remains difficult to map it back to the concrete harness
+implementation responsible for it, such as source code and
+prompts. This mapping is difficult because execution traces
+capture runtime behavior, whereas harness implementations
+are defined in static artifacts like code and prompts; in agent
+systems, these two views are often not explicitly aligned as in
+traditional software. Third, harness modifications may reduce
+one recurring failure while introducing regressions elsewhere.
+Although this challenge also appears in traditional program
+repair, it is more difficult in agent systems because the dependencies between runtime behavior and harness mechanisms
+are less explicit.
+We propose H ARNESS F IX, a trace-guided framework for
+diagnosing agent failures and repairing agent harnesses. H AR NESS F IX starts from failed executions, attributes failures to
+responsible trajectory steps and implicated harness layers, consolidates recurring diagnoses into actionable flaw patterns, and
+applies scoped harness modifications that are validated before
+held-out task evaluation. These components address the three
+challenges above: HTIR normalizes fragmented trajectory evidence; harness-layer diagnosis connects responsible runtime
+steps to modifiable harness mechanisms; and scoped repair
+with validation constrains candidate changes so that targetflaw reduction is checked against regressions. The key idea is
+to drive harness repair from fine-grained, trace-grounded failure diagnoses. H ARNESS F IX designs four cooperating LLM
+agents for this purpose. A trace abstraction agent compiles
+raw execution traces and harness code into a Harness-aware
+Trace Intermediate Representation (HTIR) that captures input
+provenance linking and control flow inference at the step
+level. A diagnosis agent consumes HTIR to produce diagnosis
+records with step-level root cause attributions and implicated
+harness layers, then consolidates similar diagnosis records into
+flaw records that summarize recurring root causes. A repair
+agent maps each flaw record to scoped repair operators and
+instantiates flaw-specific repair specifications that constrain
+candidate patch generation. Finally, a validation agent checks
+that each candidate patch stays within the intended repair
+scope and reduces the target flaw without introducing unacceptable regressions.
+We evaluate H ARNESS F IX on SWE-Bench Verified,
+Terminal-Bench 2.0 Verified, GAIA and AppWorld. Across
+
+these benchmarks, H ARNESS F IX improves held-out test performance over the initial harnesses by 15.2%–50.0%, outperforms human-designed and self-evolution baselines, and reveals recurring harness-flaw patterns across ETCLOVG layers.
+To further understand the role of each sub-module, we conduct
+ablation experiments on prompt-only repair, trace-grounded
+diagnosis, scoped repair operators, and regression-aware acceptance. The results show that all components contribute to
+the final improvement and that effective harness repair requires
+diagnosis grounded in execution traces, modifications constrained by repair operators, and validation against regressions.
+This paper makes the following contributions:
+• We present
+H ARNESS F IX, a trace-grounded and
+diagnosis-driven framework for repairing agent harnesses.
+Unlike outcome-driven prompt evolution or free-form
+self-editing, H ARNESS F IX explicitly connects failure
+evidence to harness-aware diagnosis and scoped harness
+changes.
+• We introduce HTIR, a harness-aware trace representation
+that normalizes heterogeneous agent trajectories into steplevel evidence structures, providing a basis for step-level
+attribution, harness diagnosis, and scoped repair planning.
+• We evaluate H ARNESS F IX across four popular benchmarks and agents, showing that trace-grounded harness
+repair improves held-out test performance over initial
+harnesses by 15.2%–50.0%, while also outperforming
+human-designed harnesses and self-evolution baselines.
+• We provide a systematic analysis of accepted harness
+repairs across popular agent benchmarks, revealing recurring harness-flaw patterns and the ETCLOVG layers
+stressed by different task settings.
+II. BACKGROUND
+A common perspective in agent engineering is that an LLMbased agent consists of two parts: the base model itself and
+everything else that surrounds it, i.e., the runtime infrastructure
+that provides tools, context, orchestration logic, etc. This surrounding infrastructure is collectively referred to as the agent
+harness [9]. When failures occur, they often stem not from
+the model’s reasoning alone, but from how the harness exposes
+information, enables actions, records evidence, and enforces
+policies.
+The harness is realized through editable implementation
+artifacts such as prompt templates, tool specifications, orchestration code, configuration files, adapters, logging hooks, and
+verification scripts. Throughout this paper, we use harness
+
+Fig. 1: Overview of H ARNESS F IX.
+
+code as a shorthand for the implementation artifacts that
+realize these mechanisms, including both executable source
+code and model-facing prompt or configuration resources.
+Accordingly, harness repair means modifying these harness
+artifacts, rather than updating the base-model parameters, to
+correct diagnosed reliability flaws.
+To describe the mechanisms that make up an agent harness,
+recent work introduces the ETCLOVG taxonomy [9], which
+organizes harness responsibilities into seven layers: Execution,
+Tooling, Context, Lifecycle, Observability, Verification, and
+Governance. Following this taxonomy, Table I summarizes the
+responsibilities of each layer. In this paper, we use these layers
+as a vocabulary for connecting runtime evidence to the harness
+mechanisms that may need repair.
+III. A PPROACH
+The key idea of H ARNESS F IX is to drive harness repair from
+fine-grained, trace-grounded failure diagnoses. It first localizes
+responsible runtime steps, maps their behavior to implicated
+harness flaws, and then translates those diagnoses into scoped
+repair specifications for guided repair. H ARNESS F IX designs
+four LLM agents for trace-guided harness repair: a trace
+abstraction agent, a diagnosis agent, a repair agent, and a
+validation agent. The trace abstraction agent compiles raw
+traces and harness code into Harness-aware Trace Intermediate
+Representation (HTIR), including input provenance linking
+and control flow inference. The diagnosis agent consumes
+HTIR and produces diagnosis records that capture step-level
+root cause attributions and implicated harness layers. It then
+consolidates similar diagnosis records into flaw records that
+summarize recurring root causes. The repair agent maps flaw
+records to repair operators, instantiates flaw-specific repair
+specifications, and generates scoped candidate patches accordingly. The validation agent checks whether the implementation
+stays within the intended repair scope and reduces the target
+flaw without introducing unacceptable regressions.
+
+A. Harness-aware Trace Intermediate Representation
+Raw traces are heterogeneous and agent-specific. Different
+agents adopt different logging formats (such as separated
+LLM-call and environment logs,action-centric trajectories) and
+use different field names and structural organizations for
+similar concepts (such prompt_tokens vs. input_tokens for
+token usage, or agent_name vs. recipient_agent_type for agent
+identity). These raw traces are often useful for debugging, but
+their inconsistent naming and structure make them difficult to
+compare or analyze in a unified manner. Beneath this surface
+variation, however, they share a common semantic structure:
+an ordered sequence of agent actions, each containing a
+request message and a response message. HTIR turns these
+heterogeneous agent traces into a common, step-level representation that supports evidence tracing, failure attribution, and
+harness layer diagnosis.
+1) Nodes: Each node in HTIR represents a recoverable
+execution step from the trace, such as a model call, toolmediated action, validation step, or final submission decision.
+We refer to each such node as a TraceStep.
+2) TraceStep Attributes: Each TraceStep is assigned
+a unique identifier, which is a sequential integer indicating
+its position in the execution order. It also stores two basic
+fields, namely request message and response message. They
+are respectively the full message sent to or returned by the
+model, tool, or environment at this step.
+HTIR also adds three derived annotations. (a) Role is the
+step’s function, such as information acquisition, tool invocation, artifact editing, validation, orchestration decision, or
+final submission. (b) Execution Status includes success, failure,
+timeout, or blocked. (c) Artifact/state effect records whether
+the step has no external effect, a read-only interaction, an
+artifact change, a state change, a mixed effect, or an unknown
+effect. When the request or response messages imply artifact
+or state reads, writes, or externally visible changes, HTIR
+attaches the corresponding effect- and state-related annotations
+to the TraceStep; these annotations form the artifact/state
+
+Fig. 2: Illustrative example for the AppWorld completion-guard harness flaw.
+
+evidence used in node-local diagnostic evidence described
+below. The trace abstraction agent examines each TraceStep’s
+request and response messages to infer these three attributes.
+For artifact/state effect, the trace abstraction agent inspects
+the request and response messages along with any available
+tool or environment metadata to identify externally observable
+consequences. The annotation records the effect category, the
+affected resource or object identifier, the observed change or its
+absence, and optional supporting evidence such as tool return
+values or state-diff snapshots.
+3) Trace Links: HTIR establishes three kinds of links
+among TraceSteps, and they together decompose a failure’s
+causal chain along complementary dimensions.
+(a) Temporal links preserve the original order of execution.
+(b) Input provenance links show how a later request was
+formed from earlier trajectory content and harness logic that
+constructs the request. They help explain what evidence was
+preserved, omitted, summarized, or reintroduced into later
+context.
+(c) Control flow links show why one step led to the
+next under the harness controller. Input provenance links and
+control flow links are complementary: the former explains
+how the current request was assembled; the latter explains
+why the harness executed the current step. This separation
+is essential for precise attribution: a step may assemble its
+
+request correctly yet fail to produce the expected effect,
+or conversely may cause an unintended consequence while
+receiving an improperly formed request.
+How input provenance links are derived. For each TraceStep, the trace abstraction agent takes the current request
+message and searches earlier TraceSteps in reverse temporal
+order to identify whether the request was constructed from
+prior request messages or response messages. This search
+considers both explicit reuse (copied or concatenated message
+spans) and semantic reuse where the current request contains
+information grounded in earlier response messages, even when
+surface wording differs. The agent also analyzes the harness
+code responsible for request construction, including memory
+assembly logic, tool descriptions, and other prompt-building
+components that may have inserted content into the current
+request. The attributes of input provenance link include the
+source TraceStep id, target TraceStep id, source span in
+the earlier request or response, target span in the current
+request, and the reuse relation (such as copied, summarized,
+transformed, or semantically reused). The span is a precise
+slice of the original trace record that verifiably grounds the
+link, enabling auditability and concrete evidence attribution.
+The link may also include the harness code references, which
+are repository file paths and line ranges that explain the request
+
+construction logic, i.e., how the harness inserted, summarized,
+filtered, or omitted that content.
+How control flow links are derived. Control flow links are
+inferred from the current step, its input provenance links, the
+surrounding temporal neighborhood, and the harness code. Using these signals, the trace abstraction identifies the triggering
+execution logic that caused the current TraceStep to occur,
+such as continue, retry, delegate, validate, finalize, or terminate. The attributes of the control flow link include the source
+TraceStep id, target TraceStep id, triggering logic, triggering
+condition, or execution status when available. Similarly, the
+link may also include the harness code references for the
+controller transition, including file paths and line numbers.
+4) Node-local Diagnostic Evidence: For failure attribution,
+H ARNESS F IX needs a localized evidence view for each candidate TraceStep rather than only a global view of the full
+trajectory. Therefore, HTIR constructs node-local diagnostic
+evidence for every TraceStep by organizing the information
+attached to that step and the links associated with the step.
+This localized representation supports step-level attribution
+by allowing candidate responsible steps to be judged using
+evidence centered on the step itself.
+The node-local diagnostic evidence is organized into three
+types: input provenance evidence from input provenance links,
+control flow evidence from control flow links, and artifact/state effect evidence from the TraceStep’s artifact/state effect
+annotation.
+5) harness layer Responsibility Facet: HTIR also attaches
+a harness layer responsibility facet to each candidate TraceStep. It maps each step to the ETCLOVG layers (as demonstrated in Section II) with the help of node-local diagnostic
+evidence, indicating which harness layers are implicated by
+the evidence attached to that step. By making these implicated
+layers explicit, this facet serves as the foundation for harness
+repair.
+For each TraceStep, the trace abstraction agent examines
+its node-local diagnostic evidence and compares it against the
+responsibility criteria defined for each harness layer in Table
+I. A TraceStep can map to multiple layers when its local
+evidence implicates more than one harness responsibility. For
+the AppWorld example in Figure 2, this mapping is shown
+through the responsible evidence groups: S4 provides Tool
+Interface evidence because the payment-request body omits the
+required user_email argument; S5 provides Observability
+evidence because API errors and database-effect deltas are not
+exposed to the harness; and S6 provides Lifecycle and Verification evidence because complete_task() is accepted
+despite the missing payment-request state change.
+B. Harness Flaw Diagnosis
+1) Failure Attribution: Given a failed execution trace,
+failure attribution identifies which TraceStep(s) caused the
+failure and diagnoses why, then links the root cause to specific
+harness layers.
+The diagnosis agent proceeds with the task in four steps.
+First, symptom localization reads the externally evaluated
+
+result and the last TraceStep’s diagnostic evidence to identify
+what failed. Second, evidence backtracking starts from the
+last TraceStep and its linked evidence, then uses temporal
+links, input provenance evidence, control flow evidence, and
+artifact/state evidence to produce a ranked set of candidate
+responsible steps. This stage is deliberately broad: a candidate
+step can be suspicious because it is plausibly connected to
+the symptom. Third, candidate adjudication inspects each
+candidate’s node-local diagnostic evidence, the step’s request
+and response messages, and harness code references when
+needed to decide whether the step formed, propagated, failed
+to expose, failed to constrain, or failed to validate the decisive evidence. This adjudication selects the final responsible
+step or steps. Fourth, layer mapping uses the harness layer
+responsibility facets of the selected responsible steps to assign
+implicated harness layers.
+For each failed trace, H ARNESS F IX produces a structured
+diagnosis record with three parts: (a) Failure signal includes
+the observed failure symptom and the node-local diagnostic
+evidence of the candidate responsible TraceSteps. (b) Attribution result includes the responsible TraceStep(s), a concise root
+cause explanation grounded in node-local diagnostic evidence.
+(c) Harness diagnosis includes the implicated ETCLOVG
+harness layer(s) and a concise description of the harness flaw
+grounded in the layer’s responsibility criteria.
+2) Harness Flaw Consolidation: Single failed executions
+can be accidental. H ARNESS F IX therefore consolidates diagnosis records across task executions before modifying the
+harness. The diagnosis agent first groups diagnosis records by
+their implicated harness layer, and then merges records within
+each group that share the same root cause.
+Each resulting flaw record represents a recurring harness
+flaw pattern and is organized into two groups of fields:
+(a) Flaw summary describes the recurring harness flaw. It
+includes a flaw identifier, implicated harness layer(s), and
+a common root cause summary. (b) Supporting diagnosis
+records summarizes the empirical basis for the flaw. It includes
+the representative diagnosis records and the shared diagnostic
+basis used to merge them, such as common failure signals,
+responsible TraceSteps, or root cause rationales across the
+grouped diagnosis records.
+C. Scoped Repair
+After flaw consolidation, H ARNESS F IX must decide what
+kind of harness change is appropriate for each recurring flaw.
+This stage is deliberately constrained because the harness code
+implicated by failure attribution often belongs to core runtime
+logic, such as orchestration, context construction, or other
+system-level mechanisms. Allowing the repair agent to freely
+modify such code, as in recursive self-improvement and selfmodifying coding-agent systems [25], [26], [27], [28], would
+create a high risk of unstable edits, architectural breakage, or
+broad regressions.
+Therefore, H ARNESS F IX applies repair operators: scoped
+repair operations that specify what kinds of harness mechanisms may be changed for diagnosed flaws, as demonstrated
+
+in Table II. These operators are distilled from version-change
+records in popular agent repositories, which provide recurring
+examples of how real agent harnesses are revised to address
+such flaws. H ARNESS F IX first maps each flaw record to the
+appropriate repair operator (or operator set), and instantiates
+the selected operators using the flaw record’s supporting
+diagnosis records to derive flaw-specific repair specifications.
+1) Mapping Flaw to Repair Operators: The input to this
+stage is each flaw record. H ARNESS F IX maps each flaw record
+to a repair operator using the information summarized in
+Table II. The mapping proceeds in two steps. First, the repair
+agent uses the implicated harness layer(s) in the flaw record
+to identify the corresponding operator group, as summarized
+in the relevant row of Table II. Second, it selects a specific
+operator within that group based on the flaw record’s common
+root cause summary and supporting diagnosis records, including their representative failure signals, responsible TraceSteps,
+and root cause rationales. This design makes operator selection
+both layer-aware and diagnosis-driven. The selected operator
+and its selection rationale are carried into the repair specification, so that patch validation can check whether the generated
+diff follows the intended repair scope and harness memory can
+record the accepted or rejected repair outcome.
+When a flaw record implicates multiple harness layers,
+H ARNESS F IX first selects a primary repair operator that directly addresses the flaw record’s common root cause. Operators suggested by supporting diagnosis records in adjacent
+layers are treated as auxiliary operators, which are incorporated during repair-specification instantiation as supporting
+constraints on the candidate patch.
+2) Patch Generation with Repair Specification: After repair operators have been selected for a flaw record, H ARNESS F IX instantiates them into a repair specification for candidate
+implementation. The purpose of the specification is to translate
+operator-level repair intent into a flaw-specific implementation contract, i.e., it binds the operator to the current flaw
+record and target harness. The resulting specification replaces
+abstract operator fields with flaw-specific and harness-specific
+constraints. It states what parts of the harness may be changed,
+what behavior the change must provide, and under what
+conditions the candidate will be accepted or rejected. Each
+repair specification contains four groups of fields.
+(a) Target and scope binds the specification to a concrete
+flaw record, its implicated harness layer(s), selected repair
+operator(s), and representative diagnosis records.
+(b) Edit constraints bind the operator’s editable-resource
+template to concrete harness artifacts in the target implementation, such as named source files, prompt templates, adapters,
+instrumentation hooks, or verification scripts, while listing
+forbidden artifacts such as benchmark data, evaluator oracles,
+task definitions, held-out validation or test sets, validation
+labels, and public benchmark APIs. Their role is to prevent the
+implementation from drifting into unsupported, overly broad,
+or benchmark-specific edits.
+(c) Required behavior binds the selected operator’s expected
+effect to the current flaw and representative cases. It states the
+
+harness behavior that the candidate change must implement.
+For the AppWorld completion-without-effect flaw in Figure 2,
+this means that before accepting complete_task(), the
+harness must expose API-error evidence and require a taskrelevant database-state delta for action tasks.
+(d) Validation and risk binds the acceptance criteria to
+the target flaw and validation split. It specifies the targetflaw occurrence metric, the required reduction in that metric,
+the upper bound on newly introduced regressions, required
+checks, and rejection conditions used to decide whether the
+candidate repair should be accepted. Its role is to ensure
+that the instantiated repair reduces the intended flaw without
+introducing unacceptable regressions; the concrete thresholds
+are configured in the patch validation stage described below.
+D. Patch Validation and Harness Memory
+With the candidate patch generated guarded by the repair
+specification, H ARNESS F IX enters a validation stage that
+determines whether the patch should be accepted into the
+harness. It checks whether the implementation stays within the
+intended repair scope and reduces the target flaw without introducing unacceptable regressions. It also captures outcomes
+as feedback for future iterations. Therefore, it has three parts:
+pre-validation checks, validation set assessment, and harness
+repair memory.
+1) Pre-validation Checks: The validation agent first checks
+the candidate diff (between the generated patch the and
+original implementation) for conformance to the repair specification and basic implementation correctness. Specifically,
+it checks that the diff stays within the intended repair scope,
+realizes the required repair actions, avoids forbidden resources
+and unrelated edits, passes syntax and static checks.
+2) Validation Set Assessment: The validation agent then
+evaluates the candidate patch on a held-out validation set to
+check whether it reduces the target flaw for which it was
+designed, while avoiding unacceptable regressions on tasks
+previously handled correctly by the original harness. A patch
+is accepted only when it satisfies both the target improvement
+and the regression limit.
+• TargetImprovement : ∆Dtarget ≥ δmin
+• RegressionBound : Rnew ≤ rmax
+where ∆Dtarget is the reduction in the occurrence rate of
+the target flaw diagnosed for the current repair. A target flaw
+is counted as occurring on a validation task when failure
+attribution identifies the same harness layer and root cause
+as the diagnosed flaw record, on that task’s newly running
+trajectory. Thus, acceptance requires the candidate harness
+to make the diagnosed flaw occur less frequently on the
+validation set. Rnew is the number of validation instances
+solved by the original harness but not solved by the candidate
+patch. δmin and rmax are configuration thresholds.
+3) Harness Repair Memory: Finally, H ARNESS F IX records
+the outcome as harness memory. Each memory record contains
+the flaw record, implicated harness layers, repair specification, diff summary, results from pre-validation check and
+validation set assessment, the validation tasks that regressed,
+
+TABLE II: Repair operators and associated flaws organized by harness layer
+Harness layer
+Execution Environment and
+Sandbox
+Tool Interface
+Context and Memory
+Lifecycle and Orchestration
+
+Typical flaws
+
+Candidate repair operators
+
+Actions run in environments that are unsafe,
+non-reproducible, insufficiently isolated, or too
+dependent on manual confirmation.
+Tool schemas are ambiguous, tool menus are too
+large, parameters are weakly validated, or tool errors
+are not actionable.
+Critical evidence, constraints, state, or prior results
+are omitted, stale, polluted, or too expensive to
+include.
+The control flow allows repeated actions, bad retries,
+premature finalization, inconsistent task state, or
+unverified delegation.
+
+Sandbox-boundary tightening; environment snapshot/restore;
+file-system/network/API access isolation; task-specific
+sandboxing; environment and state-diff logging.
+Tool-schema narrowing; argument validation; tool-menu
+ranking and retrieval; tool documentation and error-message
+repair; read/write tool separation; transactional tool wrapping.
+Failure-tail evidence preservation; artifact/state summary
+exposure; task-constraint refresh; summary and retrieval policy
+repair; persistent-memory isolation; context-budget checking.
+Loop guarding; explicit task-state modeling; retry and timeout
+bounding; verification-gated finalization; workflow
+checkpointing; delegated-output validation.
+Model-request instrumentation; context-snapshot logging;
+tool-call/result tracing; API-error and state-delta logging;
+retry/token/latency/cost tracking; structured trace export.
+Pre-execution readiness checking; intermediate validation
+gating; expected/actual state comparison; effect-evidence
+completion guarding; finalization-check strengthening;
+continuous regression testing.
+Least-privilege credentialing; high-impact action approval
+gating; policy-check enforcement; audit-decision logging;
+out-of-scope action blocking; escalation-rule definition.
+
+Observability
+
+Traces lack the fields needed to diagnose failures or
+monitor reliability, cost, and latency.
+
+Verification and Evaluation
+
+Readiness checks, validators, judges, or regression
+tests do not catch invalid artifacts, missing effects, or
+unsafe states.
+
+Governance and Security
+
+Permissions, policy checks, approval flows, identity
+boundaries, and audit trails are too weak for
+high-impact actions.
+
+and a natural language description of the task conditions
+under which the repair applies or does not apply. Accepted
+records provide implementation examples for similar future
+flaw records. Rejected records explain whether the cause
+is pre-validation failure, insufficient target improvement, or
+excessive regression, and help prevent future iterations from
+proposing the same ineffective change.
+E. End-to-end Example: AppWorld Completion Guard Failure
+Figure 2 illustrates AppWorld task d037dc8_2 from
+the test_challenge split, produced by the official
+simplified_react_code_agent used as the AppWorld initial harness H0 in our experiments. The task asks the
+agent to split the cost of the user’s last three Amazon orders
+among the user and three roommates, then create one Venmo
+payment request for each roommate with the note Amazon
+Purchases.
+In the failed trajectory, the agent retrieves the
+roommates, the Amazon orders, and the Venmo
+create_payment_request documentation. It then
+attempts three POST /venmo/payment_requests calls
+with amount=117.6 and description=Amazon
+Purchases, but omits the required receiver field
+user_email. Although the API calls fail, the generated
+code catches the errors and does not propagate them to
+the execution harness. As a result, the environment reports
+Execution successful, environment response, and
+still
+calls
+apis.supervisor.complete_task().
+The evaluator provided in the benchmark reports that no
+venmo.PaymentRequest or venmo.Notification
+records were created: the number of new payment requests is
+zero rather than three, and the recipient list is empty.
+H ARNESS F IX processes this case as follows. It represents
+the failed trajectory as the TraceStep sequence S1–S6. Starting
+from external evidence (expected PaymentRequest and
+
+Notification records are missing), H ARNESS F IX conducts the failure attribution with the node-local diagnostic
+evidence of each TraceStep. For example, the input provenance
+evidence of S4 shows that S3 exposed the Venmo API requirement user_email, while the generated S4 request body
+contained only amount and description. Its artifact/state
+effect evidence demonstrates that no PaymentRequest or
+Notification state change followed these calls. This evidence contributes to the same flaw record discussed in the
+example: completion is accepted without a task-relevant state
+effect. S5 and S6 provide complementary node-level evidence
+for this same flaw record: S5 shows that the API errors were
+caught without being raised to the harness, and S6 shows that
+complete_task() was accepted despite the empty state
+delta.
+Figure 2 also shows how this diagnosis is consolidated
+into the flaw record completion accepted without task-relevant
+state effect. This flaw record maps primarily to the effectevidence completion guarding operator. The supporting S4
+and S5 evidence adds two auxiliary operators to the same
+repair specification: argument validation for required Venmo
+API fields and API-error and state-delta logging for exposing
+failed state-changing calls. The resulting flaw-specific repair
+specification constrains the candidate patch to modify the
+AppWorld finalization and instrumentation logic and requires
+the harness to block complete_task() when no taskrelevant database delta is observed.
+IV. E XPERIMENTAL D ESIGN
+A. Research Questions
+RQ1: Effectiveness. Does H ARNESS F IX improve heldout task performance compared with the original harness, benchmark-specific human-designed harnesses, and selfevolution and repair baselines?
+
+RQ2: Ablation study. Which parts of H ARNESS F IX are
+necessary for task-performance gains?
+B. Benchmarks and Agents
+We evaluate H ARNESS F IX on representative agent harnesses across four task domains: repository-level software
+repair, terminal-based command-line workflows, open-ended
+research QA, and stateful application automation. For each
+domain, we select one initial harness H0 as the starting point
+for H ARNESS F IX and the self-evolution baselines.
+SWE-Bench setting. We use SWE-Bench Verified [2] as the
+repository-level software-repair benchmark. The initial harness
+H0 is a mini-swe-agent implementation [29] that produces a
+trace, prediction, patch, and evaluator report for each instance.
+We sample 250 instances and partition them into 100 training
+tasks, 50 validation tasks, and 100 held-out test tasks.
+Terminal-Bench 2.0 Verified setting. We use TerminalBench 2.0 Verified [3] as the command-line workflow benchmark. Each task runs in a task-specific terminal environment
+and is evaluated by tests over the produced files, command
+effects, and final artifacts. The initial harness H0 is the Harbor
+Terminus-2 terminal-agent harness [30], which records issued
+commands, stdout and stderr, filesystem changes, execution
+errors, test results, and final pass/fail signals. We use 34
+training tasks, 17 validation tasks, and 34 held-out test tasks.
+GAIA setting. We use GAIA [4] with an open-deepresearch initial harness H0 [31]. Each task produces a trajectory, a predicted answer string, and an exact-answer evaluation signal. This setting evaluates H ARNESS F IX on research
+workflows that require Web search, file reading, document
+inspection, evidence retention, and final answer synthesis. We
+use 60 training tasks, 30 validation tasks, and 60 held-out test
+tasks.
+AppWorld setting. We use AppWorld [5] as the
+application-automation benchmark. AppWorld provides a controlled environment of everyday apps and APIs, and evaluates
+tasks with state-based and execution-based unit tests, including
+tests for missing and unintended side effects. The initial
+harness H0 is the official simplified react code agent from the
+AppWorld agent experiments [5]. We use 90 training tasks, 45
+validation tasks, and 90 held-out test tasks.
+C. Baselines
+RQ1 compares H ARNESS F IX with two categories of baselines: human-designed harness baselines and self-evolution
+and repair baselines.
+Human-designed harness baselines. For each benchmark,
+we collect two representative human-designed harnesses. For
+SWE-Bench Verified, the human-designed harness baselines
+are OpenHands [32] and Trae-Agent [33]. For TerminalBench 2.0 Verified, they are OpenCode [34] and OpenHands [32]. For GAIA, they are DeepResearchAgent [35]
+and MiroFlow [36]. For AppWorld, they are FullCodeRefl,
+IPFunCall, and CUGA [37].
+Self-evolution and repair baselines. For this category, we
+select representative and state-of-the-art methods that adapt
+agent behavior from observed executions.
+
+GEPA [38]. GEPA uses reflective language-based trialand-error with Pareto-frontier selection to evolve prompts
+from execution trajectories, representing prompt-level optimization from task experience.
+• SCOPE [23]. SCOPE uses a dual-stream memory of
+tactical and strategic lessons to generate and refine
+prompting guidelines from execution traces, representing
+memory-guided prompt evolution.
+• ReCreate [7]. ReCreate adapts failed and successful
+trajectories into reusable task-domain scaffolds, prompts,
+tools, or workflow guidance for later runs, representing
+trajectory-to-scaffold adaptation.
+•
+
+D. Experimental Setup
+Task splits and usage. For every benchmark, we adopt
+the same 2:1:2 train:validation:test split (e.g., 100/50/100 on
+SWE-Bench Verified). The three splits play different roles in
+these techniques. Training tasks are used for adaptation, such
+as running the initial harness H0 , collecting trajectories, and
+producing method-specific updates. Validation tasks are used
+for candidate selection or acceptance when applicable. Test
+tasks are held out from adaptation and validation decisions
+and are used only for the final comparison.
+Ablation settings. To answer RQ2, we evaluate four settings, each removing or weakening one design choice in
+H ARNESS F IX.
+• Prompt-only repair. This variant converts diagnosed
+flaws into prompt updates without changing runtime
+harness mechanisms.
+• w/o trace-grounded diagnosis. This variant removes
+Harness Flaw Diagnosis (Section III-B), deriving repair
+context directly from raw trajectory summaries.
+• w/o scoped repair operators. This variant replaces
+Scoped Repair (Section III-C) with free-form harness
+editing, allowing candidate edits without layer-specific
+repair operators or flaw-specific repair specifications.
+• w/o regression-aware acceptance. This variant removes
+the validation-set assessment in Patch Validation and
+Harness Memory (Section III-D), accepting candidate
+harness changes without checking target-flaw reduction
+or newly introduced regressions.
+Model configuration. Main experiments use one base
+model, openai/gpt-5-mini, across all benchmarks to
+control comparisons. Auxiliary experiments vary model
+strength to test whether harness repair changes task performance under weaker or stronger base models.
+E. Metrics
+Following standard benchmark practice [2], [3], [4], [5], we
+evaluate all methods using the primary task-success outcome
+for each benchmark. We use Test performance as the primary
+comparison because held-out test tasks are never used during
+repair or validation. We also report All-split performance,
+which aggregates train, validation, and test tasks, for completeness and comparability with benchmark-style aggregate
+reporting. Because our held-out splits have different sizes, we
+
+TABLE III: Performance comparison across benchmarks
+(RQ1). TB2 denotes Terminal-Bench 2.0 Verified.
+
+TABLE IV: Ablations performance measured by held-out test
+task scores (RQ2). TB2 denotes Terminal-Bench 2.0 Verified.
+
+Bench.
+
+Variant
+
+SWE
+
+TB2
+
+GAIA
+
+AppWorld
+
+Role
+
+Method / harness
+
+All splits
+
+Test
+
+Selected H0
+
+mini-swe-agent
+
+133 (53.2%)
+
+45 (45.0%)
+
+Humandesigned
+
+OpenHands
+Trae-Agent
+
+136 (54.4%)
+138 (55.2%)
+
+47 (47.0%)
+48 (48.0%)
+
+Evolve/repair
+from H0
+
+H0 + GEPA
+H0 + SCOPE
+H0 + ReCreate
+H0 + H ARNESS F IX
+
+138 (55.2%)
+137 (54.8%)
+142 (56.8%)
+148 (59.2%)
+
+47 (47.0%)
+48 (48.0%)
+52 (52.0%)
+57 (57.0%)
+
+Selected H0
+
+Harbor Terminus-2
+
+14 (16.5%)
+
+6 (17.6%)
+
+Humandesigned
+
+OpenCode
+OpenHands
+
+16 (18.8%)
+15 (17.6%)
+
+7 (20.6%)
+6 (17.6%)
+
+Evolve/repair
+from H0
+
+H0 + GEPA
+H0 + SCOPE
+H0 + ReCreate
+H0 + H ARNESS F IX
+
+15 (17.6%)
+16 (18.8%)
+18 (21.2%)
+22 (25.9%)
+
+6 (17.6%)
+7 (20.6%)
+7 (20.6%)
+9 (26.5%)
+
+Selected H0
+
+open-deep-research
+
+69 (46.0%)
+
+26 (43.3%)
+
+Humandesigned
+
+DeepResearchAgent
+MiroFlow
+
+81 (54.0%)
+84 (56.0%)
+
+32 (53.3%)
+35 (58.3%)
+
+Evolve/repair
+from H0
+
+H0 + GEPA
+H0 + SCOPE
+H0 + ReCreate
+H0 + H ARNESS F IX
+
+72 (48.0%)
+73 (48.7%)
+80 (53.3%)
+87 (58.0%)
+
+28 (46.7%)
+27 (45.0%)
+32 (53.3%)
+37 (61.7%)
+
+Selected H0
+
+ReAct
+
+110 (48.9%)
+
+33 (36.7%)
+
+Humandesigned
+
+FullCodeRefl
+IPFunCall
+CUGA
+
+105 (46.7%)
+108 (48.0%)
+138 (61.3%)
+
+32 (35.6%)
+34 (37.8%)
+37 (41.1%)
+
+Evolve/repair
+from H0
+
+H0 + GEPA
+H0 + SCOPE
+H0 + ReCreate
+H0 + H ARNESS F IX
+
+116 (51.6%)
+118 (52.4%)
+130 (57.8%)
+143 (63.6%)
+
+34 (37.8%)
+35 (38.9%)
+36 (40.0%)
+38 (42.2%)
+
+report each task-level score as the number of successful tasks
+and the corresponding percentage. The same metric is used for
+H ARNESS F IX, human-designed harness baselines, and selfevolution and repair baselines within each benchmark. For
+SWE-Bench Verified, success means a resolved repository
+instance. For Terminal-Bench 2.0 Verified, success means
+passing the verification tests for the task. For GAIA, success
+means an exact-match final answer. For AppWorld, we report
+Task Goal Completion.
+V. R ESULTS AND A NALYSIS
+A. RQ1: Effectiveness
+Table III reports held-out test performance and all-split
+aggregate performance for the selected initial harness H0 ,
+H ARNESS F IX, human-designed harness baselines, and selfevolution and repair baselines across the four benchmarks.
+H ARNESS F IX consistently improves over H0 . On held-out
+test tasks, H ARNESS F IX improves the initial harness from 45
+to 57 resolved SWE-Bench Verified instances, 26.7% relative
+improvement; from 6 to 9 passed Terminal-Bench 2.0 Verified
+tasks, 50.0% relative improvement; from 26 to 37 exact-match
+GAIA tasks, 42.3% relative improvement; and from 33 to 38
+successful AppWorld tasks, 15.2% relative improvement. The
+same trend holds under the all-split aggregate. The fact that
+the gains appear in four different domains (i.e., repository-level
+
+H0
+Prompt-only repair
+w/o trace-grounded diagnosis
+w/o scoped repair operators
+w/o regression-aware acceptance
+Full H ARNESS F IX
+
+SWE
+
+TB2
+
+GAIA
+
+AppWorld
+
+45 (45.0%)
+48 (48.0%)
+50 (50.0%)
+49 (49.0%)
+53 (53.0%)
+57 (57.0%)
+
+6 (17.6%)
+6 (17.6%)
+7 (20.6%)
+6 (17.6%)
+8 (23.5%)
+9 (26.5%)
+
+26 (43.3%)
+30 (50.0%)
+31 (51.7%)
+30 (50.0%)
+33 (55.0%)
+37 (61.7%)
+
+33 (36.7%)
+34 (37.8%)
+34 (37.8%)
+34 (37.8%)
+35 (38.9%)
+38 (42.2%)
+
+patching, command-line workflows, open-ended research, and
+stateful application automation) indicates that trace-grounded
+harness repair generalizes beyond any single benchmark family.
+H ARNESS F IX outperforms self-evolution and repair
+baselines. Among the self-evolution and repair baselines initialized from H0 in Table III, H ARNESS F IX achieves the
+highest test score within every benchmark: it beats GEPA,
+SCOPE, and ReCreate by 5–10 held-out tasks on SWEBench Verified, 2–3 tasks on Terminal-Bench 2.0 Verified,
+5–10 tasks on GAIA, and 2–4 tasks on AppWorld. The two
+prompt-evolution baselines (GEPA, SCOPE) improve H0 by
+at most three held-out tasks on any benchmark, consistent
+with their design space being limited to model-facing prompt
+updates rather than runtime mechanisms. ReCreate, which can
+additionally modify tools and workflow scaffolds, narrows the
+gap to H ARNESS F IX on SWE-Bench and GAIA but still falls
+behind on all four benchmarks.
+H ARNESS F IX also exceeds the strongest humandesigned harness on every benchmark. Among the humandesigned harness baselines in Table III, H ARNESS F IX exceeds
+the strongest human-designed harness on every benchmark: 57
+vs. Trae-Agent’s 48 successful tasks on SWE-Bench Verified,
+9 vs. OpenCode’s 7 on Terminal-Bench 2.0 Verified, 37 vs.
+MiroFlow’s 35 on GAIA, and 38 vs. CUGA’s 37 on AppWorld.
+B. RQ2: Ablation Study
+Table IV reports the four ablation settings on the same heldout test split used in RQ1. Each setting removes or weakens
+one design choice in H ARNESS F IX.
+Prompt-only repair is insufficient. Replacing runtime
+harness modification with prompt-only repair (Prompt-only
+repair) recovers only a small fraction of the full gain: 48
+vs. 57 successful tasks on SWE-Bench Verified, 30 vs. 37
+on GAIA, 34 vs. 38 on AppWorld, and no improvement at all
+on Terminal-Bench 2.0 Verified (6 successful tasks, identical
+to H0 ). Soft guidance can nudge model behavior but does
+not change the runtime mechanisms (tool schemas, lifecycle
+guards, observability instrumentation) that the diagnoses point
+to.
+Trace-grounded diagnosis matters. Removing tracegrounded responsible-step attribution and harness flaw diagnosis (w/o trace-grounded diagnosis) and falling back to
+raw trajectory summaries give intermediate improvements on
+every benchmark (SWE 50, TB2 7, GAIA 31, AppWorld
+34), but still trail full H ARNESS F IX by 7, 2, 6, and 4 heldout tasks, respectively. Without trace-grounded diagnosis, the
+
+TABLE V: Edit scope and validation mechanisms of self-evolution and repair baselines. = primary edit target, #
+G = partial or
+indirect edit target, # = not edited. E/T/C/L/O/V/G denote Execution, Tool Interface, Context/Memory, Lifecycle, Observability,
+Verification, and Governance.
+Method
+
+Harness layer
+
+Edit target
+
+Diagnosis
+
+Validation
+
+Module-level reflection
+Per-agent traces
+Evidence retrieval
+TraceStep + harness layer
+
+Pareto validation set
+LLM confidence / memory curation
+Hierarchical filter
+Flaw reduction + regression bound
+
+E T C L O V G
+GEPA
+SCOPE
+ReCreate
+H ARNESS F IX
+
+# #
+# #
+# G
+#
+#
+G
+
+# # # # Prompt strings
+# # # # Role-specific guideline memory
+# # # # Scaffold tuple
+Flaw-specific harness patch
+
+repair stage tends to address surface symptoms rather than
+the specific TraceStep and harness layer responsible for the
+failure.
+Unconstrained edits dilute the gain. Replacing scoped
+repair with free-form harness editing (w/o scoped repair
+operators) recovers only a small fraction of the full gain:
+49 successful tasks on SWE-Bench Verified, 6 on TB2 (no
+improvement over H0 ), 30 on GAIA, and 34 on AppWorld,
+trailing Full H ARNESS F IX by 8, 3, 7, and 4 held-out tasks,
+respectively. Free-form edits in core orchestration or contextconstruction code mix targeted fixes with broader, weakly
+motivated changes that introduce regressions and offset much
+of the targeted improvement, supporting the design choice of
+constraining repair with scoped repair operators.
+Regression-aware acceptance is the final guard. Removing the validation-set assessment (w/o regression-aware
+acceptance) and adopting every candidate patch is the closest
+variant to Full H ARNESS F IX on SWE-Bench Verified (53
+successful tasks) and GAIA (33 successful tasks), confirming
+that the diagnosis and repair stages are already producing
+useful candidates. However, it still trails Full H ARNESS F IX
+on all four benchmarks: 53 vs. 57 successful tasks on SWEBench Verified, 8 vs. 9 on TB2, 33 vs. 37 on GAIA, and 35
+vs. 38 on AppWorld. The AppWorld gap is particularly visible
+because adjacent-layer interactions make regressions easy to
+introduce. Regression-aware acceptance is what turns useful
+candidates into safe-to-accept harness changes.
+VI. D ISCUSSION
+A. Differences in How Methods Modify the Harness
+The score-level comparison in RQ1 leaves a complementary question open: why does H ARNESS F IX achieve better
+performance than the self-evolution and repair baselines? This
+subsection compares these methods on what they are allowed
+to change, and reports what they concretely change on each
+of the four benchmarks.
+Edit scope. Table V compares the method-level edit scope
+of each approach: which ETCLOVG layers it is allowed to
+modify, what edit target it uses, the granularity of its diagnosis,
+and whether it has a per-candidate validation or acceptance
+check. GEPA evolves prompt strings per module of an agent,
+driven by reflective rewrites of trajectories and accepted by a
+Pareto validation-set frontier; it never touches tools, scaffolds,
+or in-code harness mechanisms. SCOPE evolves role-specific
+
+guideline memory appended to the system prompt of each
+agent role, using per-agent step traces; it has no held-out
+validation stage, relying on LLM confidence and memory
+curation instead. ReCreate widens the surface to a four-part
+scaffold tuple (role, procedure, tool scripts, memory) and can
+introduce small agent skills, but explicitly excludes infrastructure adaptations and has no per-edit regression bound.
+H ARNESS F IX generates a flaw-specific harness patch from
+scoped repair operators; the patch may simultaneously touch
+prompts, tool interfaces, lifecycle hooks, observability instrumentation, verification logic, and governance policies, and
+each candidate is accepted only if it improves the target flaw
+without exceeding the regression bound on the validation set.
+Across the seven harness layers, GEPA and SCOPE only
+touch Context & Memory, ReCreate adds partial coverage of
+Tool Interface, and H ARNESS F IX is the only method that
+systematically covers Lifecycle, Observability, Verification,
+and Governance.
+What H ARNESS F IX changes beyond prompt evolution.
+Table VI reports the harness layers touched by the selected
+final H ARNESS F IX version on each benchmark; rejected intermediate candidates are excluded. The table is organized by
+layer because the central contrast is the edit surface, not a
+per-benchmark narrative.
+At the Tool Interface layer, accepted GAIA edits repaired
+visual-QA endpoint/API-key plumbing, added .xls/.xlsx
+spreadsheet support, added audio conversion support, and
+made file-description failures non-fatal. These changes preserve attachment evidence before the research agent reasons
+over the task.
+At the Lifecycle and Governance layers, the selected
+Terminal-Bench harness blocks commands such as exit,
+logout, shutdown, and shell-kill commands, and rejects
+completion when the terminal output still contains clear failure
+signals. The selected SWE harness similarly validates submitted patches and rejects broad commands such as git add
+-A or root-level searches that can submit unintended artifacts
+or flood observations.
+At the Verification and Observability layers, SWE
+adds targeted verification and patch-submission rules in
+swebench.yaml; Terminal-Bench tells the agent to prefer
+official /tests and not mask final verifier failures with
+|| true; AppWorld adds final read-only API verification
+before complete_task; and GAIA records timeouts as
+
+TABLE VI: Concrete harness modifications conducted by H ARNESS F IX on each benchmark, organized by ETCLOVG layer.
+= primary edit target, #
+G = partial or indirect edit target, # = not edited.
+Harness layer
+
+Execution
+Tool Interface
+Context/Memory
+Lifecycle
+Observability
+Verification
+Governance
+
+SWE
+
+TB2
+
+GAIA
+
+AW
+
+Representative accepted edit
+
+G
+#
+
+#
+#
+
+G
+#
+
+#
+#
+G
+
+G
+#
+
+#
+
+SWE exec guards; GAIA timeout worker
+GAIA endpoint/files/audio support; AW adapter output bound
+SWE submission protocol; TB2 solving protocol; AW prompt overlay
+TB2 session-kill sanitizer; GAIA timeout subprocess
+GAIA unsolved timeout traces; SWE bounded observations
+SWE patch validation; TB2 /tests guidance; AW read-only API check
+SWE broad-command rejection; TB2 kill-command block; AW app-API constraints
+
+# modified files (final version)
+# layers touched (final version)
+
+G
+#
+#
+#
+
+G
+#
+#
+G
+#
+
+SWE 6 / TB2 3 / GAIA 6 / AW 2
+SWE 7 / TB2 4 / GAIA 5 / AW 5
+
+unsolved trace events rather than runner errors. Some
+of these repairs are layer-specific prompt constraints, while
+others modify execution wrappers, adapters, and tracing code;
+prompt-only baselines cannot directly edit the latter mechanisms or validate candidates against layer-level flaws.
+Why this matters for the RQ1 gap. These repairs target
+harness mechanisms outside the main edit surface of promptonly methods: tool interfaces, lifecycle control, observability,
+verification, and governance. Because GEPA and SCOPE
+are confined to prompt edits, and ReCreate avoids most
+infrastructure changes, they have no direct edit surface for
+many of these flaws, even if their trajectories reveal the
+symptom. H ARNESS F IX’s gains therefore come not only from
+better attribution, but from a typed repair action space that
+can modify the implicated harness layer and validate each
+candidate against the validation split.
+B. Domain-Specific Harness Flaw Patterns
+Table VI demonstrates the concrete harness modifications
+conducted by H ARNESS F IX on each benchmark. In repositorylevel software repair (SWE-Bench Verified), many failures
+involve the interface between tool execution, context construction, and verification evidence: the agent must issue shell
+commands and file edits, observe the right test output, and
+submit a patch under benchmark-specific constraints. In openended research QA (GAIA), failures often concentrate in Tool
+Interface and Observability, such as missing API configuration,
+unsupported document formats, fragile media conversion, and
+traces that do not preserve enough evidence for later answer
+synthesis.
+Stateful application automation (AppWorld), where tasks
+require API calls or generated code to produce persistent
+application/database state changes, exposes a different pattern.
+AppWorld failures often combine Tool Interface, Lifecycle,
+Observability, and Verification concerns because the harness
+must validate API arguments, expose API errors, track state
+deltas, and avoid accepting completion before the required side
+effect occurs. Terminal-style command-line tasks (TerminalBench 2.0 Verified) place more pressure on Execution Environment, Lifecycle, and Verification: the harness must preserve
+the terminal session, handle infrastructure failures, and prefer
+benchmark-provided tests over ad hoc checks.
+
+These patterns suggest that harness repair is not only a
+prompt-optimization problem. Different benchmarks require
+different runtime mechanisms, and a change in one layer
+can affect adjacent layers. For example, lifecycle changes
+that preserve partial work can also alter finalization and
+verification behavior. This is why H ARNESS F IX uses scoped
+repair operators and validation-and-regression checks before
+accepting a candidate harness change.
+VII. R ELATED W ORK
+Agent Harnesses. SWE-agent introduced agent-computer
+interfaces for software engineering and showed that specialized search, editing, and linting affordances can substantially affect repair performance [39]. Natural-Language Agent
+Harnesses argues that harness logic should be explicit and
+portable [40]. Meta-Harness treats harness code as an end-toend optimization target [41], while AutoHarness synthesizes
+code harnesses from environment feedback [42]. AgentFlow
+defines a typed graph DSL for harness composition [43].
+Self-improving Agents. ADAS uses a meta-agent to generate new agent designs as code [44]; AFlow applies Monte
+Carlo tree search over code graph workflows [45]; AutoFlow
+optimizes natural-language workflows [46]; AgentSquare
+evolves modular planning, reasoning, tool-use, and memory
+components [47]; and MaAS searches multi-agent architectures [48]. Tool-oriented work shows that tools themselves
+can be created, represented, and retrieved: LATM lets LLMs
+create reusable tools [49], CREATOR separates abstract tool
+creation from execution [50], and ToolGen integrates tool
+retrieval into generation [51]. Memory and experience work
+converts trajectories into reusable artifacts: Trace2Skill distills
+local trajectory lessons into skills [24], SkillForge evolves
+domain skills from bad cases [52], ReCreate creates domain
+agent scaffolds from experience [7], Agent Workflow Memory
+induces reusable workflows [53], and Agent KB, A-MEM,
+MemInsight, ACE, and GEPA study strategy stores, dynamic
+memory, evolving context, and prompt evolution [54], [55],
+[56], [57], [38]. In self-modification, Godel Agent, SICA, Darwin Godel Machine, Huxley-Godel Machine, Group-Evolving
+Agents, EvoMAC, and EvoTest explore recursive or evolutionary improvement [25], [26], [27], [28], [58], [59], [60].
+H ARNESS F IX also starts from observed agent trajectories, but
+
+the reusable artifact is a validated harness repair rather than a
+skill, memory item, or unconstrained self-edit.
+Trace Analysis, Failure Attribution and Agent Operations. Wang et al. [61] conducted the first survey about LLM
+agent trajectory analysis, and organize the literature along
+five key dimensions: failure taxonomy, failure attribution,
+system enhancement and optimization, trajectory monitoring
+and analysis tools, as well as datasets and benchmarks. SWETRACE builds process reward models for long-horizon SWE
+agents [62]. VCC treats trace analysis as a compilation problem and generates multiple conversation views [63]. Beyond
+Resolution Rates identifies behavioral drivers of coding-agent
+success and warns that naive trajectory statistics can be
+confounded [64]. HORIZON distinguishes single-step failures
+from long-horizon accumulation [65]. In attribution, AgenTracer uses counterfactual replay and fault injection to train attribution models [66]; AgentFixer proposes detection and root
+cause analysis for LLM agent systems [67]; and DeepVerifier
+applies rubric-based verification to deep-research agents [68].
+These works show that diagnosis is valuable. H ARNESS F IX
+closes the loop by using diagnosis to select, implement, audit,
+and validate scoped harness changes.
+VIII. C ONCLUSION
+As LLM-based agents are applied to increasingly complex
+tasks, the harness around the base model becomes an important
+part of system reliability. Failures in these systems are not
+always caused by the model alone, but may also arise from
+how the harness exposes context, invokes tools, manages execution, records traces, verifies results, and enforces policies.
+We propose H ARNESS F IX, which builds HTIR to organize
+heterogeneous trajectories and harness code into step-level
+evidence, attributes failures to responsible trajectory steps and
+harness layers, and generates harness patches under flawspecific repair specifications. Experiments on SWE-Bench
+Verified, Terminal-Bench 2.0 Verified, GAIA and AppWorld
+show that H ARNESS F IX improves held-out test performance
+over initial harnesses by 15.2%–50.0%, outperforms humandesigned and self-evolution baselines, and reveals recurring
+harness-flaw patterns across ETCLOVG layers.
+In the future, we will study more agent domains and
+deployment settings to examine whether the observed harnessflaw patterns generalize beyond the benchmarks used in this
+paper.
+R EFERENCES
+[1] C. E. Jimenez, J. Yang, A. Wettig, S. Yao, K. Pei, O. Press, and
+K. Narasimhan, “SWE-bench: Can language models resolve real-world
+GitHub issues?” 2023.
+[2] OpenAI, “SWE-bench Verified,” https://www.swebench.com/, 2024.
+[3] M. A. Merrill et al., “Terminal-Bench: Benchmarking agents on hard,
+realistic tasks in command line interfaces,” 2026.
+[4] G. Mialon et al., “GAIA: A benchmark for general AI assistants,” 2023.
+[5] H. Trivedi, T. Khot, M. Hartmann, R. Manku, V. Dong, E. Li, S. Gupta,
+A. Sabharwal, and N. Balasubramanian, “AppWorld: A controllable
+world of apps and people for benchmarking interactive coding agents,”
+in Proceedings of the 62nd Annual Meeting of the Association for
+Computational Linguistics, 2024, pp. 16 022–16 076.
+
+[6] D. Zhang, “AgentDevel: Reframing Self-Evolving LLM Agents as
+Release Engineering,” 2026. [Online]. Available: https://arxiv.org/abs/
+2601.04620
+[7] Z. Hao, H. Wang, J. Luo, J. Zhang, Y. Zhou, Q. Lin, C. Wang, H. Dong,
+and J. Chen, “ReCreate: Reasoning and creating domain agents driven
+by experience,” 2026.
+[8] G. Fang, V. Isahagian, K. Jayaram, R. Kumar, V. Muthusamy, P. Oum,
+and G. Thomas, “Trajectory-informed memory generation for selfimproving agent systems,” arXiv preprint arXiv:2603.10600, 2026.
+[9] J. Li, X. Xiao, Y. Zhang, C. Liu, L. Zhao, X. Liao, Y. Ji,
+J. Wang, J. Gu, Y. Ge, W. Xu, X. Fang, X. Xu, T. Zhao, Y. Kim,
+T. Wang, J. Hamm, S. Krishnaswamy, J. Huan, and C. Reddy,
+“Agent harness engineering: A survey,” 2026. [Online]. Available:
+https://openreview.net/pdf?id=eONq7FdiHa
+[10] S. Zhang, M. Yin, J. Zhang, J. Liu, Z. Han, J. Zhang, B. Li, C. Wang,
+H. Wang, Y. Chen et al., “Which Agent causes task failures and
+when? on automated failure attribution of LLM Multi-Agent systems,” in
+Proceedings of the 42nd International Conference on Machine Learning
+(ICML), 2025, pp. 1–12, spotlight paper.
+[11] I. Bouzenia and M. Pradel, “Understanding Software Engineering
+Agents: A Study of Thought-Action-Result Trajectories,” in Proceedings
+of the 30th IEEE/ACM International Conference on Automated Software
+Engineering (ASE), 2025, pp. 1–12.
+[12] N. Islam, R. S. Ayon, D. G. Thomas, S. Ahmed, and M. Wardat, “When
+agents fail: A comprehensive study of bugs in llm agents with automated
+labeling,” arXiv preprint arXiv:2601.15232, 2026.
+[13] OpenAI, “A practical guide to building agents,” https://openai.com/
+business/guides-and-resources/a-practical-guide-to-building-ai-agents/,
+2025, accessed: 2026-05-09.
+[14] Anthropic, “Effective context engineering for AI agents,” https://www.
+anthropic.com/engineering/effective-context-engineering-for-ai-agents,
+Sep. 2025, accessed: 2026-04-30.
+[15] C. Zhang, J. Yang, D. Yan, S. Yang, and Y. Chen, “Automated breakpoint
+generation for debugging.” J. Softw., vol. 8, no. 3, pp. 603–616, 2013.
+[16] Y. Chen, S. Zhang, Q. Guo, L. Li, R. Wu, and T. Chen, “Deterministic
+replay: A survey,” ACM Computing Surveys (CSUR), vol. 48, no. 2, pp.
+1–47, 2015.
+[17] Y.-A. Xiao, P. Gao, C. Peng, and Y. Xiong, “Improving the Efficiency
+of LLM Agent Systems through Trajectory Reduction,” 2025. [Online].
+Available: https://arxiv.org/abs/2509.23586
+[18] F. Lin, S. Chen, R. Fang, H. Wang, and T. Lin, “Stop Wasting
+Your Tokens: Towards Efficient Runtime Multi-Agent Systems,” 2025.
+[Online]. Available: https://arxiv.org/abs/2510.26585
+[19] R. Nanda, C. Maddila, S. Jha, E. M. Khan, M. Paltenghi, and S. Chandra,
+“Wink: Recovering from misbehaviors in coding agents,” arXiv preprint
+arXiv:2602.17037, 2026.
+[20] S. Liu, Y. Chen, R. Krishna, S. Sinha, J. Ganhotra, and R. Jabbarvand,
+“Process-centric analysis of agentic software systems,” Proceedings of
+the ACM on Programming Languages, vol. 10, no. OOPSLA1, pp. 1961–
+1988, 2026.
+[21] W. Wang, P. Kattakinda, and S. Feizi, “Maestro: Joint Graph & Config
+Optimization for Reliable AI Agents,” 2025. [Online]. Available:
+https://arxiv.org/abs/2509.04642
+[22] R. Costa, “Instruction-Level Weight Shaping: A Framework for
+Self-Improving AI Agents,” 2025. [Online]. Available: https://arxiv.org/
+abs/2509.00251
+[23] Z. Pei, H.-L. Zhen, S. Kai, S. J. Pan, Y. Wang, M. Yuan, and B. Yu,
+“SCOPE: Prompt evolution for enhancing agent effectiveness,” 2025.
+[24] J. Ni et al., “Trace2Skill: Distill trajectory-local lessons into transferable
+agent skills,” 2026.
+[25] X. Yin, X. Wang, L. Pan, L. Lin, X. Wan, and W. Y. Wang, “Gödel agent:
+A self-referential agent framework for recursively self-improvement,”
+in Proceedings of the 63rd Annual Meeting of the Association for
+Computational Linguistics (Volume 1: Long Papers). Vienna, Austria:
+Association for Computational Linguistics, 2025, pp. 27 890–27 913.
+[Online]. Available: https://aclanthology.org/2025.acl-long.1354/
+[26] M. Robeyns, M. Szummer, and L. Aitchison, “SICA: A self-improving
+coding agent,” in ICLR 2025 Workshop on Scaling Self-Improving
+Foundation Models, 2025, oral presentation. [Online]. Available:
+https://openreview.net/forum?id=rShJCyLsOr
+[27] J. Zhang, S. Hu, C. Lu, R. T. Lange, and J. Clune, “Darwin
+gödel machine: Open-ended evolution of self-improving agents,” in
+The Fourteenth International Conference on Learning Representations,
+
+2026, poster presentation. [Online]. Available: https://openreview.net/
+forum?id=pUpzQZTvGY
+[28] W. Wang, P. Pi˛ekos, N. Li, F. Laakom, Y. Chen, M. Ostaszewski,
+M. Zhuge, and J. Schmidhuber, “Huxley-gödel machine: Human-level
+coding agent development by an approximation of the optimal selfimproving machine,” in The Fourteenth International Conference on
+Learning Representations, 2026, oral presentation. [Online]. Available:
+https://openreview.net/forum?id=T0EiEuhOOL
+[29] SWE-agent Contributors, “mini-swe-agent: A minimal LLM agent for
+software engineering,” https://github.com/SWE-agent/mini-swe-agent,
+2024, accessed: 2026-05-30.
+[30] Harbor Framework Contributors, “Harbor: A containerized framework
+for agent benchmarking,” https://github.com/harbor-framework/harbor,
+2026, terminus-2 terminal-agent harness; accessed 2026-05-30.
+[31] A. Roucher, C. Fourrier, L. Tunstall, and L. von Werra, “Open-source
+DeepResearch: Freeing our search agents,” https://huggingface.co/blog/
+open-deep-research, 2025, hugging Face blog; accessed 2026-05-30.
+[32] X. Wang, B. Li, Y. Song, F. F. Xu, X. Tang, M. Zhuge, J. Pan,
+Y. Song, B. Li, J. Singh, H. H. Tran, F. Li, R. Ma, M. Zheng, B. Qian,
+Y. Shao, N. Muennighoff, Y. Zhang, B. Hui, J. Lin, R. Brennan,
+H. Peng, H. Ji, and G. Neubig, “OpenHands: An open platform for AI
+software developers as generalist agents,” in International Conference
+on Learning Representations, 2025.
+[33] Trae Research Team, P. Gao, Z. Tian, X. Meng, X. Wang, R. Hu,
+Y. Xiao, Y. Liu, Z. Zhang, J. Chen, C. Gao, Y. Lin, Y. Xiong,
+C. Peng, and X. Liu, “Trae Agent: An LLM-based agent for
+software engineering with test-time scaling,” 2025. [Online]. Available:
+https://arxiv.org/abs/2507.23370
+[34] OpenCode Contributors, “OpenCode: An open-source coding agent,”
+https://github.com/anomalyco/opencode, 2024, accessed: 2026-05-30.
+[35] Skywork AI, “DeepResearchAgent: A hierarchical multi-agent
+framework for deep research,” https://github.com/SkyworkAI/
+DeepResearchAgent, 2025, accessed: 2026-05-30.
+[36] MiroMind Team, S. Bai, L. Bing, C. Chen, G. Chen, Y. Chen, Z. Chen,
+Z. Chen, J. Dai, X. Dong, W. Dou, Y. Deng, Y. Fu, J. Ge, C. Han,
+T. Huang, Z. Huang, J. Jiao, S. Jiang, T. Jiao, X. Jian, L. Lei, R. Li,
+G. Luo, T. Li, X. Lin, Z. Liu, Z. Li, J. Ni, Q. Ren, P. Sun, S. Su,
+C. Tao, B. Wang, W. Wang, H. Wang, J. Wang, J. Wang, J. Wang,
+L. Wang, S. Wang, W. Wang, Z. Wang, J. Xu, S. Xing, C. Yang, H. Ye,
+J. Yu, Y. Yu, M. Zhong, T. Zhao, X. Zhu, Y. Zhou, Y. Zhang, and
+Z. Zhu, “MiroThinker: Pushing the performance boundaries of opensource research agents via model, context, and interactive scaling,”
+2025, released as the MiroFlow agentic framework at https://github.com/
+MiroMindAI/MiroFlow.
+[37] CUGA Project Contributors, “CUGA: A computer-using generalist agent,” https://github.com/cuga-project/cuga-agent, 2025, accessed:
+2026-05-30.
+[38] L. A. Agrawal et al., “GEPA: Reflective prompt evolution can outperform reinforcement learning,” 2025.
+[39] J. Yang, C. E. Jimenez, A. Wettig, K. Lieret, S. Yao, K. Narasimhan,
+and O. Press, “SWE-agent: Agent-computer interfaces enable automated
+software engineering,” 2024.
+[40] L. Pan, L. Zou, S. Guo, J. Ni, and H.-T. Zheng, “Natural-language agent
+harnesses,” 2026.
+[41] Y. Lee, R. Nair, Q. Zhang, K. Lee, O. Khattab, and C. Finn, “Metaharness: End-to-end optimization of model harnesses,” 2026.
+[42] X. Lou, M. Lazaro-Gredilla, A. Dedieu, C. Wendelken, W. Lehrach, and
+K. P. Murphy, “AutoHarness: Improving LLM agents by automatically
+synthesizing a code harness,” 2026.
+[43] H. Liu, C. Shou, X. Liu, H. Wen, Y. Chen, R. J. Fang, and Y. Feng,
+“Synthesizing multi-agent harnesses for vulnerability discovery,” 2026.
+[44] S. Hu, C. Lu, and J. Clune, “Automated design of agentic systems,”
+2024.
+[45] J. Zhang et al., “AFlow: Automating agentic workflow generation,”
+2024.
+[46] Z. Li et al., “AutoFlow: Automated workflow generation for large
+language model agents,” 2024.
+[47] Y. Shang, Y. Li, K. Zhao, L. Ma, J. Liu, F. Xu, and Y. Li, “AgentSquare:
+Automatic LLM agent search in modular design space,” 2024.
+[48] G. Zhang, L. Niu, J. Fang, K. Wang, L. Bai, and X. Wang, “MaAS:
+Multi-agent architecture search via agentic supernet,” 2025.
+[49] T. Cai, X. Wang, T. Ma, X. Chen, and D. Zhou, “Large language models
+as tool makers,” 2023.
+
+[50] C. Qian, C. Han, Y. R. Fung, Y. Qin, Z. Liu, and H. Ji, “CREATOR:
+Disentangling abstract and concrete reasonings of large language models
+through tool creation,” 2023.
+[51] R. Wang, X. Han, L. Ji, S. Wang, T. Baldwin, and H. Li, “ToolGen:
+Unified tool retrieval and calling via generation,” in International
+Conference on Learning Representations, 2025.
+[52] X. Liu, X. Luo, L. Li, G. Huang, J. Liu, and H. Qiao, “SkillForge:
+Forging domain-specific, self-evolving agent skills in cloud technical
+support,” 2026.
+[53] Z. Z. Wang, J. Mao, D. Fried, and G. Neubig, “Agent workflow memory,”
+2024.
+[54] X. Tang et al., “Agent KB: Leveraging cross-domain experience for
+agentic problem solving,” 2025.
+[55] W. Xu et al., “A-MEM: Agentic memory for LLM agents,” 2025.
+[56] R. Salama et al., “MemInsight: Autonomous memory augmentation for
+LLM agents,” 2025.
+[57] Q. Zhang et al., “Agentic context engineering: Evolving contexts for selfimproving language models,” in International Conference on Learning
+Representations, 2026.
+[58] Z. Weng, A. Antoniades, D. Nathani, Z. Zhang, X. Pu, and X. E. Wang,
+“Group-evolving agents: Open-ended self-improvement via experience
+sharing,” 2026.
+[59] Y. Hu, Y. Cai, Y. Du, X. Zhu, X. Liu, Z. Yu, Y. Hou, S. Tang, and
+S. Chen, “Self-evolving multi-agent collaboration networks for software
+development,” 2024.
+[60] Y. He, J. Liu, Y. Liu, Y. Li, T. Cao, Z. Hu, X. Xu, and B. Hooi,
+“EvoTest: Evolutionary test-time learning for self-improving agentic
+systems,” 2025.
+[61] J. Wang, Y. Wang, M. Chen, X. Xie, C. Chen, F. Mu, Z. Liu, and
+Q. Wang, “A survey for llm agent trajectory analysis: From failure
+attribution to enhancement,” 2026.
+[62] H. Han et al., “SWE-TRACE: Optimizing long-horizon SWE agents
+through rubric process reward models and heuristic test-time scaling,”
+2026.
+[63] L. Zhang and M. Agrawala, “View-oriented conversation compiler for
+agent trace analysis,” 2026.
+[64] T. Mehtiyev and W. Assunção, “Beyond resolution rates: Behavioral
+drivers of coding agent success and failure,” 2026.
+[65] X. J. Wang, H. Bai, Y. Sun, H. Wang, S. Zhang, W. Hu, M. Schroder,
+B. Mutlu, D. Song, and R. D. Nowak, “The long-horizon task mirage?
+diagnosing where and why agentic systems break,” 2026.
+[66] G. Zhang, J. Wang, J. Chen, W. Zhou, K. Wang, and S. Yan, “AgenTracer: Who is inducing failure in the LLM agentic systems?” 2025.
+[67] H. Mulian, S. Zeltyn, I. Levy, L. Galanti, A. Yaeli, and S. Shlomov,
+“AgentFixer: From failure detection to fix recommendations in LLM
+agentic systems,” 2026.
+[68] Y. Wan, T. Fang, Z. Li, Y. Huo, W. Wang, H. Mi, D. Yu, and M. R.
+Lyu, “Inference-time scaling of verification: Self-evolving deep research
+agents via test-time rubric-guided verification,” 2026.
+
+
