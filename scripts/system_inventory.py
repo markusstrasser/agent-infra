@@ -264,7 +264,7 @@ def format_watch_summary(launchd: list[dict]) -> str:
 def format_orchestrator_summary(recipes: list[dict]) -> str:
     if not recipes:
         return "/orchestrate — see orchestrator-tool-names.md"
-    core = [r["recipe"] for r in recipes if r["role"] != "operator-tool"][:6]
+    core = [r["recipe"] for r in recipes if r["role"] != "operator-tool"]
     return "/orchestrate · " + " · ".join(core) + "<br/>just -f agent-infra/justfile &lt;recipe&gt; &lt;repo&gt;"
 
 
