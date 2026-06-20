@@ -1,0 +1,40 @@
+# Research Scout Report: New Self-Evolving Agent Work
+
+Date: 2026-06-20  
+Search path: Exa MCP primary only. Brave not used. Perplexity not used.  
+Scope: May-June 2026 only, excluding DGM, AutoAgent, DSPy, GEPA, Hermes, SkillOpt, AI-Scientist, AdaEvolve, ShinkaEvolve, Bayesian-Agent, AHE.  
+Primary-source constraint: GitHub/arXiv/official pages only.
+
+## Ranked Findings
+
+| Rank | Finding | Primary URL + Date | 1-line claim | Demonstrated vs asserted | Maturity | Why it matters for a local Claude-Code/Codex/Cursor harness |
+|---:|---|---|---|---|---|---|
+| 1 | **Socratic-SWE: trace-derived agent skills** | [arXiv:2606.07412](https://arxiv.org/abs/2606.07412) · 2026-06-05 | Turns historical SWE solving traces into structured skills, then uses those skills to generate targeted repair tasks. | **Mostly demonstrated** in paper framing: closed loop, trace distillation, execution validation; no repo found in Exa pass. | arXiv:2606.07412 | Closest match to your setup: mine local agent transcripts, extract failure/repair skills, generate future eval tasks from the actual harness’s weak spots. |
+| 2 | **OpenSkill: open-world self-evolution from only a task prompt** | [arXiv:2606.06741](https://arxiv.org/abs/2606.06741), [GitHub](https://github.com/OpenLAIR/OpenSkill) · 2026-06-04/05 | Agent bootstraps both skills and verification anchors from docs/repos/web with no target-task supervision. | **Partly demonstrated, partly asserted**; repo says code coming soon, so paper concept is ahead of usable code. | GitHub: 57 stars, last push 2026-06-08; arXiv:2606.06741 | The steal is “verification anchors” as first-class artifacts: local agents should not just write skills, they should also write the checks that make those skills trustworthy. |
+| 3 | **Adaptive Auto-Harness** | [arXiv:2606.01770](https://arxiv.org/abs/2606.01770), [GitHub mirror](https://github.com/A-EVO-Lab/AdaptiveHarness) · 2026-06-01 / repo 2026-05-28 | Sustained self-improvement for agentic systems on open-ended task streams via an adaptive harness. | **Moderately demonstrated**; has code mirror and canonical release branch pointer, but small repo footprint. | GitHub: 7 stars, last push 2026-06-03; arXiv:2606.01770 | Directly relevant: treat the harness, not the model, as the evolving object; useful for local hooks, eval gates, memories, and task streams. |
+| 4 | **ReSkill: skill creation inside agentic RL** | [arXiv:2606.01619](https://arxiv.org/abs/2606.01619), [GitHub](https://github.com/amazon-science/reskill) · 2026-06-01 / repo 2026-06-04 | Reconciles skill creation with policy optimization by letting skills co-evolve inside an RL loop. | **Demonstrated** enough to inspect: official Amazon Science code, veRL extension, configs and website assets. | GitHub: 12 stars, last push 2026-06-17; arXiv:2606.01619 | For local harnesses, the transferable idea is versioned skill bundles with validation and sampling, even if you do not run heavy RL. |
+| 5 | **SkillDAG: self-evolving typed skill graphs** | [GitHub](https://github.com/Ericbai06/SkillDAG), [arXiv:2606.03056](https://arxiv.org/abs/2606.03056) · repo 2026-05-28 | Models skill dependencies/conflicts/specialization as a typed graph that agents can query and edit. | **Partly demonstrated**; Exa saw an open-source reproduction repo, not necessarily canonical. | GitHub: 32 stars, last push 2026-06-09; arXiv:2606.03056 | Strong local steal: replace flat skill lists with typed edges like depends-on, conflicts-with, supersedes, duplicate-of. |
+| 6 | **Meta-Team: collaborative self-evolution for MAS** | [arXiv PDF:2605.29790](https://arxiv.org/pdf/2605.29790), [GitHub](https://github.com/zz-haooo/Meta-Team) · 2026-05-28 | Multi-agent systems improve from preserved execution contexts and coordinated post-task communication. | **Demonstrated** at code-repo level, but multi-agent hosted-service assumptions may not transfer cleanly. | GitHub: 51 stars, last push 2026-06-01; arXiv:2605.29790 | Useful only after translation: your single-operator harness can use “team” ideas as role-separated scout/reviewer/implementer traces, not as a hosted swarm. |
+| 7 | **Q-Evolve: self-evolving LLM agents with in-distribution optimization** | [arXiv:2606.07367](https://arxiv.org/abs/2606.07367) · 2026-06-05 | Learns an in-distribution critic from expert plus agent trajectories, then derives process rewards for sparse-reward agent tasks. | **Paper-demonstrated**, but likely heavier training loop than a local harness wants. | arXiv:2606.07367 | The local steal is not RL training; it is converting sparse end-of-task outcomes into step-level process labels for later agent review. |
+| 8 | **EvoTrainer: co-evolving policies and training harnesses** | [arXiv:2606.03108](https://arxiv.org/abs/2606.03108) · 2026-06-02 | Diagnoses rollout evidence, revises diagnostics, backtests interventions, and accumulates reusable skills while co-evolving policy and harness. | **Paper-demonstrated**; no GitHub found in Exa pass. | arXiv:2606.03108 | Very relevant conceptually: backtest harness interventions before promoting them, instead of letting every “lesson” become a permanent rule. |
+| 9 | **Large Language Model Agents Are Not Always Faithful Self-Evolvers** | [arXiv:2601.22436v3](https://arxiv.org/abs/2601.22436) · v3 2026-06-12 | Controlled interventions show agents often ignore or misread condensed experience, while depending more faithfully on raw experience. | **Demonstrated critique** across frameworks/environments; rates are model-release-sensitive. | arXiv:2601.22436 | Strong warning for local memory: keep raw traces and source pointers near condensed lessons; summaries alone are weak improvement substrate. |
+| 10 | **RePro: retrospective progress-aware self-refinement** | [arXiv:2606.14302](https://arxiv.org/abs/2606.14302) · 2026-06-12 | Trains agents to generate progress signals after completing rollouts; online progress prompting can hurt, retrospective reflection helps. | **Paper-demonstrated**; no repo found in Exa pass. | arXiv:2606.14302 | Fits local post-run analysis: ask for retrospective progress labeling after task completion, not during the live coding trajectory. |
+
+## Lower-Ranked / Watchlist
+
+- **BES: Bidirectional Evolutionary Search** — [GitHub](https://github.com/Embodied-Minds-Lab/BES), 82 stars, last push 2026-05-28. Interesting for verifier-guided candidate evolution, but more model/search oriented than harness-evolution oriented.
+- **MUE-X** — [GitHub](https://github.com/KorroAi/mue-x), 56 stars, last push 2026-06-18. Direct self-modifying-code claim, but reads more like an aggressive demo than a mature evidence-backed harness.
+- **GBase** — [GitHub](https://github.com/garyqlin/gbase), 200 stars, last push 2026-06-15. RSI branding and releases, but high claim density; inspect before trusting.
+- **SEAGym** was highly relevant, but I excluded it from ranked findings because I only found OpenReview, not GitHub/arXiv/official-blog primary.
+
+## Transfer Notes
+
+- Pre-frontier warning: where papers rely on older/backbone-specific behavior, treat reported rates as low-transfer. The methods around trace capture, held-out validation, skill graphs, and raw-experience preservation are more likely to transfer than headline performance numbers.
+- Hosted multi-agent assumptions should be compressed into local harness roles. For your setup, “multi-agent self-evolution” is most useful as separated artifacts: scout trace, verifier trace, implementation diff, replay eval, promotion decision.
+- The strongest common thread is not “agents rewrite themselves.” It is **experience → structured skill/update → independent validation → promotion/replay**.
+
+## Top Steals
+
+1. **Trace-derived skills:** mine failed and successful local coding runs into durable, test-backed skills, not prose memories.
+2. **Verification anchors:** every new skill/rule should carry the check that would prove it works and the replay that would catch regressions.
+3. **Raw-trace adjacency:** condensed lessons should link back to raw transcripts/diffs because condensed experience is demonstrably less faithfully used.
