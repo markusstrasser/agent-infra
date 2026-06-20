@@ -36,6 +36,8 @@ from typing import Any
 
 import duckdb
 
+from corpus_core.home import ledger_path
+
 PROJECTS_ROOT = Path.home() / "Projects"
 CORPUS_GRAPH_DB: Path | None = None
 
@@ -74,7 +76,7 @@ VERDICTS_SOURCES: list[dict[str, Any]] = [
     },
     {
         "repo": "phenome",
-        "db_path": PROJECTS_ROOT / "phenome" / "indexed" / "claims.duckdb",
+        "db_path": ledger_path(),  # substrate home ledger (ADR 0012)
         "scope": "cert_event",
         "natural_key_cols": ("cert_event_id",),
         # Phenome's verdict surface is the cert stack (Phase 3 of substrate-
@@ -134,7 +136,7 @@ _URI_RE = re.compile(r"^([a-z-]+)://(?:verdicts|cert_events|contradiction_events
 RELATION_SOURCES: list[dict[str, Any]] = [
     {
         "repo": "phenome",
-        "db_path": PROJECTS_ROOT / "phenome" / "indexed" / "claims.duckdb",
+        "db_path": ledger_path(),  # substrate home ledger (ADR 0012)
         # promotable = open/resolved (false_positive/both_valid are not contradictions)
         "sql": (
             "SELECT pair_id::VARCHAR FROM contradiction_pairs "
@@ -179,7 +181,7 @@ def _ensure_corpus_core_importable() -> None:
     can run from cron / launchd / a thin venv that doesn't have it on
     sys.path; prepend the package dir so the import resolves."""
     cc_path = str(
-        Path.home() / "Projects" / "agent-infra" / "scripts" / "corpus" / "packages" / "corpus-core"
+        Path.home() / "Projects" / "substrate" / "packages" / "corpus-core"
     )
     if cc_path not in sys.path:
         sys.path.insert(0, cc_path)
