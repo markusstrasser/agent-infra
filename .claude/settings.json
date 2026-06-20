@@ -5,19 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/alien/Projects/agent-infra/scripts/drift-surface.sh"
-          },
-          {
-            "type": "command",
-            "command": "/Users/alien/Projects/agent-infra/scripts/priorities-surface.sh"
-          },
-          {
-            "type": "command",
-            "command": "/Users/alien/Projects/agent-infra/scripts/blindspot-surface.sh"
-          },
-          {
-            "type": "command",
-            "command": "/Users/alien/Projects/agent-infra/scripts/act-drain-surface.sh"
+            "command": "/Users/alien/Projects/agent-infra/scripts/control-plane-surface.sh"
           }
         ]
       }
