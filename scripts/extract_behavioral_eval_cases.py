@@ -18,11 +18,23 @@ Usage:
 import argparse, glob, json
 from pathlib import Path
 
-SIGNAL_FILES = [
-    "artifacts/observe/2026-06-19-steer-signals.jsonl",
-    str(Path.home() / ".claude/steer-mining/probe-2026-06-17.jsonl"),
-]
 PROJ = Path.home() / ".claude/projects"
+REPO = Path(__file__).resolve().parent.parent
+
+
+def steer_signal_paths() -> list[Path]:
+    paths = sorted((REPO / "artifacts" / "observe").glob("*-steer-signals.jsonl"))
+    probe_dir = Path.home() / ".claude" / "steer-mining"
+    if probe_dir.is_dir():
+        paths += sorted(probe_dir.glob("probe-*.jsonl"))
+    seen: set[str] = set()
+    out: list[Path] = []
+    for p in paths:
+        key = str(p.resolve())
+        if key not in seen and p.is_file():
+            seen.add(key)
+            out.append(p)
+    return out
 
 # tighter over-caution core: the agent's ACTION was an ask/offer/defer/wait/stop/fork,
 # AND the human's correction pushed toward acting / proceeding now.
@@ -33,9 +45,8 @@ GOLD_ACT = ("execute", "implement it", "just do", "why not", "act now", "proceed
 
 def load_signals():
     rows = []
-    for f in SIGNAL_FILES:
-        if Path(f).exists():
-            rows += [json.loads(l) for l in open(f) if l.strip()]
+    for p in steer_signal_paths():
+        rows += [json.loads(l) for l in p.open() if l.strip()]
     return rows
 
 def is_overcaution(r):

@@ -1,0 +1,142 @@
+# Codified steer-theme lexicon — source: research/2026-06-19-steering-vectors.md
+# Used by gov.py steer-linkage (deterministic keyword join; no LLM).
+# Update when steer-mine surfaces a new top theme (quarterly or after major mine).
+
+themes:
+  - id: verify_first
+    label: Verify / measure first
+    directions: [reduce_error, grow_coverage]
+    keywords:
+      - verify
+      - measure first
+      - ground truth
+      - check before
+      - fact-check
+      - prove
+      - evidence
+      - did it work
+      - pre-register
+      - falsif
+
+  - id: gate_hook_friction
+    label: Gate / hook friction
+    directions: [reduce_error]
+    keywords:
+      - hook
+      - gate
+      - block
+      - friction
+      - false fire
+      - advisory
+      - transform-not-block
+      - stop hook
+
+  - id: model_routing
+    label: Model / effort routing
+    directions: [amplify_taste]
+    keywords:
+      - model
+      - effort
+      - opus
+      - composer
+      - gpt
+      - gemini
+      - llmx
+      - routing
+      - subscription
+      - cursor
+
+  - id: commit_boundary
+    label: Commit boundary
+    directions: [reduce_error]
+    keywords:
+      - commit
+      - auto-commit
+      - explicit request
+      - git commit
+      - without asking
+      - commit boundary
+
+  - id: rsi_loop_ops
+    label: RSI / loop ops
+    directions: [amplify_taste]
+    keywords:
+      - loop
+      - rsi
+      - maintain
+      - human.md
+      - escalate
+      - blindspot
+      - operator tax
+      - launchd
+
+  - id: prior_context
+    label: Prior context / rediscovery
+    directions: [grow_coverage]
+    keywords:
+      - prior context
+      - rediscover
+      - git log
+      - existing infra
+      - already did
+      - we discussed
+      - yesterday
+      - re-derive
+
+  - id: scope_narrow
+    label: Scope too narrow
+    directions: [raise_autonomy]
+    gov_owners:
+      - rule:planning-scope
+      - constitution:P5
+      - constitution:P6
+    keywords:
+      - scope
+      - narrow
+      - full loop
+      - think the full
+      - end-to-end
+      - planning lifecycle
+      - vertical slice
+
+  - id: act_now
+    label: Act now / over-ask
+    directions: [raise_autonomy]
+    gov_owners:
+      - constitution:P4
+    keywords:
+      - act now
+      - just do
+      - why not
+      - proceed
+      - execute
+      - say the word
+      - want me to
+      - over-ask
+      - defer
+      - why waiting
+      - why ask
+
+  - id: codex_parity
+    label: Codex parity
+    directions: [grow_coverage]
+    keywords:
+      - codex
+      - parity
+      - hooks.json
+      - fleet
+      - shim
+
+  - id: architecture_overbuild
+    label: Architecture over-build
+    directions: [amplify_taste]
+    keywords:
+      - shim
+      - wrapper
+      - adapter
+      - compatibility
+      - dual path
+      - fallback
+      - over-build
+      - less architecture
+      - transitional

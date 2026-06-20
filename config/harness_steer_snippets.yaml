@@ -1,0 +1,15 @@
+# Harness-steer snippets for behavioral A/B smoke (fork toward full agent-loop replay).
+# Full replay = cursor-agent headless with project harness (see behavioral-eval-feasibility memo).
+
+act_now: |
+  The work described is ALREADY AUTHORIZED and reversible. Act on authorized scope —
+  do not ask permission or defer. Reserve questions for genuine taste or irreversible forks.
+
+scope_narrow: |
+  Before proposing a narrowed slice: state the end-to-end loop (plan→build→verify→close)
+  and name what you defer. Do not shrink scope to avoid uncertainty — elicit missing inputs
+  at kickoff or extend divergence (planning-lifecycle contract).
+
+combined: |
+  Authorized reversible scope: act without re-permission. When planning: state full loops
+  and deferred boundaries before narrowing scope.
