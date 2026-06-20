@@ -199,7 +199,12 @@ def wave_scout_prompt(project: str, scope_block: str, memo: dict[str, Finding], 
     # keep only the guidance up to its output block; we impose our own block below
     axes = axes.split("## Output format", 1)[0]
     return (
-        axes.replace("{project}", project).replace("{scout_id}", f"w{wave}")
+        "/debug\n\n"
+        "**AUDIT ONLY — you WRITE FINDINGS, you do NOT fix anything.** Strictly read-only: do NOT "
+        "edit, patch, refactor, create, or delete any file; do NOT run mutating or destructive "
+        "commands; do NOT commit. Your ENTIRE output is the finding blocks specified below — fixing "
+        "is the orchestrator's job, never yours.\n\n"
+        + axes.replace("{project}", project).replace("{scout_id}", f"w{wave}")
         .replace("{scope_block}", scope_block).replace("{extra_prompt}", "(none)")
         + "\n## Audit memo so far (do NOT re-report a known claim; instead VERIFY any `?UNVERIFIED`)\n"
         + memo_digest_for_prompt(memo)
@@ -226,6 +231,9 @@ def verifier_prompt(memo: dict[str, Finding]) -> str:
         f"- **Falsifier:** {f.falsifier}" for f in unverified
     )
     return (
+        "/debug\n\n"
+        "**AUDIT ONLY — adjudicate and WRITE, do NOT fix or edit anything.** Strictly read-only: no "
+        "file edits, no mutating commands, no commits. Your output is verdict blocks only.\n\n"
         "You are the between-wave verifier for a bug-hunt audit. Read the repo and "
         "adjudicate each UNVERIFIED finding below. For each, emit a block with the EXACT "
         "same Claim and a Verdict (CONFIRMED with file:line+probe, or REFUTED with why the "
@@ -326,7 +334,8 @@ def main() -> int:
                 verdict_changes = apply_verdicts(memo, parse_wave_output(body))
 
         new_info = new_claims + promoted + verdict_changes
-        save_memo(json_path, md_path, memo, repo=repo, wave=wave)
+        if not args.dry_run:  # dry-run writes no files (matches debug_scout convention)
+            save_memo(json_path, md_path, memo, repo=repo, wave=wave)
         n_conf = sum(1 for f in memo.values() if f.status == "confirmed")
         print(f"  wave {wave}: +{new_claims} new · {promoted} promoted · "
               f"{verdict_changes} verified → new_info={new_info} · {n_conf} confirmed total")
