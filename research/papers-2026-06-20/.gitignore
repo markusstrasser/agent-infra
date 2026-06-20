@@ -1,0 +1,5 @@
+*.pdf
+txt/
+*.log
+_smoke.err
+extractions/*.log
