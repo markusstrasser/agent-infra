@@ -111,6 +111,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-06-19-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-19 (deterministic) | TODO |
 | `2026-06-19-steering-vectors.md` | Steering vectors — session mine (2026-06-19) | TODO |
 | `2026-06-19-tooling-api-critique-synthesis.md` | Critique → ship | TODO |
+| `2026-06-20-agent-workflow-orchestration-frameworks.md` | Agent Workflow Orchestration Frameworks — 2026-06-20 | TODO |
 | `2026-06-20-research-agent-orchestration-tooling.md` | Research-Agent Orchestration Tooling — 2026-06-20 | TODO |
 | `2026-06-20-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-20 (deterministic) | TODO |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
