@@ -19,14 +19,23 @@ skip() { echo -e "  ${DIM}⊘${RESET} $1"; }
 warn() { echo -e "  ${YELLOW}⚠${RESET} $1"; }
 fail() { echo -e "  ${RED}✗${RESET} $1"; }
 step() { echo -e "\n${BOLD}$1${RESET}"; }
+would() { echo -e "  ${YELLOW}↪${RESET} ${DIM}would${RESET} $1"; }
+
+# DRY_RUN=1 → probe everything read-only (real git fetch + version checks),
+# print what WOULD happen, mutate nothing. Usage: DRY_RUN=1 friend-sync.sh
+DRY_RUN="${DRY_RUN:-0}"
 
 PROJECTS="$HOME/Projects"
 GITHUB_USER="markusstrasser"
 LOG_FILE="$HOME/.local/log/friend-sync.log"
 mkdir -p "$(dirname "$LOG_FILE")"
 
-# Timestamp for log
-echo "--- $(date '+%Y-%m-%d %H:%M:%S') ---" >> "$LOG_FILE"
+if [ "$DRY_RUN" = "1" ]; then
+    echo -e "${BOLD}${YELLOW}DRY RUN${RESET} ${DIM}— probing read-only, nothing will be changed${RESET}"
+else
+    # Timestamp for log
+    echo "--- $(date '+%Y-%m-%d %H:%M:%S') ---" >> "$LOG_FILE"
+fi
 
 # ── 1. Pull repos ───────────────────────────────────────────
 
@@ -39,6 +48,10 @@ failed=0
 for repo in "${REPOS[@]}"; do
     dir="$PROJECTS/$repo"
     if [ ! -d "$dir/.git" ]; then
+        if [ "$DRY_RUN" = "1" ]; then
+            would "clone $repo from git@github.com:${GITHUB_USER}/${repo}.git"
+            continue
+        fi
         # Auto-clone if missing
         if git clone "git@github.com:${GITHUB_USER}/${repo}.git" "$dir" 2>/dev/null; then
             ok "$repo — cloned"
@@ -53,6 +66,19 @@ for repo in "${REPOS[@]}"; do
     # Check for local uncommitted changes
     if [ -n "$(git -C "$dir" status --porcelain 2>/dev/null)" ]; then
         skip "$repo — dirty working tree"
+        continue
+    fi
+
+    if [ "$DRY_RUN" = "1" ]; then
+        git -C "$dir" fetch --quiet 2>/dev/null || true   # read-only: updates refs, not working tree
+        before=$(git -C "$dir" rev-parse HEAD 2>/dev/null)
+        upstream=$(git -C "$dir" rev-parse '@{u}' 2>/dev/null || echo "$before")
+        if [ "$before" != "$upstream" ]; then
+            count=$(git -C "$dir" rev-list --count "${before}..${upstream}" 2>/dev/null || echo "?")
+            would "pull $repo — ${count} new commits"
+        else
+            skip "$repo — up to date"
+        fi
         continue
     fi
 
@@ -79,7 +105,10 @@ step "CLI tools"
 export PATH="$HOME/.local/bin:$PATH"
 
 # Claude Code (native — auto-updates in background; friend-sync nudges explicitly)
-if command -v claude &>/dev/null && [ -d "$HOME/.local/share/claude" ]; then
+if [ "$DRY_RUN" = "1" ] && command -v claude &>/dev/null; then
+    before=$(claude --version 2>/dev/null | sed 's/ (Claude Code)//' | head -1 || echo "?")
+    would "run: claude update (current $before)"
+elif command -v claude &>/dev/null && [ -d "$HOME/.local/share/claude" ]; then
     before=$(claude --version 2>/dev/null | sed 's/ (Claude Code)//' | head -1 || echo "?")
     if claude update &>/dev/null; then
         after=$(claude --version 2>/dev/null | sed 's/ (Claude Code)//' | head -1 || echo "?")
@@ -113,7 +142,11 @@ for pkg in @google/gemini-cli @openai/codex; do
     if [ "$current" = "$latest" ]; then
         skip "$name $current"
     elif [ "$latest" != "?" ]; then
-        npm install -g "$pkg" --quiet 2>/dev/null && ok "$name → $latest" || warn "$name update failed"
+        if [ "$DRY_RUN" = "1" ]; then
+            would "update $name $current → $latest"
+        else
+            npm install -g "$pkg" --quiet 2>/dev/null && ok "$name → $latest" || warn "$name update failed"
+        fi
     else
         skip "$name — can't check version"
     fi
@@ -123,7 +156,11 @@ done
 for tool in llmx emb parsers; do
     dir="$PROJECTS/$tool"
     if [ -d "$dir" ]; then
-        uv tool install --editable "$dir" --quiet 2>/dev/null && ok "$tool (editable)" || skip "$tool — no changes"
+        if [ "$DRY_RUN" = "1" ]; then
+            would "uv tool install --editable $tool"
+        else
+            uv tool install --editable "$dir" --quiet 2>/dev/null && ok "$tool (editable)" || skip "$tool — no changes"
+        fi
     fi
 done
 
@@ -134,7 +171,11 @@ step "MCP deps"
 for mcp_dir in research-mcp agent-infra biomedical-mcp; do
     dir="$PROJECTS/$mcp_dir"
     if [ -d "$dir/pyproject.toml" ] || [ -d "$dir" ]; then
-        (cd "$dir" && uv sync --quiet 2>/dev/null) && ok "$mcp_dir" || warn "$mcp_dir sync failed"
+        if [ "$DRY_RUN" = "1" ]; then
+            would "uv sync in $mcp_dir"
+        else
+            (cd "$dir" && uv sync --quiet 2>/dev/null) && ok "$mcp_dir" || warn "$mcp_dir sync failed"
+        fi
     fi
 done
 
@@ -160,13 +201,21 @@ if [ -d "$SKILLS_SRC" ]; then
             # Verify symlink target is correct
             target=$(readlink "$SKILLS_DST/$skill")
             if [ "$target" != "$skill_dir" ] && [ "$target" != "${skill_dir%/}" ]; then
-                ln -sf "$skill_dir" "$SKILLS_DST/$skill"
-                ok "$skill — relinked"
+                if [ "$DRY_RUN" = "1" ]; then
+                    would "relink $skill"
+                else
+                    ln -sf "$skill_dir" "$SKILLS_DST/$skill"
+                    ok "$skill — relinked"
+                fi
                 new_skills=$((new_skills + 1))
             fi
         elif [ ! -e "$SKILLS_DST/$skill" ]; then
-            ln -sf "$skill_dir" "$SKILLS_DST/$skill"
-            ok "$skill — NEW"
+            if [ "$DRY_RUN" = "1" ]; then
+                would "link NEW skill $skill"
+            else
+                ln -sf "$skill_dir" "$SKILLS_DST/$skill"
+                ok "$skill — NEW"
+            fi
             new_skills=$((new_skills + 1))
         fi
     done
@@ -174,8 +223,12 @@ if [ -d "$SKILLS_SRC" ]; then
     # Remove dead symlinks (skills deleted upstream)
     for link in "$SKILLS_DST"/*/; do
         [ -L "${link%/}" ] && [ ! -e "${link%/}" ] && {
-            rm "${link%/}"
-            warn "$(basename "${link%/}") — removed (deleted upstream)"
+            if [ "$DRY_RUN" = "1" ]; then
+                would "remove dead link $(basename "${link%/}") (deleted upstream)"
+            else
+                rm "${link%/}"
+                warn "$(basename "${link%/}") — removed (deleted upstream)"
+            fi
         }
     done
 
@@ -186,7 +239,11 @@ if [ -d "$SKILLS_SRC" ]; then
 
     # Codex discovery paths mirror Claude global set (~/.agents/skills primary)
     if [ -f "$PROJECTS/agent-infra/scripts/sync_agent_skills.py" ]; then
-        (cd "$PROJECTS/agent-infra" && uv run python3 scripts/sync_agent_skills.py 2>&1 | sed 's/^/  /') || true
+        if [ "$DRY_RUN" = "1" ]; then
+            would "run sync_agent_skills.py (Codex skill discovery paths)"
+        else
+            (cd "$PROJECTS/agent-infra" && uv run python3 scripts/sync_agent_skills.py 2>&1 | sed 's/^/  /') || true
+        fi
     fi
 else
     warn "skills repo not found at $SKILLS_SRC"
@@ -206,9 +263,13 @@ if [ -d "$LAUNCHD_SRC" ]; then
         base=$(basename "$src")
         dst="$LAUNCHD_DST/$base"
         if [ ! -f "$dst" ] || ! cmp -s "$src" "$dst"; then
-            cp "$src" "$dst"
-            label="${base%.plist}"
-            ok "$base — synced (reload: launchctl kickstart -k gui/$(id -u)/$label)"
+            if [ "$DRY_RUN" = "1" ]; then
+                would "sync plist $base → $LAUNCHD_DST"
+            else
+                cp "$src" "$dst"
+                label="${base%.plist}"
+                ok "$base — synced (reload: launchctl kickstart -k gui/$(id -u)/$label)"
+            fi
             synced=$((synced + 1))
         fi
     done
@@ -222,8 +283,12 @@ fi
 step "Cursor skills"
 AI_DIR="$PROJECTS/agent-infra"
 if [ -x "$AI_DIR/scripts/cursor-skills-sync.sh" ]; then
-    bash "$AI_DIR/scripts/cursor-skills-sync.sh" | sed 's/^/  /'
-    ok "cursor skills synced"
+    if [ "$DRY_RUN" = "1" ]; then
+        would "run cursor-skills-sync.sh"
+    else
+        bash "$AI_DIR/scripts/cursor-skills-sync.sh" | sed 's/^/  /'
+        ok "cursor skills synced"
+    fi
 else
     skip "cursor-skills-sync.sh not found"
 fi
@@ -239,7 +304,9 @@ step "Codex parity"
 # See scripts/codex_parity_sync.py.
 AI_DIR="$PROJECTS/agent-infra"
 if [ -f "$AI_DIR/scripts/codex_parity_sync.py" ]; then
-    if (cd "$AI_DIR" && uv run --no-project python3 scripts/codex_parity_sync.py 2>&1 | grep -E '✓|drift|✗' | sed 's/^/  /'); then
+    if [ "$DRY_RUN" = "1" ]; then
+        would "run codex_parity_sync.py (intel, genomics, phenome)"
+    elif (cd "$AI_DIR" && uv run --no-project python3 scripts/codex_parity_sync.py 2>&1 | grep -E '✓|drift|✗' | sed 's/^/  /'); then
         ok "codex parity synced (intel, genomics, phenome)"
     else
         warn "codex parity sync had issues"
@@ -295,5 +362,9 @@ fi
 # ── Summary ──────────────────────────────────────────────────
 
 echo ""
-echo -e "${BOLD}Done.${RESET} ${pulled} repos updated, ${failed} failures."
-echo "$(date '+%Y-%m-%d %H:%M') — ${pulled} updated, ${failed} failed" >> "$LOG_FILE"
+if [ "$DRY_RUN" = "1" ]; then
+    echo -e "${BOLD}${YELLOW}DRY RUN complete.${RESET} ${DIM}Nothing changed — rerun without DRY_RUN=1 to apply.${RESET}"
+else
+    echo -e "${BOLD}Done.${RESET} ${pulled} repos updated, ${failed} failures."
+    echo "$(date '+%Y-%m-%d %H:%M') — ${pulled} updated, ${failed} failed" >> "$LOG_FILE"
+fi
