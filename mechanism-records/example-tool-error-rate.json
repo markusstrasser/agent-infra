@@ -1,0 +1,33 @@
+{
+  "slug": "example-tool-error-rate",
+  "change_ref": "example: pipeline validation, not a governance claim",
+  "predicted_failure_class": "tool-call error rate (illustrative objective signal)",
+  "expected_trace_observable": "fraction of tool_calls with status=error declines after the change",
+  "metric_query": "SELECT COUNT(*) FROM tool_calls tc JOIN runs r ON r.run_id=tc.run_id WHERE tc.status='error' AND r.started_at>=:since AND r.started_at<:until",
+  "direction": "decrease",
+  "control_query": "SELECT COUNT(*) FROM tool_calls tc JOIN runs r ON r.run_id=tc.run_id WHERE tc.status='success' AND r.started_at>=:since AND r.started_at<:until",
+  "change_date": "2026-05-15",
+  "rollback_criterion": "illustrative \u2014 n/a",
+  "baseline_window_days": 30,
+  "min_effect_frac": 0.2,
+  "control_tolerance_frac": 0.2,
+  "recorded_at": "2026-06-20",
+  "status": "not_fired",
+  "notes": "",
+  "last_check": {
+    "verdict": "NOT_FIRED",
+    "metric": {
+      "before_per_day": 0.0,
+      "after_per_day": 1034.2332,
+      "rel_move": 1.0,
+      "direction": "decrease"
+    },
+    "control": {
+      "before_per_day": 0.0,
+      "after_per_day": 5139.7405,
+      "abs_rel_move": 1.0,
+      "flat": false
+    },
+    "checked_at": "2026-06-20T14:15:44"
+  }
+}
