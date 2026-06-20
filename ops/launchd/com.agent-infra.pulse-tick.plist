@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.agent-infra.integrate-rank</string>
+    <string>com.agent-infra.pulse-tick</string>
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>/Users/alien/Projects/agent-infra/scripts/integrate-rank.sh</string>
+        <string>/Users/alien/Projects/agent-infra/scripts/pulse-tick.sh</string>
     </array>
     <key>EnvironmentVariables</key>
     <dict>
@@ -18,19 +18,23 @@
     </dict>
     <key>WorkingDirectory</key>
     <string>/Users/alien/Projects/agent-infra</string>
-    <!-- @system layer=gov role=miner llm=optional state=manifest
-         Daily 07:30 — after act-drain (06:45) + blindspot (06:50). -->
+    <!-- @system layer=gov role=rsi-motor llm=none
+         Unified RSI motor: substrate→sense→drain→synthesize→motor→surface.
+         Replaces drift-sentinel, blindspot-miner, act-drain, gov-report,
+         integrate-rank, maintain-tick. Full tick daily 06:30; motor-only every 45m. -->
     <key>StartCalendarInterval</key>
     <dict>
         <key>Hour</key>
-        <integer>7</integer>
+        <integer>6</integer>
         <key>Minute</key>
         <integer>30</integer>
     </dict>
+    <key>StartInterval</key>
+    <integer>2700</integer>
     <key>StandardOutPath</key>
-    <string>/Users/alien/.claude/logs/integrate-rank.out</string>
+    <string>/Users/alien/.claude/logs/pulse-tick.out</string>
     <key>StandardErrorPath</key>
-    <string>/Users/alien/.claude/logs/integrate-rank.err</string>
+    <string>/Users/alien/.claude/logs/pulse-tick.err</string>
     <key>LowPriorityIO</key>
     <true/>
     <key>Nice</key>

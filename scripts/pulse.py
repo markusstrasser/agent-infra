@@ -18,6 +18,9 @@ is constancy over a window, not just null.
 `gate` (thin, FM-ID granularity) and `registry` included; `weights` deferred until
 ≥2 detectors clear PPV (reflect.PPV_CLEARED is currently empty — no load to weight).
 
+Phase 0+: `status` — unified control-plane inbox; `tick` — phased motor; `funnel` — queue depths.
+Legacy digest/surface/launchd scatter removed — pulse owns the RSI control plane end-to-end.
+
 Gov-ID: hook:pulse-instrument-canary
 goal: an RSI closure instrument silently going null / constant / stale (the AIR-1591 bug class)
 verifier: null
@@ -30,8 +33,12 @@ import json
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
+REPO = Path(__file__).resolve().parent.parent
+INBOX = Path.home() / ".claude" / "control-plane-inbox.md"
+MAINTAIN_DIR = REPO / "artifacts" / "maintain"
 HISTORY = Path.home() / ".claude" / "pulse-canary-history.jsonl"  # the canary's own observation log (append-only, reconstructible — NOT a source of truth)
 WINDOW = 5          # observations compared for the constancy test
 STALE_SECONDS = 36 * 3600  # an instrument with no fresh observation in 36h is stale
@@ -149,6 +156,222 @@ def cmd_registry(_args) -> int:
     return 0
 
 
+def canary_summary(now: float | None = None) -> dict:
+    """Read-only canary verdict from history — does not run probes."""
+    now = now or time.time()
+    hist = _read_history()
+    alarms, ok = [], []
+    for name, (_probe, contract, note) in INSTRUMENTS.items():
+        level, reason = _judge(name, hist, now, contract)
+        row = {"name": name, "level": level, "reason": reason, "note": note}
+        (alarms if level == "alarm" else ok).append(row)
+    return {"alarm_count": len(alarms), "alarms": alarms, "ok": ok}
+
+
+def _latest_maintain_draft() -> dict | None:
+    if not MAINTAIN_DIR.is_dir():
+        return None
+    files = sorted(MAINTAIN_DIR.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not files:
+        return None
+    f = files[0]
+    try:
+        rel = str(f.relative_to(REPO))
+    except ValueError:
+        rel = str(f)
+    return {"path": rel, "slug": f.stem, "mtime": f.stat().st_mtime}
+
+
+def _load_tick_state() -> dict | None:
+    sys.path.insert(0, str(REPO / "scripts"))
+    try:
+        import pulse_tick as pt  # noqa: E402
+        return pt.last_tick()
+    except Exception:
+        return None
+
+
+def _priorities_head(n: int = 5) -> list[dict]:
+    sys.path.insert(0, str(REPO / "scripts"))
+    try:
+        import top_priorities as tp  # noqa: E402
+        return tp.gather()[:n]
+    except Exception:
+        return []
+
+
+def gather_status(repo: Path | None = None) -> dict:
+    """Aggregate control-plane metrics from existing sensors (zero new stores)."""
+    repo = repo or REPO
+    sys.path.insert(0, str(repo / "scripts"))
+    import loop_funnel as lf  # noqa: E402
+    import questions_view as qv  # noqa: E402
+    import predictions  # noqa: E402
+
+    funnel = lf.metrics()
+    questions = qv.collect_questions(repo)
+    qsection = qv.render_section(questions)
+    due = predictions.due_predictions()
+    canary = canary_summary()
+    maintain = _latest_maintain_draft()
+    tick = _load_tick_state()
+    return {
+        "funnel": funnel,
+        "funnel_needs_attention": lf.needs_attention(funnel),
+        "questions_count": len(questions.questions),
+        "questions_section": qsection,
+        "predictions_due": due,
+        "canary": canary,
+        "maintain_draft": maintain,
+        "tick": tick,
+        "priorities": _priorities_head(),
+    }
+
+
+def status_needs_attention(m: dict) -> bool:
+    if m["funnel_needs_attention"]:
+        return True
+    if m["questions_count"] > 0:
+        return True
+    if m["canary"]["alarm_count"] > 0:
+        return True
+    if m["predictions_due"]:
+        return True
+    if m.get("maintain_draft"):
+        return True
+    tick = m.get("tick") or {}
+    sense = (tick.get("phases") or {}).get("sense") or {}
+    if sense.get("drift_flags"):
+        return True
+    if sense.get("blindspot_flags", 0) > 0:
+        return True
+    if m.get("priorities"):
+        return True
+    return False
+
+
+def render_status(m: dict) -> str:
+    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    parts = [
+        f"# Control plane — {stamp}",
+        "_Unified RSI surface (`pulse status`). Run `just pulse-tick` on schedule._",
+        "",
+    ]
+    if m["questions_section"]:
+        parts.extend([m["questions_section"], ""])
+    if m.get("priorities"):
+        parts.append("## Top priorities")
+        for i, item in enumerate(m["priorities"], 1):
+            parts.append(f"{i}. **[{item.get('klass', '?')}]** {item.get('title', '?')}")
+            parts.append(f"   - → {item.get('action', '?')}")
+        parts.append("")
+    parts.append("## Loop funnel")
+    sys.path.insert(0, str(REPO / "scripts"))
+    import loop_funnel as lf  # noqa: E402
+    parts.append(lf.render(m["funnel"]).rstrip())
+    parts.append("")
+    tick = m.get("tick") or {}
+    sense = (tick.get("phases") or {}).get("sense") or {}
+    if sense.get("drift_flags"):
+        parts.append("## Drift flags")
+        for row in sense["drift_flags"][:8]:
+            parts.append(f"- **{row.get('check', '?')}**: {(row.get('excerpt') or row.get('error', ''))[:120]}")
+        parts.append("")
+    if sense.get("blindspot_top"):
+        parts.append(f"## Blindspot ({sense.get('blindspot_flags', len(sense['blindspot_top']))} flags)")
+        for f in sense["blindspot_top"][:6]:
+            parts.append(f"- `{f.get('project', '?')}/{f.get('session', '?')}` [{f.get('type', '?')}]")
+        parts.append("")
+    parts.append("## Instrument canary")
+    if m["canary"]["alarm_count"]:
+        for row in m["canary"]["alarms"]:
+            parts.append(f"- ✗ **{row['name']}**: {row['reason']}")
+    else:
+        parts.append(f"- ✓ {len(m['canary']['ok'])} instruments live (run `pulse canary` to refresh)")
+    parts.append("")
+    if tick.get("tick_id"):
+        parts.append(f"_Last tick: {tick['tick_id']} ({tick.get('duration_s', '?')}s, exit {tick.get('exit_code', '?')})_")
+        parts.append("")
+    if m.get("maintain_draft"):
+        d = m["maintain_draft"]
+        parts.extend([
+            "## Motor draft",
+            f"- Latest: `{d['path']}`",
+            "",
+        ])
+    if m["predictions_due"]:
+        parts.append("## Predictions due")
+        for p in m["predictions_due"][:5]:
+            parts.append(f"- `{p.get('id', '?')}` — {p.get('change', '')[:100]}")
+        if len(m["predictions_due"]) > 5:
+            parts.append(f"- … and {len(m['predictions_due']) - 5} more")
+        parts.append("")
+    parts.extend([
+        "**Next:** `/rsi close` · `just reflect-review` · `/improve maintain` · `just questions`",
+    ])
+    return "\n".join(parts) + "\n"
+
+
+def cmd_status(args) -> int:
+    m = gather_status(REPO)
+    if args.json:
+        slim = {
+            "funnel_needs_attention": m["funnel_needs_attention"],
+            "disposition_queue": m["funnel"]["disposition_queue"],
+            "unclassified": m["funnel"]["unclassified"],
+            "questions_count": m["questions_count"],
+            "predictions_due_count": len(m["predictions_due"]),
+            "canary_alarm_count": m["canary"]["alarm_count"],
+            "maintain_draft": m.get("maintain_draft"),
+            "needs_attention": status_needs_attention(m),
+            "last_tick": (m.get("tick") or {}).get("tick_id"),
+            "priorities_count": len(m.get("priorities") or []),
+        }
+        print(json.dumps(slim, indent=2))
+        return 0
+    digest = render_status(m)
+    if args.write_inbox:
+        path = Path(args.inbox_path)
+        if status_needs_attention(m):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(digest, encoding="utf-8")
+            print(f"[pulse status] wrote {path}")
+        else:
+            path.unlink(missing_ok=True)
+            print("[pulse status] all green — inbox cleared")
+    else:
+        print(digest, end="")
+    return 1 if m["canary"]["alarm_count"] else 0
+
+
+def cmd_funnel(args) -> int:
+    sys.path.insert(0, str(REPO / "scripts"))
+    import loop_funnel as lf  # noqa: E402
+    m = lf.metrics()
+    if args.json:
+        slim = {k: v for k, v in m.items() if k not in ("rsi_pending", "quarantine")}
+        slim["rsi_pending_count"] = len(m["rsi_pending"])
+        print(json.dumps(slim, indent=2))
+        return 0
+    print(lf.render(m), end="")
+    return 0
+
+
+def cmd_tick(args) -> int:
+    sys.path.insert(0, str(REPO / "scripts"))
+    import pulse_tick as pt  # noqa: E402
+    phases = tuple(args.phase) if args.phase else pt.PHASE_ORDER
+    state = pt.run_tick(phases=phases)
+    if args.json:
+        print(json.dumps(state, indent=2))
+    else:
+        for name, result in state.get("phases", {}).items():
+            ok = "✓" if result.get("ok", True) else "✗"
+            print(f"  {ok} {name}")
+        print(f"\npulse tick: exit {state.get('exit_code', 0)} — state {pt.STATE_FILE}")
+    return int(state.get("exit_code", 0))
+
+
 def cmd_gate(args) -> int:
     """Thin anti-windup gate at FM-ID granularity: a promoted FM whose recurrence did
     NOT drop after fix_ts should NOT spawn more promotions of its kind. Reads fm.py
@@ -181,11 +404,23 @@ def _selftest() -> int:
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(description="pulse.py — RSI-loop instrument-liveness surface (canary/gate/registry)")
+    p = argparse.ArgumentParser(description="pulse.py — RSI control plane (canary/gate/funnel/status/tick)")
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("canary", help="check each closure instrument for null/constant/stale").set_defaults(fn=cmd_canary)
     sub.add_parser("registry", help="list watched instruments").set_defaults(fn=cmd_registry)
     sub.add_parser("gate", help="anti-windup gate (FM-ID granularity, advisory)").set_defaults(fn=cmd_gate)
+    fn = sub.add_parser("funnel", help="loop funnel queue depths")
+    fn.add_argument("--json", action="store_true")
+    fn.set_defaults(fn=cmd_funnel)
+    tk = sub.add_parser("tick", help="phased RSI motor (substrate→sense→drain→synthesize→motor→surface)")
+    tk.add_argument("--phase", action="append", choices=("substrate", "sense", "drain", "synthesize", "motor", "surface"))
+    tk.add_argument("--json", action="store_true")
+    tk.set_defaults(fn=cmd_tick)
+    st = sub.add_parser("status", help="unified control-plane inbox")
+    st.add_argument("--json", action="store_true")
+    st.add_argument("--write-inbox", action="store_true", help="write ~/.claude/control-plane-inbox.md when attention needed")
+    st.add_argument("--inbox-path", default=str(INBOX))
+    st.set_defaults(fn=cmd_status)
     sub.add_parser("selftest", help="prove the canary flags constant/null/stale").set_defaults(fn=lambda _a: _selftest())
     args = p.parse_args()
     return args.fn(args)

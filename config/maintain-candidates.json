@@ -45,6 +45,19 @@
       "source": "research/2026-06-19-steering-vectors.md (cluster: HUMAN.md false open count, 2+); research/2026-06-19-auto-self-improvement-audit.md (tier-0 #2)",
       "build_kind": "script",
       "proposal_outline": "Template-aware grep that anchors on real escalation headers, not the `[open]` example inside a template block, so the open-escalation count is correct. NOTE: lives in hutter/agi3-status path (CROSS-REPO) — blast_radius=shared so the tier gate routes it to the human (policy tier 2), NOT auto-pick. The clear-win predicates are set true (it IS a clean fix) but the SHARED blast radius dominates (highest-tier-wins) so it is never tier-0/0E here. Recorded for visibility + human routing."
+    },
+    {
+      "id": "behavioral-harness-replay-testground",
+      "title": "Agent-loop behavioral replay (fork B) — harness A/B with tool-call grading",
+      "blast_radius": "agent-infra",
+      "reversible": true,
+      "evidence_sessions": 3,
+      "checkable": false,
+      "low_downside": true,
+      "clear_win_vs_baseline": false,
+      "source": "research/2026-06-19-behavioral-eval-feasibility.md; gov steer-linkage scope_narrow orphan (180 hits)",
+      "build_kind": "script",
+      "proposal_outline": "Replay extract_behavioral_eval_cases through real project harness (cursor-agent headless); grade act-vs-ask from tool-call telemetry not text heuristics. v0 smoke: scripts/behavioral_harness_replay.py (llmx harness-steer A/B). Gate: bare-model arm refuted — must use full harness."
     }
   ]
 }

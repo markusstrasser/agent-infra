@@ -227,22 +227,6 @@ test-health *args:
 orphan-check *args:
     uv run python3 scripts/orphan_check.py {{args}}
 
-# Daily self-monitor: run the deterministic report-only checks (freshness,
-# orphan-findings, orphan-check, doc-vs-reality) and write .claude/drift-digest.md
-# when something needs attention (auto-cleared when green). Surfaced next
-# SessionStart. Decouples detection from the interactive loop. Scheduled via
-# com.agent-infra.drift-sentinel; run manually here.
-[group('health')]
-drift-sentinel:
-    bash scripts/drift-sentinel.sh
-
-# RSI blindspot miner: emb-contrastive over recent sessions surfaces the moments the
-# human had to catch a loop miss (→ candidate detectors). Standing: com.agent-infra.
-# blindspot-miner (daily 06:50, runs in emb's env). Run manually here.
-[group('health')]
-blindspot:
-    bash scripts/blindspot-miner.sh
-
 # Triage post-deploy prior-context blindspot flags (observe A5 prerequisite).
 prior-context-triage *args:
     uv run python3 scripts/prior_context_triage.py {{args}}
@@ -264,7 +248,7 @@ observe-all project='agent-infra' sessions='5':
     just observe-context {{project}} {{sessions}}
     just prior-context-triage
     just prior-context-stats
-    just blindspot
+    just pulse-tick --phase sense
 
 # Pre-registered prediction ledger: `predictions list` (open/DUE/resolved),
 # `predictions resolve <id> <confirmed|refuted|partial> "<note>"`. drift-sentinel
@@ -487,6 +471,10 @@ hook-decay *args:
 gov-report *args:
     uv run python3 scripts/gov.py report {{args}}
 
+# Behavioral harness A/B smoke — steer-mining cases, harness-steer arms (v0; fork-B = cursor-agent replay)
+behavioral-harness-smoke *args:
+    uv run python3 scripts/behavioral_harness_replay.py {{args}}
+
 # SHADOW: count high-blast-radius diffs that landed with no test + no review (demand probe for an auto-review gate; promote/cut ~2026-06-21)
 [group('epistemic')]
 risky-diff-shadow *args:
@@ -528,22 +516,24 @@ reflect-eval *args:
 steer-mine *args:
     uv run python3 ~/Projects/skills/observe/scripts/mine_steers.py --from-agentlogs --prompt-mode multi --budget 5 --workers 3 {{args}}
 
-# RSI loop funnel — per-stage queue depths (capture → classify → disposition)
+# Unified RSI control plane — phased motor + inbox surface.
+#   just pulse-tick                 full tick (substrate→surface)
+#   just pulse-tick --phase motor   motor-only (45m cadence)
+#   just control-plane              refresh SessionStart inbox
+#   just pulse status|funnel|canary subcommands
 [group('epistemic')]
-loop-funnel *args:
-    uv run python3 scripts/loop_funnel.py {{args}}
+pulse-tick *args:
+    uv run python3 scripts/pulse.py tick {{args}}
 
-# ACT drain — classify captured signals + write disposition digest (launchd daily)
 [group('epistemic')]
-act-drain *args:
-    uv run python3 scripts/act_drain.py {{args}}
+control-plane *args:
+    uv run python3 scripts/pulse.py status --write-inbox {{args}}
 
-# Maintain motor — SAFE/dry-run RSI motor (drafts only; never auto-edits/commits/deploys).
-#   just maintain-tick                       ADD pass: draft a tier-0 BUILD proposal
-#   just maintain-tick --subtract --ablate   SUBTRACT pass: draft a governance RETIREMENT
-#                                            (gov-shrink + advisory-noise), ablation-gated
-#   just maintain-tick --list   /   --subtract --list      show candidates, pick nothing
-# Drafts land in artifacts/maintain/ for human/loop disposition. Consumed by /improve maintain.
+[group('epistemic')]
+pulse *args:
+    uv run python3 scripts/pulse.py {{args}}
+
+# Advanced motor passes (subtract/ablate/list) — direct script; scheduled path is pulse-tick.
 [group('epistemic')]
 maintain-tick *args:
     uv run python3 scripts/maintain_tick.py {{args}}
@@ -622,13 +612,6 @@ commit-prep target='.' *args='':
 [group('epistemic')]
 commit-plan target='.' *args='':
     @just commit-slice-planning {{target}} {{args}}
-[group('epistemic')]
-integrate-rank *args='':
-    @just sensor-integration-ranking --no-llm {{args}}
-
-[group('epistemic')]
-rsi-loop-funnel *args='':
-    uv run python3 scripts/loop_funnel.py {{args}}
 
 # Install git pre-commit hooks (chains no-large-binaries + append-only/protected guards + codebase-map refresh)
 [group('epistemic')]

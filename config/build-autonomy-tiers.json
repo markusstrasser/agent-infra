@@ -1,6 +1,8 @@
 {
   "_doc": "Build-autonomy tiers — what the maintain-tick MOTOR may auto-ship vs gate. The OPERATIONAL form of the constitution's Autonomy Boundaries (it NEVER expands them; if a tier rule and the constitution disagree, the constitution wins). Consumed by scripts/maintain_tick.py + scripts/act_drain.py as the single-source tier policy (epistemic-principle #9 — consumers LOAD this, never restate the rules). DISTINCT from config/approval-tiers.json, which gates PRETOOL hooks (block/predicate/warn), not builds (audit 2026-06-19 corrected the conflation). Authorized: operator 2026-06-19 ('ok you can edit').",
   "version": 1,
+  "loop_mutable": false,
+  "mutation_requires": "tier-3 principal act — maintain_tick and act_drain may READ tiers but never WRITE them",
   "tiers": {
     "0": {
       "rule": "agent-infra-local AND reversible AND checkable AND evidence_sessions>=2 AND blast_radius=agent-infra AND low_downside AND clear_win_vs_baseline (a complex / high-downside / unclear-vs-baseline item is NOT tier-0 even if local+reversible → it routes to 0E)",

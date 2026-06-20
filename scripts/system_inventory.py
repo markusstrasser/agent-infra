@@ -70,14 +70,11 @@ def plist_label(path: Path) -> str:
 
 
 def collect_plist_sources() -> list[Path]:
-    paths: dict[str, Path] = {}
-    # Repo manifest wins over ~/Library/LaunchAgents copies (same Label, may lack @system).
-    for base in (HOME / "Library" / "LaunchAgents", REPO_ROOT / "ops" / "launchd"):
-        if not base.exists():
-            continue
-        for p in sorted(base.glob("com.agent-infra.*.plist")):
-            paths[p.name] = p
-    return list(paths.values())
+    """Repo manifest is source of truth; ~/Library/LaunchAgents is runtime only."""
+    manifest_dir = REPO_ROOT / "ops" / "launchd"
+    if not manifest_dir.exists():
+        return []
+    return sorted(manifest_dir.glob("com.agent-infra.*.plist"))
 
 
 def collect_launchd_jobs() -> list[dict]:
@@ -109,6 +106,8 @@ def collect_launchd_jobs() -> list[dict]:
 def collect_plist_manifest() -> list[dict]:
     rows = []
     for path in collect_plist_sources():
+        if not path.is_file():
+            continue
         text = path.read_text(encoding="utf-8", errors="replace")
         label = plist_label(path)
         slug = label.replace("com.agent-infra.", "")
@@ -275,11 +274,12 @@ def render_architecture_mmd(inv: dict | None = None) -> str:
         raise FileNotFoundError(template_path)
     text = template_path.read_text()
     launchd = inv["launchd"]
-    motor = next((j for j in launchd if j.get("role") == "rsi-motor" and j.get("loaded")), None)
+    motor = next((j for j in launchd if j.get("name") == "pulse-tick" and j.get("loaded")), None)
+    has_manifest = any(j.get("name") == "pulse-tick" for j in launchd)
     motor_line = (
-        f"maintain-tick · rsi-motor · llm:none · {'loaded' if motor else 'NOT LOADED'}"
-        if motor or any(j["name"] == "maintain-tick" for j in launchd)
-        else "maintain-tick · rsi-motor (manifest)"
+        f"pulse-tick · rsi-motor · llm:none · {'loaded' if motor else 'NOT LOADED'}"
+        if has_manifest
+        else "pulse-tick · rsi-motor (manifest)"
     )
     replacements = {
         "{{GENERATED_AT}}": inv["generated_at"],

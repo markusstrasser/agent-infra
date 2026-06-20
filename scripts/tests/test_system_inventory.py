@@ -14,12 +14,12 @@ def test_orchestrator_recipes_have_layer_role():
     assert rows[0]["role"] == "operator-tool"
 
 
-def test_plist_manifest_tags_maintain_tick():
+def test_plist_manifest_tags_pulse_tick():
     manifest = si.collect_plist_manifest()
-    mt = next(m for m in manifest if m["name"] == "maintain-tick")
-    assert mt["tagged"]
-    assert mt["role"] == "rsi-motor"
-    assert mt["layer"] == "gov"
+    pt = next(m for m in manifest if m["name"] == "pulse-tick")
+    assert pt["tagged"]
+    assert pt["role"] == "rsi-motor"
+    assert pt["layer"] == "gov"
 
 
 def test_render_architecture_substitutes_placeholders():
@@ -27,12 +27,15 @@ def test_render_architecture_substitutes_placeholders():
     mmd = si.render_architecture_mmd(inv)
     assert "{{GENERATED_AT}}" not in mmd
     assert "FILEBUS" in mmd
-    assert "maintain-tick" in mmd
+    assert "pulse-tick" in mmd
 
 
 def test_drift_detects_unloaded_manifest(capsys):
     drift = si.collect_drift()
-    assert "integrate-rank" not in drift["manifest_not_loaded"]
+    names = {m["name"] for m in si.collect_plist_manifest()}
+    assert "maintain-tick" not in names
+    assert "drift-sentinel" not in names
+    assert "pulse-tick" in names
 
 
 def test_json_entrypoint(capsys, monkeypatch):

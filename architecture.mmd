@@ -24,16 +24,16 @@ flowchart TD
         LG["lifecycle graph · just graph &lt;id&gt;<br/>decisions·research·predictions·commits → lifecycle_edges<br/>canonical relation vocab (invert-safe · relates_to non-traversable) · agentlogs-native projection, no new store"]
     end
 
-    subgraph FILEBUS["📋 Session orchestrator — file-bus · derived 2026-06-20 09:37 UTC"]
+    subgraph FILEBUS["📋 Session orchestrator — file-bus · derived 2026-06-20 12:42 UTC"]
         FB["/orchestrate · baseline-since-last-green · audit-findings-consolidation · commit-slice-planning · verification-gate-runner · session-automation-telemetry · sensor-integration-ranking · adversarial-debug-scout · debug-until-dry · rsi-loop-funnel<br/>just -f agent-infra/justfile &lt;recipe&gt; &lt;repo&gt;"]
     end
 
-    subgraph WATCH["🔁 Self-monitoring — launchd · derived 2026-06-20 09:37 UTC"]
-        L["watch: agentlogs-index · audit-corpus-sync · blindspot-miner · clash-detect (llm:required) · codebase-map-refresh · corpus-ledger-commit · drift-sentinel · risky-diff-review · test-health · vendor-sweep<br/>gov: act-drain · gov-report · integrate-rank (llm:optional) · maintain-tick · reflect-eval<br/>infra: hetzner-idle-watch · reclaim-rotate"]
-        MT["maintain-tick · rsi-motor · llm:none · loaded"]
+    subgraph WATCH["🔁 Self-monitoring — launchd · derived 2026-06-20 12:42 UTC"]
+        L["watch: agentlogs-index · audit-corpus-sync · clash-detect (llm:required) · codebase-map-refresh · corpus-ledger-commit · risky-diff-review · test-health · vendor-sweep<br/>gov: pulse-tick<br/>infra: hetzner-idle-watch · reclaim-rotate"]
+        MT["pulse-tick · rsi-motor · llm:none · loaded"]
         LLMJOBS["LLM launchd: clash-detect"]
-        PULSE["pulse canary (run by drift-sentinel + /improve SWEEP)<br/>null/constant/stale on every closure instrument<br/>— the AIR-1591 catcher; the loop watching its own loop"]
-        DIG["digests @ SessionStart<br/>PRIORITIES · drift-digest · blindspot-digest"]
+        PULSE["pulse — RSI control plane<br/>tick · canary · funnel · status · artifacts/pulse/last-tick.json"]
+        DIG["control-plane-inbox @ SessionStart<br/>~/.claude/control-plane-inbox.md"]
     end
 
     subgraph GOV["🧭 RSI governance loop"]

@@ -67,6 +67,10 @@ try:
     import gov_invariants
 except Exception:
     gov_invariants = None
+try:
+    import gov_steer_linkage
+except Exception:
+    gov_steer_linkage = None
 
 
 # ── Gov-ID parsing ──────────────────────────────────────────────────────────
@@ -379,12 +383,19 @@ def build_report(days: int, write_snapshot: bool) -> dict:
             corrections = load_pending_corrections() or []
         except Exception:
             corrections = []
+    steer_linkage = {}
+    if gov_steer_linkage:
+        try:
+            steer_linkage = gov_steer_linkage.build_linkage(artifacts)
+        except Exception as e:  # noqa: BLE001
+            steer_linkage = {"error": str(e)[:200]}
     return {
         "days": days, "snapshot": snap, "trend": trend, "invariants": invariants,
         "advisory_noise": noise, "shrink": shrink, "build_then_undo": btu,
         "unreviewed_risky": unreviewed_risky,
         "corrections": corrections,
         "reasoning_signals": reasoning_signals(days),
+        "steer_linkage": steer_linkage,
         "coverage_note": gov_invariants.coverage_note() if gov_invariants else "",
     }
 
@@ -511,6 +522,45 @@ def render_md(rep: dict) -> str:
                      f"(scope={c.get('scope')}, needs confirm={c.get('requires_confirmation')})")
     else:
         L.append("- none pending")
+    L.append("")
+
+    sl = rep.get("steer_linkage") or {}
+    L.append("## Steer-linkage (sense-only — residual supervision join)")
+    if sl.get("error"):
+        L.append(f"- (linkage error: {sl['error']})")
+    elif sl:
+        L.append(f"- **{sl.get('signal_count', 0)}** steer signals from {len(sl.get('steer_sources', []))} file(s) · "
+                 f"**{sl.get('constitution_atoms', 0)}** constitution atoms · lexicon: `config/steer_themes.yaml`")
+        L.append("- _Does not emit shrink candidates — orphan themes flag architecture gaps only._")
+        totals = sl.get("theme_totals") or {}
+        if totals:
+            top = sorted(totals.items(), key=lambda kv: -kv[1])[:8]
+            L.append("- Top steer themes (keyword hits):")
+            for tid, n in top:
+                L.append(f"  - `{tid}`: {n}")
+        dirs = sl.get("blindspot_directions") or {}
+        if dirs:
+            L.append("- Blindspot directions (7d digest):")
+            for d, n in sorted(dirs.items(), key=lambda kv: -kv[1]):
+                L.append(f"  - `{d}`: {n}")
+        orphans = sl.get("orphan_themes") or []
+        if orphans:
+            L.append(f"- **Orphan themes** (hits, no scaffold goal overlap): **{len(orphans)}**")
+            for o in orphans[:8]:
+                L.append(f"  - `{o['theme_id']}` ({o['steer_hits']} hits) — {o['label']}")
+        linked = sl.get("top_linked_atoms") or []
+        if linked:
+            L.append("- Top linked scaffolds:")
+            for a in linked[:8]:
+                hits = ", ".join(f"{k}:{v}" for k, v in (a.get("theme_hits") or {}).items())
+                L.append(f"  - `{a['id']}` [{hits}] — {a.get('goal_preview', '')}")
+        redund = sl.get("redundancy_hypotheses") or []
+        if redund:
+            L.append(f"- Redundancy hypotheses (goal-token Jaccard): **{len(redund)}** pair(s)")
+            for r in redund[:5]:
+                L.append(f"  - `{r['a']}` ↔ `{r['b']}` j={r['jaccard']}")
+    else:
+        L.append("- unavailable (gov_steer_linkage import failed)")
     L.append("")
     return "\n".join(L)
 

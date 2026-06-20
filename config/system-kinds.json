@@ -10,7 +10,7 @@
     "indexer": "session transcript / git import",
     "miner": "pattern detector over sessions or corpus",
     "sentinel": "drift / health / canary",
-    "rsi-motor": "autonomous tier-0 draft picker (dry-run default)",
+    "rsi-motor": "phased pulse tick — sense, drain, synthesize, motor, surface",
     "drain": "human-gated disposition queue",
     "sync": "cross-repo sync / refresh",
     "review": "risk or diff review",

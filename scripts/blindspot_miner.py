@@ -161,6 +161,7 @@ def main() -> int:
     ap.add_argument("--days", type=int, default=7)
     ap.add_argument("--out", default=str(Path(__file__).resolve().parent.parent / ".claude" / "blindspot-digest.md"))
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--no-file", action="store_true", help="skip digest file write (pulse tick owns surfacing)")
     args = ap.parse_args()
 
     cands = gather_candidates(args.days)
@@ -170,11 +171,12 @@ def main() -> int:
         print(json.dumps([{**f, "direction": f["direction"].value if hasattr(f["direction"], "value") else f["direction"]} for f in flags], indent=2))
         return 0
     digest = render(flags, args.days, len(cands))
-    out = Path(args.out)
-    if flags:
-        out.write_text(digest)
-    elif out.exists():
-        out.unlink()  # no-noise: a stale "all clear" digest is itself drift
+    if not args.no_file:
+        out = Path(args.out)
+        if flags:
+            out.write_text(digest)
+        elif out.exists():
+            out.unlink()  # no-noise: a stale "all clear" digest is itself drift
     print(digest)
     return 0
 

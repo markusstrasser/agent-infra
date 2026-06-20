@@ -18,7 +18,7 @@ this trigger has built a track record.
 Idempotent + stateless: the prediction id is a deterministic hash of (commit, finding line),
 so re-runs and overlapping windows dedup for free — no last-processed marker file needed.
 
-Scheduled: drift-sentinel.sh (daily, $0). Manual: uv run python3 scripts/register_implementations.py
+Scheduled: pulse tick sense phase (daily, $0). Manual: uv run python3 scripts/register_implementations.py
 """
 from __future__ import annotations
 

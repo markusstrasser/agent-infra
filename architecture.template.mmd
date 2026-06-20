@@ -32,8 +32,8 @@ flowchart TD
         L["{{WATCH_INVENTORY}}"]
         MT["{{RSI_MOTOR_STATUS}}"]
         LLMJOBS["LLM launchd: {{LLM_LAUNCHD}}"]
-        PULSE["pulse canary (run by drift-sentinel + /improve SWEEP)<br/>null/constant/stale on every closure instrument<br/>— the AIR-1591 catcher; the loop watching its own loop"]
-        DIG["digests @ SessionStart<br/>PRIORITIES · drift-digest · blindspot-digest"]
+        PULSE["pulse — RSI control plane<br/>tick · canary · funnel · status · artifacts/pulse/last-tick.json"]
+        DIG["control-plane-inbox @ SessionStart<br/>~/.claude/control-plane-inbox.md"]
     end
 
     subgraph GOV["🧭 RSI governance loop"]
