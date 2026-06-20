@@ -88,6 +88,7 @@ def load_memo(json_path: Path) -> dict[str, Finding]:
 
 
 def save_memo(json_path: Path, md_path: Path, memo: dict[str, Finding], *, repo: Path, wave: int) -> None:
+    json_path.parent.mkdir(parents=True, exist_ok=True)  # survive a vanished audit_dir mid-run
     json_path.write_text(json.dumps(
         {"repo": str(repo), "wave": wave, "updated": datetime.now(timezone.utc).isoformat(),
          "findings": {k: asdict(v) for k, v in memo.items()}},
