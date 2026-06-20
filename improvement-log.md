@@ -3968,3 +3968,4 @@ A source that fails the watchdog (e.g. the oversized `~/.gemini/tmp/{intel,genom
 ## [2026-06-19] RSI observe verify — close stale motor candidates (shipped)
 - **[x] continuation-misread hook** — superseded: `scripts/hooks/continuation-directive-guard.py` wired global UserPromptSubmit; 60-assertion test; `maintain-candidates.json` `done: true`.
 - **[x] HUMAN.md template-aware open counter** — superseded: `arc-agi/loop/status.py` `human_open()` header-only count (prose template excluded).
+- [obs] [2026-06-20] DISPATCH DISCIPLINE: budget/expensive run delegated to a subagent as a self-instruction ("run full 500 if probe discriminates") instead of returning to parent for the spend decision — caught only by operator ("2h for what?"). Probe and budget are separate epochs (CORAL). 1× so far; harden to a PreToolUse Agent dispatch-grep hook ONLY on 2nd occurrence (2+ bar; instructions ~0% reliable so a rule now = noise).

@@ -48,6 +48,11 @@ REPO = Path(__file__).resolve().parent.parent
 
 # Module-level feeder paths — constants so tests can monkeypatch them hermetically.
 STEWARD_DIR = Path.home() / ".claude" / "steward-proposals"
+# A human-gated item unactioned past this many days is STALE: the loop must
+# revalidate it (does the incident still recur?) or drop it. Flagged + floated
+# to the top of its category — never auto-hidden (append-only; the genomics
+# 2026-04-16 proposals had sat invisible for 2 months).
+STALE_DAYS = 30
 CLASH_LOG = Path.home() / ".claude" / "clash-shadow.jsonl"
 
 # Envelope taxonomy — the four classes a human-gated question can be ABOUT.
@@ -80,6 +85,17 @@ class ViewResult:
 # ── small pure helpers (testable in isolation) ───────────────────────────────
 def make_id(source: str, ref: str) -> str:
     return hashlib.sha1(f"{source}\0{ref}".encode()).hexdigest()[:12]
+
+
+def _age_days(created: str) -> int | None:
+    """Days since an ISO `created` date; None if unparseable (treated as not-stale)."""
+    if not created:
+        return None
+    try:
+        d = datetime.fromisoformat(created[:10]).replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+    return (datetime.now(timezone.utc) - d).days
 
 
 def _norm(text: str) -> str:
@@ -341,9 +357,16 @@ def render_section(result: ViewResult) -> str | None:
         if not items:
             continue
         lines.append(f"### {CAT_LABEL.get(cat, cat.title())} ({len(items)})")
-        for q in sorted(items, key=lambda x: x.created, reverse=True):
+        # STALE items float to the top of their category (revalidate-or-drop),
+        # then most-recent first. Flagged, never hidden.
+        def _sort_key(x: Question) -> tuple[bool, str]:
+            return ((_age_days(x.created) or -1) > STALE_DAYS, x.created)
+
+        for q in sorted(items, key=_sort_key, reverse=True):
+            age = _age_days(q.created)
             src = SOURCE_LABEL.get(q.source, q.source)
-            lines.append(f"- **{q.prompt}**")
+            stale = f"⚠ STALE {age}d — revalidate or drop · " if (age is not None and age > STALE_DAYS) else ""
+            lines.append(f"- {stale}**{q.prompt}**")
             sub = f"  ↳ {src} · {q.created or '?'} · `{_short(q.ref)}`"
             if q.detail:
                 sub += f" · {q.detail}"
