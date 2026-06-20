@@ -3,8 +3,9 @@ set -euo pipefail
 
 # ============================================================================
 # Friend Infra Sync — pull repos, update tools, link new skills, report drift
-# Run: ~/.local/bin/friend-sync.sh          (manual)
-#      launchd runs daily at 06:00          (automatic)
+# Run: friend-sync.sh                       (symlinked into ~/.local/bin)
+#      DRY_RUN=1 friend-sync.sh             (preview everything, mutate nothing)
+# Note: not currently scheduled — run manually.
 # ============================================================================
 
 BOLD='\033[1m'
