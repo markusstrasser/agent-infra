@@ -107,6 +107,7 @@ maintenance-actions.jsonl
 **/docs/audit/*-handoff.md
 **/docs/audit/*-manifest.txt
 **/docs/audit/*-manifest.jsonl
+**/docs/audit/*-bughunt-memo.*
 
 # Downloaded paper PDFs (binaries — archival, not committed)
 research/papers/

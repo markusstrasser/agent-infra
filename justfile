@@ -570,6 +570,12 @@ commit-slice-planning target='.' *args='':
 adversarial-debug-scout repo scope='recent' *args='':
     uv run python3 scripts/debug_scout.py {{repo}} --scope {{scope}} {{args}}
 
+# Memo-driven wave loop: cheap cursor scouts find+verify off a shared audit memo until dry.
+# Fire-and-forget (background it). Knobs: --max-waves --workers --scouts-per-wave --verifier cursor|opus|none
+[group('epistemic')]
+debug-until-dry repo scope='recent' *args='':
+    uv run python3 scripts/debug_until_dry.py {{repo}} {{scope}} {{args}}
+
 [group('epistemic')]
 verification-gate-runner target='.' *args='':
     uv run python3 scripts/verification_gate_runner.py --repo {{target}} {{args}}
