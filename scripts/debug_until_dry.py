@@ -297,7 +297,8 @@ def main() -> int:
         return 2
 
     audit_dir = repo / "docs" / "audit"
-    audit_dir.mkdir(parents=True, exist_ok=True)
+    if not args.dry_run:  # dry-run touches nothing in the target repo (save_memo re-mkdirs on real runs)
+        audit_dir.mkdir(parents=True, exist_ok=True)
     md_path = args.memo or audit_dir / f"{date.today().isoformat()}-bughunt-memo.md"
     json_path = md_path.with_suffix(".json")
     memo = load_memo(json_path)
