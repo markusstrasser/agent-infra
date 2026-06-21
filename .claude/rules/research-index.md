@@ -119,6 +119,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-06-20-rsi-loop-unification-synthesis.md` | RSI loop unification — synthesis + Opus 4.8 review | TODO |
 | `2026-06-20-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-20 (deterministic) | TODO |
 | `2026-06-21-leverage-rsi-post-observe-v3.md` | Leverage Hunt — RSI loop post-observe v3 | TODO |
+| `2026-06-21-llm-error-vectors-since-sonnet-3.5.md` | Persistent LLM Error Vectors Since Sonnet 3.5 — Full-Evidence Memo (~86 vectors/10 families, capability-vs-reliability split, FIXED/PERSISTS/UNMEASURED ledger) | Any claim about LLM/agent failure modes, sycophancy/hallucination/reliability state, or "did newer models fix X?"; designing a hook/eval against a known error vector; arguing capability-vs-reliability or verification-bound autonomy |
 | `2026-06-21-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-21 (deterministic) | TODO |
 | `2026-06-21-substrate-knowledge-graph-evolution.md` | The Substrate Knowledge Graph — Evolution Across Repos: savant/synth/synthoric → selve/phenome → genomics/intel/personal → substrate/corpus; verifier-conditioned divergence; the build-then-retire attestation arc | Tracing the substrate/KG lineage or any rename; understanding WHY it was reimplemented (~5×); onboarding to phenome/genomics/intel/substrate stores; proposing new substrate/attestation work |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
