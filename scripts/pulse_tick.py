@@ -68,6 +68,7 @@ def _drift_sections() -> list[dict]:
         ("orient_drift", [sys.executable, str(SCRIPTS / "orient.py"), "--drift"], "✗"),
         ("context_budget", [sys.executable, str(SCRIPTS / "context-budget.py"), "--check"], "OVER"),
         ("skills_budget", [sys.executable, str(SCRIPTS / "skills_budget.py"), "--check"], "OVER|fail"),
+        ("worktree_stranded", [sys.executable, str(SCRIPTS / "worktree_gc.py"), "--check"], "STRANDED"),
     ]
     flags: list[dict] = []
     for name, cmd, pat in checks:

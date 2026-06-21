@@ -172,7 +172,7 @@ def all_patches_on_main(repo: Path, branch: str) -> bool:
     return False
 
 
-def audit_repo(repo: Path) -> list[WorktreeRow]:
+def audit_repo(repo: Path, with_size: bool = True) -> list[WorktreeRow]:
     name = repo.name
     rows: list[WorktreeRow] = []
     for wt, branch in parse_worktrees(repo):
@@ -180,7 +180,8 @@ def audit_repo(repo: Path) -> list[WorktreeRow]:
             continue
         st = run(["git", "status", "--porcelain"], cwd=wt)
         tracked_dirty = sum(1 for ln in st.stdout.splitlines() if not ln.startswith("??"))
-        size = run(["du", "-sh", str(wt)]).stdout.split()[0] if wt.exists() else "?"
+        # `du` is the slow part; skip it on the cheap --check path (size irrelevant to the flag).
+        size = (run(["du", "-sh", str(wt)]).stdout.split()[0] if (with_size and wt.exists()) else "?")
         dup = False
         if branch:
             ahead = ahead_of_main(repo, branch)
@@ -252,14 +253,36 @@ def main() -> int:
     ap.add_argument("--force-all", action="store_true", help="remove all worktrees except --keep matches")
     ap.add_argument("--keep", action="append", default=[], help="substring; skip paths containing this")
     ap.add_argument("--prune-branches", action="store_true", help="delete branch after remove when ahead==0")
+    ap.add_argument("--check", action="store_true",
+                    help="cheap advisory flag for the control plane: print STRANDED line iff "
+                         "genuine-unmerged or reapable-DUP branches exist (skips du). Always exit 0.")
+    ap.add_argument("--no-size", action="store_true", help="skip du -sh (faster audit)")
     args = ap.parse_args()
 
-    repos = repo_roots(args.repo, args.all_projects)
+    with_size = not (args.no_size or args.check)
+    # --check defaults to all-projects so the hub surfaces stranded work in every repo.
+    repos = repo_roots(args.repo, args.all_projects or args.check)
     all_rows: list[WorktreeRow] = []
     for repo in repos:
         if not (repo / ".git").exists():
             continue
-        all_rows.extend(audit_repo(repo))
+        all_rows.extend(audit_repo(repo, with_size=with_size))
+
+    if args.check:
+        # 3 buckets, all carrying unmerged COMMITS (so never a fresh active checkout):
+        #   LAND   = unmerged clean      INSPECT = skip-dirty (commits + uncommitted)
+        #   REAP   = DUP (patches on main)
+        bucket = {"unmerged": "LAND", "DUP": "REAP", "skip-dirty": "INSPECT"}
+        stranded = [r for r in all_rows if r.classify() in bucket]
+        if not stranded:
+            return 0  # silent when clean — no drift flag
+        from collections import Counter
+        counts = Counter(bucket[r.classify()] for r in stranded)
+        bits = [f"{counts[b]} to {b}" for b in ("LAND", "INSPECT", "REAP") if counts.get(b)]
+        print(f"STRANDED worktree branches: {', '.join(bits)} — `just worktree-gc audit --all-projects`")
+        for r in sorted(stranded, key=lambda x: bucket[x.classify()]):
+            print(f"  [{bucket[r.classify()]:7}] {r.repo}/{r.branch}  ahead={r.ahead} dirty={r.tracked_dirty} age={r.age}")
+        return 0
 
     keep = set(args.keep)
     to_remove = [
