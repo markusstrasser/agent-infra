@@ -485,3 +485,24 @@ def test_ablation_verdict_sensitivity_and_real_verdicts():
     assert mt._ablation_verdict(fail, passN)["ablated"] is True
     # goal passed WITH, fails WITHOUT (changed) → load-bearing, KEEP
     assert mt._ablation_verdict(passW, fail)["ablated"] is False
+
+
+def test_resolve_predictions_for_ablation_matches_gov_id(monkeypatch, tmp_path):
+    """Conclusive ablation closes a matching earn-its-keep prediction."""
+    import predictions as pred
+
+    ledger = tmp_path / "predictions.jsonl"
+    monkeypatch.setattr(pred, "LEDGER", ledger)
+    pred.register_prediction(
+        change="**hook:foo-bar** — test scaffold",
+        prediction="earns keep",
+        metric="gov-shrink",
+        check_date="2099-01-01",
+        pid="impl-deadbeef-00000001",
+    )
+    c = {"gov_id": "hook:foo-bar", "artifact_path": ".claude/rules/foo-bar.md"}
+    abl = {"ablated": True, "evidence": "passes without scaffold"}
+    acted = mt.resolve_predictions_for_ablation(c, abl)
+    assert acted == ["impl-deadbeef-00000001"]
+    _, resolved = pred._load()
+    assert "impl-deadbeef-00000001" in resolved

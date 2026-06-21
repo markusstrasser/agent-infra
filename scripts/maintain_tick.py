@@ -598,6 +598,42 @@ def run_ablation(candidate: dict) -> dict:
         shutil.rmtree(wt, ignore_errors=True)  # belt-and-suspenders if remove left a stub
 
 
+def resolve_predictions_for_ablation(candidate: dict, ablation: dict,
+                                   *, dry_run: bool = False) -> list[str]:
+    """When ablation is conclusive, close matching earn-its-keep predictions.
+
+    ablated=True  → refuted   (goal holds without scaffold; didn't earn keep)
+    ablated=False → confirmed (load-bearing)
+    Matches conservatively: gov_id or artifact basename in prediction change text.
+    """
+    if ablation.get("ablated") is None:
+        return []
+    try:
+        import predictions as pred
+    except Exception:  # noqa: BLE001
+        return []
+    preds, resolved = pred._load()
+    gov_id = (candidate.get("gov_id") or "").strip()
+    art_name = Path(candidate.get("artifact_path") or "").name
+    needles = [n for n in (gov_id, art_name) if n and len(n) >= 4]
+    if not needles:
+        return []
+    status = "refuted" if ablation["ablated"] else "confirmed"
+    note = (f"auto: ablation ablated={ablation['ablated']}: "
+            f"{(ablation.get('evidence') or '')[:220]}")
+    acted: list[str] = []
+    for pid, p in preds.items():
+        if pid in resolved:
+            continue
+        change = p.get("change", "")
+        if not any(n in change for n in needles):
+            continue
+        if not dry_run:
+            pred._append_resolution(pid, status, note)
+        acted.append(pid)
+    return acted
+
+
 def route_retire(c: dict) -> str:
     """Reuse gov.route() (the canonical earned-autonomy router) — never restate it.
     confidence is pinned "medium" pre-ablation so route() can NEVER return auto-apply
@@ -713,6 +749,9 @@ def run_subtract(force: bool, ledger: bool, days: int = 60, ablate: bool = False
     # verifier; advisory-noise has none. Folds {ablated, evidence} into the draft.
     if ablate and picked.get("retire_kind") == "scaffold-shrink":
         picked["ablation"] = run_ablation(picked)
+        abl = picked.get("ablation") or {}
+        if abl.get("ablated") is not None:
+            picked["predictions_resolved"] = resolve_predictions_for_ablation(picked, abl)
     path, body = draft_retire_proposal(picked)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(body, encoding="utf-8")
