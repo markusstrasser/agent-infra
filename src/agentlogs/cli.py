@@ -143,6 +143,15 @@ def _make_parser() -> argparse.ArgumentParser:
     s_prune.add_argument("--no-lock", action="store_true",
                          help="Skip the single-writer indexer lock (debug only)")
 
+    s_compact = sub.add_parser(
+        "compact",
+        help="NULL write-only status_update payloads and VACUUM (dry-run default)",
+    )
+    s_compact.add_argument("--yes", "--apply", dest="apply", action="store_true",
+                           help="Execute UPDATE + VACUUM")
+    s_compact.add_argument("--no-lock", action="store_true",
+                           help="Skip the single-writer indexer lock (debug only)")
+
     # lifecycle-reindex — rebuild the RSI-lifecycle edge table -------------
     s_lc = sub.add_parser(
         "lifecycle-reindex",
@@ -273,7 +282,11 @@ def cmd_index(args) -> int:
                 total_imported += stats.sources_imported
                 total_skipped += stats.sources_skipped
                 total_failed += stats.sources_failed
-            return 1 if (total_failed or vendor_errors) else 0
+            # Per-source watchdog timeouts are expected on pathological sources;
+            # vendor-level errors (discovery/lock fatals) are the real failure.
+            # Exit 0 when any source imported so launchd doesn't stay red while
+            # mega-transcripts drain across runs (witnessed: 4×78MB @ 180s each).
+            return 1 if vendor_errors else (1 if total_failed and not total_imported else 0)
         finally:
             if bulk:
                 # Rebuild FTS index from events table content, then recreate
@@ -607,6 +620,31 @@ def cmd_prune(args) -> int:
         return 0
 
 
+def cmd_compact(args) -> int:
+    from . import compact as cp
+    from .gateway import IndexerLockBusy, write_gateway
+
+    try:
+        with write_gateway(_resolve_db_path(args), no_lock=args.no_lock) as db:
+            if not args.apply:
+                plan = cp.plan_compact_status_payloads(db)
+                print(f"[dry-run] kind={plan.kind}  rows={plan.rows:,}  "
+                      f"payload≈{plan.payload_bytes / 1_048_576:.1f} MB  "
+                      f"db={plan.size_before_mb:,.0f} MB")
+                print("  re-run with --yes to NULL payloads + VACUUM")
+                return 0
+            plan = cp.apply_compact_status_payloads(db)
+            reclaimed = plan.size_before_mb - (plan.size_after_mb or plan.size_before_mb)
+            print(f"[compact] kind={plan.kind}  rows={plan.rows:,}  "
+                  f"payload≈{plan.payload_bytes / 1_048_576:.1f} MB cleared")
+            print(f"  db size: {plan.size_before_mb:,.0f} MB -> "
+                  f"{plan.size_after_mb:,.0f} MB (reclaimed {reclaimed:,.0f} MB)")
+            return 0
+    except IndexerLockBusy:
+        print("another indexer/compact is running; exiting cleanly", file=sys.stderr)
+        return 0
+
+
 def cmd_lifecycle_reindex(args) -> int:
     from . import lifecycle as lc
 
@@ -638,6 +676,7 @@ def cmd_lifecycle_reindex(args) -> int:
 _COMMANDS = {
     "index": cmd_index,
     "prune": cmd_prune,
+    "compact": cmd_compact,
     "search": cmd_search,
     "show": cmd_show,
     "recent": cmd_recent,

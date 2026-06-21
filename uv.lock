@@ -659,6 +659,7 @@ source = { editable = "../substrate/packages/corpus-core" }
 dependencies = [
     { name = "duckdb" },
     { name = "jsonschema" },
+    { name = "platformdirs" },
 ]
 
 [package.optional-dependencies]
@@ -679,6 +680,7 @@ requires-dist = [
     { name = "jsonschema", specifier = ">=4.20" },
     { name = "liteparse", marker = "extra == 'liteparse'", specifier = ">=2.0" },
     { name = "modal", marker = "extra == 'modal'", specifier = ">=1.0,<2.0" },
+    { name = "platformdirs", specifier = ">=4.0" },
     { name = "pydantic", marker = "extra == 'figures'", specifier = ">=2.0" },
     { name = "pymupdf4llm", marker = "extra == 'extract'", specifier = ">=0.0.20" },
     { name = "pypdf", marker = "extra == 'extract'", specifier = ">=4.0" },

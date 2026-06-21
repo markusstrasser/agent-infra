@@ -45,11 +45,11 @@ class _SourceWatchdog:
     """
 
     def __init__(self, budget_s: float = DEFAULT_SOURCE_TIMEOUT_S):
-        self.budget_s = budget_s
+        self.default_budget_s = budget_s
         self.deadline: float | None = None
 
-    def arm(self) -> None:
-        self.deadline = time.monotonic() + self.budget_s
+    def arm(self, budget_s: float | None = None) -> None:
+        self.deadline = time.monotonic() + (budget_s if budget_s is not None else self.default_budget_s)
 
     def disarm(self) -> None:
         self.deadline = None
@@ -58,6 +58,19 @@ class _SourceWatchdog:
         if self.deadline is not None and time.monotonic() > self.deadline:
             return 1  # non-zero → SQLite aborts the in-flight statement
         return 0
+
+def _scaled_source_timeout_s(path: Path, base_s: float) -> float:
+    """Scale per-source DB budget by transcript size.
+
+    Witnessed 2026-06-21: four 43–78MB jsonls hit the flat 180s watchdog every
+    run during events executemany on a 4.6GB DB (failures exactly 180s apart).
+    Parse is seconds; write scales with event count ≈ file size. Cap below the
+    launchd --max-run-seconds budget so one mega-source can't monopolize the run.
+    """
+    size_mb = path.stat().st_size / (1024 * 1024)
+    scaled = 120.0 + size_mb * 12.0
+    return min(1200.0, max(base_s, scaled))
+
 
 from .adapters import ADAPTERS
 from .adapters.common import DiscoveredSource, json_dumps
@@ -747,7 +760,7 @@ def index_vendor(
                 stats.sources_skipped += 1
                 continue
 
-            watchdog.arm()  # bound this source's parse+write to source_timeout_s
+            watchdog.disarm()
             try:
                 parsed = adapter.parse_source(source)
             except Exception as exc:
@@ -760,8 +773,9 @@ def index_vendor(
                 stats.sources_failed += 1
                 continue
 
-            db.execute("BEGIN IMMEDIATE")
+            watchdog.arm(_scaled_source_timeout_s(source.path, source_timeout_s))
             try:
+                db.execute("BEGIN IMMEDIATE")
                 _cleanup_source_data(
                     db, source_id,
                     parser_name=parser_name, parser_version=parser_version,
@@ -904,7 +918,9 @@ def _write_parsed(db, parsed, source_id: int, import_id: int, stats: IndexerStat
                 tool_call_id = COALESCE(excluded.tool_call_id, events.tool_call_id)
             """
         try:
-            db.executemany(events_sql, event_rows)
+            _EVENT_WRITE_BATCH = 2000
+            for off in range(0, len(event_rows), _EVENT_WRITE_BATCH):
+                db.executemany(events_sql, event_rows[off : off + _EVENT_WRITE_BATCH])
             stats.events_written += len(event_rows)
         except sqlite3.IntegrityError:
             # The (run_id, seq) UPDATE branch sets event_id = excluded.event_id; on a

@@ -22,7 +22,7 @@
 		<string>--limit-sources</string>
 		<string>40</string>
 		<string>--source-timeout</string>
-		<string>180</string>
+		<string>600</string>
 		<string>--max-run-seconds</string>
 		<string>1200</string>
 	</array>

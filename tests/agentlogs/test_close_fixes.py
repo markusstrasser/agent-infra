@@ -126,6 +126,15 @@ def test_cleanup_no_force_skips_same_parser_version() -> None:
 # Finding #5 — cmd_index propagates vendor errors to exit code
 
 
+def test_scaled_source_timeout_scales_with_file_size(tmp_path: Path) -> None:
+  small = tmp_path / "small.jsonl"
+  big = tmp_path / "big.jsonl"
+  small.write_text("{}\n")
+  big.write_bytes(b"x" * (80 * 1024 * 1024))
+  assert ix._scaled_source_timeout_s(small, 180.0) == 180.0
+  assert ix._scaled_source_timeout_s(big, 180.0) == 1200.0
+
+
 def test_cmd_index_returns_nonzero_on_vendor_error(tmp_path: Path, monkeypatch) -> None:
     """A fatal vendor exception must surface as a non-zero CLI exit code."""
     from agentlogs.cli import main as cli_main
