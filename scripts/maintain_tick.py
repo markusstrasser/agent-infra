@@ -18,7 +18,8 @@ launchd maintain job was eradicated 2026-06-07, and `maintain-tick` last ran
 2026-06-14. tier-0 builds sit `[ ]` because nothing autonomously picks and ships
 them. This is that picker — but it ships NOTHING on its own. It:
 
-  1. gathers tier-0 candidates from two sources (structured registry + prose log),
+  1. gathers tier-0 candidates from two sources (structured registry + observe
+     promotion-verdicts gate — NOT improvement-log prose),
   2. filters to TIER-0 = agent-infra-local AND reversible AND evidence>=2 sessions,
   3. picks ONE (oldest-evidence-first, deterministic),
   4. in SAFE/DRY-RUN (default) writes a DRAFT PROPOSAL to
@@ -39,17 +40,14 @@ future apply lane but DEFAULTS OFF and additionally requires MAINTAIN_APPLY_ENAB
 Scheduled (when wired): com.agent-infra.maintain-tick (30-60m, dry-run).
 Manual: uv run python3 scripts/maintain_tick.py  (or with --json for the machine form).
 
-GROUND TRUTH (verified 2026-06-19, recorded so a future reader doesn't re-derive):
-  - improvement-log `[ ]` items carry NO machine-readable blast_radius /
-    evidence_sessions / tier fields — they are free prose. So tier-0 cannot be
-    filtered from the log by structured fields alone. The conservative parser here
-    only auto-promotes a prose `[ ]` item to a tier-0 CANDIDATE when it
-    self-describes as agent-infra-local AND low-severity in its own text; anything
-    ambiguous is surfaced as "needs-classification" and never auto-picked.
-  - The audit's named tier-0 items (continuation-misread hook, HUMAN.md grep) are
-    NOT in the `[ ]` list — they live in the audit + steering-vectors memos. The
-    structured registry config/maintain-candidates.json is where such named items
-    get explicit tier fields so the motor can pick them safely.
+GROUND TRUTH (verified 2026-06-21, recorded so a future reader doesn't re-derive):
+  - improvement-log `[ ]` items are NOT a motor source — calibration ledger only.
+    Tier-0 builds flow: observe → promotion-verdicts.jsonl → maintain-candidates.json.
+  - Registry items whose `source` cites `artifacts/observe/` are gated: picked ONLY when
+    the latest observe run's `preflight.json` has `promotions_allowed=true` AND
+    `promotion-verdicts.jsonl` has `verdict=promote` for that candidate `id`.
+  - Manual registry entries (non-observe source) are picked without the observe gate.
+  - The audit's named tier-0 items get explicit tier fields in maintain-candidates.json.
 """
 # Gov-ID: hook:maintain-tick-motor
 # goal: ship the dead maintain-tick MOTOR so tier-0 agent-infra-local items don't
@@ -59,9 +57,8 @@ GROUND TRUTH (verified 2026-06-19, recorded so a future reader doesn't re-derive
 #                 # edit / no commit / no deploy in dry-run) via the test
 #                 # scripts/tests/test_maintain_tick.py; promotion of the apply
 #                 # lane needs a real grader on the produced diff
-# blast_radius: local  # agent-infra-only: reads improvement-log + a local
-#               # registry, writes a draft proposal + a ledger row. The launchd
-#               # job (when wired) runs dry-run. The apply lane is double-gated off.
+# blast_radius: local  # agent-infra-only: reads maintain-candidates registry +
+#               # observe promotion-verdicts gate, writes draft proposal + ledger row.
 from __future__ import annotations
 
 import argparse
@@ -76,8 +73,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-IMPROVEMENT_LOG = REPO / "improvement-log.md"
+IMPROVEMENT_LOG = REPO / "improvement-log.md"  # telemetry only (prose `[ ]` count)
 CANDIDATES_REGISTRY = REPO / "config" / "maintain-candidates.json"
+OBSERVE_ARTIFACTS = REPO / "artifacts" / "observe"
+_OBSERVE_SOURCE_RE = re.compile(r"artifacts/observe/", re.I)
 # Single-source tier policy (authored + owned by the team-lead, operator-approved
 # 2026-06-19). This module is a pure CONSUMER of it — it never restates the tier
 # rules (epistemic-principle #9: a shared invariant has ONE definition; consumers
@@ -171,17 +170,69 @@ def _apply_allowed(apply_flag: bool, policy: dict) -> tuple[bool, str]:
 # policy edit between import and invocation is honored on the safety-critical path.
 POLICY: dict = load_policy()
 
-# Prose self-description gates for parsing improvement-log `[ ]` items into
-# tier-0 CANDIDATES. Conservative by design: a prose item is only auto-promoted
-# when it positively self-describes as agent-infra-local AND carries no
-# escalation marker. Everything else is "needs-classification" (never picked).
-_LOCAL_RE = re.compile(r"agent-infra-local|agent-infra only|local\b.*wiring|low-sev", re.I)
-_ESCALATE_RE = re.compile(
-    r"\bADR\b|ADR-candidate|cross-repo|cross-project|3\+ projects|shared\b|"
-    r"steward|constitution|GOALS|hand to|hand off|owner:|policy choice|"
-    r"design-laden|deliberately|do deliberately|genuine evaluate|worth an ADR",
-    re.I,
-)
+
+def _load_jsonl(path: Path) -> list[dict]:
+    if not path.is_file():
+        return []
+    out: list[dict] = []
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            out.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    return out
+
+
+def observe_artifact_root() -> Path | None:
+    """Latest observe run with preflight, or OBSERVE_ARTIFACT_ROOT override."""
+    env = os.environ.get("OBSERVE_ARTIFACT_ROOT", "").strip()
+    if env:
+        p = Path(env)
+        return p if p.is_dir() else None
+    if not OBSERVE_ARTIFACTS.is_dir():
+        return None
+    dirs = sorted(
+        [p for p in OBSERVE_ARTIFACTS.iterdir() if p.is_dir()],
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    for d in dirs:
+        if (d / "preflight.json").is_file():
+            return d
+    return dirs[0] if dirs else None
+
+
+def observe_promotion_gate(root: Path | None) -> tuple[set[str], bool, str | None]:
+    """(promoted_candidate_ids, promotions_allowed, run_name)."""
+    if root is None:
+        return set(), False, None
+    preflight_path = root / "preflight.json"
+    if not preflight_path.is_file():
+        return set(), False, root.name
+    try:
+        preflight = json.loads(preflight_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, ValueError):
+        return set(), False, root.name
+    allowed = bool(preflight.get("promotions_allowed"))
+    promoted = {
+        str(row.get("candidate_id"))
+        for row in _load_jsonl(root / "promotion-verdicts.jsonl")
+        if row.get("verdict") == "promote" and row.get("candidate_id")
+    }
+    return promoted, allowed, root.name
+
+
+def count_prose_open_items() -> int:
+    """Telemetry: prose `[ ]` count in improvement-log (not a motor source)."""
+    if not IMPROVEMENT_LOG.is_file():
+        return 0
+    return sum(
+        1 for raw in IMPROVEMENT_LOG.read_text(encoding="utf-8", errors="replace").splitlines()
+        if raw.strip().startswith("- [ ]")
+    )
 
 
 def _now() -> str:
@@ -213,82 +264,61 @@ def live_claude_count() -> int:
 
 
 # ── candidate sourcing ─────────────────────────────────────────────────────────
-def _from_registry() -> list[dict]:
-    """Structured tier-0 candidates. This is the PREFERRED source — explicit
-    fields, no prose inference. Schema per item:
-        {id, title, blast_radius, reversible(bool), evidence_sessions(int),
-         source(str), build_kind(str: hook|script|recipe|rule),
-         proposal_outline(str), [done(bool)]}
-    Tier-0-ONLY predicates the policy names but that are NOT mechanically derivable
-    (semantic): checkable, low_downside, clear_win_vs_baseline. The registry
-    declares them per candidate. They DEFAULT FALSE — an item that doesn't assert
-    them is NOT a clear tier-0 win and routes to 0E (eval-gated), never auto-ship.
+def _from_registry(
+    *,
+    observe_root: Path | None = None,
+    promoted_ids: set[str] | None = None,
+    promotions_allowed: bool = False,
+) -> tuple[list[dict], list[dict]]:
+    """Structured tier-0 candidates. Returns (eligible, blocked_by_observe_gate).
+
+    Observe-sourced registry rows require verdict=promote + promotions_allowed.
     """
     if not CANDIDATES_REGISTRY.exists():
-        return []
+        return [], []
     try:
         data = json.loads(CANDIDATES_REGISTRY.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, ValueError, OSError):
-        return []
+        return [], []
+    if promoted_ids is None:
+        promoted_ids, promotions_allowed, _ = observe_promotion_gate(
+            observe_root if observe_root is not None else observe_artifact_root()
+        )
     out: list[dict] = []
+    blocked: list[dict] = []
     for item in data.get("candidates", []):
         if item.get("done"):
             continue
+        cid = item.get("id") or _slug(item.get("title", ""))
+        source = item.get("source", "")
+        if _OBSERVE_SOURCE_RE.search(source):
+            if not (promotions_allowed and cid in promoted_ids):
+                blocked.append({
+                    "id": cid,
+                    "title": item.get("title", "(untitled)"),
+                    "source": source,
+                    "reason": (
+                        "observe gate: promotions_allowed=false"
+                        if not promotions_allowed
+                        else f"observe gate: no promote verdict for id={cid}"
+                    ),
+                })
+                continue
         out.append({
             "origin": "registry",
-            "id": item.get("id") or _slug(item.get("title", "")),
+            "id": cid,
             "title": item.get("title", "(untitled)"),
             "blast_radius": (item.get("blast_radius") or "").lower(),
             "reversible": bool(item.get("reversible", False)),
             "evidence_sessions": int(item.get("evidence_sessions", 0) or 0),
-            # tier-0-only semantic predicates — DEFAULT FALSE (conservative).
             "checkable": bool(item.get("checkable", False)),
             "low_downside": bool(item.get("low_downside", False)),
             "clear_win_vs_baseline": bool(item.get("clear_win_vs_baseline", False)),
-            "source": item.get("source", ""),
+            "source": source,
             "build_kind": item.get("build_kind", ""),
             "proposal_outline": item.get("proposal_outline", ""),
         })
-    return out
-
-
-def _from_improvement_log() -> list[dict]:
-    """Prose `[ ]` items, conservatively classified. A prose item becomes a tier-0
-    candidate ONLY if it self-describes as agent-infra-local and carries no
-    escalation marker; otherwise it is returned with classified=False so the
-    picker skips it (and so the digest can show "N items need classification")."""
-    if not IMPROVEMENT_LOG.exists():
-        return []
-    out: list[dict] = []
-    for raw in IMPROVEMENT_LOG.read_text(encoding="utf-8", errors="replace").splitlines():
-        line = raw.strip()
-        if not line.startswith("- [ ]"):
-            continue
-        body = line[len("- [ ]"):].strip()
-        title = re.sub(r"\*\*", "", body)[:120]
-        is_local = bool(_LOCAL_RE.search(body))
-        escalates = bool(_ESCALATE_RE.search(body))
-        classified = is_local and not escalates
-        out.append({
-            "origin": "improvement-log",
-            "id": _slug(title),
-            "title": title,
-            # prose carries no explicit blast/evidence — encode what we inferred.
-            "blast_radius": policy_tier0_blast(POLICY) if classified else "unclassified",
-            "reversible": classified,         # only the self-described-local pass
-            "evidence_sessions": policy_min_evidence_sessions(POLICY) if classified else 0,
-            # Prose items can NEVER assert the semantic tier-0 predicates, so they
-            # stay False → a self-described-local prose item lands at 0E (eval-
-            # gated), never auto-ship. That is the intended conservative routing.
-            "checkable": False,
-            "low_downside": False,
-            "clear_win_vs_baseline": False,
-            "classified": classified,
-            "source": "improvement-log.md",
-            "build_kind": "",
-            "proposal_outline": body,
-        })
-    return out
+    return out, blocked
 
 
 def classify_tier(c: dict, policy: dict) -> str:
@@ -324,27 +354,30 @@ def classify_tier(c: dict, policy: dict) -> str:
 
 
 def gather_candidates() -> dict:
-    reg = _from_registry()
-    log = _from_improvement_log()
-    all_items = reg + log
+    observe_root = observe_artifact_root()
+    promoted_ids, promotions_allowed, observe_run = observe_promotion_gate(observe_root)
+    reg, blocked = _from_registry(
+        observe_root=observe_root,
+        promoted_ids=promoted_ids,
+        promotions_allowed=promotions_allowed,
+    )
+    all_items = reg
     for c in all_items:
         c["tier"] = classify_tier(c, POLICY)
     tier0 = [c for c in all_items if c["tier"] == "0"]
     eval_gated = [c for c in all_items if c["tier"] == "0E"]
-    # registry items first (explicit > inferred); then by lowest evidence_sessions
-    # so the longest-standing-but-just-qualifying item isn't starved, then by id
-    # for determinism.
     tier0.sort(key=lambda c: (c["origin"] != "registry", c["evidence_sessions"], c["id"]))
     eval_gated.sort(key=lambda c: (c["origin"] != "registry", c["evidence_sessions"], c["id"]))
-    needs_classification = [
-        c for c in log if not c.get("classified")
-    ]
     return {
         "tier0": tier0,
         "eval_gated": eval_gated,
-        "needs_classification": needs_classification,
-        "n_registry": len(reg),
-        "n_log_open": len(log),
+        "blocked_by_observe_gate": blocked,
+        "n_registry": len(reg) + len(blocked),
+        "n_registry_eligible": len(reg),
+        "n_prose_open": count_prose_open_items(),
+        "observe_run": observe_run,
+        "promotions_allowed": promotions_allowed,
+        "n_promoted_verdicts": len(promoted_ids),
         "auto_ship_tiers": sorted(auto_ship_tiers(POLICY)),
     }
 
@@ -390,8 +423,8 @@ evidence_sessions: {c['evidence_sessions']}
    agent-infra-local convention (`scripts/` or `scripts/hooks/`).
 3. Add a test mirroring an existing sibling test; run it.
 4. If it's a hook, output (do NOT auto-apply) the `.claude/settings.json` snippet.
-5. Mark the improvement-log item `[x]` with the implementing commit, OR set
-   `done: true` on the registry entry.
+5. Mark the registry entry `done: true` with the implementing commit (improvement-log
+   is calibration-only — optional `[x]` for humans, not the motor sink).
 
 ## Safety / tier check (policy: config/build-autonomy-tiers.json)
 - [x] agent-infra-local (blast_radius=agent-infra)
@@ -790,14 +823,18 @@ def run(apply: bool, force: bool, ledger: bool) -> dict:
     if not tier0:
         if ledger:
             append_ledger("maintain-tick", "scan", "noop",
-                          f"0 tier-0 candidates (registry={g['n_registry']}, "
-                          f"log_open={g['n_log_open']}, eval_gated={len(g['eval_gated'])}, "
-                          f"need-classify={len(g['needs_classification'])})")
+                          f"0 tier-0 candidates (registry_eligible={g['n_registry_eligible']}, "
+                          f"observe_blocked={len(g['blocked_by_observe_gate'])}, "
+                          f"eval_gated={len(g['eval_gated'])}, "
+                          f"prose_open={g['n_prose_open']})")
         return {"status": "noop", "picked": None,
-                "n_registry": g["n_registry"], "n_log_open": g["n_log_open"],
+                "n_registry": g["n_registry"],
+                "n_registry_eligible": g["n_registry_eligible"],
+                "n_prose_open": g["n_prose_open"],
+                "observe_run": g.get("observe_run"),
+                "blocked_by_observe_gate": [c["title"] for c in g["blocked_by_observe_gate"]],
                 "eval_gated_count": len(g["eval_gated"]),
-                "eval_gated": [c["title"] for c in g["eval_gated"]],
-                "needs_classification": [c["title"] for c in g["needs_classification"]]}
+                "eval_gated": [c["title"] for c in g["eval_gated"]]}
 
     picked = tier0[0]
 
@@ -840,7 +877,7 @@ def run(apply: bool, force: bool, ledger: bool) -> dict:
         "tier0_count": len(tier0),
         "eval_gated_count": len(g["eval_gated"]),
         "eval_gated": [c["title"] for c in g["eval_gated"]],
-        "needs_classification": [c["title"] for c in g["needs_classification"]],
+        "blocked_by_observe_gate": [c["title"] for c in g["blocked_by_observe_gate"]],
     }
 
 
@@ -926,14 +963,21 @@ def main() -> int:
                           for c in g["tier0"]],
                 "eval_gated_0E": [{"id": c["id"], "title": c["title"], "origin": c["origin"]}
                                   for c in g["eval_gated"]],
-                "needs_classification": [c["title"] for c in g["needs_classification"]],
+                "blocked_by_observe_gate": g["blocked_by_observe_gate"],
                 "auto_ship_tiers": g["auto_ship_tiers"],
                 "go_live_maintain_tick_apply": go_live,
-                "n_registry": g["n_registry"], "n_log_open": g["n_log_open"],
+                "n_registry": g["n_registry"],
+                "n_registry_eligible": g["n_registry_eligible"],
+                "n_prose_open": g["n_prose_open"],
+                "observe_run": g.get("observe_run"),
+                "promotions_allowed": g.get("promotions_allowed"),
             }, indent=2))
         else:
             print(f"[maintain-tick] tier-0 candidates: {len(g['tier0'])} "
-                  f"(registry={g['n_registry']}, log_open={g['n_log_open']}) · "
+                  f"(registry_eligible={g['n_registry_eligible']}, "
+                  f"observe_blocked={len(g['blocked_by_observe_gate'])}, "
+                  f"prose_open={g['n_prose_open']}) · "
+                  f"observe_run={g.get('observe_run') or '—'} · "
                   f"policy auto-ship tiers={g['auto_ship_tiers']} · "
                   f"go_live.apply={go_live}")
             for c in g["tier0"]:
@@ -942,10 +986,12 @@ def main() -> int:
                 print(f"  ◐ {len(g['eval_gated'])} tier-0E (local+reversible but NOT a clear-win → eval-gated, NOT auto-shipped):")
                 for c in g["eval_gated"][:8]:
                     print(f"    ▸ [{c['origin']}] {c['title']}")
-            if g["needs_classification"]:
-                print(f"  ! {len(g['needs_classification'])} prose `[ ]` item(s) need classification:")
-                for c in g["needs_classification"][:8]:
-                    print(f"    ▸ {c['title']}")
+            if g["blocked_by_observe_gate"]:
+                print(f"  ⊘ {len(g['blocked_by_observe_gate'])} observe-sourced registry item(s) blocked by promotion gate:")
+                for c in g["blocked_by_observe_gate"][:8]:
+                    print(f"    ▸ {c['title']} — {c['reason']}")
+            if g["n_prose_open"]:
+                print(f"  ℹ {g['n_prose_open']} prose `[ ]` in improvement-log (telemetry only — not a motor source)")
         return 0
 
     res = run(apply=args.apply, force=args.force, ledger=not args.no_ledger)
@@ -956,15 +1002,16 @@ def main() -> int:
         if st == "drafted":
             print(f"[maintain-tick] drafted ({res['mode']}): {res['proposal_path']}")
             print(f"  picked: {res['picked']['title']}")
-            if res.get("needs_classification"):
-                print(f"  ({len(res['needs_classification'])} prose item(s) need classification — see --list)")
+            if res.get("blocked_by_observe_gate"):
+                print(f"  ({len(res['blocked_by_observe_gate'])} observe-gated item(s) blocked — see --list)")
         elif st == "rate-gated":
             print(f"[maintain-tick] rate-gated: {res['live_claude']} live claude procs — stood aside.")
         else:
             print(f"[maintain-tick] noop: 0 tier-0 candidates "
-                  f"(registry={res.get('n_registry')}, log_open={res.get('n_log_open')}).")
-            if res.get("needs_classification"):
-                print(f"  ({len(res['needs_classification'])} prose item(s) need classification — see --list)")
+                  f"(registry_eligible={res.get('n_registry_eligible')}, "
+                  f"prose_open={res.get('n_prose_open')}).")
+            if res.get("blocked_by_observe_gate"):
+                print(f"  ({len(res['blocked_by_observe_gate'])} observe-gated item(s) blocked — see --list)")
     return 0
 
 

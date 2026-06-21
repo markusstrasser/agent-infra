@@ -11,8 +11,8 @@ The load-bearing guarantees this locks in:
     are neither 0 nor 0E.
   - SAFE contract: a normal run produces a DRAFT proposal FILE and a ledger row,
     and does NOT edit code / commit / deploy (asserted structurally).
-  - prose `[ ]` items: a self-described-local one routes to 0E (it can't assert
-    the semantic predicates), an escalation-marked one is needs-classification.
+  - improvement-log prose `[ ]` is NOT a motor source (telemetry only).
+  - observe-sourced registry rows require promotion-verdicts promote + preflight ok.
   - apply lane is TRIPLE-gated: --apply needs MAINTAIN_APPLY_ENABLED AND policy
     go_live.maintain_tick_apply=true; missing either → drafts (apply-refused).
     Even fully gated-open, the safe build only drafts (apply-stub).
@@ -69,6 +69,7 @@ def sandbox(tmp_path, monkeypatch):
 
     monkeypatch.setattr(mt, "CANDIDATES_REGISTRY", registry)
     monkeypatch.setattr(mt, "IMPROVEMENT_LOG", log)
+    monkeypatch.setattr(mt, "OBSERVE_ARTIFACTS", tmp_path / "artifacts" / "observe")
     monkeypatch.setattr(mt, "PROPOSAL_DIR", proposal_dir)
     monkeypatch.setattr(mt, "LEDGER", ledger)
     monkeypatch.setattr(mt, "BUILD_AUTONOMY_POLICY", policy_path)  # run() re-reads here
@@ -215,35 +216,71 @@ def test_dry_run_writes_only_proposal_and_ledger(sandbox):
     assert set(rows[-1]) == {"ts", "action", "target", "result", "detail"}
 
 
-# ── prose `[ ]` items: conservative classification ────────────────────────────
-def test_prose_unclassified_not_picked_but_surfaced(sandbox):
+def test_observe_sourced_registry_blocked_without_promote_verdict(sandbox):
+    item = _observe_registry_item()
+    _write_registry(sandbox["registry"], [item])
+    res = mt.run(apply=False, force=True, ledger=True)
+    assert res["status"] == "noop"
+    assert item["title"] in res["blocked_by_observe_gate"]
+    base = dict(TIER0)
+    base.update({
+        "source": "artifacts/observe/2026-06-21-v2/digest.md",
+        **overrides,
+    })
+    return base
+
+
+def _observe_registry_item(**overrides) -> dict:
+    base = dict(TIER0)
+    base.update({
+        "source": "artifacts/observe/2026-06-21-v2/digest.md",
+        **overrides,
+    })
+    return base
+
+
+# ── improvement-log is NOT a motor source ─────────────────────────────────────
+def test_prose_open_items_not_picked(sandbox):
     sandbox["log"].write_text(
-        "- [x] [2026-01-01] done thing\n"
         "- [ ] **Some ADR-candidate cross-repo lever** — worth an ADR.\n"
+        "- [ ] **A small fix** — agent-infra-local, low-sev tweak.\n"
     )
     res = mt.run(apply=False, force=True, ledger=True)
     assert res["status"] == "noop"
-    assert any("ADR-candidate" in t for t in res["needs_classification"])
+    assert res["n_prose_open"] == 2
 
 
-def test_prose_self_described_local_routes_to_0E(sandbox):
-    # A prose item can't assert the semantic clear-win predicates, so even a
-    # self-described-local one is 0E (eval-gated), never auto-shipped.
-    sandbox["log"].write_text(
-        "- [ ] **A small fix** — agent-infra-local, low-sev; heredoc/quoting fix in the recipe.\n"
+def test_observe_sourced_registry_blocked_without_promote_verdict(sandbox):
+    item = _observe_registry_item()
+    _write_registry(sandbox["registry"], [item])
+    res = mt.run(apply=False, force=True, ledger=True)
+    assert res["status"] == "noop"
+    assert any("pretool" in t or "continuation" in t or item["title"] in t
+               for t in res["blocked_by_observe_gate"])
+
+
+def test_observe_sourced_registry_picked_with_promote_verdict(sandbox):
+    item = _observe_registry_item()
+    _write_registry(sandbox["registry"], [item])
+    run = sandbox["root"] / "artifacts" / "observe" / "test-run"
+    run.mkdir(parents=True, exist_ok=True)
+    (run / "preflight.json").write_text(
+        json.dumps({"promotions_allowed": True}), encoding="utf-8"
+    )
+    (run / "promotion-verdicts.jsonl").write_text(
+        json.dumps({"candidate_id": item["id"], "verdict": "promote"}) + "\n",
+        encoding="utf-8",
     )
     res = mt.run(apply=False, force=True, ledger=True)
-    assert res["status"] == "noop"          # no tier-0 (prose can't be a clear-win)
-    assert res["eval_gated_count"] == 1     # but it IS a 0E candidate
+    assert res["status"] == "drafted"
+    assert res["picked"]["id"] == item["id"]
 
 
-def test_registry_preferred_over_prose(sandbox):
+def test_non_observe_registry_picked_without_verdict_gate(sandbox):
     _write_registry(sandbox["registry"], [TIER0])
-    sandbox["log"].write_text(
-        "- [ ] **Another fix** — agent-infra-local, low-sev tweak.\n"
-    )
     res = mt.run(apply=False, force=True, ledger=True)
-    assert res["picked"]["origin"] == "registry"
+    assert res["status"] == "drafted"
+    assert res["picked"]["id"] == "continuation-misread-guard"
 
 
 # ── apply lane TRIPLE-gate ─────────────────────────────────────────────────────

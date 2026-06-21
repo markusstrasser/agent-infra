@@ -213,6 +213,7 @@ harness-eval:
     uv run python3 scripts/orient.py --drift
     uv run python3 "$HOME/Projects/skills/hooks/test_userprompt_prior_context.py"
     uv run python3 -m pytest scripts/tests/test_orient.py scripts/tests/test_system_inventory.py -q
+    uv run python3 -m unittest discover -s "$HOME/Projects/skills/observe/tests" -p 'test_observe_gates.py' -q
     uv run python3 scripts/system_inventory.py --check
     uv run python3 scripts/approval_tiers.py
     echo "OK: harness-eval"
