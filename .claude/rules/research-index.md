@@ -120,6 +120,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-06-20-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-20 (deterministic) | TODO |
 | `2026-06-21-leverage-rsi-post-observe-v3.md` | Leverage Hunt — RSI loop post-observe v3 | TODO |
 | `2026-06-21-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-21 (deterministic) | TODO |
+| `2026-06-21-substrate-knowledge-graph-evolution.md` | The Substrate Knowledge Graph — Evolution Across Repos: savant/synth/synthoric → selve/phenome → genomics/intel/personal → substrate/corpus; verifier-conditioned divergence; the build-then-retire attestation arc | Tracing the substrate/KG lineage or any rename; understanding WHY it was reimplemented (~5×); onboarding to phenome/genomics/intel/substrate stores; proposing new substrate/attestation work |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
 | `adversarial-case-library.md` | Adversarial Case Library: The Best "Calling BS" Reviews | TODO |
 | `agent-behavior-refresh-2026-04.md` | Agent Behavior Delta — Memory, Self-Modification, Sycophancy | TODO |
