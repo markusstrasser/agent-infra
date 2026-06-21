@@ -81,6 +81,13 @@ sync-agent-skills *args:
 dedup-surfaces *args:
     uv run python3 scripts/dedup_surfaces.py {{args}}
 
+# Stale agent worktrees — git never removes these on merge; claude --worktree leaks ~1G/wt
+# audit: `just worktree-gc` · reclaim stale: `just worktree-gc apply --all-projects`
+# unmerged trees (ahead>0) are SKIPPED by default; `--include-unmerged` drops dir only, keeps branch
+[group('health')]
+worktree-gc *args:
+    uv run python3 scripts/worktree_gc.py {{args}}
+
 # Validate .model-review/dispatch.json closeout partition
 [group('health')]
 lint-closeout-dispatch *args:
