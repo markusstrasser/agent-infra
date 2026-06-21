@@ -582,7 +582,7 @@ FM-ID: fm25-belief6-fae
 signature: outcome-claim or external-attribution without trace; disposition asserted over context
 target_surface: belief-6 analyst labels (UNSUPPORTED_OUTCOME_CLAIM, EXTERNAL_ATTRIBUTION_WITHOUT_TRACE)
 status: active
-evidence_count: 1
+evidence_count: 2
 -->
 ```
 IF agent reports on task outcome or investigates a failure
@@ -622,7 +622,7 @@ FM-ID: fm24-retry-without-diagnosis
 signature: same tool called 3+ times with varied params and no diagnosis step between failures
 target_surface: spinning-detector / tool-failure hooks; decision-point gate before blind retry
 status: active
-evidence_count: 1186
+evidence_count: 1204
 -->
 ```
 IF external tool/API call fails

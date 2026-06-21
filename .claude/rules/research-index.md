@@ -113,10 +113,13 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-06-19-tooling-api-critique-synthesis.md` | Critique → ship | TODO |
 | `2026-06-20-agent-landscape-fresh-sweep.md` | Agent landscape NON-RSI delta (12-axis sweep) — typed trace-IR, uncertainty-decomp ask-gate, SkillDAG typed edges, raw-trace-adjacency, model×harness evals (PawBench/WildClawBench), tool-pair compaction, Jun open-model wave | "what's new in agent frameworks/tools/MCP/memory/evals/coding-agents"; before adopting any framework/benchmark; harness-eval design; compaction/skill-lifecycle work |
 | `2026-06-20-agent-workflow-orchestration-frameworks.md` | Agent Workflow Orchestration Frameworks — 2026-06-20 | TODO |
+| `2026-06-20-oh-my-openagent-primitives.md` | oh-my-openagent — extracted primitives, tricks & methods | TODO |
 | `2026-06-20-paper-integration-plan.md` | Integration Plan — grounded in 38 full-paper reads | TODO |
 | `2026-06-20-research-agent-orchestration-tooling.md` | Research-Agent Orchestration Tooling — 2026-06-20 | TODO |
 | `2026-06-20-rsi-loop-unification-synthesis.md` | RSI loop unification — synthesis + Opus 4.8 review | TODO |
 | `2026-06-20-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-20 (deterministic) | TODO |
+| `2026-06-21-leverage-rsi-post-observe-v3.md` | Leverage Hunt — RSI loop post-observe v3 | TODO |
+| `2026-06-21-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-21 (deterministic) | TODO |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
 | `adversarial-case-library.md` | Adversarial Case Library: The Best "Calling BS" Reviews | TODO |
 | `agent-behavior-refresh-2026-04.md` | Agent Behavior Delta — Memory, Self-Modification, Sycophancy | TODO |
