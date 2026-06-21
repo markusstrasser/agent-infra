@@ -252,12 +252,24 @@ observe-drift sessions='5' *args:
     uv run python3 scripts/observe_drift_context.py --sessions {{sessions}} {{args}}
 
 # Mechanical observe promotion gates (health · saturation · promote-check · preflight).
-observe-gates cmd='preflight' artifact_root='' *args:
+observe-gates cmd='preflight' *args:
     #!/usr/bin/env bash
     set -euo pipefail
-    root="${artifact_root:-${OBSERVE_ARTIFACT_ROOT:-$PWD/artifacts/observe}}"
-    exec uv run python3 ~/Projects/skills/observe/scripts/observe_gates.py "{{cmd}}" \
-        --artifact-root "$root" {{args}}
+    run_root="${OBSERVE_ARTIFACT_ROOT:-$PWD/artifacts/observe}"
+    [[ "$run_root" != /* ]] && run_root="$PWD/$run_root"
+    export OBSERVE_ARTIFACT_ROOT="$run_root"
+    exec uv run python3 ~/Projects/skills/observe/scripts/observe_gates.py \
+        --artifact-root "$run_root" "{{cmd}}" {{args}}
+
+# Preflight a specific observe run directory (positional — avoids just param binding quirks).
+observe-preflight run:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run_root="{{run}}"
+    [[ "$run_root" != /* ]] && run_root="$PWD/$run_root"
+    export OBSERVE_ARTIFACT_ROOT="$run_root"
+    exec uv run python3 ~/Projects/skills/observe/scripts/observe_gates.py \
+        --artifact-root "$run_root" preflight
 
 # Observe RSI bundle — size-safe context + prior-context triage + blindspot refresh.
 observe-all project='agent-infra' sessions='5':
