@@ -10,9 +10,14 @@ This removes worktree *directories* only. Branches survive unless --prune-branch
 
 Safety classes (audit):
   SAFE           — ahead==0 (already on main), clean working tree
-  unmerged       — ahead>0: unique commits on branch; NEVER removed by default
+  DUP            — ahead>0 but every patch already on main (cherry-picked/rebased,
+                   then stranded); clean. Reap with --include-unmerged; the branch
+                   is pure cruft, prunable with --prune-branches.
+  unmerged       — ahead>0: GENUINE unique commits on branch; NEVER removed by default
   stale-dirty    — ahead==0 but uncommitted edits; needs --force-stale
   skip-dirty     — ahead>0 AND uncommitted edits; never removed without --force-all
+
+Audit also prints last-commit age (currency signal — branches weeks behind = cruft).
 
 apply (default): SAFE only — stale merged trees, clean
 apply --include-unmerged: also remove unmerged worktrees with NO local edits
@@ -47,6 +52,8 @@ class WorktreeRow:
     tracked_dirty: int
     size: str
     ancestor: bool  # detached HEAD is ancestor of main
+    age: str = "?"  # relative last-commit date (currency signal)
+    dup: bool = False  # ahead>0 but every patch already on main (git cherry all '-')
 
     @property
     def stale(self) -> bool:
@@ -66,6 +73,12 @@ class WorktreeRow:
         return self.ahead > 0 and self.tracked_dirty == 0 and self.branch is not None
 
     def classify(self) -> str:
+        # DUP: commits exist (ahead>0) but their patches are already on main
+        # (cherry-picked / rebased) — the heretic-fixes-stranded case. Safe to
+        # reap, but surfaced distinctly so the operator reaps with confidence
+        # rather than mistaking it for genuine unmerged work.
+        if self.dup and not self.tracked_dirty:
+            return "DUP"
         if self.safe:
             return "SAFE"
         if self.unmerged_clean:
@@ -134,6 +147,31 @@ def is_ancestor(repo: Path, sha: str) -> bool:
     return False
 
 
+def last_commit_rel(repo: Path, ref: str) -> str:
+    """Relative age of ref's tip (currency signal: '2 days ago', '5 weeks ago')."""
+    r = run(["git", "log", "-1", "--format=%cr", ref], cwd=repo)
+    return r.stdout.strip() or "?"
+
+
+def all_patches_on_main(repo: Path, branch: str) -> bool:
+    """True if every commit on `branch` has an equivalent patch already on main.
+
+    `git cherry main <branch>` prints '- <sha>' for commits whose patch is
+    already upstream, '+ <sha>' for genuinely-unmerged ones. All '-' (and at
+    least one line) => the branch is a pure duplicate, safe to reap even though
+    `ahead>0`. This is the cherry-picked/rebased-then-stranded case.
+    """
+    for base in ("main", "master"):
+        r = run(["git", "cherry", base, branch], cwd=repo)
+        if r.returncode != 0:
+            continue
+        lines = [ln for ln in r.stdout.splitlines() if ln.strip()]
+        if not lines:
+            return False
+        return all(ln.startswith("-") for ln in lines)
+    return False
+
+
 def audit_repo(repo: Path) -> list[WorktreeRow]:
     name = repo.name
     rows: list[WorktreeRow] = []
@@ -143,13 +181,18 @@ def audit_repo(repo: Path) -> list[WorktreeRow]:
         st = run(["git", "status", "--porcelain"], cwd=wt)
         tracked_dirty = sum(1 for ln in st.stdout.splitlines() if not ln.startswith("??"))
         size = run(["du", "-sh", str(wt)]).stdout.split()[0] if wt.exists() else "?"
+        dup = False
         if branch:
             ahead = ahead_of_main(repo, branch)
             ancestor = ahead == 0
+            age = last_commit_rel(repo, branch)
+            if ahead > 0:
+                dup = all_patches_on_main(repo, branch)
         else:
             sha = run(["git", "rev-parse", "HEAD"], cwd=wt).stdout.strip()
             ancestor = is_ancestor(repo, sha)
             ahead = 0 if ancestor else -1
+            age = last_commit_rel(repo, sha) if sha else "?"
         rows.append(
             WorktreeRow(
                 repo=name,
@@ -160,6 +203,8 @@ def audit_repo(repo: Path) -> list[WorktreeRow]:
                 tracked_dirty=tracked_dirty,
                 size=size,
                 ancestor=ancestor,
+                age=age,
+                dup=dup,
             )
         )
     return rows
@@ -231,7 +276,7 @@ def main() -> int:
             extra = f"  commits: {commit_preview(row.repo_root, row.branch)}"
         print(
             f"{mark} {row.repo:15} {br:42} ahead={row.ahead:>3} "
-            f"dirty={row.tracked_dirty:>3} {cls:14} {row.size:>6}  {row.path}{extra}"
+            f"dirty={row.tracked_dirty:>3} {cls:9} {row.age:>14} {row.size:>6}  {row.path}{extra}"
         )
 
     if not all_rows:
@@ -240,10 +285,13 @@ def main() -> int:
 
     if args.mode == "audit":
         n_safe = sum(1 for r in all_rows if r.safe)
-        n_unmerged = sum(1 for r in all_rows if r.unmerged_clean)
+        n_dup = sum(1 for r in all_rows if r.classify() == "DUP")
+        n_unmerged = sum(1 for r in all_rows if r.classify() == "unmerged")
         print(f"\n{len(all_rows)} worktrees; {n_safe} stale+clean (default apply)")
+        if n_dup:
+            print(f"  {n_dup} DUP (patches already on main) — reap: --include-unmerged --prune-branches")
         if n_unmerged:
-            print(f"  {n_unmerged} unmerged+clean — skipped unless --include-unmerged (branch kept either way)")
+            print(f"  {n_unmerged} GENUINE unmerged+clean — LAND these; --include-unmerged drops dir but keeps branch")
         print("Run: just worktree-gc apply --all-projects")
         return 0
 
@@ -257,7 +305,7 @@ def main() -> int:
             remove_worktree(row.repo_root, row.path)
             print(f"removed {row.path}")
             removed += 1
-            if args.prune_branches and row.branch and row.stale:
+            if args.prune_branches and row.branch and (row.stale or row.dup):
                 run(["git", "branch", "-D", row.branch], cwd=row.repo_root)
                 print(f"  branch -D {row.branch}")
         except subprocess.CalledProcessError as e:
