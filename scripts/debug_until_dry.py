@@ -34,6 +34,7 @@ import json
 import re
 import subprocess
 import sys
+import time
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -55,7 +56,9 @@ FINDING_RE = re.compile(
     r"(?=^##\s+FINDING\b|\Z)",
     re.MULTILINE | re.DOTALL,
 )
-FIELD_RE = re.compile(r"^\s*[-*]\s*\*\*(?P<k>[A-Za-z][A-Za-z /-]*?):?\*\*\s*(?P<v>.*?)\s*$", re.MULTILINE)
+FIELD_RE = re.compile(
+    r"^\s*[-*]\s*\*\*(?P<k>[A-Za-z][A-Za-z /-]*?):?\*\*\s*(?P<v>.*?)\s*$", re.MULTILINE
+)
 VERDICT_CONFIRMED = {"CONFIRMED", "CONFIRM", "REAL", "TRUE"}
 VERDICT_REFUTED = {"REFUTED", "REFUTE", "FALSE", "NOT_A_BUG", "REJECTED"}
 
@@ -87,24 +90,54 @@ def load_memo(json_path: Path) -> dict[str, Finding]:
     return {k: Finding(**v) for k, v in raw.get("findings", {}).items()}
 
 
-def save_memo(json_path: Path, md_path: Path, memo: dict[str, Finding], *, repo: Path,
-              wave: int, converged: bool | None = None, final_new: int = 0,
-              total_refutes: int = 0) -> None:
+def save_memo(
+    json_path: Path,
+    md_path: Path,
+    memo: dict[str, Finding],
+    *,
+    repo: Path,
+    wave: int,
+    converged: bool | None = None,
+    final_new: int = 0,
+    total_refutes: int = 0,
+) -> None:
     json_path.parent.mkdir(parents=True, exist_ok=True)  # survive a vanished audit_dir mid-run
-    json_path.write_text(json.dumps(
-        {"repo": str(repo), "wave": wave, "converged": converged,
-         "new_in_final_wave": final_new, "total_refutes": total_refutes,
-         "updated": datetime.now(timezone.utc).isoformat(),
-         "findings": {k: asdict(v) for k, v in memo.items()}},
-        indent=2,
-    ) + "\n")
-    md_path.write_text(render_memo_md(memo, repo=repo, wave=wave, converged=converged,
-                                      final_new=final_new, total_refutes=total_refutes))
+    json_path.write_text(
+        json.dumps(
+            {
+                "repo": str(repo),
+                "wave": wave,
+                "converged": converged,
+                "new_in_final_wave": final_new,
+                "total_refutes": total_refutes,
+                "updated": datetime.now(timezone.utc).isoformat(),
+                "findings": {k: asdict(v) for k, v in memo.items()},
+            },
+            indent=2,
+        )
+        + "\n"
+    )
+    md_path.write_text(
+        render_memo_md(
+            memo,
+            repo=repo,
+            wave=wave,
+            converged=converged,
+            final_new=final_new,
+            total_refutes=total_refutes,
+        )
+    )
 
 
-def render_memo_md(memo: dict[str, Finding], *, repo: Path, wave: int,
-                   converged: bool | None = None, final_new: int = 0,
-                   total_refutes: int = 0) -> str:
+def render_memo_md(
+    memo: dict[str, Finding],
+    *,
+    repo: Path,
+    wave: int,
+    converged: bool | None = None,
+    final_new: int = 0,
+    total_refutes: int = 0,
+) -> str:
     order = {"confirmed": 0, "unverified": 1, "refuted": 2}
     sev = {"P0": 0, "P1": 1, "P2": 2, "P3": 3, "P?": 4}
     items = sorted(memo.values(), key=lambda f: (order.get(f.status, 9), sev.get(f.severity, 9)))
@@ -115,15 +148,19 @@ def render_memo_md(memo: dict[str, Finding], *, repo: Path, wave: int,
     if converged is True:
         status = f"✅ CONVERGED (dry) at wave {wave}"
     elif converged is False:
-        status = (f"⚠ INCOMPLETE — hit max-waves, did NOT converge "
-                  f"({final_new} new in final wave; re-run to continue the audit)")
+        status = (
+            f"⚠ INCOMPLETE — hit max-waves, did NOT converge "
+            f"({final_new} new in final wave; re-run to continue the audit)"
+        )
     else:
         status = f"in progress (wave {wave})"
     # Fix 2: a 0-refute run means no independent adjudication happened — say so.
     refute_note = ""
     if converged is not None and n_conf >= 10 and total_refutes == 0:
-        refute_note = (" · ⚠ 0 refutations — 'confirmed' is scout self-assessment, "
-                       "NOT independently adjudicated")
+        refute_note = (
+            " · ⚠ 0 refutations — 'confirmed' is scout self-assessment, "
+            "NOT independently adjudicated"
+        )
     out = [
         f"# Bug-hunt audit memo — {Path(repo).name}",
         f"_{status} · {date.today().isoformat()} · "
@@ -132,8 +169,10 @@ def render_memo_md(memo: dict[str, Finding], *, repo: Path, wave: int,
     ]
     for f in items:
         out.append(f"## {f.status.upper()} [{f.severity}] — {f.claim}")
-        out.append(f"- **id:** `{f.dedupe}` · **domain:** {f.domain} · "
-                   f"**waves:** {f.first_wave}→{f.last_wave}")
+        out.append(
+            f"- **id:** `{f.dedupe}` · **domain:** {f.domain} · "
+            f"**waves:** {f.first_wave}→{f.last_wave}"
+        )
         if f.file:
             out.append(f"- **file:** {f.file}")
         if f.evidence:
@@ -164,25 +203,31 @@ def parse_wave_output(text: str) -> list[Finding]:
     findings: list[Finding] = []
     for m in FINDING_RE.finditer(text):
         body = m.group("body")
-        fields = {k.strip().lower().replace(" ", "_"): v.strip()
-                  for k, v in FIELD_RE.findall(body)}
+        fields = {k.strip().lower().replace(" ", "_"): v.strip() for k, v in FIELD_RE.findall(body)}
         claim = fields.get("claim", "").strip()
         if not claim:
             continue
         verdict = fields.get("verdict", "").upper().replace(" ", "_")
-        status = ("confirmed" if any(v in verdict for v in VERDICT_CONFIRMED)
-                  else "refuted" if any(v in verdict for v in VERDICT_REFUTED)
-                  else "unverified")
-        findings.append(Finding(
-            dedupe=claim_hash(claim), claim=claim,
-            domain=fields.get("domain", "code").split("|")[0].strip() or "code",
-            severity=fields.get("severity", "P?").strip() or "P?",
-            file=fields.get("evidence", "").split(";")[0][:120] if "evidence" in fields else "",
-            evidence=fields.get("evidence", ""),
-            verification=fields.get("verification", ""),
-            falsifier=fields.get("falsifier", ""),
-            status=status,
-        ))
+        status = (
+            "confirmed"
+            if any(v in verdict for v in VERDICT_CONFIRMED)
+            else "refuted"
+            if any(v in verdict for v in VERDICT_REFUTED)
+            else "unverified"
+        )
+        findings.append(
+            Finding(
+                dedupe=claim_hash(claim),
+                claim=claim,
+                domain=fields.get("domain", "code").split("|")[0].strip() or "code",
+                severity=fields.get("severity", "P?").strip() or "P?",
+                file=fields.get("evidence", "").split(";")[0][:120] if "evidence" in fields else "",
+                evidence=fields.get("evidence", ""),
+                verification=fields.get("verification", ""),
+                falsifier=fields.get("falsifier", ""),
+                status=status,
+            )
+        )
     return findings
 
 
@@ -192,8 +237,20 @@ def cursor_ask(repo: Path, prompt: str, timeout: int, dry_run: bool) -> tuple[bo
         return True, "## NO_FINDINGS\n(dry-run — no cursor call made)"
     if not AGENT.is_file():
         return False, "agent CLI not found (~/.local/bin/agent)"
-    cmd = [str(AGENT), "-p", "--trust", "--mode", "ask", "--model", CURSOR_MODEL,
-           "--workspace", str(repo), "--output-format", "text", prompt]
+    cmd = [
+        str(AGENT),
+        "-p",
+        "--trust",
+        "--mode",
+        "ask",
+        "--model",
+        CURSOR_MODEL,
+        "--workspace",
+        str(repo),
+        "--output-format",
+        "text",
+        prompt,
+    ]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -204,8 +261,18 @@ def cursor_ask(repo: Path, prompt: str, timeout: int, dry_run: bool) -> tuple[bo
 def opus_adjudicate(prompt: str, timeout: int, dry_run: bool) -> tuple[bool, str]:
     if dry_run:
         return True, "{}"
-    cmd = ["llmx", "chat", "--subscription", "-m", "claude-opus-4-8", "-e", "high",
-           "--timeout", str(timeout), prompt]
+    cmd = [
+        "llmx",
+        "chat",
+        "--subscription",
+        "-m",
+        "claude-opus-4-8",
+        "-e",
+        "high",
+        "--timeout",
+        str(timeout),
+        prompt,
+    ]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout + 60)
     except subprocess.TimeoutExpired:
@@ -219,8 +286,10 @@ def wave_scout_prompt(project: str, scope_block: str, memo: dict[str, Finding], 
     # keep only the guidance up to its output block; we impose our own block below
     axes = axes.split("## Output format", 1)[0]
     return (  # /debug + audit-only banner are inherited from debug_scout_prompt.md (single source)
-        axes.replace("{project}", project).replace("{scout_id}", f"w{wave}")
-        .replace("{scope_block}", scope_block).replace("{extra_prompt}", "(none)")
+        axes.replace("{project}", project)
+        .replace("{scout_id}", f"w{wave}")
+        .replace("{scope_block}", scope_block)
+        .replace("{extra_prompt}", "(none)")
         + "\n## Audit memo so far (do NOT re-report a known claim; instead VERIFY any `?UNVERIFIED`)\n"
         + memo_digest_for_prompt(memo)
         + "\n\n## Output format (STRICT — one block per finding, nothing else)\n"
@@ -242,7 +311,8 @@ def wave_scout_prompt(project: str, scope_block: str, memo: dict[str, Finding], 
 def _finding_blocks(fs: list[Finding]) -> str:
     return "\n".join(
         f"## FINDING\n- **Claim:** {f.claim}\n- **Evidence:** {f.evidence}\n"
-        f"- **Falsifier:** {f.falsifier}" for f in fs
+        f"- **Falsifier:** {f.falsifier}"
+        for f in fs
     )
 
 
@@ -322,7 +392,9 @@ def apply_verdicts(memo: dict[str, Finding], verdict_findings: list[Finding]) ->
 
 # ── main loop ─────────────────────────────────────────────────────────────────
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("repo", type=Path)
     ap.add_argument("scope", nargs="?", default="recent", help="recent | path | free-text focus")
     ap.add_argument("--max-waves", type=int, default=5)
@@ -334,6 +406,12 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
+    # Line-buffer stdout: under `uv run` (non-TTY) Python fully buffers stdout, so all
+    # per-wave/per-scout progress is invisible until exit — a slow run is then
+    # indistinguishable from a hung one (cost a 42-min blind wedge, 2026-06-22).
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(line_buffering=True)  # type: ignore[attr-defined]
+
     print_llm_header(LlmClass.REQUIRED)
     repo = args.repo.expanduser().resolve()
     if not repo.is_dir():
@@ -341,15 +419,19 @@ def main() -> int:
         return 2
 
     audit_dir = repo / "docs" / "audit"
-    if not args.dry_run:  # dry-run touches nothing in the target repo (save_memo re-mkdirs on real runs)
+    if (
+        not args.dry_run
+    ):  # dry-run touches nothing in the target repo (save_memo re-mkdirs on real runs)
         audit_dir.mkdir(parents=True, exist_ok=True)
     md_path = args.memo or audit_dir / f"{date.today().isoformat()}-bughunt-memo.md"
     json_path = md_path.with_suffix(".json")
     memo = load_memo(json_path)
 
-    print(f"debug-until-dry: {repo.name} · scope={args.scope} · verifier={args.verifier} · "
-          f"max-waves={args.max_waves} · {args.scouts_per_wave}×{args.workers} workers"
-          + (" · DRY-RUN" if args.dry_run else ""))
+    print(
+        f"debug-until-dry: {repo.name} · scope={args.scope} · verifier={args.verifier} · "
+        f"max-waves={args.max_waves} · {args.scouts_per_wave}×{args.workers} workers"
+        + (" · DRY-RUN" if args.dry_run else "")
+    )
     print(f"memo: {md_path}")
 
     dry_streak = 0
@@ -362,10 +444,27 @@ def main() -> int:
 
         def run_one(item: tuple[str, str]) -> dict:
             sid, prompt = item
+            t0 = time.monotonic()
             ok, body = cursor_ask(repo, prompt, SCOUT_TIMEOUT, args.dry_run)
+            outcome = "ok" if ok else ("timeout" if body == "(timeout)" else "error")
+            print(f"    scout {sid}: {outcome} ({time.monotonic() - t0:.0f}s)")
             return {"sid": sid, "ok": ok, "body": body}
 
+        print(f"  wave {wave}: dispatching {len(items)} scouts ({args.workers} in flight)…")
         results = run_parallel(items, run_one, workers=args.workers)
+        # Fail loud, never silent-dry: an all-scout-timeout wave produces 0 findings that
+        # look identical to a clean audit. With --dry-stop 1 that false-"dry" would report
+        # "audit complete" off a transport failure (the silent-proxy hazard). Abort instead.
+        n_ok = sum(1 for res in results if isinstance(res, dict) and res.get("ok"))
+        if not args.dry_run and n_ok == 0:
+            print(
+                f"  ✗ wave {wave}: 0/{len(items)} scouts succeeded — all timed out or errored. "
+                "cursor-agent returned no usable output: TRANSPORT failure, NOT a clean audit. "
+                "Aborting rather than reporting a false 'dry'. Check cursor-agent auth/availability, "
+                "lower per-scout load, raise SCOUT_TIMEOUT, or retry with --verifier opus.",
+                file=sys.stderr,
+            )
+            return 3
         found: list[Finding] = []
         for res in results:
             if isinstance(res, dict):
@@ -375,8 +474,9 @@ def main() -> int:
         # Two-tier judge: adjudicate unverified AND adversarially re-challenge the wave's NEW
         # scout-confirmed findings (the independent cull that 0/55-confirmed runs lacked).
         verdict_changes = refutes = 0
-        new_confirmed = [f for f in memo.values()
-                         if f.first_wave == wave and f.status == "confirmed"]
+        new_confirmed = [
+            f for f in memo.values() if f.first_wave == wave and f.status == "confirmed"
+        ]
         unverified = [f for f in memo.values() if f.status == "unverified"]
         if args.verifier != "none" and (unverified or new_confirmed):
             vp = verifier_prompt(unverified, new_confirmed)
@@ -393,9 +493,11 @@ def main() -> int:
         if not args.dry_run:  # dry-run writes no files (matches debug_scout convention)
             save_memo(json_path, md_path, memo, repo=repo, wave=wave, total_refutes=total_refutes)
         n_conf = sum(1 for f in memo.values() if f.status == "confirmed")
-        print(f"  wave {wave}: +{new_claims} new · {promoted} promoted · "
-              f"{verdict_changes} judged ({refutes} refuted) → new_info={new_info} · "
-              f"{n_conf} confirmed total")
+        print(
+            f"  wave {wave}: +{new_claims} new · {promoted} promoted · "
+            f"{verdict_changes} judged ({refutes} refuted) → new_info={new_info} · "
+            f"{n_conf} confirmed total"
+        )
 
         dry_streak = dry_streak + 1 if new_info == 0 else 0
         if dry_streak >= args.dry_stop:
@@ -404,12 +506,22 @@ def main() -> int:
             break
     else:
         converged = False
-        print(f"  ⚠ reached --max-waves={args.max_waves} STILL FINDING ({final_new} new in final "
-              f"wave) — audit INCOMPLETE, did not converge. Re-run or raise --max-waves.")
+        print(
+            f"  ⚠ reached --max-waves={args.max_waves} STILL FINDING ({final_new} new in final "
+            f"wave) — audit INCOMPLETE, did not converge. Re-run or raise --max-waves."
+        )
 
     if not args.dry_run:  # final stamp with resolved convergence + refute status
-        save_memo(json_path, md_path, memo, repo=repo, wave=wave, converged=converged,
-                  final_new=final_new, total_refutes=total_refutes)
+        save_memo(
+            json_path,
+            md_path,
+            memo,
+            repo=repo,
+            wave=wave,
+            converged=converged,
+            final_new=final_new,
+            total_refutes=total_refutes,
+        )
     n_conf = sum(1 for f in memo.values() if f.status == "confirmed")
     print(f"\nstatus:   {'CONVERGED' if converged else 'INCOMPLETE (capped, not dry)'}")
     if total_refutes == 0 and n_conf >= 10:
