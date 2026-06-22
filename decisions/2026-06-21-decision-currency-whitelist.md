@@ -123,3 +123,18 @@ general prevention ships now, not after a 2nd regression.
   incl. the actual 0003 read) is a 3+-repo shared-hook change → invariant #4. agent-infra-first is the
   autonomous slice + the measure surface; global is the proposal.
 Current version = this entry, v2.
+
+### 2026-06-22 — v3: operator approved "a b" → global wired + back-stamp BUILT
+Both deferred pieces shipped this session (operator: "a b"):
+- **(a) GLOBAL:** the read-gate moved agent-infra-local → `skills/hooks/posttool-decision-currency.sh`,
+  wired in `~/.claude/settings.json` (fires in EVERY repo — now protects substrate/genomics/phenome,
+  incl. the real 0003 read). agent-infra-local matcker removed (no dual path). Commits:
+  skills@`8c0a2ac`, ~/.claude@`248a0b6`, agent-infra@`02c3fa0`+`67c8964`.
+- **(b) BUILT — supersession auto-back-stamp:** `skills/hooks/posttool-decision-backstamp.sh`
+  (PostToolUse:Write|Edit). On a FLIP verb (`supersedes`/`retires`/`reverses_premise`; NOT
+  `unifies`/`merged_from`/`extends`) it appends a `Superseded-by` marker to the target — supersession
+  self-marks. The read-gate now also fires on that marker, closing the accepted-then-superseded gap
+  (cross-tested). Append-only, idempotent, same-dir resolution, bash-append (no Write-tool loop).
+- Still gated/advisory by design: hard-block / fail-closed-on-`unknown` remains the promotion target
+  (measure first). The substrate 0003/REFRAMINGS backfill is still a handoff (live substrate session).
+Current version = this entry, v3.
