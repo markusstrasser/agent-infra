@@ -38,11 +38,20 @@ image = (
         "libxrender1",
         "fonts-liberation",
         "ghostscript",
+        # weasyprint runtime libs — marker's HTML->PDF provider for OA papers
+        # served as HTML (eLife/PMC/Frontiers sometimes) instead of a PDF.
+        "libpango-1.0-0",
+        "libpangocairo-1.0-0",
+        "libgdk-pixbuf-2.0-0",
+        "libcairo2",
+        "libffi-dev",
+        "shared-mime-info",
     )
     .pip_install(
         "marker-pdf>=1.10.0",
         "pypdf>=4.0",
         "google-genai>=1.0",
+        "weasyprint",
     )
     .env({
         # CUDA on Modal — kill any leftover MPS-fallback heuristics.
