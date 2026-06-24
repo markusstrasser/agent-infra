@@ -713,18 +713,21 @@ def index_vendor(
         # the file. Without this, applying the limit to actual-imports (below) would sha
         # every backlog file each run to discover it's unchanged — O(all sources) I/O on
         # claude's 11k-source set. One indexed query builds the map per pass.
-        imported_mtime: dict[str, float] = {} if force else {
-            r["path"]: r["file_mtime"]
+        imported_mtime: dict[str, float] = {}
+        imported_size: dict[str, int] = {}
+        if not force:
             for r in db.execute(
                 """
-                SELECT s.path AS path, s.file_mtime AS file_mtime
+                SELECT s.path AS path, s.file_mtime AS file_mtime, s.size_bytes AS size_bytes
                 FROM sources s JOIN imports i ON i.source_id = s.source_id
                 WHERE s.vendor = ? AND i.parser_name = ? AND i.parser_version = ?
                   AND i.schema_version = ? AND i.success = 1 AND s.file_mtime IS NOT NULL
                 """,
                 (vendor, parser_name, parser_version, SCHEMA_VERSION),
-            )
-        }
+            ):
+                imported_mtime[r["path"]] = r["file_mtime"]
+                if r["size_bytes"] is not None:
+                    imported_size[r["path"]] = r["size_bytes"]
 
         imported_this_run = 0
         for idx, source in enumerate(sources):
@@ -747,7 +750,19 @@ def index_vendor(
             if not source.path.exists():
                 continue
             prev_mtime = imported_mtime.get(str(source.path))
-            if prev_mtime is not None and source.path.stat().st_mtime <= prev_mtime:
+            st = source.path.stat()
+            if prev_mtime is not None and st.st_mtime <= prev_mtime:
+                stats.sources_skipped += 1
+                continue
+            # mtime advanced — but session transcripts are APPEND-ONLY, so unchanged
+            # SIZE means unchanged content. codex/cursor re-touch session-file mtimes
+            # without appending (measured 2026-06-24: ~2105 codex files churned mtimes
+            # with identical size every 2d), which defeated the mtime-only skip and
+            # forced a full read+sha of each one every run — the deadline (exit 75).
+            # Size is the correct content-change signal for append-only logs; skip the
+            # expensive read+sha when it matches the last successful import.
+            prev_size = imported_size.get(str(source.path))
+            if prev_size is not None and st.st_size == prev_size:
                 stats.sources_skipped += 1
                 continue
             sha = _sha256_file(source.path)
