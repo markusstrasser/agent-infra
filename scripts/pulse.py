@@ -33,8 +33,10 @@ import json
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import NamedTuple
 
 REPO = Path(__file__).resolve().parent.parent
 INBOX = Path.home() / ".claude" / "control-plane-inbox.md"
@@ -86,12 +88,26 @@ def probe_correction_load() -> float | None:
 #   may-rest    → constancy is HEALTHY (only null/stale alarm). For metrics legitimately flat
 #                 (config flags, thresholds, a gate at its steady state). NOT registered yet —
 #                 the slot exists so generalizing the registry can't false-alarm on green.
-# name -> (probe, contract, note). Register ONLY gating/trusted/should-vary metrics — a doctor
-# health check (healthy==constant) would alarm-on-green and re-blind the operator (do NOT add).
+# floor → for a should-vary OBJECTIVE metric whose SUCCESS state is a stable value (e.g.
+#         correction_load → 0 = perfect autonomy). Constant AT the floor is HEALTHY (objective
+#         reached); constant ELSEWHERE is the dead-producer bug (319 ≠ 0). This is what stops
+#         the canary from false-alarming on its own win — without it, supervision genuinely
+#         declining to 0 would read identical to a frozen producer. A no-data day returns None
+#         (NULL alarm, separate path), so a real constant-0 only comes from sessions with zero
+#         corrections. floor=None (hooks_shown/air) → ANY constancy alarms (0/null WAS the bug).
+# Register ONLY gating/trusted/should-vary metrics — a doctor health check (healthy==constant)
+# would alarm-on-green and re-blind the operator (do NOT add).
+class Instrument(NamedTuple):
+    probe: Callable[[], float | None]
+    contract: str
+    note: str
+    floor: float | None = None
+
+
 INSTRUMENTS = {
-    "supervision.hooks_shown":     (probe_hooks_shown,     "should-vary", "hooks surfaced/turn (was constant 0 for 1591 sessions)"),
-    "supervision.air":             (probe_air,             "should-vary", "corrections after a shown hook (was null — the dead-field bug)"),
-    "supervision.correction_load": (probe_correction_load, "should-vary", "total correction load/day — the declining-supervision objective"),
+    "supervision.hooks_shown":     Instrument(probe_hooks_shown,     "should-vary", "hooks surfaced/turn (was constant 0 for 1591 sessions)"),
+    "supervision.air":             Instrument(probe_air,             "should-vary", "corrections after a shown hook (was null — the dead-field bug)"),
+    "supervision.correction_load": Instrument(probe_correction_load, "should-vary", "total correction load/day — the declining-supervision objective", floor=0.0),
 }
 
 
@@ -107,10 +123,14 @@ def _append(name: str, value, ts: float) -> None:
         f.write(json.dumps({"name": name, "value": value, "ts": ts}) + "\n")
 
 
-def _judge(name: str, hist: list[dict], now: float, contract: str = "should-vary") -> tuple[str, str]:
+def _judge(name: str, hist: list[dict], now: float, contract: str = "should-vary",
+           floor: float | None = None) -> tuple[str, str]:
     """Return (level, reason). level in {ok, alarm}. Fail loud, PER INSTRUMENT.
     The constancy test fires ONLY for should-vary metrics — a may-rest metric is
-    legitimately flat, so constant != dead there (else alarm-on-green re-blinds)."""
+    legitimately flat, so constant != dead there (else alarm-on-green re-blinds).
+    A should-vary metric WITH a floor is exempt from the constancy alarm when it
+    is constant AT the floor (objective reached) — but still alarms if frozen
+    anywhere else (the dead-producer bug)."""
     mine = [h for h in hist if h["name"] == name]
     latest = mine[-1] if mine else None
     if latest is None or latest["value"] is None:
@@ -121,26 +141,29 @@ def _judge(name: str, hist: list[dict], now: float, contract: str = "should-vary
     if contract == "should-vary":
         recent = [h["value"] for h in mine[-WINDOW:] if h["value"] is not None]
         if len(recent) >= WINDOW and len(set(recent)) == 1:
-            return "alarm", f"CONSTANT — last {WINDOW} should-vary observations all = {recent[-1]} (the AIR-1591 bug class)"
+            value = recent[-1]
+            if floor is not None and value == floor:
+                return "ok", f"AT FLOOR ({floor}) — objective at rest, not a dead producer"
+            return "alarm", f"CONSTANT — last {WINDOW} should-vary observations all = {value} (the AIR-1591 bug class)"
     return "ok", f"value={latest['value']}"
 
 
 def cmd_canary(args) -> int:
     """Observe every instrument, append to history, judge null/constant/stale."""
     now = time.time()
-    for name, (probe, _contract, _note) in INSTRUMENTS.items():
+    for name, inst in INSTRUMENTS.items():
         try:
-            val = probe()
+            val = inst.probe()
         except Exception as e:
             val = None
             print(f"  probe error {name}: {e}", file=sys.stderr)
         _append(name, val, now)
     hist = _read_history()
     alarms = 0
-    for name, (_probe, contract, note) in INSTRUMENTS.items():
-        level, reason = _judge(name, hist, now, contract)
+    for name, inst in INSTRUMENTS.items():
+        level, reason = _judge(name, hist, now, inst.contract, inst.floor)
         glyph = "✓" if level == "ok" else "✗"
-        print(f"  {glyph} {name}: {reason}" + (f"  — {note}" if level == "alarm" else ""))
+        print(f"  {glyph} {name}: {reason}" + (f"  — {inst.note}" if level == "alarm" else ""))
         if level == "alarm":
             alarms += 1
     if alarms:
@@ -151,8 +174,9 @@ def cmd_canary(args) -> int:
 
 
 def cmd_registry(_args) -> int:
-    for name, (_probe, contract, note) in INSTRUMENTS.items():
-        print(f"  {name}  [{contract}] — {note}")
+    for name, inst in INSTRUMENTS.items():
+        floor = f" floor={inst.floor}" if inst.floor is not None else ""
+        print(f"  {name}  [{inst.contract}{floor}] — {inst.note}")
     return 0
 
 
@@ -161,9 +185,9 @@ def canary_summary(now: float | None = None) -> dict:
     now = now or time.time()
     hist = _read_history()
     alarms, ok = [], []
-    for name, (_probe, contract, note) in INSTRUMENTS.items():
-        level, reason = _judge(name, hist, now, contract)
-        row = {"name": name, "level": level, "reason": reason, "note": note}
+    for name, inst in INSTRUMENTS.items():
+        level, reason = _judge(name, hist, now, inst.contract, inst.floor)
+        row = {"name": name, "level": level, "reason": reason, "note": inst.note}
         (alarms if level == "alarm" else ok).append(row)
     return {"alarm_count": len(alarms), "alarms": alarms, "ok": ok}
 
@@ -399,7 +423,14 @@ def _selftest() -> int:
     hist3 = [{"name": "syn3", "value": 1.0, "ts": now - STALE_SECONDS - 1}]
     level3, _ = _judge("syn3", hist3, now)
     assert level3 == "alarm", "canary failed to flag stale"
-    print("pulse selftest: constant + null + stale all flagged ✓")
+    # floor: constant AT floor = healthy (objective at rest); constant elsewhere = dead.
+    floor_hist = [{"name": "fl", "value": 0.0, "ts": now - i} for i in range(WINDOW)]
+    lvl_floor, why_floor = _judge("fl", floor_hist, now, floor=0.0)
+    assert lvl_floor == "ok" and "FLOOR" in why_floor, f"floor metric at floor should be ok: {lvl_floor}/{why_floor}"
+    frozen_hist = [{"name": "fz", "value": 319.0, "ts": now - i} for i in range(WINDOW)]
+    lvl_frozen, _ = _judge("fz", frozen_hist, now, floor=0.0)
+    assert lvl_frozen == "alarm", "a floor metric frozen ABOVE the floor (319≠0) must still alarm (dead producer)"
+    print("pulse selftest: constant + null + stale flagged; floor-at-rest ok, floor-frozen-elsewhere alarms ✓")
     return 0
 
 
