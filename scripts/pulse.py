@@ -42,7 +42,9 @@ REPO = Path(__file__).resolve().parent.parent
 INBOX = Path.home() / ".claude" / "control-plane-inbox.md"
 MAINTAIN_DIR = REPO / "artifacts" / "maintain"
 HISTORY = Path.home() / ".claude" / "pulse-canary-history.jsonl"  # the canary's own observation log (append-only, reconstructible — NOT a source of truth)
-WINDOW = 5          # observations compared for the constancy test
+WINDOW = 5          # raw-observation horizon retained for context
+DISTINCT_DAYS = 3   # a should-vary metric constant across this many DISTINCT days = frozen
+                    # (per-day dedupe first — sampling >once/day must not read as "constant")
 STALE_SECONDS = 36 * 3600  # an instrument with no fresh observation in 36h is stale
 
 
@@ -139,12 +141,23 @@ def _judge(name: str, hist: list[dict], now: float, contract: str = "should-vary
         age_h = round((now - latest["ts"]) / 3600)
         return "alarm", f"STALE — freshest observation {age_h}h old"
     if contract == "should-vary":
-        recent = [h["value"] for h in mine[-WINDOW:] if h["value"] is not None]
-        if len(recent) >= WINDOW and len(set(recent)) == 1:
-            value = recent[-1]
+        # Dedupe to one observation per LOCAL day (latest), then test constancy
+        # across DISTINCT DAYS — these are daily KPIs and the canary samples every
+        # tick (~30 min). A metric stable WITHIN a day (sessions stop accruing) is
+        # NOT dead; only the SAME value across many days is the frozen-producer bug
+        # (AIR-1591 ran constant across 1591 sessions = many days). Comparing raw
+        # consecutive samples false-alarmed on every daily KPI sampled >once/day.
+        by_day: dict[str, float] = {}
+        for h in mine:
+            if h["value"] is None:
+                continue
+            by_day[datetime.fromtimestamp(h["ts"]).strftime("%Y-%m-%d")] = h["value"]
+        daily = list(by_day.values())[-DISTINCT_DAYS:]
+        if len(daily) >= DISTINCT_DAYS and len(set(daily)) == 1:
+            value = daily[-1]
             if floor is not None and value == floor:
                 return "ok", f"AT FLOOR ({floor}) — objective at rest, not a dead producer"
-            return "alarm", f"CONSTANT — last {WINDOW} should-vary observations all = {value} (the AIR-1591 bug class)"
+            return "alarm", f"CONSTANT — same value ({value}) across {DISTINCT_DAYS} distinct days (the AIR-1591 bug class)"
     return "ok", f"value={latest['value']}"
 
 
@@ -414,23 +427,27 @@ def _selftest() -> int:
     """Prove the canary catches a CONSTANT non-null instrument (the AIR bug class) —
     not via the live probes but by injecting a synthetic constant series."""
     now = time.time()
-    hist = [{"name": "synthetic", "value": 0.0, "ts": now - i} for i in range(WINDOW)]
-    level, reason = _judge("synthetic", hist, now)
+    day = 86400.0
+    # helper: chronological history (oldest first, freshest = now) so mine[-1] is fresh
+    def days_hist(name, value, n=DISTINCT_DAYS):
+        return [{"name": name, "value": value, "ts": now - (n - 1 - i) * day} for i in range(n)]
+    # constant across DISTINCT_DAYS distinct days → frozen producer → alarm
+    level, reason = _judge("synthetic", days_hist("synthetic", 5.0), now)
     assert level == "alarm" and "CONSTANT" in reason, f"canary failed to flag constant: {level}/{reason}"
+    # SAME-DAY rapid samples of a stable value → NOT enough distinct days → ok
+    sameday = [{"name": "sd", "value": 16.0, "ts": now - (WINDOW - 1 - i) * 600} for i in range(WINDOW)]
+    lvl_sd, _ = _judge("sd", sameday, now)
+    assert lvl_sd == "ok", f"same-day rapid samples must NOT alarm (the sampling-frequency artifact): {lvl_sd}"
     hist2 = [{"name": "syn2", "value": None, "ts": now}]
-    level2, _ = _judge("syn2", hist2, now)
-    assert level2 == "alarm", "canary failed to flag null"
+    assert _judge("syn2", hist2, now)[0] == "alarm", "canary failed to flag null"
     hist3 = [{"name": "syn3", "value": 1.0, "ts": now - STALE_SECONDS - 1}]
-    level3, _ = _judge("syn3", hist3, now)
-    assert level3 == "alarm", "canary failed to flag stale"
+    assert _judge("syn3", hist3, now)[0] == "alarm", "canary failed to flag stale"
     # floor: constant AT floor = healthy (objective at rest); constant elsewhere = dead.
-    floor_hist = [{"name": "fl", "value": 0.0, "ts": now - i} for i in range(WINDOW)]
-    lvl_floor, why_floor = _judge("fl", floor_hist, now, floor=0.0)
+    lvl_floor, why_floor = _judge("fl", days_hist("fl", 0.0), now, floor=0.0)
     assert lvl_floor == "ok" and "FLOOR" in why_floor, f"floor metric at floor should be ok: {lvl_floor}/{why_floor}"
-    frozen_hist = [{"name": "fz", "value": 319.0, "ts": now - i} for i in range(WINDOW)]
-    lvl_frozen, _ = _judge("fz", frozen_hist, now, floor=0.0)
+    lvl_frozen, _ = _judge("fz", days_hist("fz", 319.0), now, floor=0.0)
     assert lvl_frozen == "alarm", "a floor metric frozen ABOVE the floor (319≠0) must still alarm (dead producer)"
-    print("pulse selftest: constant + null + stale flagged; floor-at-rest ok, floor-frozen-elsewhere alarms ✓")
+    print("pulse selftest: cross-day constant + null + stale flagged; same-day-rapid ok, floor-at-rest ok, floor-frozen alarms ✓")
     return 0
 
 
