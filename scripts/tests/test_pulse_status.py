@@ -11,14 +11,34 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import pulse  # noqa: E402
 
 
-def test_canary_summary_flags_constant_history(tmp_path, monkeypatch):
+def test_canary_flags_constant_across_distinct_days(tmp_path, monkeypatch):
+    """A should-vary, floorless metric frozen at the SAME value across DISTINCT_DAYS
+    distinct days is the frozen-producer bug (AIR-1591 class) — must alarm CONSTANT."""
+    now = 1_700_000_000.0
+    day = 86400.0
+    hist = tmp_path / "pulse-canary-history.jsonl"
+    # hooks_shown: should-vary, no floor → constancy alarm applies (7.0 != any floor)
+    rows = [{"name": "supervision.hooks_shown", "value": 7.0,
+             "ts": now - (pulse.DISTINCT_DAYS - 1 - i) * day} for i in range(pulse.DISTINCT_DAYS)]
+    hist.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+    monkeypatch.setattr(pulse, "HISTORY", hist)
+    summary = pulse.canary_summary(now=now)
+    hooks = next(a for a in summary["alarms"] if a["name"] == "supervision.hooks_shown")
+    assert "CONSTANT" in hooks["reason"]
+
+
+def test_canary_does_not_flag_subdaily_constant(tmp_path, monkeypatch):
+    """Regression guard (2026-06-24): a daily KPI sampled many times WITHIN one day is
+    constant-within-day but NOT frozen — must NOT alarm. This is the false-alarm that
+    was removed when the constancy test became day-aware (commit 4fdfc11); the prior
+    raw-consecutive test fired on every daily KPI sampled >once/tick."""
     now = 1_700_000_000.0
     hist = tmp_path / "pulse-canary-history.jsonl"
     rows = [{"name": "supervision.hooks_shown", "value": 0.0, "ts": now - i} for i in range(5)]
     hist.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
     monkeypatch.setattr(pulse, "HISTORY", hist)
     summary = pulse.canary_summary(now=now)
-    assert summary["alarm_count"] == len(pulse.INSTRUMENTS)
+    assert [a for a in summary["alarms"] if a["name"] == "supervision.hooks_shown"] == []
 
 
 def test_status_needs_attention_on_questions():
