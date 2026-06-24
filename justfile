@@ -254,6 +254,13 @@ observe-context project='agent-infra' sessions='5' *args:
 blindspot *args:
     uv run --project ~/Projects/emb python3 scripts/blindspot_miner.py --days 7 {{args}}
 
+# Relocate raw agent session logs older than --keep-days to the external SSD
+# (reversible: --restore). The DB is derived + untouched; this only moves raw
+# files + shrinks the indexer's per-run enumeration. Dry-run by default.
+[group('health')]
+archive-logs *args:
+    uv run python3 scripts/archive_raw_logs.py {{args}}
+
 # Fast capped multi-project drift context (no --full; per-project byte caps).
 observe-drift sessions='5' *args:
     uv run python3 scripts/observe_drift_context.py --sessions {{sessions}} {{args}}
