@@ -21,6 +21,7 @@ Sources (highest-leverage first):
 """
 from __future__ import annotations
 
+import importlib.util
 import json
 import re
 import subprocess
@@ -44,6 +45,7 @@ SCORE = {
     "open-finding": 60,
     "doctor": 50,
     "stale-plan": 40,
+    "invocation-noise": 35,  # installed-dep-under-bare-python / wrong-cwd — agent hygiene, NOT a broken tool
 }
 
 
@@ -73,6 +75,17 @@ def _run_json(cmd: list[str]) -> list | dict | None:
         return json.loads(out) if out.strip() else None
     except Exception:
         return None
+
+
+def _module_importable(name: str) -> bool:
+    """True if the top-level module resolves in THIS (repo) env — meaning a
+    `No module named X` failure was an INVOCATION error (bare python / wrong
+    cwd), not a missing dependency. find_spec locates without executing the
+    target; we only probe the top-level package and swallow every error."""
+    try:
+        return importlib.util.find_spec(name.split(".", 1)[0]) is not None
+    except (ImportError, ValueError, ModuleNotFoundError, AttributeError):
+        return False
 
 
 def broken_tools() -> list[dict]:
@@ -116,13 +129,26 @@ def broken_tools() -> list[dict]:
                 "action": "find the stale import vs moved symbol; fix the caller",
             })
     if dep_mods:
-        top = ", ".join(dep_mods[:8]) + (" …" if len(dep_mods) > 8 else "")
+        # Truth-in-headline: a module that imports fine in THIS env was a
+        # bare-python/wrong-cwd INVOCATION error, not a missing dep. Splitting
+        # them stops this cluster from false-claiming "broken-tool #1" every tick
+        # (verified 2026-06-24: the whole cluster — incl. duckdb 18 fails — is
+        # invocation noise; `uv run python3 -c 'import duckdb'` succeeds).
+        installed = sorted({m for m in dep_mods if _module_importable(m)})
+        unresolved = sorted({m for m in dep_mods if m not in installed})
+        # Only genuinely-unresolved modules carry any broken-ish weight — and even
+        # then framed as "verify", since most are wrong-cwd local modules of other
+        # projects, not a dep this repo can add.
+        klass = "invocation-noise"
+        score = SCORE["invocation-noise"] + min(dep_days, 10) + (5 if unresolved else 0)
+        inst_s = f"{len(installed)} import fine under `uv run` (installed, run under bare python: {', '.join(installed[:5])})" if installed else ""
+        unres_s = f"{len(unresolved)} unresolved (likely wrong-cwd local modules: {', '.join(unresolved[:5])})" if unresolved else ""
         out.append({
-            "klass": "broken-tool",
-            "score": SCORE["broken-tool"] + min(dep_days, 20) + 5,  # biggest cluster
-            "title": f"Recurring missing-dep failures across {len(dep_mods)} modules",
-            "why": f"{dep_fails} fails / {dep_days}d (freshest {dep_fresh}d ago) — {top}. Bare/uvx-python invocation (guarded since 2026-06-14) OR uv-run-missing-dep / wrong-cwd (residual)",
-            "action": "residual is uv-run-missing-dep + wrong-cwd local modules (mostly ad-hoc); add deps where a real project lacks them",
+            "klass": klass,
+            "score": score,
+            "title": f"Bare-python / wrong-cwd invocation noise — {len(dep_mods)} modules ({len(installed)} installed, {len(unresolved)} unresolved)",
+            "why": f"{dep_fails} fails / {dep_days}d (freshest {dep_fresh}d ago). " + " · ".join(s for s in (inst_s, unres_s) if s) + ". NOT missing deps for the installed ones.",
+            "action": "guard the invocation site (bare-python → `uv run`; fix cwd) — do NOT add deps for installed modules. Verify only an unresolved module that a real project DECLARES yet lacks.",
         })
     return out
 
