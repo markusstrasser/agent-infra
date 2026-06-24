@@ -388,18 +388,20 @@ def main():
         print("No sessions processed successfully.", file=sys.stderr)
         sys.exit(0)
 
-    # --today attributes load by session START date, not file mtime. Discovery
-    # (find_sessions_by_date) globs by mtime — a cheap SUPERSET, since a session
-    # started today necessarily has mtime today — but re-touched/resumed old session
-    # files (mtime today, started days ago) would otherwise be summed into "today",
-    # re-counting a stable backlog every day and FREEZING the metric (correction_load
-    # stuck at 319 = the AIR-1591 canary alarm, 2026-06-24). Post-filter to today.
-    if args.today:
-        today_str = datetime.now().strftime("%Y-%m-%d")
-        results = [r for r in results if r.get("date") == today_str]
-        if not results:
-            print("No sessions started today.", file=sys.stderr)
-            sys.exit(0)
+    # Attribute load by session START date, not file mtime — for EVERY window
+    # mode. find_sessions_by_date() globs by mtime, which is only a cheap candidate
+    # SUPERSET (mtime >= start-time always, so a session started in-window always
+    # has in-window mtime). Without this post-filter, a re-touched/resumed OLD
+    # session (mtime in-window, started long ago) gets attributed to the window —
+    # re-counting a stable backlog and FREEZING the metric (correction_load stuck
+    # at 319 across an 11-day span = the AIR-1591 canary alarm, 2026-06-24).
+    # Null-date sessions (no first_timestamp) are un-attributable → excluded.
+    since_str = since.strftime("%Y-%m-%d")
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    results = [r for r in results if r.get("date") and since_str <= r["date"] <= today_str]
+    if not results:
+        print(f"No sessions started in window ({since_str}..{today_str}).", file=sys.stderr)
+        sys.exit(0)
 
     if args.output:
         output_path = Path(args.output)
