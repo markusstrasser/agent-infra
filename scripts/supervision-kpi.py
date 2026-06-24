@@ -388,6 +388,19 @@ def main():
         print("No sessions processed successfully.", file=sys.stderr)
         sys.exit(0)
 
+    # --today attributes load by session START date, not file mtime. Discovery
+    # (find_sessions_by_date) globs by mtime — a cheap SUPERSET, since a session
+    # started today necessarily has mtime today — but re-touched/resumed old session
+    # files (mtime today, started days ago) would otherwise be summed into "today",
+    # re-counting a stable backlog every day and FREEZING the metric (correction_load
+    # stuck at 319 = the AIR-1591 canary alarm, 2026-06-24). Post-filter to today.
+    if args.today:
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        results = [r for r in results if r.get("date") == today_str]
+        if not results:
+            print("No sessions started today.", file=sys.stderr)
+            sys.exit(0)
+
     if args.output:
         output_path = Path(args.output)
         output_path.parent.mkdir(parents=True, exist_ok=True)
