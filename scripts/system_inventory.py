@@ -22,6 +22,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 HOME = Path.home()
+LAUNCH_AGENTS = HOME / "Library" / "LaunchAgents"
+SCRIPT_PATH_RE = re.compile(r"(/[^\s\"']+\.(?:sh|py))")
 KINDS_PATH = REPO_ROOT / "config" / "system-kinds.json"
 ORCHESTRATOR_REGISTRY = REPO_ROOT / ".claude/rules/orchestrator-tool-names.md"
 SYSTEM_TAG = re.compile(
@@ -101,6 +103,57 @@ def collect_launchd_jobs() -> list[dict]:
             "ok": exit_code == 0,
         })
     return sorted(jobs, key=lambda j: j["name"])
+
+
+def plist_program_paths(path: Path) -> list[str]:
+    """Script/executable paths referenced in a runtime plist's ProgramArguments.
+
+    Returns absolute *.sh/*.py paths only — interpreters (/bin/bash,
+    /usr/bin/python3) end in bash/python3 and are correctly skipped, and
+    StandardOut/ErrorPath (.out/.err) are never matched. Handles both the
+    bare-wrapper form (["/bin/bash", "/…/foo.sh"]) and the compound form
+    (["/bin/bash", "-lc", "cd … && uv run python3 /…/foo.py"])."""
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return []
+    # Isolate the ProgramArguments <array> so we don't match log paths.
+    m = re.search(r"<key>ProgramArguments</key>\s*<array>(.*?)</array>", text, re.DOTALL)
+    block = m.group(1) if m else text
+    args = re.findall(r"<string>([^<]*)</string>", block)
+    paths: list[str] = []
+    for a in args:
+        paths.extend(SCRIPT_PATH_RE.findall(a))
+    return paths
+
+
+def collect_orphan_scripts() -> list[dict]:
+    """Loaded agent-infra jobs whose ProgramArguments script no longer exists.
+
+    The PRECISE dead-orphan signal — distinct from `loaded_no_manifest_in_repo`
+    (manifest hygiene; over-broad — flags working-but-untracked jobs like
+    gov-report). A deleted wrapper makes the job fail `exit 127` at every fire,
+    silently, until a human happens to read `launchctl list`. This is the
+    LEADING check: it fires the moment the script is gone, before the next
+    scheduled fire. Caught 4 orphans from the d4c553a consolidation (2026-06-24)
+    only after they'd leaked daily failures — this closes that gap."""
+    orphans: list[dict] = []
+    for job in collect_launchd_jobs():
+        if job.get("unavailable") or not job.get("loaded"):
+            continue
+        plist = LAUNCH_AGENTS / f"{job['label']}.plist"
+        if not plist.is_file():
+            continue
+        referenced = plist_program_paths(plist)
+        missing = [p for p in referenced if not Path(p).exists()]
+        if missing:
+            orphans.append({
+                "name": job["name"],
+                "label": job["label"],
+                "missing_paths": missing,
+                "last_exit": job.get("last_exit"),
+            })
+    return orphans
 
 
 def collect_plist_manifest() -> list[dict]:
@@ -234,13 +287,16 @@ def collect_drift() -> dict:
         m["name"] for m in collect_plist_manifest()
         if not m.get("tagged") and str(m.get("source", "")).startswith("ops/")
     ]
+    orphan_scripts = collect_orphan_scripts()
     return {
         "untagged_loaded": untagged_loaded,
         "untagged_ops_manifest": untagged_ops,
         "manifest_not_loaded": manifest_not_loaded,
         "loaded_no_manifest_in_repo": loaded_no_source,
+        "orphan_dead_script": orphan_scripts,
         "llm_launchd_jobs": llm_jobs,
-        "has_drift": bool(untagged_loaded or untagged_ops or manifest_not_loaded or loaded_no_source),
+        "has_drift": bool(untagged_loaded or untagged_ops or manifest_not_loaded
+                          or loaded_no_source or orphan_scripts),
     }
 
 
@@ -318,6 +374,10 @@ def main() -> int:
         if "--json" in args:
             print(json.dumps(drift, indent=2))
         else:
+            for o in drift.get("orphan_dead_script", []):
+                exit_note = f" (exit {o['last_exit']})" if o.get("last_exit") else ""
+                print(f"✗ ORPHAN dead script{exit_note}: {o['name']} → {', '.join(o['missing_paths'])} "
+                      f"(loaded but script deleted — `launchctl bootout` + rm the plist, or restore the script)")
             if drift["loaded_no_manifest_in_repo"]:
                 print(f"loaded but no ops plist: {', '.join(drift['loaded_no_manifest_in_repo'])}")
             if drift.get("untagged_ops_manifest"):

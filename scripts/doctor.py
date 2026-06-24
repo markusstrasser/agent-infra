@@ -388,6 +388,31 @@ def check_codebase_map_gitignore(project_dir: Path) -> list[Check]:
     return [c.ok("generated map outputs gitignored + untracked")]
 
 
+def check_launchd_script_integrity() -> list[Check]:
+    """A loaded launchd job whose ProgramArguments script was deleted.
+
+    This is the LEADING orphan signal — distinct from a non-zero last_exit
+    (lagging: the job must fire and fail first). A consolidation that deletes a
+    wrapper .sh but leaves the plist loaded makes the job fail `exit 127` daily,
+    silently, until someone reads `launchctl list`. system_inventory owns the
+    truth; this is doctor's daily reader (the d4c553a consolidation leaked 4
+    such orphans for days before a SWEEP caught them — 2026-06-24)."""
+    try:
+        from system_inventory import collect_orphan_scripts
+        orphans = collect_orphan_scripts()
+    except Exception as exc:
+        return [Check("launchd-integrity", "global").warn(f"check failed: {exc}")]
+    if not orphans:
+        return [Check("launchd-integrity", "global").ok("all loaded agent-infra jobs resolve their scripts")]
+    checks = []
+    for o in orphans:
+        exit_note = f", exit {o['last_exit']}" if o.get("last_exit") else ""
+        checks.append(Check(f"launchd-integrity:{o['name']}", "global").fail(
+            f"loaded but script deleted{exit_note}: {', '.join(o['missing_paths'])} "
+            f"— `launchctl bootout gui/$(id -u)/{o['label']}` + rm the plist, or restore the script"))
+    return checks
+
+
 def check_telemetry_freshness() -> list[Check]:
     """Detect silent hook failures by comparing transcript activity to receipt/log output."""
     checks = []
@@ -739,6 +764,7 @@ def run_all_checks(project_filter: str | None = None) -> list[Check]:
         all_checks.extend(check_orphaned_findings())
         all_checks.extend(check_decisions_pending())
         all_checks.extend(check_agentlogs_indexer())
+        all_checks.extend(check_launchd_script_integrity())
         all_checks.extend(check_uv_tool_editables())
         all_checks.extend(check_approval_tiers())
         all_checks.extend(check_critique_routing_verdict())
