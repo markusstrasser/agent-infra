@@ -216,7 +216,31 @@ harness-eval:
     uv run python3 -m unittest discover -s "$HOME/Projects/skills/observe/tests" -p 'test_observe_gates.py' -q
     uv run python3 scripts/system_inventory.py --check
     uv run python3 scripts/approval_tiers.py
+    just stale-pointer-lint
     echo "OK: harness-eval"
+
+# Lint: skills/rules/hooks must not point at retired or relocated infra (drift guard).
+# Add a row when a disk retires or a source tree moves. Wired into harness-eval.
+[group('health')]
+stale-pointer-lint:
+    #!/usr/bin/env bash
+    set -uo pipefail
+    # pattern (fixed-string) | human reason
+    checks=(
+      '/Volumes/SSK1TB|retired external disk 2026-06-24 — use /Volumes/2TBPNY'
+      'agent-infra/scripts/corpus/|corpus-core extracted — use ~/Projects/substrate/packages/corpus-core/'
+    )
+    roots=("$HOME/Projects/skills" "$HOME/.claude/rules" "$HOME/Projects/agent-infra/.claude/rules")
+    bad=0
+    for c in "${checks[@]}"; do
+      pat="${c%%|*}"; why="${c#*|}"
+      if hits=$(rg -n --no-heading -F -g '*.md' -g '*.sh' "$pat" "${roots[@]}" 2>/dev/null); then
+        echo "✗ stale infra pointer — $why"
+        printf '%s\n' "$hits" | sed 's/^/    /'
+        bad=1
+      fi
+    done
+    [ "$bad" -eq 0 ] && echo "OK: no stale infra pointers" || exit 1
 
 # Eve-shaped session replay from agentlogs (structural forensics).
 [group('health')]
