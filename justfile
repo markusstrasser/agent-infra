@@ -517,17 +517,7 @@ gov-report *args:
 behavioral-harness-smoke *args:
     uv run python3 scripts/behavioral_harness_replay.py {{args}}
 
-# SHADOW: count high-blast-radius diffs that landed with no test + no review (demand probe for an auto-review gate; promote/cut ~2026-06-21)
-[group('epistemic')]
-risky-diff-shadow *args:
-    uv run python3 scripts/risky_diff_review_shadow.py --days 30 --log {{args}}
-
-# Consumer summary over the accumulated risky-diff shadow log (the promote/cut input)
-[group('epistemic')]
-risky-diff-report *args:
-    uv run python3 scripts/risky_diff_review_shadow.py --report {{args}}
-
-# Feature-work loop decompose-quality shadow (report-only; sibling to risky-diff-shadow).
+# Feature-work loop decompose-quality shadow (report-only).
 # Reads live from agentlogs.db — no accumulation log, the DB is the durable substrate.
 [group('epistemic')]
 feature-loop-report *args:

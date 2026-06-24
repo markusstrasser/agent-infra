@@ -2,8 +2,7 @@
 """Feature-loop decompose-quality SHADOW probe — REPORT-ONLY.
 
 Measures (does NOT enforce) the one UNMEASURED moment of the feature-work loop:
-**decomposition quality at fan-out.** The review/merge moment is already covered by
-`risky_diff_review_shadow.py`; this is its decompose-time sibling. Sibling decision:
+**decomposition quality at fan-out** (the decompose-time half). Decision:
 `decisions/2026-06-16-feature-work-loop-binding-measurement-first.md`.
 
 Per-fan-out-session (sessions.subagent_count > 1) over a window:
@@ -13,7 +12,7 @@ Per-fan-out-session (sessions.subagent_count > 1) over a window:
      v_run_kind) and >=2 distinct worktree cwds (cross-worktree overlap, via runs.cwd).
      Classified code-vs-record: an append-only coordination file (LOG.md / MEMORY.md /
      *.jsonl) touched by N agents is BENIGN by design, not merge-hell — dropped from the
-     headline, same false-positive class the review-side shadow drops (record != code).
+     headline, not merge-hell (record != code).
   2. THROUGHPUT — lines per landed commit vs the 200-400 empirical reviewability band
      (CONSUMED from git_commits via the sessions join).
   3. REWORK — per-session fragility_pct = commits later fixed within 3 days
@@ -22,9 +21,9 @@ Per-fan-out-session (sessions.subagent_count > 1) over a window:
 Adds exactly ONE query (overlap); everything else reads existing agentlogs views.
 Report-only: no blocking, no surface change, no writes to the DB.
 
-Consumer = the decompose-side demand question (sibling to risky-diff-shadow's review-side
-one): does CODE overlap correlate with rework? High + correlated -> justifies a
-decompose-time gate (Phase 3). Near-zero -> decomposition is already clean -> cut.
+Consumer = the decompose-side demand question: does CODE overlap correlate with rework?
+High + correlated -> justifies a decompose-time gate (Phase 3). Near-zero -> decomposition
+is already clean -> cut.
 
     uv run python3 scripts/feature_loop_probe.py --report --days 60
     uv run python3 scripts/feature_loop_probe.py --report --json
@@ -46,7 +45,7 @@ from pathlib import Path
 DB = Path.home() / ".claude" / "agentlogs.db"
 
 # Append-only coordination files: ">=2 runs touched" is benign (designed for concurrent
-# append), NOT merge-hell. Same false-positive class risky_diff_review_shadow drops.
+# append), NOT merge-hell — dropped from the headline (record != code).
 _RECORD_RE = re.compile(
     r"(^|/)(LOG|MEMORY|CYCLE|MAINTAIN|TODOS?|PRIORITIES|CHANGELOG)\.md$"
     r"|improvement-log\.md$|(-|_)log\.(md|jsonl|json)$|\.jsonl$"

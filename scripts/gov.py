@@ -56,10 +56,6 @@ try:
 except Exception:
     find_build_then_undo = None
 try:
-    from risky_diff_review_shadow import find_unreviewed_risky
-except Exception:
-    find_unreviewed_risky = None
-try:
     from gov_intake import load_pending as load_pending_corrections
 except Exception:
     load_pending_corrections = None
@@ -371,12 +367,6 @@ def build_report(days: int, write_snapshot: bool) -> dict:
             btu = [f for f in find_build_then_undo(days) if f.get("confidence") == "high"]
         except Exception as e:  # noqa: BLE001
             btu = [{"error": str(e)}]
-    unreviewed_risky = []
-    if find_unreviewed_risky:
-        try:
-            unreviewed_risky = find_unreviewed_risky(days)
-        except Exception as e:  # noqa: BLE001
-            unreviewed_risky = [{"error": str(e)}]
     corrections = []
     if load_pending_corrections:
         try:
@@ -392,7 +382,6 @@ def build_report(days: int, write_snapshot: bool) -> dict:
     return {
         "days": days, "snapshot": snap, "trend": trend, "invariants": invariants,
         "advisory_noise": noise, "shrink": shrink, "build_then_undo": btu,
-        "unreviewed_risky": unreviewed_risky,
         "corrections": corrections,
         "reasoning_signals": reasoning_signals(days),
         "steer_linkage": steer_linkage,
@@ -479,22 +468,6 @@ def render_md(rep: dict) -> str:
             L.append(f"- … +{len(churn) - 15} more churn")
         if not churn:
             L.append("- no suspect churn — all high-confidence findings are regime transitions")
-    else:
-        L.append("- none (or analyzer unavailable)")
-    L.append("")
-
-    L.append("## Unreviewed risky diffs (SHADOW — high-blast-radius, no test, no review)")
-    ur = rep.get("unreviewed_risky", [])
-    if ur:
-        for f in ur[:15]:
-            if "error" in f:
-                L.append(f"- (analyzer error: {f['error']})")
-            else:
-                L.append(f"- `{f.get('sha')}` {f.get('date')} [{','.join(f.get('blast_reasons', []))}]"
-                         f" — {f.get('subject')}")
-        if len(ur) > 15:
-            L.append(f"- … +{len(ur) - 15} more")
-        L.append("- _shadow only — promote/cut ~2026-06-21 (`just risky-diff-report`)_")
     else:
         L.append("- none (or analyzer unavailable)")
     L.append("")
