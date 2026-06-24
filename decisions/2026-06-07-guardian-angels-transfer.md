@@ -135,3 +135,5 @@ flagging (not applied — constitution is human-gated): the Generative Principle
 unconditional "autonomy is the primary objective" is, per Markus, *conditional on
 a verifier existing* — autonomy-max is correct only where ground-truth eval bounds
 it.
+
+> **⚠ Superseded-by [[2026-06-24-risky-diff-review-shadow-retired]] (2026-06-24):** a later decision supersedes/reverses this one. This ADR is NOT a current direction — see [[2026-06-24-risky-diff-review-shadow-retired]] and REFRAMINGS. (auto-stamped: posttool-decision-backstamp)

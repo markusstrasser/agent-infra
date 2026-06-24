@@ -122,6 +122,10 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-06-21-llm-error-vectors-since-sonnet-3.5.md` | Persistent LLM Error Vectors Since Sonnet 3.5 — Full-Evidence Memo (~86 vectors/10 families, capability-vs-reliability split, FIXED/PERSISTS/UNMEASURED ledger) | Any claim about LLM/agent failure modes, sycophancy/hallucination/reliability state, or "did newer models fix X?"; designing a hook/eval against a known error vector; arguing capability-vs-reliability or verification-bound autonomy |
 | `2026-06-21-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-21 (deterministic) | TODO |
 | `2026-06-21-substrate-knowledge-graph-evolution.md` | The Substrate Knowledge Graph — Evolution Across Repos: savant/synth/synthoric → selve/phenome → genomics/intel/personal → substrate/corpus; verifier-conditioned divergence; the build-then-retire attestation arc | Tracing the substrate/KG lineage or any rename; understanding WHY it was reimplemented (~5×); onboarding to phenome/genomics/intel/substrate stores; proposing new substrate/attestation work |
+| `2026-06-22-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-22 (deterministic) | TODO |
+| `2026-06-23-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-23 (deterministic) | TODO |
+| `2026-06-24-rsi-loop-vs-harness-evolution-sweep.md` | Agent-Infra Sweep — our RSI loop vs the harness-self-evolution frontier (2026... | TODO |
+| `2026-06-24-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-24 (deterministic) | TODO |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
 | `adversarial-case-library.md` | Adversarial Case Library: The Best "Calling BS" Reviews | TODO |
 | `agent-behavior-refresh-2026-04.md` | Agent Behavior Delta — Memory, Self-Modification, Sycophancy | TODO |
@@ -311,5 +315,6 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `trending-scout-2026-06-13.md` | Trending Scout — 2026-06-13 | TODO |
 | `trending-scout-2026-06-15.md` | Trending Scout — 2026-06-15 | TODO |
 | `trending-scout-2026-06-19.md` | Trending Scout — 2026-06-19 | TODO |
+| `trending-scout-2026-06-24.md` | Trending Scout — 2026-06-24 | TODO |
 | `weekly-agent-infra-sweep-2026-04-02.md` | Weekly Agent Infra Sweep 2026 04 02 | TODO |
 | `wiki-vs-flat-for-agents.md` | Wiki Vs Flat For Agents | TODO |

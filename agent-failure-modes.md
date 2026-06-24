@@ -207,7 +207,7 @@ FM-ID: fm6-debate-martingale
 signature: multi-agent debate (models arguing) used for correctness instead of independent assessments + majority vote
 target_surface: /critique model mode (structure as independent assessments + voting); model-review skill
 status: active
-evidence_count: 7
+evidence_count: 10
 -->
 ```
 IF multi-agent debate used for correctness
@@ -622,7 +622,7 @@ FM-ID: fm24-retry-without-diagnosis
 signature: same tool called 3+ times with varied params and no diagnosis step between failures
 target_surface: spinning-detector / tool-failure hooks; decision-point gate before blind retry
 status: active
-evidence_count: 1204
+evidence_count: 1237
 -->
 ```
 IF external tool/API call fails
