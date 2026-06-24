@@ -3671,7 +3671,7 @@ A source that fails the watchdog (e.g. the oversized `~/.gemini/tmp/{intel,genom
 - **Failure mode:** hook over-matching
 - **Proposed fix:** in `~/Projects/skills/hooks/pretool-bash-loop-guard.sh`, strip `<<['"]?MARKER … MARKER` spans before the do/then scan. Strictly fewer false positives; true positives unaffected.
 - **Root cause:** system-design
-- **Status:** [ ] proposed
+- **Status:** [obs] proposed
 
 ### [2026-06-10] [obs] BENCHMARK FLAKE: structural fix over threshold-relaxation (evo)
 - **Session:** evo e24a68d3
@@ -3836,7 +3836,7 @@ A source that fails the watchdog (e.g. the oversized `~/.gemini/tmp/{intel,genom
 - **Root cause:** skill-coverage — the externalization principle was applied to dispatch but not to first-party search.
 - **Proposed fix:** REFINED 2026-06-14 (maintain tick, after reading the hook): a first-party-search HOOK is **not the right lever** — Grep/Read fire constantly and "is this search research-intent" is a *semantic* trigger (over-hooking a semantic predicate; the 34k-FTS note is the *dispatch* hook's deferred-v2, a separate concern). Tractable lever = a one-line generalization of the existing global "inventory before research" rule to name first-party search (rule, not hook). Shared infra → sign-off-ready draft written to `decisions-pending/2026-06-14-first-party-search-inventory.md`.
 - **Status:** [obs] (behavioral, recurrence=2 of the class; first-party surface = recurrence-1)
-- **Status:** [ ] proposed → escalated to `decisions-pending/2026-06-14-first-party-search-inventory.md` (rule-generalization, human sign-off)
+- **Status:** [obs] proposed → escalated to `decisions-pending/2026-06-14-first-party-search-inventory.md` (rule-generalization, human sign-off)
 
 ### [2026-06-14] [COVERAGE GAP / P8 silent-proxy]: Health loop missed a dead CLI — checks were green but didn't exercise it
 - **Session:** agent-infra (this /improve loop) — user: "SOOO why didn't you find this bug?"
