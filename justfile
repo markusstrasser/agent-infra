@@ -247,6 +247,13 @@ prior-context-stats *args:
 observe-context project='agent-infra' sessions='5' *args:
     uv run python3 scripts/observe_prepare_context.py --project {{project}} --sessions {{sessions}} {{args}}
 
+# Runs in emb's env so agent-infra never inherits torch (blindspot_miner.py header);
+# pulse-tick runs the same miner daily — this is the manual on-demand path.
+# Loop-miss miner (emb-contrastive over recent sessions) → .claude/blindspot-digest.md.
+[group('health')]
+blindspot *args:
+    uv run --project ~/Projects/emb python3 scripts/blindspot_miner.py --days 7 {{args}}
+
 # Fast capped multi-project drift context (no --full; per-project byte caps).
 observe-drift sessions='5' *args:
     uv run python3 scripts/observe_drift_context.py --sessions {{sessions}} {{args}}
