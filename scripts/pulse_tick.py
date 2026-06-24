@@ -85,9 +85,13 @@ def _drift_sections() -> list[dict]:
 
 
 def _phase_sense() -> dict:
+    # drift_flags are ADVISORY output (context-budget warnings, orphan candidates,
+    # DUE sweeps, stranded worktrees) surfaced to the human via the status digest/inbox.
+    # Their presence is the STEADY STATE, not a tick failure — conflating "advisory drift
+    # exists" with "the tick failed" pinned pulse-tick permanently exit-1 → permanently RED
+    # in launchd/system-inventory, making the health sweep pure noise. exit_code must reflect
+    # EXECUTION health only: a canary ALARM (dead instrument, below) or a phase crash.
     out: dict = {"ok": True, "drift_flags": _drift_sections()}
-    if out["drift_flags"]:
-        out["ok"] = False
 
     # blindspot miner (emb env)
     if EMB.is_dir():
