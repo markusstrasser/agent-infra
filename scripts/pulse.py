@@ -106,7 +106,7 @@ class Instrument(NamedTuple):
 
 INSTRUMENTS = {
     "supervision.hooks_shown":     Instrument(probe_hooks_shown,     "should-vary", "hooks surfaced/turn (was constant 0 for 1591 sessions)"),
-    "supervision.air":             Instrument(probe_air,             "should-vary", "corrections after a shown hook (was null — the dead-field bug)"),
+    "supervision.air":             Instrument(probe_air,             "should-vary", "corrections after a shown hook (was null — the dead-field bug)", floor=0.0),
     "supervision.correction_load": Instrument(probe_correction_load, "should-vary", "total correction load/day — the declining-supervision objective", floor=0.0),
 }
 
