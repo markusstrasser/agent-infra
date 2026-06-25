@@ -48,17 +48,86 @@ def estimate_cost(provider: str, model: str, prompt_tok: int, completion_tok: in
     return 0.0  # unknown — undercount rather than guess
 
 
+def metered_today(args) -> None:
+    """Today's genuinely-billed spend over the funnel ledger, grouped by spender.
+
+    Only `transport == "api"` rows are metered — subscription/CLI transports are $0
+    and are excluded (the default report over-counts them by pricing tokens regardless
+    of transport; for cap-enforcement only the billed rows matter). This is the
+    observability half of the $70-silent-spend backstop (improvement-log 2026-06-25):
+    a backgrounded worker's metered escalation is invisible to the foreground-Bash
+    cost-guard but lands in this ledger like every other llmx call.
+    """
+    today = dt.datetime.now(dt.timezone.utc).date().isoformat()
+    by_spender: dict[tuple, dict] = defaultdict(lambda: {"calls": 0, "in_tok": 0, "out_tok": 0, "cost": 0.0})
+    total = {"calls": 0, "in_tok": 0, "out_tok": 0, "cost": 0.0}
+    for line in args.log.read_text().splitlines():
+        if not line.strip():
+            continue
+        try:
+            r = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not (r.get("ts", "") or "").startswith(today):
+            continue
+        if r.get("transport") != "api":  # subscription/CLI = $0; only billed rows count
+            continue
+        prov, model = r.get("provider", "?"), r.get("model", "?")
+        p_tok = r.get("prompt_tokens") or 0
+        out_tok = (r.get("completion_tokens") or 0) + (r.get("reasoning_tokens") or 0)
+        cost = estimate_cost(prov, model, p_tok, r.get("completion_tokens") or 0, r.get("reasoning_tokens") or 0)
+        repo = (r.get("cwd", "") or "").rstrip("/").split("/")[-1] or "?"
+        key = (r.get("caller") or "?", repo)
+        for d in (by_spender[key], total):
+            d["calls"] += 1
+            d["in_tok"] += p_tok
+            d["out_tok"] += out_tok
+            d["cost"] += cost
+
+    alarm = args.alarm is not None and total["cost"] >= args.alarm
+    if args.json:
+        print(json.dumps({
+            "date": today,
+            "metered_total_usd": round(total["cost"], 2),
+            "metered_calls": total["calls"],
+            "alarm_threshold_usd": args.alarm,
+            "alarm": alarm,
+            "by_spender": [{"caller": k[0], "repo": k[1], **{kk: (round(vv, 4) if kk == "cost" else vv) for kk, vv in v.items()}}
+                           for k, v in sorted(by_spender.items(), key=lambda x: -x[1]["cost"])],
+            "note": "transport==api only; cost is an estimate from approximate per-M rates (undercounts unpriced models).",
+        }, indent=2))
+    else:
+        print(f"# llmx metered spend (transport==api) — {today} ({total['calls']} billed calls)")
+        print(f"{'caller':22s} {'repo':18s} {'calls':6s} {'$est':8s}")
+        for k, v in sorted(by_spender.items(), key=lambda x: -x[1]["cost"]):
+            print(f"{k[0][:22]:22s} {k[1][:18]:18s} {v['calls']:6d} ${v['cost']:>6.2f}")
+        print("-" * 60)
+        print(f"{'TOTAL':47s} ${total['cost']:>6.2f}" + (f"  ⚠ ALARM ≥ ${args.alarm}" if alarm else ""))
+        print("Note: estimate; transport==api only (subscription/CLI = $0, excluded).")
+    sys.exit(1 if alarm else 0)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Session cost meter (llmx-usage.jsonl).")
     parser.add_argument("--hours", type=float, default=6.0, help="Window in hours (default 6).")
     parser.add_argument("--since", type=str, default=None, help="ISO timestamp lower bound (overrides --hours).")
     parser.add_argument("--json", action="store_true", help="Machine-readable JSON output.")
     parser.add_argument("--log", type=pathlib.Path, default=pathlib.Path.home() / ".claude" / "llmx-usage.jsonl")
+    parser.add_argument("--metered-today", action="store_true",
+                        help="Only today's genuinely-billed (transport==api) spend, grouped by (caller, cwd). "
+                             "This is the surface-agnostic funnel: every llmx call — foreground Bash, backgrounded "
+                             "worker, or Python subprocess — appends here, so background/pipeline spend the "
+                             "foreground-Bash cost-guard cannot see surfaces here. Exits 1 if --alarm exceeded.")
+    parser.add_argument("--alarm", type=float, default=None,
+                        help="With --metered-today: exit 1 if today's metered spend (USD) >= this. For doctor/sweep alarms.")
     args = parser.parse_args()
 
     if not args.log.exists():
         print(f"No usage log at {args.log}", file=sys.stderr)
         sys.exit(1)
+
+    if args.metered_today:
+        return metered_today(args)
 
     now = dt.datetime.now(dt.timezone.utc)
     if args.since:

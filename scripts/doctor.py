@@ -413,6 +413,39 @@ def check_launchd_script_integrity() -> list[Check]:
     return checks
 
 
+def check_metered_spend() -> list[Check]:
+    """Surface today's genuinely-billed (transport==api) llmx spend across ALL surfaces.
+
+    The foreground-Bash cost-guard hook cannot see metered calls made inside backgrounded
+    workers / Python subprocesses (the $70-silent-spend gap, improvement-log 2026-06-25).
+    Every llmx call lands in the funnel ledger regardless of surface, so a daily rollup over
+    `transport==api` rows makes background spend visible. Warn at $10, fail at the
+    constitutional $25 daily cap (invariants.md). Observability/alarm only — hard block
+    enforcement is the human-gated decisions-pending fork.
+    """
+    c = Check("metered-spend:today", "global")
+    out = run(
+        ["uv", "run", "python3", str(Path(__file__).parent / "usage-check.py"),
+         "--metered-today", "--json"],
+        cwd=str(Path(__file__).parent.parent), timeout=20,
+    )
+    if out is None:
+        return [c.ok("usage-check unavailable — skipped")]
+    try:
+        data = json.loads(out)
+    except json.JSONDecodeError:
+        return [c.ok("unparseable — skipped")]
+    spend = data.get("metered_total_usd", 0.0)
+    calls = data.get("metered_calls", 0)
+    top = data.get("by_spender", [])
+    who = f" top={top[0]['caller']}@{top[0]['repo']}" if top else ""
+    if spend >= 25:
+        return [c.fail(f"${spend:.2f} metered today ({calls} calls, cap $25){who}")]
+    if spend >= 10:
+        return [c.warn(f"${spend:.2f} metered today ({calls} calls){who}")]
+    return [c.ok(f"${spend:.2f} metered today ({calls} calls)")]
+
+
 def check_telemetry_freshness() -> list[Check]:
     """Detect silent hook failures by comparing transcript activity to receipt/log output."""
     checks = []
@@ -759,6 +792,7 @@ def run_all_checks(project_filter: str | None = None) -> list[Check]:
         all_checks.extend(check_memory_health())
         all_checks.extend(check_stale_agents())
         all_checks.extend(check_telemetry_freshness())
+        all_checks.extend(check_metered_spend())
         all_checks.extend(check_test_health())
         all_checks.extend(check_orphaned_generators())
         all_checks.extend(check_orphaned_findings())
