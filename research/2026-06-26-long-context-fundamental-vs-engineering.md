@@ -119,6 +119,28 @@ The lone cheap mitigation — **recitation** (prompt the model to re-state the r
 
 ---
 
+## Last-quarter update (2026-03-26 → 2026-06-26)
+
+A dedicated recency pass (the first pass under-weighted it). **Nothing overturns the three-way split — the new work lands squarely in the predicted buckets and sharpens two of them.**
+
+**The big one: "hybrid" is now the consensus answer to the cost-vs-recall tradeoff [Phenomenon 1].** My memo predicted "the actual production answer is a hybrid (a few full-attention layers in an SSM stack), conceding the point." The last quarter is dominated by exactly this, and one paper states the tradeoff *as architecture*, verbatim:
+- **Blending Complementary Memory Systems in Hybrid Quadratic-Linear Transformers** (NeurIPS 2025) — combines **KV-memory** (softmax attention: "precise retrieval but constrained by quadratic complexity") with **FW-memory** (linear/fast-weight: cheap but "individually limited"). That sentence *is* the fundamental tradeoff in this memo. [SOURCE: papers.neurips.cc, 2025]
+- **Hybrid Architectures for Language Models: Systematic Analysis and Design Insights** (TMLR, 2026-04-23) — attention+Mamba "balance modeling quality and computational efficiency, particularly for long-context."
+- **Hybrid Linear Attention Done Right** (Chen et al., 2026-06-01) — distillation pipeline converting pretrained transformers → hybrids for extremely long contexts.
+- **The Key to State Reduction in Linear Attention: A Rank-based Perspective** (2026-03-26) — shows **rank-collapse in linear attention's associative memory** and prunes hidden state 50%. This is the fixed-state lossy-recall floor [Claim 6] made mechanically concrete: linear attention's "memory" rank-collapses, which is *why* it can't do exact recall.
+
+**The fundamental floor [Phenomenon 3] got a fresh, independent, controlled restatement.** A mechanistic writeup (Timeless, 2026-06-17) frames it as the field's now-standard "**two failures, not one**" — positional (20–30 pt mid-context drop) vs length (accuracy falls **0.92 → 0.68** with evidence *fixed and well-placed*, isolating length from difficulty). Same finding as Du et al., now treated as the load-bearing distinction. New granularity: **Omission Constraints Decay While Commission Constraints Persist** (Gamage, 2026-04, 4,416 trials) — *which* constraints rot first.
+
+**Attention-dilution fixes [Phenomenon 2] keep arriving — SSMax wasn't the last word:**
+- **Negative Attention is What Pre-trained Transformers Are Missing** (2026-06-02) — traces "attention noise" (over-attending to BOS + high-frequency function words) and adds differential/negative attention to de-dilute. A *different* mechanism from SSMax's logit scaling, same target.
+
+**Cost-side [Phenomenon 1, engineering] keeps falling, and capacity keeps climbing — but it's still capacity, not utility:**
+- **InfiniteHiP** (TMLR, 2026-06-13) — **3M tokens on a single GPU** via hierarchical token pruning + KV offload, and generalizes past training length.
+- **KVzip** (NeurIPS 2025) — query-agnostic KV compression via context reconstruction; **SparDA** (arXiv:2606.04511) and **hybrid sparse CPU-GPU attention** (arXiv:2605.07719) attack the PCIe/KV-offload bottleneck; both note the sparse-*selection* step itself can retain O(T²) — the cost whack-a-mole.
+- Eval is moving to **10M-token benchmarks** (CorpusQA, arXiv:2601.14952) and MECW got a formal writeup ("Context Is What You Need," 2026-04-29).
+
+**Net update:** confidence on the memo's verdict goes **up**, not down. The floor (fixed-capacity reasoning decay) is now the field's explicit framing; the escape from the cost-vs-recall tradeoff has visibly converged on **hybrids** (the predicted concession); and the "100M/3M is capacity not utility" point is reinforced by 3M-on-one-GPU *engineering* wins sitting right next to "1M token lie" *utility* critiques. No source in the last quarter claims the fundamental floor has been beaten.
+
 ## Sources & search log
 
 **Retrieved this session (Exa, research-paper category):**
