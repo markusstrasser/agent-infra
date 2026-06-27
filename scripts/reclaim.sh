@@ -91,6 +91,21 @@ cmd_report() {
   info "top RAM:"
   ps axo rss=,comm= 2>/dev/null | sort -rn | head -5 | awk '{rss=$1;$1="";printf "      %5.0f MB %s\n",rss/1024,$0}'
 
+  # Append-only snapshot → cross-OS RAM baseline (wired is the kernel/OS-footprint
+  # signal; "used" is ~constant by design, compressor/swap are workload-driven).
+  # Tag os+build so an OS bump is a queryable before/after, not lost to stdout.
+  {
+    local _wired _compr _swap _la
+    _wired=$(vm_stat 2>/dev/null | awk '/Pages wired down/{gsub(/\./,"",$NF);printf "%.0f",$NF*16384/1048576}')
+    _compr=$(vm_stat 2>/dev/null | awk '/Pages occupied by compressor/{gsub(/\./,"",$NF);printf "%.0f",$NF*16384/1048576}')
+    _swap=$(sysctl -n vm.swapusage 2>/dev/null | awk '{for(i=1;i<=NF;i++)if($i=="used"){print $(i+2);break}}')
+    _la=$(sysctl -n vm.loadavg 2>/dev/null | awk '{print $2}')
+    printf '{"ts":"%s","os":"%s","build":"%s","wired_mb":%s,"compressor_mb":%s,"swap_used":"%s","load1":"%s"}\n' \
+      "$(date -u +%FT%TZ)" "$(sw_vers -productVersion 2>/dev/null)" "$(sw_vers -buildVersion 2>/dev/null)" \
+      "${_wired:-0}" "${_compr:-0}" "${_swap:-?}" "${_la:-?}" \
+      >> "$LOG_DIR/mem-history.jsonl" 2>/dev/null || true
+  }
+
   sect "SSD wear"
   local ssd; ssd=$(smartctl -a disk0 2>/dev/null)
   if [ -n "$ssd" ]; then printf '%s\n' "$ssd" | awk -F: '/Percentage Used|Data Units Written|Available Spare:/{gsub(/^ +/,"",$2);print "    "$1": "$2}'
