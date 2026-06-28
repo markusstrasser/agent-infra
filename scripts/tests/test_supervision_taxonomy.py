@@ -82,7 +82,7 @@ def test_taxonomy_is_closed_and_complete():
 def test_single_source_no_duplicated_regex_in_consumers():
     """epistemic principle #9: the correction regexes live ONLY in the taxonomy. The consumers
     must import it, not re-state CORRECTION_PATTERNS / BLINDSPOT_PATTERNS / BLIND_SEEDS."""
-    for fname in ("supervision-kpi.py", "blindspot_miner.py"):
+    for fname in ("supervision-kpi.py", "supervision_session.py", "blindspot_miner.py"):
         src = (REPO / "scripts" / fname).read_text()
         assert "import supervision_taxonomy" in src, f"{fname} must load the taxonomy"
         for banned in ("BLINDSPOT_PATTERNS", "CORRECTION_PATTERNS", "BLIND_SEEDS", "NORMAL_SEEDS ="):

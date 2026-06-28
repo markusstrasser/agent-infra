@@ -291,7 +291,7 @@ def run_classify(use_llm: bool = False, min_cluster: int = MIN_CLUSTER,
                                                  s.get("trigger", "")[:160])) != 0:
                         handled = False  # attach failed → retry next run, don't process
             auto_recorded.append({"fm_id": cls["fm_id"], "summary": summary,
-                                  "confidence": cls["confidence"]})
+                                  "confidence": cls["confidence"], "lifecycle": "modify"})
             # Propose the ENFORCER once per FM (behavior change → quarantine)
             if cls["fm_id"] not in fm_enforced:
                 if cap_open():
@@ -334,6 +334,7 @@ def _build_proposal(cluster, cls, summary, use_llm) -> dict:
     enf = propose_enforcer(cluster, cls)
     prop = {
         "schema": "reflect.proposal.v1", "ts": _utc_now(), "status": "pending",
+        "lifecycle": "add",
         "action": cls["action"], "fm_id": cls["fm_id"], "merges": cls["merges"],
         "axis": cls["axis"], "confidence": cls["confidence"],
         "trace": cls.get("trace", {}),  # auditable: best FM, sim, anchor, threshold

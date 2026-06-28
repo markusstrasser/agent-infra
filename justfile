@@ -214,7 +214,7 @@ harness-eval:
     uv run python3 "$HOME/Projects/skills/hooks/test_userprompt_prior_context.py"
     uv run python3 -m pytest scripts/tests/test_orient.py scripts/tests/test_system_inventory.py -q
     uv run python3 -m unittest discover -s "$HOME/Projects/skills/observe/tests" -p 'test_observe_gates.py' -q
-    uv run python3 scripts/system_inventory.py --check
+    uv run python3 scripts/system_inventory.py --render --check
     uv run python3 scripts/approval_tiers.py
     just stale-pointer-lint
     echo "OK: harness-eval"
@@ -289,6 +289,21 @@ archive-logs *args:
 observe-drift sessions='5' *args:
     uv run python3 scripts/observe_drift_context.py --sessions {{sessions}} {{args}}
 
+# Observe supervision lane — direction vector report (supervision.report.v1).
+[group('health')]
+supervision-audit days='7' project='' *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    run_root="${OBSERVE_ARTIFACT_ROOT:-$PWD/artifacts/observe/supervision}"
+    mkdir -p "$run_root"
+    proj=()
+    [[ -n "{{project}}" ]] && proj=(--project "{{project}}")
+    exec uv run python3 scripts/supervision-kpi.py \
+        --days {{days}} "${proj[@]}" \
+        --report "$run_root/supervision-report.json" \
+        --output "$run_root/supervision-sessions.jsonl" \
+        {{args}}
+
 # Mechanical observe promotion gates (health · saturation · promote-check · preflight).
 observe-gates cmd='preflight' *args:
     #!/usr/bin/env bash
@@ -309,9 +324,19 @@ observe-preflight run:
     exec uv run python3 ~/Projects/skills/observe/scripts/observe_gates.py \
         --artifact-root "$run_root" preflight
 
-# Observe RSI bundle — size-safe context + prior-context triage + blindspot refresh.
+# Unified observe deterministic prep (all modes or single lane).
+[group('health')]
+observe-run mode='all' project='' days='' *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    extra=()
+    [[ -n "{{project}}" ]] && extra+=(--project "{{project}}")
+    [[ -n "{{days}}" ]] && extra+=(--days "{{days}}")
+    exec uv run python3 scripts/observe_run.py {{mode}} "${extra[@]}" {{args}}
+
+# Observe RSI bundle — full deterministic prep + prior-context triage + blindspot refresh.
 observe-all project='agent-infra' sessions='5':
-    just observe-context {{project}} {{sessions}}
+    just observe-run all {{project}} 7
     just prior-context-triage
     just prior-context-stats
     just pulse-tick --phase sense

@@ -30,6 +30,12 @@ def test_render_architecture_substitutes_placeholders():
     assert "pulse-tick" in mmd
 
 
+def test_normalize_volatile_inventory_strips_live_launchctl():
+    a = 'L["job-a · ok<br/>job-b · exit 1"]\nLLMJOBS["LLM launchd: clash-detect"]'
+    b = 'L["job-c · ok"]\nLLMJOBS["LLM launchd: none"]'
+    assert si._normalize_volatile_inventory(a) == si._normalize_volatile_inventory(b)
+
+
 def test_drift_detects_unloaded_manifest(capsys):
     drift = si.collect_drift()
     names = {m["name"] for m in si.collect_plist_manifest()}

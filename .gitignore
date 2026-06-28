@@ -69,6 +69,7 @@ docs/vendor/
 
 # Session scratch dirs (capture real configs — never commit)
 .scratch/
+.claude/scratch/
 
 # Antigravity (agy) CLI per-session cache — stray, regenerable
 .antigravitycli/

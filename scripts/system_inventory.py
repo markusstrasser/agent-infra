@@ -357,10 +357,28 @@ def _normalize_generated_ts(text: str) -> str:
     return re.sub(r"derived [\d-]+ [\d:]+ UTC", "derived TIMESTAMP", text)
 
 
+def _normalize_volatile_inventory(text: str) -> str:
+    """Strip live launchctl-derived lines so --check ignores transient job churn."""
+    text = _normalize_generated_ts(text)
+    text = re.sub(r'L\["[^"]*"\]', 'L["STABLE_INVENTORY"]', text, count=1)
+    text = re.sub(
+        r'LLMJOBS\["LLM launchd: [^"]*"\]',
+        'LLMJOBS["LLM launchd: STABLE"]',
+        text,
+        count=1,
+    )
+    text = re.sub(
+        r'pulse-tick · rsi-motor · llm:none · (?:loaded|NOT LOADED)',
+        'pulse-tick · rsi-motor · llm:none · STABLE',
+        text,
+    )
+    return text
+
+
 def write_architecture_mmd(check: bool = False) -> tuple[Path, bool]:
     out = REPO_ROOT / "architecture.mmd"
     rendered = render_architecture_mmd()
-    changed = not out.exists() or _normalize_generated_ts(out.read_text()) != _normalize_generated_ts(rendered)
+    changed = not out.exists() or _normalize_volatile_inventory(out.read_text()) != _normalize_volatile_inventory(rendered)
     if check:
         return out, changed
     out.write_text(rendered)

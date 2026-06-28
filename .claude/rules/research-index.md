@@ -126,6 +126,9 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-06-23-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-23 (deterministic) | TODO |
 | `2026-06-24-rsi-loop-vs-harness-evolution-sweep.md` | Agent-Infra Sweep — our RSI loop vs the harness-self-evolution frontier (2026... | TODO |
 | `2026-06-24-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-24 (deterministic) | TODO |
+| `2026-06-25-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-25 (deterministic) | TODO |
+| `2026-06-26-long-context-fundamental-vs-engineering.md` | Long-Context Degradation — Fundamental vs Engineering | TODO |
+| `2026-06-26-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-26 (deterministic) | TODO |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
 | `adversarial-case-library.md` | Adversarial Case Library: The Best "Calling BS" Reviews | TODO |
 | `agent-behavior-refresh-2026-04.md` | Agent Behavior Delta — Memory, Self-Modification, Sycophancy | TODO |

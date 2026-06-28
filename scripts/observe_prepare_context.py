@@ -43,7 +43,7 @@ def _run_shell_to_file(script: Path, out: Path) -> None:
     )
 
 
-def extract(project: str, sessions: int, full: bool, out: Path, codex: bool) -> None:
+def extract(project: str, sessions: int, days: int | None, full: bool, out: Path, codex: bool) -> None:
     args = [
         sys.executable,
         str(SKILL / "scripts/extract_transcript.py"),
@@ -53,6 +53,8 @@ def extract(project: str, sessions: int, full: bool, out: Path, codex: bool) -> 
         "--output",
         str(out),
     ]
+    if days:
+        args.extend(["--days", str(days)])
     if full:
         args.insert(-2, "--full")
     _run(args)
@@ -67,6 +69,7 @@ def extract(project: str, sessions: int, full: bool, out: Path, codex: bool) -> 
                 project,
                 "--sessions",
                 str(sessions),
+                *([] if not days else ["--days", str(days)]),
                 "--output",
                 str(codex_out),
             ])
@@ -140,6 +143,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Prepare observe context under byte cap")
     ap.add_argument("--project", default="agent-infra")
     ap.add_argument("--sessions", type=int, default=5)
+    ap.add_argument("--days", type=int, help="Transcript window (default: 1 for sessions lane)")
     ap.add_argument("--artifact-dir", type=Path, default=Path("artifacts/observe"))
     ap.add_argument("--max-bytes", type=int, default=DEFAULT_MAX)
     ap.add_argument("--no-codex", action="store_true")
@@ -148,7 +152,8 @@ def main() -> int:
     args = ap.parse_args()
 
     args.artifact_dir.mkdir(parents=True, exist_ok=True)
-    extract(args.project, args.sessions, args.full, args.artifact_dir / "input.md", not args.no_codex)
+    days = args.days if args.days is not None else 1
+    extract(args.project, args.sessions, days, args.full, args.artifact_dir / "input.md", not args.no_codex)
 
     if args.extract_only:
         print(args.artifact_dir / "input.md")
