@@ -109,17 +109,31 @@ def _sha256_file(path: Path) -> str:
 # Token-count extraction from event payloads
 # ---------------------------------------------------------------------------
 
+_TOKEN_FIELD_MAP = {
+    # column                 -> source-key aliases (first match wins per dict)
+    "input_tokens":     ("input", "input_tokens", "prompt_tokens"),
+    # cache_read: cheap re-read of a cached prefix (Anthropic cache_read_input_tokens,
+    # OpenAI/codex cached_input_tokens). Distinct from cache_write below.
+    "cached_tokens":    ("cached", "cached_input_tokens", "cached_tokens", "cache_read_input_tokens"),
+    # cache_write: first-time write of a cacheable prefix (Anthropic only). Billed at
+    # ~1.25x input, so it must NOT be folded into cached_tokens (~0.1x) or input.
+    "cache_write_tokens": ("cache_creation_input_tokens", "cache_write_tokens"),
+    "output_tokens":    ("output", "output_tokens", "completion_tokens"),
+    "reasoning_tokens": ("thoughts", "reasoning_output_tokens", "reasoning_tokens"),
+    "total_tokens":     ("total", "total_tokens"),
+}
+
 _TOKEN_ATOM_KEYS = frozenset(
-    k
-    for aliases in (
-        ("input", "input_tokens", "prompt_tokens"),
-        ("cached", "cached_input_tokens", "cached_tokens"),
-        ("output", "output_tokens", "completion_tokens"),
-        ("thoughts", "reasoning_output_tokens", "reasoning_tokens"),
-        ("total", "total_tokens"),
-    )
-    for k in aliases
+    k for aliases in _TOKEN_FIELD_MAP.values() for k in aliases
 )
+
+# Payload keys whose value is a CUMULATIVE running total for the whole run/session
+# (each event re-states the running sum), as opposed to a per-call delta. Summing
+# these across a run's events is the classic N²-style inflation bug — they must be
+# combined by taking the per-field MAX (the final snapshot), not the sum. Codex and
+# Gemini both emit token usage under this key; codex also carries a `last_token_usage`
+# delta, but the wrapped cumulative dict is what `_find_token_dict` returns first.
+_CUMULATIVE_TOKEN_KEYS = frozenset({"total_token_usage"})
 
 
 def _is_token_dict(d: dict) -> bool:
@@ -134,19 +148,23 @@ def _is_token_dict(d: dict) -> bool:
     return numeric_matches >= 2
 
 
-def _find_token_dict(payload: Any) -> dict[str, Any] | None:
+def _find_token_dict(payload: Any) -> tuple[dict[str, Any], bool] | None:
     """Recursively find a token-usage dict.
 
-    Matches (a) nested under any _TOKEN_KEY_CANDIDATES, or
-    (b) a dict where ≥2 keys are token atoms with numeric values (covers
-    Gemini's token_usage payload which sits at top level without wrapper).
+    Returns ``(token_dict, is_cumulative)`` or ``None``. ``is_cumulative`` is
+    True when the dict was matched under a _CUMULATIVE_TOKEN_KEYS wrapper (a
+    running-total snapshot that must be MAX-combined, not summed).
+
+    Matches (a) nested under any _TOKEN_KEY_CANDIDATES, or (b) a bare dict where
+    ≥2 keys are token atoms with numeric values (covers Gemini's top-level
+    payload).
     """
     if isinstance(payload, dict):
         for key in _TOKEN_KEY_CANDIDATES:
             if key in payload and isinstance(payload[key], dict):
-                return payload[key]
+                return payload[key], key in _CUMULATIVE_TOKEN_KEYS
         if _is_token_dict(payload):
-            return payload
+            return payload, False
         for value in payload.values():
             found = _find_token_dict(value)
             if found:
@@ -159,30 +177,48 @@ def _find_token_dict(payload: Any) -> dict[str, Any] | None:
     return None
 
 
-_TOKEN_FIELD_MAP = {
-    "input_tokens":     ("input", "input_tokens", "prompt_tokens"),
-    "cached_tokens":    ("cached", "cached_input_tokens", "cached_tokens"),
-    "output_tokens":    ("output", "output_tokens", "completion_tokens"),
-    "reasoning_tokens": ("thoughts", "reasoning_output_tokens", "reasoning_tokens"),
-    "total_tokens":     ("total", "total_tokens"),
-}
+def _extract_token_fields(token_dict: dict) -> dict[str, int]:
+    """Map a raw token dict onto our column names (first alias match per column)."""
+    out: dict[str, int] = {}
+    for column, candidate_keys in _TOKEN_FIELD_MAP.items():
+        for key in candidate_keys:
+            if key in token_dict and isinstance(token_dict[key], (int, float)):
+                out[column] = int(token_dict[key])
+                break
+    return out
 
 
 def aggregate_tokens(events: Iterable) -> dict[str, int]:
-    """Sum token counts across a run's events. Returns dict of column→total."""
-    totals = {key: 0 for key in _TOKEN_FIELD_MAP}
-    seen_any = False
+    """Combine token counts across a run's events into per-column totals.
+
+    Delta-style usage dicts (Claude per-message `usage`, codex `last_token_usage`)
+    are SUMMED. Cumulative running-total snapshots (codex/Gemini `total_token_usage`,
+    re-stated on every event) are MAX-combined per field so a run that emits N
+    snapshots is not counted N times. See `_CUMULATIVE_TOKEN_KEYS`.
+    """
+    summed = {key: 0 for key in _TOKEN_FIELD_MAP}
+    cumulative = {key: 0 for key in _TOKEN_FIELD_MAP}
+    saw_summed = False
+    saw_cumulative = False
     for event in events:
-        token_dict = _find_token_dict(event.payload) if event.payload else None
-        if not token_dict:
+        found = _find_token_dict(event.payload) if event.payload else None
+        if not found:
             continue
-        for column, candidate_keys in _TOKEN_FIELD_MAP.items():
-            for key in candidate_keys:
-                if key in token_dict and isinstance(token_dict[key], (int, float)):
-                    totals[column] += int(token_dict[key])
-                    seen_any = True
-                    break
-    return totals if seen_any else {}
+        token_dict, is_cumulative = found
+        fields = _extract_token_fields(token_dict)
+        if not fields:
+            continue
+        if is_cumulative:
+            for column, value in fields.items():
+                cumulative[column] = max(cumulative[column], value)
+            saw_cumulative = True
+        else:
+            for column, value in fields.items():
+                summed[column] += value
+            saw_summed = True
+    if not (saw_summed or saw_cumulative):
+        return {}
+    return {key: summed[key] + cumulative[key] for key in _TOKEN_FIELD_MAP}
 
 
 # ---------------------------------------------------------------------------
@@ -394,9 +430,9 @@ def _upsert_run(db, run_row, session_pk: int, source_id: int, token_totals: dict
             started_at, ended_at, status, model_requested, model_resolved, approval_mode, sandbox_mode,
             instruction_hash, config_hash, mcp_set_hash, git_head, primary_source_id,
             completeness, completeness_notes,
-            input_tokens, cached_tokens, output_tokens, reasoning_tokens, total_tokens
+            input_tokens, cached_tokens, cache_write_tokens, output_tokens, reasoning_tokens, total_tokens
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(run_id) DO UPDATE SET
             session_pk = excluded.session_pk,
             transport = COALESCE(excluded.transport, runs.transport),
@@ -426,6 +462,7 @@ def _upsert_run(db, run_row, session_pk: int, source_id: int, token_totals: dict
             primary_source_id = COALESCE(runs.primary_source_id, excluded.primary_source_id),
             input_tokens     = COALESCE(excluded.input_tokens,     runs.input_tokens),
             cached_tokens    = COALESCE(excluded.cached_tokens,    runs.cached_tokens),
+            cache_write_tokens = COALESCE(excluded.cache_write_tokens, runs.cache_write_tokens),
             output_tokens    = COALESCE(excluded.output_tokens,    runs.output_tokens),
             reasoning_tokens = COALESCE(excluded.reasoning_tokens, runs.reasoning_tokens),
             total_tokens     = COALESCE(excluded.total_tokens,     runs.total_tokens)
@@ -441,6 +478,7 @@ def _upsert_run(db, run_row, session_pk: int, source_id: int, token_totals: dict
             _db_text(run_row.mcp_set_hash), _db_text(run_row.git_head),
             source_id, _db_text(run_row.completeness), _db_text(run_row.completeness_notes),
             token_totals.get("input_tokens"), token_totals.get("cached_tokens"),
+            token_totals.get("cache_write_tokens"),
             token_totals.get("output_tokens"), token_totals.get("reasoning_tokens"),
             token_totals.get("total_tokens"),
         ),
