@@ -128,6 +128,16 @@ def broken_tools() -> list[dict]:
                 "why": f"{fails} fails / {days}d — {r.get('sample','')[:70]}",
                 "action": "find the stale import vs moved symbol; fix the caller",
             })
+        elif cluster.startswith("zsh-env:") and days >= 2:
+            kind = cluster.split(":", 1)[1]
+            age_str = f", last {age}d ago" if age is not None else ""
+            out.append({
+                "klass": "broken-tool",
+                "score": SCORE["broken-tool"] + min(days, 15),
+                "title": f"Shell env: zsh {kind} ({cluster})",
+                "why": f"{fails} fails / {days}d{age_str} — {r.get('sample','')[:60]}",
+                "action": "run `doctor.py` shell-env checks; fix agent-zsh-safe + Cursor hooks",
+            })
     if dep_mods:
         # Truth-in-headline: a module that imports fine in THIS env was a
         # bare-python/wrong-cwd INVOCATION error, not a missing dep. Splitting

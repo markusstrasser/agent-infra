@@ -782,6 +782,53 @@ def check_critique_routing_verdict() -> list[Check]:
     return [c.ok(f"default_preset={preset}")]
 
 
+def check_cross_harness_shell_env() -> list[Check]:
+    """Cross-harness shell env parity — zsh footguns + Cursor hook gap detector.
+
+    Catches the class fixed 2026-06-28: agent shells load full .zshrc (nomatch,
+    alias t/dl collisions) while Cursor lacked PreToolUse guards. A dead `corpus`
+    CLI hid for days because doctor never exercised home-dir shell config."""
+    home = Path.home()
+    zshenv = home / ".zshenv"
+    zshrc = home / ".zshrc"
+    agent_safe = PROJECTS_DIR / "skills" / "hooks" / "agent-zsh-safe.sh"
+    cursor_hooks = home / ".cursor" / "hooks.json"
+    cursor_guards = PROJECTS_DIR / "skills" / "hooks" / "cursor_shell_guards.py"
+    claude_uv = PROJECTS_DIR / "skills" / "hooks" / "pretool-uv-python-guard.py"
+
+    checks: list[Check] = []
+
+    c = Check("global:shell-env-agent-zsh-safe", "global")
+    if not agent_safe.is_file():
+        checks.append(c.fail(f"missing {agent_safe}"))
+    elif not zshenv.is_file() or "agent-zsh-safe.sh" not in zshenv.read_text():
+        checks.append(c.fail("~/.zshenv does not source agent-zsh-safe.sh"))
+    elif not zshrc.is_file() or "AGENT_ZSH_SAFE_PHASE=rc" not in zshrc.read_text():
+        checks.append(c.fail("~/.zshrc missing rc-phase agent-zsh-safe sourcing"))
+    else:
+        checks.append(c.ok("agent-zsh-safe wired in zshenv + zshrc"))
+
+    c = Check("global:shell-env-cursor-hooks", "global")
+    if not cursor_hooks.is_file():
+        checks.append(c.fail("missing ~/.cursor/hooks.json (Cursor shell guards)"))
+    elif "cursor_shell_guards.py" not in cursor_hooks.read_text():
+        checks.append(c.fail("~/.cursor/hooks.json missing cursor_shell_guards.py"))
+    elif not cursor_guards.is_file():
+        checks.append(c.fail(f"missing {cursor_guards.name}"))
+    else:
+        checks.append(c.ok("Cursor shell guards wired"))
+
+    c = Check("global:shell-env-claude-uv-guard", "global")
+    if not claude_uv.is_file():
+        checks.append(c.warn("pretool-uv-python-guard.py missing"))
+    elif GLOBAL_SETTINGS.is_file() and "pretool-uv-python-guard.py" not in GLOBAL_SETTINGS.read_text():
+        checks.append(c.warn("Claude global settings missing uv-python guard"))
+    else:
+        checks.append(c.ok("Claude uv-python guard present"))
+
+    return checks
+
+
 def run_all_checks(project_filter: str | None = None) -> list[Check]:
     """Run all checks, optionally filtered to one project."""
     all_checks: list[Check] = []
@@ -802,6 +849,7 @@ def run_all_checks(project_filter: str | None = None) -> list[Check]:
         all_checks.extend(check_uv_tool_editables())
         all_checks.extend(check_approval_tiers())
         all_checks.extend(check_critique_routing_verdict())
+        all_checks.extend(check_cross_harness_shell_env())
 
         # Global CLAUDE.md
         gc = Check("global:CLAUDE.md", "global")

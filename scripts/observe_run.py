@@ -53,8 +53,8 @@ def _run(cmd: list[str], *, cwd: Path | None = None, check: bool = True) -> subp
     return subprocess.run(cmd, cwd=cwd or REPO, capture_output=True, text=True, check=check)
 
 
-def _run_emb(cmd: list[str]) -> subprocess.CompletedProcess:
-    return _run(["uv", "run", "--project", str(Path.home() / "Projects/emb"), *cmd])
+def _run_emb(cmd: list[str], *, check: bool = True) -> subprocess.CompletedProcess:
+    return _run(["uv", "run", "--project", str(Path.home() / "Projects/emb"), *cmd], check=check)
 
 
 def active_projects(days: int, limit: int = 8) -> list[str]:
@@ -185,7 +185,23 @@ def prep_failures(root: Path, days: int) -> dict:
     out_json.write_text(proc.stdout or "[]")
     clusters = json.loads(out_json.read_text() or "[]")
     real = [c for c in clusters if c.get("invoker_primary") == "interactive_agent"][:10]
-    return {"lane": "failures", "artifact_dir": str(lane), "clusters": len(clusters), "top_real": real}
+    gate_proc = _run([
+        sys.executable, str(REPO / "scripts/shell_env_loop_gate.py"),
+        "--days", str(days), "--failures-json", str(out_json),
+        "--artifact-dir", str(lane), "--json",
+    ], check=False)
+    shell_gate = {}
+    try:
+        shell_gate = json.loads(gate_proc.stdout or "{}")
+    except json.JSONDecodeError:
+        shell_gate = {"error": (gate_proc.stderr or gate_proc.stdout or "")[:200]}
+    return {
+        "lane": "failures",
+        "artifact_dir": str(lane),
+        "clusters": len(clusters),
+        "top_real": real,
+        "shell_env_gate": shell_gate,
+    }
 
 
 def prep_blindspot(root: Path, days: int) -> dict:
