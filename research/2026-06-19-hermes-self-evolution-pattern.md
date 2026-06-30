@@ -187,3 +187,15 @@ What IS real and decent: the `SkillModule` parameterization, the 4 wired structu
 the 785-LOC tested session importer. So: **one good idea (skill-as-optimizable-parameter), one good
 primitive (secret-scrub + multi-tool importer), wrapped in a README that describes a system twice the
 size of the code.** Treat PLAN.md as a roadmap, not a description of shipped behavior.
+
+## Revisions
+
+- **2026-06-30 — re-scouted for an 11-day delta; repo is DORMANT, verdict UNCHANGED.** HEAD is still
+  `0a929e3` (last real code ~March 2026 + one June config patch; `pushed_at` 2026-06-17); **0 commits
+  since 2026-06-19**. All five "not wired" findings (test-suite gate, PR write-back / `pr_builder.py`,
+  GEPA-on-keyword-proxy-not-judge, tblite gate, Phases 2–5 incl. "Darwinian Evolver") stand verbatim —
+  nothing shipped. The "actively developed" impression came from the **main** `hermes-agent` repo, not
+  this one. Stars ~4.4k (an earlier scout's "206k" figure was bogus). **Net: there is no code worth
+  adopting; the one steal (a verifier-gated skill optimizer) is ours to build, and the real prerequisite
+  is a SCORED SKILL EVAL we don't yet have — exactly what `skillopt-vs-autobrowse-veto` pre-registered.
+  Don't re-scout this repo absent a fresh-commit signal.**
