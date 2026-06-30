@@ -133,6 +133,7 @@ RATE_LIMIT_RE = re.compile(
 DEFAULT_CONTEXT_LIMITS: list[tuple[str, int]] = [
     ("claude-opus-4-8[1m]", 1_000_000),
     ("claude-opus-4-7[1m]", 1_000_000),
+    ("claude-sonnet-5", 1_000_000),
     ("claude-sonnet-4-6", 1_000_000),
     ("claude-opus-4-8", 200_000),
     ("claude-opus-4-7", 200_000),
