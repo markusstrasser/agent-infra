@@ -1,6 +1,7 @@
 """CLI + search + query + lock tests."""
 from __future__ import annotations
 
+import json
 import multiprocessing
 import sys
 import threading
@@ -54,6 +55,43 @@ def test_cli_search_event_mode(tmp_path, capsys):
     db_path = _seeded_db(tmp_path)
     rc = cli_main(["--db", str(db_path), "search", "the", "--mode", "event", "--limit", "3"])
     assert rc == 0
+
+
+def test_cli_search_json_formats_slots_dataclasses(tmp_path, capsys) -> None:
+    db_path = tmp_path / "search-json.db"
+    db = agentlogs.connect(db_path)
+    db.execute(
+        """
+        INSERT INTO sessions
+          (session_pk, vendor, client, session_uuid, project_slug, is_subagent)
+        VALUES (1, 'claude', 'claude-code', 's-json', 'genomics', 0)
+        """
+    )
+    db.execute(
+        """
+        INSERT INTO runs (run_id, session_pk, vendor, client)
+        VALUES ('r-json', 1, 'claude', 'claude-code')
+        """
+    )
+    db.execute(
+        """
+        INSERT INTO events (event_id, run_id, seq, kind, text)
+        VALUES ('e-json', 'r-json', 1, 'tool_result', 'asparagus payload event')
+        """
+    )
+    db.close()
+
+    rc = cli_main(["--db", str(db_path), "search", "asparagus", "--format", "json"])
+    assert rc == 0
+    session_payload = json.loads(capsys.readouterr().out)
+    assert session_payload[0]["session_uuid"] == "s-json"
+
+    rc = cli_main(
+        ["--db", str(db_path), "search", "asparagus", "--mode", "event", "--format", "json"]
+    )
+    assert rc == 0
+    event_payload = json.loads(capsys.readouterr().out)
+    assert event_payload[0]["event_id"] == "e-json"
 
 
 def test_search_treats_paths_and_hyphens_as_literals(tmp_path) -> None:

@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from dataclasses import asdict
 from pathlib import Path
 
 from . import __version__
@@ -331,7 +332,7 @@ def cmd_search(args) -> int:
                 since=args.since, until=args.until, limit=args.limit,
             )
             if args.format == "json":
-                print(json.dumps([h.__dict__ for h in hits], indent=2, default=str))
+                print(json.dumps([asdict(h) for h in hits], indent=2, default=str))
             else:
                 if not hits:
                     print("(no hits)", file=sys.stderr)
@@ -352,7 +353,7 @@ def cmd_search(args) -> int:
                 limit=args.limit,
             )
             if args.format == "json":
-                print(json.dumps([h.__dict__ for h in hits], indent=2, default=str))
+                print(json.dumps([asdict(h) for h in hits], indent=2, default=str))
             else:
                 for h in hits:
                     print(f"[{h.ts or '-'}] {h.vendor}/{h.project_slug or '-'} "
