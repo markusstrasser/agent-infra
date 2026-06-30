@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+import re
 from dataclasses import dataclass
 from typing import Literal
 
@@ -36,9 +37,22 @@ class EventHit:
 
 
 def _fts_query(user_query: str) -> str:
-    """FTS5 treats user input verbatim. We drop stray quotes; callers can use
-    explicit FTS5 operators (AND, OR, NOT, "phrase", prefix*)."""
-    return user_query.replace('"', '""')
+    """Convert an agent-entered search string into a safe FTS5 literal query.
+
+    Agents use this as transcript grep, not as an FTS grammar REPL. Passing raw
+    strings through made ordinary incident phrases like ``data/wgs`` or
+    ``sample-state`` parse as operators and crash the search. Treat each
+    whitespace-delimited chunk as a quoted literal phrase; FTS tokenization still
+    splits paths/hyphenated words into searchable terms inside the phrase.
+    """
+    phrases: list[str] = []
+    for chunk in user_query.split():
+        terms = re.findall(r"[\w]+", chunk, flags=re.UNICODE)
+        if not terms:
+            continue
+        phrase = " ".join(term.replace('"', '""') for term in terms)
+        phrases.append(f'"{phrase}"')
+    return " AND ".join(phrases) if phrases else '""'
 
 
 def search_sessions(

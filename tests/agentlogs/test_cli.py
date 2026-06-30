@@ -13,6 +13,7 @@ import pytest
 
 import agentlogs
 from agentlogs import index as ix
+from agentlogs import search as se
 from agentlogs.cli import main as cli_main
 from agentlogs.locks import IndexerLockBusy, indexer_lock
 
@@ -53,6 +54,44 @@ def test_cli_search_event_mode(tmp_path, capsys):
     db_path = _seeded_db(tmp_path)
     rc = cli_main(["--db", str(db_path), "search", "the", "--mode", "event", "--limit", "3"])
     assert rc == 0
+
+
+def test_search_treats_paths_and_hyphens_as_literals(tmp_path) -> None:
+    db = agentlogs.connect(tmp_path / "fts-literals.db")
+    db.execute(
+        """
+        INSERT INTO sessions
+          (session_pk, vendor, client, session_uuid, project_slug, is_subagent)
+        VALUES (1, 'claude', 'claude-code', 's-1', 'genomics', 0)
+        """
+    )
+    db.execute(
+        """
+        INSERT INTO runs (run_id, session_pk, vendor, client)
+        VALUES ('r-1', 1, 'claude', 'claude-code')
+        """
+    )
+    db.execute(
+        """
+        INSERT INTO events (event_id, run_id, seq, kind, text)
+        VALUES (
+          'e-1',
+          'r-1',
+          1,
+          'tool_result',
+          'dispatch launch failed: [Errno 17] File exists: data/wgs; sample-state followup'
+        )
+        """
+    )
+
+    hits = se.search_sessions(
+        db,
+        "data/wgs File exists sample-state",
+        project="genomics",
+    )
+
+    assert len(hits) == 1
+    assert hits[0].session_uuid == "s-1"
 
 
 def test_cli_query_list(tmp_path, capsys):
@@ -136,8 +175,10 @@ def test_indexer_lock_serializes(tmp_path):
 
     t1 = threading.Thread(target=worker, args=(1,))
     t2 = threading.Thread(target=worker, args=(2,))
-    t1.start(); t2.start()
-    t1.join(); t2.join()
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
 
     # The two critical sections must not overlap (serialized by flock).
     # Order: first exits before second enters (or vice versa).
