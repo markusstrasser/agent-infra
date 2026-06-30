@@ -132,6 +132,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-06-27-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-27 (deterministic) | TODO |
 | `2026-06-28-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-28 (deterministic) | TODO |
 | `2026-06-29-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-29 (deterministic) | TODO |
+| `2026-06-30-claude-sonnet-5-release.md` | Claude Sonnet 5 — system card findings + cross-repo adoption sites | TODO |
 | `2026-06-30-nous-hermes-agent-scout.md` | Nous Hermes Agent — scout for harness/RSI transfer (2026-06-30) | TODO |
 | `2026-06-30-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-30 (deterministic) | TODO |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
