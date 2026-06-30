@@ -108,3 +108,35 @@ verdict_status (exact-replay already invalidates). **Into genomics: nothing** (e
 ## Supersedes
 
 Nothing. Extends `2026-06-18-hutter-anim-rsi-comparative-report` with the genomics axis.
+
+## Revisions
+
+**2026-06-30 (execute-time, /execute) — T1 reversed: convergent, do NOT build.**
+Reading anim's actual gates before editing (the read-before-build discipline) refuted T1's
+premise. Both holes are already closed in anim, by design *stronger* than the genomics port:
+- **Hole B (independence):** `scripts/verify-oracle-backed.ts` (wired into `verify:quick`)
+  requires every wave family to carry a hand-truth spot-audit row or `oracleGate:true`, else
+  exit 1; `GRANDFATHERED_PROVISIONAL` is empty (33/33 covered). The curated `oracleBacked` field
+  on `evolver/qd-archive.json` cells is **26/28** — the plan's "6/33" was a stale profile number
+  (pre the 2026-06-15 oracle-retrofit).
+- **Hole A (drift):** `scripts/verify-goldens-spot-audit.ts` **recomputes hand-truth from
+  closed-form math inside the gate** and asserts `hand_truth ≈ golden ≈ v2` (deltas ~1e-18). A
+  drifted golden *fails the gate* — stronger than the proposed `basis_hash`, which only detects
+  change, not wrongness.
+
+This is the canonical execute-time convergence reversal (the /decide skill's 2026-06-16 lesson):
+a cold critique flagged independence as "must-build"; the live repo shows it built and wired.
+The transfer T1 named is real as a *principle* — and anim already instantiates it.
+
+**T2 (calibration discipline) — deferred, not built.** Genuinely absent from anim's
+FITNESS.md/LOOP.md, but the search loop is PAUSED (`GRIND_PAUSE`, "checklist executor not
+search") and there's no evidence anim was bitten by cheap-tier lever-killing. Speculative prose
+into a mature paused loop is over-build. Revisit if anim unpauses its generative search.
+
+**T3 (guardrail-as-`just`-dependency) — built** in `agent-infra/.claude/rules/native-patterns.md`.
+
+**Net:** of three transfers, one was already realized (T1), one deferred as speculative (T2),
+one shipped (T3). The durable finding is that genomics and anim *converged* on
+verdict-must-rest-on-independent-fresh-basis from opposite ends of the verifier gradient — which
+is itself the answer to "what can they learn from each other": less "port code," more "recognize
+the same hard-won discipline and name it once."
