@@ -57,6 +57,16 @@ def test_cli_search_event_mode(tmp_path, capsys):
     assert rc == 0
 
 
+def test_cli_search_help_describes_literal_query(capsys) -> None:
+    with pytest.raises(SystemExit) as exc:
+        cli_main(["search", "--help"])
+
+    assert exc.value.code == 0
+    out = capsys.readouterr().out
+    assert "literal search text" in out
+    assert "FTS5 query string" not in out
+
+
 def test_cli_search_json_formats_slots_dataclasses(tmp_path, capsys) -> None:
     db_path = tmp_path / "search-json.db"
     db = agentlogs.connect(db_path)

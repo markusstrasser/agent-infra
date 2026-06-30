@@ -1,7 +1,7 @@
 """In-process MCP server exposing meta infrastructure to orchestrated agents.
 
 Tools:
-  search_sessions — FTS5 search over Claude Code session transcripts
+  search_sessions — literal search over Claude Code session transcripts
   get_session     — session metadata + first_message by UUID prefix
   search_improvement_log — grep improvement-log.md
   get_hook_metrics — hook trigger stats from hook-roi.py data
@@ -19,14 +19,13 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from claude_agent_sdk import create_sdk_mcp_server, tool
+from common.paths import TRIGGERS_FILE as HOOK_TRIGGERS
 
 
 def _text_result(text: str, max_result_chars: int = 16000) -> dict:
     """Wrap text in MCP content block with _meta size hint."""
     return {"content": [{"type": "text", "text": text,
             "_meta": {"anthropic/maxResultSizeChars": max_result_chars}}]}
-
-from common.paths import TRIGGERS_FILE as HOOK_TRIGGERS
 
 # agentlogs package lives in src/ — add to path so the MCP can import it.
 _SRC = Path(__file__).resolve().parent.parent / "src"
@@ -48,11 +47,14 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
 
 @tool(
     "search_sessions",
-    "FTS5 keyword search across Claude Code + Codex + Gemini sessions. "
+    "Literal keyword search across Claude Code + Codex + Gemini sessions. "
     "Returns session_uuid, vendor, project_slug, start_ts, first_message, "
     "matching_events, snippet.",
     {"type": "object", "properties": {
-        "query": {"type": "string", "description": "Search keywords (FTS5 syntax)"},
+        "query": {
+            "type": "string",
+            "description": "Literal search keywords; punctuation and paths are treated as terms",
+        },
         "n": {"type": "integer", "description": "Max results (default 5)", "default": 5},
         "project": {"type": "string", "description": "Filter by project slug"},
         "vendor": {"type": "string", "description": "Filter by vendor (claude/codex/cursor/gemini/kimi)"},

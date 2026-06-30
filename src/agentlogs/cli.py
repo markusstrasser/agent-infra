@@ -67,7 +67,10 @@ def _make_parser() -> argparse.ArgumentParser:
 
     # search
     s_search = sub.add_parser("search", help="FTS search across events/sessions")
-    s_search.add_argument("query", help="FTS5 query string")
+    s_search.add_argument(
+        "query",
+        help="literal search text; punctuation and paths are treated as terms, not FTS syntax",
+    )
     s_search.add_argument("--mode", choices=["session", "event"], default="session")
     s_search.add_argument("--vendor")
     s_search.add_argument("--project")
