@@ -135,6 +135,8 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-06-30-claude-sonnet-5-release.md` | Claude Sonnet 5 — system card findings + cross-repo adoption sites | TODO |
 | `2026-06-30-nous-hermes-agent-scout.md` | Nous Hermes Agent — scout for harness/RSI transfer (2026-06-30) | TODO |
 | `2026-06-30-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-30 (deterministic) | TODO |
+| `2026-07-01-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-01 (deterministic) | TODO |
+| `2026-07-02-latent-trait-estimation-public-proxies.md` | Estimating latent traits from public proxies — precision honesty, population-conditional proxy discounts, premise-check on proposed corrections | estimating any unobservable (ability, credibility, capability) from credentials/speech/portfolio; applying a user-proposed bias discount |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
 | `adversarial-case-library.md` | Adversarial Case Library: The Best "Calling BS" Reviews | TODO |
 | `agent-behavior-refresh-2026-04.md` | Agent Behavior Delta — Memory, Self-Modification, Sycophancy | TODO |
