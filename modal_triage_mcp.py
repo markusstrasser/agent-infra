@@ -55,8 +55,14 @@ _MODAL_CLI = os.environ.get(
 _FATAL_PATTERNS = [
     (re.compile(r"^Traceback \(most recent call last\):", re.MULTILINE), "python_traceback"),
     (re.compile(r"\b(ModuleNotFoundError|ImportError): (.+)$", re.MULTILINE), "import_error"),
-    (re.compile(r"\b(torch\.cuda\.OutOfMemoryError|CUDA out of memory)", re.IGNORECASE), "cuda_oom"),
-    (re.compile(r"\bOOMKilled\b|\bMemory cgroup out of memory\b|\bKilled\b\s*$", re.MULTILINE), "oom_killed"),
+    (
+        re.compile(r"\b(torch\.cuda\.OutOfMemoryError|CUDA out of memory)", re.IGNORECASE),
+        "cuda_oom",
+    ),
+    (
+        re.compile(r"\bOOMKilled\b|\bMemory cgroup out of memory\b|\bKilled\b\s*$", re.MULTILINE),
+        "oom_killed",
+    ),
     (re.compile(r"\bSIGKILL\b|\bSIGTERM\b"), "signal_kill"),
     (re.compile(r"^\s*raise\s+\w+Error\b", re.MULTILINE), "raised_exception"),
     (re.compile(r"\bconnection (refused|reset|closed)\b", re.IGNORECASE), "connection_error"),
@@ -105,13 +111,28 @@ def _run_modal(args: list[str], timeout: int = 60) -> tuple[int, str, str]:
     return result.returncode, result.stdout, result.stderr
 
 
+def _norm_record(record: dict) -> dict:
+    """Canonicalize `modal app list --json` keys across CLI versions.
+
+    modal 1.4.2 emitted Title Case keys ("App ID", "Created at", "Tasks");
+    modal 1.5.1 switched to snake_case ("app_id", "created_at", "tasks").
+    Normalize every key to snake_case so field extraction is version-independent
+    — otherwise the extractor looks up keys the CLI no longer emits and returns
+    silent all-null records (a liveness silent-proxy hazard).
+    """
+    return {re.sub(r"\s+", "_", str(key).strip()).lower(): value for key, value in record.items()}
+
+
 def _app_record(record: dict) -> dict:
-    """Normalize a `modal app list --json` record into structured output."""
-    created = _parse_iso(record.get("Created at"))
-    stopped = _parse_iso(record.get("Stopped at"))
+    """Normalize a `modal app list --json` record into structured output.
+
+    Expects a key-normalized record (see `_norm_record`); reads snake_case keys.
+    """
+    created = _parse_iso(record.get("created_at"))
+    stopped = _parse_iso(record.get("stopped_at"))
     now = datetime.now(timezone.utc)
 
-    state = (record.get("State") or "").lower()
+    state = (record.get("state") or "").lower()
     is_running = "stopped" not in state and stopped is None
 
     uptime_seconds: int | None = None
@@ -121,18 +142,18 @@ def _app_record(record: dict) -> dict:
         uptime_seconds = int((stopped - created).total_seconds())
 
     try:
-        task_count = int(record.get("Tasks") or 0)
+        task_count = int(record.get("tasks") or 0)
     except (TypeError, ValueError):
         task_count = 0
 
     return {
-        "app_id": record.get("App ID"),
-        "description": record.get("Description"),
-        "state": record.get("State"),
+        "app_id": record.get("app_id"),
+        "description": record.get("description"),
+        "state": record.get("state"),
         "is_running": is_running,
         "task_count": task_count,
-        "created_at": record.get("Created at"),
-        "stopped_at": record.get("Stopped at"),
+        "created_at": record.get("created_at"),
+        "stopped_at": record.get("stopped_at"),
         "uptime_seconds": uptime_seconds,
     }
 
@@ -149,20 +170,26 @@ def list_apps(state_filter: str | None = None, limit: int = 20) -> str:
     limit = max(1, min(int(limit), 100))
     rc, stdout, stderr = _run_modal(["app", "list", "--json"])
     if rc != 0:
-        return json.dumps({
-            "error": "modal app list failed",
-            "returncode": rc,
-            "stderr": stderr.strip()[-500:],
-            "verified_at": _now_iso(),
-        }, indent=2)
+        return json.dumps(
+            {
+                "error": "modal app list failed",
+                "returncode": rc,
+                "stderr": stderr.strip()[-500:],
+                "verified_at": _now_iso(),
+            },
+            indent=2,
+        )
     try:
-        records = json.loads(stdout)
+        records = [_norm_record(r) for r in json.loads(stdout)]
     except json.JSONDecodeError as exc:
-        return json.dumps({
-            "error": f"failed to parse modal JSON: {exc}",
-            "stdout_head": stdout[:300],
-            "verified_at": _now_iso(),
-        }, indent=2)
+        return json.dumps(
+            {
+                "error": f"failed to parse modal JSON: {exc}",
+                "stdout_head": stdout[:300],
+                "verified_at": _now_iso(),
+            },
+            indent=2,
+        )
 
     apps = [_app_record(r) for r in records]
     if state_filter:
@@ -170,11 +197,14 @@ def list_apps(state_filter: str | None = None, limit: int = 20) -> str:
         apps = [a for a in apps if sf in (a.get("state") or "").lower()]
     apps = apps[:limit]
 
-    return json.dumps({
-        "verified_at": _now_iso(),
-        "total_returned": len(apps),
-        "apps": apps,
-    }, indent=2)
+    return json.dumps(
+        {
+            "verified_at": _now_iso(),
+            "total_returned": len(apps),
+            "apps": apps,
+        },
+        indent=2,
+    )
 
 
 def _find_record(app_id: str) -> dict | None:
@@ -182,8 +212,9 @@ def _find_record(app_id: str) -> dict | None:
     if rc != 0:
         return None
     try:
-        for r in json.loads(stdout):
-            if r.get("App ID") == app_id or r.get("Description") == app_id:
+        for raw in json.loads(stdout):
+            r = _norm_record(raw)
+            if r.get("app_id") == app_id or r.get("description") == app_id:
                 return r
     except json.JSONDecodeError:
         return None
@@ -200,10 +231,13 @@ def status(app_id: str) -> str:
     """
     record = _find_record(app_id)
     if record is None:
-        return json.dumps({
-            "error": f"app not found: {app_id}",
-            "verified_at": _now_iso(),
-        }, indent=2)
+        return json.dumps(
+            {
+                "error": f"app not found: {app_id}",
+                "verified_at": _now_iso(),
+            },
+            indent=2,
+        )
     payload = _app_record(record)
     payload["verified_at"] = _now_iso()
     return json.dumps(payload, indent=2)
@@ -244,24 +278,29 @@ def triage(app_id: str, tail_n: int = 80) -> str:
 
     record = _find_record(app_id)
     if record is None:
-        return json.dumps({
-            "error": f"app not found: {app_id}",
-            "verified_at": _now_iso(),
-        }, indent=2)
+        return json.dumps(
+            {
+                "error": f"app not found: {app_id}",
+                "verified_at": _now_iso(),
+            },
+            indent=2,
+        )
 
-    resolved_id = record.get("App ID") or app_id
+    resolved_id = record.get("app_id") or app_id
 
     rc, logs, stderr = _run_modal(["app", "logs", resolved_id], timeout=90)
     log_text = logs if rc == 0 else ""
     log_error = stderr.strip()[-300:] if rc != 0 else None
 
     base = _app_record(record)
-    base.update({
-        "verified_at": _now_iso(),
-        "signals": _extract_signals(log_text),
-        "tail_lines": _tail_nonspam(log_text, tail_n),
-        "log_fetch_error": log_error,
-    })
+    base.update(
+        {
+            "verified_at": _now_iso(),
+            "signals": _extract_signals(log_text),
+            "tail_lines": _tail_nonspam(log_text, tail_n),
+            "log_fetch_error": log_error,
+        }
+    )
     return json.dumps(base, indent=2, default=str)
 
 
@@ -285,11 +324,14 @@ def grep_logs(
 
     record = _find_record(app_id)
     if record is None:
-        return json.dumps({
-            "error": f"app not found: {app_id}",
-            "verified_at": _now_iso(),
-        }, indent=2)
-    resolved_id = record.get("App ID") or app_id
+        return json.dumps(
+            {
+                "error": f"app not found: {app_id}",
+                "verified_at": _now_iso(),
+            },
+            indent=2,
+        )
+    resolved_id = record.get("app_id") or app_id
 
     try:
         regex = re.compile(pattern)
@@ -298,11 +340,14 @@ def grep_logs(
 
     rc, logs, stderr = _run_modal(["app", "logs", resolved_id], timeout=90)
     if rc != 0:
-        return json.dumps({
-            "error": "modal app logs failed",
-            "stderr": stderr.strip()[-300:],
-            "verified_at": _now_iso(),
-        }, indent=2)
+        return json.dumps(
+            {
+                "error": "modal app logs failed",
+                "stderr": stderr.strip()[-300:],
+                "verified_at": _now_iso(),
+            },
+            indent=2,
+        )
 
     lines = logs.splitlines()
     matches: list[dict] = []
@@ -310,21 +355,26 @@ def grep_logs(
         if regex.search(line):
             lo = max(0, i - context)
             hi = min(len(lines), i + context + 1)
-            matches.append({
-                "line_no": i,
-                "match": line,
-                "context": lines[lo:hi],
-            })
+            matches.append(
+                {
+                    "line_no": i,
+                    "match": line,
+                    "context": lines[lo:hi],
+                }
+            )
             if len(matches) >= max_matches:
                 break
 
-    return json.dumps({
-        "app_id": resolved_id,
-        "pattern": pattern,
-        "match_count": len(matches),
-        "matches": matches,
-        "verified_at": _now_iso(),
-    }, indent=2)
+    return json.dumps(
+        {
+            "app_id": resolved_id,
+            "pattern": pattern,
+            "match_count": len(matches),
+            "matches": matches,
+            "verified_at": _now_iso(),
+        },
+        indent=2,
+    )
 
 
 def main() -> None:
