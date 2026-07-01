@@ -192,6 +192,27 @@ def list_apps(state_filter: str | None = None, limit: int = 20) -> str:
         )
 
     apps = [_app_record(r) for r in records]
+    # FAIL LOUD on parse drift: if the CLI returned records but key-normalization
+    # yielded no app_id on ANY of them, the --json schema changed and field extraction
+    # is broken. Returning is_running=True on all-null records is the silent-proxy lie
+    # that nearly caused a wrongful kill of a progressing job (2026-07-01). Liveness is
+    # UNKNOWN here — never guess it; surface the drift + the fallback instead.
+    if apps and not any(a.get("app_id") for a in apps):
+        seen_keys = sorted({key for record in records for key in record})
+        return json.dumps(
+            {
+                "error": (
+                    "modal app list --json parse drift — no app_id after key-normalization; "
+                    "the CLI schema likely changed. Liveness is UNKNOWN; do NOT trust is_running. "
+                    "Fall back to `modal app list` / `modal app list --json` directly and update "
+                    "_app_record's key mapping."
+                ),
+                "normalized_keys_seen": seen_keys,
+                "record_count": len(records),
+                "verified_at": _now_iso(),
+            },
+            indent=2,
+        )
     if state_filter:
         sf = state_filter.lower()
         apps = [a for a in apps if sf in (a.get("state") or "").lower()]
@@ -207,18 +228,44 @@ def list_apps(state_filter: str | None = None, limit: int = 20) -> str:
     )
 
 
+class _ModalParseDrift(RuntimeError):
+    """modal app list --json schema drifted — key-normalization yields no app_id.
+
+    Raised so status()/triage() FAIL LOUD instead of returning a false 'app not found'
+    (the 2026-07-01 silent-proxy lie: a garbage all-null record set read as 'not found',
+    which nearly caused a wrongful kill of a progressing job).
+    """
+
+
 def _find_record(app_id: str) -> dict | None:
     rc, stdout, _ = _run_modal(["app", "list", "--json"])
     if rc != 0:
         return None
     try:
-        for raw in json.loads(stdout):
-            r = _norm_record(raw)
-            if r.get("app_id") == app_id or r.get("description") == app_id:
-                return r
+        records = [_norm_record(raw) for raw in json.loads(stdout)]
     except json.JSONDecodeError:
         return None
+    if records and not any(r.get("app_id") for r in records):
+        keys = sorted({key for record in records for key in record})
+        raise _ModalParseDrift(f"no app_id after key-normalization; keys seen: {keys}")
+    for record in records:
+        if record.get("app_id") == app_id or record.get("description") == app_id:
+            return record
     return None
+
+
+def _drift_error(exc: _ModalParseDrift) -> str:
+    return json.dumps(
+        {
+            "error": (
+                f"modal app list --json parse drift ({exc}). Liveness is UNKNOWN — do NOT trust "
+                "is_running or a 'not found' result; the CLI schema changed. Fall back to "
+                "`modal app list` directly and update _app_record's key mapping."
+            ),
+            "verified_at": _now_iso(),
+        },
+        indent=2,
+    )
 
 
 @mcp.tool
@@ -229,7 +276,10 @@ def status(app_id: str) -> str:
     Args:
         app_id: Modal App ID (ap-...) or unique Description.
     """
-    record = _find_record(app_id)
+    try:
+        record = _find_record(app_id)
+    except _ModalParseDrift as exc:
+        return _drift_error(exc)
     if record is None:
         return json.dumps(
             {
@@ -276,7 +326,10 @@ def triage(app_id: str, tail_n: int = 80) -> str:
     """
     tail_n = max(1, min(int(tail_n), 500))
 
-    record = _find_record(app_id)
+    try:
+        record = _find_record(app_id)
+    except _ModalParseDrift as exc:
+        return _drift_error(exc)
     if record is None:
         return json.dumps(
             {
