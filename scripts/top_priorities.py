@@ -28,6 +28,8 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
+import shell_env_loop_gate
+
 REPO = Path(__file__).resolve().parent.parent
 HOME = Path.home()
 IMPROVEMENT_LOG = REPO / "improvement-log.md"
@@ -94,6 +96,8 @@ def broken_tools() -> list[dict]:
     rows = _run_json(["python3", str(FAILURES_SCRIPT), "--days", "14", "--json"]) or []
     out: list[dict] = []
     dep_mods, dep_fails, dep_days, dep_fresh = [], 0, 0, None
+    shell_gate = shell_env_loop_gate.assess(days=14, failures=rows)
+    shell_env_actionable = bool(shell_gate.get("promote_actionable"))
     for r in rows:
         cluster = str(r.get("cluster", ""))
         days, fails = r.get("distinct_days", 0), r.get("fails", 0)
@@ -128,7 +132,7 @@ def broken_tools() -> list[dict]:
                 "why": f"{fails} fails / {days}d — {r.get('sample','')[:70]}",
                 "action": "find the stale import vs moved symbol; fix the caller",
             })
-        elif cluster.startswith("zsh-env:") and days >= 2:
+        elif cluster.startswith("zsh-env:") and days >= 2 and shell_env_actionable:
             kind = cluster.split(":", 1)[1]
             age_str = f", last {age}d ago" if age is not None else ""
             out.append({
