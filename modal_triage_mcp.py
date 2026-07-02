@@ -47,6 +47,14 @@ claim as unverified.
 
 mcp = FastMCP("modal-triage", instructions=INSTRUCTIONS)
 
+# Source mtime captured at import. MCP servers load once at process start and never
+# reload, so a long-lived server can run stale code after its source is edited on disk
+# (2026-07-02: a server started 3h before the schema-drift guard landed served the exact
+# all-null is_running=True lie the guard prevents). Every response carries a
+# source-freshness self-check (see _verified_meta) that flips server_stale when the
+# on-disk source is newer than this loaded process.
+_IMPORT_MTIME = Path(__file__).stat().st_mtime
+
 _MODAL_CLI = os.environ.get(
     "MODAL_CLI",
     str(Path.home() / "Projects" / "genomics" / ".venv" / "bin" / "modal"),
@@ -76,6 +84,27 @@ _SPAM_LINE = re.compile(
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _verified_meta() -> dict:
+    """Response metadata + source-freshness self-check.
+
+    Returns {"verified_at": ...} always. If modal_triage_mcp.py on disk is newer than
+    this running process (source edited after the server started), also emits
+    server_stale + a warning so agents don't trust logic this process may not have loaded.
+    """
+    meta: dict[str, object] = {"verified_at": _now_iso()}
+    try:
+        if Path(__file__).stat().st_mtime > _IMPORT_MTIME + 1:
+            meta["server_stale"] = True
+            meta["server_stale_warning"] = (
+                "modal_triage_mcp.py on disk is NEWER than this running process — "
+                "the MCP server is STALE and may use outdated logic. Restart the MCP "
+                "(new session) before trusting these results."
+            )
+    except OSError:
+        pass
+    return meta
 
 
 def _parse_iso(s: str | None) -> datetime | None:
@@ -175,7 +204,7 @@ def list_apps(state_filter: str | None = None, limit: int = 20) -> str:
                 "error": "modal app list failed",
                 "returncode": rc,
                 "stderr": stderr.strip()[-500:],
-                "verified_at": _now_iso(),
+                **_verified_meta(),
             },
             indent=2,
         )
@@ -186,7 +215,7 @@ def list_apps(state_filter: str | None = None, limit: int = 20) -> str:
             {
                 "error": f"failed to parse modal JSON: {exc}",
                 "stdout_head": stdout[:300],
-                "verified_at": _now_iso(),
+                **_verified_meta(),
             },
             indent=2,
         )
@@ -209,7 +238,7 @@ def list_apps(state_filter: str | None = None, limit: int = 20) -> str:
                 ),
                 "normalized_keys_seen": seen_keys,
                 "record_count": len(records),
-                "verified_at": _now_iso(),
+                **_verified_meta(),
             },
             indent=2,
         )
@@ -220,7 +249,7 @@ def list_apps(state_filter: str | None = None, limit: int = 20) -> str:
 
     return json.dumps(
         {
-            "verified_at": _now_iso(),
+            **_verified_meta(),
             "total_returned": len(apps),
             "apps": apps,
         },
@@ -262,7 +291,7 @@ def _drift_error(exc: _ModalParseDrift) -> str:
                 "is_running or a 'not found' result; the CLI schema changed. Fall back to "
                 "`modal app list` directly and update _app_record's key mapping."
             ),
-            "verified_at": _now_iso(),
+            **_verified_meta(),
         },
         indent=2,
     )
@@ -284,12 +313,12 @@ def status(app_id: str) -> str:
         return json.dumps(
             {
                 "error": f"app not found: {app_id}",
-                "verified_at": _now_iso(),
+                **_verified_meta(),
             },
             indent=2,
         )
     payload = _app_record(record)
-    payload["verified_at"] = _now_iso()
+    payload.update(_verified_meta())
     return json.dumps(payload, indent=2)
 
 
@@ -334,7 +363,7 @@ def triage(app_id: str, tail_n: int = 80) -> str:
         return json.dumps(
             {
                 "error": f"app not found: {app_id}",
-                "verified_at": _now_iso(),
+                **_verified_meta(),
             },
             indent=2,
         )
@@ -348,7 +377,7 @@ def triage(app_id: str, tail_n: int = 80) -> str:
     base = _app_record(record)
     base.update(
         {
-            "verified_at": _now_iso(),
+            **_verified_meta(),
             "signals": _extract_signals(log_text),
             "tail_lines": _tail_nonspam(log_text, tail_n),
             "log_fetch_error": log_error,
@@ -380,7 +409,7 @@ def grep_logs(
         return json.dumps(
             {
                 "error": f"app not found: {app_id}",
-                "verified_at": _now_iso(),
+                **_verified_meta(),
             },
             indent=2,
         )
@@ -397,7 +426,7 @@ def grep_logs(
             {
                 "error": "modal app logs failed",
                 "stderr": stderr.strip()[-300:],
-                "verified_at": _now_iso(),
+                **_verified_meta(),
             },
             indent=2,
         )
@@ -424,7 +453,7 @@ def grep_logs(
             "pattern": pattern,
             "match_count": len(matches),
             "matches": matches,
-            "verified_at": _now_iso(),
+            **_verified_meta(),
         },
         indent=2,
     )

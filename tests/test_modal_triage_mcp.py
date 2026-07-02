@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -20,7 +21,7 @@ import modal_triage_mcp as mt
 
 
 def _mock_modal(records):
-    return lambda args: (0, json.dumps(records), "")
+    return lambda _args: (0, json.dumps(records), "")
 
 
 def test_valid_snake_case_1_5_1_parses():
@@ -55,7 +56,7 @@ def test_find_record_genuine_not_found_still_returns_none(monkeypatch):
     assert mt._find_record("ap-absent") is None
 
 
-def _unwrap(tool):
+def _unwrap(tool) -> Callable[..., str]:
     return getattr(tool, "fn", tool)
 
 
@@ -76,3 +77,25 @@ def test_status_fails_loud_on_drift(monkeypatch):
         pytest.skip("status not directly callable in this FastMCP version")
     out = json.loads(fn("ap-1"))
     assert "error" in out and "UNKNOWN" in out["error"]
+
+
+def test_verified_meta_flags_stale_when_source_newer(monkeypatch):
+    # MCP servers load once and never reload: if the on-disk source is edited after the
+    # process started, _IMPORT_MTIME is older than the file mtime and every response must
+    # self-announce staleness (2026-07-02 stale-server lie). Simulate by pinning the
+    # captured import mtime far in the past.
+    monkeypatch.setattr(mt, "_IMPORT_MTIME", 0.0)
+    meta = mt._verified_meta()
+    assert meta["server_stale"] is True
+    assert "STALE" in meta["server_stale_warning"]
+    assert "verified_at" in meta
+
+
+def test_verified_meta_clean_when_fresh(monkeypatch):
+    # Not stale: import mtime in the far future (source can't be newer). server_stale must
+    # be absent and verified_at still present (behavior identical to the old _now_iso path).
+    monkeypatch.setattr(mt, "_IMPORT_MTIME", 1e18)
+    meta = mt._verified_meta()
+    assert "server_stale" not in meta
+    assert "server_stale_warning" not in meta
+    assert "verified_at" in meta
