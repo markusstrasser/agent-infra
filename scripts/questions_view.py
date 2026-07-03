@@ -99,6 +99,13 @@ def _age_days(created: str) -> int | None:
     return (datetime.now(timezone.utc) - d).days
 
 
+def is_stale(q: "Question") -> bool:
+    """THE stale predicate — single source (STALE_DAYS lives here; consumers import,
+    never re-state — questions_drain.py, the render below)."""
+    age = _age_days(q.created)
+    return age is not None and age > STALE_DAYS
+
+
 def _norm(text: str) -> str:
     """Whitespace-collapse + lowercase. An idiom (disjoint inputs from surface_gates'
     same-named helper), inlined to avoid pulling yaml into the SessionStart surface path."""
@@ -389,6 +396,15 @@ def render_section(result: ViewResult) -> str | None:
         lines.append(f"> ⚠ {d}")
     if result.degraded:
         lines.append("")
+    n_stale = sum(1 for q in result.questions if is_stale(q))
+    if n_stale:
+        # Staleness is a defect to DRAIN, not a flag to display — surface the verb
+        # where the flag is shown (plan 17d2a35c-middle-manager-harvests).
+        lines.append(
+            f"_→ {n_stale} stale — drain: "
+            "`just -f ~/Projects/agent-infra/justfile questions-drain --dispatch`_"
+        )
+        lines.append("")
 
     by_cat: dict[str, list[Question]] = {}
     for q in result.questions:
@@ -401,12 +417,12 @@ def render_section(result: ViewResult) -> str | None:
         # STALE items float to the top of their category (revalidate-or-drop),
         # then most-recent first. Flagged, never hidden.
         def _sort_key(x: Question) -> tuple[bool, str]:
-            return ((_age_days(x.created) or -1) > STALE_DAYS, x.created)
+            return (is_stale(x), x.created)
 
         for q in sorted(items, key=_sort_key, reverse=True):
             age = _age_days(q.created)
             src = SOURCE_LABEL.get(q.source, q.source)
-            stale = f"⚠ STALE {age}d — revalidate or drop · " if (age is not None and age > STALE_DAYS) else ""
+            stale = f"⚠ STALE {age}d — revalidate or drop · " if is_stale(q) else ""
             lines.append(f"- {stale}**{q.prompt}**")
             sub = f"  ↳ {src} · {q.created or '?'} · `{_short(q.ref)}`"
             if q.detail:
@@ -434,9 +450,13 @@ def main() -> int:
     ap.add_argument("--output", help="write section to file (atomic temp+rename)")
     ap.add_argument("--include-clash", action="store_true",
                     help="GATED: include promoted clash-shadow rows (dormant until shadow precision proven)")
+    ap.add_argument("--stale", action="store_true",
+                    help=f"only items unactioned >{STALE_DAYS}d (the questions-drain work-list)")
     args = ap.parse_args()
 
     result = collect_questions(args.repo, include_clash=args.include_clash)
+    if args.stale:
+        result.questions = [q for q in result.questions if is_stale(q)]
     if args.json:
         print(json.dumps({
             "questions": [asdict(q) for q in result.questions],

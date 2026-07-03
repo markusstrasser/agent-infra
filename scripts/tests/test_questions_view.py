@@ -212,3 +212,37 @@ def test_predictions_resolved_excluded(tmp_path, monkeypatch):
     monkeypatch.setattr(qv, "STEWARD_DIR", tmp_path / "no-steward")
     result = qv.collect_questions(tmp_path / "no-decisions")
     assert not [q for q in result.questions if q.source == "predictions"]  # resolved → not DUE
+
+
+# ── stale predicate + drain hint (plan 17d2a35c-middle-manager-harvests) ────
+def test_is_stale_predicate():
+    from datetime import datetime, timedelta, timezone
+    old = (datetime.now(timezone.utc) - timedelta(days=qv.STALE_DAYS + 5)).strftime("%Y-%m-%d")
+    fresh = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    mk = lambda created: qv.Question(  # noqa: E731
+        id="x", source="steward-proposals", category="tool",
+        prompt="p", created=created, ref="/tmp/x.md",
+    )
+    assert qv.is_stale(mk(old))
+    assert not qv.is_stale(mk(fresh))
+    assert not qv.is_stale(mk(""))          # unparseable → not-stale (never crash)
+    assert not qv.is_stale(mk("garbage"))
+
+
+def test_render_surfaces_drain_verb_when_stale():
+    from datetime import datetime, timedelta, timezone
+    old = (datetime.now(timezone.utc) - timedelta(days=qv.STALE_DAYS + 5)).strftime("%Y-%m-%d")
+    q = qv.Question(id="x", source="steward-proposals", category="tool",
+                    prompt="ancient proposal", created=old, ref="/tmp/x.md")
+    section = qv.render_section(qv.ViewResult(questions=[q]))
+    assert "questions-drain --dispatch" in section
+    assert "STALE" in section
+
+
+def test_render_no_drain_verb_when_fresh():
+    from datetime import datetime, timezone
+    fresh = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    q = qv.Question(id="x", source="steward-proposals", category="tool",
+                    prompt="new proposal", created=fresh, ref="/tmp/x.md")
+    section = qv.render_section(qv.ViewResult(questions=[q]))
+    assert "questions-drain" not in section
