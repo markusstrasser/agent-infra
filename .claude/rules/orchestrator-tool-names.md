@@ -28,7 +28,7 @@ NOT auto-fired by a hook. Cursor scouts are cheap — fan out freely.
 | Trigger the orchestrator watches for | Reach for | Dispatch |
 |---|---|---|
 | Major plan / `/decide` / refactor just landed | `adversarial-debug-scout <repo>` then `audit-findings-consolidation` | **background**: `just -f ~/Projects/agent-infra/justfile adversarial-debug-scout <repo> recent &` → triage `docs/audit/` later |
-| Want a full audit — loop until no new confirmed bugs | `debug-until-dry <repo>` | **background**: scout wave loop over a shared memo; reads `docs/audit/<date>-bughunt-memo.md` when dry. Knobs: `--max-waves --workers --scouts-per-wave --scout-backend cursor\|codex\|cursor,codex --scout-model --scout-effort --scout-timeout --verifier cursor\|codex\|opus\|none --verifier-model` |
+| Want a full audit — loop until no new confirmed bugs | `debug-until-dry <repo>` | **background**: scout wave loop over a shared memo; reads `docs/audit/<date>-bughunt-memo.md` when dry. Knobs: `--max-waves --workers --scouts-per-wave --scout-backend cursor\|codex\|claude (comma-list mixes) --scout-model --scout-effort --scout-timeout --verifier cursor\|codex\|claude\|opus\|none --verifier-model`. Memo JSON carries per-wave token spend (`waves[]`, `token_totals`) |
 | Pre-commit / pre-ship gate | `verification-gate-runner <repo>` | foreground (fast) |
 | "what changed since green?" | `baseline-since-last-green <repo>` | foreground |
 

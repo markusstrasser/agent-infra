@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """debug-until-dry — memo-driven wave loop of cheap read-only scouts until the audit is dry.
 
-llm: required (cursor and/or codex scouts; cursor|codex|opus between-wave verifier)
+llm: required (cursor/codex/claude scouts; cursor|codex|claude|opus between-wave verifier)
 
 The orchestrator fires ONE command; it runs wave by wave:
 
-  wave: K scouts (cursor ask-mode and/or codex read-only sandbox) read the audit
-        MEMO + the code → append NEW findings, verify/refute the memo's
+  wave: K read-only scouts (cursor ask-mode / codex sandbox / claude -p) read the
+        audit MEMO + the code → append NEW findings, verify/refute the memo's
         `unverified` entries (strict block output)
   merge: deterministic dedup (claim hash) → memo; new findings land `unverified`
-  verify: one between-wave reader (cursor|codex|opus|none) adjudicates `unverified`
-          entries → confirmed|refuted with evidence, rewrites the memo
+  verify: one between-wave reader (cursor|codex|claude|opus|none) adjudicates
+          `unverified` entries → confirmed|refuted with evidence, rewrites the memo
   dry?:  new_info = (#new claims) + (#status changes). Stop after `--dry-stop`
          consecutive waves with new_info == 0  → the audit is dry / complete.
 
@@ -24,6 +24,7 @@ Usage:
   debug_until_dry.py /path/to/repo
   debug_until_dry.py /path/to/repo recent --max-waves 5 --workers 3 --scouts-per-wave 4
   debug_until_dry.py /path/to/repo --scout-backend codex --scout-effort low
+  debug_until_dry.py /path/to/repo --scout-backend claude --scout-model sonnet
   debug_until_dry.py /path/to/repo --scout-backend cursor,codex   # mixed wave (lens diversity)
   debug_until_dry.py /path/to/repo --verifier opus --dry-stop 2
   debug_until_dry.py /path/to/repo --verifier codex --verifier-model gpt-5.5
@@ -104,10 +105,12 @@ def save_memo(
     converged: bool | None = None,
     final_new: int = 0,
     total_refutes: int = 0,
+    wave_stats: list[dict] | None = None,
 ) -> None:
     json_path.parent.mkdir(
         parents=True, exist_ok=True
     )  # survive a vanished audit_dir mid-run
+    wave_stats = wave_stats or []
     json_path.write_text(
         json.dumps(
             {
@@ -117,6 +120,12 @@ def save_memo(
                 "new_in_final_wave": final_new,
                 "total_refutes": total_refutes,
                 "updated": datetime.now(timezone.utc).isoformat(),
+                # eval-token-costs: per-wave scout+verifier token spend (0 = unmetered)
+                "waves": wave_stats,
+                "token_totals": {
+                    k: sum(w[k] for w in wave_stats)
+                    for k in ("in_tok", "out_tok", "reason_tok")
+                },
                 "findings": {k: asdict(v) for k, v in memo.items()},
             },
             indent=2,
@@ -131,6 +140,7 @@ def save_memo(
             converged=converged,
             final_new=final_new,
             total_refutes=total_refutes,
+            wave_stats=wave_stats,
         )
     )
 
@@ -143,6 +153,7 @@ def render_memo_md(
     converged: bool | None = None,
     final_new: int = 0,
     total_refutes: int = 0,
+    wave_stats: list[dict] | None = None,
 ) -> str:
     order = {"confirmed": 0, "unverified": 1, "refuted": 2}
     sev = {"P0": 0, "P1": 1, "P2": 2, "P3": 3, "P?": 4}
@@ -169,10 +180,16 @@ def render_memo_md(
             " · ⚠ 0 refutations — 'confirmed' is scout self-assessment, "
             "NOT independently adjudicated"
         )
+    tok_note = ""
+    if wave_stats:
+        tot_out = sum(w["out_tok"] for w in wave_stats)
+        tot_reason = sum(w["reason_tok"] for w in wave_stats)
+        tok_note = f" · tokens out={tot_out} reason={tot_reason}"
     out = [
         f"# Bug-hunt audit memo — {Path(repo).name}",
         f"_{status} · {date.today().isoformat()} · "
-        f"**{n_conf} confirmed** · {n_unv} unverified · {n_ref} refuted{refute_note}_",
+        f"**{n_conf} confirmed** · {n_unv} unverified · {n_ref} refuted"
+        f"{refute_note}{tok_note}_",
         "",
     ]
     for f in items:
@@ -403,15 +420,20 @@ def main() -> int:
     ap.add_argument(
         "--scout-backend",
         default="cursor",
-        help="cursor | codex | comma-list (round-robin across scouts, e.g. cursor,codex)",
+        help="cursor | codex | claude | comma-list (round-robin across scouts, "
+        "e.g. cursor,codex)",
     )
     ap.add_argument("--scout-model", default="", help="override backend default model")
     ap.add_argument(
-        "--scout-effort", default="", help="codex reasoning effort (default: medium)"
+        "--scout-effort",
+        default="",
+        help="codex/claude reasoning effort (default: medium)",
     )
     ap.add_argument("--scout-timeout", type=int, default=600, help="seconds per scout")
     ap.add_argument(
-        "--verifier", choices=["cursor", "codex", "opus", "none"], default="cursor"
+        "--verifier",
+        choices=["cursor", "codex", "claude", "opus", "none"],
+        default="cursor",
     )
     ap.add_argument(
         "--verifier-model", default="", help="override verifier backend model"
@@ -460,8 +482,12 @@ def main() -> int:
     converged = False
     total_refutes = 0
     final_new = 0
+    wave_stats: list[dict] = []
+    scopes_seen: set[str] = set()
+    scout_failures = 0
     for wave in range(1, args.max_waves + 1):
         scopes = build_scopes(repo, args.scope, args.scouts_per_wave)
+        scopes_seen.update(sid for sid, _ in scopes)
         # round-robin the backend list across the wave's scouts (mixed = lens diversity)
         items = [
             (
@@ -471,11 +497,12 @@ def main() -> int:
             )
             for i, (sid, block) in enumerate(scopes)
         ]
+        wave_t0 = time.monotonic()
 
         def run_one(item: tuple[str, str, str]) -> dict:
             sid, backend, prompt = item
             t0 = time.monotonic()
-            ok, body = scout_ask(
+            reply = scout_ask(
                 backend,
                 repo,
                 prompt,
@@ -484,11 +511,11 @@ def main() -> int:
                 effort=args.scout_effort,
                 dry_run=args.dry_run,
             )
-            outcome = "ok" if ok else ("timeout" if body == "(timeout)" else "error")
+            outcome = "ok" if reply.ok else ("timeout" if reply.timed_out else "error")
             print(
                 f"    scout {sid} [{backend}]: {outcome} ({time.monotonic() - t0:.0f}s)"
             )
-            return {"sid": sid, "ok": ok, "body": body}
+            return {"sid": sid, "ok": reply.ok, "body": reply.body, "reply": reply}
 
         print(
             f"  wave {wave}: dispatching {len(items)} scouts ({args.workers} in flight)…"
@@ -509,9 +536,15 @@ def main() -> int:
             )
             return 3
         found: list[Finding] = []
+        w_in = w_out = w_reason = 0
         for res in results:
             if isinstance(res, dict):
                 found.extend(parse_wave_output(res["body"]))
+                if r := res.get("reply"):
+                    w_in += r.in_tok
+                    w_out += r.out_tok
+                    w_reason += r.reason_tok
+        scout_failures += len(items) - n_ok
         new_claims, promoted = merge_into_memo(memo, found, wave)
 
         # Two-tier judge: adjudicate unverified AND adversarially re-challenge the wave's NEW
@@ -523,8 +556,8 @@ def main() -> int:
         unverified = [f for f in memo.values() if f.status == "unverified"]
         if args.verifier != "none" and (unverified or new_confirmed):
             vp = verifier_prompt(unverified, new_confirmed)
-            if args.verifier in ("cursor", "codex"):
-                ok, body = scout_ask(
+            if args.verifier in ("cursor", "codex", "claude"):
+                vreply = scout_ask(
                     args.verifier,
                     repo,
                     vp,
@@ -533,7 +566,11 @@ def main() -> int:
                     effort=args.scout_effort,
                     dry_run=args.dry_run,
                 )
-            else:  # opus
+                ok, body = vreply.ok, vreply.body
+                w_in += vreply.in_tok
+                w_out += vreply.out_tok
+                w_reason += vreply.reason_tok
+            else:  # opus via llmx (subscription; CLI transport reports no usage)
                 ok, body = opus_adjudicate(vp, OPUS_TIMEOUT, args.dry_run)
             if ok:
                 verdict_changes, refutes = apply_verdicts(memo, parse_wave_output(body))
@@ -541,6 +578,21 @@ def main() -> int:
 
         new_info = new_claims + promoted + verdict_changes
         final_new = new_info
+        wave_stats.append(
+            {
+                "wave": wave,
+                "scouts_ok": n_ok,
+                "scouts_fail": len(items) - n_ok,
+                "new": new_claims,
+                "promoted": promoted,
+                "judged": verdict_changes,
+                "refuted": refutes,
+                "in_tok": w_in,
+                "out_tok": w_out,
+                "reason_tok": w_reason,
+                "wall_s": round(time.monotonic() - wave_t0),
+            }
+        )
         if not args.dry_run:  # dry-run writes no files (matches debug_scout convention)
             save_memo(
                 json_path,
@@ -549,12 +601,13 @@ def main() -> int:
                 repo=repo,
                 wave=wave,
                 total_refutes=total_refutes,
+                wave_stats=wave_stats,
             )
         n_conf = sum(1 for f in memo.values() if f.status == "confirmed")
         print(
             f"  wave {wave}: +{new_claims} new · {promoted} promoted · "
             f"{verdict_changes} judged ({refutes} refuted) → new_info={new_info} · "
-            f"{n_conf} confirmed total"
+            f"{n_conf} confirmed total · tok out={w_out} reason={w_reason}"
         )
 
         dry_streak = dry_streak + 1 if new_info == 0 else 0
@@ -581,13 +634,34 @@ def main() -> int:
             converged=converged,
             final_new=final_new,
             total_refutes=total_refutes,
+            wave_stats=wave_stats,
         )
     n_conf = sum(1 for f in memo.values() if f.status == "confirmed")
+    tot_out = sum(w["out_tok"] for w in wave_stats)
+    tot_reason = sum(w["reason_tok"] for w in wave_stats)
     print(f"\nstatus:   {'CONVERGED' if converged else 'INCOMPLETE (capped, not dry)'}")
     if total_refutes == 0 and n_conf >= 10:
         print(
             "  ⚠ 0 refutations — verifier culled nothing; 'confirmed' = scout self-assessment."
         )
+    # dispatch brief-schema (dispatch-brief-schema.md): gathered/missing/findings/drill/next
+    print(
+        f"gathered: {wave} wave(s) × {args.scouts_per_wave} scouts "
+        f"({'+'.join(scout_backends)}) · scopes: {', '.join(sorted(scopes_seen))} · "
+        f"tokens out={tot_out} reason={tot_reason}"
+    )
+    missing = []
+    if scout_failures:
+        missing.append(f"{scout_failures} scout dispatch(es) failed/timed out")
+    if not converged:
+        missing.append(
+            f"NOT dry — capped at max-waves={args.max_waves}, re-run to continue"
+        )
+    if args.verifier == "none":
+        missing.append("no independent adjudication (--verifier none)")
+    if args.verifier == "opus":
+        missing.append("opus verifier tokens not metered (llmx CLI transport)")
+    print(f"missing:  {'; '.join(missing) or '(none)'}")
     print(f"findings: {n_conf} confirmed / {len(memo)} total")
     print(f"drill:    cat {json_path}")
     print(f"next:     read {md_path}  (confirmed bugs first)")

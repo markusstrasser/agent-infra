@@ -142,15 +142,16 @@ def run_scout(
     effort: str,
     timeout: int,
     dry_run: bool,
-) -> tuple[str, bool, str]:
+) -> tuple[str, bool, str, dict]:
     if dry_run:
         return (
             scout_id,
             True,
             f"dry-run scout {scout_id} [{backend}] (no files written)",
+            {},
         )
 
-    ok, body = scout_ask(
+    reply = scout_ask(
         backend,
         repo,
         prompt,
@@ -159,19 +160,25 @@ def run_scout(
         effort=effort,
         dry_run=False,
     )
-    if body == "(timeout)":
+    usage = {
+        "backend": backend,
+        "in_tok": reply.in_tok,
+        "out_tok": reply.out_tok,
+        "reason_tok": reply.reason_tok,
+    }
+    if reply.timed_out:
         out_path.write_text(
             f"---\nscout_id: {scout_id}\nbackend: {backend}\nstatus: timeout\n---\n"
         )
-        return scout_id, False, f"timeout {timeout}s"
-
+        return scout_id, False, f"timeout {timeout}s", usage
     header = (
         f"---\nscout_id: {scout_id}\nrepo: {repo}\ndate: {date.today().isoformat()}\n"
-        f"backend: {backend}\nok: {ok}\nmode: audit-only\n---\n\n"
+        f"backend: {backend}\nok: {reply.ok}\nmode: audit-only\n"
+        f"tokens: in={reply.in_tok} out={reply.out_tok} reason={reply.reason_tok}\n---\n\n"
     )
-    out_path.write_text(header + body + "\n")
-    ok = ok and valid_scout_body(body)
-    return scout_id, ok, str(out_path)
+    out_path.write_text(header + reply.body + "\n")
+    ok = reply.ok and valid_scout_body(reply.body)
+    return scout_id, ok, str(out_path), usage
 
 
 def main() -> int:
@@ -241,7 +248,7 @@ def main() -> int:
         return 0
 
     audit_dir.mkdir(parents=True, exist_ok=True)
-    results: list[tuple[str, bool, str]] = []
+    results: list[tuple[str, bool, str, dict]] = []
 
     # round-robin the backend list across scouts (mixed = lens diversity)
     jobs = [
@@ -249,7 +256,7 @@ def main() -> int:
         for i, (sid, block) in enumerate(scopes)
     ]
 
-    def job(item: tuple[str, str, str]) -> tuple[str, bool, str]:
+    def job(item: tuple[str, str, str]) -> tuple[str, bool, str, dict]:
         scout_id, backend, scope_block = item
         prompt = render_prompt(repo.name, scout_id, scope_block, args.prompt)
         out_path = audit_dir / f"{day}-debug-{run_stamp}-{scout_id}.md"
@@ -271,22 +278,29 @@ def main() -> int:
             try:
                 results.append(fut.result())
             except Exception as exc:
-                results.append(("?", False, f"job failed: {exc}"))
+                results.append(("?", False, f"job failed: {exc}", {}))
 
-    ok_n = sum(1 for _, ok, _ in results if ok)
+    ok_n = sum(1 for _, ok, _, _ in results if ok)
+    tot_out = sum(u.get("out_tok", 0) for *_, u in results)
+    tot_reason = sum(u.get("reason_tok", 0) for *_, u in results)
     manifest = audit_dir / f"{day}-debug-{run_stamp}-manifest.txt"
     manifest.write_text(
         f"run_id: {run_stamp}\nrepo: {repo}\n"
-        + "\n".join(f"{sid}\t{ok}\t{msg}" for sid, ok, msg in sorted(results))
+        f"tokens: out={tot_out} reason={tot_reason}\n"
+        + "\n".join(f"{sid}\t{ok}\t{msg}" for sid, ok, msg, _ in sorted(results))
         + "\n"
     )
     jsonl = audit_dir / f"{day}-debug-{run_stamp}-manifest.jsonl"
     scout_rows = [
-        ScoutResult(sid, ok, msg if ok else "", kind="debug", message=msg)
-        for sid, ok, msg in results
+        ScoutResult(sid, ok, msg if ok else "", kind="debug", message=msg, meta=usage)
+        for sid, ok, msg, usage in results
     ]
     write_manifest(jsonl, run_id=run_stamp, repo=repo, kind="debug", results=scout_rows)
-    print(f"\n# done: {ok_n}/{len(results)} scouts → {manifest}", file=sys.stderr)
+    print(
+        f"\n# done: {ok_n}/{len(results)} scouts · tokens out={tot_out} "
+        f"reason={tot_reason} → {manifest}",
+        file=sys.stderr,
+    )
     print(
         f"Next: just audit-findings-consolidation {audit_dir} --date {day}",
         file=sys.stderr,
