@@ -15,6 +15,8 @@ Multi-syllable names. **Just recipes = kebab-case.** **Scripts = snake_case.**
 | **required** | `adversarial-debug-scout` | session | orchestrator-tool |
 | **required** | `debug-until-dry` | session | orchestrator-tool |
 | **none** | `rsi-loop-funnel` | gov | orchestrator-tool |
+| **none** | `questions-drain` | gov | orchestrator-tool |
+| **required** | `questions-drain --dispatch` | gov | orchestrator-tool |
 
 Every run prints `llm: none|optional|required` on stderr. Vocabulary: `config/system-kinds.json`.
 
@@ -31,6 +33,7 @@ NOT auto-fired by a hook. Cursor scouts are cheap — fan out freely.
 | Want a full audit — loop until no new confirmed bugs | `debug-until-dry <repo>` | **background**: scout wave loop over a shared memo; reads `docs/audit/<date>-bughunt-memo.md` when dry. Knobs: `--max-waves --workers --scouts-per-wave --scout-backend cursor\|codex\|claude (comma-list mixes) --scout-model --scout-effort --scout-timeout --verifier cursor\|codex\|claude\|opus\|none --verifier-model`. Memo JSON carries per-wave token spend (`waves[]`, `token_totals`) |
 | Pre-commit / pre-ship gate | `verification-gate-runner <repo>` | foreground (fast) |
 | "what changed since green?" | `baseline-since-last-green <repo>` | foreground |
+| Control plane shows N stale questions | `questions-drain --dispatch` | **background**: one read-only scout per stale item → memo in `docs/audit/`; orchestrator triages verdicts, operator gets a yes/no list |
 
 Fire-and-forget convention: append `&` (or `run_in_background`) for scout/loop recipes
 (~minutes); they write to `<repo>/docs/audit/` and the orchestrator triages on return.

@@ -214,6 +214,7 @@ harness-eval:
     uv run python3 "$HOME/Projects/skills/hooks/test_userprompt_prior_context.py"
     uv run python3 -m pytest scripts/tests/test_orient.py scripts/tests/test_system_inventory.py -q
     uv run python3 -m unittest discover -s "$HOME/Projects/skills/observe/tests" -p 'test_observe_gates.py' -q
+    uv run python3 -m pytest "$HOME/Projects/skills/observe/tests/test_extract_transcript.py" -q
     uv run python3 scripts/system_inventory.py --render --check
     uv run python3 scripts/approval_tiers.py
     just stale-pointer-lint
@@ -1124,6 +1125,15 @@ clash-detect *args:
 [group('knowledge')]
 questions *args:
     uv run python3 scripts/questions_view.py --repo "$(pwd)" {{args}}
+
+# Drain the stale question backlog — staleness is a defect to DRAIN, not a flag to
+# display (MIDDLE_MANAGER harvest, plan 17d2a35c). Bare = work-list (llm: none);
+# --dispatch = one read-only revalidation scout per stale item via scout_backends
+# (llm: required), memo → docs/audit/<date>-stale-question-drain.md. Scouts recommend
+# STILL-VALID|MOOT|SUPERSEDED; disposition stays human-gated.
+[group('knowledge')]
+questions-drain *args:
+    uv run python3 scripts/questions_drain.py --repo "$(pwd)" {{args}}
 
 # Find docs that may be stale after a correction — lexical scan for a term
 # across the knowledge repos. Replaces propagate-correction.py's forward
