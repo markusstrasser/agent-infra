@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""debug-until-dry — memo-driven wave loop of cheap cursor scouts until the audit is dry.
+"""debug-until-dry — memo-driven wave loop of cheap read-only scouts until the audit is dry.
 
-llm: required (cursor composer scouts; optional opus between-wave verifier)
+llm: required (cursor and/or codex scouts; cursor|codex|opus between-wave verifier)
 
 The orchestrator fires ONE command; it runs wave by wave:
 
-  wave: K cursor scouts read the audit MEMO + the code → append NEW findings,
-        verify/refute the memo's `unverified` entries (strict block output)
+  wave: K scouts (cursor ask-mode and/or codex read-only sandbox) read the audit
+        MEMO + the code → append NEW findings, verify/refute the memo's
+        `unverified` entries (strict block output)
   merge: deterministic dedup (claim hash) → memo; new findings land `unverified`
-  verify: one between-wave reader (cursor|opus|none) adjudicates `unverified`
+  verify: one between-wave reader (cursor|codex|opus|none) adjudicates `unverified`
           entries → confirmed|refuted with evidence, rewrites the memo
   dry?:  new_info = (#new claims) + (#status changes). Stop after `--dry-stop`
          consecutive waves with new_info == 0  → the audit is dry / complete.
@@ -22,7 +23,10 @@ State of truth: <memo>.json (machine). Human audit: <memo> (.md, rendered each w
 Usage:
   debug_until_dry.py /path/to/repo
   debug_until_dry.py /path/to/repo recent --max-waves 5 --workers 3 --scouts-per-wave 4
+  debug_until_dry.py /path/to/repo --scout-backend codex --scout-effort low
+  debug_until_dry.py /path/to/repo --scout-backend cursor,codex   # mixed wave (lens diversity)
   debug_until_dry.py /path/to/repo --verifier opus --dry-stop 2
+  debug_until_dry.py /path/to/repo --verifier codex --verifier-model gpt-5.5
   debug_until_dry.py /path/to/repo --dry-run        # trace the loop, no token spend
 """
 
@@ -40,13 +44,11 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from debug_scout import AGENT, build_scopes, load_prompt_template  # noqa: E402
+from debug_scout import build_scopes, load_prompt_template  # noqa: E402
 from fan_out_lib import run_parallel  # noqa: E402
+from scout_backends import parse_backend_spec, scout_ask  # noqa: E402
 from tool_contract import LlmClass, print_llm_header  # noqa: E402
 
-CURSOR_MODEL = "composer-2.5"
-SCOUT_TIMEOUT = 600
-VERIFY_TIMEOUT = 600
 OPUS_TIMEOUT = 1200
 
 # Strict per-finding block the wave scout must emit (we own this format, not findings_parse).
@@ -64,7 +66,9 @@ VERDICT_REFUTED = {"REFUTED", "REFUTE", "FALSE", "NOT_A_BUG", "REJECTED"}
 
 
 def claim_hash(claim: str) -> str:
-    return hashlib.sha256(re.sub(r"\s+", " ", claim.strip().lower()).encode()).hexdigest()[:12]
+    return hashlib.sha256(
+        re.sub(r"\s+", " ", claim.strip().lower()).encode()
+    ).hexdigest()[:12]
 
 
 @dataclass
@@ -101,7 +105,9 @@ def save_memo(
     final_new: int = 0,
     total_refutes: int = 0,
 ) -> None:
-    json_path.parent.mkdir(parents=True, exist_ok=True)  # survive a vanished audit_dir mid-run
+    json_path.parent.mkdir(
+        parents=True, exist_ok=True
+    )  # survive a vanished audit_dir mid-run
     json_path.write_text(
         json.dumps(
             {
@@ -140,7 +146,9 @@ def render_memo_md(
 ) -> str:
     order = {"confirmed": 0, "unverified": 1, "refuted": 2}
     sev = {"P0": 0, "P1": 1, "P2": 2, "P3": 3, "P?": 4}
-    items = sorted(memo.values(), key=lambda f: (order.get(f.status, 9), sev.get(f.severity, 9)))
+    items = sorted(
+        memo.values(), key=lambda f: (order.get(f.status, 9), sev.get(f.severity, 9))
+    )
     n_conf = sum(1 for f in memo.values() if f.status == "confirmed")
     n_unv = sum(1 for f in memo.values() if f.status == "unverified")
     n_ref = sum(1 for f in memo.values() if f.status == "refuted")
@@ -203,7 +211,10 @@ def parse_wave_output(text: str) -> list[Finding]:
     findings: list[Finding] = []
     for m in FINDING_RE.finditer(text):
         body = m.group("body")
-        fields = {k.strip().lower().replace(" ", "_"): v.strip() for k, v in FIELD_RE.findall(body)}
+        fields = {
+            k.strip().lower().replace(" ", "_"): v.strip()
+            for k, v in FIELD_RE.findall(body)
+        }
         claim = fields.get("claim", "").strip()
         if not claim:
             continue
@@ -221,7 +232,9 @@ def parse_wave_output(text: str) -> list[Finding]:
                 claim=claim,
                 domain=fields.get("domain", "code").split("|")[0].strip() or "code",
                 severity=fields.get("severity", "P?").strip() or "P?",
-                file=fields.get("evidence", "").split(";")[0][:120] if "evidence" in fields else "",
+                file=fields.get("evidence", "").split(";")[0][:120]
+                if "evidence" in fields
+                else "",
                 evidence=fields.get("evidence", ""),
                 verification=fields.get("verification", ""),
                 falsifier=fields.get("falsifier", ""),
@@ -231,33 +244,7 @@ def parse_wave_output(text: str) -> list[Finding]:
     return findings
 
 
-# ── cursor / opus calls ───────────────────────────────────────────────────────
-def cursor_ask(repo: Path, prompt: str, timeout: int, dry_run: bool) -> tuple[bool, str]:
-    if dry_run:
-        return True, "## NO_FINDINGS\n(dry-run — no cursor call made)"
-    if not AGENT.is_file():
-        return False, "agent CLI not found (~/.local/bin/agent)"
-    cmd = [
-        str(AGENT),
-        "-p",
-        "--trust",
-        "--mode",
-        "ask",
-        "--model",
-        CURSOR_MODEL,
-        "--workspace",
-        str(repo),
-        "--output-format",
-        "text",
-        prompt,
-    ]
-    try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-    except subprocess.TimeoutExpired:
-        return False, "(timeout)"
-    return r.returncode == 0, (r.stdout.strip() or r.stderr.strip() or "(empty)")
-
-
+# ── verifier-lane opus call (scout lanes live in scout_backends) ─────────────
 def opus_adjudicate(prompt: str, timeout: int, dry_run: bool) -> tuple[bool, str]:
     if dry_run:
         return True, "{}"
@@ -281,7 +268,9 @@ def opus_adjudicate(prompt: str, timeout: int, dry_run: bool) -> tuple[bool, str
 
 
 # ── wave prompts ──────────────────────────────────────────────────────────────
-def wave_scout_prompt(project: str, scope_block: str, memo: dict[str, Finding], wave: int) -> str:
+def wave_scout_prompt(
+    project: str, scope_block: str, memo: dict[str, Finding], wave: int
+) -> str:
     axes = load_prompt_template()  # borrow the shared check-axes + verify discipline
     # keep only the guidance up to its output block; we impose our own block below
     axes = axes.split("## Output format", 1)[0]
@@ -349,7 +338,9 @@ def verifier_prompt(unverified: list[Finding], challenged: list[Finding]) -> str
 
 
 # ── merge / verify ────────────────────────────────────────────────────────────
-def merge_into_memo(memo: dict[str, Finding], found: list[Finding], wave: int) -> tuple[int, int]:
+def merge_into_memo(
+    memo: dict[str, Finding], found: list[Finding], wave: int
+) -> tuple[int, int]:
     new_claims = status_changes = 0
     for f in found:
         existing = memo.get(f.dedupe)
@@ -368,7 +359,9 @@ def merge_into_memo(memo: dict[str, Finding], found: list[Finding], wave: int) -
     return new_claims, status_changes
 
 
-def apply_verdicts(memo: dict[str, Finding], verdict_findings: list[Finding]) -> tuple[int, int]:
+def apply_verdicts(
+    memo: dict[str, Finding], verdict_findings: list[Finding]
+) -> tuple[int, int]:
     """Returns (changes, refutes). Adjudicates unverified AND allows the adversarial judge to
     DEMOTE a scout-confirmed finding to refuted (the independent-cull the design promised)."""
     changes = refutes = 0
@@ -382,7 +375,9 @@ def apply_verdicts(memo: dict[str, Finding], verdict_findings: list[Finding]) ->
             cur.evidence = vf.evidence or cur.evidence
             changes += 1
             refutes += vf.status == "refuted"
-        elif cur.status == "confirmed" and vf.status == "refuted":  # adversarial demotion
+        elif (
+            cur.status == "confirmed" and vf.status == "refuted"
+        ):  # adversarial demotion
             cur.status = "refuted"
             cur.evidence = vf.evidence or cur.evidence
             changes += 1
@@ -396,15 +391,41 @@ def main() -> int:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     ap.add_argument("repo", type=Path)
-    ap.add_argument("scope", nargs="?", default="recent", help="recent | path | free-text focus")
+    ap.add_argument(
+        "scope", nargs="?", default="recent", help="recent | path | free-text focus"
+    )
     ap.add_argument("--max-waves", type=int, default=5)
-    ap.add_argument("--workers", type=int, default=3, help="parallel cursor scouts in flight")
+    ap.add_argument("--workers", type=int, default=3, help="parallel scouts in flight")
     ap.add_argument("--scouts-per-wave", type=int, default=4)
-    ap.add_argument("--dry-stop", type=int, default=1, help="consecutive no-new-info waves → stop")
-    ap.add_argument("--verifier", choices=["cursor", "opus", "none"], default="cursor")
+    ap.add_argument(
+        "--dry-stop", type=int, default=1, help="consecutive no-new-info waves → stop"
+    )
+    ap.add_argument(
+        "--scout-backend",
+        default="cursor",
+        help="cursor | codex | comma-list (round-robin across scouts, e.g. cursor,codex)",
+    )
+    ap.add_argument("--scout-model", default="", help="override backend default model")
+    ap.add_argument(
+        "--scout-effort", default="", help="codex reasoning effort (default: medium)"
+    )
+    ap.add_argument("--scout-timeout", type=int, default=600, help="seconds per scout")
+    ap.add_argument(
+        "--verifier", choices=["cursor", "codex", "opus", "none"], default="cursor"
+    )
+    ap.add_argument(
+        "--verifier-model", default="", help="override verifier backend model"
+    )
+    ap.add_argument(
+        "--verify-timeout", type=int, default=600, help="seconds per verify pass"
+    )
     ap.add_argument("--memo", type=Path, default=None)
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
+    try:
+        scout_backends = parse_backend_spec(args.scout_backend)
+    except ValueError as e:
+        ap.error(str(e))
 
     # Line-buffer stdout: under `uv run` (non-TTY) Python fully buffers stdout, so all
     # per-wave/per-scout progress is invisible until exit — a slow run is then
@@ -428,7 +449,8 @@ def main() -> int:
     memo = load_memo(json_path)
 
     print(
-        f"debug-until-dry: {repo.name} · scope={args.scope} · verifier={args.verifier} · "
+        f"debug-until-dry: {repo.name} · scope={args.scope} · "
+        f"scouts={'+'.join(scout_backends)} · verifier={args.verifier} · "
         f"max-waves={args.max_waves} · {args.scouts_per_wave}×{args.workers} workers"
         + (" · DRY-RUN" if args.dry_run else "")
     )
@@ -440,17 +462,37 @@ def main() -> int:
     final_new = 0
     for wave in range(1, args.max_waves + 1):
         scopes = build_scopes(repo, args.scope, args.scouts_per_wave)
-        items = [(sid, wave_scout_prompt(repo.name, block, memo, wave)) for sid, block in scopes]
+        # round-robin the backend list across the wave's scouts (mixed = lens diversity)
+        items = [
+            (
+                sid,
+                scout_backends[i % len(scout_backends)],
+                wave_scout_prompt(repo.name, block, memo, wave),
+            )
+            for i, (sid, block) in enumerate(scopes)
+        ]
 
-        def run_one(item: tuple[str, str]) -> dict:
-            sid, prompt = item
+        def run_one(item: tuple[str, str, str]) -> dict:
+            sid, backend, prompt = item
             t0 = time.monotonic()
-            ok, body = cursor_ask(repo, prompt, SCOUT_TIMEOUT, args.dry_run)
+            ok, body = scout_ask(
+                backend,
+                repo,
+                prompt,
+                timeout=args.scout_timeout,
+                model=args.scout_model,
+                effort=args.scout_effort,
+                dry_run=args.dry_run,
+            )
             outcome = "ok" if ok else ("timeout" if body == "(timeout)" else "error")
-            print(f"    scout {sid}: {outcome} ({time.monotonic() - t0:.0f}s)")
+            print(
+                f"    scout {sid} [{backend}]: {outcome} ({time.monotonic() - t0:.0f}s)"
+            )
             return {"sid": sid, "ok": ok, "body": body}
 
-        print(f"  wave {wave}: dispatching {len(items)} scouts ({args.workers} in flight)…")
+        print(
+            f"  wave {wave}: dispatching {len(items)} scouts ({args.workers} in flight)…"
+        )
         results = run_parallel(items, run_one, workers=args.workers)
         # Fail loud, never silent-dry: an all-scout-timeout wave produces 0 findings that
         # look identical to a clean audit. With --dry-stop 1 that false-"dry" would report
@@ -459,9 +501,10 @@ def main() -> int:
         if not args.dry_run and n_ok == 0:
             print(
                 f"  ✗ wave {wave}: 0/{len(items)} scouts succeeded — all timed out or errored. "
-                "cursor-agent returned no usable output: TRANSPORT failure, NOT a clean audit. "
-                "Aborting rather than reporting a false 'dry'. Check cursor-agent auth/availability, "
-                "lower per-scout load, raise SCOUT_TIMEOUT, or retry with --verifier opus.",
+                f"{'+'.join(scout_backends)} returned no usable output: TRANSPORT failure, NOT a "
+                "clean audit. Aborting rather than reporting a false 'dry'. Check CLI "
+                "auth/availability, lower per-scout load, raise --scout-timeout, or switch "
+                "--scout-backend / --verifier.",
                 file=sys.stderr,
             )
             return 3
@@ -480,8 +523,16 @@ def main() -> int:
         unverified = [f for f in memo.values() if f.status == "unverified"]
         if args.verifier != "none" and (unverified or new_confirmed):
             vp = verifier_prompt(unverified, new_confirmed)
-            if args.verifier == "cursor":
-                ok, body = cursor_ask(repo, vp, VERIFY_TIMEOUT, args.dry_run)
+            if args.verifier in ("cursor", "codex"):
+                ok, body = scout_ask(
+                    args.verifier,
+                    repo,
+                    vp,
+                    timeout=args.verify_timeout,
+                    model=args.verifier_model,
+                    effort=args.scout_effort,
+                    dry_run=args.dry_run,
+                )
             else:  # opus
                 ok, body = opus_adjudicate(vp, OPUS_TIMEOUT, args.dry_run)
             if ok:
@@ -491,7 +542,14 @@ def main() -> int:
         new_info = new_claims + promoted + verdict_changes
         final_new = new_info
         if not args.dry_run:  # dry-run writes no files (matches debug_scout convention)
-            save_memo(json_path, md_path, memo, repo=repo, wave=wave, total_refutes=total_refutes)
+            save_memo(
+                json_path,
+                md_path,
+                memo,
+                repo=repo,
+                wave=wave,
+                total_refutes=total_refutes,
+            )
         n_conf = sum(1 for f in memo.values() if f.status == "confirmed")
         print(
             f"  wave {wave}: +{new_claims} new · {promoted} promoted · "
@@ -502,7 +560,9 @@ def main() -> int:
         dry_streak = dry_streak + 1 if new_info == 0 else 0
         if dry_streak >= args.dry_stop:
             converged = True
-            print(f"  DRY after wave {wave} ({dry_streak} quiet wave[s]) — audit complete.")
+            print(
+                f"  DRY after wave {wave} ({dry_streak} quiet wave[s]) — audit complete."
+            )
             break
     else:
         converged = False
@@ -525,7 +585,9 @@ def main() -> int:
     n_conf = sum(1 for f in memo.values() if f.status == "confirmed")
     print(f"\nstatus:   {'CONVERGED' if converged else 'INCOMPLETE (capped, not dry)'}")
     if total_refutes == 0 and n_conf >= 10:
-        print("  ⚠ 0 refutations — verifier culled nothing; 'confirmed' = scout self-assessment.")
+        print(
+            "  ⚠ 0 refutations — verifier culled nothing; 'confirmed' = scout self-assessment."
+        )
     print(f"findings: {n_conf} confirmed / {len(memo)} total")
     print(f"drill:    cat {json_path}")
     print(f"next:     read {md_path}  (confirmed bugs first)")

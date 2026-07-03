@@ -28,7 +28,7 @@ NOT auto-fired by a hook. Cursor scouts are cheap — fan out freely.
 | Trigger the orchestrator watches for | Reach for | Dispatch |
 |---|---|---|
 | Major plan / `/decide` / refactor just landed | `adversarial-debug-scout <repo>` then `audit-findings-consolidation` | **background**: `just -f ~/Projects/agent-infra/justfile adversarial-debug-scout <repo> recent &` → triage `docs/audit/` later |
-| Want a full audit — loop until no new confirmed bugs | `debug-until-dry <repo>` | **background**: cursor wave loop over a shared memo; reads `docs/audit/<date>-bughunt-memo.md` when dry. Knobs: `--max-waves --workers --scouts-per-wave --verifier cursor\|opus\|none` |
+| Want a full audit — loop until no new confirmed bugs | `debug-until-dry <repo>` | **background**: scout wave loop over a shared memo; reads `docs/audit/<date>-bughunt-memo.md` when dry. Knobs: `--max-waves --workers --scouts-per-wave --scout-backend cursor\|codex\|cursor,codex --scout-model --scout-effort --scout-timeout --verifier cursor\|codex\|opus\|none --verifier-model` |
 | Pre-commit / pre-ship gate | `verification-gate-runner <repo>` | foreground (fast) |
 | "what changed since green?" | `baseline-since-last-green <repo>` | foreground |
 

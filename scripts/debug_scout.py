@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Parallel debug scouts — cursor ask-mode → docs/audit/*.md (orchestrator model triages later).
+"""Parallel debug scouts — cursor ask-mode / codex read-only → docs/audit/*.md
+(orchestrator model triages later).
 
 Usage:
   debug_scout.py /path/to/repo
   debug_scout.py /path/to/repo --scope scripts/pipeline/
   debug_scout.py /path/to/repo --scope recent --max-scouts 4
+  debug_scout.py /path/to/repo --backend codex --effort low
+  debug_scout.py /path/to/repo --backend cursor,codex   # round-robin (lens diversity)
 """
 
 from __future__ import annotations
@@ -18,8 +21,8 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 from fan_out_lib import ScoutResult, write_manifest
+from scout_backends import parse_backend_spec, scout_ask
 
-AGENT = Path.home() / ".local/bin/agent"
 PROMPT_PATH = Path(__file__).parent / "debug_scout_prompt.md"
 DEFAULT_MAX_SCOUTS = 6
 DEFAULT_WORKERS = 3
@@ -38,7 +41,15 @@ def slug(s: str, max_len: int = 32) -> str:
 def git_recent_files(repo: Path, n_commits: int = 10) -> list[Path]:
     try:
         out = subprocess.check_output(
-            ["git", "-C", str(repo), "log", f"-{n_commits}", "--name-only", "--pretty=format:"],
+            [
+                "git",
+                "-C",
+                str(repo),
+                "log",
+                f"-{n_commits}",
+                "--name-only",
+                "--pretty=format:",
+            ],
             text=True,
         )
     except subprocess.CalledProcessError:
@@ -83,7 +94,12 @@ def build_scopes(repo: Path, scope: str, max_scouts: int) -> list[tuple[str, str
 
     files = git_recent_files(repo)
     if not files:
-        return [("recent", f"Recent work in `{repo.name}` — inspect git log and high-risk modules.")]
+        return [
+            (
+                "recent",
+                f"Recent work in `{repo.name}` — inspect git log and high-risk modules.",
+            )
+        ]
 
     groups = group_by_top_dir(files, repo)
     scopes: list[tuple[str, str]] = []
@@ -118,46 +134,75 @@ def valid_scout_body(body: str) -> bool:
 def run_scout(
     repo: Path,
     scout_id: str,
+    backend: str,
     prompt: str,
     out_path: Path,
+    *,
+    model: str,
+    effort: str,
+    timeout: int,
     dry_run: bool,
 ) -> tuple[str, bool, str]:
     if dry_run:
-        return scout_id, True, f"dry-run scout {scout_id} (no files written)"
+        return (
+            scout_id,
+            True,
+            f"dry-run scout {scout_id} [{backend}] (no files written)",
+        )
 
-    if not AGENT.is_file():
-        return scout_id, False, "agent CLI not found (~/.local/bin/agent)"
+    ok, body = scout_ask(
+        backend,
+        repo,
+        prompt,
+        timeout=timeout,
+        model=model,
+        effort=effort,
+        dry_run=False,
+    )
+    if body == "(timeout)":
+        out_path.write_text(
+            f"---\nscout_id: {scout_id}\nbackend: {backend}\nstatus: timeout\n---\n"
+        )
+        return scout_id, False, f"timeout {timeout}s"
 
-    cmd = [
-        str(AGENT), "-p", "--trust", "--mode", "ask", "--model", "composer-2.5",
-        "--workspace", str(repo), "--output-format", "text", prompt,
-    ]
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-    except subprocess.TimeoutExpired as e:
-        partial = (e.stdout or "") + (e.stderr or "")
-        out_path.write_text(f"---\nscout_id: {scout_id}\nstatus: timeout\n---\n\n{partial}\n")
-        return scout_id, False, "timeout 600s"
-
-    body = result.stdout.strip() or result.stderr.strip() or "(empty scout output)"
     header = (
         f"---\nscout_id: {scout_id}\nrepo: {repo}\ndate: {date.today().isoformat()}\n"
-        f"exit_code: {result.returncode}\nmode: ask\n---\n\n"
+        f"backend: {backend}\nok: {ok}\nmode: audit-only\n---\n\n"
     )
     out_path.write_text(header + body + "\n")
-    ok = result.returncode == 0 and valid_scout_body(body)
+    ok = ok and valid_scout_body(body)
     return scout_id, ok, str(out_path)
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("repo", type=Path, help="Target project root")
-    parser.add_argument("--scope", default="recent", help="recent | path | free-text focus")
-    parser.add_argument("--prompt", default="", help="Extra focus appended to all scouts")
+    parser.add_argument(
+        "--scope", default="recent", help="recent | path | free-text focus"
+    )
+    parser.add_argument(
+        "--prompt", default="", help="Extra focus appended to all scouts"
+    )
     parser.add_argument("--max-scouts", type=int, default=DEFAULT_MAX_SCOUTS)
     parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS)
+    parser.add_argument(
+        "--backend",
+        default="cursor",
+        help="cursor | codex | comma-list (round-robin across scouts, e.g. cursor,codex)",
+    )
+    parser.add_argument("--model", default="", help="override backend default model")
+    parser.add_argument(
+        "--effort", default="", help="codex reasoning effort (default: medium)"
+    )
+    parser.add_argument("--timeout", type=int, default=600, help="seconds per scout")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
+    try:
+        backends = parse_backend_spec(args.backend)
+    except ValueError as e:
+        parser.error(str(e))
 
     if args.workers < 1:
         print("--workers must be >= 1", file=sys.stderr)
@@ -178,7 +223,10 @@ def main() -> int:
     scopes = build_scopes(repo, args.scope, args.max_scouts)
     if not scopes:
         return 1
-    print(f"# debug scout run={run_stamp} repo={repo.name} scopes={len(scopes)}", file=sys.stderr)
+    print(
+        f"# debug scout run={run_stamp} repo={repo.name} scopes={len(scopes)}",
+        file=sys.stderr,
+    )
 
     if args.dry_run:
         for scout_id, scope_block in scopes:
@@ -195,14 +243,30 @@ def main() -> int:
     audit_dir.mkdir(parents=True, exist_ok=True)
     results: list[tuple[str, bool, str]] = []
 
-    def job(item: tuple[str, str]) -> tuple[str, bool, str]:
-        scout_id, scope_block = item
+    # round-robin the backend list across scouts (mixed = lens diversity)
+    jobs = [
+        (sid, backends[i % len(backends)], block)
+        for i, (sid, block) in enumerate(scopes)
+    ]
+
+    def job(item: tuple[str, str, str]) -> tuple[str, bool, str]:
+        scout_id, backend, scope_block = item
         prompt = render_prompt(repo.name, scout_id, scope_block, args.prompt)
         out_path = audit_dir / f"{day}-debug-{run_stamp}-{scout_id}.md"
-        return run_scout(repo, scout_id, prompt, out_path, dry_run=False)
+        return run_scout(
+            repo,
+            scout_id,
+            backend,
+            prompt,
+            out_path,
+            model=args.model,
+            effort=args.effort,
+            timeout=args.timeout,
+            dry_run=False,
+        )
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
-        futs = [pool.submit(job, s) for s in scopes]
+        futs = [pool.submit(job, s) for s in jobs]
         for fut in as_completed(futs):
             try:
                 results.append(fut.result())
@@ -223,7 +287,10 @@ def main() -> int:
     ]
     write_manifest(jsonl, run_id=run_stamp, repo=repo, kind="debug", results=scout_rows)
     print(f"\n# done: {ok_n}/{len(results)} scouts → {manifest}", file=sys.stderr)
-    print(f"Next: just audit-findings-consolidation {audit_dir} --date {day}", file=sys.stderr)
+    print(
+        f"Next: just audit-findings-consolidation {audit_dir} --date {day}",
+        file=sys.stderr,
+    )
     return 0 if ok_n == len(results) else 2
 
 
