@@ -23,7 +23,7 @@ import sys
 import time
 from pathlib import Path
 
-DEFAULT_MODEL = "o3"
+DEFAULT_MODEL = "gpt-5.5"
 MAX_PARALLEL_MCP = 4
 
 
