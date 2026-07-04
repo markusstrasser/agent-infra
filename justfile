@@ -779,7 +779,7 @@ session-compact id="":
 # settings.json — for another repo, wire stop-goal-wrapup.py + precompact-goal-guard.py
 # + PostCompact re-arm there first (shared-hook propagation = operator approval).
 [group('sessions')]
-goal-night ritual="450000" window="500000":
+goal-night ritual="450000" window="500000" *args:
     #!/usr/bin/env bash
     set -euo pipefail
     case "{{ritual}}{{window}}" in *[!0-9]*) echo "goal-night: ritual/window must be integer token counts (got '{{ritual}}' '{{window}}')" >&2; exit 2;; esac
@@ -790,7 +790,7 @@ goal-night ritual="450000" window="500000":
     echo "{{ritual}}" > .claude/goal-run
     rm -f .claude/goal-done .claude/goal-blocked .claude/goal-wrapup-fired .claude/goal-compact-blocks .claude/goal-continues
     echo "goal-run armed: ritual@{{ritual}} window@{{window}} — give the session your /goal" >&2
-    CLAUDE_CODE_AUTO_COMPACT_WINDOW={{window}} exec "$HOME/Projects/agent-infra/scripts/claude-launch.sh"
+    CLAUDE_CODE_AUTO_COMPACT_WINDOW={{window}} exec "$HOME/Projects/agent-infra/scripts/claude-launch.sh" {{args}}
 
 # Dumb resume-loop driver for overnight goal runs. The SESSION holds the goal and
 # all judgment; this loop only re-wakes it. Start the goal session first (any mode),
