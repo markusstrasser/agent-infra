@@ -768,6 +768,24 @@ session-compact id="":
     env -u ANTHROPIC_API_KEY claude -p -r "$ID" --setting-sources user "/compact"
     echo "compacted: $ID (takes effect on next resume)"
 
+# Self-compact a LIVE interactive session — the tmux self-queue trick (verified
+# 2026-07-04): types "/compact" + a continue-message into the session's OWN pane;
+# they queue while the turn is running and execute as real user messages after it
+# ends. Call as the LAST tool call of a wrap-up turn, then stop talking. Requires
+# the session to run inside tmux ($TMUX_PANE set in the agent's Bash env).
+# Consumer: overnight /goal runs (stop-goal-wrapup.py hook prompts this at the
+# context threshold; .claude/goal-run marker opts in).
+[group('sessions')]
+session-live-compact continue_msg="Continue the goal. Re-orient from .claude/checkpoint.md first.":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    [ -n "${TMUX_PANE:-}" ] || { echo "not inside tmux — skip; auto-compact is the fallback" >&2; exit 1; }
+    tmux send-keys -t "$TMUX_PANE" "/compact"; sleep 1
+    tmux send-keys -t "$TMUX_PANE" Enter; sleep 1
+    tmux send-keys -t "$TMUX_PANE" "{{continue_msg}}"; sleep 1
+    tmux send-keys -t "$TMUX_PANE" Enter
+    echo "queued: /compact + continue message into $TMUX_PANE"
+
 # Dumb resume-loop driver for overnight goal runs. The SESSION holds the goal and
 # all judgment; this loop only re-wakes it. Start the goal session first (any mode),
 # then: just goal-loop <session-id> [claude flags, e.g. --permission-mode acceptEdits].

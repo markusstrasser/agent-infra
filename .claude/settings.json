@@ -104,6 +104,23 @@
           {
             "type": "command",
             "command": "/Users/alien/Projects/skills/hooks/plan-close-gate.py"
+          },
+          {
+            "type": "command",
+            "command": "/Users/alien/Projects/agent-infra/.claude/hooks/stop-goal-wrapup.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "rm -f .claude/goal-wrapup-fired",
+            "timeout": 5
           }
         ]
       }
