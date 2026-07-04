@@ -5,8 +5,11 @@ Opt-in per run: create `.claude/goal-run` in the project (file content = context
 threshold in tokens; empty file = 100000, i.e. ~50% of a 200K window; Fable 1M
 runs want e.g. 500000). When the session's live context crosses the threshold,
 this hook blocks the Stop ONCE with the wrap-up ritual as the reason — the agent
-does the session-end work while full context still exists, then self-queues
-/compact via `just session-live-compact` (tmux) and ends its turn.
+does the session-end work while full context still exists, then ends its turn;
+native auto-compact (settings `autoCompactWindow`, floor 80K — binary-verified
+2026-07-04, fired at preTokens=87707 on an 80K window) compacts on a subsequent
+turn. Set the ritual threshold here ~10% BELOW autoCompactWindow so the ritual
+precedes the compact; precompact-goal-guard.py enforces the ordering besides.
 
 Re-arm: PostCompact removes `.claude/goal-wrapup-fired`, so the next fill cycle
 fires again. Fail-open everywhere (P10).
@@ -24,9 +27,8 @@ WRAPUP_PROMPT = """CONTEXT THRESHOLD REACHED ({ctx:,} tokens >= {thr:,}) — run
 2. Run /rsi.
 3. Update docs touched by this session; tie off loose ends that need full context.
 4. Write .claude/checkpoint.md (Last Request / Pending Tasks / git state).
-5. LAST tool call: `just -f ~/Projects/agent-infra/justfile session-live-compact` (queues /compact + a continue-the-goal message into this session's own tmux pane), then end your turn. If $TMUX_PANE is unset (not in tmux), skip step 5 — auto-compact is the fallback.
 
-Then stop talking. Compaction and continuation happen via the queued messages."""
+Then end your turn normally. Native auto-compact (autoCompactWindow) fires on a subsequent turn — the PreCompact guard now allows it and injects goal-preserving summarizer instructions. Keep the goal loop running; compaction is handled."""
 
 
 def main() -> int:

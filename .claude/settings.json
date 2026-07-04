@@ -124,6 +124,18 @@
           }
         ]
       }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/alien/Projects/agent-infra/.claude/hooks/precompact-goal-guard.py",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   }
 }
