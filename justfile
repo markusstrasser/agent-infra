@@ -768,6 +768,27 @@ session-compact id="":
     env -u ANTHROPIC_API_KEY claude -p -r "$ID" --setting-sources user "/compact"
     echo "compacted: $ID (takes effect on next resume)"
 
+# Dumb resume-loop driver for overnight goal runs. The SESSION holds the goal and
+# all judgment; this loop only re-wakes it. Start the goal session first (any mode),
+# then: just goal-loop <session-id> [claude flags, e.g. --permission-mode acceptEdits].
+# Episode contract (the agent's side): work; at wrap-up time run the session-end
+# ritual (/rsi, docs, .claude/checkpoint.md), self-compact via `just session-compact`
+# as the LAST tool call, end the turn. Goal fully done+verified -> create
+# .claude/goal-done to stop the loop. Between episodes no process holds memory,
+# so the self-compact lands cleanly on the next resume.
+[group('sessions')]
+goal-loop id *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{invocation_directory()}}"
+    for i in $(seq 1 48); do
+      if [ -f .claude/goal-done ]; then echo "goal-done marker found after $((i-1)) episode(s)"; exit 0; fi
+      echo "── episode $i ──"
+      env -u ANTHROPIC_API_KEY claude -p -r "{{id}}" --setting-sources user {{args}} \
+        "Continue the goal (episode $i). If history was compacted, re-orient from .claude/checkpoint.md before acting. End this episode by either (a) wrap-up ritual + 'just -f ~/Projects/agent-infra/justfile session-compact' as your last tool call, or (b) if the goal is fully done and verified, creating .claude/goal-done."
+    done
+    echo "episode cap (48) reached without goal-done"; exit 1
+
 # Ingest new sessions from all vendors (Claude, Codex, Cursor, Gemini, Kimi) into agentlogs.db
 [group('sessions')]
 agentlogs-index *args:
