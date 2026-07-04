@@ -768,6 +768,27 @@ session-compact id="":
     env -u ANTHROPIC_API_KEY claude -p -r "$ID" --setting-sources user "/compact"
     echo "compacted: $ID (takes effect on next resume)"
 
+# Arm + launch an overnight /goal session — THE per-session switch (like --effort):
+# autoCompactWindow is set via env for THIS launch only, nothing repo-wide changes.
+# ritual = wrap-up threshold (Stop hook fires the RSI/checkpoint ritual);
+# window = native auto-compact trigger (~10% above ritual; floor 80000).
+# Give the session your /goal once it opens. Night runs unattended:
+# ritual at ~ritual tokens -> native compact at ~window -> continuation re-kick
+# (Stop hook, max 100) until .claude/goal-done / .claude/goal-blocked (HUMAN.md).
+# Disarm anytime: rm .claude/goal-run. NOTE: hooks are wired in agent-infra's
+# settings.json — for another repo, wire stop-goal-wrapup.py + precompact-goal-guard.py
+# + PostCompact re-arm there first (shared-hook propagation = operator approval).
+[group('sessions')]
+goal-night ritual="450000" window="500000":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{invocation_directory()}}"
+    mkdir -p .claude
+    echo "{{ritual}}" > .claude/goal-run
+    rm -f .claude/goal-done .claude/goal-blocked .claude/goal-wrapup-fired .claude/goal-compact-blocks .claude/goal-continues
+    echo "goal-run armed: ritual@{{ritual}} window@{{window}} — give the session your /goal" >&2
+    CLAUDE_CODE_AUTO_COMPACT_WINDOW={{window}} exec "$HOME/Projects/agent-infra/scripts/claude-launch.sh"
+
 # Dumb resume-loop driver for overnight goal runs. The SESSION holds the goal and
 # all judgment; this loop only re-wakes it. Start the goal session first (any mode),
 # then: just goal-loop <session-id> [claude flags, e.g. --permission-mode acceptEdits].
