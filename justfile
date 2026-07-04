@@ -739,6 +739,35 @@ plans-json:
 
 # ── Sessions (agentlogs) ─────────────────────────────────────────
 
+# Send a message into an existing Claude Code session as a headless resume turn.
+# Runs from the invoking repo (resume-by-id is cwd-scoped) with ANTHROPIC_API_KEY
+# unset (subscription OAuth; a set key hijacks auth → "Credit balance is too low").
+[group('sessions')]
+session-send id +prompt:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{invocation_directory()}}"
+    env -u ANTHROPIC_API_KEY claude -p -r "{{id}}" --setting-sources user "{{prompt}}"
+
+# Compact a Claude Code session from the outside — "send /compact to himself".
+# id defaults to the invoking repo's .claude/current-session-id, so an agent can
+# self-compact with bare `just session-compact` as the LAST tool call of its turn.
+# Semantics (verified 2026-07-04, memory: compact-is-headless-scriptable): writes a
+# compact_boundary to the on-disk transcript; the NEXT resume loads compacted
+# history. A live process's in-memory context does NOT shrink — so this serves
+# headless driver loops (`claude -p -r` turn chains), where each turn is a fresh
+# process. Calling it mid-turn then continuing risks orphaning the boundary
+# (later messages parent to pre-boundary lineage) — compact, then END the turn.
+[group('sessions')]
+session-compact id="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{invocation_directory()}}"
+    ID="{{id}}"
+    [ -z "$ID" ] && ID=$(cat .claude/current-session-id)
+    env -u ANTHROPIC_API_KEY claude -p -r "$ID" --setting-sources user "/compact"
+    echo "compacted: $ID (takes effect on next resume)"
+
 # Ingest new sessions from all vendors (Claude, Codex, Cursor, Gemini, Kimi) into agentlogs.db
 [group('sessions')]
 agentlogs-index *args:
