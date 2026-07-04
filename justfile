@@ -775,9 +775,10 @@ session-compact id="":
 # Give the session your /goal once it opens. Night runs unattended:
 # ritual at ~ritual tokens -> native compact at ~window -> continuation re-kick
 # (Stop hook, max 100) until .claude/goal-done / .claude/goal-blocked (HUMAN.md).
-# Disarm anytime: rm .claude/goal-run. NOTE: hooks are wired in agent-infra's
-# settings.json — for another repo, wire stop-goal-wrapup.py + precompact-goal-guard.py
-# + PostCompact re-arm there first (shared-hook propagation = operator approval).
+# Disarm anytime: rm .claude/goal-run. Works in ANY repo (hooks are global,
+# marker-gated, and session-owned: the marker's 2nd token = this session's id,
+# so peer sessions in the same repo are never controlled; markers are per-repo
+# so concurrent goal-nights across repos are independent).
 [group('sessions')]
 goal-night ritual="450000" window="500000" *args:
     #!/usr/bin/env bash
@@ -787,10 +788,11 @@ goal-night ritual="450000" window="500000" *args:
     [ "{{ritual}}" -lt "{{window}}" ] || { echo "goal-night: ritual ({{ritual}}) must be below window ({{window}}) so the wrap-up precedes the compact" >&2; exit 2; }
     cd "{{invocation_directory()}}"
     mkdir -p .claude
-    echo "{{ritual}}" > .claude/goal-run
+    SID=$(uuidgen | tr 'A-Z' 'a-z')
+    printf '%s %s\n' "{{ritual}}" "$SID" > .claude/goal-run
     rm -f .claude/goal-done .claude/goal-blocked .claude/goal-wrapup-fired .claude/goal-compact-blocks .claude/goal-continues
-    echo "goal-run armed: ritual@{{ritual}} window@{{window}} — give the session your /goal" >&2
-    CLAUDE_CODE_AUTO_COMPACT_WINDOW={{window}} exec "$HOME/Projects/agent-infra/scripts/claude-launch.sh" {{args}}
+    echo "goal-run armed: ritual@{{ritual}} window@{{window}} owner=$SID — give the session your /goal" >&2
+    CLAUDE_CODE_AUTO_COMPACT_WINDOW={{window}} exec "$HOME/Projects/agent-infra/scripts/claude-launch.sh" --session-id "$SID" {{args}}
 
 # Dumb resume-loop driver for overnight goal runs. The SESSION holds the goal and
 # all judgment; this loop only re-wakes it. Start the goal session first (any mode),
