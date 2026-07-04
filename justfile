@@ -782,6 +782,9 @@ session-compact id="":
 goal-night ritual="450000" window="500000":
     #!/usr/bin/env bash
     set -euo pipefail
+    case "{{ritual}}{{window}}" in *[!0-9]*) echo "goal-night: ritual/window must be integer token counts (got '{{ritual}}' '{{window}}')" >&2; exit 2;; esac
+    [ "{{window}}" -ge 80000 ] || { echo "goal-night: window {{window}} below the binary's 80000 floor" >&2; exit 2; }
+    [ "{{ritual}}" -lt "{{window}}" ] || { echo "goal-night: ritual ({{ritual}}) must be below window ({{window}}) so the wrap-up precedes the compact" >&2; exit 2; }
     cd "{{invocation_directory()}}"
     mkdir -p .claude
     echo "{{ritual}}" > .claude/goal-run
