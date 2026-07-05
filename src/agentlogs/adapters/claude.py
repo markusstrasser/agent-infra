@@ -367,6 +367,16 @@ def _parse_user_record(
 
     text = text_from_content(content)
     if text:
+        # Label harness-injected user lines so consumers can filter them:
+        # compaction summaries and meta expansions re-quote old user text
+        # (#f tags, corrections) and must not be mined as fresh signal.
+        # Ledger discipline: label, never drop — the store stays forensic.
+        if obj.get("isCompactSummary"):
+            vendor_kind = "compact_summary"
+        elif obj.get("isMeta"):
+            vendor_kind = "meta_injected"
+        else:
+            vendor_kind = "user"
         bundle.events.append(
             EventRow(
                 event_id=stable_id("evt_", run_id, raw_key, "user"),
@@ -374,7 +384,7 @@ def _parse_user_record(
                 seq=_next_seq(bundle),
                 ts=timestamp,
                 kind="user_message",
-                vendor_kind="user",
+                vendor_kind=vendor_kind,
                 vendor_event_id=obj.get("uuid"),
                 role="user",
                 text=text,

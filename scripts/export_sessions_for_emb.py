@@ -45,7 +45,10 @@ def main():
         for s in sess:
             rows = con.execute(
                 "SELECT e.role, e.kind, e.text FROM events e JOIN runs r ON e.run_id = r.run_id "
-                "WHERE r.session_pk = ? AND e.text IS NOT NULL AND e.text != '' ORDER BY r.run_id, e.seq",
+                "WHERE r.session_pk = ? AND e.text IS NOT NULL AND e.text != '' "
+                # harness-injected re-quotes (labeled at ingest by the claude adapter)
+                "AND (e.vendor_kind IS NULL OR e.vendor_kind NOT IN ('compact_summary','meta_injected')) "
+                "ORDER BY r.run_id, e.seq",
                 (s["session_pk"],)).fetchall()
             parts = []
             for r in rows:
