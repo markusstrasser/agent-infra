@@ -51,6 +51,9 @@ classified AS (
     sc.skill_seq,
     (SELECT e2.text FROM events e2
      WHERE e2.run_id = sc.run_id AND e2.seq < sc.skill_seq AND e2.kind = 'user_message'
+       -- harness-injected lines are not the invoking prompt
+       AND (e2.vendor_kind IS NULL
+            OR e2.vendor_kind NOT IN ('compact_summary', 'meta_injected'))
      ORDER BY e2.seq DESC LIMIT 1) AS user_text
   FROM skill_calls sc
   WHERE sc.skill IS NOT NULL

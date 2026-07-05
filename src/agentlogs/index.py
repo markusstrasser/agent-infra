@@ -1049,6 +1049,10 @@ def _refresh_session_denorm(db: sqlite3.Connection, session_pks: list[int]) -> N
                 SELECT substr(e.text, 1, 200) FROM events e
                 JOIN runs r ON r.run_id = e.run_id
                 WHERE r.session_pk = s.session_pk AND e.kind = 'user_message'
+                  -- skip harness-injected lines: a resumed session's first
+                  -- user_message is otherwise the compaction preamble
+                  AND (e.vendor_kind IS NULL
+                       OR e.vendor_kind NOT IN ('compact_summary', 'meta_injected'))
                 ORDER BY r.started_at, e.seq LIMIT 1
             ),
             transcript_lines = (
