@@ -763,8 +763,13 @@ agentlogs-archive dest="/Volumes/2TBPNY/agentlogs-archive" keep_days="90":
     n=$(sqlite3 "$out" "SELECT COUNT(*) FROM sessions;")
     zstd -T0 -q --rm -f "$out"
     echo "archived: $out.zst (sessions=$n, integrity=ok)"
-    uv run agentlogs prune --keep-days "{{keep_days}}" --yes
-    echo "live DB pruned to {{keep_days}}d — full history preserved in archive series"
+    uv run agentlogs prune --keep-days "{{keep_days}}" --yes --wait-seconds 1800
+    # fail-loud post-check: success is a verified post-condition, not an echo
+    # (2026-07-05: prune once skipped on lock contention while the recipe
+    # printed success — the false-all-clear class)
+    stale=$(sqlite3 "$DB" "SELECT COUNT(*) FROM sessions WHERE start_ts < datetime('now', '-{{keep_days}} days')")
+    [ "$stale" -eq 0 ] || { echo "FAIL: $stale sessions older than {{keep_days}}d remain after prune" >&2; exit 1; }
+    echo "live DB pruned to {{keep_days}}d (0 over-retention sessions) — full history in archive series"
 
 
 # Send a message into an existing Claude Code session as a headless resume turn.

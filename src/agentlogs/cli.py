@@ -146,6 +146,9 @@ def _make_parser() -> argparse.ArgumentParser:
                          help="Execute the prune (default: dry-run preview, deletes nothing)")
     s_prune.add_argument("--no-lock", action="store_true",
                          help="Skip the single-writer indexer lock (debug only)")
+    s_prune.add_argument("--wait-seconds", type=float, default=30.0,
+                         help="Block up to this long for the indexer lock before giving up "
+                              "(default: 30; automation behind the 2h indexer should pass ~1800)")
 
     s_compact = sub.add_parser(
         "compact",
@@ -599,7 +602,11 @@ def cmd_prune(args) -> int:
     from .gateway import IndexerLockBusy, write_gateway
 
     try:
-        with write_gateway(_resolve_db_path(args), no_lock=args.no_lock) as db:
+        with write_gateway(
+            _resolve_db_path(args),
+            no_lock=args.no_lock,
+            timeout_s=getattr(args, "wait_seconds", 30.0),
+        ) as db:
             if not args.apply:
                 plan = pr.plan_prune(db, args.keep_days)
                 print(f"[dry-run] keep_days={plan.keep_days}  cutoff={plan.cutoff}")
@@ -620,8 +627,12 @@ def cmd_prune(args) -> int:
                   f"{plan.size_after_mb:,.0f} MB (reclaimed {reclaimed:,.0f} MB)")
             return 0
     except IndexerLockBusy:
-        print("another indexer/prune is running; exiting cleanly", file=sys.stderr)
-        return 0
+        # Skipped work is NOT done work: exit 3 so automation can't read a
+        # lock-contended no-op as a successful prune (false-all-clear class,
+        # caught live 2026-07-05 — archive recipe printed success over a skip).
+        print("another indexer/prune is running; NOT pruned (exit 3) — "
+              "retry or raise --wait-seconds", file=sys.stderr)
+        return 3
 
 
 def cmd_compact(args) -> int:
