@@ -11,6 +11,7 @@ blast_radius: local
 - Chat histories: `~/.claude/projects/-Users-alien-Projects-*/UUID.jsonl`
 - Compaction log: `~/.claude/compact-log.jsonl`
 - Session receipts: `~/.claude/session-receipts.jsonl`
+- agentlogs labels harness-injected user lines at ingest (Claude adapter): `events.vendor_kind` = `compact_summary` (isCompactSummary) / `meta_injected` (isMeta) vs `user`. Label-never-drop — forensics sees everything; signal miners filter on the label. Raw-JSONL miners load `scripts/common/transcript_text.py` instead of re-implementing the predicate (drift-tested vs the skills-repo copy)
 - Session/run/tool-call DB: `~/.claude/agentlogs.db` (cross-vendor; 5 adapters wired: Claude, Codex, Cursor, Gemini, Kimi — but only Claude+Codex+Cursor have live data; Gemini/Kimi data is pre-21d-retention so it was indexed then pruned, and the import-ledger blocks re-import of those old files — new Gemini/Kimi sessions would index normally)
 - Session/run CLI: `uv run agentlogs recent|search|stats|query <name>` — the live tool
 - agentlogs ships INSIDE the agent-infra wheel (hatch force-include; no own dist, non-editable install) — after editing `src/agentlogs/`, `uv sync --reinstall-package agent-infra`; `--reinstall-package agentlogs` is a silent no-op
