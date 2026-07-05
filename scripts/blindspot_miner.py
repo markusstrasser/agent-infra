@@ -37,6 +37,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import supervision_taxonomy as tax
+from common.transcript_text import is_harness_injected
 
 PROJECTS = Path.home() / ".claude" / "projects"
 
@@ -51,7 +52,7 @@ def _user_text(obj: dict) -> str | None:
         return None
     # Compaction summaries / meta expansions re-quote old corrections — mining
     # them double-counts flags (duplicate imagegen rows in the 2026-07-05 digest).
-    if obj.get("isCompactSummary") or obj.get("isMeta"):
+    if is_harness_injected(obj):
         return None
     content = (obj.get("message") or {}).get("content", "")
     if isinstance(content, list):

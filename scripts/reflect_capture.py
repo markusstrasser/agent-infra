@@ -25,6 +25,8 @@ import re
 import sys
 from pathlib import Path
 
+from common.transcript_text import is_harness_injected
+
 CAPTURE_LOG = Path.home() / ".claude" / "reflect-capture.jsonl"
 CLOSE_QUEUE = Path.home() / ".claude" / "close-queue"
 # Meta-side central probe config, keyed by project. Co-located with the loop
@@ -73,7 +75,7 @@ def parse_events(lines: list[str]) -> list[dict]:
         # re-quote old #f tags and corrections — mining them as fresh signals
         # produced quarantine MINTs whose evidence was five copies of the
         # compaction preamble (2026-07-04 batch, all conf <=0.06).
-        if obj.get("isCompactSummary") or obj.get("isMeta"):
+        if is_harness_injected(obj):
             continue
         role = obj.get("type") or obj.get("message", {}).get("role")
         msg = obj.get("message", {})
