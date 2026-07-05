@@ -739,6 +739,34 @@ plans-json:
 
 # ── Sessions (agentlogs) ─────────────────────────────────────────
 
+# Archive agentlogs.db to the external SSD (verify + compress), THEN prune the live
+# DB to the retention window. Keep-everything-via-archive (operator decision
+# 2026-07-05): every session lives in the archive series forever — archive cadence
+# (weekly launchd com.agent-infra.agentlogs-archive) < prune retention (90d), so
+# consecutive snapshots overlap and nothing is ever lost. Live DB stays small so the
+# 2h indexer stops hitting its 1200s reap deadline (orphaned_7d=40 @ 8.5GB).
+# Prune runs ONLY after PRAGMA integrity_check passes on the fresh archive.
+[group('sessions')]
+agentlogs-archive dest="/Volumes/2TBPNY/agentlogs-archive" keep_days="90":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    DB="$HOME/.claude/agentlogs.db"
+    test -d "$(dirname "{{dest}}")" || { echo "FAIL: archive volume not mounted: {{dest}}" >&2; exit 1; }
+    mkdir -p "{{dest}}"
+    need=$(( $(stat -f %z "$DB") * 3 / 2 / 1048576 ))
+    free=$(df -m "{{dest}}" | awk 'NR==2 {print $4}')
+    [ "$free" -gt "$need" ] || { echo "FAIL: dest free ${free}MB < need ${need}MB (disk preflight)" >&2; exit 1; }
+    out="{{dest}}/agentlogs-$(date +%Y-%m-%d).db"
+    sqlite3 "$DB" ".backup '$out'"
+    ok=$(sqlite3 "$out" "PRAGMA integrity_check;")
+    [ "$ok" = "ok" ] || { echo "FAIL: integrity_check on archive: $ok" >&2; rm -f "$out"; exit 1; }
+    n=$(sqlite3 "$out" "SELECT COUNT(*) FROM sessions;")
+    zstd -T0 -q --rm -f "$out"
+    echo "archived: $out.zst (sessions=$n, integrity=ok)"
+    uv run agentlogs prune --keep-days "{{keep_days}}" --yes
+    echo "live DB pruned to {{keep_days}}d — full history preserved in archive series"
+
+
 # Send a message into an existing Claude Code session as a headless resume turn.
 # Runs from the invoking repo (resume-by-id is cwd-scoped) with ANTHROPIC_API_KEY
 # unset (subscription OAuth; a set key hijacks auth → "Credit balance is too low").
