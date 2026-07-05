@@ -49,6 +49,10 @@ SKIP = re.compile(
 def _user_text(obj: dict) -> str | None:
     if obj.get("type") != "user" or obj.get("toolUseResult"):
         return None
+    # Compaction summaries / meta expansions re-quote old corrections — mining
+    # them double-counts flags (duplicate imagegen rows in the 2026-07-05 digest).
+    if obj.get("isCompactSummary") or obj.get("isMeta"):
+        return None
     content = (obj.get("message") or {}).get("content", "")
     if isinstance(content, list):
         content = "\n".join(b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text")
