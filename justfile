@@ -742,12 +742,14 @@ plans-json:
 # Archive agentlogs.db to the external SSD (verify + compress), THEN prune the live
 # DB to the retention window. Keep-everything-via-archive (operator decision
 # 2026-07-05): every session lives in the archive series forever — archive cadence
-# (weekly launchd com.agent-infra.agentlogs-archive) < prune retention (90d), so
-# consecutive snapshots overlap and nothing is ever lost. Live DB stays small so the
-# 2h indexer stops hitting its 1200s reap deadline (orphaned_7d=40 @ 8.5GB).
+# (weekly launchd com.agent-infra.agentlogs-archive) < prune retention (30d), so
+# consecutive snapshots overlap and nothing is ever lost. Live retention is a pure
+# performance knob (30d, operator call 2026-07-05 — ~7.5GB steady state at 250MB/day);
+# history >30d lives on 2TBPNY: `sqlite3 -cmd "ATTACH '<snapshot>' AS old"` for
+# forensic who/whence lookups past the window.
 # Prune runs ONLY after PRAGMA integrity_check passes on the fresh archive.
 [group('sessions')]
-agentlogs-archive dest="/Volumes/2TBPNY/agentlogs-archive" keep_days="90":
+agentlogs-archive dest="/Volumes/2TBPNY/agentlogs-archive" keep_days="30":
     #!/usr/bin/env bash
     set -euo pipefail
     DB="$HOME/.claude/agentlogs.db"
