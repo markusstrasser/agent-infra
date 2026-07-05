@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.agent-infra.agentlogs-archive</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/opt/homebrew/bin/just</string>
+		<string>-f</string>
+		<string>/Users/alien/Projects/agent-infra/justfile</string>
+		<string>agentlogs-archive</string>
+	</array>
+	<key>StartCalendarInterval</key>
+	<dict>
+		<key>Weekday</key>
+		<integer>0</integer>
+		<key>Hour</key>
+		<integer>3</integer>
+		<key>Minute</key>
+		<integer>30</integer>
+	</dict>
+	<key>StandardOutPath</key>
+	<string>/Users/alien/.claude/logs/agentlogs-archive.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/alien/.claude/logs/agentlogs-archive.log</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+	</dict>
+	<key>WorkingDirectory</key>
+	<string>/Users/alien/Projects/agent-infra</string>
+	<!-- @system layer=watch role=archiver llm=none
+	     Weekly Sun 03:30: snapshot agentlogs.db to /Volumes/2TBPNY (verify+zstd),
+	     then prune live DB to 90d. Keep-everything-via-archive, decision 2026-07-05.
+	     Fails loud (non-zero exit) if the volume is unmounted -> maintain sweep reds. -->
+</dict>
+</plist>
