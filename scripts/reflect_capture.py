@@ -69,6 +69,12 @@ def parse_events(lines: list[str]) -> list[dict]:
             obj = json.loads(line)
         except (json.JSONDecodeError, ValueError):
             continue
+        # Harness-injected user lines (compaction summaries, meta expansions)
+        # re-quote old #f tags and corrections — mining them as fresh signals
+        # produced quarantine MINTs whose evidence was five copies of the
+        # compaction preamble (2026-07-04 batch, all conf <=0.06).
+        if obj.get("isCompactSummary") or obj.get("isMeta"):
+            continue
         role = obj.get("type") or obj.get("message", {}).get("role")
         msg = obj.get("message", {})
         content = msg.get("content", [])
