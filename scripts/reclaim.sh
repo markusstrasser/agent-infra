@@ -289,7 +289,9 @@ cmd_rotate() {
   local al="$HOME/Projects/agent-infra/.venv/bin/agentlogs"
   sect "agentlogs.db — keep last ${ALOG_KEEP_DAYS}d of sessions (rebuilds FTS, VACUUMs)"
   if [ ! -x "$al" ]; then warn "agentlogs not found at $al"; return; fi
-  if [ "$YES" = 1 ]; then "$al" prune --keep-days "$ALOG_KEEP_DAYS" --yes
+  # --wait-seconds 1800: the 04:10 cron collides with the 2h indexer lock (exit-3
+  # skips observed 2026-07-05/06); prune's own help says automation should pass ~1800.
+  if [ "$YES" = 1 ]; then "$al" prune --keep-days "$ALOG_KEEP_DAYS" --yes --wait-seconds 1800
   else "$al" prune --keep-days "$ALOG_KEEP_DAYS"; fi
 }
 
