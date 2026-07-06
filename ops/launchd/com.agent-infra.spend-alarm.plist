@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.agent-infra.spend-alarm</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/alien/Projects/agent-infra/scripts/spend-alarm.sh</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/alien/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>/Users/alien</string>
+    </dict>
+    <key>WorkingDirectory</key>
+    <string>/Users/alien/Projects/agent-infra</string>
+    <!-- @system layer=watch role=miner llm=none
+         Every 30 min, zero-API: sum today's genuinely-billed (transport==api / *-api)
+         llmx spend over the funnel ledger and fire a macOS notification at the $25
+         constitutional daily cap (invariants.md). SAFETY NET behind the in-llmx hard
+         block (spend_guard) — the block stops the NEXT metered call; this catches spend
+         a long-running job accrued after starting under the cap. Option B of the
+         spend-block build; anchor decisions/2026-06-25-metered-spend-funnel-enforcement.md. -->
+    <key>StartInterval</key>
+    <integer>1800</integer>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/alien/.claude/logs/spend-alarm.out</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/alien/.claude/logs/spend-alarm.err</string>
+    <key>LowPriorityIO</key>
+    <true/>
+    <key>Nice</key>
+    <integer>5</integer>
+</dict>
+</plist>
