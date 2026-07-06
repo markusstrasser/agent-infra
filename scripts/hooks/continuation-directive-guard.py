@@ -16,7 +16,8 @@ checkpoint/continuation rules already existing in CLAUDE.md. This supplies the
 recoverable cue at the moment it's needed (state-externalization lens).
 
 Contract (Claude Code 2.1.x), mirrors the sibling userprompt-prior-context.py:
-  - UserPromptSubmit envelope on stdin: `.user_message`, `.cwd`, `.session_id`.
+  - UserPromptSubmit envelope on stdin: `.prompt` (CC renamed it from
+    `.user_message` ~2026-06-16), `.cwd`, `.session_id`; `.user_message` fallback.
   - Advisory ONLY: emits hookSpecificOutput.additionalContext, never blocks.
   - Fails OPEN: any error -> exit 0, no output.
   - Cheap: a single regex; on a non-continuation prompt it exits immediately.
@@ -112,8 +113,14 @@ def main() -> None:
     if not raw.strip():
         return
     env = json.loads(raw)
-    prompt = (env.get("user_message") or "").strip()
+    # CC 2.1.x envelope field is `.prompt` (renamed from `.user_message`
+    # ~2026-06-16); read the new field, fall back to the old, flag missing-both.
+    prompt = (env.get("prompt") or env.get("user_message") or "").strip()
     if not prompt:
+        if "prompt" not in env and "user_message" not in env:
+            print("[DEGRADED] continuation-directive-guard: envelope has neither "
+                  ".prompt nor .user_message — CC UserPromptSubmit contract drifted",
+                  file=sys.stderr)
         return
     if not _is_bare_continuation(prompt):
         return

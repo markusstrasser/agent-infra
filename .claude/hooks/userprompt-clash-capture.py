@@ -13,8 +13,9 @@ veto" is the pushback discipline (<technical_pushback>, provisional-by-construct
 architectural — instructions for it are ~0% reliable (Principle 1). The probe
 (gemini-flash on the governance-index) showed 5/5 precision on concrete clashes.
 
-Contract (Claude Code 2.1.x): UserPromptSubmit envelope on stdin — `.user_message`,
-`.cwd`, `.session_id`. Fails OPEN (any error → exit 0, no output). Captures only
+Contract (Claude Code 2.1.x): UserPromptSubmit envelope on stdin — `.prompt`
+(CC renamed it from `.user_message` ~2026-06-16), `.cwd`, `.session_id`. Reads
+`.prompt` with a `.user_message` fallback. Fails OPEN (any error → exit 0). Captures only
 directive-class messages (a cheap regex gate); the offline detector judges clash-or-not.
 """
 # Gov-ID: hook:clash-capture
@@ -55,7 +56,14 @@ def main() -> None:
         if not raw.strip():
             return
         env = json.loads(raw)
-        msg = (env.get("user_message") or "").strip()
+        # CC 2.1.x envelope field is `.prompt` (renamed from `.user_message`
+        # ~2026-06-16 — the rename starved this capture log to zero rows since
+        # deploy). Read the new field, fall back to the old, flag a missing-both.
+        msg = (env.get("prompt") or env.get("user_message") or "").strip()
+        if not msg and "prompt" not in env and "user_message" not in env:
+            print("[DEGRADED] userprompt-clash-capture: envelope has neither .prompt "
+                  "nor .user_message — CC UserPromptSubmit contract drifted",
+                  file=sys.stderr)
         # too short or no build/change/decide intent → not a clash surface, skip
         if len(msg) < 16 or not DIRECTIVE.search(msg):
             return
