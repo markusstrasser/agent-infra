@@ -71,6 +71,25 @@ class TestShellEnvLoopGate(unittest.TestCase):
             cand = json.loads((Path(td) / "shell-env-candidate.jsonl").read_text())
             self.assertTrue(cand["checkable"])
 
+    def test_stage_candidate_writes_gate_when_not_actionable(self):
+        g = {
+            "promote_actionable": False,
+            "assessed_at": "2026-06-28T12:00:00Z",
+            "total_fails": 55,
+            "window_days": 30,
+            "cross_harness_issues": [],
+            "shell_env_clusters": [{"cluster": "zsh-env:nomatch", "fails": 55}],
+            "fix_hint": "fix it",
+        }
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as td:
+            path = gate.stage_candidate(g, Path(td))
+            self.assertTrue(path.is_file())
+            self.assertFalse((Path(td) / "shell-env-candidate.jsonl").exists())
+            recorded = json.loads(path.read_text())
+            self.assertFalse(recorded["promote_actionable"])
+
 
 if __name__ == "__main__":
     unittest.main()

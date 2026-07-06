@@ -80,12 +80,13 @@ def assess(*, days: int = 30, failures: list[dict] | None = None) -> dict:
     }
 
 
-def stage_candidate(gate: dict, out_dir: Path) -> Path | None:
-    if not gate.get("promote_actionable"):
-        return None
+def stage_candidate(gate: dict, out_dir: Path) -> Path:
+    """Persist the gate assessment and stage a candidate only when actionable."""
     out_dir.mkdir(parents=True, exist_ok=True)
     gate_path = out_dir / "shell-env-gate.json"
     gate_path.write_text(json.dumps(gate, indent=2) + "\n")
+    if not gate.get("promote_actionable"):
+        return gate_path
     cand_path = out_dir / "shell-env-candidate.jsonl"
     row = {
         "schema": "observe.candidate.v1",
