@@ -56,3 +56,35 @@ observability-only (already shipped) and accept that prevention stays manual?
 **Evidence:** improvement-log 2026-06-25 (BACKSTOP GAP + shipped observability slice);
 substrate@6dd4f84,c8af5ee (the per-pipeline in-repo fix); `~/.claude/llmx-usage.jsonl` schema;
 `pretool-cost-guard.sh`; `usage-check.py --metered-today`; improvement-log:3601 (caller-attribution `[obs]`).
+
+## Resolution (2026-07-06)
+
+**Approved A+B at the $25 cap**, with an explicit per-run override
+(`LLMX_SPEND_OVERRIDE=1`), refuse-on-unpriced-model, and single-sourced pricing.
+Operator approval this session; built same day.
+
+- **A — in-llmx hard block** (`llmx/spend_guard.py`, wired into `providers.chat` +
+  `api.LLM.chat` + `research.py`). Fires at the dispatch funnel BEFORE any billed
+  token: sums today's metered (`transport == "api"` / `*-api`) spend from the
+  ledger, refuses at $25. New `SpendCapError` / exit 7 (distinct from QuotaError's
+  exit 6). Unreadable ledger → fail-open with a loud `[DEGRADED]` warning.
+  llmx@6a10f68, @158626d (tests).
+- **Unpriced model → fail-loud refuse** (never priced $0). The Perplexity research
+  path (`agent-api`) enforces the cumulative cap only (it self-reports cost).
+- **Pricing single-sourced** on `llmx/usage_report.py:PRICING`; `usage-check.py`
+  vendors a copy behind an AST drift-test (`tests/test_usage_check_pricing_drift.py`)
+  since agent-infra can't import llmx. Fixed the `gemini-3.5-flash` $0 undercount and
+  widened the metered filter to count `agent-api`. agent-infra@05a56b5.
+- **B — periodic alarm** (`scripts/spend-alarm.sh` + `ops/launchd/
+  com.agent-infra.spend-alarm.plist`, every 30 min, macOS notification at $25).
+  Bootstrapped and running. agent-infra@db06fe3.
+- **Reconciled** `pretool-cost-guard.sh` from the stale $500/$1000 to warn $10/block
+  $25. skills@c2845fb.
+
+**Deviation from the packet:** the packet framed the block as `transport==api`; in
+reality the CLI dispatches through `providers.chat` (not `api.LLM.chat`), and metered
+rows include `agent-api`. The guard was placed at BOTH the CLI path and the library
+path, and the metered predicate widened to `api` + `*-api`, so no metered surface is
+missed. Verified end-to-end: subscription/dry-run unaffected; a metered call against a
+$30 over-cap fixture refuses with exit 7 before any API call (no real dollars spent).
+Build memo: `docs/audit/2026-07-06-spend-block-build.md`.
