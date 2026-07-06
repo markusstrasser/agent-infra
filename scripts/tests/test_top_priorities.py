@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sys
+from datetime import datetime, timedelta
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
@@ -10,13 +11,20 @@ sys.path.insert(0, str(REPO / "scripts"))
 import top_priorities as tp  # noqa: E402
 
 
+def _recent_ts() -> str:
+    """A last_seen inside the FAILURE_STALE_DAYS recency gate — a hardcoded date
+    here rotted past the gate and silently flipped both tests (2026-07-06)."""
+    return (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M")
+
+
+
 def test_broken_tools_suppresses_shell_env_when_gate_healthy(monkeypatch, tmp_path: Path):
     failures = [
         {
             "cluster": "zsh-env:parse-error",
             "fails": 9,
             "distinct_days": 4,
-            "last_seen": "2026-07-01T11:51",
+            "last_seen": _recent_ts(),
             "sample": "(eval):5: parse error near `if'",
         }
     ]
@@ -39,7 +47,7 @@ def test_broken_tools_keeps_shell_env_when_gate_promotes(monkeypatch, tmp_path: 
             "cluster": "zsh-env:parse-error",
             "fails": 9,
             "distinct_days": 4,
-            "last_seen": "2026-07-01T11:51",
+            "last_seen": _recent_ts(),
             "sample": "(eval):5: parse error near `if'",
         }
     ]
