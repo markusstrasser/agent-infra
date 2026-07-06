@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+from datetime import datetime, timedelta, timezone
 import subprocess
 import sys
 import tempfile
@@ -52,7 +53,7 @@ class AgentMaintainabilityTest(unittest.TestCase):
                 "commit",
                 "-m",
                 "seed",
-                env=_commit_env("2026-02-20T12:00:00+00:00"),
+                env=_commit_env(_days_ago(45)),
             )
 
             file_path.write_text("base\nagent line\n", encoding="utf-8")
@@ -64,7 +65,7 @@ class AgentMaintainabilityTest(unittest.TestCase):
                 "agent change",
                 "-m",
                 "Session-ID: abc123",
-                env=_commit_env("2026-02-25T12:00:00+00:00"),
+                env=_commit_env(_days_ago(40)),
             )
             agent_hash = (
                 subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD"], text=True).strip()
@@ -77,7 +78,7 @@ class AgentMaintainabilityTest(unittest.TestCase):
                 "commit",
                 "-m",
                 "fix followup",
-                env=_commit_env("2026-02-27T12:00:00+00:00"),
+                env=_commit_env(_days_ago(38)),
             )
 
             file_path.write_text("base\n", encoding="utf-8")
@@ -89,7 +90,7 @@ class AgentMaintainabilityTest(unittest.TestCase):
                 f"Revert \"agent change\"",
                 "-m",
                 f"This reverts commit {agent_hash}.",
-                env=_commit_env("2026-03-10T12:00:00+00:00"),
+                env=_commit_env(_days_ago(27)),
             )
 
             report = module.build_report([("repo", repo)], days=120, windows=[7, 30])
@@ -100,6 +101,14 @@ class AgentMaintainabilityTest(unittest.TestCase):
             self.assertEqual(row_7["eligible_commits"], 1)
             self.assertEqual(row_7["followup_fix_rate"], 1.0)
             self.assertEqual(row_30["revert_rate"], 1.0)
+
+
+def _days_ago(days: int) -> str:
+    """Commit dates are derived from now(): hardcoded date literals aged out of
+    the days=120 lookback and silently flipped this test red (found 2026-07-06).
+    The agent commit sits at -40d (>=30d old, inside the lookback); followup +2d,
+    revert +13d preserve the original gaps."""
+    return (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
 
 
 def _commit_env(ts: str) -> dict[str, str]:
