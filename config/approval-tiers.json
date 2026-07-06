@@ -55,7 +55,9 @@
         "pretool-genomics-pythonpath-guard.py",
         "pretool-bare-modal-guard.py",
         "pretool-duckdb-quote-guard.sh",
-        "pretool-raw-openai-guard.sh"
+        "pretool-raw-openai-guard.sh",
+        "pretool-noext-nongit-guard.sh",
+        "pretool-timeout-modal-guard.sh"
       ]
     },
     {
