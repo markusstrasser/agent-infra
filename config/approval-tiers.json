@@ -79,6 +79,7 @@
       "hooks": [
         "pretool-inventory-dispatch.py",
         "pretool-bg-dispatch-footgun.py",
+        "pretool-askuserquestion-autonomous-warn.py",
         "pretool-heavy-load-guard.sh",
         "pretool-cost-awareness.sh",
         "pretool-companion-remind.sh",
