@@ -244,11 +244,13 @@ def gather_status(repo: Path | None = None) -> dict:
     import loop_funnel as lf  # noqa: E402
     import questions_view as qv  # noqa: E402
     import predictions  # noqa: E402
+    import steward_reconcile as sr  # noqa: E402
 
     funnel = lf.metrics()
     questions = qv.collect_questions(repo)
     qsection = qv.render_section(questions)
     due = predictions.due_predictions()
+    reconcile = sr.reconcile()
     canary = canary_summary()
     maintain = _latest_maintain_draft()
     tick = _load_tick_state()
@@ -258,6 +260,7 @@ def gather_status(repo: Path | None = None) -> dict:
         "questions_count": len(questions.questions),
         "questions_section": qsection,
         "predictions_due": due,
+        "steward_reconcile": reconcile,
         "canary": canary,
         "maintain_draft": maintain,
         "tick": tick,
@@ -273,6 +276,8 @@ def status_needs_attention(m: dict) -> bool:
     if m["canary"]["alarm_count"] > 0:
         return True
     if m["predictions_due"]:
+        return True
+    if (m.get("steward_reconcile") or {}).get("candidate_count", 0) > 0:
         return True
     if m.get("maintain_draft"):
         return True
@@ -343,6 +348,20 @@ def render_status(m: dict) -> str:
         if len(m["predictions_due"]) > 5:
             parts.append(f"- … and {len(m['predictions_due']) - 5} more")
         parts.append("")
+    rec = m.get("steward_reconcile") or {}
+    if rec.get("candidate_count"):
+        parts.append(
+            f"## Steward reconcile — {rec['candidate_count']}/{rec['open_count']} likely ALREADY-DONE"
+        )
+        parts.append("_LOCATE only — read the cited source to DECIDE, then `mv` to implemented/._")
+        for c in rec["candidates"][:5]:
+            parts.append(f"- **{c['proposal']}** ↳ `{c['evidence']}`")
+        if rec["candidate_count"] > 5:
+            parts.append(
+                f"- … and {rec['candidate_count'] - 5} more "
+                "(`just -f ~/Projects/agent-infra/justfile steward-reconcile`)"
+            )
+        parts.append("")
     parts.extend([
         "**Next:** `/rsi close` · `just reflect-review` · `/improve maintain` · `just questions`",
     ])
@@ -358,6 +377,7 @@ def cmd_status(args) -> int:
             "unclassified": m["funnel"]["unclassified"],
             "questions_count": m["questions_count"],
             "predictions_due_count": len(m["predictions_due"]),
+            "steward_reconcile_candidates": (m.get("steward_reconcile") or {}).get("candidate_count", 0),
             "canary_alarm_count": m["canary"]["alarm_count"],
             "maintain_draft": m.get("maintain_draft"),
             "needs_attention": status_needs_attention(m),

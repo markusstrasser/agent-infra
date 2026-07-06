@@ -146,14 +146,32 @@ def _phase_drain() -> dict:
     sys.path.insert(0, str(SCRIPTS))
     import act_drain as ad  # noqa: E402
     import loop_funnel as lf  # noqa: E402
+    import predictions as pred  # noqa: E402
+    import steward_reconcile as sr  # noqa: E402
 
     summary = ad.run_classify()
     metrics = lf.metrics()
+    # DUE predictions + already-done steward candidates were PRODUCED into ledgers by
+    # earlier phases but never CONSUMED — they sat 8-21d until a manual sweep
+    # (docs/audit/2026-07-06-{predictions-resolution,steward-triage}). Carry both in the
+    # tick STATE so `pulse status` surfaces them loudly and a tick reader can't miss them.
+    # Both are surface-only here: the proxy-free prediction refute runs in `sense` via
+    # register_implementations; reconcile is a report-only LOCATE (human closes).
+    due = pred.due_predictions()
+    reconcile = sr.reconcile()
     return {
         "ok": True,
         "classify_summary": summary[:500],
         "disposition_queue": metrics["disposition_queue"],
         "unclassified": metrics["unclassified"],
+        "predictions_due_count": len(due),
+        "predictions_due": [
+            {"id": p.get("id"), "check_date": p.get("check_date"),
+             "change": (p.get("change") or "")[:100]}
+            for p in due[:10]
+        ],
+        "steward_reconcile_candidates": reconcile["candidate_count"],
+        "steward_open": reconcile["open_count"],
         "funnel": {k: metrics[k] for k in (
             "captured", "classified", "unclassified", "quarantine_pending",
             "steward_proposals", "rsi_close_pending", "disposition_queue",
