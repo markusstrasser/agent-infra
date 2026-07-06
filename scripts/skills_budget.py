@@ -35,14 +35,23 @@ def main() -> int:
     else:
         con.header("Skills index budget")
         for mount in report.mounts:
+            # claude mounts gate on the effective (model-facing) index; codex
+            # mounts gate on the raw sum (flag-honoring unverified, fa0ce09).
+            gating = (
+                mount.effective_description_chars
+                if mount.label == "claude_global"
+                else mount.description_chars
+            )
             flag = ""
-            if mount.description_chars > report.codex_budget_chars:
+            if gating > report.codex_budget_chars:
                 flag = " OVER"
-            elif mount.description_chars > report.codex_budget_chars * 0.85:
+            elif gating > report.codex_budget_chars * 0.85:
                 flag = " warn"
             con.kv(
                 mount.label,
-                f"{mount.description_chars} chars / {mount.skill_count} skills{flag}",
+                f"{mount.description_chars} raw / "
+                f"{mount.effective_description_chars} effective / "
+                f"{mount.skill_count} skills{flag}",
             )
         if report.violations:
             for v in report.violations:

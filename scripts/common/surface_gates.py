@@ -13,14 +13,14 @@ import re
 import subprocess
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 import yaml
 
 PROJECTS_ROOT = Path.home() / "Projects"
 CODEX_SKILLS_BUDGET_CHARS = 8000
 SKIP_SKILL_DIR_NAMES = frozenset(
-    {"hooks", "archive", "goals", "__pycache__", "node_modules", ".git", ".system"}
+    {"hooks", "archive", "_archive", "__pycache__", "node_modules", ".git", ".system"}
 )
 
 GOVERNANCE_GLOBS = (
@@ -72,6 +72,10 @@ class SkillMount:
     path: str
     skill_count: int
     description_chars: int
+    # description_chars minus disable-model-invocation skills — the ambient
+    # model-facing index. Raw sum stays the conservative Codex number
+    # (Codex honoring of the flag is unverified; fa0ce09).
+    effective_description_chars: int = 0
     skills: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -137,17 +141,22 @@ def iter_skill_dirs(root: Path) -> list[Path]:
 def measure_skill_mount(label: str, root: Path) -> SkillMount:
     skills: list[dict[str, Any]] = []
     desc_chars = 0
+    effective_chars = 0
     for skill_dir in iter_skill_dirs(root):
         skill_md = skill_dir / "SKILL.md"
         line = skill_description_line(skill_md)
         n = len(line)
         desc_chars += n
         fm, _ = parse_skill_frontmatter(skill_md)
+        model_invocable = not bool(fm.get("disable-model-invocation"))
+        if model_invocable:
+            effective_chars += n
         skills.append(
             {
                 "name": str(fm.get("name") or skill_dir.name),
                 "path": str(skill_md),
                 "description_chars": n,
+                "model_invocable": model_invocable,
             }
         )
     return SkillMount(
@@ -155,6 +164,7 @@ def measure_skill_mount(label: str, root: Path) -> SkillMount:
         path=str(root),
         skill_count=len(skills),
         description_chars=desc_chars,
+        effective_description_chars=effective_chars,
         skills=skills,
     )
 
@@ -184,10 +194,12 @@ def build_skills_budget(project: str | Path | None = None) -> SkillsBudgetReport
     violations: list[str] = []
     by_label = {m.label: m for m in mounts}
 
-    if by_label["claude_global"].description_chars > CODEX_SKILLS_BUDGET_CHARS:
+    # claude_global gates on the EFFECTIVE (ambient model-facing) index: Claude
+    # honors disable-model-invocation, and doesn't hard-clip at 8000 anyway.
+    if by_label["claude_global"].effective_description_chars > CODEX_SKILLS_BUDGET_CHARS:
         violations.append(
-            f"claude_global {by_label['claude_global'].description_chars} chars "
-            f"> {CODEX_SKILLS_BUDGET_CHARS}"
+            f"claude_global {by_label['claude_global'].effective_description_chars} "
+            f"effective chars > {CODEX_SKILLS_BUDGET_CHARS}"
         )
     if by_label["codex_global"].description_chars > CODEX_SKILLS_BUDGET_CHARS:
         violations.append(
@@ -335,6 +347,14 @@ def sync_skill_symlinks(
     dst.mkdir(parents=True, exist_ok=True)
     expected: dict[str, Path] = {}
     for skill_dir in iter_skill_dirs(src):
+        # Codex has no verified disable-model-invocation support, so every
+        # mirrored skill lands in its AMBIENT auto-fire index. Explicit-only
+        # skills (fa0ce09: execute/leverage/…) therefore stay Claude-side;
+        # mirroring them would grant Codex exactly the ambient auto-fire the
+        # flag exists to prevent — and they burn its 8K description budget.
+        fm, _ = parse_skill_frontmatter(skill_dir / "SKILL.md")
+        if fm.get("disable-model-invocation"):
+            continue
         target = skill_dir.resolve()
         expected[skill_dir.name] = target
 
