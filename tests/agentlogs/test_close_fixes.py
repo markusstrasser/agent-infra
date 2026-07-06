@@ -6,6 +6,7 @@ plan-close-933eca/disposition.md and asserts the post-fix behavior.
 from __future__ import annotations
 
 import sys
+import os
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
@@ -130,9 +131,17 @@ def test_scaled_source_timeout_scales_with_file_size(tmp_path: Path) -> None:
   small = tmp_path / "small.jsonl"
   big = tmp_path / "big.jsonl"
   small.write_text("{}\n")
-  big.write_bytes(b"x" * (80 * 1024 * 1024))
+  # sparse files: st_size is all the scaler reads; no need to write real bytes
+  big.touch()
+  os.truncate(big, 80 * 1024 * 1024)
+  huge = tmp_path / "huge.jsonl"
+  huge.touch()
+  os.truncate(huge, 200 * 1024 * 1024)
   assert ix._scaled_source_timeout_s(small, 180.0) == 180.0
-  assert ix._scaled_source_timeout_s(big, 180.0) == 1200.0
+  # linear region: 120 + 80*12 = 1080. The original assertion expected the 1200
+  # cap at 80MB and was born red in 377b28c — 80MB never reaches the cap.
+  assert ix._scaled_source_timeout_s(big, 180.0) == 1080.0
+  assert ix._scaled_source_timeout_s(huge, 180.0) == 1200.0  # cap region
 
 
 def test_cmd_index_returns_nonzero_on_vendor_error(tmp_path: Path, monkeypatch) -> None:
