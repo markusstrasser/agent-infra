@@ -186,7 +186,7 @@ step "Skills"
 
 SKILLS_SRC="$PROJECTS/skills"
 SKILLS_DST="$HOME/.claude/skills"
-SKIP_DIRS="hooks|archive|goals|__pycache__|node_modules|\\.git"
+SKIP_DIRS="hooks|archive|_archive|__pycache__|node_modules|\\.git"
 
 if [ -d "$SKILLS_SRC" ]; then
     mkdir -p "$SKILLS_DST"
