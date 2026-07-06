@@ -58,5 +58,16 @@ ab45524 (2min), ad8f0c25 (2min).
 | LEFT (reap-rec) | substrate/…ade0fd3e | targets deleted corpus-extract (kill f61c9b6) |
 | EXCLUDED | arc-agi ×4 (a36c381, a770d7fe, ab45524, ad8f0c25) | live peer sessions, committing seconds/minutes ago |
 
+## Follow-up (parent taste call 2026-07-06) — salvage + reap the two substrate forks
+
+1. **SALVAGED** both research memos onto substrate main, memos-only (zero corpus-extract code):
+   - `docs/research/2026-06-28-faithfulness-gate-graded.md` (off a9d90b0c)
+   - `docs/research/2026-06-28-drug-rxnorm-recall-fork.md` (off ade0fd3e)
+   - Neither was on main. Commit **f0e84eb** `[research] Salvage memos from reaped corpus-extract worktree branches`.
+2. **REAPED** both (targeted git, dir remove --force + `branch -D`; reflog covers recovery):
+   - worktree-agent-a9d90b0c2c159a0f9 (was 3d00a0b)
+   - worktree-agent-ade0fd3e6f3d2b12e (was 318dc2b)
+3. publishing/a50704d3c left untouched (operator owns — dirty files of unknown provenance).
+
 
 
