@@ -806,7 +806,13 @@ session-compact id="":
 # Arm + launch an overnight /goal session — THE per-session switch (like --effort):
 # autoCompactWindow is set via env for THIS launch only, nothing repo-wide changes.
 # ritual = wrap-up threshold (Stop hook fires the RSI/checkpoint ritual);
-# window = native auto-compact trigger (~10% above ritual; floor 80000).
+# window = configured auto-compact window (floor 80000). The binary's EFFECTIVE
+# trigger fires ~26K BELOW the window (output reserve; observed pre=473,991 on
+# window=500000, arc-agi 182fba14) — keep ritual >=60K under the window so a fat
+# turn can't cross both before a Stop. Window is stamped as the marker's 3rd
+# token so resume drivers (goal-loop) can restore the env — a plain resume
+# otherwise reverts to the model-default window and auto-compact silently stops
+# (observed: same session rode to 567K, manual compacts only).
 # Give the session your /goal once it opens. Night runs unattended:
 # ritual at ~ritual tokens -> native compact at ~window -> continuation re-kick
 # (Stop hook, max 100) until .claude/goal-done / .claude/goal-blocked (HUMAN.md).
@@ -815,7 +821,7 @@ session-compact id="":
 # so peer sessions in the same repo are never controlled; markers are per-repo
 # so concurrent goal-nights across repos are independent).
 [group('sessions')]
-goal-night ritual="450000" window="500000" *args:
+goal-night ritual="420000" window="500000" *args:
     #!/usr/bin/env bash
     set -euo pipefail
     case "{{ritual}}{{window}}" in *[!0-9]*) echo "goal-night: ritual/window must be integer token counts (got '{{ritual}}' '{{window}}')" >&2; exit 2;; esac
@@ -824,7 +830,7 @@ goal-night ritual="450000" window="500000" *args:
     cd "{{invocation_directory()}}"
     mkdir -p .claude
     SID=$(uuidgen | tr 'A-Z' 'a-z')
-    printf '%s %s\n' "{{ritual}}" "$SID" > .claude/goal-run
+    printf '%s %s %s\n' "{{ritual}}" "$SID" "{{window}}" > .claude/goal-run
     rm -f .claude/goal-done .claude/goal-blocked .claude/goal-wrapup-fired .claude/goal-compact-blocks .claude/goal-continues
     echo "goal-run armed: ritual@{{ritual}} window@{{window}} owner=$SID — give the session your /goal" >&2
     CLAUDE_CODE_AUTO_COMPACT_WINDOW={{window}} exec "$HOME/Projects/agent-infra/scripts/claude-launch.sh" --session-id "$SID" {{args}}
@@ -842,10 +848,15 @@ goal-loop id *args:
     #!/usr/bin/env bash
     set -euo pipefail
     cd "{{invocation_directory()}}"
+    # Restore the goal-night auto-compact window (marker 3rd token) — env is
+    # launch-scoped, so a bare resume reverts to the model-default window and
+    # native auto-compact silently stops firing.
+    WINDOW=$(awk 'NR==1 {print $3}' .claude/goal-run 2>/dev/null || true)
+    case "$WINDOW" in ''|*[!0-9]*) WINDOW="" ;; esac
     for i in $(seq 1 48); do
       if [ -f .claude/goal-done ]; then echo "goal-done marker found after $((i-1)) episode(s)"; exit 0; fi
       echo "── episode $i ──"
-      env -u ANTHROPIC_API_KEY claude -p -r "{{id}}" --setting-sources user {{args}} \
+      env -u ANTHROPIC_API_KEY ${WINDOW:+CLAUDE_CODE_AUTO_COMPACT_WINDOW=$WINDOW} claude -p -r "{{id}}" --setting-sources user {{args}} \
         "Continue the goal (episode $i). If history was compacted, re-orient from .claude/checkpoint.md before acting. End this episode by either (a) wrap-up ritual + 'just -f ~/Projects/agent-infra/justfile session-compact' as your last tool call, or (b) if the goal is fully done and verified, creating .claude/goal-done."
     done
     echo "episode cap (48) reached without goal-done"; exit 1
