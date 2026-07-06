@@ -831,7 +831,7 @@ goal-night ritual="420000" window="500000" *args:
     mkdir -p .claude
     SID=$(uuidgen | tr 'A-Z' 'a-z')
     printf '%s %s %s\n' "{{ritual}}" "$SID" "{{window}}" > .claude/goal-run
-    rm -f .claude/goal-done .claude/goal-blocked .claude/goal-wrapup-fired .claude/goal-compact-blocks .claude/goal-continues
+    rm -f .claude/goal-done .claude/goal-blocked .claude/goal-wrapup-fired .claude/goal-compact-blocks .claude/goal-continues .claude/goal-unstarted-warned
     echo "goal-run armed: ritual@{{ritual}} window@{{window}} owner=$SID — give the session your /goal" >&2
     CLAUDE_CODE_AUTO_COMPACT_WINDOW={{window}} exec "$HOME/Projects/agent-infra/scripts/claude-launch.sh" --session-id "$SID" {{args}}
 
