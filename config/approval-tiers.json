@@ -78,6 +78,7 @@
       "description": "Front-load context; does not block",
       "hooks": [
         "pretool-inventory-dispatch.py",
+        "pretool-bg-dispatch-footgun.py",
         "pretool-heavy-load-guard.sh",
         "pretool-cost-awareness.sh",
         "pretool-companion-remind.sh",
