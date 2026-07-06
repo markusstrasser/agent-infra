@@ -9,7 +9,7 @@ never closed autonomously — see prediction #5).
 | # | id | verdict |
 |---|----|---------|
 | 1 | 2026-06-15-scite-scope | **CONFIRMED** |
-| 2 | 2026-06-28-prior-context-cluster | **REFUTED** (hook dormant confound) |
+| 2 | 2026-06-28-prior-context-cluster | ~~REFUTED~~ → **CONFOUNDED** (instrument was dead; see addendum) |
 | 3 | 2026-06-28-peer-warn | **REFUTED** (noisy verifier) |
 | 4 | 2026-06-28-autockpt-failclosed | **CONFIRMED** |
 | 5 | 2026-06-28-prereg-adoption | **PARTIAL** |
@@ -56,6 +56,28 @@ dominated, but that shift is not attributable to a dormant hook.
 
 **Actionable:** investigate why the front-load hook stopped firing after 06-16 (deploy regressed
 or trigger too narrow). Command: `grep 'prior-context' ~/.claude/hook-triggers.jsonl`.
+
+### ADDENDUM 2026-07-06 — verdict downgraded to CONFOUNDED (measurement invalid)
+
+The REFUTED row stays in the ledger (append-only), but it is **superseded**: the measurement was
+invalid because the instrument was **dead, not ineffective**. Per `docs/audit/2026-07-06-dead-llm-hooks.md`
++ fix `skills@17c97b5`:
+
+- `userprompt-prior-context.py` is **pure Python, no LLM** — it read `env.get("user_message")`,
+  but CC 2.1.x renamed the UserPromptSubmit envelope field `.user_message`→`.prompt` (~2026-06-16).
+  The hook read empty and silently no-op'd for ~3 weeks — which is **exactly** the boundary my
+  fire-count data showed (~5 fires, all ≤06-16, then dormant). The dormancy was the field rename.
+- Because the hook was never actually exercised on real prompts, "the cluster stayed #1" cannot
+  refute the hook's efficacy — it measured a dead instrument (global rule #19: separate transport
+  failure from capability value).
+- The hook is now fixed (reads `.prompt` with `.user_message` fallback, `[DEGRADED]` stderr on a
+  missing-both envelope, test 26/26). Live-replay: **49% of real prompts match the gate** — so it
+  will actually fire going forward.
+
+Efficacy is now **re-opened** as a fresh forward-looking prediction registered this run
+(`2026-07-20-prior-context-cluster-refire`, commit `skills@17c97b5`, due 2026-07-20): does the
+rediscovery/prior-context cluster shrink in the blindspot digest over ~2 weeks now that the hook
+actually fires?
 
 ## 3. `2026-06-28-peer-warn` — REFUTED
 
