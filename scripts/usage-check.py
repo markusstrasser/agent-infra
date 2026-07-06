@@ -17,35 +17,50 @@ import sys
 from collections import defaultdict
 
 
-# Rough per-million-token rates (USD) for the providers that actually appear
-# in the log. Approximate — for cap-monitoring not invoicing.
-RATES = {
-    # (provider, prefix): (input $/M, output $/M)
-    ("anthropic", "claude-opus-4"): (15.0, 75.0),
-    ("anthropic", "claude-sonnet-4"): (3.0, 15.0),
-    ("anthropic", "claude-haiku-4"): (1.0, 5.0),
-    ("openai", "gpt-5"): (5.0, 15.0),
-    ("openai", "gpt-4"): (2.5, 10.0),
-    ("openai", "o3"): (5.0, 20.0),
-    ("google", "gemini-3.1-pro"): (1.25, 10.0),
-    ("google", "gemini-3-pro"): (1.25, 10.0),
-    ("google", "gemini-3-flash"): (0.075, 0.30),
-    ("google", "gemini-2.5"): (0.30, 2.50),
-    ("perplexity", "sonar-pro"): (3.0, 15.0),
-    ("perplexity", "sonar"): (1.0, 1.0),
-    ("xai", "grok"): (5.0, 15.0),
+# PRICING — VENDORED copy of llmx/llmx/usage_report.py:PRICING (the single source).
+# agent-infra can't import llmx (separate env), so this exact-model map is vendored
+# behind a drift-test — tests/test_usage_check_pricing_drift.py AST-parses the llmx
+# source and asserts equality, so the two can't silently diverge (epistemic-discipline
+# invariant #9). Edit rates in llmx; then sync here or the drift-test fails loudly.
+# Per-MTok (input, output); output rate also applies to reasoning tokens. Exact model
+# keys (NOT prefixes) — an unpriced model returns None (surfaces as $0, never guessed).
+PRICING: dict[str, tuple[float, float]] = {
+    "gemini-3-flash-preview": (0.075, 0.30),
+    "gemini-3-flash": (0.075, 0.30),
+    "gemini-3.1-flash-lite-preview": (0.05, 0.20),
+    "gemini-3.5-flash": (1.50, 9.0),
+    "gemini-3.1-pro-preview": (1.25, 10.0),
+    "gpt-5.5": (1.25, 10.0),
+    "gpt-5.5-pro": (15.0, 120.0),
+    "gpt-5.3-chat-latest": (1.75, 14.0),
+    "gpt-5.3-codex": (1.25, 10.0),
+    "claude-opus-4-8": (5.0, 25.0),
+    "claude-fable-5": (10.0, 50.0),
+    "claude-sonnet-4-6": (3.0, 15.0),
 }
 
 
+def _is_metered(transport) -> bool:
+    """True iff genuinely billed (per-token API). Metered rows: `api` + `*-api`
+    (e.g. `agent-api` = perplexity research). Subscription/CLI (`claude-cli`,
+    `codex-cli`) are $0. Mirrors llmx spend_guard.is_metered_transport."""
+    return bool(transport) and (transport == "api" or transport.endswith("-api"))
+
+
+def est_cost(model: str, prompt_tok: int, out_tok: int):
+    """Exact-model cost estimate, or None if the model is unpriced."""
+    rate = PRICING.get(model or "")
+    if rate is None:
+        return None
+    return (prompt_tok * rate[0] + out_tok * rate[1]) / 1_000_000
+
+
 def estimate_cost(provider: str, model: str, prompt_tok: int, completion_tok: int, reasoning_tok: int = 0) -> float:
-    """Best-effort cost estimate. Reasoning tokens billed as output."""
-    if not model:
-        return 0.0
+    """Best-effort cost estimate. Reasoning tokens billed as output. Unpriced → $0
+    (undercount rather than guess). `provider` kept for call-site compatibility;
+    pricing is model-keyed via the single-sourced PRICING map."""
     out_tok = completion_tok + (reasoning_tok or 0)
-    for (p, prefix), (in_rate, out_rate) in RATES.items():
-        if provider == p and model.startswith(prefix):
-            return (prompt_tok * in_rate + out_tok * out_rate) / 1_000_000
-    return 0.0  # unknown — undercount rather than guess
+    return est_cost(model, prompt_tok, out_tok) or 0.0
 
 
 def metered_today(args) -> None:
@@ -70,7 +85,7 @@ def metered_today(args) -> None:
             continue
         if not (r.get("ts", "") or "").startswith(today):
             continue
-        if r.get("transport") != "api":  # subscription/CLI = $0; only billed rows count
+        if not _is_metered(r.get("transport")):  # subscription/CLI = $0; only billed rows count
             continue
         prov, model = r.get("provider", "?"), r.get("model", "?")
         p_tok = r.get("prompt_tokens") or 0
