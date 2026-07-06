@@ -13,6 +13,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-04-25-tool-attention-and-skill-bank.md` | Tool Attention + Co-Evolving Skill Bank — Two papers from arxiv week of 2026-... | TODO |
 | `2026-05-15-cross-project-knowledge-infra-dossier.md` | Cross-Project Knowledge Infrastructure — The Dossier | TODO |
 | `2026-05-27-agent-safety-alignment-4w.md` | Safety/alignment — METR ≥16% cheating; Opus 4.7 sycophancy halved; Exploration Hacking | Capability evals; sycophancy mitigation; sandboxing/control proposals |
+| `2026-07-07-shepherd-syscall-jail-prior-art.md` | Shepherd (arXiv:2605.10913) — Seatbelt/Landlock permission jail from type signature; NO-ADOPT framework, capture 3 mechanisms | Hardening sandbox/hook enforcement; "hard" permission on protected data; fail-closed jail probes |
 | `2026-05-27-agentic-coding-swe-4w.md` | Agentic coding & SWE — SWE-bench inflation, Claude Code v2.1.139, HiL-Bench | Extending dashboard/orchestrator; SWE benchmarking; epistemic-discipline hooks |
 | `2026-05-27-claude-code-native-overlap-probe.md` | Claude Code Native Primitives — Overlap Probe | TODO |
 | `2026-05-27-continueonblock-probe-anchor.md` | continueOnBlock Probe — Measurement Anchor | TODO |
@@ -144,6 +145,8 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-07-05-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-05 (deterministic) | TODO |
 | `2026-07-06-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-06 (deterministic) | TODO |
 | `2026-07-06-skill-usage-value-audit.md` | Skill Usage & Value Audit — 2026-07-06 | TODO |
+| `2026-07-07-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-07 (deterministic) | TODO |
+| `2026-07-07-shepherd-syscall-jail-prior-art.md` | Shepherd — syscall-jail permissions as prior-art | TODO |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
 | `adversarial-case-library.md` | Adversarial Case Library: The Best "Calling BS" Reviews | TODO |
 | `agent-behavior-refresh-2026-04.md` | Agent Behavior Delta — Memory, Self-Modification, Sycophancy | TODO |
