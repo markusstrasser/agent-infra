@@ -1248,6 +1248,14 @@ clash-detect *args:
 questions *args:
     uv run python3 scripts/questions_view.py --repo "$(pwd)" {{args}}
 
+# Flag open steward proposals whose artifact already shipped (the 26/71 already-done
+# lag, docs/audit/2026-07-06-steward-triage-*). Deterministic LOCATE only — read the
+# cited source to DECIDE before `mv`-ing to implemented/; never auto-closes. Surfaced
+# in the pulse tick drain phase. `--json` = machine lane.
+[group('knowledge')]
+steward-reconcile *args:
+    uv run python3 scripts/steward_reconcile.py {{args}}
+
 # Drain the stale question backlog — staleness is a defect to DRAIN, not a flag to
 # display (MIDDLE_MANAGER harvest, plan 17d2a35c). Bare = work-list (llm: none);
 # --dispatch = one read-only revalidation scout per stale item via scout_backends
