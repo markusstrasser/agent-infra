@@ -540,6 +540,37 @@ def check_telemetry_freshness() -> list[Check]:
         c_log.ok(f"{session_log_count} log entries / {transcript_count} transcripts in 24h")
     checks.append(c_log)
 
+    # Close-queue drain check: unprocessed intents aging past 48h = the drain is
+    # wedged (the 2026-06-18→07-06 starvation sat 18 days with zero signal; a
+    # backlog-age check catches the class on day 2 regardless of digest cadence).
+    c_drain = Check("telemetry:close-queue-drain", "global")
+    queue_dir = CLAUDE_DIR / "close-queue"
+    stale_cutoff = now - 48 * 3600
+    unprocessed_total = 0
+    stale_count = 0
+    oldest_age_h = 0.0
+    if queue_dir.is_dir():
+        for intent_file in queue_dir.glob("*.json"):
+            try:
+                intent = json.loads(intent_file.read_text())
+            except (OSError, json.JSONDecodeError):
+                continue
+            if intent.get("processed"):
+                continue
+            unprocessed_total += 1
+            mtime = intent_file.stat().st_mtime
+            if mtime < stale_cutoff:
+                stale_count += 1
+                oldest_age_h = max(oldest_age_h, (now - mtime) / 3600)
+    if stale_count:
+        c_drain.fail(
+            f"{stale_count} close-intents unprocessed >48h (oldest {oldest_age_h:.0f}h; "
+            f"{unprocessed_total} pending total) — run reflect_session_close.py --drain"
+        )
+    else:
+        c_drain.ok(f"{unprocessed_total} pending close-intents, none older than 48h")
+    checks.append(c_drain)
+
     return checks
 
 
