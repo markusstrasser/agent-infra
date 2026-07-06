@@ -40,3 +40,27 @@ if new_py and "Native-First" not in trailers:
 ## Pre-registered falsify (F3)
 
 change_ref: this hook edit · predicted_failure_class: new scripts without Native-First justification · metric: `native_first.py` missing-trailer fraction over rolling 90d · direction: decrease · control: a different trailer's adherence (Evidence: on governance commits) should stay ~flat · rollback: if the fraction doesn't fall within 30d, the advisory is insufficient → escalate to a `warnings`-level nudge or drop.
+
+## Resolution (2026-07-06)
+
+status: resolved. Approved by operator (this session). Shipped in `~/Projects/skills`
+`commit-check-parse.py` @ **0a63fe2**, advisory only (never blocks).
+
+**Correction to the premise.** The Dedup claim above — "commit-check-parse.py does
+NOT currently check Native-First (grep-confirmed)" — was a grep-miss. The advisory
+**already shipped 2026-06-12** (skills 2ecbc80 "Add Native-First trailer gate",
+retained through 83fa31d), before this proposal was written. It fired on every new
+`scripts/*.py`.
+
+**What actually shipped** is the correctness delta, not the advisory itself: the
+existing block did not exclude test scripts, while the pre-registered metric
+(`evals/graders/governance/native_first.py`) excludes `tests/`, `test_*`, `*_test.py`,
+`conftest.py`. The hook now mirrors that exclusion via a shared `_is_test_script`
+predicate, so the nudge fires on exactly the population the metric measures.
+
+**Rejected the sketch's broadening** to all `.py` (`f.endswith(".py")`): that fires
+outside the grader's `scripts/*.py` scope and would nudge on files the metric never
+counts — noise, and a miscalibrated advisory. Scope stays `scripts/*.py` minus tests.
+
+Test: `hooks/test_commit_check_native_first.py` (7 cases, all pass). Gate:
+`hooks-smoke` pass=287, no failures. The F3 falsify/rollback above stands unchanged.
