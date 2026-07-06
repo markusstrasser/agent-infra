@@ -124,7 +124,7 @@ def build_digest(intent: dict) -> dict | None:
     else:
         hint = (
             "Verify one load-bearing claim from this session (receipt, gate output, artifact "
-            "hash, or test exit code) before fm.py attach-evidence."
+            "hash, or test exit code) before closing."
         )
 
     digest = {
@@ -178,10 +178,16 @@ def append_maintain_one_liner(digest: dict) -> None:
         handle.write(line)
 
 
-def process_intent(path: Path) -> bool:
+def process_intent(path: Path) -> str:
+    """Process one intent file end-to-end (read → gate → digest → mark processed).
+
+    Returns the outcome: 'written' | 'skipped:<reason>' | 'already_processed' | 'unreadable'.
+    """
     intent = _read_json(path)
-    if not intent or intent.get("processed"):
-        return False
+    if not intent:
+        return "unreadable"
+    if intent.get("processed"):
+        return "already_processed"
 
     digest = build_digest(intent)
     intent["processed"] = True
@@ -196,18 +202,42 @@ def process_intent(path: Path) -> bool:
         intent["skip_reason"] = "tier1_not_eligible"
 
     path.write_text(json.dumps(intent, indent=2) + "\n", encoding="utf-8")
-    return digest is not None
+    return "written" if digest else f"skipped:{intent['skip_reason']}"
 
 
-def drain_queue(limit: int = 10) -> int:
+def drain_queue(limit: int = 10) -> dict:
+    """Process up to `limit` UNPROCESSED intents, oldest first.
+
+    The unprocessed filter must run BEFORE the limit window: processed intents stay in
+    the queue with frozen mtimes, so `sorted(...)[:limit]` alone wedges permanently once
+    `limit` processed files accumulate at the head of the mtime order (the 2026-06-18 →
+    07-06 outage: 132 intents starved behind 10 done files).
+
+    Returns stats: read (intents examined), written (digests), skipped ({reason: count}),
+    unreadable (unparseable queue files), pending_after (unprocessed left beyond limit).
+    """
+    stats: dict = {"read": 0, "written": 0, "skipped": {}, "unreadable": 0, "pending_after": 0}
     if not CLOSE_QUEUE.exists():
-        return 0
-    written = 0
-    pending = sorted(CLOSE_QUEUE.glob("*.json"), key=lambda path: path.stat().st_mtime)
+        return stats
+    pending: list[Path] = []
+    for path in sorted(CLOSE_QUEUE.glob("*.json"), key=lambda path: path.stat().st_mtime):
+        intent = _read_json(path)
+        if intent is None:
+            stats["unreadable"] += 1
+        elif not intent.get("processed"):
+            pending.append(path)
     for path in pending[:limit]:
-        if process_intent(path):
-            written += 1
-    return written
+        stats["read"] += 1
+        outcome = process_intent(path)
+        if outcome == "written":
+            stats["written"] += 1
+        elif outcome.startswith("skipped:"):
+            reason = outcome.split(":", 1)[1]
+            stats["skipped"][reason] = stats["skipped"].get(reason, 0) + 1
+        # 'already_processed'/'unreadable' here = raced by a concurrent drain; leave unaccounted
+        # so the silent-zero guard in main() flags it rather than a count papering over it.
+    stats["pending_after"] = max(0, len(pending) - stats["read"])
+    return stats
 
 
 def _closed_sessions() -> set[str]:
@@ -223,6 +253,37 @@ def _closed_sessions() -> set[str]:
         if row.get("rsi_closed") and row.get("session_id"):
             closed.add(str(row["session_id"]))
     return closed
+
+
+def latest_digest(session_id: str | None = None) -> dict | None:
+    """Latest reflect.close-digest.v1 row — NEVER an ack.
+
+    The digest log is a mixed event stream (digest.v1 + close-ack.v1 about the same
+    lifecycle), so any consumer must select by schema; blind `tail -1` returns whatever
+    was appended last — in practice an ack (the /rsi SKILL.md Step-1 failure). This owns
+    that selection so consumers load it instead of re-stating it.
+
+    With session_id: that session's latest digest, acked or not (explicit ask).
+    Without: the latest digest whose session has no rsi_closed ack — the pending close.
+    """
+    if not DIGEST_LOG.exists():
+        return None
+    closed = _closed_sessions() if session_id is None else set()
+    found: dict | None = None
+    for line in DIGEST_LOG.read_text(encoding="utf-8", errors="replace").splitlines():
+        try:
+            row = json.loads(line)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        if row.get("schema") != "reflect.close-digest.v1":
+            continue
+        sid = str(row.get("session_id", ""))
+        if session_id is not None:
+            if sid == session_id:
+                found = row  # latest wins
+        elif sid not in closed:
+            found = row
+    return found
 
 
 def ack_digest(session_id: str) -> None:
@@ -285,18 +346,34 @@ def pending_nudge(here: str | None = None) -> str | None:
     return None
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     import argparse
 
     parser = argparse.ArgumentParser(description="RSI session-close digest drain")
     parser.add_argument("--drain", action="store_true", help="Process close-queue entries")
     parser.add_argument("--nudge", action="store_true", help="Print SessionStart nudge if any")
     parser.add_argument("--ack", metavar="SESSION_ID", help="Mark session RSI-closed (stops nudge)")
+    parser.add_argument(
+        "--latest-digest",
+        nargs="?",
+        const="",
+        default=None,
+        metavar="SESSION_ID",
+        help="Print latest close-digest row (never an ack): with SESSION_ID that session's, "
+        "bare/empty the latest un-acked one. Exit 1 if none.",
+    )
     parser.add_argument("--limit", type=int, default=10)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if args.ack:
         ack_digest(args.ack)
+        return 0
+    if args.latest_digest is not None:
+        digest = latest_digest(args.latest_digest or None)
+        if digest is None:
+            sys.stderr.write("[reflect-session-close] no matching close-digest\n")
+            return 1
+        print(json.dumps(digest, indent=2, default=str))
         return 0
     if args.nudge:
         nudge = pending_nudge()
@@ -304,8 +381,22 @@ def main() -> int:
             print(nudge)
         return 0
     if args.drain:
-        count = drain_queue(limit=args.limit)
-        sys.stderr.write(f"[reflect-session-close] {count} digest(s) written\n")
+        stats = drain_queue(limit=args.limit)
+        skipped_n = sum(stats["skipped"].values())
+        breakdown = ", ".join(f"{k}={v}" for k, v in sorted(stats["skipped"].items())) or "none"
+        sys.stderr.write(
+            f"[reflect-session-close] {stats['read']} intents read, "
+            f"{stats['written']} digests written, {skipped_n} skipped ({breakdown}); "
+            f"{stats['pending_after']} still pending, {stats['unreadable']} unreadable\n"
+        )
+        if stats["read"] > 0 and stats["written"] == 0 and skipped_n == 0:
+            # Every examined intent must land as written or skip-accounted; a silent zero
+            # is the drain-logic bug class that starved the queue for 18 days — fail loud.
+            sys.stderr.write(
+                "[reflect-session-close] SILENT-ZERO: intents read but none written or "
+                "skip-accounted — drain logic bug\n"
+            )
+            return 1
         return 0
 
     parser.print_help()
