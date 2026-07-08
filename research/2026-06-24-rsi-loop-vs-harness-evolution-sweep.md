@@ -24,3 +24,7 @@
 ## Verdict
 
 Frontier is **convergent validation** of our existing architecture (verifier-conditioned autonomy, the F3 control-gate, failure-distillation) — not a call to adopt any external system. One real gap surfaced (F3 consumer-tier-blindness), routed. No builds triggered beyond that finding's `[ ]`.
+
+## Revisions
+
+- **2026-07-08:** The "one actionable finding" (add a consumer-tier split to the F3 gate) was probed (operator-approved) and **PARKED, not built**. The split is structurally valid and cross-tier consumers dominate (agent-infra sessions: Haiku 350 > Opus 95), but `mechanism-records/` holds only the build-day example — **0 real records in 18 days**. So the gate itself is **built-but-unadopted** (same class as the retired `session_quality` gate), and refining a zero-caller gate is premature. Resurrection trigger = the gate accretes a real cross-tier record. **The sharper finding is the adoption gap, not the segmentation gap** — and the meta-lesson: this memo routed a *refinement* to the gate without checking the gate's *usage*. Adopt-vs-retire is an open design call flagged to the operator. See improvement-log `[2026-07-08]`. (Probe prompted by Lilian Weng's 2026-07-04 harness-RSI survey — whose Self-Harness held-in/held-out per-consumer discipline is the same finding, and which was itself ~all convergent validation of our June sweeps.)
