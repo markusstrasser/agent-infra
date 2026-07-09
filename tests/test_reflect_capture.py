@@ -489,3 +489,33 @@ class TestMain:
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))
+
+
+# ── RSI/DX reflex (steward 2026-07-09-rsi-dx-reflex) ─────────────────────────
+class TestOperatorDx:
+    def test_classify_discovery_stopping_tool_reuse(self):
+        assert rc.classify_operator_dx("why did you not find X")["miss_class"] == "discovery"
+        assert rc.classify_operator_dx("why did you stop?")["miss_class"] == "stopping"
+        assert rc.classify_operator_dx("don\'t we already have this?")["miss_class"] == "tool_reuse"
+
+    def test_classify_rsi_and_g_tag(self):
+        assert rc.classify_operator_dx("please do RSI close")["miss_class"] == "dx"
+        assert rc.classify_operator_dx("#g remember this")["miss_class"] == "other"
+
+    def test_no_false_positive_on_mcp_alone(self):
+        assert rc.classify_operator_dx("use MCP to fetch the page") is None
+
+    def test_extract_and_real_issue(self):
+        ev = rc.parse_events([
+            assistant_tool("Bash", {"command": "ls"}),
+            user_text("why did you stop looking?"),
+        ])
+        rows = rc.extract_operator_dx_interventions(ev)
+        assert len(rows) == 1 and rows[0]["subtype"] == "operator_dx"
+        ok, kinds = rc.real_issue_signal(rows)
+        assert ok and "operator_dx" in kinds
+
+    def test_signals_include_dx_before_negation(self):
+        ev = rc.parse_events([user_text("why did you not find the notebook?")])
+        sigs = rc.extract_signals(ev, [])
+        assert any(s.get("subtype") == "operator_dx" for s in sigs)

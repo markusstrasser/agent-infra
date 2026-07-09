@@ -195,3 +195,46 @@ class TestLatestDigest:
         assert rsc.main(["--latest-digest", ""]) == 0
         out = json.loads(capsys.readouterr().out)
         assert out["session_id"] == "sess-b"
+
+
+class TestHindsightMode3:
+    def test_append_hindsight_grade_validates(self, tmp_path, monkeypatch):
+        grades = tmp_path / "loop" / "hindsight_grades.jsonl"
+        monkeypatch.setattr(
+            rsc,
+            "_HINDSIGHT_GRADES",
+            {"arc-agi": grades},
+        )
+        (tmp_path / "loop").mkdir(parents=True)
+        assert rsc.append_hindsight_grade("arc-agi", {"item": "operator:x", "grade": "DERIVABLE"})
+        rows = [json.loads(l) for l in grades.read_text().splitlines()]
+        assert rows[0]["item"] == "operator:x"
+        assert not rsc.append_hindsight_grade("arc-agi", {"item": "operator:y", "grade": "MAYBE"})
+
+    def test_ack_with_hindsight_appends(self, paths, tmp_path, monkeypatch, capsys):
+        grades = tmp_path / "arc-agi" / "loop" / "hindsight_grades.jsonl"
+        grades.parent.mkdir(parents=True)
+        monkeypatch.setattr(rsc, "_HINDSIGHT_GRADES", {"arc-agi": grades})
+        _write_intent(paths["queue"], "sess-h", paths["transcript"])
+        rsc.drain_queue()
+        digest_line = paths["digest"].read_text().strip().splitlines()[-1]
+        row = json.loads(digest_line)
+        row["project"] = "arc-agi"
+        row["session_id"] = "sess-h"
+        paths["digest"].write_text(
+            paths["digest"].read_text().rsplit("\n", 1)[0] + "\n" + json.dumps(row) + "\n",
+            encoding="utf-8",
+        )
+        payload = json.dumps(
+            {
+                "item": "operator:why-stop",
+                "grade": "DERIVABLE",
+                "evidence": "why did you stop",
+                "gap": "noop",
+            }
+        )
+        assert rsc.main(["--ack", "sess-h", "--hindsight", payload]) == 0
+        err = capsys.readouterr().err
+        assert "1 hindsight grade(s) appended" in err
+        saved = json.loads(grades.read_text().strip())
+        assert saved["grade"] == "DERIVABLE"

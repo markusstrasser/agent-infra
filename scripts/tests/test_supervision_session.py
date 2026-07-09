@@ -87,3 +87,9 @@ def test_session_module_single_source():
     assert "import supervision_taxonomy" in src
     for banned in ("BLINDSPOT_PATTERNS", "CORRECTION_PATTERNS", "NEW_AGENCY", "wasted_pct"):
         assert banned not in src
+
+
+def test_repeated_instruction_ignores_image_metadata():
+    img = "[Image: original 2560x1440 displayed at 1280x720. Multiply coordinates by 2.]"
+    assert ss._count_repeated_instructions([img, img, img]) == 0
+    assert ss._count_repeated_instructions(["Semax? i will use it", "Semax? i will use it. where can i get it?"]) == 1

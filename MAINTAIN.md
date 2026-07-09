@@ -84,3 +84,119 @@ Status of `~/.claude/steward-proposals/` after 2026-04-17 archive sweep (4 imple
 - [2026-06-18] RSI close queued: agent-infra/5ce532b8 (operator_correction_signal)
 
 - [2026-06-18] RSI close queued: agent-infra/5a2191db (real_issue_signal)
+
+- [2026-07-06] RSI close queued: genomics/7ffc759b (real_issue_signal)
+
+- [2026-07-06] RSI close queued: agent-infra/a4830487 (real_issue_signal)
+
+- [2026-07-06] RSI close queued: agent-infra/29a41db4 (real_issue_signal)
+
+- [2026-07-06] RSI close queued: agent-infra/81518dea (real_issue_signal)
+
+- [2026-07-06] RSI close queued: agent-infra/b1cb5fcf (explicit_rsi_close)
+
+- [2026-07-06] RSI close queued: agent-infra/d31781c1 (real_issue_signal)
+
+- [2026-07-06] RSI close queued: agent-infra/4b6f4298 (explicit_rsi_close)
+
+- [2026-07-06] RSI close queued: agent-infra/55df219d (real_issue_signal)
+
+- [2026-07-06] RSI close queued: agent-infra/85bd3604 (explicit_rsi_close)
+
+- [2026-07-06] RSI close queued: agent-infra/04a9e843 (explicit_rsi_close)
+
+- [2026-07-06] RSI close queued: agent-infra/c2417c3c (explicit_rsi_close)
+
+- [2026-07-06] RSI close queued: agent-infra/c60f0878 (real_issue_signal)
+
+- [2026-07-06] RSI close queued: agent-infra/47bc05ba (explicit_rsi_close)
+
+- [2026-07-06] RSI close queued: agent-infra/c0f1d4a8 (explicit_rsi_close)
+
+- [2026-07-06] RSI close queued: intel/6fc06a40 (real_issue_signal)
+
+- [2026-07-06] RSI close queued: agent-infra/0e4ed126 (explicit_rsi_close)
+
+- [2026-07-06] RSI close queued: agent-infra/ccd572df (real_issue_signal)
+
+- [2026-07-06] RSI close queued: agent-infra/67c79edb (explicit_rsi_close)
+
+- [2026-07-06] RSI close queued: agent-infra/4cdb0873 (explicit_rsi_close)
+
+- [2026-07-06] RSI close queued: agent-infra/ce92b88b (real_issue_signal)
+
+- [2026-07-06] RSI close queued: agent-infra/4ff2c911 (real_issue_signal)
+
+- [2026-07-06] RSI close queued: agent-infra/f2a7a22f (real_issue_signal)
+
+- [2026-07-06] RSI close queued: genomics/1a19b57e (real_issue_signal)
+
+- [2026-07-06] RSI close queued: agent-infra/78a59222 (real_issue_signal)
+
+- [2026-07-06] RSI close queued: agent-infra/70c686a8 (real_issue_signal)
+
+- [2026-07-06] RSI close queued: agent-infra/d40e1326 (real_issue_signal)
+
+- [2026-07-06] RSI close queued: agent-infra/dabe7311 (real_issue_signal)
+
+- [2026-07-06] RSI close queued: genomics/54d8c887 (real_issue_signal)
+
+- [2026-07-06] RSI close queued: genomics/1cd878a0 (explicit_rsi_close)
+
+- [2026-07-06] RSI close queued: agent-infra/ae9c3f97 (real_issue_signal)
+
+- [2026-07-06] RSI close queued: agent-infra/9ed76bbb (real_issue_signal)
+
+- [2026-07-06] RSI close queued: agent-infra/890fa6f7 (real_issue_signal)
+
+- [2026-07-06] RSI close queued: genomics/7fa11f6a (explicit_rsi_close)
+
+- [2026-07-06] RSI close queued: genomics/c29271f5 (real_issue_signal)
+
+- [2026-07-06] RSI close queued: genomics/f072d40f (real_issue_signal)
+
+- [2026-07-06] RSI close queued: genomics/f6007221 (real_issue_signal)
+
+- [2026-07-06] RSI close queued: genomics/8c1707d8 (explicit_rsi_close)
+
+- [2026-07-06] RSI close queued: agent-infra/9b056ffd (real_issue_signal)
+
+- [2026-07-06] RSI close queued: genomics/9db004db (explicit_rsi_close)
+
+- [2026-07-06] RSI close queued: agent-infra/3540663f (real_issue_signal)
+
+- [2026-07-06] RSI close queued: genomics/ad6ba340 (real_issue_signal)
+
+- [2026-07-06] RSI close queued: agent-infra/60c2ba37 (real_issue_signal)
+
+- [2026-07-06] RSI close queued: genomics/a8026905 (real_issue_signal)
+
+- [2026-07-06] RSI close queued: genomics/96ff4a70 (real_issue_signal)
+
+- [2026-07-06] RSI close queued: genomics/8f88ab03 (real_issue_signal)
+
+- [2026-07-06] RSI close queued: intel/d6bd24ae (real_issue_signal)
+
+- [2026-07-06] RSI close queued: agent-infra/ee64dac3 (real_issue_signal)
+
+- [2026-07-06] RSI close queued: agent-infra/b1d53e8e (real_issue_signal)
+
+- [2026-07-06] RSI close queued: genomics/1cf836e3 (real_issue_signal)
+
+- [2026-07-06] RSI close queued: agent-infra/8bf077dd (real_issue_signal)
+
+- [2026-07-06] RSI close queued: intel/81b0e889 (explicit_rsi_close)
+
+- [2026-07-06] RSI close queued: agent-infra/756bdcfb (explicit_rsi_close)
+
+- [2026-07-06] RSI close queued: genomics/be0657a9 (real_issue_signal)
+
+- [2026-07-06] RSI close queued: agent-infra/5f576d8b (explicit_rsi_close)
+
+- [2026-07-06] RSI close queued: agent-infra/52e95a2f (real_issue_signal)
+
+- [2026-07-08] RSI close queued: agent-infra/c76f1ad4 (real_issue_signal)
+
+- [2026-07-08] RSI close queued: agent-infra/d9f6b788 (real_issue_signal)
+
+- [2026-07-09] RSI close queued: genomics/0f4c4fdf (explicit_rsi_close)

@@ -20,10 +20,21 @@ from goal_state import (  # noqa: E402
     slice_transcript_to_episode,
     tier1_eligible,
 )
-from reflect_capture import extract_corrections, parse_events, real_issue_signal  # noqa: E402
+from reflect_capture import (  # noqa: E402
+    extract_corrections,
+    extract_operator_dx_interventions,
+    parse_events,
+    real_issue_signal,
+)
 
 CLOSE_QUEUE = Path.home() / ".claude" / "close-queue"
 DIGEST_LOG = Path.home() / ".claude" / "reflect-close-digest.jsonl"
+
+# Projects with loop/hindsight_grades.jsonl (HINDSIGHT Mode 3 bridge).
+_HINDSIGHT_GRADES: dict[str, Path] = {
+    "arc-agi": Path.home() / "Projects" / "arc-agi" / "loop" / "hindsight_grades.jsonl",
+}
+_VALID_HINDSIGHT_GRADES = frozenset({"DERIVABLE", "NON-DERIVABLE", "HAD-LEVER", "HAD-PARTS", "NOVEL"})
 CAPTURE_LOG = Path.home() / ".claude" / "reflect-capture.jsonl"
 UNSUPPORTED_SHADOW = Path.home() / ".claude" / "unsupported-completion-shadow.jsonl"
 MAINTAIN = REPO / "MAINTAIN.md"
@@ -116,6 +127,12 @@ def build_digest(intent: dict) -> dict | None:
             "The agent failed and the operator had to step in. Verify the fix actually landed "
             "(test exit / gate output / artifact hash) — don't trust the recovery narration."
         )
+    elif "operator_dx" in kinds:
+        hint = (
+            "OPERATOR DX/RSI INTERVENTION: fill operator_dx_reflex fields "
+            "(operator_added_value, miss_class, would_have_prevented, action_taken) — "
+            "max one action (local fix | steward proposal | explicit noop)."
+        )
     elif reason == "goal_achieved":
         hint = (
             "Goal claimed ACHIEVED. Independently verify the achievement (receipt, gate output, "
@@ -126,6 +143,30 @@ def build_digest(intent: dict) -> dict | None:
             "Verify one load-bearing claim from this session (receipt, gate output, artifact "
             "hash, or test exit code) before closing."
         )
+
+    # RSI/DX reflex stubs from capture + inline transcript (judgment fields empty for skill)
+    dx_rows = [r for r in (*corrects, *inline_corrects) if r.get("subtype") == "operator_dx"]
+    if not dx_rows:
+        dx_rows = extract_operator_dx_interventions(events)
+    if dx_rows and "operator_dx" not in kinds:
+        kinds = sorted(set(kinds) | {"operator_dx"})
+        # refresh hint if we only discovered DX from transcript
+        if "unsupported_completion" not in kinds and "user_rescued_failure" not in kinds:
+            hint = (
+                "OPERATOR DX/RSI INTERVENTION: fill operator_dx_reflex fields "
+                "(operator_added_value, miss_class, would_have_prevented, action_taken) — "
+                "max one action (local fix | steward proposal | explicit noop)."
+            )
+    operator_dx_reflex = [
+        {
+            "operator_added_value": r.get("operator_added_value") or r.get("trigger", ""),
+            "miss_class": r.get("miss_class", "other"),
+            "would_have_prevented": r.get("would_have_prevented", ""),
+            "action_taken": r.get("action_taken", ""),
+            "match": r.get("match", ""),
+        }
+        for r in dx_rows
+    ]
 
     digest = {
         "schema": "reflect.close-digest.v1",
@@ -149,6 +190,7 @@ def build_digest(intent: dict) -> dict | None:
                 *(row.get("subtype", "") for row in inline_corrects),
             }
         ),
+        "operator_dx_reflex": operator_dx_reflex,
         "invoke_skill": True,
         "verify_hint": hint,
         "transcript_path": transcript_path,
@@ -286,8 +328,58 @@ def latest_digest(session_id: str | None = None) -> dict | None:
     return found
 
 
-def ack_digest(session_id: str) -> None:
-    """Append rsi_closed marker so pending_nudge stops surfacing this session."""
+def hindsight_grades_path(project: str) -> Path | None:
+    path = _HINDSIGHT_GRADES.get(project)
+    return path if path and path.parent.parent.exists() else None
+
+
+def append_hindsight_grade(project: str, row: dict) -> bool:
+    """Append one Mode-3 grade row. Returns False if skipped (no path / invalid grade)."""
+    path = hindsight_grades_path(project)
+    grade = str(row.get("grade") or "").strip().upper()
+    item = str(row.get("item") or "").strip()
+    if not path or not item or grade not in _VALID_HINDSIGHT_GRADES:
+        return False
+    ts = row.get("ts") or _utc_now()[:16]
+    out = {
+        "ts": ts,
+        "item": item,
+        "grade": grade,
+        "evidence": row.get("evidence") or "",
+        "gap": row.get("gap") or "",
+    }
+    for key in ("session", "miss_class", "fix_commit", "source"):
+        if row.get(key):
+            out[key] = row[key]
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(out, ensure_ascii=False) + "\n")
+    return True
+
+
+def operator_hindsight_from_digest(digest: dict, reflex: dict, *, grade: str) -> dict:
+    """Build a hindsight row from digest + filled operator_dx_reflex fields."""
+    import re
+
+    miss = str(reflex.get("miss_class") or "other")
+    seed = (
+        reflex.get("operator_added_value")
+        or reflex.get("match")
+        or miss
+    )
+    slug = re.sub(r"[^a-z0-9]+", "-", str(seed).lower()).strip("-")[:48] or miss
+    return {
+        "item": f"operator:{slug}",
+        "grade": grade,
+        "evidence": reflex.get("operator_added_value") or reflex.get("match") or "",
+        "gap": reflex.get("would_have_prevented") or "",
+        "session": digest.get("session_id"),
+        "miss_class": miss,
+        "source": f"rsi-close/{digest.get('session_id', '')[:8]}",
+    }
+
+
+def ack_digest(session_id: str, *, hindsight: dict | list[dict] | None = None) -> int:
+    """Append rsi_closed marker; optionally append HINDSIGHT Mode 3 grade(s). Returns count appended."""
     row = {
         "schema": "reflect.close-ack.v1",
         "session_id": session_id,
@@ -296,6 +388,17 @@ def ack_digest(session_id: str) -> None:
     }
     with DIGEST_LOG.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+    if not hindsight:
+        return 0
+    digest = latest_digest(session_id) or {}
+    project = str(digest.get("project") or "")
+    rows = hindsight if isinstance(hindsight, list) else [hindsight]
+    n = 0
+    for raw in rows:
+        item = raw if raw.get("item") else operator_hindsight_from_digest(digest, raw, grade=raw.get("grade", ""))
+        if append_hindsight_grade(project, item):
+            n += 1
+    return n
 
 
 def _current_project() -> str:
@@ -354,6 +457,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--nudge", action="store_true", help="Print SessionStart nudge if any")
     parser.add_argument("--ack", metavar="SESSION_ID", help="Mark session RSI-closed (stops nudge)")
     parser.add_argument(
+        "--hindsight",
+        metavar="JSON",
+        help="Mode-3 grade appended on ack (item+grade required, or operator_dx_reflex fields)",
+    )
+    parser.add_argument(
         "--latest-digest",
         nargs="?",
         const="",
@@ -366,7 +474,18 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.ack:
-        ack_digest(args.ack)
+        hindsight = None
+        if args.hindsight:
+            try:
+                hindsight = json.loads(args.hindsight)
+            except json.JSONDecodeError:
+                sys.stderr.write("[reflect-session-close] invalid --hindsight JSON\n")
+                return 1
+        n = ack_digest(args.ack, hindsight=hindsight)
+        if args.hindsight and n == 0:
+            sys.stderr.write("[reflect-session-close] hindsight grade skipped (bad project/grade/item)\n")
+        elif n:
+            sys.stderr.write(f"[reflect-session-close] {n} hindsight grade(s) appended\n")
         return 0
     if args.latest_digest is not None:
         digest = latest_digest(args.latest_digest or None)

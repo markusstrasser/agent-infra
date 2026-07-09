@@ -69,7 +69,7 @@ FM-ID: fm3-frame-ambiguity
 signature: words like 'perspective'/'how' used without naming the method; result reported without which encoder/method produced it
 target_surface: postwrite-source-check.sh (method attribution); session-analyst frame-ambiguity label
 status: active
-evidence_count: 0
+evidence_count: 3
 -->
 <!--
 FM-ID: fm4-factor-listing
@@ -348,7 +348,7 @@ FM-ID: fm15-silent-semantic-failure
 signature: reasoning drift / wrong bucket / misleading diagnostic that raises no runtime exception
 target_surface: post-impl /critique close; report-only canary before any enforcer goes active
 status: active
-evidence_count: 2
+evidence_count: 3
 -->
 ```
 IF agent reasoning drifts (hallucination, goal confusion, logic error)
@@ -622,7 +622,7 @@ FM-ID: fm24-retry-without-diagnosis
 signature: same tool called 3+ times with varied params and no diagnosis step between failures
 target_surface: spinning-detector / tool-failure hooks; decision-point gate before blind retry
 status: active
-evidence_count: 1325
+evidence_count: 1726
 -->
 ```
 IF external tool/API call fails

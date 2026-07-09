@@ -19,6 +19,16 @@ import loop_funnel as lf  # noqa: E402
 REFLECT = REPO / "scripts" / "reflect.py"
 
 
+def accretion_summary() -> str:
+    """L1 read-only accretion hints for the drain digest."""
+    try:
+        import improvement_log_accretion as ila  # noqa: E402
+
+        return ila.render_report()
+    except OSError as e:
+        return f"(accretion report error: {e})"
+
+
 def run_classify() -> str:
     """Run reflect classify; return stdout summary (fail-open)."""
     try:
@@ -52,6 +62,7 @@ def main() -> int:
 
     metrics, summary = drain(classify=not args.no_classify)
     print(lf.render(metrics), end="")
+    print(accretion_summary())
     if summary:
         print("\n## Last classify run\n```\n" + summary[:2000] + "\n```\n")
     print(f"[act-drain] disposition={metrics['disposition_queue']} unclassified={metrics['unclassified']}")

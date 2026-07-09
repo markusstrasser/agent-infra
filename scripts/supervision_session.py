@@ -389,7 +389,20 @@ def _is_denial(result) -> bool:
     return "denied" in low or "permission denied" in low
 
 
+def _substantive_for_repeat_check(message: str) -> bool:
+    """Skip image metadata and other non-instruction user turns."""
+    stripped = message.strip()
+    if not stripped:
+        return False
+    if stripped.startswith("<system-reminder>"):
+        return False
+    if re.match(r"^\[Image:", stripped, re.I):
+        return False
+    return True
+
+
 def _count_repeated_instructions(messages: list[str], window: int = 5) -> int:
+    messages = [m for m in messages if _substantive_for_repeat_check(m)]
     if len(messages) < 2:
         return 0
     count = 0

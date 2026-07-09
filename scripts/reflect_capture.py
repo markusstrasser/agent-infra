@@ -33,7 +33,7 @@ CLOSE_QUEUE = Path.home() / ".claude" / "close-queue"
 # (which meta owns) so probe declarations don't require editing busy repos.
 CENTRAL_RULES = Path(__file__).resolve().parent.parent / "config" / "reflect-omission-rules.json"
 # Shadow scope: capture only on test-bed projects (plan 4d40085a + genomics 2026-06-15).
-TESTBED = {"intel", "agent-infra", "genomics"}
+TESTBED = {"intel", "agent-infra", "genomics", "arc-agi"}
 
 # Correction tokens, split by strength so downstream clustering can weight them.
 _STRONG = [
@@ -52,6 +52,24 @@ _MEDIUM = ["wrong", "instead", "don't", "dont", "not that", "incorrect", "no,"]
 _WEAK = ["actually", "stop", "no "]
 _NEG_RE = re.compile("|".join(re.escape(t) for t in _STRONG + _MEDIUM + _WEAK), re.IGNORECASE)
 _OMISSION_BLOCK = re.compile(r"<!--\s*omission-rules\s*(.*?)-->", re.DOTALL)
+
+# RSI/DX reflex — steward proposal 2026-07-09-rsi-dx-reflex.md
+# High-signal operator interventions that should surface a structured close field.
+# Order matters: first match wins for miss_class hint.
+_DX_PATTERNS: list[tuple[str, re.Pattern[str], str]] = [
+    ("discovery", re.compile(r"why did you not find|why didn't you find|why didnt you find", re.I), "discovery"),
+    ("stopping", re.compile(r"why did you stop|why'd you stop|why stop\b", re.I), "stopping"),
+    ("tool_reuse", re.compile(
+        r"don'?t we already have|can we use these tools|tools? i built|future agent", re.I
+    ), "tool_reuse"),
+    ("dx", re.compile(
+        r"(?:self[- ]improv\w*|always think about your own tooling|"
+        r"\bDX\b.*\b(?:RSI|tooling|hooks)\b|\b(?:tooling|hooks|MCP)\b.*\b(?:RSI|DX|improv))"
+        r"|\bRSI\b",
+        re.I,
+    ), "dx"),
+    ("g_tag", re.compile(r"(?:^|\s)#g(?:\s|$|[^\w])", re.I), "other"),
+]
 
 
 # ── transcript parsing ───────────────────────────────────────────────────────
@@ -107,6 +125,44 @@ def _strength(text: str) -> str:
     if any(t in low for t in _MEDIUM):
         return "medium"
     return "weak"
+
+
+def classify_operator_dx(text: str) -> dict | None:
+    """Return a DX-reflex stub if text matches a high-signal operator intervention.
+
+    Judgment fields (would_have_prevented / action_taken) stay empty for /rsi close to fill.
+    """
+    for _name, pat, miss_class in _DX_PATTERNS:
+        m = pat.search(text)
+        if not m:
+            continue
+        return {
+            "kind": "correction",
+            "subtype": "operator_dx",
+            "strength": "strong" if miss_class in ("discovery", "stopping", "other") else "medium",
+            "trigger": text[:280],
+            "miss_class": miss_class,
+            "operator_added_value": text[:400],
+            "would_have_prevented": "",  # filled at /rsi close
+            "action_taken": "",  # filled at /rsi close
+            "match": m.group(0)[:80],
+        }
+    return None
+
+
+def extract_operator_dx_interventions(events: list[dict]) -> list[dict]:
+    """Detect RSI/DX operator interventions (steward 2026-07-09-rsi-dx-reflex)."""
+    out: list[dict] = []
+    for ev in events:
+        if ev["role"] != "user" or ev["is_tool_result"]:
+            continue
+        text = " ".join(ev["texts"]).strip()
+        if not text:
+            continue
+        stub = classify_operator_dx(text)
+        if stub:
+            out.append(stub)
+    return out
 
 
 def extract_corrections(events: list[dict]) -> list[dict]:
@@ -202,6 +258,7 @@ def real_issue_signal(rows: list[dict]) -> tuple[bool, list[str]]:
       operator_flag        — an explicit `#f` operator correction (f_tag)
       strong_correction    — an emphatic correction (strength == "strong")
       user_rescued_failure — the agent failed AND the user had to step in (subtype fail_then_user)
+      operator_dx          — RSI/DX intervention (#g, why-stop, tool-reuse, tooling/DX)
     (unsupported_completion — a claimed-success-without-evidence fire — is session-keyed and added
      by the close path, which can read that shadow log.)
     Returns (eligible, sorted_kinds). Mere `negation`/`retry_run` volume no longer triggers.
@@ -210,6 +267,8 @@ def real_issue_signal(rows: list[dict]) -> tuple[bool, list[str]]:
     for r in rows:
         if r.get("subtype") == "f_tag":
             kinds.add("operator_flag")
+        elif r.get("subtype") == "operator_dx":
+            kinds.add("operator_dx")
         elif r.get("strength") == "strong":
             kinds.add("strong_correction")
         if r.get("subtype") == "fail_then_user":
@@ -293,7 +352,12 @@ def extract_omissions(events: list[dict], rules: list[dict]) -> list[dict]:
 
 
 def extract_signals(events: list[dict], rules: list[dict]) -> list[dict]:
-    return extract_corrections(events) + extract_omissions(events, rules)
+    # DX interventions first so they are not dropped as duplicate hashes of weaker negations
+    return (
+        extract_operator_dx_interventions(events)
+        + extract_corrections(events)
+        + extract_omissions(events, rules)
+    )
 
 
 # ── IO ───────────────────────────────────────────────────────────────────────
