@@ -27,18 +27,28 @@ def test_canary_flags_constant_across_distinct_days(tmp_path, monkeypatch):
     assert "CONSTANT" in hooks["reason"]
 
 
-def test_canary_does_not_flag_subdaily_constant(tmp_path, monkeypatch):
-    """Regression guard (2026-06-24): a daily KPI sampled many times WITHIN one day is
-    constant-within-day but NOT frozen — must NOT alarm. This is the false-alarm that
-    was removed when the constancy test became day-aware (commit 4fdfc11); the prior
-    raw-consecutive test fired on every daily KPI sampled >once/tick."""
+def test_canary_looks_past_trailing_null_within_stale(tmp_path, monkeypatch):
+    """Empty-day / skip-append leaves trailing NULLs; a live prior within STALE must not ALARM."""
     now = 1_700_000_000.0
     hist = tmp_path / "pulse-canary-history.jsonl"
-    rows = [{"name": "supervision.hooks_shown", "value": 0.0, "ts": now - i} for i in range(5)]
+    rows = [
+        {"name": "supervision.hooks_shown", "value": 12.0, "ts": now - 3600},
+        {"name": "supervision.hooks_shown", "value": None, "ts": now},
+    ]
     hist.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
     monkeypatch.setattr(pulse, "HISTORY", hist)
     summary = pulse.canary_summary(now=now)
     assert [a for a in summary["alarms"] if a["name"] == "supervision.hooks_shown"] == []
+
+
+def test_canary_null_still_alarms_without_live_prior(tmp_path, monkeypatch):
+    now = 1_700_000_000.0
+    hist = tmp_path / "pulse-canary-history.jsonl"
+    hist.write_text(json.dumps({"name": "supervision.hooks_shown", "value": None, "ts": now}) + "\n")
+    monkeypatch.setattr(pulse, "HISTORY", hist)
+    summary = pulse.canary_summary(now=now)
+    hooks = next(a for a in summary["alarms"] if a["name"] == "supervision.hooks_shown")
+    assert "NULL" in hooks["reason"]
 
 
 def test_status_needs_attention_on_questions():

@@ -190,23 +190,40 @@ def pending_decisions() -> list[dict]:
 
 
 def open_findings() -> list[dict]:
-    """[ ] genuinely-open actionable items, grouped under their ### header."""
+    """Genuinely-open actionable items only.
+
+    Two shapes in improvement-log.md:
+      ### [date] [ ] TITLE …     ← actionable section (header carries the box)
+      - [ ] **TITLE** …          ← top-level bullet (no ###)
+
+    Do NOT treat a nested `- **Status:** [ ] proposed` under a behavioral/retro
+    header (no `[ ]` in the ### title) as open work — that was the April noise
+    class (51 false positives vs 3 real dated HOOKs; harvest 2026-07-09).
+    """
     if not IMPROVEMENT_LOG.exists():
         return []
-    out, header = [], ""
-    seen = set()
+    out, seen = [], set()
     for line in IMPROVEMENT_LOG.read_text().splitlines():
-        if line.startswith("### "):
+        if line.startswith("### ") and re.search(r"\[\s\]", line):
             header = line[4:].strip()
-        elif re.search(r"\[\s\]", line) and "Status" in line:
-            # an open actionable status line under the current header
-            if header and header not in seen:
+            if header not in seen:
                 seen.add(header)
                 out.append({
                     "klass": "open-finding",
                     "score": SCORE["open-finding"],
                     "title": header[:90],
-                    "why": re.sub(r"\s+", " ", line.strip())[:90],
+                    "why": "dated [ ] section in improvement-log",
+                    "action": "scope + plan, or fix if cheap/local",
+                })
+        elif re.match(r"^- \[\s\] \*\*", line):
+            title = re.sub(r"^- \[\s\] \*\*(.+?)\*\*.*$", r"\1", line).strip()
+            if title and title not in seen:
+                seen.add(title)
+                out.append({
+                    "klass": "open-finding",
+                    "score": SCORE["open-finding"],
+                    "title": title[:90],
+                    "why": "top-level [ ] bullet in improvement-log",
                     "action": "scope + plan, or fix if cheap/local",
                 })
     return out

@@ -63,3 +63,21 @@ def test_broken_tools_keeps_shell_env_when_gate_promotes(monkeypatch, tmp_path: 
 
     rows = tp.broken_tools()
     assert [row for row in rows if row["title"].startswith("Shell env: zsh parse-error")]
+
+
+def test_open_findings_ignores_nested_status_under_behavioral_header(tmp_path: Path, monkeypatch):
+    """April noise class: `- **Status:** [ ]` under a retro header without `[ ]` in ###."""
+    log = tmp_path / "improvement-log.md"
+    log.write_text(
+        "### [2026-04-18] SKILL EXECUTION FAILURE: brainstorm bypassed\n"
+        "- **Status:** [ ] proposed\n"
+        "### [2026-06-13] [ ] HOOK: lose +x bits\n"
+        "- **Status:** [ ] proposed\n"
+        "- [ ] **Evaluate Tool(param:value) rules** — still open\n"
+    )
+    monkeypatch.setattr(tp, "IMPROVEMENT_LOG", log)
+    rows = tp.open_findings()
+    titles = [r["title"] for r in rows]
+    assert not any(t.startswith("[2026-04") for t in titles)
+    assert any("[ ] HOOK: lose +x" in t for t in titles)
+    assert any("Evaluate Tool(param:value)" in t for t in titles)

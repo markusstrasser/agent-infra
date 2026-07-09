@@ -58,28 +58,53 @@ def _run(cmd: list[str], timeout: int = 60) -> str:
         return ""
 
 
-def _supervision_today() -> tuple[float | None, float | None, float | None]:
-    """(total_hooks_shown, mean_air, total_correction_load) for today."""
-    out = _run(["uv", "run", "python3", str(Path(__file__).parent / "supervision-kpi.py"), "--today"])
-    rows = [json.loads(l) for l in out.splitlines() if l.strip().startswith("{")]
+# Sentinel: calendar day with zero sessions *started* (kpi stderr). Distinct from a
+# dead field (None) — empty-day must NOT append NULL or the canary false-alarms every
+# morning before the first Claude session (harvest 2026-07-09). Skip-append keeps the
+# prior live observation until STALE_SECONDS; real producer death still NULLs or stales.
+_EMPTY_DAY = object()
+_supervision_cache: tuple[float, object] | None = None  # (monotonic_ts, result)
+
+
+def _supervision_today() -> tuple[float | None, float | None, float | None] | object:
+    """(hooks_shown, mean_air, correction_load) for today, or _EMPTY_DAY / Nones."""
+    global _supervision_cache
+    now = time.monotonic()
+    if _supervision_cache is not None and now - _supervision_cache[0] < 2.0:
+        return _supervision_cache[1]
+    cmd = ["uv", "run", "python3", str(Path(__file__).parent / "supervision-kpi.py"), "--today"]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    except Exception:
+        result: object = (None, None, None)
+        _supervision_cache = (now, result)
+        return result
+    rows = [json.loads(l) for l in proc.stdout.splitlines() if l.strip().startswith("{")]
     if not rows:
-        return None, None, None
+        result = _EMPTY_DAY if "No sessions started in window" in (proc.stderr or "") else (None, None, None)
+        _supervision_cache = (now, result)
+        return result
     hooks = sum(r.get("hooks_shown", 0) for r in rows)
     airs = [r["air"] for r in rows if r.get("air") is not None]
     load = sum(r.get("load", 0) for r in rows)
-    return float(hooks), (sum(airs) / len(airs) if airs else None), float(load)
+    result = (float(hooks), (sum(airs) / len(airs) if airs else None), float(load))
+    _supervision_cache = (now, result)
+    return result
 
 
-def probe_hooks_shown() -> float | None:
-    return _supervision_today()[0]
+def probe_hooks_shown() -> float | None | object:
+    r = _supervision_today()
+    return r if r is _EMPTY_DAY else r[0]
 
 
-def probe_air() -> float | None:
-    return _supervision_today()[1]
+def probe_air() -> float | None | object:
+    r = _supervision_today()
+    return r if r is _EMPTY_DAY else r[1]
 
 
-def probe_correction_load() -> float | None:
-    return _supervision_today()[2]
+def probe_correction_load() -> float | None | object:
+    r = _supervision_today()
+    return r if r is _EMPTY_DAY else r[2]
 
 
 # Each instrument declares a LIVENESS CONTRACT — the test direction, DECLARED not inferred.
@@ -94,9 +119,10 @@ def probe_correction_load() -> float | None:
 #         correction_load → 0 = perfect autonomy). Constant AT the floor is HEALTHY (objective
 #         reached); constant ELSEWHERE is the dead-producer bug (319 ≠ 0). This is what stops
 #         the canary from false-alarming on its own win — without it, supervision genuinely
-#         declining to 0 would read identical to a frozen producer. A no-data day returns None
-#         (NULL alarm, separate path), so a real constant-0 only comes from sessions with zero
-#         corrections. floor=None (hooks_shown/air) → ANY constancy alarms (0/null WAS the bug).
+#         declining to 0 would read identical to a frozen producer. A no-data day where kpi
+#         reports "No sessions started" returns _EMPTY_DAY (skip-append — not NULL); a real
+#         dead/crash probe still returns None → NULL alarm. Constant-0 only from sessions with
+#         zero corrections. floor=None (hooks_shown) → ANY constancy alarms (0 WAS the bug).
 # Register ONLY gating/trusted/should-vary metrics — a doctor health check (healthy==constant)
 # would alarm-on-green and re-blind the operator (do NOT add).
 class Instrument(NamedTuple):
@@ -134,9 +160,24 @@ def _judge(name: str, hist: list[dict], now: float, contract: str = "should-vary
     is constant AT the floor (objective reached) — but still alarms if frozen
     anywhere else (the dead-producer bug)."""
     mine = [h for h in hist if h["name"] == name]
-    latest = mine[-1] if mine else None
-    if latest is None or latest["value"] is None:
-        return "alarm", "NULL — no value produced (instrument absent or dead field)"
+    # Prefer freshest non-null within STALE — empty calendar days / skip-append leave
+    # trailing NULLs that must not false-alarm over a still-live prior reading.
+    latest = None
+    for h in reversed(mine):
+        if h["value"] is None:
+            continue
+        if now - h["ts"] > STALE_SECONDS:
+            break
+        latest = h
+        break
+    if latest is None:
+        if not mine:
+            return "alarm", "NULL — no value produced (instrument absent or dead field)"
+        last = mine[-1]
+        if last["value"] is None:
+            return "alarm", "NULL — no value produced (instrument absent or dead field)"
+        age_h = round((now - last["ts"]) / 3600)
+        return "alarm", f"STALE — freshest observation {age_h}h old"
     if now - latest["ts"] > STALE_SECONDS:
         age_h = round((now - latest["ts"]) / 3600)
         return "alarm", f"STALE — freshest observation {age_h}h old"
@@ -164,12 +205,16 @@ def _judge(name: str, hist: list[dict], now: float, contract: str = "should-vary
 def cmd_canary(args) -> int:
     """Observe every instrument, append to history, judge null/constant/stale."""
     now = time.time()
+    empty_day = False
     for name, inst in INSTRUMENTS.items():
         try:
             val = inst.probe()
         except Exception as e:
             val = None
             print(f"  probe error {name}: {e}", file=sys.stderr)
+        if val is _EMPTY_DAY:
+            empty_day = True
+            continue  # keep prior observation; STALE still catches a long-dead producer
         _append(name, val, now)
     hist = _read_history()
     alarms = 0
@@ -179,6 +224,8 @@ def cmd_canary(args) -> int:
         print(f"  {glyph} {name}: {reason}" + (f"  — {inst.note}" if level == "alarm" else ""))
         if level == "alarm":
             alarms += 1
+    if empty_day and not alarms:
+        print("  · NO_DATA day (no sessions started) — prior observations retained")
     if alarms:
         print(f"\npulse canary: {alarms} instrument(s) ALARM — a closure metric is dead/blind", file=sys.stderr)
         return 1
@@ -467,6 +514,9 @@ def _selftest() -> int:
     assert lvl_floor == "ok" and "FLOOR" in why_floor, f"floor metric at floor should be ok: {lvl_floor}/{why_floor}"
     lvl_frozen, _ = _judge("fz", days_hist("fz", 319.0), now, floor=0.0)
     assert lvl_frozen == "alarm", "a floor metric frozen ABOVE the floor (319≠0) must still alarm (dead producer)"
+    # empty calendar day sentinel is distinct from a dead-field None triple
+    assert _EMPTY_DAY is not None
+    assert _EMPTY_DAY is not False
     print("pulse selftest: cross-day constant + null + stale flagged; same-day-rapid ok, floor-at-rest ok, floor-frozen alarms ✓")
     return 0
 
