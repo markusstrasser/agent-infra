@@ -66,6 +66,12 @@ agent-receipts *args:
 context-budget *args:
     uv run python3 scripts/context-budget.py {{args}}
 
+# Harness cost meter — tokens/$ by vendor (observe) or live probe (cursor/llmx/pi)
+# Falsifies Databricks/Pi "harness ≫ model" on our workloads. See research/2026-07-09-databricks-pi-harness.md
+[group('dashboard')]
+harness-cost-meter *args:
+    uv run python3 scripts/harness_cost_meter.py {{args}}
+
 # Skills index description budget (Codex ~8k char ceiling; loaded mount sets)
 [group('dashboard')]
 skills-budget *args:

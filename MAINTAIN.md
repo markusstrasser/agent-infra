@@ -200,3 +200,7 @@ Status of `~/.claude/steward-proposals/` after 2026-04-17 archive sweep (4 imple
 - [2026-07-08] RSI close queued: agent-infra/d9f6b788 (real_issue_signal)
 
 - [2026-07-09] RSI close queued: genomics/0f4c4fdf (explicit_rsi_close)
+
+- [2026-07-09] RSI close queued: arc-agi/ceba8c8a (real_issue_signal)
+
+- [2026-07-09] RSI close queued: genomics/88221b5b (real_issue_signal)
