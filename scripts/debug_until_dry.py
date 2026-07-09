@@ -26,6 +26,7 @@ Usage:
   debug_until_dry.py /path/to/repo --scout-backend codex --scout-effort low
   debug_until_dry.py /path/to/repo --scout-backend claude --scout-model sonnet
   debug_until_dry.py /path/to/repo --scout-backend cursor,codex   # mixed wave (lens diversity)
+  debug_until_dry.py /path/to/repo --scout-backend cursor --scout-model grok-4.5-xhigh  # Grok niche
   debug_until_dry.py /path/to/repo --verifier opus --dry-stop 2
   debug_until_dry.py /path/to/repo --verifier codex --verifier-model gpt-5.5
   debug_until_dry.py /path/to/repo --dry-run        # trace the loop, no token spend

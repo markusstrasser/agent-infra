@@ -143,6 +143,7 @@ DEFAULT_CONTEXT_LIMITS: list[tuple[str, int]] = [
     ("claude-3", 200_000),
     ("gemini-3", 1_000_000),
     ("gemini-2", 1_000_000),
+    ("grok-4.5", 500_000),  # docs.x.ai Chat API table 2026-07-09
     ("gpt-5", 400_000),
     ("gpt-4", 128_000),
 ]

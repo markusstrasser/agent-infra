@@ -273,16 +273,16 @@ def collect_inventory() -> dict:
 def collect_drift() -> dict:
     inv = collect_inventory()
     launchd = inv["launchd"]
-    untagged_loaded = [j["name"] for j in launchd if j["loaded"] and not j.get("tagged")]
+    untagged_loaded = [j["name"] for j in launchd if j.get("loaded") and not j.get("tagged")]
     manifest_not_loaded = [
         j["name"] for j in launchd
-        if j.get("source") and not j["loaded"] and j.get("state", "active") == "active"
+        if j.get("source") and not j.get("loaded") and j.get("state", "active") == "active"
     ]
     loaded_no_source = [
         j["name"] for j in launchd
-        if j["loaded"] and not j.get("source")
+        if j.get("loaded") and not j.get("source")
     ]
-    llm_jobs = [j["name"] for j in launchd if j.get("llm") == "required" and j["loaded"]]
+    llm_jobs = [j["name"] for j in launchd if j.get("llm") == "required" and j.get("loaded")]
     untagged_ops = [
         m["name"] for m in collect_plist_manifest()
         if not m.get("tagged") and str(m.get("source", "")).startswith("ops/")

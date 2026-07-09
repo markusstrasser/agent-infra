@@ -501,6 +501,8 @@ gather path *args:
 # triage routes the preset + writes a packet-bound dispatch.json. --mode model means
 # dead refs (cross-repo / basename in ADRs) WARN not block, and model-review
 # provenance-gates the auto-load so no stale manifest can poison it (skills@2b6da1b).
+# Extra args pass through to model-review (e.g. `--axes standard,grok` for Grok 4.5
+# repo-grounded cosign — see decisions/2026-07-09-grok-4.5-transport.md).
 [group('dispatch')]
 critique path *args:
     #!/usr/bin/env bash
@@ -638,12 +640,17 @@ audit-findings-consolidation audit_dir='docs/audit' *args='':
 commit-slice-planning target='.' *args='':
     uv run python3 scripts/commit_slice_planning.py --repo {{target}} {{args}}
 
+# Parallel read-only scouts → docs/audit/*.md. Pass-through: --backend cursor,codex
+# --model grok-4.5-xhigh (Grok niche lens on cursor backend).
 [group('epistemic')]
 adversarial-debug-scout repo scope='recent' *args='':
     uv run python3 scripts/debug_scout.py {{repo}} --scope {{scope}} {{args}}
 
 # Memo-driven wave loop: cheap cursor scouts find+verify off a shared audit memo until dry.
-# Fire-and-forget (background it). Knobs: --max-waves --workers --scouts-per-wave --verifier cursor|opus|none
+# Fire-and-forget (background it). Knobs: --max-waves --workers --scouts-per-wave
+# --verifier cursor|opus|none · --scout-backend cursor|codex|claude[,…]
+# Grok 4.5 lens (named niche): --scout-backend cursor --scout-model grok-4.5-xhigh
+# (not a separate backend — cursor ask-mode with model override).
 [group('epistemic')]
 debug-until-dry repo scope='recent' *args='':
     uv run python3 scripts/debug_until_dry.py {{repo}} {{scope}} {{args}}

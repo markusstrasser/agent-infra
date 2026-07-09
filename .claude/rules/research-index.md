@@ -147,6 +147,11 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-07-07-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-07 (deterministic) | TODO |
 | `2026-07-07-shepherd-syscall-jail-prior-art.md` | Shepherd — syscall-jail permissions as prior-art | TODO |
 | `2026-07-08-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-08 (deterministic) | TODO |
+| `2026-07-09-agent-infra-sweep.md` | Agent-infra Frontier Sweep — 2026-07-09 (15-day delta) | TODO |
+| `2026-07-09-grok-4.5-release.md` | Grok 4.5 — transport + named niche (critique `grok` axis, scout `--scout-model`); not Default Routing | Before promoting Grok into defaults, adding critique axes, or picking scout models for tool-loop audits |
+| `2026-07-09-agent-infra-sweep.md` | Agent-infra frontier sweep — 15d delta (Grok niche + CC 2.1.198–205 + internal consume) | Before claiming frontier is quiet / starting a fresh deep RSI sweep |
+| `trending-scout-2026-07-09.md` | Trending Scout — CC 2.1.205, Grok 4.5, background-agent defaults | Before adopting CC hook/Notification changes or re-scouting the same window |
+| `2026-07-09-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-09 (deterministic) | TODO |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
 | `adversarial-case-library.md` | Adversarial Case Library: The Best "Calling BS" Reviews | TODO |
 | `agent-behavior-refresh-2026-04.md` | Agent Behavior Delta — Memory, Self-Modification, Sycophancy | TODO |
@@ -337,5 +342,6 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `trending-scout-2026-06-15.md` | Trending Scout — 2026-06-15 | TODO |
 | `trending-scout-2026-06-19.md` | Trending Scout — 2026-06-19 | TODO |
 | `trending-scout-2026-06-24.md` | Trending Scout — 2026-06-24 | TODO |
+| `trending-scout-2026-07-09.md` | Trending Scout — 2026-07-09 | TODO |
 | `weekly-agent-infra-sweep-2026-04-02.md` | Weekly Agent Infra Sweep 2026 04 02 | TODO |
 | `wiki-vs-flat-for-agents.md` | Wiki Vs Flat For Agents | TODO |

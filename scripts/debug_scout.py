@@ -8,6 +8,7 @@ Usage:
   debug_scout.py /path/to/repo --scope recent --max-scouts 4
   debug_scout.py /path/to/repo --backend codex --effort low
   debug_scout.py /path/to/repo --backend cursor,codex   # round-robin (lens diversity)
+  debug_scout.py /path/to/repo --backend cursor --model grok-4.5-xhigh  # Grok niche lens
 """
 
 from __future__ import annotations

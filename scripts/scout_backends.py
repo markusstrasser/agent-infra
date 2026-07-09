@@ -7,7 +7,9 @@ agentic CLIs directly — not llmx chat (context-piping transport; right for
 code-review-scout's diff-as-context, wrong for repo-roaming scouts).
 
 Backends (read-only enforcement is structural, not prompt-trusted):
-  cursor — `agent` CLI ask mode (read-only by mode), composer-2.5 default
+  cursor — `agent` CLI ask mode (read-only by mode), composer-2.5 default;
+           override with --scout-model (e.g. grok-4.5-xhigh for Grok 4.5 niche lens —
+           always pass an effort slug; bare grok-4.5 → fast-xhigh)
   codex  — `codex exec -s read-only` (sandbox), config-default model (gpt-5.5),
            effort defaults to `medium` (user-config xhigh blows scout timeouts)
   claude — `claude -p` headless: Write/Edit/arbitrary-Bash auto-DENIED in -p
