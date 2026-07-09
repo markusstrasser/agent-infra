@@ -39,7 +39,7 @@ just orient                             # includes orchestrator-tool recipe list
 
 ## Research Index
 
-~333 research memos in `research/`. Full index with topics and "consult before" triggers: `.claude/rules/research-index.md` (path-scoped to `research/**`, `decisions/**`).
+~335 research memos in `research/`. Full index with topics and "consult before" triggers: `.claude/rules/research-index.md` (path-scoped to `research/**`, `decisions/**`).
 
 <constitution>
 > **Human-protected.** Agent may propose changes but must not modify without explicit approval.
@@ -180,6 +180,8 @@ Transport facts (installed CLIs, subscription routes, effort aliases): `llmx inf
 **Claude routing policy (2026-06-15):** Anthropic paused API credit migration; `claude -p` and Agent SDK stay on **subscription**. Never route Claude through paid API (`anthropic-direct`, API-key billing) unless explicitly requested. Default headless: `llmx chat --subscription -m claude-opus-4-8` (alias: `-p anthropic --lite bare`). Smoke/probe: `llmx chat --dry-run --subscription -m claude-opus-4-8`. Critique preflight: `model-review.py --preflight`.
 
 **Grok 4.5 (2026-07-09):** named niche — **not** Default Routing. Opt-in PLAN cosign: `just critique <plan> --axes standard,grok` (repo-grounded `cursor-agent --model grok-4.5-xhigh --workspace`). Scout lens: `just debug-until-dry <repo> recent --scout-backend cursor --scout-model grok-4.5-xhigh`. Always pass an effort slug (bare `grok-4.5` → fast-xhigh). xAI API path wired but key may be 403 — Cursor pool is the live surface. Anchor: `decisions/2026-07-09-grok-4.5-transport.md` · memo: `research/2026-07-09-grok-4.5-release.md`.
+
+**GPT-5.6 suite (2026-07-09):** OpenAI default is **Sol / Terra / Luna** (`gpt-5.6-sol` alias `gpt-5.6`, `gpt-5.6-terra`, `gpt-5.6-luna`). Cross-lab/architecture → Sol; everyday critique → **Luna** (≈ prior 5.5 perf at ~½ price); mechanical → Luna low; Terra = mid opt-in. Effort includes `max`. Pro = API `reasoning.mode=pro`. **GPT-5.5 removed** (no upgrade). Anchor: `decisions/2026-07-09-gpt-5.6-suite.md`.
 
 Anchor: `decisions/2026-06-15-llmx-refactor-dispatch-layer.md`.
 

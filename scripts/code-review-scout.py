@@ -90,7 +90,7 @@ PROVIDERS = {
         "name": "gemini",
     },
     "openai": {
-        "model_flag": "-p openai -m gpt-5.5",
+        "model_flag": "-p openai -m gpt-5.6-sol",
         "extra": "--reasoning-effort medium --timeout 180",
         "name": "gpt",
     },

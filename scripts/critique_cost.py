@@ -19,7 +19,7 @@ PROJECTS = Path.home() / "Projects"
 # Rough $/M (input, output) for cost display — subscription sessions may be $0 marginal.
 RATES = {
     "deep_review": (0.50, 2.50),      # gemini-3.5-flash order of magnitude
-    "gpt_general": (0.50, 2.50),      # gpt-5.5 via codex/api
+    "gpt_general": (0.50, 2.50),      # gpt-5.6-luna via codex/api
     "formal_review": (0.50, 2.50),
     "mechanical_review": (0.50, 2.50),
     "fast_extract": (0.10, 0.40),

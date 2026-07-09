@@ -30,8 +30,13 @@ PRICING: dict[str, tuple[float, float]] = {
     "gemini-3.1-flash-lite-preview": (0.05, 0.20),
     "gemini-3.5-flash": (1.50, 9.0),
     "gemini-3.1-pro-preview": (1.25, 10.0),
-    "gpt-5.5": (1.25, 10.0),
-    "gpt-5.5-pro": (15.0, 120.0),
+    # GPT-5.6 suite (developers.openai.com/api/docs/pricing, GA 2026-07-09)
+    # Standard short-context: Sol $5/$30, Terra $2.50/$15, Luna $1/$6.
+    # Alias gpt-5.6 → sol. Pro mode bills at same model rates (more tokens).
+    "gpt-5.6-sol": (5.0, 30.0),
+    "gpt-5.6": (5.0, 30.0),
+    "gpt-5.6-terra": (2.50, 15.0),
+    "gpt-5.6-luna": (1.0, 6.0),
     "gpt-5.3-chat-latest": (1.75, 14.0),
     "gpt-5.3-codex": (1.25, 10.0),
     "claude-opus-4-8": (5.0, 25.0),

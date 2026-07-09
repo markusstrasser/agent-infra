@@ -54,8 +54,8 @@ def _family(model: str) -> str:
         return "gemini-3-flash"
     if "gemini" in m:
         return "gemini-other"
-    if "gpt-5.5" in m:
-        return "gpt-5.5"
+    if "gpt-5.6" in m:
+        return "gpt-5.6"
     if "gpt" in m:
         return "gpt-5.4/other"
     return model
