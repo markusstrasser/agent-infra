@@ -4099,3 +4099,7 @@ A source that fails the watchdog (e.g. the oversized `~/.gemini/tmp/{intel,genom
 - **[x] arc-agi answer-index auto-build + cwd guard wire:** `b8aef33d`.
 - **[~] F3 retire** (unused tier-split) — marked moot in prior harvest.
 - **Deferred:** DEFAULT parallel fan-out (after ablation window); hang_watchdog age-based eradicate.
+
+### [2026-07-10] llmx ADR P1 — structured dispatch API shipped
+- **[x] `llmx.api.dispatch` + `DispatchResult`:** llmx@`e0e173a` — status taxonomy, `context_paths` concat, `dry_run`, `auth=`/`subscription=`. Multi-`-f` was already fixed in CLI (`combine_file_context`); guide updated.
+- **[x] skills thin wire:** skills@`defe450` — `llm_dispatch` calls `llmx.api.dispatch` for transport; profiles keep I/O/telemetry. `chat()` remains for legacy raise-on-fail callers.
