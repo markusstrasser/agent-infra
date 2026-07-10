@@ -159,6 +159,12 @@ def extract_operator_dx_interventions(events: list[dict]) -> list[dict]:
         text = " ".join(ev["texts"]).strip()
         if not text:
             continue
+        # Harness-injected blocks arrive role=user but are NOT operator input — a
+        # <task-notification> containing "RSI" produced a false operator_dx digest
+        # (session 836ff036, caught at the 2026-07-10 ack). Same class: system-reminder,
+        # command stdout wrappers.
+        if text.lstrip().startswith(("<task-notification>", "<system-reminder>", "[SYSTEM NOTIFICATION"))                 or "<task-notification>" in text[:200]:
+            continue
         stub = classify_operator_dx(text)
         if stub:
             out.append(stub)
