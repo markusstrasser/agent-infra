@@ -76,6 +76,7 @@ REPO = Path(__file__).resolve().parent.parent
 IMPROVEMENT_LOG = REPO / "improvement-log.md"  # telemetry only (prose `[ ]` count)
 CANDIDATES_REGISTRY = REPO / "config" / "maintain-candidates.json"
 OBSERVE_ARTIFACTS = REPO / "artifacts" / "observe"
+RSI_HINDSIGHT_QUEUE = REPO / "artifacts" / "rsi-hindsight" / "queue.jsonl"
 _OBSERVE_SOURCE_RE = re.compile(r"artifacts/observe/", re.I)
 # Single-source tier policy (authored + owned by the team-lead, operator-approved
 # 2026-06-19). This module is a pure CONSUMER of it — it never restates the tier
@@ -353,6 +354,37 @@ def classify_tier(c: dict, policy: dict) -> str:
     return "0" if clear_win else "0E"
 
 
+def gather_rsi_hindsight(limit: int = 20) -> list[dict]:
+    """Queued RSI-hindsight flags from blindspot CLOSE (file-bus, not tier-0 picks).
+
+    maintain_tick does NOT auto-promote these into BUILD drafts — they need a
+    human/registry conversion. Surfaced so --list / noop / drafted results cite
+    the queue instead of chat-apologizing (observe 2026-07-10 metaloop gap).
+    """
+    seen: set[str] = set()
+    rows: list[dict] = []
+    for r in _load_jsonl(RSI_HINDSIGHT_QUEUE):
+        if r.get("status", "queued") != "queued" or not r.get("id"):
+            continue
+        if r["id"] in seen:
+            continue
+        seen.add(r["id"])
+        rows.append(r)
+    # Newest last in jsonl → reverse for operator glance
+    rows = list(reversed(rows[-limit:]))
+    return [
+        {
+            "id": r["id"],
+            "project": r.get("project", "?"),
+            "session_prefix": r.get("session_prefix", ""),
+            "date": r.get("date", ""),
+            "text_preview": (r.get("text_preview") or "")[:200],
+            "source": "artifacts/rsi-hindsight/queue.jsonl",
+        }
+        for r in rows
+    ]
+
+
 def gather_candidates() -> dict:
     observe_root = observe_artifact_root()
     promoted_ids, promotions_allowed, observe_run = observe_promotion_gate(observe_root)
@@ -368,6 +400,7 @@ def gather_candidates() -> dict:
     eval_gated = [c for c in all_items if c["tier"] == "0E"]
     tier0.sort(key=lambda c: (c["origin"] != "registry", c["evidence_sessions"], c["id"]))
     eval_gated.sort(key=lambda c: (c["origin"] != "registry", c["evidence_sessions"], c["id"]))
+    rsi_hindsight = gather_rsi_hindsight()
     return {
         "tier0": tier0,
         "eval_gated": eval_gated,
@@ -379,6 +412,8 @@ def gather_candidates() -> dict:
         "promotions_allowed": promotions_allowed,
         "n_promoted_verdicts": len(promoted_ids),
         "auto_ship_tiers": sorted(auto_ship_tiers(POLICY)),
+        "rsi_hindsight_queued": rsi_hindsight,
+        "n_rsi_hindsight": len(rsi_hindsight),
     }
 
 
@@ -834,7 +869,9 @@ def run(apply: bool, force: bool, ledger: bool) -> dict:
                 "observe_run": g.get("observe_run"),
                 "blocked_by_observe_gate": [c["title"] for c in g["blocked_by_observe_gate"]],
                 "eval_gated_count": len(g["eval_gated"]),
-                "eval_gated": [c["title"] for c in g["eval_gated"]]}
+                "eval_gated": [c["title"] for c in g["eval_gated"]],
+                "n_rsi_hindsight": g.get("n_rsi_hindsight", 0),
+                "rsi_hindsight_queued": g.get("rsi_hindsight_queued", [])}
 
     picked = tier0[0]
 
@@ -878,6 +915,8 @@ def run(apply: bool, force: bool, ledger: bool) -> dict:
         "eval_gated_count": len(g["eval_gated"]),
         "eval_gated": [c["title"] for c in g["eval_gated"]],
         "blocked_by_observe_gate": [c["title"] for c in g["blocked_by_observe_gate"]],
+        "n_rsi_hindsight": g.get("n_rsi_hindsight", 0),
+        "rsi_hindsight_queued": g.get("rsi_hindsight_queued", [])[:5],
     }
 
 
@@ -971,11 +1010,14 @@ def main() -> int:
                 "n_prose_open": g["n_prose_open"],
                 "observe_run": g.get("observe_run"),
                 "promotions_allowed": g.get("promotions_allowed"),
+                "n_rsi_hindsight": g.get("n_rsi_hindsight", 0),
+                "rsi_hindsight_queued": g.get("rsi_hindsight_queued", []),
             }, indent=2))
         else:
             print(f"[maintain-tick] tier-0 candidates: {len(g['tier0'])} "
                   f"(registry_eligible={g['n_registry_eligible']}, "
                   f"observe_blocked={len(g['blocked_by_observe_gate'])}, "
+                  f"rsi_hindsight={g.get('n_rsi_hindsight', 0)}, "
                   f"prose_open={g['n_prose_open']}) · "
                   f"observe_run={g.get('observe_run') or '—'} · "
                   f"policy auto-ship tiers={g['auto_ship_tiers']} · "
@@ -990,6 +1032,10 @@ def main() -> int:
                 print(f"  ⊘ {len(g['blocked_by_observe_gate'])} observe-sourced registry item(s) blocked by promotion gate:")
                 for c in g["blocked_by_observe_gate"][:8]:
                     print(f"    ▸ {c['title']} — {c['reason']}")
+            if g.get("rsi_hindsight_queued"):
+                print(f"  ↻ {g['n_rsi_hindsight']} RSI-hindsight queued (cite artifacts/rsi-hindsight/LATEST.md — not auto-picked):")
+                for r in g["rsi_hindsight_queued"][:5]:
+                    print(f"    ▸ {r['id']} {r['project']}/{r['session_prefix']}: {r['text_preview'][:80]}")
             if g["n_prose_open"]:
                 print(f"  ℹ {g['n_prose_open']} prose `[ ]` in improvement-log (telemetry only — not a motor source)")
         return 0

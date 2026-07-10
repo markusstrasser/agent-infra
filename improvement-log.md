@@ -4089,3 +4089,13 @@ A source that fails the watchdog (e.g. the oversized `~/.gemini/tmp/{intel,genom
 - **Partial:** `git update-index --chmod=+x` committed in skills (100644→100755). Residual: pre-commit assert + other entrypoints still 100644.
 - **Status:** [>] partial — durable git mode for 2 entrypoints; pre-commit still open
 
+
+### [2026-07-10] Observe dossier harvest — CLOSE RSI hindsight + ablation hygiene
+- **Source:** `artifacts/observe/2026-07-10-dossier/` · Opus cross-check `artifacts/harvest/2026-07-10-9547ab33-opus-crosscheck.md`
+- **[x] RSI-hindsight CLOSE:** `scripts/rsi_hindsight_enqueue.py` drains blindspot rediscovery flags with RSI phrasing → `artifacts/rsi-hindsight/queue.jsonl` + `LATEST.md`; `just blindspot` runs enqueue after miner; `maintain_tick --list` surfaces queue (not auto-picked); `/rsi` skill cites LATEST on close. Does **not** expand REDISCOVERY regexes (ablation control).
+- **[x] Ablate over_caution enforce → shadow:** removed from `SMART_JUDGE_ENFORCE_VECTORS` (`~/.claude/settings.json`); note `decisions-pending/2026-07-10-ablate-over-caution-enforce.md`. Protect rediscovery control for 14d.
+- **[x] bash_cmd_strip 3rd consumer:** skills `cursor_shell_guards` → `lib_bash_cmd_strip` (`d983afc`).
+- **[x] genomics stuck-stage ceiling:** registry timeout first (`bba6ffe26`); hang_watchdog eradicate still deferred.
+- **[x] arc-agi answer-index auto-build + cwd guard wire:** `b8aef33d`.
+- **[~] F3 retire** (unused tier-split) — marked moot in prior harvest.
+- **Deferred:** DEFAULT parallel fan-out (after ablation window); hang_watchdog age-based eradicate.

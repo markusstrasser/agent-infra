@@ -281,9 +281,16 @@ observe-context project='agent-infra' sessions='5' *args:
 # Runs in emb's env so agent-infra never inherits torch (blindspot_miner.py header);
 # pulse-tick runs the same miner daily — this is the manual on-demand path.
 # Loop-miss miner (emb-contrastive over recent sessions) → .claude/blindspot-digest.md.
+# Then CLOSE: enqueue RSI-hindsight rediscovery flags for maintain_tick /rsi close.
 [group('health')]
 blindspot *args:
     uv run --project ~/Projects/emb python3 scripts/blindspot_miner.py --days 7 {{args}}
+    uv run python3 scripts/rsi_hindsight_enqueue.py
+
+# Drain blindspot RSI-hindsight flags → artifacts/rsi-hindsight/queue.jsonl + LATEST.md
+[group('health')]
+rsi-hindsight-enqueue *args:
+    uv run python3 scripts/rsi_hindsight_enqueue.py {{args}}
 
 # Relocate raw agent session logs older than --keep-days to the external SSD
 # (reversible: --restore). The DB is derived + untouched; this only moves raw
