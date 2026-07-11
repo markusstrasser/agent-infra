@@ -530,7 +530,7 @@ critique path *args:
         --dispatch-manifest .model-review/dispatch.json \
         --context "$packet" --project "$(pwd)" \
         --topic "critique: {{path}}" --extract {{args}} \
-        "Adversarially review the design doc at {{path}}. Read the actual repo code to ground every claim; do not speculate about files not in context."
+        --question "Adversarially review the design doc at {{path}}. Read the actual repo code to ground every claim; do not speculate about files not in context."
     echo "drill:    just review-gate rank --review-dir .model-review --json"
     echo "next:     fold verified findings → {{path}}"
 
