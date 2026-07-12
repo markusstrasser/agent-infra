@@ -255,3 +255,52 @@ def test_sync_global_codex_hooks_prunes_stale(tmp_path: Path, monkeypatch) -> No
     assert len(remaining) == 1
     assert str(gone) not in remaining[0]
     assert "codex_hook_shim" in remaining[0]  # live one got shim-wrapped
+
+
+def test_sync_global_codex_hooks_prunes_cosmetic_tool_path_work(
+    tmp_path: Path, monkeypatch
+) -> None:
+    module = load_module()
+    tab_title = tmp_path / "hooks" / "codex-tab-title.sh"
+    safety_guard = tmp_path / "hooks" / "safety-guard.sh"
+    tab_title.parent.mkdir(parents=True)
+    tab_title.write_text("#!/bin/bash\nexit 0\n")
+    safety_guard.write_text("#!/bin/bash\nexit 0\n")
+    hooks_file = tmp_path / "hooks.json"
+    hooks_file.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "PreToolUse": [
+                        {
+                            "hooks": [
+                                {"type": "command", "command": str(tab_title)},
+                                {"type": "command", "command": str(safety_guard)},
+                            ]
+                        }
+                    ],
+                    "UserPromptSubmit": [
+                        {"hooks": [{"type": "command", "command": str(tab_title)}]}
+                    ],
+                }
+            }
+        )
+    )
+    monkeypatch.setattr(module, "GLOBAL_CODEX_HOOKS", hooks_file)
+
+    result = module.sync_global_codex_hooks(check=False)
+
+    assert result["policy_pruned"] == 1
+    data = json.loads(hooks_file.read_text())
+    pretool_commands = [
+        hook["command"]
+        for group in data["hooks"]["PreToolUse"]
+        for hook in group["hooks"]
+    ]
+    prompt_commands = [
+        hook["command"]
+        for group in data["hooks"]["UserPromptSubmit"]
+        for hook in group["hooks"]
+    ]
+    assert all("codex-tab-title.sh" not in command for command in pretool_commands)
+    assert any("codex-tab-title.sh" in command for command in prompt_commands)

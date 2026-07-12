@@ -38,6 +38,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 
 # Events whose stdout Codex parses as JSON.
 JSON_STDOUT_EVENTS = {
@@ -119,37 +120,32 @@ def _hook_env(event: str, payload: str, agent_pid: int, tty: str) -> dict[str, s
     return env
 
 
-def _tty_for_pid(pid: int) -> str:
-    try:
-        ps = subprocess.run(
-            ["ps", "-p", str(pid), "-o", "tty="],
-            capture_output=True,
-            text=True,
-            timeout=1,
-        )
-        tty = (ps.stdout or "").strip()
-    except Exception:
-        tty = ""
-    if tty and tty not in ("?", "-", "??"):
-        return tty if tty.startswith("/dev/") else f"/dev/{tty}"
-    return ""
-
-
 def _flush_tab_title(agent_pid: int, tty: str) -> None:
-    tty = tty or _tty_for_pid(agent_pid)
-    if not tty:
+    """Consume one pending title without putting TTY discovery on every hook."""
+    path = f"/tmp/cockpit-tab-pending-{agent_pid}"
+    if not os.path.isfile(path):
         return
-    for pid in {agent_pid}:
-        path = f"/tmp/cockpit-tab-pending-{pid}"
-        if not os.path.isfile(path):
-            continue
+
+    claim_path = f"{path}.{os.getpid()}.claim"
+    try:
+        os.replace(path, claim_path)
+    except OSError:
+        return
+    try:
+        title = open(claim_path, encoding="utf-8").read().strip()
+        if not title:
+            return
+        if not tty:
+            _resolved_pid, tty = _resolve_agent_tty(agent_pid)
+        if tty:
+            with open(tty, "w", encoding="utf-8") as tty_file:
+                tty_file.write(f"\033]2;{title}\007")
+    except Exception:
+        pass
+    finally:
         try:
-            title = open(path, encoding="utf-8").read().strip()
-            if title:
-                with open(tty, "w", encoding="utf-8") as f:
-                    f.write(f"\033]2;{title}\007")
-                return
-        except Exception:
+            os.unlink(claim_path)
+        except OSError:
             pass
 
 
@@ -236,9 +232,15 @@ def main(argv: list[str]) -> int:
     command = argv[1]
     event = os.environ.get("CODEX_HOOK_EVENT", "")
     payload = sys.stdin.read()
-    agent_pid, agent_tty = _resolve_agent_tty()
+    try:
+        agent_pid = int(os.environ.get("COCKPIT_AGENT_PID", ""))
+    except ValueError:
+        agent_pid = 0
+    agent_pid = agent_pid or os.getppid()
+    agent_tty = os.environ.get("COCKPIT_TTY", "")
     hook_env = _hook_env(event, payload, agent_pid, agent_tty)
 
+    started_at = time.monotonic()
     try:
         proc = subprocess.run(
             command,
@@ -252,6 +254,7 @@ def main(argv: list[str]) -> int:
     except Exception:
         # Could not even launch the inner hook — fail open, do not block.
         return 0
+    duration_ms = round((time.monotonic() - started_at) * 1000)
 
     stdout, stderr, rc = proc.stdout, proc.stderr, proc.returncode
     _flush_tab_title(agent_pid, agent_tty)
@@ -260,8 +263,6 @@ def main(argv: list[str]) -> int:
     # (codex#25875 shipped a silent no-fire regression; this makes the next one
     # a one-line grep instead of a debugging session). Fail open.
     try:
-        import time
-
         log_path = os.path.expanduser("~/.codex/log/hook_shim_invocations.jsonl")
         with open(log_path, "a") as f:
             f.write(
@@ -271,6 +272,7 @@ def main(argv: list[str]) -> int:
                         "event": event,
                         "cmd": command.split()[0] if command.split() else "",
                         "rc": rc,
+                        "duration_ms": duration_ms,
                     }
                 )
                 + "\n"

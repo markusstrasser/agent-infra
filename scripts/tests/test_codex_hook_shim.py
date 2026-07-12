@@ -9,13 +9,21 @@ from pathlib import Path
 SHIM = Path(__file__).resolve().parents[1] / "codex_hook_shim.py"
 
 
-def run_shim(inner_cmd: str, event: str, payload: str = "{}") -> subprocess.CompletedProcess:
+def run_shim(
+    inner_cmd: str,
+    event: str,
+    payload: str = "{}",
+    *,
+    extra_env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess:
+    env = {"CODEX_HOOK_EVENT": event, "PATH": "/usr/bin:/bin"}
+    env.update(extra_env or {})
     return subprocess.run(
         [sys.executable, str(SHIM), inner_cmd],
         input=payload,
         text=True,
         capture_output=True,
-        env={"CODEX_HOOK_EVENT": event, "PATH": "/usr/bin:/bin"},
+        env=env,
     )
 
 
@@ -82,3 +90,48 @@ def test_block_decision_without_reason_gets_one() -> None:
     out = json.loads(res.stdout)
     assert out["reason"]  # non-empty reason synthesized
     assert res.stderr.strip()  # and mirrored to stderr
+
+
+def test_noop_hook_does_not_probe_process_tree_for_unused_tty(tmp_path: Path) -> None:
+    ps_marker = tmp_path / "ps-called"
+    fake_ps = tmp_path / "ps"
+    fake_ps.write_text(
+        f"#!/bin/sh\nprintf called > {ps_marker}\n",
+        encoding="utf-8",
+    )
+    fake_ps.chmod(0o755)
+
+    res = run_shim(
+        "exit 0",
+        "PreToolUse",
+        extra_env={"PATH": str(tmp_path)},
+    )
+
+    assert res.returncode == 0
+    assert not ps_marker.exists()
+
+
+def test_pending_title_is_claimed_before_lazy_tty_probe(tmp_path: Path) -> None:
+    ps_marker = tmp_path / "ps-called"
+    pid_capture = tmp_path / "agent-pid"
+    fake_ps = tmp_path / "ps"
+    fake_ps.write_text(
+        f"#!/bin/sh\nprintf called >> {ps_marker}\n",
+        encoding="utf-8",
+    )
+    fake_ps.chmod(0o755)
+    inner = (
+        'printf "%s" "$COCKPIT_AGENT_PID" > "$PID_CAPTURE"; '
+        'printf title > "/tmp/cockpit-tab-pending-${COCKPIT_AGENT_PID}"'
+    )
+
+    res = run_shim(
+        inner,
+        "PreToolUse",
+        extra_env={"PATH": str(tmp_path), "PID_CAPTURE": str(pid_capture)},
+    )
+
+    assert res.returncode == 0
+    assert ps_marker.exists()
+    agent_pid = pid_capture.read_text(encoding="utf-8")
+    assert not Path(f"/tmp/cockpit-tab-pending-{agent_pid}").exists()

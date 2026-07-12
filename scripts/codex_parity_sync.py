@@ -402,6 +402,13 @@ def stale_hook_scripts(command: str) -> list[str]:
     return missing
 
 
+def net_negative_global_hook(event: str, command: str) -> str:
+    """Return why a known non-gating hook must stay off the tool hot path."""
+    if event == "PreToolUse" and "codex-tab-title.sh" in command:
+        return "tab title is cosmetic; update it at prompt/start/stop boundaries"
+    return ""
+
+
 def sync_global_codex_hooks(check: bool) -> dict:
     """Shim-wrap every command in the hand-maintained ~/.codex/hooks.json, and
     drop entries whose target hook script no longer exists.
@@ -416,8 +423,16 @@ def sync_global_codex_hooks(check: bool) -> dict:
     every fire (and reds `just smoke`). Such entries are removed — the script is
     already broken, so dropping it is strictly corrective. Reported in --check.
     """
-    result = {"path": str(GLOBAL_CODEX_HOOKS), "wrapped": 0, "total": 0,
-              "pruned": 0, "stale": [], "would_update": False}
+    result = {
+        "path": str(GLOBAL_CODEX_HOOKS),
+        "wrapped": 0,
+        "total": 0,
+        "pruned": 0,
+        "stale": [],
+        "policy_pruned": 0,
+        "policy": [],
+        "would_update": False,
+    }
     if not GLOBAL_CODEX_HOOKS.exists():
         return result
     original = GLOBAL_CODEX_HOOKS.read_text()
@@ -430,6 +445,11 @@ def sync_global_codex_hooks(check: bool) -> dict:
                     kept.append(hook)
                     continue
                 result["total"] += 1
+                policy_reason = net_negative_global_hook(event, hook["command"])
+                if policy_reason:
+                    result["policy_pruned"] += 1
+                    result["policy"].append(policy_reason)
+                    continue
                 missing = stale_hook_scripts(hook["command"])
                 if missing:
                     result["pruned"] += 1

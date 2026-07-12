@@ -111,7 +111,9 @@ tab_colors=off         # disable Ghostty tab emoji/title updates
 
 ## Codex hook events → tab title
 
-`codex-tab-title.sh` fires on: `UserPromptSubmit`, `PreToolUse` (catch-all), `Stop` (via `stop-notify.sh`), `SessionStart` (via `session-init.sh` → idle).
+`codex-tab-title.sh` fires on `UserPromptSubmit`, `Stop` (via `stop-notify.sh`), and
+`SessionStart` (via `session-init.sh` -> idle). It is deliberately excluded from
+`PreToolUse`: tab decoration is not allowed to tax the command feedback path.
 
 Context % parsed from Codex rollout JSONL (`~/.codex/sessions/...`), not `/tmp/claude-cockpit-*` (Claude-only).
 
@@ -125,8 +127,8 @@ echo '{"context_window":{"used_percentage":19,"context_window_size":1000000},"mo
 # Fleet
 bash ~/Projects/agent-infra/scripts/fleet.sh
 
-# Codex shim + tab title (needs live codex pid/tty for flush)
-CODEX_HOOK_EVENT=PreToolUse python3 ~/Projects/agent-infra/scripts/codex_hook_shim.py \
+# Codex shim + tab title (prompt-boundary smoke; needs live codex pid/tty for flush)
+CODEX_HOOK_EVENT=UserPromptSubmit python3 ~/Projects/agent-infra/scripts/codex_hook_shim.py \
   '~/.codex/hooks/codex-tab-title.sh working' <<< '{"tool_name":"Read"}'
 ```
 

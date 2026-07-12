@@ -151,7 +151,7 @@ cockpit_scan_aggregate() {
   COCKPIT_AGG_WORKING=0 COCKPIT_AGG_ATTENTION=0 COCKPIT_AGG_ERROR=0
   COCKPIT_AGG_ATT_NAMES=() COCKPIT_AGG_ERR_NAMES=()
   local cutoff=$(( now - 21600 )) f fname fpid fmtime astate aproj
-  for f in /tmp/claude-agent-* /tmp/cockpit-agent-*; do
+  for f in /tmp/claude-agent-[0-9]* /tmp/cockpit-agent-*-[0-9]*; do
     [[ -f "$f" ]] || continue
     fname=$(basename "$f")
     if [[ "$fname" == claude-agent-* ]]; then fpid="${fname#claude-agent-}"

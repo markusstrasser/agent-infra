@@ -1,12 +1,19 @@
 #!/usr/bin/env bash
 # codex-tab-title.sh — Ghostty tab title + fleet state for Codex CLI.
-# Codex has no statusline API; hooks drive tab title on PreToolUse/Stop/UserPromptSubmit.
+# Codex has no statusline API; prompt/start/stop hooks drive the tab title.
+# This script is intentionally absent from PreToolUse: cosmetic work must not
+# add latency to every tool round.
 #
 # Usage:
 #   codex-tab-title.sh <state>   # working|attention|error|done|idle
 #   codex-tab-title.sh --ctx     # print context % only
 
 set -uo pipefail
+
+# Existing Codex sessions may retain an older in-memory hooks configuration
+# after parity removes this command from PreToolUse. Keep the script-side
+# boundary too so those sessions become fast immediately.
+[[ "${CODEX_HOOK_EVENT:-}" == "PreToolUse" ]] && exit 0
 
 COCKPIT_DIR="${HOME}/Projects/agent-infra/scripts"
 # shellcheck source=/dev/null
