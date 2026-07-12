@@ -203,13 +203,131 @@ def json_loads_maybe(value: Any) -> Any:
 # their repo. No current slug ends in -wt<digits>, so this is a no-op on existing data.
 # (project_root keeps the real worktree path; only the grouping slug is canonicalized.)
 _WORKTREE_SLUG_SUFFIX = re.compile(r"-wt\d+$")
+# claude --worktree dirs: "<repo>--claude-worktrees-<name>" (also in encoded
+# transcript dirnames after -Projects-). Collapse to parent repo slug.
+_CLAUDE_WORKTREE_SLUG = re.compile(r"--claude-worktrees-.+$")
+# Path form AND Claude encoded project dirnames (Users-alien--cache-llmx-…).
+_LLMX_CACHE_MARKERS = (
+    ".cache/llmx",
+    "/cache/llmx/",
+    "-cache-llmx-",
+    "--cache-llmx-",
+)
+_LLMX_ATTRIBUTION = Path.home() / ".cache" / "llmx" / "dispatch-attribution.jsonl"
+
+
+def canonicalize_project_slug(name: str | None) -> str | None:
+    """Collapse worktree / isolate suffixes to the parent repo slug."""
+    if not name:
+        return None
+    slug = name.strip()
+    if not slug:
+        return None
+    # Encoded cache dirnames are not projects — refuse to invent `bare`/`cursor`.
+    if any(m in slug for m in ("-cache-llmx-", "--cache-llmx-")):
+        return None
+    slug = _CLAUDE_WORKTREE_SLUG.sub("", slug)
+    slug = _WORKTREE_SLUG_SUFFIX.sub("", slug)
+    return slug or None
+
+
+def _slug_from_llmx_cache_cwd(path: Path) -> str | None:
+    """Attribute llmx-cache CLI cwd via durable marker/sidecar (Opus 2026-07-12).
+
+    Prefer `.llmx-caller-cwd` inside the cache dir (unique per caller after
+    per-caller subdirs). Sidecar is fallback with a short TTL. Never read
+    os.environ — that is the indexer env, not the session's.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    # 1) Marker file in the cache cwd (or parents up to cache root)
+    try:
+        cur = path.expanduser().resolve()
+    except (OSError, RuntimeError, ValueError):
+        cur = path
+    for cand in (cur, *cur.parents):
+        marker = cand / ".llmx-caller-cwd"
+        if marker.is_file():
+            try:
+                caller = marker.read_text(encoding="utf-8").strip().splitlines()[0].strip()
+            except OSError:
+                caller = ""
+            if caller and not any(m in caller for m in (".cache/llmx", "/cache/llmx/")):
+                return canonicalize_project_slug(Path(caller).name)
+        if cand == cand.parent:
+            break
+
+    # 2) Sidecar fallback — last matching cli_cwd within 6h
+    caller = _lookup_llmx_caller_cwd(path, max_age_hours=6.0)
+    if not caller:
+        return None
+    try:
+        caller_path = Path(caller).expanduser()
+    except (OSError, TypeError, ValueError):
+        return canonicalize_project_slug(caller)
+    text = str(caller_path)
+    if any(m in text for m in (".cache/llmx", "/cache/llmx/")):
+        return None
+    return canonicalize_project_slug(caller_path.name)
+
+
+def _lookup_llmx_caller_cwd(cli_cwd: Path, *, max_age_hours: float = 6.0) -> str | None:
+    """Join durable llmx dispatch-attribution sidecar (not indexer os.environ)."""
+    from datetime import datetime, timezone, timedelta
+
+    if not _LLMX_ATTRIBUTION.is_file():
+        return None
+    try:
+        target = str(cli_cwd.expanduser().resolve())
+    except (OSError, RuntimeError, ValueError):
+        target = str(cli_cwd)
+    best: str | None = None
+    best_ts: datetime | None = None
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
+    try:
+        lines = _LLMX_ATTRIBUTION.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    for line in lines[-2000:]:
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue  # truncated/partial line — skip
+        if row.get("cli_cwd") != target or not row.get("caller_cwd"):
+            continue
+        ts_raw = row.get("ts") or ""
+        try:
+            ts = datetime.fromisoformat(ts_raw.replace("Z", "+00:00"))
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+        if ts < cutoff:
+            continue
+        if best_ts is None or ts >= best_ts:
+            best_ts = ts
+            best = str(row["caller_cwd"])
+    return best
 
 
 def slug_from_path(path: str | None) -> str | None:
     if not path:
         return None
-    name = _WORKTREE_SLUG_SUFFIX.sub("", Path(path).name.strip())
-    return name or None
+    try:
+        p = Path(path).expanduser()
+    except (OSError, TypeError, ValueError):
+        return None
+    text = str(p)
+    name = p.name
+    if any(m in text or m in name for m in _LLMX_CACHE_MARKERS):
+        from_side = _slug_from_llmx_cache_cwd(p)
+        if from_side:
+            return from_side
+        # Don't invent a fake project from cache basename (`bare`, `cursor`).
+        return None
+    return canonicalize_project_slug(p.name)
 
 
 def text_from_content(content: Any) -> str:

@@ -261,15 +261,18 @@ def _text_from_cursor_content(content: object) -> str:
 
 
 def _project_slug_from_dir(dirname: str) -> str:
+    from agentlogs.adapters.common import canonicalize_project_slug
+
     if "-Projects-" in dirname:
-        return dirname.split("-Projects-", 1)[1]
-    return dirname
+        return canonicalize_project_slug(dirname.split("-Projects-", 1)[1]) or dirname
+    return canonicalize_project_slug(dirname) or dirname
 
 
 def _project_root_from_dir(dirname: str) -> str | None:
     if "-Projects-" not in dirname:
         return None
     slug = _project_slug_from_dir(dirname)
+    # Strip worktree fork so root points at the main checkout when possible.
     return str(Path.home() / "Projects" / slug)
 
 

@@ -602,24 +602,31 @@ def sync_repo(repo: str, check: bool) -> dict:
     else:
         con.kv("hooks", "no project hooks in .claude/settings.json")
 
-    # 3. Skills symlink .agents/skills -> .claude/skills
+    # 3. Skills: prefer .agents/skills -> .claude/skills symlink.
+    # If .agents/skills is already a real directory (arc-agi: per-skill links +
+    # local skills), leave it — Codex discovers that layout fine; replacing with
+    # a symlink would delete local skill trees (PermissionError / data loss).
     claude_skills = repo_dir / ".claude" / "skills"
     agents_skills = repo_dir / ".agents" / "skills"
     if claude_skills.is_dir():
         want = claude_skills
-        have = agents_skills.is_symlink() and agents_skills.resolve() == want.resolve()
-        result["skills"] = have
-        if have:
-            con.kv("skills", ".agents/skills -> .claude/skills (ok)")
-        elif check:
-            con.kv("skills", ".agents/skills MISSING — would link")
+        if agents_skills.is_dir() and not agents_skills.is_symlink():
+            result["skills"] = "dir"
+            con.kv("skills", ".agents/skills/ directory present (kept; not replaced by symlink)")
         else:
-            (repo_dir / ".agents").mkdir(exist_ok=True)
-            if agents_skills.exists() or agents_skills.is_symlink():
-                agents_skills.unlink()
-            agents_skills.symlink_to(want)
-            result["skills"] = True
-            con.ok(".agents/skills -> .claude/skills (linked)")
+            have = agents_skills.is_symlink() and agents_skills.resolve() == want.resolve()
+            result["skills"] = have
+            if have:
+                con.kv("skills", ".agents/skills -> .claude/skills (ok)")
+            elif check:
+                con.kv("skills", ".agents/skills MISSING — would link")
+            else:
+                (repo_dir / ".agents").mkdir(exist_ok=True)
+                if agents_skills.is_symlink() or agents_skills.is_file():
+                    agents_skills.unlink()
+                agents_skills.symlink_to(want)
+                result["skills"] = True
+                con.ok(".agents/skills -> .claude/skills (linked)")
     else:
         con.kv("skills", "no .claude/skills dir")
 

@@ -304,3 +304,25 @@ def test_sync_global_codex_hooks_prunes_cosmetic_tool_path_work(
     ]
     assert all("codex-tab-title.sh" not in command for command in pretool_commands)
     assert any("codex-tab-title.sh" in command for command in prompt_commands)
+
+
+def test_sync_repo_keeps_agents_skills_directory(tmp_path: Path, monkeypatch) -> None:
+    """arc-agi pattern: .agents/skills is a real dir — must not be unlinked."""
+    module = load_module()
+    repo = tmp_path / "arc-agi"
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    (repo / ".claude" / "skills" / "x").mkdir()
+    agents_skills = repo / ".agents" / "skills"
+    agents_skills.mkdir(parents=True)
+    local = agents_skills / "idea-miner"
+    local.mkdir()
+    (local / "SKILL.md").write_text("# local\n")
+    (repo / ".claude" / "settings.json").write_text("{}")
+    (repo / ".mcp.json").write_text("{}")
+    monkeypatch.setattr(module, "PROJECTS", tmp_path)
+    monkeypatch.setattr(module, "REPOS", ["arc-agi"])
+    # Minimal sync_repo path: call skills section via sync_repo
+    result = module.sync_repo("arc-agi", check=False)
+    assert agents_skills.is_dir() and not agents_skills.is_symlink()
+    assert (local / "SKILL.md").exists()
+    assert result.get("skills") == "dir"

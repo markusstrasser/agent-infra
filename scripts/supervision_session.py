@@ -390,13 +390,24 @@ def _is_denial(result) -> bool:
 
 
 def _substantive_for_repeat_check(message: str) -> bool:
-    """Skip image metadata and other non-instruction user turns."""
+    """Skip image metadata and other non-instruction user turns.
+
+    Also drop teammate bus + local-command frames — they share the user role
+    but are not human re-instructions (observe 2026-07-12: 18/18 grow_coverage
+    FPs were idle_notification / local-command-stdout pairs).
+    """
     stripped = message.strip()
     if not stripped:
         return False
     if stripped.startswith("<system-reminder>"):
         return False
     if re.match(r"^\[Image:", stripped, re.I):
+        return False
+    if stripped.startswith(
+        ("<teammate-message", "<local-command-stdout", "<local-command-caveat")
+    ):
+        return False
+    if stripped.startswith("Another Claude session sent a message"):
         return False
     return True
 

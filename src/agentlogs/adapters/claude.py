@@ -436,7 +436,9 @@ def _permission_kind(payload: object, text: str) -> str | None:
 
 
 def _project_slug_from_path(path: Path) -> str | None:
+    from agentlogs.adapters.common import canonicalize_project_slug
+
     for part in path.parts:
         if "-Projects-" in part:
-            return part.split("-Projects-", 1)[1]
+            return canonicalize_project_slug(part.split("-Projects-", 1)[1])
     return None

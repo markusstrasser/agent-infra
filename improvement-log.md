@@ -4103,3 +4103,6 @@ A source that fails the watchdog (e.g. the oversized `~/.gemini/tmp/{intel,genom
 ### [2026-07-10] llmx ADR P1 — structured dispatch API shipped
 - **[x] `llmx.api.dispatch` + `DispatchResult`:** llmx@`e0e173a` — status taxonomy, `context_paths` concat, `dry_run`, `auth=`/`subscription=`. Multi-`-f` was already fixed in CLI (`combine_file_context`); guide updated.
 - **[x] skills thin wire:** skills@`defe450` — `llm_dispatch` calls `llmx.api.dispatch` for transport; profiles keep I/O/telemetry. `chat()` remains for legacy raise-on-fail callers.
+
+### [2026-07-12] RECONCILIATION — Codex global hooks fleet shim CLOSED
+- **[x] Codex global hooks fleet shim:** verified `codex_parity_sync.py --check` → 59/59 shim-wrapped (unshimmed=0). `sync_global_codex_hooks()` + friend-sync already owned this; Jun-19 open row was stale. Also shipped: supervision teammate FP filter, agentlogs/llmx cache attribution (Opus FIX-THEN-LAND), RSI-hindsight CONVERT SLA, arc-agi MIRRORED_REPOS + cwd-guard residual. Observe `2026-07-12-2050`.

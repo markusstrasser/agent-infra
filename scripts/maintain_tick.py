@@ -355,11 +355,11 @@ def classify_tier(c: dict, policy: dict) -> str:
 
 
 def gather_rsi_hindsight(limit: int = 20) -> list[dict]:
-    """Queued RSI-hindsight flags from blindspot CLOSE (file-bus, not tier-0 picks).
+    """Queued RSI-hindsight flags from blindspot CLOSE (file-bus).
 
-    maintain_tick does NOT auto-promote these into BUILD drafts — they need a
-    human/registry conversion. Surfaced so --list / noop / drafted results cite
-    the queue instead of chat-apologizing (observe 2026-07-10 metaloop gap).
+    Aged rows (≥48h) are CONVERT-stubbed by convert_stale_rsi_hindsight() into
+    SAFE draft proposals — still not tier-0 auto-ship. Surfaced so --list / noop
+    cite the queue instead of chat-apologizing (observe 2026-07-10 metaloop gap).
     """
     seen: set[str] = set()
     rows: list[dict] = []
@@ -383,6 +383,115 @@ def gather_rsi_hindsight(limit: int = 20) -> list[dict]:
         }
         for r in rows
     ]
+
+
+def _parse_enqueued_at(raw: str | None) -> datetime | None:
+    if not raw:
+        return None
+    text = str(raw).strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        dt = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def convert_stale_rsi_hindsight(
+    age_hours: float = 48.0,
+    *,
+    write: bool = True,
+) -> list[dict]:
+    """CONVERT SLA: draft SAFE proposals for queued RSI-hindsight rows aged ≥ age_hours.
+
+    Flips queue status queued → stubbed. Never edits product code / never auto-ships.
+    Idempotent: already-stubbed rows are left alone; existing stub_path is reused.
+    """
+    if not RSI_HINDSIGHT_QUEUE.is_file():
+        return []
+    try:
+        lines = RSI_HINDSIGHT_QUEUE.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+
+    now = datetime.now(timezone.utc)
+    cutoff = age_hours * 3600
+    changed = False
+    stubs: list[dict] = []
+    out_lines: list[str] = []
+
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            out_lines.append(line)
+            continue
+        if row.get("status", "queued") != "queued" or not row.get("id"):
+            out_lines.append(json.dumps(row, ensure_ascii=False))
+            continue
+        enq = _parse_enqueued_at(row.get("enqueued_at"))
+        if enq is None or (now - enq).total_seconds() < cutoff:
+            out_lines.append(json.dumps(row, ensure_ascii=False))
+            continue
+
+        rid = row["id"]
+        stub_path = PROPOSAL_DIR / f"{_today()}-rsi-hindsight-{rid}.md"
+        title = (
+            f"RSI-hindsight CONVERT — {row.get('project', '?')}/"
+            f"{row.get('session_prefix', '')}: "
+            f"{(row.get('text_preview') or '')[:80]}"
+        )
+        candidate = {
+            "id": f"rsi-hindsight-{rid}",
+            "title": title,
+            "origin": "rsi-hindsight-queue",
+            "source": f"artifacts/rsi-hindsight/queue.jsonl#{rid}",
+            "blast_radius": "agent-infra",
+            "reversible": True,
+            "evidence_sessions": 2,
+            "checkable": True,
+            "low_downside": True,
+            "clear_win_vs_baseline": False,  # → draft only; 0E not auto-picked
+            "tier": "0E",
+            "build_kind": "detector / hook (CONVERT from RSI-hindsight)",
+            "proposal_outline": (
+                f"{row.get('proposed_convert') or 'Convert this RSI-hindsight flag '
+                'into a durable detector.'}\n\n"
+                f"- project: {row.get('project')}\n"
+                f"- session: {row.get('session_prefix')}\n"
+                f"- direction: {row.get('direction')} / {row.get('type_id')}\n"
+                f"- preview: {row.get('text_preview')}\n"
+                f"- enqueued_at: {row.get('enqueued_at')}\n"
+            ),
+        }
+        if write:
+            PROPOSAL_DIR.mkdir(parents=True, exist_ok=True)
+            _path, body = draft_proposal(candidate)
+            stub_path.write_text(body, encoding="utf-8")
+        row["status"] = "stubbed"
+        row["stubbed_at"] = now.isoformat()
+        try:
+            rel = str(stub_path.relative_to(REPO))
+        except ValueError:
+            rel = str(stub_path)
+        row["stub_path"] = rel
+        changed = True
+        stubs.append({
+            "id": rid,
+            "stub_path": rel,
+            "project": row.get("project"),
+            "age_hours": round((now - enq).total_seconds() / 3600, 1),
+        })
+        out_lines.append(json.dumps(row, ensure_ascii=False))
+
+    if write and changed:
+        RSI_HINDSIGHT_QUEUE.write_text("\n".join(out_lines) + "\n", encoding="utf-8")
+    return stubs
 
 
 def gather_candidates() -> dict:
@@ -853,6 +962,15 @@ def run(apply: bool, force: bool, ledger: bool) -> dict:
                           "skipped", f"{live} live claude procs > {MAX_LIVE_CLAUDE}; stood aside")
         return {"status": "rate-gated", "live_claude": live, "picked": None}
 
+    # CONVERT SLA first so gather_rsi_hindsight reflects remaining queued rows.
+    rsi_stubs = convert_stale_rsi_hindsight(write=True)
+    if rsi_stubs and ledger:
+        append_ledger(
+            "maintain-tick",
+            "rsi-hindsight-convert",
+            "stubbed",
+            f"{len(rsi_stubs)} aged queue row(s) → draft proposals",
+        )
     g = gather_candidates()
     tier0 = g["tier0"]
     if not tier0:
@@ -861,7 +979,8 @@ def run(apply: bool, force: bool, ledger: bool) -> dict:
                           f"0 tier-0 candidates (registry_eligible={g['n_registry_eligible']}, "
                           f"observe_blocked={len(g['blocked_by_observe_gate'])}, "
                           f"eval_gated={len(g['eval_gated'])}, "
-                          f"prose_open={g['n_prose_open']})")
+                          f"prose_open={g['n_prose_open']}, "
+                          f"rsi_stubs={len(rsi_stubs)})")
         return {"status": "noop", "picked": None,
                 "n_registry": g["n_registry"],
                 "n_registry_eligible": g["n_registry_eligible"],
@@ -871,7 +990,8 @@ def run(apply: bool, force: bool, ledger: bool) -> dict:
                 "eval_gated_count": len(g["eval_gated"]),
                 "eval_gated": [c["title"] for c in g["eval_gated"]],
                 "n_rsi_hindsight": g.get("n_rsi_hindsight", 0),
-                "rsi_hindsight_queued": g.get("rsi_hindsight_queued", [])}
+                "rsi_hindsight_queued": g.get("rsi_hindsight_queued", []),
+                "rsi_hindsight_stubs": rsi_stubs}
 
     picked = tier0[0]
 
@@ -917,6 +1037,7 @@ def run(apply: bool, force: bool, ledger: bool) -> dict:
         "blocked_by_observe_gate": [c["title"] for c in g["blocked_by_observe_gate"]],
         "n_rsi_hindsight": g.get("n_rsi_hindsight", 0),
         "rsi_hindsight_queued": g.get("rsi_hindsight_queued", [])[:5],
+        "rsi_hindsight_stubs": rsi_stubs,
     }
 
 

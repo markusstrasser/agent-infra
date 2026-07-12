@@ -93,3 +93,28 @@ def test_repeated_instruction_ignores_image_metadata():
     img = "[Image: original 2560x1440 displayed at 1280x720. Multiply coordinates by 2.]"
     assert ss._count_repeated_instructions([img, img, img]) == 0
     assert ss._count_repeated_instructions(["Semax? i will use it", "Semax? i will use it. where can i get it?"]) == 1
+
+
+def test_repeated_instruction_ignores_teammate_idle_bus():
+    a = (
+        "Another Claude session sent a message: "
+        '<teammate-message teammate_id="predictions-resolve">{"type":"idle_notification"}</teammate-message>'
+    )
+    b = (
+        "Another Claude session sent a message: "
+        '<teammate-message teammate_id="doctor-fixes">{"type":"idle_notification","ts":2}</teammate-message>'
+    )
+    assert ss._count_repeated_instructions([a, b, a]) == 0
+    assert ss._substantive_for_repeat_check(a) is False
+    assert ss._substantive_for_repeat_check('<teammate-message x="1">hi</teammate-message>') is False
+
+
+def test_repeated_instruction_ignores_local_command_stdout():
+    a = "<local-command-stdout>Login interrupted</local-command-stdout>"
+    b = "<local-command-stdout>Login successful</local-command-stdout>"
+    assert ss._count_repeated_instructions([a, b]) == 0
+    assert ss._substantive_for_repeat_check("<local-command-caveat>Caveat: …</local-command-caveat>") is False
+    # real human re-ask still counts
+    assert ss._count_repeated_instructions(
+        ["Semax? i will use it", "Semax? i will use it. where can i get it?"]
+    ) == 1

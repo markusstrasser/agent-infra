@@ -76,9 +76,14 @@ def sandbox(tmp_path, monkeypatch):
     monkeypatch.setattr(mt, "POLICY", FIXTURE_POLICY)              # gather/classify read this
     monkeypatch.setattr(mt, "REPO", tmp_path)  # so relative_to(REPO) works in run()
     monkeypatch.setattr(mt, "live_claude_count", lambda: 0)  # gate open
+    rsi_q = tmp_path / "artifacts" / "rsi-hindsight" / "queue.jsonl"
+    rsi_q.parent.mkdir(parents=True, exist_ok=True)
+    rsi_q.write_text("")
+    monkeypatch.setattr(mt, "RSI_HINDSIGHT_QUEUE", rsi_q)
 
     return {"registry": registry, "log": log, "policy_path": policy_path,
-            "proposal_dir": proposal_dir, "ledger": ledger, "root": tmp_path}
+            "rsi_queue": rsi_q, "proposal_dir": proposal_dir, "ledger": ledger,
+            "root": tmp_path}
 
 
 def _set_go_live(sandbox, value: bool) -> None:
@@ -543,3 +548,48 @@ def test_resolve_predictions_for_ablation_matches_gov_id(monkeypatch, tmp_path):
     assert acted == ["impl-deadbeef-00000001"]
     _, resolved = pred._load()
     assert "impl-deadbeef-00000001" in resolved
+
+
+def test_rsi_hindsight_convert_stubs_aged_rows(sandbox):
+    from datetime import datetime, timedelta, timezone
+
+    old = (datetime.now(timezone.utc) - timedelta(hours=60)).isoformat()
+    fresh = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+    rows = [
+        {
+            "id": "rsi-arc-agi-old-aaa",
+            "project": "arc-agi",
+            "session_prefix": "d8da85ee",
+            "text_preview": "RSI : why did you not find this",
+            "enqueued_at": old,
+            "status": "queued",
+            "proposed_convert": "Build a detector.",
+            "direction": "grow_coverage",
+            "type_id": "rediscovery",
+        },
+        {
+            "id": "rsi-arc-agi-fresh-bbb",
+            "project": "arc-agi",
+            "session_prefix": "f6f9efae",
+            "text_preview": "fresh RSI flag",
+            "enqueued_at": fresh,
+            "status": "queued",
+            "proposed_convert": "Build a detector.",
+        },
+    ]
+    sandbox["rsi_queue"].write_text(
+        "\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8"
+    )
+    stubs = mt.convert_stale_rsi_hindsight(age_hours=48.0, write=True)
+    assert len(stubs) == 1
+    assert stubs[0]["id"] == "rsi-arc-agi-old-aaa"
+    loaded = [json.loads(l) for l in sandbox["rsi_queue"].read_text().splitlines() if l.strip()]
+    by_id = {r["id"]: r for r in loaded}
+    assert by_id["rsi-arc-agi-old-aaa"]["status"] == "stubbed"
+    assert by_id["rsi-arc-agi-fresh-bbb"]["status"] == "queued"
+    stub_file = sandbox["root"] / by_id["rsi-arc-agi-old-aaa"]["stub_path"]
+    assert stub_file.is_file()
+    assert "RSI-hindsight CONVERT" in stub_file.read_text()
+    # idempotent
+    stubs2 = mt.convert_stale_rsi_hindsight(age_hours=48.0, write=True)
+    assert stubs2 == []
