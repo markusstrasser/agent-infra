@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "Eve needsApproval analog — maps pretool hooks to block / predicate / warn tiers. Doctor enforces manifest ↔ disk; new global pretool guards should land here.",
+  "description": "Eve needsApproval analog \u2014 maps pretool hooks to block / predicate / warn tiers. Doctor enforces manifest \u2194 disk; new global pretool guards should land here.",
   "tiers": [
     {
       "id": "irreversible_write",
@@ -38,7 +38,7 @@
     {
       "id": "spend_threshold",
       "action": "predicate",
-      "description": "API spend — warn $500 / block $1000 (pretool-cost-guard)",
+      "description": "API spend \u2014 warn $500 / block $1000 (pretool-cost-guard)",
       "hooks": [
         "pretool-cost-guard.sh",
         "pretool-modal-cost-guard.sh",
@@ -57,7 +57,8 @@
         "pretool-duckdb-quote-guard.sh",
         "pretool-raw-openai-guard.sh",
         "pretool-noext-nongit-guard.sh",
-        "pretool-timeout-modal-guard.sh"
+        "pretool-timeout-modal-guard.sh",
+        "pretool-monitor-pattern-guard.py"
       ]
     },
     {
@@ -69,7 +70,8 @@
         "pretool-worktree-staleness-guard.py",
         "pretool-regression-dag-gate.sh",
         "pretool-cursor-model-guard.py",
-        "pretool-research-skill-gate.py"
+        "pretool-research-skill-gate.py",
+        "pretool-subagent-settings-guard.py"
       ]
     },
     {
@@ -102,7 +104,7 @@
     {
       "id": "inject",
       "action": "inject",
-      "description": "Environment injection — not approval gates",
+      "description": "Environment injection \u2014 not approval gates",
       "hooks": [
         "pretool-git-noext-inject.sh",
         "pretool-pyunbuffered-inject.sh"
@@ -115,6 +117,15 @@
       "hooks": [
         "pretool-ast-precommit.sh",
         "pretool-commit-check.sh"
+      ]
+    },
+    {
+      "id": "dispatchers",
+      "action": "block",
+      "description": "Parse-once hook-fleet dispatchers (2026-07-13) \u2014 each aggregates a full gate fleet incl. blockers; parity oracles live beside each impl",
+      "hooks": [
+        "pretool-bash-dispatch.py",
+        "pretool-universal-dispatch.py"
       ]
     }
   ],
