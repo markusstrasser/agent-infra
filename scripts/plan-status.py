@@ -26,29 +26,63 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-# Frontmatter parse is the shared, behavior-preserving plan_core extraction
-# (substrate/packages/plan-core) — same narrow-YAML parser genomics planctl uses,
-# single-sourced here rather than re-hand-rolled.
-from plan_core import parse_frontmatter as _pc_parse_frontmatter
-
 PROJECTS_DIR = Path.home() / "Projects"
 PROJECT_NAMES = ["agent-infra", "intel", "phenome", "genomics", "arc-agi", "skills"]
 
+_FRONTMATTER_RE = re.compile(r"\A---\s*\n(?P<body>.*?)\n---\s*(?:\n|\Z)", re.DOTALL)
+
+
+def _parse_scalar(value: str) -> str:
+    """Parse the only scalar quoting forms this read-only scanner needs."""
+    if value.startswith('"') and value.endswith('"'):
+        return value[1:-1].replace(r'\"', '"').replace(r"\\", "\\")
+    if value.startswith("'") and value.endswith("'"):
+        return value[1:-1].replace("''", "'")
+    return value
+
 
 def parse_frontmatter(text: str) -> dict:
-    """Extract frontmatter from a plan file via the shared plan_core engine.
+    """Read narrow plan frontmatter without importing a cross-repo package.
 
-    Returns ``{}`` when the file has no frontmatter (plan_core returns ``None``)
-    so the cross-project scan stays tolerant of un-fronted plans — many
-    agent-infra `.claude/plans/*.md` have none. On malformed frontmatter,
-    plan_core raises ``ValueError``; we swallow it to ``{}`` here because this is
-    a read-only status scanner that must never crash on one bad file.
+    The status scan accepts scalar strings plus flow/block lists. Missing or
+    malformed frontmatter becomes ``{}``: one stale plan must not break the
+    cross-project dashboard.
     """
-    try:
-        meta, _ = _pc_parse_frontmatter(text)
-    except ValueError:
+    match = _FRONTMATTER_RE.match(text)
+    if not match:
         return {}
-    return meta or {}
+    data: dict[str, object] = {}
+    current_list: list[str] | None = None
+    try:
+        for raw_line in match.group("body").splitlines():
+            if not raw_line.strip() or raw_line.lstrip().startswith("#"):
+                continue
+            stripped = raw_line.lstrip(" ")
+            indent = len(raw_line) - len(stripped)
+            if indent and stripped.startswith("- ") and current_list is not None:
+                current_list.append(_parse_scalar(stripped[2:].strip()))
+                continue
+            if ":" not in raw_line:
+                return {}
+            key, _, value = raw_line.partition(":")
+            key, value = key.strip(), value.strip()
+            if not key:
+                return {}
+            if not value:
+                current_list = []
+                data[key] = current_list
+            elif value.startswith("[") and value.endswith("]"):
+                inner = value[1:-1].strip()
+                data[key] = [] if not inner else [
+                    _parse_scalar(item.strip()) for item in inner.split(",")
+                ]
+                current_list = None
+            else:
+                data[key] = _parse_scalar(value)
+                current_list = None
+    except (IndexError, TypeError, ValueError):
+        return {}
+    return data
 
 
 def has_verify_block(text: str) -> bool:

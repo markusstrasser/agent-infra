@@ -20,7 +20,6 @@ dependencies = [
     { name = "inspect-ai" },
     { name = "openai" },
     { name = "parallel-web" },
-    { name = "plan-core" },
 ]
 
 [package.dev-dependencies]
@@ -42,7 +41,6 @@ requires-dist = [
     { name = "inspect-ai", specifier = ">=0.3.0" },
     { name = "openai", specifier = ">=2.26.0" },
     { name = "parallel-web", specifier = ">=0.4.0" },
-    { name = "plan-core", editable = "../substrate/packages/plan-core" },
 ]
 
 [package.metadata.requires-dev]
@@ -2088,16 +2086,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/d6/cb/448649d7f25d228bf
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b1/29/c028a0731e202035f0e2e0bfbf1a3e46ad6c628cbb17f6f1cc9eea5d9ff1/pathlib_abc-0.5.2-py3-none-any.whl", hash = "sha256:4c9d94cf1b23af417ce7c0417b43333b06a106c01000b286c99de230d95eefbb", size = 19070, upload-time = "2025-10-10T18:37:19.437Z" },
 ]
-
-[[package]]
-name = "plan-core"
-version = "0.1.0"
-source = { editable = "../substrate/packages/plan-core" }
-
-[package.metadata]
-
-[package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=9.0.3" }]
 
 [[package]]
 name = "platformdirs"

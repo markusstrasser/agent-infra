@@ -13,11 +13,7 @@ dependencies = [
     "inspect-ai>=0.3.0",
     "openai>=2.26.0",
     "parallel-web>=0.4.0",
-    "plan-core",
 ]
-
-[tool.uv.sources]
-plan-core = { path = "../substrate/packages/plan-core", editable = true }
 
 [project.scripts]
 agentlogs = "agentlogs.cli:main"
@@ -32,9 +28,7 @@ venvPath = "."
 venv = ".venv"
 typeCheckingMode = "basic"
 exclude = ["artifacts/", "downloads/", "bundles/", ".claude/worktrees/"]
-# The pure-stdlib plan-core editable does not materialize a package directory;
-# name its source root so static resolution stays deterministic.
-extraPaths = ["src", "../substrate/packages/plan-core"]
+extraPaths = ["src"]
 
 [build-system]
 requires = ["hatchling"]
