@@ -51,6 +51,10 @@ class CoverageError(RuntimeError):
     """The scout cannot prove complete coverage of the selected source set."""
 
 
+class DispatchError(RuntimeError):
+    """A selected review batch did not produce a reviewer verdict."""
+
+
 def checked_size(path: Path) -> int:
     try:
         return path.stat().st_size
@@ -201,7 +205,7 @@ _rate_limited_providers: set[str] = set()
 
 
 def dispatch_review(code_context: str, focus: str, provider_cfg: dict,
-                    batch_label: str) -> str | None:
+                    batch_label: str) -> str:
     """Send code to LLM CLI for review. Returns raw output.
 
     On rate limit: retries once after 30s. If still limited, marks the provider
@@ -211,8 +215,9 @@ def dispatch_review(code_context: str, focus: str, provider_cfg: dict,
 
     provider_name = provider_cfg["name"]
     if provider_name in _rate_limited_providers:
-        print(f"  [{batch_label}] skipped — {provider_name} rate limited", file=sys.stderr)
-        return None
+        raise DispatchError(
+            f"[{batch_label}] not reviewed because {provider_name} is rate limited"
+        )
 
     focus_prompt = FOCUS_PROMPTS[focus]
 
@@ -260,18 +265,22 @@ Review the following code files. Focus: {focus_prompt}
                           f"skipping remaining batches for this provider",
                           file=sys.stderr)
                     _rate_limited_providers.add(provider_name)
-                    return None
+                    raise DispatchError(
+                        f"[{batch_label}] reviewer rate limited twice: {provider_name}"
+                    )
             if result.returncode != 0:
-                print(f"  [{batch_label}] exit {result.returncode}: "
-                      f"{result.stderr[:200]}", file=sys.stderr)
-                break
+                detail = result.stderr.strip() or result.stdout.strip() or "no diagnostic"
+                raise DispatchError(
+                    f"[{batch_label}] reviewer exited {result.returncode}: {detail[:1000]}"
+                )
+            raise DispatchError(
+                f"[{batch_label}] reviewer exited successfully without a verdict"
+            )
         except subprocess.TimeoutExpired:
-            print(f"  [{batch_label}] timeout", file=sys.stderr)
-            break
+            raise DispatchError(f"[{batch_label}] reviewer timed out after 300s")
         except FileNotFoundError:
-            print("llmx not found — install it first", file=sys.stderr)
-            sys.exit(1)
-    return None
+            raise DispatchError("llmx not found — install it first")
+    raise AssertionError("review dispatch retry loop exhausted without a verdict")
 
 
 def parse_findings(raw: str, provider_name: str, _batch_files: list[Path],

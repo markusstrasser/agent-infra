@@ -1,0 +1,69 @@
+"""Fail-closed contracts for the continuous code-review dispatcher."""
+
+from __future__ import annotations
+
+import importlib.util
+from pathlib import Path
+import subprocess
+
+import pytest
+
+
+SCRIPT = Path(__file__).parents[1] / "scripts" / "code-review-scout.py"
+SPEC = importlib.util.spec_from_file_location("code_review_scout", SCRIPT)
+assert SPEC is not None and SPEC.loader is not None
+scout = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(scout)
+
+
+PROVIDER = {
+    "name": "test-provider",
+    "model_flag": "-m test-model",
+    "extra": "",
+}
+
+
+def test_dispatch_returns_nonempty_reviewer_verdict(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        scout.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, "NO_ISSUES\n", ""),
+    )
+
+    assert scout.dispatch_review("code", "patterns", PROVIDER, "test:batch-1") == "NO_ISSUES"
+
+
+@pytest.mark.parametrize(
+    ("returncode", "stdout", "stderr", "match"),
+    [
+        (1, "", "authentication failed", "exited 1"),
+        (0, "", "", "without a verdict"),
+    ],
+)
+def test_dispatch_failure_cannot_be_reported_as_zero_findings(
+    monkeypatch: pytest.MonkeyPatch,
+    returncode: int,
+    stdout: str,
+    stderr: str,
+    match: str,
+) -> None:
+    monkeypatch.setattr(
+        scout.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args[0], returncode, stdout, stderr
+        ),
+    )
+
+    with pytest.raises(scout.DispatchError, match=match):
+        scout.dispatch_review("code", "patterns", PROVIDER, "test:batch-1")
+
+
+def test_dispatch_timeout_is_a_hard_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    def timeout(*args, **kwargs):
+        raise subprocess.TimeoutExpired(args[0], timeout=300)
+
+    monkeypatch.setattr(scout.subprocess, "run", timeout)
+
+    with pytest.raises(scout.DispatchError, match="timed out"):
+        scout.dispatch_review("code", "patterns", PROVIDER, "test:batch-1")
