@@ -797,12 +797,16 @@ agentlogs-archive dest="/Volumes/2TBPNY/agentlogs-archive" keep_days="30":
     free=$(df -m "{{dest}}" | awk 'NR==2 {print $4}')
     [ "$free" -gt "$need" ] || { echo "FAIL: dest free ${free}MB < need ${need}MB (disk preflight)" >&2; exit 1; }
     out="{{dest}}/agentlogs-$(date +%Y-%m-%d).db"
+    echo "[$(date +%H:%M:%S)] snapshot: .backup -> $out"
     sqlite3 "$DB" ".backup '$out'"
+    echo "[$(date +%H:%M:%S)] integrity_check on snapshot..."
     ok=$(sqlite3 "$out" "PRAGMA integrity_check;")
     [ "$ok" = "ok" ] || { echo "FAIL: integrity_check on archive: $ok" >&2; rm -f "$out"; exit 1; }
     n=$(sqlite3 "$out" "SELECT COUNT(*) FROM sessions;")
+    echo "[$(date +%H:%M:%S)] zstd..."
     zstd -T0 -q --rm -f "$out"
-    echo "archived: $out.zst (sessions=$n, integrity=ok)"
+    echo "[$(date +%H:%M:%S)] archived: $out.zst (sessions=$n, integrity=ok)"
+    echo "[$(date +%H:%M:%S)] prune (keep_days={{keep_days}})..."
     uv run agentlogs prune --keep-days "{{keep_days}}" --yes --wait-seconds 1800
     # fail-loud post-check: success is a verified post-condition, not an echo
     # (2026-07-05: prune once skipped on lock contention while the recipe
@@ -812,6 +816,7 @@ agentlogs-archive dest="/Volumes/2TBPNY/agentlogs-archive" keep_days="30":
     echo "live DB pruned to {{keep_days}}d (0 over-retention sessions) — full history in archive series"
     # Raw session files (>14d, all vendors) → same archive tree, manifest-reversible.
     # The DB above already indexes them; this shrinks disk + indexer enumeration.
+    echo "[$(date +%H:%M:%S)] raw-file archive (>14d)..."
     uv run python3 scripts/archive_raw_logs.py --apply
     # Codex state DB: codex stores the FULL first user message 3x per thread row
     # (title / first_user_message / preview — up to 1MB EACH; 5.5GB by 2026-07-14).
