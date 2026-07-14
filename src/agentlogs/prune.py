@@ -154,6 +154,20 @@ def _new_fk_violations(db: sqlite3.Connection) -> list:
 _VACUUM_FREELIST_FRACTION = 0.05
 
 
+def truncate_wal(db: sqlite3.Connection) -> None:
+    """Shrink the -wal file. A once-ballooned WAL never shrinks on its own:
+    the indexer's long-lived connection prevents delete-on-close, and PASSIVE
+    checkpoints recycle frames without truncating the file (observed
+    2026-07-14: a 4GB -wal holding 2 live frames). VACUUM itself can be the
+    balloon — in WAL mode it writes the whole new image through the WAL.
+    Best-effort: a concurrent reader/writer leaves it for the next run."""
+    busy, log_frames, _ = db.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+    if busy:
+        _log(f"wal_checkpoint(TRUNCATE) blocked — {log_frames:,} frames left for next run")
+    else:
+        _log("wal truncated")
+
+
 def apply_prune(db: sqlite3.Connection, keep_days: int) -> PrunePlan:
     """Delete old sessions (FK-off, children-first, all tables), rebuild FTS,
     verify no NEW dangling refs, VACUUM. Raises (after ROLLBACK) on any
@@ -191,6 +205,7 @@ def apply_prune(db: sqlite3.Connection, keep_days: int) -> PrunePlan:
         else:
             _log(f"VACUUM skipped (freelist {freelist:,}/{pages:,} pages below "
                  f"{_VACUUM_FREELIST_FRACTION:.0%})")
+        truncate_wal(db)
         _log(f"done ({time.monotonic()-t0:.0f}s total, light path)")
         return PrunePlan(
             keep_days=keep_days, cutoff=cutoff, sessions=0, runs=0, events=0,
@@ -237,6 +252,7 @@ def apply_prune(db: sqlite3.Connection, keep_days: int) -> PrunePlan:
     db.execute("ANALYZE runs")
     _log("VACUUM...")
     db.execute("VACUUM")
+    truncate_wal(db)
     _log(f"done ({time.monotonic()-t0:.0f}s total)")
 
     return PrunePlan(

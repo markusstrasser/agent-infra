@@ -54,5 +54,7 @@ def apply_compact_status_payloads(db: sqlite3.Connection) -> CompactPlan:
         db.commit()
         db.execute("VACUUM")
         db.commit()
+        from agentlogs.prune import truncate_wal
+        truncate_wal(db)
     plan.size_after_mb = _db_size_mb(db)
     return plan
