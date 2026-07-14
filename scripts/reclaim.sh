@@ -291,6 +291,16 @@ cmd_sudo_items() {
     if [ "$YES" = 1 ]; then sudo rm -rf /usr/local/texlive /Library/TeX && ok "removed TeX Live + /Library/TeX"; \
     else info "[dry-run] sudo rm -rf /usr/local/texlive /Library/TeX"; fi
   else info "already gone"; fi
+  sect "Mono.framework (root-owned, ~1 GB; operator confirmed unused 2026-07-14)"
+  if [ -d /Library/Frameworks/Mono.framework ]; then
+    if [ "$YES" = 1 ]; then sudo rm -rf /Library/Frameworks/Mono.framework && sudo find /usr/local/bin -type l -lname '*Mono.framework*' -delete; ok "removed Mono + symlinks"; \
+    else info "[dry-run] sudo rm -rf /Library/Frameworks/Mono.framework  (+ /usr/local/bin symlinks)"; fi
+  else info "already gone"; fi
+  sect "python.org Framework Python 3.12/3.13/3.14 (root-owned, ~1 GB; uv owns Python — operator confirmed 2026-07-14; evo=Clojure keeps JVM, NOT this)"
+  if [ -d /Library/Frameworks/Python.framework ]; then
+    if [ "$YES" = 1 ]; then sudo rm -rf /Library/Frameworks/Python.framework "/Applications/Python 3.12" "/Applications/Python 3.13" "/Applications/Python 3.14" && sudo find /usr/local/bin -type l -lname '*Python.framework*' -delete; ok "removed Framework Python + app folders + symlinks"; \
+    else info "[dry-run] sudo rm -rf /Library/Frameworks/Python.framework '/Applications/Python 3.1[2-4]'  (+ /usr/local/bin symlinks)"; fi
+  else info "already gone"; fi
   sect "powerlog PerfPowerTelemetry (root-owned; ballooned to 12 GB on macOS 27 beta — regenerates)"
   local ppt="/private/var/db/powerlog/Library/PerfPowerTelemetry"
   if [ -d "$ppt" ]; then
