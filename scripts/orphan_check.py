@@ -64,7 +64,7 @@ INVENTORY_DIRS = ("overviews",)
 # false negative can hide — review additions.
 OCCASIONAL_MANUAL = {
     # manual convenience
-    "reclaim.sh", "git-push-all.sh", "daily-recon.sh", "best-sync.py",
+    "git-push-all.sh", "daily-recon.sh", "best-sync.py",
     "ts-replace.py", "usage-check.py",
     # corpus ingest (manual, recent)
     "corpus_ingest_gwern.py", "corpus_ingest_lesswrong.py",

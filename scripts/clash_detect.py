@@ -45,7 +45,7 @@ _LINE = re.compile(
 def _effective_cursor(n_lines: int) -> int:
     """The line offset to resume from, self-healing against log rotation/truncation.
 
-    The capture log is append-only WITHIN a rotation epoch, but `reclaim-rotate` (or a
+    The capture log is append-only WITHIN a rotation epoch, but log rotation (or a
     manual reset) can truncate/delete it. A raw line-offset cursor would then point PAST
     the (now shorter) log → `lines[cursor:]` is empty → every future capture is silently
     dropped forever. Detect that (cursor > current line count = log shrank) and reset to 0

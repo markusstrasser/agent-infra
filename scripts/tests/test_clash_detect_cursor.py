@@ -1,5 +1,5 @@
 """Cursor self-healing for clash_detect.py — the line-offset cursor must reset to 0 when
-the capture log is rotated/truncated (reclaim-rotate, or a manual reset), or it silently
+the capture log is rotated/truncated (log rotation, or a manual reset), or it silently
 drops every future capture. Pure-function tests; no llmx dispatch.
 """
 
