@@ -164,3 +164,26 @@ The executable migration and acceptance contract is
 The donor bundle landed on genomics main as `da1806c17` while this plan was being
 reviewed. This narrows Phase 1 from integrating the bundle to deleting its remaining
 drift-product surface; it does not change the target architecture.
+
+## Revision — 2026-07-15
+
+The earlier phenome coverage-ledger condition is withdrawn. The operator clarified
+that the old phenome genomics mirrors, ingest machinery, reports, and inferred result
+shapes are cruft; the new Markus deliverable will establish the real result shape.
+Nothing outside genomics should preserve or reconstruct the retired shape merely to
+avoid deleting it.
+
+The implemented boundary is therefore stricter:
+
+- genomics owns computation and producer-local results;
+- phenome owns phenome data and no genomics mirror or consumer plane;
+- future cross-domain work starts from the delivered static data, read directly at
+  agent time, rather than from a compatibility schema;
+- `genome-toolkit` is deleted locally after a verified cold bundle; its GitHub remote
+  remains only because the current token lacks the `delete_repo` scope;
+- `substrate` is tagged and dormant, with active callers removed.
+
+The genomics slice is frozen and pushed at
+`454a12f91376edb1b0e46ad917367dbb449bb2df` for the active six-sample drive. Further
+genomics cleanup waits for the post-drive boundary; this does not restore any
+consumer or synchronization surface.
