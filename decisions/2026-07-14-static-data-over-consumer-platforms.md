@@ -158,3 +158,9 @@ The executable migration and acceptance contract is
 - `2026-05-26-cross-attestation-substrate-v2.md`: preserves the historical export and
   paper sources, but retires the live gateway/outbox/drainer architecture after final
   drain and archival capture.
+
+## Revision — 2026-07-14
+
+The donor bundle landed on genomics main as `da1806c17` while this plan was being
+reviewed. This narrows Phase 1 from integrating the bundle to deleting its remaining
+drift-product surface; it does not change the target architecture.
