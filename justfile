@@ -782,7 +782,8 @@ plans-json:
 # 2026-07-05): every session lives in the archive series forever — archive cadence
 # (weekly launchd com.agent-infra.agentlogs-archive) < prune retention (30d), so
 # consecutive snapshots overlap and nothing is ever lost. Live retention is a pure
-# performance knob (30d, operator call 2026-07-05 — ~7.5GB steady state at 250MB/day);
+# performance knob (30d, operator call 2026-07-05 — measured 2026-07-14: ~500MB/day
+# → ~15GB steady state at 30d; ingest-side size levers filed in improvement-log);
 # history >30d lives on 2TBPNY: `sqlite3 -cmd "ATTACH '<snapshot>' AS old"` for
 # forensic who/whence lookups past the window.
 # Prune runs ONLY after PRAGMA integrity_check passes on the fresh archive.
