@@ -62,6 +62,47 @@ def test_file_at_exact_limit_is_reviewable(tmp_path: Path) -> None:
     assert "pkg/limit.py" in result.stdout
 
 
+def test_exact_file_selects_no_siblings_and_uses_full_batch_budget(
+    tmp_path: Path,
+) -> None:
+    module = tmp_path / "pkg"
+    module.mkdir()
+    selected = module / "selected.py"
+    selected.write_text("x" * 75_001)
+    sibling = module / "sibling.py"
+    sibling.write_text("y = 1\n" * 20)
+
+    result = run_scout(tmp_path, "--file", "pkg/selected.py")
+
+    assert result.returncode == 0
+    assert "pkg/selected.py" in result.stdout
+    assert "pkg/sibling.py" not in result.stdout + result.stderr
+
+
+def test_exact_file_above_batch_budget_fails_loud(tmp_path: Path) -> None:
+    module = tmp_path / "pkg"
+    module.mkdir()
+    selected = module / "too-large.py"
+    selected.write_text("x" * 80_001)
+
+    result = run_scout(tmp_path, "--file", "pkg/too-large.py")
+
+    assert result.returncode == 2
+    assert "selected limit=80000" in result.stderr
+    assert "pkg/too-large.py: 80001 bytes" in result.stderr
+
+
+def test_exact_file_cannot_escape_project_root(tmp_path: Path) -> None:
+    (tmp_path / "inside.py").write_text("inside = True\n" * 20)
+    outside = tmp_path.parent / "outside.py"
+    outside.write_text("x = 1\n" * 20)
+
+    result = run_scout(tmp_path, "--file", "../outside.py")
+
+    assert result.returncode == 1
+    assert "must stay inside the project root" in result.stderr
+
+
 def test_stat_failure_raises_coverage_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -14,6 +14,7 @@ Usage:
   code-review-scout.py <project_path> --focus optimization --dry-run
   code-review-scout.py <project_path> --list-modules
   code-review-scout.py <project_path> --module tools/downloaders
+  code-review-scout.py <project_path> --file scripts/large_runner.py
   code-review-scout.py <project_path> --all-providers
 
 Focus areas (rotate these):
@@ -38,11 +39,24 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # Model context is 1M tokens but CLI calls are free — keep batches moderate for
 # focused review quality (not a hard transport limit).
 MAX_BATCH_BYTES = 80_000  # ~80KB of code per batch
-MAX_FILE_BYTES = 75_000   # fail loud above this until line-aware chunking exists
+MAX_FILE_BYTES = 75_000  # fail loud above this until line-aware chunking exists
 EXTENSIONS = {".py", ".js", ".ts", ".sh", ".sql", ".rs", ".go"}
-SKIP_DIRS = {".git", "__pycache__", ".venv", "node_modules", ".tox",
-             ".mypy_cache", "dist", "build", ".context", ".model-review",
-             "data", "databases", "artifacts", ".claude"}
+SKIP_DIRS = {
+    ".git",
+    "__pycache__",
+    ".venv",
+    "node_modules",
+    ".tox",
+    ".mypy_cache",
+    "dist",
+    "build",
+    ".context",
+    ".model-review",
+    "data",
+    "databases",
+    "artifacts",
+    ".claude",
+}
 
 ARTIFACTS_BASE = Path(__file__).parent.parent / "artifacts" / "code-review"
 
@@ -204,8 +218,9 @@ def load_previous_findings(project_name: str) -> set[str]:
 _rate_limited_providers: set[str] = set()
 
 
-def dispatch_review(code_context: str, focus: str, provider_cfg: dict,
-                    batch_label: str) -> str:
+def dispatch_review(
+    code_context: str, focus: str, provider_cfg: dict, batch_label: str
+) -> str:
     """Send code to LLM CLI for review. Returns raw output.
 
     On rate limit: retries once after 30s. If still limited, marks the provider
@@ -248,28 +263,35 @@ Review the following code files. Focus: {focus_prompt}
         try:
             result = subprocess.run(
                 cmd,
-                capture_output=True, text=True,
+                capture_output=True,
+                text=True,
                 timeout=300,  # 5 min max
             )
             if result.returncode == 0 and result.stdout.strip():
                 return result.stdout.strip()
             if result.returncode == 3:  # rate limit
                 if attempt == 0:
-                    print(f"  [{batch_label}] rate limited, retrying in 30s...",
-                          file=sys.stderr)
+                    print(
+                        f"  [{batch_label}] rate limited, retrying in 30s...",
+                        file=sys.stderr,
+                    )
                     _time.sleep(30)
                     continue
                 else:
                     # Still limited after retry — give up on this provider
-                    print(f"  [{batch_label}] {provider_name} rate limited twice, "
-                          f"skipping remaining batches for this provider",
-                          file=sys.stderr)
+                    print(
+                        f"  [{batch_label}] {provider_name} rate limited twice, "
+                        f"skipping remaining batches for this provider",
+                        file=sys.stderr,
+                    )
                     _rate_limited_providers.add(provider_name)
                     raise DispatchError(
                         f"[{batch_label}] reviewer rate limited twice: {provider_name}"
                     )
             if result.returncode != 0:
-                detail = result.stderr.strip() or result.stdout.strip() or "no diagnostic"
+                detail = (
+                    result.stderr.strip() or result.stdout.strip() or "no diagnostic"
+                )
                 raise DispatchError(
                     f"[{batch_label}] reviewer exited {result.returncode}: {detail[:1000]}"
                 )
@@ -283,8 +305,9 @@ Review the following code files. Focus: {focus_prompt}
     raise AssertionError("review dispatch retry loop exhausted without a verdict")
 
 
-def parse_findings(raw: str, provider_name: str, _batch_files: list[Path],
-                   _root: Path) -> list[dict]:
+def parse_findings(
+    raw: str, provider_name: str, _batch_files: list[Path], _root: Path
+) -> list[dict]:
     """Parse raw LLM output into structured findings."""
     if not raw or "NO_ISSUES" in raw:
         return []
@@ -320,14 +343,16 @@ def parse_findings(raw: str, provider_name: str, _batch_files: list[Path],
             file_part = file_line
             line_num = 0
 
-        findings.append({
-            "file": file_part,
-            "line": line_num,
-            "severity": severity,
-            "category": category,
-            "description": description,
-            "source": provider_name,
-        })
+        findings.append(
+            {
+                "file": file_part,
+                "line": line_num,
+                "severity": severity,
+                "category": category,
+                "description": description,
+                "source": provider_name,
+            }
+        )
 
     return findings
 
@@ -338,25 +363,55 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("project_path", type=Path)
-    parser.add_argument("--focus", default="refactoring",
-                        choices=list(FOCUS_PROMPTS.keys()))
-    parser.add_argument("--provider", default="cursor",
-                        choices=list(PROVIDERS.keys()),
-                        help="LLM provider (cursor=composer-2.5, google=gemini, openai=codex)")
-    parser.add_argument("--both", action="store_true",
-                        help="Dispatch to google+openai in parallel (legacy)")
-    parser.add_argument("--all-providers", action="store_true",
-                        help="Dispatch to cursor+google+openai in parallel")
-    parser.add_argument("--module", type=str, default=None,
-                        help="Review only this module/directory")
-    parser.add_argument("--list-modules", action="store_true",
-                        help="List modules and their sizes, then exit")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Show batches without dispatching")
-    parser.add_argument("--workers", type=int, default=2,
-                        help="Parallel dispatch workers")
-    parser.add_argument("--delay", type=float, default=0,
-                        help="Seconds to wait between batch dispatches (rate limit throttle)")
+    parser.add_argument(
+        "--focus", default="refactoring", choices=list(FOCUS_PROMPTS.keys())
+    )
+    parser.add_argument(
+        "--provider",
+        default="cursor",
+        choices=list(PROVIDERS.keys()),
+        help="LLM provider (cursor=composer-2.5, google=gemini, openai=codex)",
+    )
+    parser.add_argument(
+        "--both",
+        action="store_true",
+        help="Dispatch to google+openai in parallel (legacy)",
+    )
+    parser.add_argument(
+        "--all-providers",
+        action="store_true",
+        help="Dispatch to cursor+google+openai in parallel",
+    )
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument(
+        "--module", type=str, default=None, help="Review only this module/directory"
+    )
+    selection.add_argument(
+        "--file",
+        type=str,
+        default=None,
+        help=(
+            "Review one exact repo-relative file; permits a file up to the full "
+            "batch budget instead of the multi-file safety limit"
+        ),
+    )
+    parser.add_argument(
+        "--list-modules",
+        action="store_true",
+        help="List modules and their sizes, then exit",
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Show batches without dispatching"
+    )
+    parser.add_argument(
+        "--workers", type=int, default=2, help="Parallel dispatch workers"
+    )
+    parser.add_argument(
+        "--delay",
+        type=float,
+        default=0,
+        help="Seconds to wait between batch dispatches (rate limit throttle)",
+    )
     args = parser.parse_args()
 
     root = args.project_path.resolve()
@@ -385,13 +440,30 @@ def main():
             )
         return
 
-    # Filter to specific module if requested
-    if args.module:
+    # Filter to one exact file or a specific module if requested.
+    if args.file:
+        candidate = (root / args.file).resolve()
+        try:
+            candidate.relative_to(root)
+        except ValueError:
+            print("--file must stay inside the project root.", file=sys.stderr)
+            sys.exit(1)
+        if candidate not in files:
+            print(
+                f"File '{args.file}' is not a reviewable source file.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        target_files = [candidate]
+    elif args.module:
         if args.module not in modules:
             # Try prefix match
             matches = [m for m in modules if m.startswith(args.module)]
             if not matches:
-                print(f"Module '{args.module}' not found. Use --list-modules.", file=sys.stderr)
+                print(
+                    f"Module '{args.module}' not found. Use --list-modules.",
+                    file=sys.stderr,
+                )
                 sys.exit(1)
             target_files = []
             for m in matches:
@@ -401,11 +473,12 @@ def main():
     else:
         target_files = files
 
-    oversized = [f for f in target_files if checked_size(f) > MAX_FILE_BYTES]
+    selected_file_limit = MAX_BATCH_BYTES if args.file else MAX_FILE_BYTES
+    oversized = [f for f in target_files if checked_size(f) > selected_file_limit]
     if oversized:
         print(
             f"Coverage error: {len(oversized)} selected source file(s) exceed "
-            f"MAX_FILE_BYTES={MAX_FILE_BYTES}; no review was dispatched.",
+            f"the selected limit={selected_file_limit}; no review was dispatched.",
             file=sys.stderr,
         )
         for path in oversized:
@@ -413,19 +486,22 @@ def main():
                 f"  {path.relative_to(root)}: {checked_size(path)} bytes",
                 file=sys.stderr,
             )
-        print("Implement line-aware chunking or narrow the selected module.", file=sys.stderr)
+        print("Implement line-aware chunking or narrow the selection.", file=sys.stderr)
         sys.exit(2)
 
     batches = make_batches(target_files, root)
     total_kb = sum(checked_size(f) for f in target_files) / 1024
 
-    print(f"# {project_name}: {len(target_files)} files, {total_kb:.0f}KB, "
-          f"{len(batches)} batches, focus={args.focus}", file=sys.stderr)
+    print(
+        f"# {project_name}: {len(target_files)} files, {total_kb:.0f}KB, "
+        f"{len(batches)} batches, focus={args.focus}",
+        file=sys.stderr,
+    )
 
     if args.dry_run:
         for i, batch in enumerate(batches):
             batch_kb = sum(checked_size(f) for f in batch) / 1024
-            print(f"\n  Batch {i+1} ({batch_kb:.1f}KB, {len(batch)} files):")
+            print(f"\n  Batch {i + 1} ({batch_kb:.1f}KB, {len(batch)} files):")
             for f in batch:
                 print(f"    {f.relative_to(root)}")
         return
@@ -443,15 +519,19 @@ def main():
 
     # Dispatch reviews
     all_findings = []
+
     def review_batch(batch_idx: int, batch: list[Path], provider: dict):
         import time as _time
+
         # Throttle: wait before dispatching (helps with Gemini rate limits on large runs)
         if args.delay > 0 and batch_idx > 0:
             _time.sleep(args.delay)
-        label = f"{provider['name']}:batch-{batch_idx+1}"
+        label = f"{provider['name']}:batch-{batch_idx + 1}"
         code_ctx = build_code_context(batch, root)
-        print(f"  Dispatching {label} ({len(batch)} files, "
-              f"{len(code_ctx)//1024}KB)...", file=sys.stderr)
+        print(
+            f"  Dispatching {label} ({len(batch)} files, {len(code_ctx) // 1024}KB)...",
+            file=sys.stderr,
+        )
         raw = dispatch_review(code_ctx, args.focus, provider, label)
         if raw:
             findings = parse_findings(raw, provider["name"], batch, root)
@@ -501,23 +581,29 @@ def main():
         print(f"\n## Code Review: {project_name} ({args.focus})")
         print(f"**Date:** {date.today()}")
         print(f"**Files reviewed:** {len(target_files)}")
-        print(f"**New findings:** {len(new_findings)} "
-              f"(HIGH: {len(by_severity.get('HIGH', []))}, "
-              f"MEDIUM: {len(by_severity.get('MEDIUM', []))}, "
-              f"LOW: {len(by_severity.get('LOW', []))})\n")
+        print(
+            f"**New findings:** {len(new_findings)} "
+            f"(HIGH: {len(by_severity.get('HIGH', []))}, "
+            f"MEDIUM: {len(by_severity.get('MEDIUM', []))}, "
+            f"LOW: {len(by_severity.get('LOW', []))})\n"
+        )
 
         for sev in ("HIGH", "MEDIUM", "LOW"):
             for f in by_severity.get(sev, []):
-                print(f"- **{sev}** `{f['file']}:{f['line']}` [{f['category']}] "
-                      f"{f['description']} ({f['source']})")
+                print(
+                    f"- **{sev}** `{f['file']}:{f['line']}` [{f['category']}] "
+                    f"{f['description']} ({f['source']})"
+                )
     else:
         print(f"\n# No new findings for {project_name}/{args.focus}", file=sys.stderr)
 
     # Report rate-limited providers
     if _rate_limited_providers:
         skipped = ", ".join(sorted(_rate_limited_providers))
-        print(f"\n**Rate limited:** {skipped} — re-run later or use the other provider.",
-              file=sys.stderr)
+        print(
+            f"\n**Rate limited:** {skipped} — re-run later or use the other provider.",
+            file=sys.stderr,
+        )
 
 
 if __name__ == "__main__":
