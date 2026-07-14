@@ -142,8 +142,8 @@ cmd_caches() {
   local before; before=$(free_gb)
 
   sect "Package-manager caches"
-  if [ "$(pgrep -x claude 2>/dev/null | wc -l | tr -d ' ')" -gt 0 ]; then
-    warn "claude agents are running — 'uv cache prune' may be lock-blocked; run again when idle"
+  if [ "$(pgrep -x claude 2>/dev/null | wc -l | tr -d ' ')" -gt 0 ] || pgrep -qx uv 2>/dev/null; then
+    warn "agents/uv running — 'uv cache prune' may be lock-blocked; never force past the lock (3 sessions re-derived this 2026-07-14), rerun when idle"
   fi
   runcmd "uv cache prune (unreferenced wheels)" env UV_LOCK_TIMEOUT=30 uv cache prune
   runcmd "brew cleanup -s" brew cleanup -s
@@ -321,6 +321,13 @@ cmd_sweep() {
     sect "$r"
     du -xsh "$r"/* 2>/dev/null | sort -rh | head -6
   done
+  sect "agent worktrees (16.8G freed from this class 2026-07-14; prune ONLY with lsof/content checks — research/2026-07-14-cleanup-campaign-ledger.md)"
+  local w; for w in "$HOME"/Projects/*/.claude/worktrees; do
+    [ -d "$w" ] && du -xsh "$w" 2>/dev/null
+  done | sort -rh | head -8
+  sect "superseded backups (>100M, >14d, backup/bak/prev-named — check for a live sibling before touching)"
+  find "$HOME/Projects" -maxdepth 4 \( -name '*backup*' -o -name '*.bak*' -o -name '*.prev.*' \) \
+    -size +100M -mtime +14 -not -path '*/.git/*' 2>/dev/null | head -8
   info "root-owned finds (texlive, powerlog, …) → add to 'reclaim sudo-items'; caches → 'reclaim caches'"
 }
 
