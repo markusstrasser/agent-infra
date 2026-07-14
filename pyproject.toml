@@ -24,7 +24,6 @@ plan-core = { path = "../substrate/packages/plan-core", editable = true }
 [project.scripts]
 agentlogs = "agentlogs.cli:main"
 agent-infra-mcp = "agent_infra_mcp:main"
-corpus-mcp = "scripts.corpus_mcp:main"
 duckdb-mcp = "duckdb_mcp:main"
 modal-triage-mcp = "modal_triage_mcp:main"
 parallel-mcp = "scripts.parallel_mcp:main"

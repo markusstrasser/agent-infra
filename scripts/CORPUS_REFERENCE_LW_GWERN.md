@@ -67,7 +67,7 @@ for m in store.root.glob("*/metadata.json"):
         ...
 ```
 
-Or via corpus MCP: `corpus_lookup(source_id)` for presence + parsed markdown.
+Or via research MCP: `corpus_lookup(source_id)` for presence + parsed markdown.
 
 ## Next phase (not yet built)
 

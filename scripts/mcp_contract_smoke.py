@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""$0 in-process contract smoke for OUR MCP servers (corpus_mcp, agent_infra_mcp).
+"""$0 in-process contract smoke for the agent-infra MCP server.
 
 Catches the integration-regression class that has actually bitten this repo —
 a tool dropped/renamed, an input schema corrupted, or a read-only/write
-annotation flipped on a FastMCP or claude_agent_sdk bump (cf. commits
-b08c67e / a9fc9dd / 6cfa894 / d499c9e, all MCP-wiring fixes). These servers
-are wired into ~11 projects' .mcp.json, so a silent contract break has wide
+annotation flipped on a claude_agent_sdk bump (cf. commits b08c67e / a9fc9dd /
+6cfa894 / d499c9e, all MCP-wiring fixes). This server is wired into multiple
+projects, so a silent contract break has wide
 blast radius. This runs deterministically: no LLM, no API keys, no network,
 sub-second. Wired into `just smoke`.
 
@@ -24,7 +24,6 @@ Exit 0 = all contracts intact; exit 1 = at least one regression.
 """
 from __future__ import annotations
 
-import asyncio
 import sys
 from pathlib import Path
 
@@ -40,57 +39,6 @@ def _ok(msg: str) -> None:
 
 def _fail(msg: str) -> None:
     print(f"  ✗ {msg}")
-
-
-def check_corpus_mcp() -> list[str]:
-    """Contract-check the corpus FastMCP server. Returns a list of failures."""
-    fails: list[str] = []
-    import corpus_mcp
-
-    mcp = corpus_mcp.create_mcp()  # construct only — lifespan does not run here
-    tools = asyncio.run(mcp.list_tools())
-    by_name = {t.name: t for t in tools}
-
-    # Minimum tool count (>=, not ==, so adding a tool never breaks the smoke).
-    if len(tools) < 5:
-        fails.append(f"corpus: expected >=5 tools, got {len(tools)}")
-
-    # Structural integrity per tool: name + description + input schema + a
-    # boolean readOnlyHint (the safety annotation agents route on).
-    for t in tools:
-        if not t.name:
-            fails.append("corpus: a tool has an empty name")
-        if not getattr(t, "description", None):
-            fails.append(f"corpus:{t.name} missing description")
-        # FastMCP 3.x FunctionTool exposes the JSON schema as `.parameters`;
-        # keep MCP-wire names as forward-compat fallbacks.
-        schema = (getattr(t, "parameters", None) or getattr(t, "inputSchema", None)
-                  or getattr(t, "input_schema", None))
-        if not schema:
-            fails.append(f"corpus:{t.name} missing input schema")
-        ann = getattr(t, "annotations", None)
-        ro = getattr(ann, "readOnlyHint", None) if ann else None
-        if not isinstance(ro, bool):
-            fails.append(f"corpus:{t.name} readOnlyHint is not a bool ({ro!r})")
-
-    # Safety-annotation regression guard: the unambiguous WRITE tool must not
-    # be advertised read-only. (corpus_attest was retired under substrate v2 —
-    # corpus no longer writes annotations; corpus_ingest is the lone write tool.)
-    for w in ("corpus_ingest",):
-        t = by_name.get(w)
-        if t is not None:
-            ann = getattr(t, "annotations", None)
-            if getattr(ann, "readOnlyHint", None) is not False:
-                fails.append(f"corpus:{w} must be readOnly=False (write tool)")
-
-    # The two most stable documented read tools must stay present.
-    for r in ("corpus_lookup", "corpus_graph_query"):
-        if r not in by_name:
-            fails.append(f"corpus: missing documented read tool {r}")
-
-    if not fails:
-        _ok(f"corpus_mcp: {len(tools)} tools, schemas + RO/WRITE annotations intact")
-    return fails
 
 
 def check_agent_infra_mcp() -> list[str]:
@@ -134,8 +82,7 @@ def check_agent_infra_mcp() -> list[str]:
 def main() -> int:
     print("=== MCP contract smoke (in-process, $0, no LLM) ===")
     fails: list[str] = []
-    for label, fn in (("corpus_mcp", check_corpus_mcp),
-                      ("agent_infra_mcp", check_agent_infra_mcp)):
+    for label, fn in (("agent_infra_mcp", check_agent_infra_mcp),):
         try:
             fails.extend(fn())
         except Exception as exc:  # construction/import failure IS the regression

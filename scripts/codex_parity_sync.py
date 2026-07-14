@@ -87,14 +87,6 @@ LOCAL_PROJECT_MCP = {
             "command": "uv",
             "args": ["run", "--directory", str(PROJECTS / "agent-infra"), "agent-infra-mcp"],
         },
-        "corpus": {
-            "command": "uv",
-            "args": ["run", "--directory", str(PROJECTS / "agent-infra"), "corpus-mcp"],
-            "env": {
-                "CORPUS_ROOT": str(PROJECTS / "corpus"),
-                "RESEARCH_MCP_CALLER": "agent-infra",
-            },
-        },
         "duckdb": {
             "command": "uv",
             "args": ["run", "--directory", str(PROJECTS / "agent-infra"), "duckdb-mcp"],
