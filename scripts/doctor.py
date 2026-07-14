@@ -413,6 +413,62 @@ def check_launchd_script_integrity() -> list[Check]:
     return checks
 
 
+def check_launchd_spawn_health() -> list[Check]:
+    """A loaded launchd job that launchd cannot even spawn (EX_CONFIG, no process).
+
+    Distinct from script-integrity (script deleted) and from a job that runs and
+    fails: `job state = spawn failed` means launchd could not exec at all — e.g.
+    StandardOutPath unwritable. 2026-07-11 incident: ~/.claude/logs was symlinked
+    to /Volumes/2TBPNY; ALL 11 agent-infra jobs spawn-failed silently for 3 days
+    (indexer, archive, spend-alarm, vendor-sweep, ...) until a storage question
+    surfaced it. launchctl list shows only the stale last-exit 78 — this check
+    reads the authoritative per-job state."""
+    uid = os.getuid()
+    try:
+        listing = subprocess.run(["launchctl", "list"], capture_output=True, text=True, timeout=10).stdout
+    except Exception as exc:
+        return [Check("launchd-spawn", "global").warn(f"launchctl list failed: {exc}")]
+    labels = [line.split()[-1] for line in listing.splitlines() if "com.agent-infra." in line]
+    failed = []
+    for label in labels:
+        try:
+            info = subprocess.run(["launchctl", "print", f"gui/{uid}/{label}"],
+                                  capture_output=True, text=True, timeout=10).stdout
+        except Exception:
+            continue
+        if "job state = spawn failed" in info:
+            failed.append(label)
+    if not failed:
+        return [Check("launchd-spawn", "global").ok(f"no spawn-failed jobs among {len(labels)} loaded")]
+    return [Check(f"launchd-spawn:{label}", "global").fail(
+        "job state = spawn failed — launchd cannot exec it (check StandardOut/ErrorPath "
+        "is a writable LOCAL path, not a symlink onto an external volume; then "
+        f"`launchctl kickstart -k gui/{uid}/{label}`)") for label in failed]
+
+
+def check_agentlogs_archive_recency() -> list[Check]:
+    """The weekly keep-everything archive (agentlogs-*.db.zst on 2TBPNY) went stale.
+
+    Retention safety depends on archive cadence (weekly) < prune retention (30d);
+    a quietly-failing weekly job erodes that invariant until pruned history is
+    unrecoverable. Warn at >14d (two missed weeks), fail at >24d (approaching the
+    30d prune window). Skips cleanly when the volume isn't mounted."""
+    c = Check("agentlogs-archive-recency", "global")
+    root = Path("/Volumes/2TBPNY/agentlogs-archive")
+    if not root.is_dir():
+        return [c.warn("2TBPNY not mounted — archive recency unverifiable (plug in the SSD)")]
+    snaps = sorted(root.glob("agentlogs-*.db.zst"))
+    if not snaps:
+        return [c.fail(f"no agentlogs-*.db.zst snapshots in {root}")]
+    age_days = (time.time() - snaps[-1].stat().st_mtime) / 86400
+    msg = f"newest snapshot {snaps[-1].name} is {age_days:.1f}d old (weekly cadence, 30d prune window)"
+    if age_days > 24:
+        return [c.fail(msg + " — run `just agentlogs-archive` NOW, before prune outruns the archive")]
+    if age_days > 14:
+        return [c.warn(msg + " — check com.agent-infra.agentlogs-archive (spawn health, volume mounted at Sun 03:30)")]
+    return [c.ok(msg)]
+
+
 def check_metered_spend() -> list[Check]:
     """Surface today's genuinely-billed (transport==api) llmx spend across ALL surfaces.
 
@@ -877,6 +933,8 @@ def run_all_checks(project_filter: str | None = None) -> list[Check]:
         all_checks.extend(check_decisions_pending())
         all_checks.extend(check_agentlogs_indexer())
         all_checks.extend(check_launchd_script_integrity())
+        all_checks.extend(check_launchd_spawn_health())
+        all_checks.extend(check_agentlogs_archive_recency())
         all_checks.extend(check_uv_tool_editables())
         all_checks.extend(check_approval_tiers())
         all_checks.extend(check_critique_routing_verdict())
