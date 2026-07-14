@@ -119,7 +119,7 @@ cmd_report() {
   sect "Reclaim hints"
   info "preview ALL → reclaim preview     (dry-run everything; deletes nothing)"
   info "caches      → reclaim caches      (uv/brew/hf/playwright/quicklook/crashes)"
-  info "rotate logs → reclaim rotate      (agentlogs.db → last ${ALOG_KEEP_DAYS:-21}d + VACUUM)"
+  info "rotate logs → RETIRED             (agentlogs.db retention: weekly 'just agentlogs-archive')"
   info "stale venvs → reclaim venvs       (git-dormant > ${DAYS}d, skips live agents)"
   info "big files   → reclaim big --gb 2"
   info "sudo queue  → reclaim sudo-items  (relocated items, Claude vm_bundles)"
