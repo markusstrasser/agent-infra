@@ -18,7 +18,7 @@
 		<string>/Users/alien/Projects/agent-infra/.venv/bin/agentlogs</string>
 		<string>index</string>
 		<string>--since-days</string>
-		<string>60</string>
+		<string>30</string>
 		<string>--limit-sources</string>
 		<string>40</string>
 		<string>--source-timeout</string>
