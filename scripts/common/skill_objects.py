@@ -16,11 +16,6 @@ from typing import Any, Iterable
 
 import yaml
 
-try:
-    from scripts.common.project_registry import MIRRORED_REPOS
-except ModuleNotFoundError:  # script execution: python3 scripts/foo.py
-    from common.project_registry import MIRRORED_REPOS
-
 
 PROJECTS_ROOT = Path.home() / "Projects"
 META_ROOT = PROJECTS_ROOT / "agent-infra"
@@ -37,27 +32,27 @@ class SkillRoot:
 
 DEFAULT_ROOTS = {
     "skills": SkillRoot("skills", PROJECTS_ROOT / "skills", PROJECTS_ROOT / "skills", True),
-    MIRRORED_REPOS[0]: SkillRoot(
+    "agent-infra": SkillRoot(
         "agent-infra",
         PROJECTS_ROOT / "agent-infra" / ".claude" / "skills",
         PROJECTS_ROOT / "agent-infra",
     ),
-    MIRRORED_REPOS[2]: SkillRoot(
+    "genomics": SkillRoot(
         "genomics",
         PROJECTS_ROOT / "genomics" / ".claude" / "skills",
         PROJECTS_ROOT / "genomics",
     ),
-    MIRRORED_REPOS[3]: SkillRoot(
-        "phenome",
-        PROJECTS_ROOT / "phenome" / ".claude" / "skills",
-        PROJECTS_ROOT / "phenome",
+    "personal": SkillRoot(
+        "personal",
+        PROJECTS_ROOT / "personal" / ".claude" / "skills",
+        PROJECTS_ROOT / "personal",
     ),
-    MIRRORED_REPOS[1]: SkillRoot(
+    "intel": SkillRoot(
         "intel",
         PROJECTS_ROOT / "intel" / ".claude" / "skills",
         PROJECTS_ROOT / "intel",
     ),
-    MIRRORED_REPOS[4]: SkillRoot(
+    "publishing": SkillRoot(
         "publishing",
         PROJECTS_ROOT / "publishing" / ".claude" / "skills",
         PROJECTS_ROOT / "publishing",
@@ -275,8 +270,8 @@ GENOMICS_LENSES = {
 }
 
 PHENOME_ROLE_AGENTS = {
-    "role-agent.claim-verifier": ("claim-verifier", ".claude/agents/claim-verifier.md"),
-    "role-agent.entity-filler": ("entity-filler", ".claude/agents/entity-filler.md"),
+    "role-agent.claim-verifier": ("claim-verifier", ".claude/agents/phenome/claim-verifier.md"),
+    "role-agent.entity-filler": ("entity-filler", ".claude/agents/phenome/entity-filler.md"),
 }
 
 ANALYZE_LENSES = {
@@ -528,7 +523,6 @@ def _entry_from_skill_dir(root: SkillRoot, skill_dir: Path, shared_names: set[st
     fm = read_frontmatter(skill_file)
     name = str(fm.get("name") or skill_dir.name)
     category = infer_category(skill_dir.name)
-    resolved = skill_dir.resolve()
     is_symlink = skill_dir.is_symlink()
     target = os.readlink(skill_dir) if is_symlink else None
     shared_shadow = []
@@ -624,7 +618,7 @@ def planned_objects_for(root: SkillRoot) -> list[SkillObject]:
     elif root.project == "genomics":
         for suffix, (name, path) in GENOMICS_LENSES.items():
             objects.append(_virtual_object(root, suffix, "LensDoc", name, path, "lens", "genomics-pipeline"))
-    elif root.project == "phenome":
+    elif root.project == "personal":
         for suffix, (name, path) in PHENOME_ROLE_AGENTS.items():
             objects.append(_virtual_object(root, suffix, "RoleAgentContract", name, path, "role-agent", "phenome"))
     return objects

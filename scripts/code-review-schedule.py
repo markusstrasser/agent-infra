@@ -19,7 +19,7 @@ ROOT = Path(__file__).parent.parent
 SCOUT = ROOT / "scripts" / "code-review-scout.py"
 PROJECTS_ROOT = Path.home() / "Projects"
 
-PROJECTS = ["intel", "genomics", "agent-infra", "phenome", "skills", "hutter"]
+PROJECTS = ["intel", "genomics", "agent-infra", "personal", "skills", "hutter"]
 FOCUSES = ["refactoring", "dead-code", "optimization", "patterns", "security"]
 
 

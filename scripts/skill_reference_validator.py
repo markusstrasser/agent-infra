@@ -44,7 +44,7 @@ ROUTING_DOC_NAMES = frozenset({"CLAUDE.md", "AGENTS.md", "GEMINI.md", "README.md
 # repo's closure (they resolve where the skill/repo is consumed). The meta→agent-infra
 # rename husk is fully cleaned (refs repointed, old ~/Projects/meta deleted 2026-06-13),
 # so meta/ no longer needs special flagging.
-LIVE_SIBLINGS = frozenset({"agent-infra", "intel", "intel-harness", "genomics", "phenome", "publishing", "research-mcp", "skills", "modal"})
+LIVE_SIBLINGS = frozenset({"agent-infra", "intel", "intel-harness", "genomics", "personal", "publishing", "research-mcp", "skills", "modal"})
 _FENCE_RE = re.compile(r"```.*?```", re.DOTALL)
 _LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s#]+)")
 _CODE_RE = re.compile(r"`([^`\n]+?)`")

@@ -103,7 +103,7 @@ def repo_roots(explicit: list[str] | None, all_projects: bool) -> list[Path]:
     elif all_projects:
         roots = sorted(p.resolve() for p in PROJECTS_HOME.iterdir() if (p / ".git").exists())
     else:
-        roots = [PROJECT_ROOTS["agent-infra"], *[PROJECT_ROOTS[k] for k in ("genomics", "phenome")]]
+        roots = [PROJECT_ROOTS["agent-infra"], *[PROJECT_ROOTS[k] for k in ("genomics", "personal")]]
     return [r for r in roots if is_main_checkout(r)]
 
 
@@ -245,7 +245,7 @@ def remove_worktree(repo: Path, wt: Path) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("mode", nargs="?", default="audit", choices=("audit", "apply"))
-    ap.add_argument("--repo", action="append", help="repo path (repeatable); default agent-infra+genomics+phenome")
+    ap.add_argument("--repo", action="append", help="repo path (repeatable); default agent-infra+genomics+personal")
     ap.add_argument("--all-projects", action="store_true", help="scan all ~/Projects/* git repos")
     ap.add_argument("--include-unmerged", action="store_true",
                     help="remove unmerged worktrees with no local edits (branch kept)")

@@ -18,7 +18,7 @@ DB = Path.home() / ".claude/agentlogs.db"
 SINCE_DEFAULT = "2026-06-14"
 
 BUCKETS = {
-    "sibling_repo": re.compile(r"sibling|other repo|genomics/|phenome/|inside Projects/", re.I),
+    "sibling_repo": re.compile(r"sibling|other repo|genomics/|personal/|phenome/|inside Projects/", re.I),
     "observe_rsi": re.compile(r"observe|agentlogs|blindspot|system\?|part of observe", re.I),
     "git_history": re.compile(r"git log|commit history|discussed before|did we already", re.I),
     "research_memo": re.compile(r"read the (full )?paper|research memo|/research", re.I),

@@ -191,7 +191,7 @@ def history(db: sqlite3.Connection, spec: str) -> tuple[str, list[Hunk]]:
 
 
 PROJECTS_ROOT = Path.home() / "Projects"
-_DEFAULT_PROJECTS = ["agent-infra", "intel", "phenome", "genomics", "skills"]
+_DEFAULT_PROJECTS = ["agent-infra", "intel", "personal", "genomics", "skills"]
 
 
 def _candidate_repos(project_slug: str | None) -> list[Path]:

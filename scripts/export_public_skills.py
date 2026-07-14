@@ -17,15 +17,18 @@ except ModuleNotFoundError:  # script execution: python3 scripts/export_public_s
     from common.skill_objects import collect_skill_objects, iter_default_roots, resolve_object_path
 
 
-BLOCKED_TOKENS = ("/Users/alien", "Markus", "phenome", "genomics", "intel")
+BLOCKED_TOKENS = ("/Users/alien", "Markus", "personal", "phenome", "genomics", "intel")
 BLOCKED_PROJECT_PATH_PATTERNS = (
     "../intel",
+    "../personal",
     "../phenome",
     "../genomics",
     "~/Projects/intel",
+    "~/Projects/personal",
     "~/Projects/phenome",
     "~/Projects/genomics",
     "$HOME/Projects/intel",
+    "$HOME/Projects/personal",
     "$HOME/Projects/phenome",
     "$HOME/Projects/genomics",
 )

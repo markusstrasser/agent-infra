@@ -38,7 +38,7 @@ SKILL = Path(
 if not SKILL.is_dir():
     SKILL = Path.home() / ".claude/skills/observe"
 
-DEFAULT_PROJECTS = ("agent-infra", "genomics", "substrate", "phenome", "intel", "hutter")
+DEFAULT_PROJECTS = ("agent-infra", "genomics", "substrate", "personal", "intel", "hutter")
 MODE_DAYS = {
     "sessions": 1,
     "architecture": 1,

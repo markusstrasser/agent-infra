@@ -31,8 +31,8 @@
         <string>/Users/alien/Projects/intel/analysis</string>
         <string>/Users/alien/Projects/research-mcp/src</string>
         <string>/Users/alien/Projects/genomics/scripts</string>
-        <string>/Users/alien/Projects/phenome/scripts</string>
-        <string>/Users/alien/Projects/phenome/src</string>
+        <string>/Users/alien/Projects/personal/apps/phenome/scripts</string>
+        <string>/Users/alien/Projects/personal/apps/phenome/src</string>
     </array>
     <key>StartInterval</key>
     <integer>604800</integer>

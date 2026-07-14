@@ -56,6 +56,7 @@ KNOWN_FIELDS = {
 PRIVATE_EXPORT_PATTERNS = (
     "/Users/alien",
     "Markus",
+    "personal",
     "phenome",
     "genomics",
     "intel",
@@ -303,7 +304,7 @@ def main():
     parser.add_argument(
         "--repo",
         action="append",
-        choices=["skills", "agent-infra", "genomics", "phenome", "intel"],
+        choices=["skills", "agent-infra", "genomics", "personal", "intel"],
         help="Repo skill root to validate. Repeatable. Default: skills.",
     )
     parser.add_argument("--all-projects", action="store_true", help="Validate all known skill roots")

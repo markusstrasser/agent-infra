@@ -67,7 +67,7 @@ OCCASIONAL_MANUAL = {
     "git-push-all.sh", "daily-recon.sh", "best-sync.py",
     "ts-replace.py", "usage-check.py",
     # completed one-shot migrations (harmless, delete-eligible)
-    "selve-frontmatter-backfill.py", "compress-research-index.py",
+    "compress-research-index.py",
     # repo-introspection on demand
     "repo-outline.py", "repo-summary.py", "repo-changes.py",
     "verify-subagent-claims.py", "researcher-postmortem.py",

@@ -7,14 +7,17 @@ from pathlib import Path
 
 import yaml
 
-from common.paths import CLAUDE_DIR
+try:
+    from scripts.common.paths import CLAUDE_DIR
+except ModuleNotFoundError:  # direct script execution
+    from common.paths import CLAUDE_DIR
 
 METRICS_FILE = CLAUDE_DIR / "epistemic-metrics.jsonl"
 
 PROJECT_ROOTS = {
     "intel": Path.home() / "Projects" / "intel",
     "genomics": Path.home() / "Projects" / "genomics",
-    "phenome": Path.home() / "Projects" / "phenome",
+    "personal": Path.home() / "Projects" / "personal",
     "agent-infra": Path.home() / "Projects" / "agent-infra",
     "anki": Path.home() / "Projects" / "anki",
 }
@@ -78,7 +81,11 @@ def extract_frontmatter(path: Path) -> dict | None:
 # Knowledge-eligible path patterns (per project)
 KNOWLEDGE_ELIGIBLE_PATTERNS = {
     "intel": ["analysis/entities/*.md"],
-    "phenome": ["docs/research/*.md", "docs/entities/*.md"],
+    "personal": [
+        "health/research/**/*.md",
+        "apps/phenome/docs/research/**/*.md",
+        "health/entities/genes/*.md",
+    ],
     "genomics": ["docs/research/*.md"],  # was empty (A6) but hook already indexes 22 files here
     "agent-infra": ["research/*.md", "decisions/*.md"],
 }
@@ -98,4 +105,3 @@ def is_knowledge_eligible(file_path: Path) -> bool:
                     if path_str.endswith(".md"):
                         return True
     return False
-

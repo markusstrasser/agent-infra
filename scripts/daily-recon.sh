@@ -13,7 +13,7 @@ NEXT_DATE=$(date -j -v+1d -f "%Y-%m-%d" "$DATE" "+%Y-%m-%d" 2>/dev/null || date 
 PROJECTS=(
   ~/Projects/agent-infra
   ~/Projects/intel
-  ~/Projects/phenome
+  ~/Projects/personal
   ~/Projects/genomics
   ~/Projects/skills
   ~/Projects/research-mcp

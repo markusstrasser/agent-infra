@@ -8,7 +8,7 @@ Distinguishes always-loaded vs path-scoped vs on-demand.
 
 Usage:
     uv run python3 scripts/context-budget.py                # current project
-    uv run python3 scripts/context-budget.py ~/Projects/phenome
+    uv run python3 scripts/context-budget.py ~/Projects/personal
     uv run python3 scripts/context-budget.py --compare       # all 3 projects
 """
 
@@ -25,7 +25,7 @@ import yaml
 from common import con
 
 PROJECTS_ROOT = Path.home() / "Projects"
-DEFAULT_PROJECTS = ["agent-infra", "phenome", "genomics"]
+DEFAULT_PROJECTS = ["agent-infra", "personal", "genomics"]
 GLOBAL_CLAUDE_MD = Path.home() / ".claude" / "CLAUDE.md"
 GLOBAL_RULES_DIR = Path.home() / ".claude" / "rules"
 SKILLS_DIR = PROJECTS_ROOT / "skills"
@@ -396,7 +396,7 @@ def print_comparison(projects: list[dict]) -> None:
 
 
 ACTIVE_PROJECTS = [
-    "agent-infra", "intel", "genomics", "phenome",
+    "agent-infra", "intel", "genomics", "personal",
     "hutter", "substrate", "evo", "skills", "research",
 ]
 
@@ -434,7 +434,7 @@ def cmd_check(threshold: int) -> None:
 def main():
     parser = argparse.ArgumentParser(description="Context budget analyzer")
     parser.add_argument("project", nargs="?", default=".", help="Project path (default: cwd)")
-    parser.add_argument("--compare", action="store_true", help="Compare agent-infra/phenome/genomics")
+    parser.add_argument("--compare", action="store_true", help="Compare agent-infra/personal/genomics")
     parser.add_argument("--check", action="store_true", help="Report-only always-loaded canary across active projects")
     parser.add_argument("--threshold", type=int, default=30000, help="always-loaded ceiling for --check (tokens)")
     args = parser.parse_args()

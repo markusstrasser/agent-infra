@@ -31,7 +31,7 @@ from pathlib import Path
 HOME = Path.home()
 ENFORCER = HOME / "Projects/skills/hooks/pre-commit-protected-paths.sh"
 # Repos wired with .precommit-guards.env (the ones that carry protected/append-only data).
-REPOS = ["agent-infra", "intel", "phenome", "genomics"]
+REPOS = ["agent-infra", "intel", "personal", "genomics"]
 
 OK, WARN, FAIL = "✓", "!", "✗"
 
@@ -139,9 +139,14 @@ def _sample_for(pattern: str) -> str:
     """Synthesize a concrete path matching the first alternative of an ERE pattern.
 
     Strip the `(^|/)` anchor idiom as a UNIT first (it contains a literal `|`), THEN
-    split on the top-level `|` so the alternation parse doesn't break inside it.
+    collapse parenthesized alternatives from the inside out. The personal root uses
+    grouped path families such as ``(data|private)/`` and nested groups under
+    ``admin/``; splitting the raw pattern at ``|`` produces a non-matching ``(data``.
     """
     pat = pattern.replace("(^|/)", "")
+    group = re.compile(r"\(([^()]*)\)")
+    while match := group.search(pat):
+        pat = f"{pat[:match.start()]}{match.group(1).split('|', 1)[0]}{pat[match.end():]}"
     alt = pat.split("|")[0]
     anchored = alt.endswith("$")    # exact filename match, e.g. improvement-log\.md$
     s = alt.replace("^", "").replace("$", "").replace("\\", "")

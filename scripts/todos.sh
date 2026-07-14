@@ -9,7 +9,7 @@ set -euo pipefail
 PROJECTS=(
     "$HOME/Projects/agent-infra"
     "$HOME/Projects/intel"
-    "$HOME/Projects/phenome"
+    "$HOME/Projects/personal"
     "$HOME/Projects/genomics"
     "$HOME/Projects/skills"
     "$HOME/Projects/anki"
@@ -54,8 +54,10 @@ for project in "${PROJECTS[@]}"; do
     todos_open=0
     todos_done=0
     if [[ -f "$todos_md" ]]; then
-        todos_open=$(grep -c '^\- \[ \]' "$todos_md" 2>/dev/null || echo 0)
-        todos_done=$(grep -c '^\- \[x\]' "$todos_md" 2>/dev/null || echo 0)
+        todos_open=$(grep -c '^\- \[ \]' "$todos_md" 2>/dev/null || true)
+        todos_done=$(grep -c '^\- \[x\]' "$todos_md" 2>/dev/null || true)
+        todos_open=${todos_open:-0}
+        todos_done=${todos_done:-0}
     fi
 
     total_open=$((open + todos_open))

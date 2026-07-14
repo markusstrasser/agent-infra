@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 PROJECTS_DIR = Path.home() / "Projects"
-PROJECT_NAMES = ["agent-infra", "intel", "phenome", "genomics", "arc-agi", "skills"]
+PROJECT_NAMES = ["agent-infra", "intel", "personal", "genomics", "arc-agi", "skills"]
 
 _FRONTMATTER_RE = re.compile(r"\A---\s*\n(?P<body>.*?)\n---\s*(?:\n|\Z)", re.DOTALL)
 

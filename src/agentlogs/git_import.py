@@ -17,7 +17,7 @@ from pathlib import Path
 
 
 PROJECTS_ROOT = Path.home() / "Projects"
-DEFAULT_PROJECTS = ["agent-infra", "intel", "phenome", "genomics", "skills"]
+DEFAULT_PROJECTS = ["agent-infra", "intel", "personal", "genomics", "skills"]
 
 FIX_PATTERNS = re.compile(r"\b(fix|repair|correct|patch|resolve|handle)\b", re.I)
 REVERT_PATTERNS = re.compile(r"\b(revert|undo|drop|remove|retire)\b", re.I)

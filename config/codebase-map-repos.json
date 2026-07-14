@@ -21,9 +21,9 @@
       "compact": true,
       "extra_gitignore": ["docs/codebase-map.md"]
     },
-    "phenome": {
-      "root": "~/Projects/phenome",
-      "source_dirs": ["scripts", "src"],
+    "personal": {
+      "root": "~/Projects/personal",
+      "source_dirs": ["apps/phenome/scripts", "apps/phenome/src"],
       "compact": false
     }
   }

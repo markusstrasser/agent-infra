@@ -464,7 +464,7 @@ skill-loader-probe *args:
 # Validate skill references in hooks, rules, prompts, and workflow docs
 [group('health')]
 skill-reference-closure *args:
-    uv run python3 scripts/skill_reference_validator.py --repo skills --repo agent-infra --repo intel --repo genomics --repo phenome --repo publishing {{args}}
+    uv run python3 scripts/skill_reference_validator.py --repo skills --repo agent-infra --repo intel --repo genomics --repo personal --repo publishing {{args}}
 
 # Generate skill docs from templates (--dry-run to check drift)
 [group('health')]
@@ -1278,13 +1278,13 @@ questions-drain *args:
 # term-match leg (correction-sweep pipeline retired 2026-05-29).
 [group('knowledge')]
 propagate term:
-    rg -n --type md "{{term}}" /Users/alien/Projects/phenome/docs /Users/alien/Projects/agent-infra/research /Users/alien/Projects/intel/analysis
+    rg -n --type md "{{term}}" /Users/alien/Projects/personal/health/research /Users/alien/Projects/personal/apps/phenome/docs /Users/alien/Projects/personal/health/entities/genes /Users/alien/Projects/agent-infra/research /Users/alien/Projects/intel/analysis || true
 
 # Find unresolved correction/retraction blockquotes across the knowledge
 # repos. Replaces propagate-correction.py's @correction-scan leg.
 [group('knowledge')]
 scan-corrections:
-    rg -n '^>\s*\*\*(CORRECTION|RETRACTION|REVISED|UPDATE)\b' --type md /Users/alien/Projects/phenome /Users/alien/Projects/agent-infra /Users/alien/Projects/intel
+    rg -n '^>\s*\*\*(CORRECTION|RETRACTION|REVISED|UPDATE)\b' --type md /Users/alien/Projects/personal /Users/alien/Projects/agent-infra /Users/alien/Projects/intel || true
 
 # Extract embedded skill/workflow prompts from the current Claude Code binary
 # and show the diff vs the last extracted version. The inter-version prompt

@@ -14,7 +14,7 @@ REPOS=(
     agent-infra
     intel
     genomics
-    phenome
+    personal
     skills
     research-mcp
     llmx

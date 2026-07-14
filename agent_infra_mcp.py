@@ -1,4 +1,4 @@
-"""Agent Infra MCP — section-based search over agent-infra, phenome, and genomics research.
+"""Agent Infra MCP — section-based search over agent-infra, personal, and genomics research.
 
 Scientific paper lookup and ingest live in research-mcp. This server owns only
 agent-infrastructure and cross-project markdown knowledge search.
@@ -41,12 +41,13 @@ EXCLUDE_PREFIXES = [
 ]
 
 # Whitelist (default-deny) cross-project research dirs.
-# Privacy: phenome/docs/entities/ has self/ and companies/ subdirs with personal
-# data. Only genes/ is safe to share.
+# Privacy: personal/health/entities/ also contains private entity classes. Only
+# genes/ is safe to share. The phenome app contributes research, not entities.
 _PROJECTS_ROOT = Path.home() / "Projects"
 CROSS_PROJECT_INCLUDE = [
-    (_PROJECTS_ROOT / "phenome" / "docs" / "research", "phenome"),
-    (_PROJECTS_ROOT / "phenome" / "docs" / "entities" / "genes", "phenome"),
+    (_PROJECTS_ROOT / "personal" / "health" / "research", "personal"),
+    (_PROJECTS_ROOT / "personal" / "apps" / "phenome" / "docs" / "research", "personal"),
+    (_PROJECTS_ROOT / "personal" / "health" / "entities" / "genes", "personal"),
     (_PROJECTS_ROOT / "genomics" / "docs" / "research", "genomics"),
 ]
 
@@ -66,7 +67,7 @@ SCOPE_MAP = {
 }
 
 INSTRUCTIONS = """\
-Cross-project markdown research search across agent-infra, phenome, genomics.
+Cross-project markdown research search across agent-infra, personal, genomics.
 
 Use for: hook design patterns, agent failure modes, architecture decisions,
 health/genomics research, gene entity pages, improvement-log findings.
@@ -275,7 +276,7 @@ def create_mcp() -> FastMCP:
     ) -> list[TextContent]:
         """Search cross-project knowledge: hook designs, agent failure modes,
         architecture decisions, research findings, health/genomics research,
-        gene entities. Indexes agent-infra, phenome, and genomics research dirs.
+        gene entities. Indexes agent-infra, personal, and genomics research dirs.
 
         Returns matching sections ranked by relevance. When no results are found,
         returns a structured error with suggested alternative queries. Side
