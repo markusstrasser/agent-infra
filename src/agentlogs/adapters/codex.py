@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from ..textcap import CAPPED_ROLES, cap_text
 from .common import (
     DiscoveredSource,
     EventRow,
@@ -250,7 +251,10 @@ def _parse_response_item(
                     kind=kind_map.get(role, "assistant_message"),
                     vendor_kind=inner_type,
                     role=role,
-                    text=text,
+                    # llmx `-f` dispatches paste whole files into the prompt;
+                    # storing them verbatim cost 2.6GB (2026-07-14). Raw JSONL
+                    # stays source of truth. Assistant output is never capped.
+                    text=cap_text(text) if role in CAPPED_ROLES else text,
                     payload=payload,
                     record_key=raw_key,
                 )

@@ -159,6 +159,17 @@ def _make_parser() -> argparse.ArgumentParser:
     s_compact.add_argument("--no-lock", action="store_true",
                            help="Skip the single-writer indexer lock (debug only)")
 
+    s_trim = sub.add_parser(
+        "trim",
+        help="Backfill the whole-context text cap over pre-cap rows (dry-run default)",
+    )
+    s_trim.add_argument("--yes", "--apply", dest="apply", action="store_true",
+                        help="Execute UPDATE + VACUUM")
+    s_trim.add_argument("--no-lock", action="store_true",
+                        help="Skip the single-writer indexer lock (debug only)")
+    s_trim.add_argument("--wait-seconds", type=float, default=30.0,
+                        help="Block up to this long for the indexer lock (default: 30)")
+
     # lifecycle-reindex — rebuild the RSI-lifecycle edge table -------------
     s_lc = sub.add_parser(
         "lifecycle-reindex",
@@ -635,6 +646,41 @@ def cmd_prune(args) -> int:
         return 3
 
 
+def cmd_trim(args) -> int:
+    from . import trim as tr
+    from .gateway import IndexerLockBusy, write_gateway
+
+    try:
+        with write_gateway(
+            _resolve_db_path(args),
+            no_lock=args.no_lock,
+            timeout_s=getattr(args, "wait_seconds", 30.0),
+        ) as db:
+            plan = tr.plan_trim(db) if not args.apply else tr.apply_trim(db)
+            saved_mb = plan.bytes_saved / 1_048_576
+            tag = "dry-run" if not args.apply else "trimmed"
+            print(f"[{tag}] whole-context rows over cap: {plan.rows:,}")
+            print(f"  text: {plan.bytes_before / 1_048_576:,.0f} MB -> "
+                  f"{plan.bytes_after / 1_048_576:,.0f} MB (saves {saved_mb:,.0f} MB, "
+                  f"FTS index shrinks with it)")
+            if not args.apply:
+                print(f"  db size now: {plan.size_before_mb:,.0f} MB")
+                print("  re-run with --yes to execute")
+                print("  full text stays in the raw JSONL (source of truth). NOTE: a plain "
+                      "re-index RE-APPLIES the cap — to restore verbatim text you must raise "
+                      "HEAD_CHARS/TAIL_CHARS in textcap.py first, then re-index.")
+                return 0
+            reclaimed = plan.size_before_mb - (plan.size_after_mb or plan.size_before_mb)
+            print(f"  db size: {plan.size_before_mb:,.0f} MB -> "
+                  f"{plan.size_after_mb:,.0f} MB (reclaimed {reclaimed:,.0f} MB)")
+            return 0
+    except IndexerLockBusy:
+        # Skipped work is NOT done work (same contract as prune).
+        print("another indexer/trim is running; NOT trimmed (exit 3) — "
+              "retry or raise --wait-seconds", file=sys.stderr)
+        return 3
+
+
 def cmd_compact(args) -> int:
     from . import compact as cp
     from .gateway import IndexerLockBusy, write_gateway
@@ -692,6 +738,7 @@ _COMMANDS = {
     "index": cmd_index,
     "prune": cmd_prune,
     "compact": cmd_compact,
+    "trim": cmd_trim,
     "search": cmd_search,
     "show": cmd_show,
     "recent": cmd_recent,
