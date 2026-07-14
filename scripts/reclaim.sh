@@ -16,7 +16,8 @@
 # Aware of THIS machine's real hogs: uv cache (~50 GB), HuggingFace, datalab,
 # the sudo-gated queue (Previously Relocated Items, Claude vm_bundles).
 #
-# Usage:  reclaim [report|preview|caches|rotate|venvs|big|rosetta|ssd|tm-off|sudo-items|all] [--yes] [--days N] [--gb N]
+# Usage:  reclaim [report|preview|sweep|caches|rotate|venvs|big|rosetta|ssd|tm-off|sudo-items|all] [--yes] [--days N] [--gb N]
+#         sweep = whole-disk top-N per root (read-only) — the report's known-hogs list is not a full scan.
 #         rotate = prune agentlogs.db to last ALOG_KEEP_DAYS (21) of sessions + VACUUM (the unbounded append-only store).
 #         preview = force dry-run of every destructive action (caches+venvs+sudo-items); never deletes.
 # Safe by default — destructive subcommands print a dry-run unless you pass --yes (alias --force, -y).
@@ -289,6 +290,21 @@ cmd_sudo_items() {
   else info "already gone"; fi
 }
 
+# ============================================================ sweep (whole-disk top-N)
+# The report's known-hogs list is NOT a full scan: it missed TeX Live (9.1G) and
+# powerlog PerfPowerTelemetry (12G) until the operator asked "what did you miss?"
+# (2026-07-14). Sweep walks the roots where forgotten installs and system balloons
+# actually live. Read-only; ~1-2 min under load.
+cmd_sweep() {
+  printf "${B}reclaim sweep${N} — top consumers per root (read-only)\n"
+  local r
+  for r in /usr/local /opt "$HOME" "$HOME/Library" /Library /private/var/db /private/var/folders /private/tmp /Applications; do
+    sect "$r"
+    du -xsh "$r"/* 2>/dev/null | sort -rh | head -6
+  done
+  info "root-owned finds (texlive, powerlog, …) → add to 'reclaim sudo-items'; caches → 'reclaim caches'"
+}
+
 # ============================================================ rotate (RETIRED 2026-07-14)
 # agentlogs.db retention has ONE owner: the weekly snapshot-gated
 # `just agentlogs-archive` (prune 30d ONLY after a verified 2TBPNY snapshot —
@@ -313,6 +329,7 @@ case "$SUB" in
   ssd)         cmd_ssd ;;
   tm-off)      cmd_tm_off ;;
   sudo-items)  cmd_sudo_items ;;
+  sweep)       cmd_sweep ;;
   preview)     YES=0
                printf "${B}reclaim preview${N} — everything that WOULD run/delete across caches+venvs+sudo-items.\n"
                printf "${C}● nothing is touched${N} (preview ignores --yes; run a specific subcommand with --yes to apply)\n"
