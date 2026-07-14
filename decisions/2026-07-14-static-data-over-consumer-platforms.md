@@ -187,3 +187,8 @@ The genomics slice is frozen and pushed at
 `454a12f91376edb1b0e46ad917367dbb449bb2df` for the active six-sample drive. Further
 genomics cleanup waits for the post-drive boundary; this does not restore any
 consumer or synchronization surface.
+
+## Revision — 2026-07-15 (remote state)
+
+The private `markusstrasser/genome-toolkit` GitHub repository is now archived. Actual
+remote deletion still requires a token carrying the `delete_repo` scope.
