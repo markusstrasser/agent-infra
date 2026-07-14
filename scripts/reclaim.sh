@@ -122,7 +122,7 @@ cmd_report() {
   info "rotate logs → RETIRED             (agentlogs.db retention: weekly 'just agentlogs-archive')"
   info "stale venvs → reclaim venvs       (git-dormant > ${DAYS}d, skips live agents)"
   info "big files   → reclaim big --gb 2"
-  info "sudo queue  → reclaim sudo-items  (relocated items, Claude vm_bundles)"
+  info "sudo queue  → reclaim sudo-items  (relocated items, Claude vm_bundles, texlive, powerlog)"
   info "kill TM     → reclaim tm-off"
 }
 
@@ -276,6 +276,17 @@ cmd_sudo_items() {
   sect "Claude Desktop sandbox VM image (~10 GB, rebuilds from .zst)"
   local img="$HOME/Library/Application Support/Claude/vm_bundles/claudevm.bundle/rootfs.img"
   if [ -e "$img" ]; then info "quit Claude Desktop first."; del "$img"; else info "already gone"; fi
+  sect "TeX Live (root-owned, ~9 GB; operator confirmed unused 2026-07-14)"
+  if [ -d /usr/local/texlive ]; then
+    if [ "$YES" = 1 ]; then sudo rm -rf /usr/local/texlive /Library/TeX && ok "removed TeX Live + /Library/TeX"; \
+    else info "[dry-run] sudo rm -rf /usr/local/texlive /Library/TeX"; fi
+  else info "already gone"; fi
+  sect "powerlog PerfPowerTelemetry (root-owned; ballooned to 12 GB on macOS 27 beta — regenerates)"
+  local ppt="/private/var/db/powerlog/Library/PerfPowerTelemetry"
+  if [ -d "$ppt" ]; then
+    if [ "$YES" = 1 ]; then sudo rm -rf "$ppt" && ok "removed PerfPowerTelemetry (powerd recreates the dir)"; \
+    else info "[dry-run] sudo rm -rf $ppt   # $(du -sh "$ppt" 2>/dev/null | cut -f1) now"; fi
+  else info "already gone"; fi
 }
 
 # ============================================================ rotate (RETIRED 2026-07-14)
