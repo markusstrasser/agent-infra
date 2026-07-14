@@ -1,9 +1,7 @@
 """Agent Infra MCP — section-based search over agent-infra, phenome, and genomics research.
 
-Phase 3 of substrate-migration plan: corpus tools (corpus_lookup,
-corpus_graph_query, corpus_attest, etc.) live in scripts/corpus_mcp.py.
-cross_attestation_lookup is dropped (per §J.1: agent orchestrates
-record_verdict + corpus_attest, no cross-repo federation tool).
+Scientific paper lookup and ingest live in research-mcp. This server owns only
+agent-infrastructure and cross-project markdown knowledge search.
 
 NOTE: This server reloads indexed markdown when whitelisted files change. After
 editing this file itself (new scopes, directories, scoring changes), restart the
@@ -77,8 +75,7 @@ health, genomics, genes.
 
 NOT for: behavioral rules (already in CLAUDE.md), enforcement (hooks).
 
-For corpus operations (lookup, graph query, attestation, ingest), use the
-corpus-mcp server (scripts/corpus_mcp.py).
+For scientific paper lookup and ingest, use the research MCP server.
 
 Skill registry tools expose compact, read-only skill objects, modules, lenses,
 and role-agent contracts. Use them to lazily load phase-specific instructions

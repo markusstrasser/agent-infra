@@ -66,9 +66,6 @@ OCCASIONAL_MANUAL = {
     # manual convenience
     "git-push-all.sh", "daily-recon.sh", "best-sync.py",
     "ts-replace.py", "usage-check.py",
-    # corpus ingest (manual, recent)
-    "corpus_ingest_gwern.py", "corpus_ingest_lesswrong.py",
-    "corpus_reference_search.py",
     # completed one-shot migrations (harmless, delete-eligible)
     "selve-frontmatter-backfill.py", "compress-research-index.py",
     # repo-introspection on demand
@@ -154,9 +151,8 @@ def importer_corpus() -> str:
     for f in SCRIPTS.rglob("*.py"):
         if "__pycache__" in f.parts:
             continue
-        # Skip the vendored corpus-core package: it's a standalone library that
-        # cannot import agent-infra's scripts/ generators, and it's the bulk of the
-        # blob (~35MB) that made the per-script regex scan slow.
+        # Skip standalone packages nested below scripts; they cannot import
+        # agent-infra generators and can dominate the scan.
         if "packages" in f.parts:
             continue
         parts.append(_read(f))

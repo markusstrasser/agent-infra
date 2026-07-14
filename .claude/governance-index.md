@@ -1,4 +1,4 @@
-# Governance Index — agent-infra (GENERATED — do not edit)
+# Governance Index — agent-infra-corpus-019f6268 (GENERATED — do not edit)
 
 Compact single-source governance for curated injection + clash-detection.
 Consumers LOAD this; never re-state it. Canonical: GOALS.md · CLAUDE.md <constitution> · .claude/rules/vetoed-decisions.md. Regen: `just governance-index`.

@@ -785,8 +785,8 @@ def check_uv_tool_editables() -> list[Check]:
 
     A `uv tool install --editable` records the source dir in uv-receipt.toml
     (`editable = "..."`) and in a `_editable_impl_*.pth`. When a package is
-    promoted/moved — e.g. corpus-core: agent-infra/scripts/corpus/packages ->
-    substrate/packages, the same move as evalcore — the pointer goes stale: the
+    promoted/moved — e.g. a package moved from a monorepo to a standalone repo —
+    the pointer goes stale: the
     import can half-work off a leftover copy while the CLI entry point is gone,
     and NO launchd/import check catches it (the library still imports; only
     invoking the CLI fails). 2026-06-14: the `corpus` CLI was dead for exactly

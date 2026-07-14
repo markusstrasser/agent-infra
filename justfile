@@ -235,7 +235,6 @@ stale-pointer-lint:
     # pattern (fixed-string) | human reason
     checks=(
       '/Volumes/SSK1TB|retired external disk 2026-06-24 — use /Volumes/2TBPNY'
-      'agent-infra/scripts/corpus/|corpus-core extracted — use ~/Projects/substrate/packages/corpus-core/'
     )
     roots=("$HOME/Projects/skills" "$HOME/.claude/rules" "$HOME/Projects/agent-infra/.claude/rules")
     bad=0
@@ -403,14 +402,6 @@ tool-trim-audit days="21" max_calls="20" limit="40":
 [group('health')]
 memory-harvest *args:
     uv run python3 scripts/memory_harvest.py {{args}}
-
-# Audit verdicts ↔ corpus-annotation drift (substrate-v1, Phase 4 backstop)
-[group('health')]
-audit-corpus-sync *args:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    : "${CORPUS_ROOT:?set CORPUS_ROOT explicitly}"
-    uv run python3 scripts/audit_corpus_sync.py --corpus-root "$CORPUS_ROOT" {{args}}
 
 # Analyze always-exposed instruction / skill / MCP surface
 [group('health')]
@@ -1229,46 +1220,6 @@ discarded:
         echo
       fi
     done
-
-# Phase 6 phenome migration (substrate-v1)
-[group('corpus')]
-migrate-phenome *args:
-    uv run python3 scripts/migrate_phenome_source_records.py {{args}}
-
-# Phase 6.5 intel entity citation extraction (substrate-v1)
-[group('corpus')]
-extract-intel-citations *args:
-    uv run python3 scripts/extract_intel_entity_citations.py {{args}}
-
-# Deploy corpus-marker Modal app (Marker on T4 GPU + Gemini cleanup).
-# Pre-req: `modal secret create gemini-api-key GEMINI_API_KEY=$GEMINI_API_KEY`.
-[group('corpus')]
-modal-deploy-marker:
-    uv run modal deploy scripts/corpus_marker_modal.py
-
-# Smoke-test the deployed corpus-marker app on a PDF.
-[group('corpus')]
-modal-smoke-marker pdf:
-    uv run modal run scripts/corpus_marker_modal.py --pdf {{pdf}}
-
-# Phase A bitemporal migration: MCP-aware DDL apply on corpus graph.duckdb.
-# Filters lsof holders by AGENT_PATTERNS — human dev tools (DBeaver, IDE)
-# get a warning, not a SIGKILL. SIGTERM→SIGKILL escalation for agent holders.
-[group('corpus')]
-bitemporal-migrate *args:
-    bash scripts/bitemporal_migrate.sh {{args}}
-
-# Lint: forbid raw `FROM annotations` outside writer allowlist.
-[group('corpus')]
-lint-no-bare-annotations *args:
-    uv run python3 scripts/lint_no_bare_annotations_read.py {{args}}
-
-# Run corpus-core tests from the right cwd (scripts/corpus has its own
-# pyproject + venv; `uv run pytest` from agent-infra root fails to
-# spawn because uv resolves to the wrong project).
-[group('corpus')]
-test-corpus *args:
-    cd ../substrate && uv run pytest packages/corpus-core/tests/ {{args}}
 
 # ── Knowledge ──────────────────────────────────────────────────────
 

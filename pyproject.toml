@@ -6,7 +6,6 @@ requires-python = ">=3.11"
 dependencies = [
     "anthropic>=0.105.0",
     "claude-agent-sdk>=0.1.44",
-    "corpus-core[all]",
     "duckdb>=1.1",
     "exa-py>=2.6.1",
     "fastmcp>=3.4.2,<4.0",
@@ -18,7 +17,6 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-corpus-core = { path = "../substrate/packages/corpus-core", editable = true }
 plan-core = { path = "../substrate/packages/plan-core", editable = true }
 
 [project.scripts]
@@ -34,11 +32,9 @@ venvPath = "."
 venv = ".venv"
 typeCheckingMode = "basic"
 exclude = ["artifacts/", "downloads/", "bundles/", ".claude/worktrees/"]
-# substrate editable deps resolve at runtime via _editable_impl_*.pth, but Pyright
-# only follows those when uv materializes a package dir (corpus-core does, via its
-# force-include data files; pure-stdlib plan-core does not). List both source roots
-# so static resolution is deterministic regardless of uv-sync materialization.
-extraPaths = ["src", "../substrate/packages/plan-core", "../substrate/packages/corpus-core"]
+# The pure-stdlib plan-core editable does not materialize a package directory;
+# name its source root so static resolution stays deterministic.
+extraPaths = ["src", "../substrate/packages/plan-core"]
 
 [build-system]
 requires = ["hatchling"]

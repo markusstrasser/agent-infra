@@ -26,9 +26,7 @@ hold out). The mutator is never the bottleneck — the gold-backed verifier is
 | Candidate | Editable surface | Why blocked (probed 2026-06-07) |
 |-----------|------------------|-------------------------------|
 | intel entity-resolution | `intel/tools/build_entity_resolution_map.py:merge_record` | **Open-loop + tiny gold.** `intel/tools/evals/er_eval.py` reads a *static* `xwalk` table — editing the resolver doesn't move the metric. Closing the loop means rebuilding 1.3M xwalk rows / 739K entities over a 2.2 GB DuckDB (Splink) per mutation — infeasible at 45 s/eval. And the gold is 47 hand-labeled pairs (a regression canary, not an optimization set; no real holdout). |
-| corpus reference-resolution | `corpus_core/resolve_references.py` | **Closed-loop but no metric dataset.** `test_resolve_references.py` runs the real functions (closed-loop ✓) but is **9 hand-written contract assertions**, not a labeled P/R dataset over many papers with a holdout. No optimization gradient (all 9 already pass), nothing to hold out. |
-
-To promote either: build the labeled, holdout-able metric dataset first (human
+To promote the remaining candidate: build the labeled, holdout-able metric dataset first (human
 labeling is the gate), then a *scoped* closed-loop eval (run only the editable fn
 over the labeled subset — never rebuild the full pipeline).
 

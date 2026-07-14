@@ -25,7 +25,7 @@
     <key>WorkingDirectory</key>
     <string>/Users/alien/Projects/agent-infra</string>
 
-    <!-- Daily at 05:30 (after audit-corpus-sync 04:30 + corpus-ledger-commit 05:00). -->
+    <!-- Daily at 05:30. -->
     <key>StartCalendarInterval</key>
     <dict>
         <key>Hour</key>
