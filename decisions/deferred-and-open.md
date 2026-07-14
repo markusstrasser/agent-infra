@@ -33,3 +33,12 @@ lost and nothing is re-proposed from scratch. Append; mark closed with the resol
 - `.model-review/rsi-arch-opus.md` · `rsi-crosslab-gpt.md` · `rsi-factcheck-composer.md` (2026-06-16).
   Partial spine reversal: ship canary, defer the promotion brain. All load-bearing claims verified
   against code before folding.
+
+## Static data simplification (ADR `2026-07-14-static-data-over-consumer-platforms.md`)
+
+| Item | State | Close / reopen trigger |
+|---|---|---|
+| Phenome genomic shadow-data deletion | **OPEN — blocking** | Close only when every `genomics_findings.yaml` / `exports/genomics/**` fact maps to an exact static `results/**` record or a retained human-authored phenome observation. |
+| Corpus paper-store move | **OPEN — blocking** | Close when research-mcp passes cached + new fetch, extraction, source-count, and metadata-identity checks without moving `~/Projects/corpus` bytes. |
+| Cross-repo corpus attestation retirement | **OPEN — blocking** | Close after all outboxes drain, final annotations/relations/audit state are archived, and domain writes pass without corpus side effects. Reopen only on measured cross-repo annotation-driven decisions. |
+| `genome-toolkit` deletion / `substrate` parking | **OPEN — dependent** | Close after negative scans show no active surface depends on either repository, `genome-toolkit` has one verified cold bundle before deletion, and `substrate` is explicitly frozen but kept intact. |
