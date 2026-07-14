@@ -148,16 +148,54 @@ def _new_fk_violations(db: sqlite3.Connection) -> list:
     return [(t, par) for (t, par) in rows if (t, par) not in _KNOWN_PREEXISTING_FK]
 
 
+# Light-path VACUUM gate: below this free-page fraction a VACUUM buys nothing
+# worth an O(db-size) rewrite (2026-07-14: a zero-delete weekly run spent >1h
+# rebuilding FTS + vacuuming 10.5GB under launchd's low-priority I/O).
+_VACUUM_FREELIST_FRACTION = 0.05
+
+
 def apply_prune(db: sqlite3.Connection, keep_days: int) -> PrunePlan:
     """Delete old sessions (FK-off, children-first, all tables), rebuild FTS,
     verify no NEW dangling refs, VACUUM. Raises (after ROLLBACK) on any
     introduced FK violation or integrity failure.
+
+    No-op weeks take a LIGHT PATH: when zero sessions are over retention, the
+    heavy transaction (trigger drop, FTS rebuild, unconditional VACUUM) is
+    skipped entirely — only orphaned record_refs cleanup runs (small standalone
+    txn, no FTS interplay), and VACUUM fires only past a freelist threshold.
     """
     p = {"cut": f"-{keep_days} days"}
     cutoff = db.execute("SELECT datetime('now', :cut)", p).fetchone()[0]
     size_before = _db_size_mb(db)
     t0 = time.monotonic()
     counts: dict[str, int] = {}
+
+    old_sessions = db.execute(f"SELECT COUNT(*) FROM ({_OLD_SESSIONS})", p).fetchone()[0]
+    if old_sessions == 0:
+        _log("0 sessions over retention — light path (no FTS rebuild)")
+        db.execute("BEGIN IMMEDIATE")
+        try:
+            refs = db.execute(_ORPHANED_RECORD_REFS_DELETE).rowcount
+            for stmt in _NULL_DANGLING_REFS:
+                db.execute(stmt)
+            db.execute("COMMIT")
+        except Exception:
+            db.execute("ROLLBACK")
+            raise
+        freelist, pages = db.execute(
+            "SELECT freelist_count, page_count FROM pragma_freelist_count(), pragma_page_count()"
+        ).fetchone()
+        if pages and freelist / pages >= _VACUUM_FREELIST_FRACTION:
+            _log(f"VACUUM (freelist {freelist:,}/{pages:,} pages)...")
+            db.execute("VACUUM")
+        else:
+            _log(f"VACUUM skipped (freelist {freelist:,}/{pages:,} pages below "
+                 f"{_VACUUM_FREELIST_FRACTION:.0%})")
+        _log(f"done ({time.monotonic()-t0:.0f}s total, light path)")
+        return PrunePlan(
+            keep_days=keep_days, cutoff=cutoff, sessions=0, runs=0, events=0,
+            tool_calls=0, file_touches=0, record_refs=refs,
+            size_before_mb=size_before, size_after_mb=_db_size_mb(db))
 
     db.execute("PRAGMA foreign_keys=OFF")  # only legal outside a transaction
     db.execute("BEGIN IMMEDIATE")
