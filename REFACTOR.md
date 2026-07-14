@@ -1,5 +1,10 @@
 # Ecosystem Refactor Handoff
 
+> **Superseded 2026-07-14.** The shared-substrate target below was reversed by
+> `decisions/2026-07-14-static-data-over-consumer-platforms.md`: live mechanisms
+> moved to their semantic owners, `genome-toolkit` was retired, and substrate is
+> dormant with no active consumers. This file remains only as migration history.
+
 Date: 2026-06-10
 
 This is the executable handoff for the current refactor. It supersedes older
