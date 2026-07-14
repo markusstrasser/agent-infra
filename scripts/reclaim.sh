@@ -278,21 +278,17 @@ cmd_sudo_items() {
   if [ -e "$img" ]; then info "quit Claude Desktop first."; del "$img"; else info "already gone"; fi
 }
 
-# ============================================================ rotate (append-only store retention)
-# The cache subcommands delete regenerable files; `rotate` shrinks the
-# UNBOUNDED append-only stores that have no built-in retention. Today that is
-# agentlogs.db (grew to 14 GB / 3.3M events with no prune path). Codex sessions
-# are deliberately NOT rotated (user: they're the only copy, not re-derivable).
-ALOG_KEEP_DAYS="${ALOG_KEEP_DAYS:-21}"
+# ============================================================ rotate (RETIRED 2026-07-14)
+# agentlogs.db retention has ONE owner: the weekly snapshot-gated
+# `just agentlogs-archive` (prune 30d ONLY after a verified 2TBPNY snapshot —
+# keep-everything-via-archive, decision 2026-07-05). This nightly ungated 21d
+# prune predated that pipeline ("no prune path" above was true on 2026-06-12),
+# silently overrode the operator's 30d call, and paid FTS-rebuild+VACUUM on a
+# 10GB DB every night. Dual-owner drift caught 2026-07-14.
 cmd_rotate() {
   printf "${B}reclaim rotate${N}  "; mode_banner
-  local al="$HOME/Projects/agent-infra/.venv/bin/agentlogs"
-  sect "agentlogs.db — keep last ${ALOG_KEEP_DAYS}d of sessions (rebuilds FTS, VACUUMs)"
-  if [ ! -x "$al" ]; then warn "agentlogs not found at $al"; return; fi
-  # --wait-seconds 1800: the 04:10 cron collides with the 2h indexer lock (exit-3
-  # skips observed 2026-07-05/06); prune's own help says automation should pass ~1800.
-  if [ "$YES" = 1 ]; then "$al" prune --keep-days "$ALOG_KEEP_DAYS" --yes --wait-seconds 1800
-  else "$al" prune --keep-days "$ALOG_KEEP_DAYS"; fi
+  warn "retired: agentlogs.db retention moved to weekly 'just agentlogs-archive'"
+  warn "(snapshot-gated 30d prune; agent-infra@fd2da3f). Nothing to rotate here."
 }
 
 # ============================================================ dispatch
