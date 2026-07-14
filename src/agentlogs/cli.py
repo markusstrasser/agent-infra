@@ -152,7 +152,7 @@ def _make_parser() -> argparse.ArgumentParser:
 
     s_compact = sub.add_parser(
         "compact",
-        help="NULL write-only status_update payloads and VACUUM (dry-run default)",
+        help="NULL write-only payloads (status_update + text-backed envelope kinds) and VACUUM (dry-run default)",
     )
     s_compact.add_argument("--yes", "--apply", dest="apply", action="store_true",
                            help="Execute UPDATE + VACUUM")
@@ -688,10 +688,11 @@ def cmd_compact(args) -> int:
     try:
         with write_gateway(_resolve_db_path(args), no_lock=args.no_lock) as db:
             if not args.apply:
-                plan = cp.plan_compact_status_payloads(db)
-                print(f"[dry-run] kind={plan.kind}  rows={plan.rows:,}  "
-                      f"payload≈{plan.payload_bytes / 1_048_576:.1f} MB  "
-                      f"db={plan.size_before_mb:,.0f} MB")
+                for plan in (cp.plan_compact_status_payloads(db),
+                             cp.plan_compact_text_backed_payloads(db)):
+                    print(f"[dry-run] kind={plan.kind}  rows={plan.rows:,}  "
+                          f"payload≈{plan.payload_bytes / 1_048_576:.1f} MB  "
+                          f"db={plan.size_before_mb:,.0f} MB")
                 print("  re-run with --yes to NULL payloads + VACUUM")
                 return 0
             plan = cp.apply_compact_status_payloads(db)

@@ -239,15 +239,29 @@ _REDUNDANT_PAYLOAD_KEYS = frozenset({
 # written, never read by any query/view/CLI (measured 2026-06-14: 86K rows / 360MB write-only).
 _PAYLOADLESS_KINDS = frozenset({"status_update"})
 
+# Kinds whose payload is an envelope around content that already lives in events.text
+# (or in the structured tool_calls table): tool_result = {stdout,stderr,flags} dup of
+# text; error = call_id/passthrough metadata (text always carries the message, 0/33,717
+# empty 2026-07-14); reasoning = codex encrypted_content, cryptographically unreadable;
+# tool_call = args dup of tool_calls rows. Consumer audit 2026-07-14: zero readers of
+# events.payload_json for any kind (only writers + compact itself). Drop ONLY when text
+# is non-empty — for the rare text-empty tool_result (2,312 rows, image/structured
+# results) the payload is the sole DB copy and is kept. Raw JSONL is source of truth
+# either way. Shared with the `agentlogs compact` backfill — one definition.
+TEXT_BACKED_PAYLOADLESS_KINDS = frozenset({"tool_result", "error", "reasoning", "tool_call"})
 
-def trim_payload(payload: Any, kind: str | None = None) -> Any | None:
+
+def trim_payload(payload: Any, kind: str | None = None, text: str | None = None) -> Any | None:
     """Drop payload that's redundant with dedicated columns or recoverable from the
     source JSONL (record_refs). Returns None when nothing of analytical value remains.
 
     - For payloadless kinds (status_update), drop the whole payload — pure metadata bloat.
+    - For text-backed kinds, drop the whole payload when text carries the content.
     - Otherwise drop the redundant top-level keys (text/content/results/... live elsewhere).
     """
     if kind in _PAYLOADLESS_KINDS:
+        return None
+    if kind in TEXT_BACKED_PAYLOADLESS_KINDS and text:
         return None
     if not isinstance(payload, dict):
         return payload
@@ -491,7 +505,7 @@ def _upsert_event(db, row, record_ref_id, import_id):
     # line_no-based raw_key changes). Conflict target is the composite index, not
     # the PK, so re-indexing updates the event_id in place instead of failing the
     # whole vendor's transaction.
-    trimmed = trim_payload(row.payload, row.kind)
+    trimmed = trim_payload(row.payload, row.kind, row.text)
     db.execute(
         """
         INSERT INTO events (
@@ -934,7 +948,7 @@ def _write_parsed(db, parsed, source_id: int, import_id: int, stats: IndexerStat
         event_rows = []
         for ev in parsed.events:
             record_ref_id = ref_map.get(ev.record_key) if ev.record_key else None
-            trimmed = trim_payload(ev.payload, ev.kind)
+            trimmed = trim_payload(ev.payload, ev.kind, ev.text)
             event_rows.append((
                 _db_text(ev.event_id), _db_text(ev.run_id), import_id, ev.seq,
                 _db_text(ev.ts), _db_text(ev.kind),
