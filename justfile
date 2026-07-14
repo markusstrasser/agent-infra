@@ -379,6 +379,24 @@ register-impl *args:
 orphan-findings *args:
     uv run python3 scripts/orphan_findings.py {{args}}
 
+# Built-but-unadopted gated infra (adoption ratchet). Exit 1 if any surface is
+# unadopted past stale_days — complements gov-accretion (log shape) with usage.
+[group('health')]
+infra-usage-check *args:
+    uv run python3 scripts/infra_usage_check.py {{args}}
+
+# L1 improvement-log accretion — duplicate open clusters + stale ≥30d (read-only).
+[group('epistemic')]
+gov-accretion-check:
+    uv run python3 scripts/improvement_log_accretion.py
+
+# Low-call tool screen over a rolling window (exploratory — NOT a delete list).
+# Defaults: 21d window, <20 calls, top 40. Ranked by session spread then calls.
+[group('health')]
+tool-trim-audit days="21" max_calls="20" limit="40":
+    uv run agentlogs query tool_trim_candidates \
+        --param days={{days}} --param max_calls={{max_calls}} --param limit={{limit}}
+
 # Cross-project memory generalization scan — clusters siloed feedback/reference
 # memories that look factor-out-worthy (modal lessons, tool-fabrication, etc.).
 # Deterministic pre-filter; harvest Phase 2g does the semantic dedup + factoring.
@@ -792,6 +810,19 @@ agentlogs-archive dest="/Volumes/2TBPNY/agentlogs-archive" keep_days="30":
     stale=$(sqlite3 "$DB" "SELECT COUNT(*) FROM sessions WHERE start_ts < datetime('now', '-{{keep_days}} days')")
     [ "$stale" -eq 0 ] || { echo "FAIL: $stale sessions older than {{keep_days}}d remain after prune" >&2; exit 1; }
     echo "live DB pruned to {{keep_days}}d (0 over-retention sessions) — full history in archive series"
+    # Raw session files (>14d, all vendors) → same archive tree, manifest-reversible.
+    # The DB above already indexes them; this shrinks disk + indexer enumeration.
+    uv run python3 scripts/archive_raw_logs.py --apply
+    # Codex state DB: codex stores the FULL first user message 3x per thread row
+    # (title / first_user_message / preview — up to 1MB EACH; 5.5GB by 2026-07-14).
+    # Truncate the display fields in place; full transcripts live in the rollout
+    # files (and our archive). VACUUM only when rows were actually trimmed.
+    CODEX_DB="$HOME/.codex/state_5.sqlite"
+    if [ -f "$CODEX_DB" ]; then
+        trimmed=$(sqlite3 -cmd ".timeout 30000" "$CODEX_DB" "UPDATE threads SET title=substr(title,1,10000), first_user_message=substr(first_user_message,1,10000), preview=substr(preview,1,10000) WHERE LENGTH(preview)>10000 OR LENGTH(first_user_message)>10000 OR LENGTH(title)>10000; SELECT changes();")
+        if [ "$trimmed" -gt 0 ]; then sqlite3 -cmd ".timeout 30000" "$CODEX_DB" "VACUUM;"; fi
+        echo "codex state_5.sqlite: trimmed $trimmed oversized thread rows"
+    fi
 
 
 # Send a message into an existing Claude Code session as a headless resume turn.
