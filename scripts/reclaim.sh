@@ -117,6 +117,15 @@ cmd_report() {
   pmset -g assertions 2>/dev/null | awk '/PreventUserIdleSystemSleep +1/{print "    idle-sleep is BLOCKED"}'
   info "$nca caffeinate holds, $(pgrep -x claude 2>/dev/null | wc -l | tr -d ' ') claude agents alive"
 
+  sect "Backup"
+  local tmauto; tmauto=$(defaults read /Library/Preferences/com.apple.TimeMachine.plist AutoBackup 2>/dev/null || echo 0)
+  if [ "$tmauto" = "1" ]; then
+    local last; last=$(tmutil latestbackup 2>/dev/null | tail -1)
+    if [ -n "$last" ]; then info "Time Machine on — latest: ${last##*/}"; else warn "Time Machine ON but no completed backup reachable"; fi
+  else
+    warn "Time Machine auto-backup OFF — machine has NO working backup"
+  fi
+
   sect "Reclaim hints"
   info "preview ALL → reclaim preview     (dry-run everything; deletes nothing)"
   info "caches      → reclaim caches      (uv/brew/hf/playwright/quicklook/crashes)"
