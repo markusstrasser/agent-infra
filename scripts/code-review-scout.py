@@ -27,7 +27,6 @@ Focus areas (rotate these):
 import argparse
 import hashlib
 import json
-import os
 import subprocess
 import sys
 from collections import defaultdict
@@ -39,13 +38,25 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # Model context is 1M tokens but CLI calls are free — keep batches moderate for
 # focused review quality (not a hard transport limit).
 MAX_BATCH_BYTES = 80_000  # ~80KB of code per batch
-MAX_FILE_BYTES = 75_000   # skip files larger than this individually
+MAX_FILE_BYTES = 75_000   # fail loud above this until line-aware chunking exists
 EXTENSIONS = {".py", ".js", ".ts", ".sh", ".sql", ".rs", ".go"}
 SKIP_DIRS = {".git", "__pycache__", ".venv", "node_modules", ".tox",
              ".mypy_cache", "dist", "build", ".context", ".model-review",
              "data", "databases", "artifacts", ".claude"}
 
 ARTIFACTS_BASE = Path(__file__).parent.parent / "artifacts" / "code-review"
+
+
+class CoverageError(RuntimeError):
+    """The scout cannot prove complete coverage of the selected source set."""
+
+
+def checked_size(path: Path) -> int:
+    try:
+        return path.stat().st_size
+    except OSError as exc:
+        raise CoverageError(f"cannot stat selected source file {path}: {exc}") from exc
+
 
 FOCUS_PROMPTS = {
     "refactoring": (
@@ -105,12 +116,7 @@ def gather_files(root: Path) -> list[Path]:
             continue
         if any(p in SKIP_DIRS for p in f.parts):
             continue
-        try:
-            size = f.stat().st_size
-        except OSError:
-            continue
-        if size > MAX_FILE_BYTES:
-            continue
+        size = checked_size(f)
         if size < 50:  # skip trivially small files
             continue
         files.append(f)
@@ -142,10 +148,7 @@ def make_batches(files: list[Path], root: Path) -> list[list[Path]]:
     current_size = 0
 
     for f in files:
-        try:
-            size = f.stat().st_size
-        except OSError:
-            continue
+        size = checked_size(f)
         if current_size + size > MAX_BATCH_BYTES and current_batch:
             batches.append(current_batch)
             current_batch = []
@@ -165,8 +168,8 @@ def build_code_context(files: list[Path], root: Path) -> str:
         rel = f.relative_to(root)
         try:
             content = f.read_text(errors="replace")
-        except OSError:
-            continue
+        except OSError as exc:
+            raise CoverageError(f"cannot read selected source file {f}: {exc}") from exc
         parts.append(f"### {rel}\n```{f.suffix.lstrip('.')}\n{content}\n```\n")
     return "\n".join(parts)
 
@@ -271,15 +274,13 @@ Review the following code files. Focus: {focus_prompt}
     return None
 
 
-def parse_findings(raw: str, provider_name: str, batch_files: list[Path],
-                   root: Path) -> list[dict]:
+def parse_findings(raw: str, provider_name: str, _batch_files: list[Path],
+                   _root: Path) -> list[dict]:
     """Parse raw LLM output into structured findings."""
     if not raw or "NO_ISSUES" in raw:
         return []
 
     findings = []
-    batch_file_set = {str(f.relative_to(root)) for f in batch_files}
-
     for line in raw.splitlines():
         line = line.strip()
         if not line or line.startswith("#") or line.startswith("```"):
@@ -365,9 +366,14 @@ def main():
     if args.list_modules:
         print(f"# {project_name}: {len(files)} files in {len(modules)} modules\n")
         for mod, mod_files in modules.items():
-            total_kb = sum(f.stat().st_size for f in mod_files) / 1024
-            batches = make_batches(mod_files, root)
-            print(f"  {mod:<40} {len(mod_files):>4} files  {total_kb:>7.1f}KB  {len(batches)} batches")
+            total_kb = sum(checked_size(f) for f in mod_files) / 1024
+            oversized = sum(checked_size(f) > MAX_FILE_BYTES for f in mod_files)
+            reviewable = [f for f in mod_files if checked_size(f) <= MAX_FILE_BYTES]
+            batches = make_batches(reviewable, root)
+            print(
+                f"  {mod:<40} {len(mod_files):>4} files  {total_kb:>7.1f}KB  "
+                f"{len(batches)} batches  oversized={oversized}"
+            )
         return
 
     # Filter to specific module if requested
@@ -386,15 +392,30 @@ def main():
     else:
         target_files = files
 
+    oversized = [f for f in target_files if checked_size(f) > MAX_FILE_BYTES]
+    if oversized:
+        print(
+            f"Coverage error: {len(oversized)} selected source file(s) exceed "
+            f"MAX_FILE_BYTES={MAX_FILE_BYTES}; no review was dispatched.",
+            file=sys.stderr,
+        )
+        for path in oversized:
+            print(
+                f"  {path.relative_to(root)}: {checked_size(path)} bytes",
+                file=sys.stderr,
+            )
+        print("Implement line-aware chunking or narrow the selected module.", file=sys.stderr)
+        sys.exit(2)
+
     batches = make_batches(target_files, root)
-    total_kb = sum(f.stat().st_size for f in target_files) / 1024
+    total_kb = sum(checked_size(f) for f in target_files) / 1024
 
     print(f"# {project_name}: {len(target_files)} files, {total_kb:.0f}KB, "
           f"{len(batches)} batches, focus={args.focus}", file=sys.stderr)
 
     if args.dry_run:
         for i, batch in enumerate(batches):
-            batch_kb = sum(f.stat().st_size for f in batch) / 1024
+            batch_kb = sum(checked_size(f) for f in batch) / 1024
             print(f"\n  Batch {i+1} ({batch_kb:.1f}KB, {len(batch)} files):")
             for f in batch:
                 print(f"    {f.relative_to(root)}")
@@ -413,8 +434,6 @@ def main():
 
     # Dispatch reviews
     all_findings = []
-    total_batches = len(batches) * len(providers)
-
     def review_batch(batch_idx: int, batch: list[Path], provider: dict):
         import time as _time
         # Throttle: wait before dispatching (helps with Gemini rate limits on large runs)

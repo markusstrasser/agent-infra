@@ -31,7 +31,7 @@ def todays_assignment() -> tuple[str, str]:
     return project, focus
 
 
-def run_review(project: str, focus: str, dry_run: bool = False):
+def run_review(project: str, focus: str, dry_run: bool = False) -> int:
     project_path = PROJECTS_ROOT / project
     cmd = [
         "uv", "run", "python3", str(SCOUT), str(project_path),
@@ -42,25 +42,28 @@ def run_review(project: str, focus: str, dry_run: bool = False):
     if dry_run:
         print(f"  Would run: project={project} focus={focus}")
         print(f"  Command: {' '.join(cmd)}")
+        return 0
     else:
         print(f"  Running: project={project} focus={focus}")
-        subprocess.run(cmd, cwd=ROOT, check=False)
+        return subprocess.run(cmd, cwd=ROOT, check=False).returncode
 
 
-def main():
+def main() -> int:
     dry_run = "--dry-run" in sys.argv
     run_all = "--all" in sys.argv
 
     if run_all:
         focus = FOCUSES[date.today().timetuple().tm_yday % len(FOCUSES)]
         print(f"# All projects, focus={focus}")
+        returncodes = []
         for project in PROJECTS:
-            run_review(project, focus, dry_run)
+            returncodes.append(run_review(project, focus, dry_run))
+        return 1 if any(returncodes) else 0
     else:
         project, focus = todays_assignment()
         print(f"# Today's code review: {project}/{focus}")
-        run_review(project, focus, dry_run)
+        return run_review(project, focus, dry_run)
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
