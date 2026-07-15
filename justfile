@@ -209,6 +209,11 @@ mcp-health:
 doctor:
     uv run python3 scripts/doctor.py
 
+# Neutral cross-repo acceptance gate: product repos do not inspect each other.
+[group('health')]
+genomics-static-boundary-check *args:
+    uv run python3 scripts/genomics_static_boundary_check.py {{ args }}
+
 # Harness eval — Eve `eve eval` analog for hook/skill changes (~43s).
 [group('health')]
 harness-eval:
