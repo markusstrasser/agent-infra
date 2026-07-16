@@ -309,18 +309,23 @@ def parse_findings(
     raw: str, provider_name: str, _batch_files: list[Path], _root: Path
 ) -> list[dict]:
     """Parse raw LLM output into structured findings."""
-    if not raw or "NO_ISSUES" in raw:
+    normalized = raw.strip()
+    if normalized == "NO_ISSUES":
         return []
+    if not normalized:
+        raise DispatchError("reviewer returned an empty parsing payload")
 
     findings = []
-    for line in raw.splitlines():
+    invalid_lines = []
+    for line in normalized.splitlines():
         line = line.strip()
-        if not line or line.startswith("#") or line.startswith("```"):
+        if not line:
             continue
 
         # Try to parse FILE:LINE SEVERITY CATEGORY description
         parts = line.split(None, 3)
         if len(parts) < 4:
+            invalid_lines.append(line)
             continue
 
         file_line = parts[0]
@@ -329,6 +334,7 @@ def parse_findings(
         description = parts[3]
 
         if severity not in ("HIGH", "MEDIUM", "LOW"):
+            invalid_lines.append(line)
             continue
 
         # Split file:line
@@ -354,6 +360,15 @@ def parse_findings(
             }
         )
 
+    if invalid_lines:
+        preview = " | ".join(invalid_lines[:3])
+        raise DispatchError(
+            "reviewer violated the findings output contract: " + preview[:1000]
+        )
+    if not findings:
+        raise DispatchError(
+            "reviewer returned neither exact NO_ISSUES nor a parseable finding"
+        )
     return findings
 
 
