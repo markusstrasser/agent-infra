@@ -37,6 +37,12 @@ H-JEPA, `research/2026-06-16-predictive-arch-rsi-loops.md`):
     mistakes, decisions, steering signal — is then a free `emb search` / cheap `emb read`
     (retrieve-then-LLM-on-hits). Decouples the *expensive read* from the *cheap query*, so new
     miners are queries, not metered corpus passes. `research/2026-06-17-embed-once-validated-recurring-mistakes.md`.
+  - **Answer-bearing prior-context lane** (added 2026-07-16, activation held): whole-session
+    embeddings hide late decisions behind exporter/embedder caps. `scripts/prior-context-index`
+    instead indexes real user/assistant turns and deduplicates results back to sessions, returning
+    exact `agentlogs show …` source handles. The index is local, cached, and manually queryable;
+    wiring it into the shared prompt hook is held until the rediscovery-control window closes on
+    2026-07-24.
 
 They are **coupled**: the long loop's *output is short-loop machinery* — a hook is a reflex the
 slow loop installed. Cascade-control law (Skogestad/Shinskey): the inner loop must run ~4–10×
@@ -73,7 +79,7 @@ our regime is observable **scaffolding-RSI**, the converging non-FOOM kind.
 | Harness | The layered instruction/skill/hook/MCP surface loaded per session | `CLAUDE.md` §Cross-Project Architecture · `.claude/rules/context-budget-principles.md` |
 | Harness verification | Eve-inspired steals: `just harness-eval` (CI gate), `approval-tiers.json` (needsApproval analog), `just session-trace` (replay) | `research/2026-06-17-vercel-eve-harness-steals.md` |
 | Durable stores | git + `agentlogs.db`; research-mcp owns scientific source bytes | `.claude/rules/session-forensics.md` · `~/Projects/research-mcp/src/research_mcp/corpus/` |
-| Session extraction (embed-once) | angle-agnostic semantic index over the session corpus — any new analysis angle is a free `emb` query, not a metered re-read; mistakes/decisions/steering all become queries | `research/2026-06-17-embed-once-validated-recurring-mistakes.md` · `scripts/export_sessions_for_emb.py` |
+| Session extraction (embed-once) | session blobs support corpus mining; answer-bearing turns support exact prior-context retrieval without losing late decisions. Both use local cached `emb` generations | `research/2026-06-17-embed-once-validated-recurring-mistakes.md` · `scripts/export_sessions_for_emb.py` · `scripts/prior-context-index` |
 | Lifecycle graph | `just graph <id>` — rederivable neighborhood over the RSI-lifecycle artifacts (decisions·research·predictions·commits) joined through ONE canonical relation vocab (invert-safe folds, `relates_to` non-traversable); materialized in agentlogs.db, no new store. Densified by commit→decision `implements`-edges parsed from commit bodies. | `scripts/lifecycle_relations.json` (vocab, single source) · `src/agentlogs/lifecycle.py` · `decisions-pending/2026-06-18-phaseB-implements-trailer.md` |
 | Self-monitoring | zero-API launchd jobs (sense half of RSI) — **derived:** `just orient` · `just system-inventory` | `config/system-kinds.json` · `ops/launchd/*.plist` (`@system` tags) |
 | Session orchestrator | file-bus pipeline — `/orchestrate`, typed just recipes | `.claude/rules/orchestrator-tool-names.md` |

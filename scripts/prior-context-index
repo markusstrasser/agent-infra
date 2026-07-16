@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="${PRIOR_CONTEXT_INDEX_ROOT:-$HOME/.cache/agent-infra/prior-context}"
+AGENT_INFRA="${AGENT_INFRA_ROOT:-$HOME/Projects/agent-infra}"
+EMB_ROOT="${EMB_ROOT:-$HOME/Projects/emb}"
+COMMAND="${1:-}"
+
+case "$COMMAND" in
+  build)
+    shift
+    mkdir -p "$ROOT"
+    uv run --project "$AGENT_INFRA" python3 \
+      "$AGENT_INFRA/scripts/export_session_turns_for_emb.py" \
+      --out "$ROOT/turns.jsonl" "$@"
+    uv run --project "$EMB_ROOT" emb embed "$ROOT/turns.jsonl" \
+      --output "$ROOT/index" \
+      --lane prior-context-turns \
+      --app-git-commit "$(git -C "$AGENT_INFRA" rev-parse HEAD)" \
+      --emb-git-commit "$(git -C "$EMB_ROOT" rev-parse HEAD)"
+    ;;
+  search)
+    shift
+    uv run --project "$EMB_ROOT" python3 \
+      "$AGENT_INFRA/scripts/search_prior_context.py" \
+      --index "$ROOT/index" "$@"
+    ;;
+  *)
+    echo "usage: scripts/prior-context-index {build|search} [args...]" >&2
+    exit 2
+    ;;
+esac

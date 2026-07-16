@@ -32,3 +32,6 @@ Restore `"SMART_JUDGE_ENFORCE_VECTORS": "verify_before_claim,over_caution"` in `
 - Do NOT delete the over_caution classifier vector
 - Do NOT add a replacement timidity hook until this ablation reports
 - Do NOT ship DEFAULT parallel-fan-out in the same window (Opus: ablation first, then loosen)
+
+**Held successor:** `2026-07-16-turn-retrieval-hook-activation.md` may begin its
+turn-retrieval shadow only after this control window is closed on or after 2026-07-24.
