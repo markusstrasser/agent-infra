@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Sync agent skill mounts across vendors from ~/.claude/skills canonical set.
 
-Mirrors Claude global skill symlinks into Codex discovery paths:
-  ~/.agents/skills  (primary, open agent skills standard)
-  ~/.codex/skills   (legacy user path, kept in sync)
+Mirrors Claude global skill symlinks into Codex discovery:
+  ~/.agents/skills  (open agent skills standard)
+
+Do not mirror into ~/.codex/skills — that path is Codex's bundled/.system store
+only; managed skills live under ~/.agents/skills (+ per-repo .agents/skills).
 
 Per-repo parity remains codex_parity_sync.py (.agents/skills -> .claude/skills).
 
@@ -31,7 +33,6 @@ def main() -> int:
     src = home / ".claude" / "skills"
     targets = [
         ("codex_agents", home / ".agents" / "skills"),
-        ("codex_legacy", home / ".codex" / "skills"),
     ]
 
     con.header("Agent skills sync" + (" (check)" if args.check else ""))

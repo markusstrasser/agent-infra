@@ -6,7 +6,7 @@ set -euo pipefail
 SRC="$HOME/Projects/skills"
 DST="$HOME/.cursor/skills"
 LINK=(
-  research research-ops eval critique decide code-review cursor-agent debug
+  research research-ops eval doe critique decide code-review cursor-agent debug
   verify-before execute improve observe sweep brainstorm analyze llmx-guide
 )
 

@@ -17,7 +17,7 @@ status: active
 - **Models supported:** GPT-5.5 flagship under ChatGPT auth
 - **MCP:** runtime enable/disable (0.131); per-server env targeting + OAuth for streamable-HTTP servers + `readOnlyHint` concurrent execution + `$ref`/`$defs` preserved (0.134); `oneOf`/`allOf` preserved (0.139). The 2026-04 "~37K bundled-MCP overhead, no disable flag" state is obsolete
 - **Config:** profiles v2 — `--profile` primary selector, legacy `[profiles.]` blocks in config.toml REJECTED, settings live in `$CODEX_HOME/.config.toml` (0.134). Our config verified clean 2026-06-11
-- **Skills:** open agent skills standard (`SKILL.md`); discovers `~/.agents/skills`, legacy `~/.codex/skills`, repo `.agents/skills` (we symlink via `codex_parity_sync.py`). Progressive disclosure; ~8k char skills index budget. No `Skill` tool in agentlogs — loads via `exec_command` reads of SKILL.md. [SOURCE: developers.openai.com/codex/skills]
+- **Skills:** open agent skills standard (`SKILL.md`); discovers `~/.agents/skills` + repo `.agents/skills` (we symlink via `codex_parity_sync.py` / `sync_agent_skills.py`). `~/.codex/skills` is left for Codex-bundled `.system/` only — we do not mirror managed skills there. Progressive disclosure; ~8k char skills index budget. No `Skill` tool in agentlogs — loads via `exec_command` reads of SKILL.md. [SOURCE: developers.openai.com/codex/skills]
 - **Hooks:** PreToolUse/PostToolUse etc. via hooks.json; exec-path bug (#25875, hooks silently not firing under `codex exec`) fixed 2026-06-04 — canary verification on 0.139 still pending. **0.141 (Jun 18): blocking PostToolUse hooks now correctly reject code-mode tool calls** (previously NOT gated) — re-check `codex_hook_shim.py` enforcement assumptions
 - **Tool timeout:** 300s ceiling (0.141)
 

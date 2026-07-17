@@ -182,7 +182,6 @@ def build_skills_budget(project: str | Path | None = None) -> SkillsBudgetReport
     home = Path.home()
     mounts.append(measure_skill_mount("claude_global", home / ".claude" / "skills"))
     mounts.append(measure_skill_mount("codex_global", home / ".agents" / "skills"))
-    mounts.append(measure_skill_mount("codex_legacy", home / ".codex" / "skills"))
 
     proj = _resolve_project(project)
     if proj:

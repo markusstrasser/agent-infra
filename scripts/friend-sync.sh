@@ -238,10 +238,10 @@ if [ -d "$SKILLS_SRC" ]; then
         skip "all $total skills linked"
     fi
 
-    # Codex discovery paths mirror Claude global set (~/.agents/skills primary)
+    # Codex: mirror Claude global set into ~/.agents/skills only (not ~/.codex/skills)
     if [ -f "$PROJECTS/agent-infra/scripts/sync_agent_skills.py" ]; then
         if [ "$DRY_RUN" = "1" ]; then
-            would "run sync_agent_skills.py (Codex skill discovery paths)"
+            would "run sync_agent_skills.py (~/.agents/skills)"
         else
             (cd "$PROJECTS/agent-infra" && uv run python3 scripts/sync_agent_skills.py 2>&1 | sed 's/^/  /') || true
         fi
