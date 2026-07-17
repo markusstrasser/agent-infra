@@ -183,6 +183,8 @@ Transport facts (installed CLIs, subscription routes, effort aliases): `llmx inf
 
 **GPT-5.6 suite (2026-07-09):** OpenAI default is **Sol / Terra / Luna** (`gpt-5.6-sol` alias `gpt-5.6`, `gpt-5.6-terra`, `gpt-5.6-luna`). Cross-lab/architecture → Sol; everyday critique → **Luna** (≈ prior 5.5 perf at ~½ price); mechanical → Luna low; Terra = mid opt-in. Effort includes `max`. Pro = API `reasoning.mode=pro`. **GPT-5.5 removed** (no upgrade). Anchor: `decisions/2026-07-09-gpt-5.6-suite.md`.
 
+**Kimi K3 (2026-07-16):** llmx `kimi` provider default → `kimi-k3` (metered; provider flipped to api.moonshot.**ai** — the local key 401s on .cn). 1M context, $3/$15 cache-miss ($0.30 cache-hit input). Launch thinking is max-only, no effort knob — llmx sends none. Opt-in open-weight coding lane, **not** Default Routing. Vendor caveats: thinking-history sensitivity (no mid-session switch), excessive proactiveness. Anchor: skills `model-guide/references/CHANGELOG.md` 2026-07-16.
+
 Anchor: `decisions/2026-06-15-llmx-refactor-dispatch-layer.md`.
 
 ## What This Repo Is NOT

@@ -389,6 +389,12 @@ orphan-findings *args:
 infra-usage-check *args:
     uv run python3 scripts/infra_usage_check.py {{args}}
 
+# Monthly metered-spend compositor (GWS/Gemini/API forensics — no scratchpad reinvent).
+# Optional month: just spend-forensics 2026-07
+[group('health')]
+spend-forensics month="":
+    uv run python3 scripts/spend_forensics.py {{ if month != "" { "--month " + month } else { "" } }}
+
 # L1 improvement-log accretion — duplicate open clusters + stale ≥30d (read-only).
 [group('epistemic')]
 gov-accretion-check:

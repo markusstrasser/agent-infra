@@ -42,16 +42,27 @@ PRICING: dict[str, tuple[float, float]] = {
     "claude-opus-4-8": (5.0, 25.0),
     "claude-fable-5": (10.0, 50.0),
     "claude-sonnet-4-6": (3.0, 15.0),
-    # SpaceXAI Grok 4.5 (docs.x.ai 2026-07-08): base $2/$6; Cursor fast variant $4/$18
+    # SpaceXAI Grok 4.5 (docs.x.ai 2026-07-08): base $2/$6.
     "grok-4.5": (2.0, 6.0),
-    "grok-4.5-medium": (2.0, 6.0),
-    "grok-4.5-high": (2.0, 6.0),
-    "grok-4.5-xhigh": (2.0, 6.0),
-    "grok-4.5-fast-medium": (4.0, 18.0),
-    "grok-4.5-fast-high": (4.0, 18.0),
-    "grok-4.5-fast-xhigh": (4.0, 18.0),
+    # Cursor-pool Grok 4.5 slugs (2026-07-14 registry): mirrors llmx's
+    # CURSOR_GROK45_MODELS loop; the drift-test re-derives these from
+    # llmx/model_ids.py so a slug or rate change upstream still fails loudly.
+    "cursor-grok-4.5-low": (2.0, 6.0),
+    "cursor-grok-4.5-medium": (2.0, 6.0),
+    "cursor-grok-4.5-high": (2.0, 6.0),
+    "cursor-grok-4.5-low-fast": (4.0, 18.0),
+    "cursor-grok-4.5-medium-fast": (4.0, 18.0),
+    "cursor-grok-4.5-high-fast": (4.0, 18.0),
+    # Kimi K3 (kimi.com research announcement 2026-07-16): $3.00/$15.00 per MTok
+    # cache-miss; cache-hit input $0.30 — priced at the conservative cache-miss rate.
+    "kimi-k3": (3.0, 15.0),
     # openrouter (verified live 2026-07-07: /api/v1/models pricing.prompt/completion)
     "qwen/qwen3.6-27b": (0.285, 2.40),
+    # dense-student screen candidates (arc-agi research/2026-07-10-dense-student-candidates.md,
+    # web-verified 2026-07-10; per-M USD prompt/completion)
+    "google/gemma-4-31b-it": (0.12, 0.35),
+    "qwen/qwen3-32b": (0.08, 0.28),
+    "mistralai/mistral-small-3.2-24b-instruct": (0.075, 0.20),
 }
 
 

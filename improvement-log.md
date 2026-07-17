@@ -19,8 +19,31 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 > Session-analyst / `/observe` retro write behavioral findings as `[obs]`, never `[ ]`.
 > Backfill of the pre-2026-06-08 log: `scripts/reclassify_improvement_log.py`.
 
-<!-- session analyst appends below -->
-### [2026-06-21] Observe v2 — three promotable infra items (Cursor subagents, no Flash dispatch)
+### [2026-07-16] Observe all (~30h) — promote: supervision denial metric split + llmx-child residual
+- **Source:** `artifacts/observe/2026-07-16-30h/` · preflight `promotions_allowed=true` · verdicts promote=2
+- **Session:** arc-agi `b7b20a06` / fleet supervision 2d · [Sessions](5a1a1245-4e62-4ea4-aed1-d1679a775801) · [Supervision](d4f2a54e-3409-48cb-b86b-7662535b7fea) · [Drift](40e2fe17-8940-4c2c-ad45-956214eb84b7)
+- **[ ] `expected_governance` denial split:** 532/535 REDUCE_ERROR events are single-turn arc-agi `toolUseResult:denied` permission prompts (88 sessions). Inflates correction_rate to 115%. Split into separate bucket in `supervision_session.py` / KPI report — exclude from reduce_error + correction_rate; report separately. Candidate `candidate_20260716_supervision_governance_denial_split`.
+- **[ ] Escalate `stop-llmx-child-guard`:** shadow hook shipped 2026-07-15, but same-wave yield-churn still hit (`ratchet-math` + `selection-circularity` in `b7b20a06`; drift `drift_30h_llmx_wait_stop_hook`). Close residual: enforce mode on SubagentStop when scratchpad llmx child live + protocol memo unfinished; verify Codex/Cursor coverage. Not a greenfield hook.
+- **Held (needs_evidence / operator override):** HIGH `candidate_b7b20a06_stop1` (stop-hook live-lane WIP commits) · HIGH `candidate_019f5d11_prereg1` (audit burned prereg seeds) — recurrence gate; novel severity warrants maintain triage.
+- **Root cause:** system-design (metric) · skill-execution (subagent yield)
+- **Status:** [ ] proposed
+
+### [2026-07-15] Observe architecture follow-through — spend forensics + infra ratchet + llmx-child shadow + genomics ship ask
+- **Source:** user "OK do" after observe-all + harvest; architecture `2026-07-15.md` + drift genomics ship-path
+- **[x] `just spend-forensics`:** `scripts/spend_forensics.py` monthly metered rollup (reuses usage-check PRICING/transport) + ADR pointers — kills scratchpad reinvent
+- **[x] infra-usage → maintain-tick:** `gather_infra_usage()` already in motor; `--list` now prints `infra_unadopted=N` + ids
+- **[x] `stop-llmx-child-guard.py`:** SubagentStop shadow hook (skills) wired in `~/.claude/settings.json`; `LLMX_CHILD_GUARD_MODE=shadow|advisory|enforce` (default shadow)
+- **[x] `vendor_throughput.sql`:** canned agentlogs query (src + installed package)
+- **[ ] Genomics export/ship path:** escalated `decisions-pending/2026-07-15-genomics-export-ship-path.md` (A wire legacy screen vs B kill/relabel) — needs your yes/no
+- **Status:** [x] agent-infra + shadow hook shipped; genomics ask pending
+
+### [2026-07-15] Harvest — doctor dispatcher +x + uv-python-via-dispatch; close arc-agi cwd `[ ]`
+- **Source:** `/improve` harvest after `/observe all` (`artifacts/observe/2026-07-15-2152`, `artifacts/harvest/2026-07-15-46c5c99b-harvest.md`)
+- **[x] Doctor false reds on fleet dispatchers:** `pretool-bash-dispatch.py` / `universal-dispatch` / `subagent-settings-guard` / intel `pretool_writeedit_dispatch.py` were `0644` → doctor `Not executable`. Fixed `chmod +x`. Hooks are already invoked as `python3 path` in settings; +x restores shebang/direct + doctor contract.
+- **[x] Doctor false warn `global:shell-env-claude-uv-guard`:** post Jul-13 consolidation, settings only name `pretool-bash-dispatch.py` while GATES still load `pretool-uv-python-guard.py`. `scripts/doctor.py` now accepts bash-dispatch as covering the guard.
+- **[x] Closed stale `[ ]` arc-agi dual-pyproject** — guard shipped earlier (`pretool-arc-agi-agent-cwd-guard.py`, pytest extend skills@bd40b8c); observe residual failures are window lag / scratchpad.
+- **Status:** [x] implemented (agent-infra doctor + chmod; log close). Fleet CONVERT proposals (RSI Stop audit, prior-context cross-session) left staged — shared blast → maintain Generate / decisions-pending, not auto-wired.
+
 - **Source:** `artifacts/observe/2026-06-21-v2/` — repo-grounded subagent lanes; agentlogs indexer green.
 - **[x] Poll-hook collision under parallel paper/refute sweeps:** ≥3 Codex sessions blocked on `primer.md` / directory-listing poll guards. **Partial 2026-06-21:** `posttool-bash-poll.sh` exempts `*/primer.md` and `*/_status.tsv` (shared read-only batch artifacts). **Residual:** Codex-side poll guards + session-scoped bypass for directory listings — not verified here.
 - **[x] Critique skill over-load on read-only refute:** 6/6 refute sessions load full `/critique` SKILL.md (~520L) then F2 admits cross-model machinery is overkill for no-write local audit. **Fix:** `refute.sh` / dispatch prompt: explicit skip critique skill load on read-only refute. **Shipped 2026-06-21:** `research/papers-2026-06-20/refute.sh` PRE + `maintain-candidates.json#critique-skip-on-refute`.
@@ -39,7 +62,7 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 - **[x] zsh agent-shell footguns (nomatch + alias t/dl):** ~214 `no matches found` + ~20 alias parse errors / 30d. **Fix 2026-06-28:** `skills/hooks/agent-zsh-safe.sh` sourced from `~/.zshenv` (nomatch) + `~/.zshrc` end (unalias after rc load); Cursor `~/.cursor/hooks.json` + `cursor_shell_guards.py` (uv-python rewrite + loop block); `pretool-uv-python-guard.py` accepts `Shell` tool name. Claude/Codex: zshenv layer + existing PreToolUse hooks unchanged. **Loop closure 2026-06-28:** `scan_tool_failures.py` clusters `zsh-env:*`; `doctor.py` `global:shell-env-*`; `shell_env_loop_gate.py` auto-promotes when volume + doctor fail; wired into `observe_run` failures lane + `top_priorities`.
 - **[ ] Phenome worktree `claims.duckdb` stub:** 12 KB stub in worktree vs 2.2 GB main → `CatalogException` on `connect()` (`396e44c5`). **Fix:** worktree DB path guard or doctor check before MCP claims tools. **Root cause:** system-design. **Stream:** hook (phenome).
 - **[ ] Phenome `checked_at=now()` on rebuild:** `promote_from_ledgers` / `record_verification` re-stamps promotion valid-time to rebuild date (FLIP-2 spine; `396e44c5`). **Fix:** preserve/assertion event timestamps on promotion path. **Root cause:** system-design. **Stream:** phenome claims.
-- **[ ] arc-agi dual-pyproject cwd mismatch:** `missing-module:arc_agi`×20 / 14d — root `pyproject.toml` lacks pip package; modules live under `agent/`; failures use `uv run` from wrong cwd. **Fix:** CLAUDE.md gotcha + PreToolUse guard for `arc_agi|agents|local_runner` imports outside `agent/`. **Root cause:** skill-execution. **Stream:** hook (arc-agi).
+- **[x] arc-agi dual-pyproject cwd mismatch:** `missing-module:arc_agi`×20 / 14d — root `pyproject.toml` lacks pip package; modules live under `agent/`; failures use `uv run` from wrong cwd. **Fix shipped:** `skills/hooks/pretool-arc-agi-agent-cwd-guard.py` (rewrites to `--directory agent`; covers `arc_agi|arcengine|local_runner`; pytest path extend skills@bd40b8c). Absorbed into `pretool-bash-dispatch` GATES. Residual observe fails (2026-07-15) are pre-guard / scratchpad noise until window rolls. **Root cause:** skill-execution.
 - **[x] `modal` CLI not on PATH in `/loop` maintain:** `command-not-found:modal`×16 / 14d (12× agent-infra); distinct from bare-python3 / `missing-module:modal`. **Fix:** launchd PATH includes modal shim or PreToolUse nudge for bare `modal`. **Shipped 2026-06-21:** `pretool-bare-modal-guard.py` rewrites bare `modal` → `~/.local/bin/modal`.
 - **[obs] Cross-stage PGx contradiction (ABCB1 rs1045642) missed by per-stage attest:** 1 bughunt session — promote on 2nd recurrence.
 - **[obs] One-sided SESOI goalpost (ADR 0003):** `ea42db40` — eval-design lesson; prereg one-sided Δ≥0.04 vs two-sided read in ADR body.

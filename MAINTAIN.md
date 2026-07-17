@@ -204,3 +204,51 @@ Status of `~/.claude/steward-proposals/` after 2026-04-17 archive sweep (4 imple
 - [2026-07-09] RSI close queued: arc-agi/ceba8c8a (real_issue_signal)
 
 - [2026-07-09] RSI close queued: genomics/88221b5b (real_issue_signal)
+
+- [2026-07-09] RSI close queued: arc-agi/8fa9fb1e (real_issue_signal)
+
+- [2026-07-10] RSI close queued: arc-agi/ed1a6082 (real_issue_signal)
+
+- [2026-07-10] RSI close queued: arc-agi/f73ed0d2 (real_issue_signal)
+
+- [2026-07-10] RSI close queued: arc-agi/e0916d4f (real_issue_signal)
+
+- [2026-07-10] RSI close queued: arc-agi/b63de50d (real_issue_signal)
+
+- [2026-07-10] RSI close queued: arc-agi/836ff036 (real_issue_signal)
+
+- [2026-07-10] RSI close queued: arc-agi/d48969c0 (real_issue_signal)
+
+- [2026-07-10] RSI close queued: arc-agi/749c1d32 (real_issue_signal)
+
+- [2026-07-11] RSI close queued: intel/9a13585a (real_issue_signal)
+
+- [2026-07-11] RSI close queued: arc-agi/f05b6b1a (real_issue_signal)
+
+- [2026-07-12] RSI close queued: arc-agi/a1f53b7c (real_issue_signal)
+
+- [2026-07-12] RSI close queued: arc-agi/6f53eb60 (explicit_rsi_close)
+
+- [2026-07-12] RSI close queued: arc-agi/5e968e6b (real_issue_signal)
+
+- [2026-07-13] RSI close queued: arc-agi/5a237d81 (real_issue_signal)
+
+- [2026-07-13] RSI close queued: arc-agi/6519643a (explicit_rsi_close)
+
+- [2026-07-13] RSI close queued: arc-agi/41f9b649 (real_issue_signal)
+
+- [2026-07-13] RSI close queued: genomics/837ff96d (real_issue_signal)
+
+- [2026-07-13] RSI close queued: arc-agi/b49d6a14 (real_issue_signal)
+
+- [2026-07-13] RSI close queued: agent-infra/ac79dbdf (real_issue_signal)
+
+- [2026-07-14] RSI close queued: arc-agi/d8da85ee (real_issue_signal)
+
+- [2026-07-14] RSI close queued: agent-infra/90f13c6f (real_issue_signal)
+
+- [2026-07-15] RSI close queued: arc-agi/b7b20a06 (real_issue_signal)
+
+- [2026-07-16] RSI close queued: intel/22634416 (real_issue_signal)
+
+- [2026-07-17] RSI close queued: genomics/7eac8d87 (real_issue_signal)

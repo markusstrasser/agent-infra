@@ -906,12 +906,22 @@ def check_cross_harness_shell_env() -> list[Check]:
         checks.append(c.ok("Cursor shell guards wired"))
 
     c = Check("global:shell-env-claude-uv-guard", "global")
+    # Standalone hook OR absorbed into pretool-bash-dispatch (fleet dispatcher,
+    # 2026-07-13) — settings may only name the dispatcher while the gate still
+    # runs as GATES entry "uv-python-guard".
     if not claude_uv.is_file():
         checks.append(c.warn("pretool-uv-python-guard.py missing"))
-    elif GLOBAL_SETTINGS.is_file() and "pretool-uv-python-guard.py" not in GLOBAL_SETTINGS.read_text():
-        checks.append(c.warn("Claude global settings missing uv-python guard"))
+    elif GLOBAL_SETTINGS.is_file():
+        settings_txt = GLOBAL_SETTINGS.read_text()
+        named = "pretool-uv-python-guard.py" in settings_txt
+        via_dispatch = "pretool-bash-dispatch.py" in settings_txt
+        if named or via_dispatch:
+            how = "standalone" if named else "via bash-dispatch"
+            checks.append(c.ok(f"Claude uv-python guard present ({how})"))
+        else:
+            checks.append(c.warn("Claude global settings missing uv-python guard"))
     else:
-        checks.append(c.ok("Claude uv-python guard present"))
+        checks.append(c.warn("Claude global settings missing"))
 
     return checks
 

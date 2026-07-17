@@ -77,6 +77,9 @@ IMPROVEMENT_LOG = REPO / "improvement-log.md"  # telemetry only (prose `[ ]` cou
 CANDIDATES_REGISTRY = REPO / "config" / "maintain-candidates.json"
 OBSERVE_ARTIFACTS = REPO / "artifacts" / "observe"
 RSI_HINDSIGHT_QUEUE = REPO / "artifacts" / "rsi-hindsight" / "queue.jsonl"
+# Surface drain lag when queued depth exceeds this (CONVERT SLA handles age;
+# depth warns that intake > drain even if none are yet ≥48h stale).
+RSI_QUEUE_DEPTH_WARN = 5
 _OBSERVE_SOURCE_RE = re.compile(r"artifacts/observe/", re.I)
 # Single-source tier policy (authored + owned by the team-lead, operator-approved
 # 2026-06-19). This module is a pure CONSUMER of it — it never restates the tier
@@ -494,6 +497,49 @@ def convert_stale_rsi_hindsight(
     return stubs
 
 
+def gather_infra_usage() -> dict:
+    """Built-but-unadopted gated surfaces (adoption ratchet) — report for --list/noop.
+
+    Imports scripts/infra_usage_check.py (fail-open → empty). Surfaces UNADOPTED so
+    the motor cites dead ceremony instead of rediscovering it each observe pass.
+    Never auto-retires; parked rows stay visible.
+    """
+    path = REPO / "scripts" / "infra_usage_check.py"
+    empty = {
+        "n_unadopted": 0,
+        "unadopted_ids": [],
+        "n_parked_stale": 0,
+        "unadopted": [],
+        "error": None,
+    }
+    if not path.is_file():
+        empty["error"] = "infra_usage_check.py missing"
+        return empty
+    try:
+        spec = importlib.util.spec_from_file_location("infra_usage_check", path)
+        if spec is None or spec.loader is None:
+            empty["error"] = "import spec failed"
+            return empty
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        report = mod.run()
+    except Exception as exc:  # noqa: BLE001 — fail-open for motor
+        empty["error"] = str(exc)
+        return empty
+    unadopted = [
+        {"id": r["id"], "detail": r.get("detail", ""), "status": r["status"]}
+        for r in report.get("surfaces", [])
+        if r.get("status") == "unadopted"
+    ]
+    return {
+        "n_unadopted": report.get("n_unadopted", len(unadopted)),
+        "unadopted_ids": report.get("unadopted_ids", [u["id"] for u in unadopted]),
+        "n_parked_stale": report.get("n_parked_stale", 0),
+        "unadopted": unadopted,
+        "error": None,
+    }
+
+
 def gather_candidates() -> dict:
     observe_root = observe_artifact_root()
     promoted_ids, promotions_allowed, observe_run = observe_promotion_gate(observe_root)
@@ -510,6 +556,7 @@ def gather_candidates() -> dict:
     tier0.sort(key=lambda c: (c["origin"] != "registry", c["evidence_sessions"], c["id"]))
     eval_gated.sort(key=lambda c: (c["origin"] != "registry", c["evidence_sessions"], c["id"]))
     rsi_hindsight = gather_rsi_hindsight()
+    infra_usage = gather_infra_usage()
     return {
         "tier0": tier0,
         "eval_gated": eval_gated,
@@ -523,6 +570,8 @@ def gather_candidates() -> dict:
         "auto_ship_tiers": sorted(auto_ship_tiers(POLICY)),
         "rsi_hindsight_queued": rsi_hindsight,
         "n_rsi_hindsight": len(rsi_hindsight),
+        "infra_usage": infra_usage,
+        "n_infra_unadopted": infra_usage.get("n_unadopted", 0),
     }
 
 
@@ -991,7 +1040,10 @@ def run(apply: bool, force: bool, ledger: bool) -> dict:
                 "eval_gated": [c["title"] for c in g["eval_gated"]],
                 "n_rsi_hindsight": g.get("n_rsi_hindsight", 0),
                 "rsi_hindsight_queued": g.get("rsi_hindsight_queued", []),
-                "rsi_hindsight_stubs": rsi_stubs}
+                "rsi_hindsight_stubs": rsi_stubs,
+                "n_infra_unadopted": g.get("n_infra_unadopted", 0),
+                "infra_usage": g.get("infra_usage"),
+                }
 
     picked = tier0[0]
 
@@ -1038,6 +1090,8 @@ def run(apply: bool, force: bool, ledger: bool) -> dict:
         "n_rsi_hindsight": g.get("n_rsi_hindsight", 0),
         "rsi_hindsight_queued": g.get("rsi_hindsight_queued", [])[:5],
         "rsi_hindsight_stubs": rsi_stubs,
+        "n_infra_unadopted": g.get("n_infra_unadopted", 0),
+        "infra_usage": g.get("infra_usage"),
     }
 
 
@@ -1133,16 +1187,26 @@ def main() -> int:
                 "promotions_allowed": g.get("promotions_allowed"),
                 "n_rsi_hindsight": g.get("n_rsi_hindsight", 0),
                 "rsi_hindsight_queued": g.get("rsi_hindsight_queued", []),
+                "rsi_queue_depth_warn": g.get("n_rsi_hindsight", 0) >= RSI_QUEUE_DEPTH_WARN,
+                "rsi_queue_depth_threshold": RSI_QUEUE_DEPTH_WARN,
+                "n_infra_unadopted": g.get("n_infra_unadopted", 0),
+                "infra_usage": g.get("infra_usage"),
             }, indent=2))
         else:
+            n_rsi = g.get("n_rsi_hindsight", 0)
+            n_infra = g.get("n_infra_unadopted", 0)
             print(f"[maintain-tick] tier-0 candidates: {len(g['tier0'])} "
                   f"(registry_eligible={g['n_registry_eligible']}, "
                   f"observe_blocked={len(g['blocked_by_observe_gate'])}, "
-                  f"rsi_hindsight={g.get('n_rsi_hindsight', 0)}, "
+                  f"rsi_hindsight={n_rsi}, "
+                  f"infra_unadopted={n_infra}, "
                   f"prose_open={g['n_prose_open']}) · "
                   f"observe_run={g.get('observe_run') or '—'} · "
                   f"policy auto-ship tiers={g['auto_ship_tiers']} · "
                   f"go_live.apply={go_live}")
+            if n_rsi >= RSI_QUEUE_DEPTH_WARN:
+                print(f"  ⚠ RSI queue depth {n_rsi} ≥ {RSI_QUEUE_DEPTH_WARN} "
+                      f"(intake>drain — CONVERT stubs ≥48h; triage LATEST.md / --list)")
             for c in g["tier0"]:
                 print(f"  ✓ [{c['origin']}] {c['title']}  (ev={c['evidence_sessions']})")
             if g["eval_gated"]:
@@ -1154,9 +1218,13 @@ def main() -> int:
                 for c in g["blocked_by_observe_gate"][:8]:
                     print(f"    ▸ {c['title']} — {c['reason']}")
             if g.get("rsi_hindsight_queued"):
-                print(f"  ↻ {g['n_rsi_hindsight']} RSI-hindsight queued (cite artifacts/rsi-hindsight/LATEST.md — not auto-picked):")
+                print(f"  ↻ {n_rsi} RSI-hindsight queued (cite artifacts/rsi-hindsight/LATEST.md — not auto-picked):")
                 for r in g["rsi_hindsight_queued"][:5]:
                     print(f"    ▸ {r['id']} {r['project']}/{r['session_prefix']}: {r['text_preview'][:80]}")
+            if n_infra:
+                ids = (g.get("infra_usage") or {}).get("unadopted_ids") or []
+                print(f"  ✗ {n_infra} infra UNADOPTED (just infra-usage-check — retire/wire/park): "
+                      f"{', '.join(ids[:5])}")
             if g["n_prose_open"]:
                 print(f"  ℹ {g['n_prose_open']} prose `[ ]` in improvement-log (telemetry only — not a motor source)")
         return 0

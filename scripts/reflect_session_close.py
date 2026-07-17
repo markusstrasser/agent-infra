@@ -410,18 +410,20 @@ def _current_project() -> str:
 
 
 def pending_nudge(here: str | None = None) -> str | None:
-    """One-line SessionStart nudge, RELEVANCE-GATED by project (added 2026-06-16: was
-    project-blind, so a cross-project digest nudged — and dragged — an unrelated focused
-    session into closing it). Surface an IN-PROJECT close fully; collapse other-project
-    closes to a count. The queue is still drained by whichever session runs `/rsi close`
-    regardless — this governs only the unprompted nudge."""
+    """One-line SessionStart nudge, THIS-PROJECT only (2026-07-10).
+
+    Cross-project digests are not SessionStart noise — drain via `/rsi close` or
+    `just loop-funnel` when the operator chooses. The queue is still drained by
+    whichever session runs `/rsi close`; this governs only the unprompted nudge.
+    """
     if not DIGEST_LOG.exists():
         return None
     if here is None:
         here = _current_project()
+    if not here:
+        return None
     closed = _closed_sessions()
     in_project: dict | None = None
-    other = 0
     for line in DIGEST_LOG.read_text(encoding="utf-8", errors="replace").splitlines():
         try:
             row = json.loads(line)
@@ -430,23 +432,15 @@ def pending_nudge(here: str | None = None) -> str | None:
         sid = row.get("session_id")
         if not (row.get("invoke_skill") and sid and sid not in closed):
             continue
-        if here and row.get("project") == here:
-            in_project = row          # latest in-project wins
-        else:
-            other += 1
-    if in_project is not None:
-        session_short = str(in_project.get("session_id", ""))[:8]
-        tail = f" (+{other} pending in other projects — `just loop-funnel`)" if other else ""
-        return (
-            f"Prior {here} session {session_short} has an RSI close digest. "
-            f"Run `/rsi close` to verify one claim and attach evidence.{tail}"
-        )
-    if other:
-        return (
-            f"{other} RSI close digest(s) pending in other projects (none in "
-            f"{here or 'this project'}) — drain via `/rsi close` or review `just loop-funnel`."
-        )
-    return None
+        if row.get("project") == here:
+            in_project = row  # latest in-project wins
+    if in_project is None:
+        return None
+    session_short = str(in_project.get("session_id", ""))[:8]
+    return (
+        f"Prior {here} session {session_short} has an RSI close digest. "
+        f"Run `/rsi close` to verify one claim and attach evidence."
+    )
 
 
 def main(argv: list[str] | None = None) -> int:

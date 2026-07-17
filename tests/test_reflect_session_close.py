@@ -143,15 +143,27 @@ class TestReflectSessionClose:
     def test_pending_nudge_after_digest(self, paths):
         _write_intent(paths["queue"], "sess-nudge", paths["transcript"])
         rsc.drain_queue()
-        nudge = rsc.pending_nudge()
+        nudge = rsc.pending_nudge(here="agent-infra")
         assert nudge is not None
         assert "/rsi close" in nudge
+        assert "other projects" not in nudge
 
     def test_pending_nudge_cleared_after_ack(self, paths):
         _write_intent(paths["queue"], "sess-nudge", paths["transcript"])
         rsc.drain_queue()
         rsc.ack_digest("sess-nudge")
-        assert rsc.pending_nudge() is None
+        assert rsc.pending_nudge(here="agent-infra") is None
+
+    def test_pending_nudge_ignores_other_projects(self, paths):
+        _write_intent(paths["queue"], "sess-other", paths["transcript"])
+        rsc.drain_queue()
+        # Rewrite digest project to a foreign repo
+        lines = paths["digest"].read_text(encoding="utf-8").strip().splitlines()
+        row = json.loads(lines[0])
+        row["project"] = "arc-agi"
+        paths["digest"].write_text(json.dumps(row) + "\n", encoding="utf-8")
+        assert rsc.pending_nudge(here="agent-infra") is None
+        assert "other projects" not in (rsc.pending_nudge(here="arc-agi") or "")
 
 
 class TestLatestDigest:

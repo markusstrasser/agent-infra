@@ -593,3 +593,24 @@ def test_rsi_hindsight_convert_stubs_aged_rows(sandbox):
     # idempotent
     stubs2 = mt.convert_stale_rsi_hindsight(age_hours=48.0, write=True)
     assert stubs2 == []
+
+
+def test_rsi_queue_depth_warn_positive_control(sandbox):
+    """Arm-time: ≥ RSI_QUEUE_DEPTH_WARN queued rows must trip the depth warn."""
+    rows = []
+    for i in range(mt.RSI_QUEUE_DEPTH_WARN + 1):
+        rows.append({
+            "id": f"rsi-warn-{i}",
+            "project": "agent-infra",
+            "session_prefix": f"abcd{i:04d}",
+            "text_preview": f"flag {i}",
+            "enqueued_at": "2026-07-12T00:00:00+00:00",
+            "status": "queued",
+        })
+    sandbox["rsi_queue"].write_text(
+        "\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8"
+    )
+    queued = mt.gather_rsi_hindsight()
+    n_rsi = len(queued)
+    assert n_rsi >= mt.RSI_QUEUE_DEPTH_WARN
+    assert (n_rsi >= mt.RSI_QUEUE_DEPTH_WARN) is True

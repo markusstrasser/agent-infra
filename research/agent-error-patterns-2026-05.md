@@ -150,3 +150,57 @@ warranted.
 **Net:** the recurrent error mass is already-guarded, external, or self-correcting. One
 real bug fixed. Zero new hooks justified autonomously; one (MCP fallback) worth a
 proposal if the 84 exa spin-sessions are deemed costly enough.
+
+### 2026-07-17 — 14-day re-scan (window 2026-07-03 → 2026-07-17): exa spin gone, codex `wait` artifact, telemetry gap
+
+Same method as above, new window. DB now 6.5 GB; last tool-call 2026-07-17T07:51Z.
+
+**Volume.** 36,583 error tool-calls vs 138,537 success = **20.8%** (May: ~18%).
+Vendor split: codex 24,387 err / 60,093 ok; claude 12,196 err / 78,444 ok.
+
+**Tool mix shifted.** codex `exec` 19,149 (new dominant name; legacy `exec_command`
+2,582) · claude Bash 7,127 · claude Read 3,681 · codex `wait` 2,169 · claude Edit 492.
+
+**NEW classification artifact — codex `wait`.** 1,790 / 2,169 `wait` "errors" carry
+the signature `Script completed Wall time …` — i.e. normal poll output from a
+*completed* background exec session, ingested with `kind='error'`. Same class as
+`Sibling tool call errored`: harness/ingest artifact, not agent failure. Exclude
+from triage; fix the ingest classifier, not the agent.
+
+**Hook-blocks shrunk.** 887 hook-block/artifact events (≈2.4% of errors; was 6.1%).
+Top: `pretool-bash-loop-guard` 371, ast/pretool python3 180, `pretool-timeout` 65 —
+guardrails firing correctly, still not failures.
+
+**Self-correcting builtins unchanged at top.** `File has not been read yet` 465 ·
+`File has been modified since read` 87 (new sig) · codex `apply_patch` verification
+failures ~101. All block instantly and self-correct in one round-trip. No hook.
+
+**MCP rates (claude, ≥50 calls).** exa 34.5% (132/383) · fmp 35.7% (20/56) ·
+research 23.4% (94/401) · biomcp 7.7% · chrome-devtools 7.0%.
+
+**The 84 exa spin-sessions did NOT reproduce: 0 this window.** Session×server spin
+(≥5 errors AND ≥60% error fraction): research 4 · perplexity 2 · fmp 1 · duckdb 1 ·
+biomedical 1 · **exa 0** (22 light sessions, worst 20 errors). The load-bearing
+evidence for build candidate #2 (MCP fallback as architecture) was not a stable
+base rate — either routing discipline improved or May was a bad-exa fortnight.
+**Keep #2 parked; re-measure before proposing again.**
+
+**Perplexity 401 mostly resolved.** 17 genuine MCP 401s (was 84 live). Beware
+text-matching: 3,386 error events contain "401", but attributing by *tool* shows
+codex exec 1,700 / claude Read 880 / wait 450 — substring hits inside shell output,
+not auth failures. Attribute by tool, never by error-text substring.
+
+**genomics MCP: 0 calls in window** (June: 86 calls, 6 errors = 7%). May's build
+candidate #4 (45.9% error rate) is stale — operators route through `just`
+control-plane recipes now. **Closed as moot.**
+
+**codex `verify_claim`: 56/56 errors (100%)** — a dead route being hammered. Fix
+the config or stop calling it; this is the one clear agent-side waste this window.
+
+**Projects.** genomics/codex 17,599 (#1 again) · arc-agi 7,361 claude + 5,280 codex
+(new entrant, #2) · genomics/claude 2,257 · gi_rung0 1,117 · agent-infra 615+553.
+
+**NEW telemetry gap.** `sessions` now has 4 vendors (codex, claude, cursor-agent,
+kimi-cli) but cursor + kimi contribute **0 rows** to `tool_calls`. Every rate above
+is codex+claude only. The fleet's newest agents are invisible to this DB — the
+ingest lane for new vendors is the actual gap to fix before the next re-scan.
