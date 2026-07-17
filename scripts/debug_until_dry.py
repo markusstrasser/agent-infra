@@ -445,6 +445,8 @@ def main() -> int:
     ap.add_argument("--verify-timeout", type=int, default=600, help="seconds per verify pass")
     ap.add_argument("--memo", type=Path, default=None)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--no-mint-fix-row", action="store_true",
+                    help="skip minting the fix-campaign backlog row on completion")
     args = ap.parse_args()
     try:
         scout_backends = parse_backend_spec(args.scout_backend)
@@ -669,6 +671,37 @@ def main() -> int:
     print(f"findings: {n_conf} confirmed / {len(memo)} total")
     print(f"drill:    cat {json_path}")
     print(f"next:     read {md_path}  (confirmed bugs first)")
+
+    # Close the audit->fix loop: an audit whose findings sit only in a (typically
+    # gitignored) memo needs an operator to say "fix these" — measured twice on
+    # 2026-07-16/17 (arc-agi bughunt: 'Fix these ... parallelize', then 'say which
+    # slice to start'). Mint ONE class-A row on the audited repo's backlog so the
+    # fix campaign reaches the repo's dispatch surface (`just next-up`) and fires
+    # under standing authorization, no relay needed. Fail-soft: repos without the
+    # backlog CLI just skip. Same shape as arc-agi's `just attack-targets` fix for
+    # the 5x-measured operator-prompted attack-wave class.
+    if not args.dry_run and n_conf > 0 and not args.no_mint_fix_row:
+        backlog_cli = repo / "loop" / "idea_backlog.py"
+        if backlog_cli.is_file():
+            row_id = f"fix-campaign-{datetime.now().strftime('%Y-%m-%d')}-{json_path.stem[:24]}"
+            mint = subprocess.run(
+                ["uv", "run", "python3", str(backlog_cli), "add", row_id,
+                 "--title",
+                 f"Apply {n_conf} confirmed audit findings from {md_path.name} "
+                 f"({'converged' if converged else 'CAPPED-not-dry'}; 'confirmed' = scout "
+                 f"self-assessment — verify-before-fix per finding). Close requires "
+                 f"`just audit-ledger coverage {md_path}` green.",
+                 "--klass", "A", "--walls", "none", "--mints", "characterization",
+                 "--src", str(md_path)],
+                cwd=repo, capture_output=True, text=True, check=False,
+            )
+            if mint.returncode == 0:
+                print(f"minted:   backlog row {row_id} (fix campaign on dispatch surface)")
+            else:
+                tail = (mint.stderr or mint.stdout).strip().splitlines()
+                print(f"minted:   FAILED ({tail[-1] if tail else 'unknown'}) — mint manually")
+        else:
+            print("minted:   skipped (repo has no loop/idea_backlog.py)")
     return 0
 
 
