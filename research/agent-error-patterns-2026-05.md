@@ -204,3 +204,36 @@ the config or stop calling it; this is the one clear agent-side waste this windo
 kimi-cli) but cursor + kimi contribute **0 rows** to `tool_calls`. Every rate above
 is codex+claude only. The fleet's newest agents are invisible to this DB — the
 ingest lane for new vendors is the actual gap to fix before the next re-scan.
+
+### 2026-07-17 (later same day) — claims re-probed, two fixed at the root, one corrected
+
+**Telemetry-gap claim above is WRONG in letter, right in spirit.** Cursor contributes
+**41,916** tool_calls rows and kimi **223** — but ALL have `ts_start IS NULL`, so any
+time-windowed scan (like this memo's) silently drops them. Probe:
+`SELECT s.vendor, SUM(tc.ts_start IS NULL) FROM tool_calls tc JOIN runs r ... GROUP BY 1`
+→ cursor 41916/41916 NULL, kimi 223/223 NULL. Root cause is **source data, not the
+adapters**: cursor transcripts (checked 20 newest `~/.cursor/projects/*/agent-transcripts/`)
+carry no timestamps and no tool_result blocks (cursor rows are all `status='started'`,
+error rates unmeasurable); kimi transcripts likewise (only the deliberately-skipped
+`wire.jsonl` has timestamps). Windowing must go through `runs.started_at` (file mtime,
+labeled proxy) for these vendors: `COALESCE(tc.ts_start, r.started_at)`.
+
+**codex `wait` artifact — FIXED at ingest.** Re-probed: 1,702/2,169 `wait` errors carry
+`Script completed`. The codex shell harness prints an authoritative first-line verdict
+(`Script completed` / `Script running` / `Script failed` / `aborted by user`);
+`_is_error_payload` was substring-matching the whole output — the exact
+"attribute by tool, never by error-text substring" trap this memo warns about, baked
+into the ingest itself. Fixed in `src/agentlogs/adapters/codex.py`: verdict line beats
+substring (structured `is_error`/`error` keys still beat both); PARSER_VERSION bumped
+`2026-03-19.1 → 2026-07-17.1` to re-ingest history (delete-before-insert per import);
+tests in `tests/agentlogs/test_codex_status_classification.py`. Kimi's classifier has
+the same substring heuristic but kimi tool messages carry **no** structured signal at
+all (probed all `role:"tool"` rows: keys are only content/role/tool_call_id) — left
+as-is, nothing principled to switch to.
+
+**codex `verify_claim` 56/56 — root-caused and FIXED.** Every error is
+`"Exa not configured — set EXA_API_KEY"`: codex's `[mcp_servers.research]` block in
+`~/.codex/config.toml` passes no env (Claude's `.mcp.json` injects `EXA_API_KEY` etc.).
+Fixed at the server, once for all clients: `research-mcp` `main()` now backfills
+`os.environ` from `~/.env` (setdefault only — explicit env wins). Live-verified: keys
+load, sentinel env survives.

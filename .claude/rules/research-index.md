@@ -152,6 +152,14 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-07-09-gpt-5.6-suite.md` | 2026 07 09 Gpt 5.6 Suite | TODO |
 | `2026-07-09-grok-4.5-release.md` | Grok 4.5 — transport + named niche (critique `grok` axis, scout `--scout-model`); not Default Routing | Before promoting Grok into defaults, adding critique axes, or picking scout models for tool-loop audits |
 | `2026-07-09-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-09 (deterministic) | TODO |
+| `2026-07-10-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-10 (deterministic) | TODO |
+| `2026-07-11-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-11 (deterministic) | TODO |
+| `2026-07-14-cleanup-campaign-ledger.md` | 2026-07-14 Cleanup Sessions — Ledger | TODO |
+| `2026-07-14-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-14 (deterministic) | TODO |
+| `2026-07-14-storage-cost-dossier.md` | Storage-cost dossier — reduce footprint, keep full functionality | TODO |
+| `2026-07-15-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-15 (deterministic) | TODO |
+| `2026-07-16-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-16 (deterministic) | TODO |
+| `2026-07-17-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-17 (deterministic) | TODO |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
 | `adversarial-case-library.md` | Adversarial Case Library: The Best "Calling BS" Reviews | TODO |
 | `agent-behavior-refresh-2026-04.md` | Agent Behavior Delta — Memory, Self-Modification, Sycophancy | TODO |
@@ -160,7 +168,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `agent-ecosystem-weekly-2026-03-20.md` | Agent Ecosystem Weekly 2026 03 20 | TODO |
 | `agent-ecosystem-weekly-2026-03-26.md` | Agent Ecosystem Weekly 2026 03 26 | TODO |
 | `agent-engineering-refresh-2026-04.md` | Agent Engineering Delta Refresh — April 2026 | TODO |
-| `agent-error-patterns-2026-05.md` | Agent Error Patterns — agentlogs mining (2026-05-30) | TODO |
+| `agent-error-patterns-2026-05.md` | Agent Error Patterns — agentlogs mining; 07-17 re-scan: wait/verify_claim fixed, NULL-ts vendors | Proposing error-triage hooks; any agentlogs error-rate scan (windowing + classification traps) |
 | `agent-infra-mcp.md` | Meta Knowledge MCP — Research & Decision Record | TODO |
 | `agent-knowledge-frontier-2026-04.md` | Agent Knowledge Frontier 2026 04 | TODO |
 | `agent-llm-eval-frontier-2026-05-11.md` | Agent / LLM Evaluation Frontier - Verification, Scientific Reasoning, and Gen... | TODO |
