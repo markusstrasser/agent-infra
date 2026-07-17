@@ -29,7 +29,7 @@ from .common import (
 )
 
 PARSER_NAME = "codex"
-PARSER_VERSION = "2026-03-19.1"
+PARSER_VERSION = "2026-07-17.1"
 CLIENT = "codex-cli"
 
 
@@ -438,13 +438,24 @@ def _sandbox_mode(value: object) -> str | None:
     return str(value)
 
 
+# The codex shell harness (exec/wait/exec_command) prints an authoritative
+# verdict on the first output line. Trust it over substring matching — script
+# stdout containing the word "error" is not a tool failure (2026-07-17 re-scan:
+# 1,702/2,169 `wait` "errors" were `Script completed` poll output).
+_VERDICT_SUCCESS = ("script completed", "script running")
+_VERDICT_ERROR = ("script failed", "aborted by user")
+
+
 def _is_error_payload(payload: object) -> bool:
-    text = text_from_content(payload).lower()
-    if "error" in text or "exception" in text or "denied" in text:
+    if isinstance(payload, dict) and (payload.get("is_error") or payload.get("error")):
         return True
-    if isinstance(payload, dict):
-        return bool(payload.get("is_error") or payload.get("error"))
-    return False
+    text = text_from_content(payload).lower()
+    first_line = text.lstrip().split("\n", 1)[0]
+    if first_line.startswith(_VERDICT_ERROR):
+        return True
+    if first_line.startswith(_VERDICT_SUCCESS):
+        return False
+    return "error" in text or "exception" in text or "denied" in text
 
 
 def _run_status(events: list[EventRow]) -> str:
