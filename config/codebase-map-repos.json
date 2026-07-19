@@ -23,7 +23,10 @@
     },
     "personal": {
       "root": "~/Projects/personal",
-      "source_dirs": ["apps/phenome/scripts", "apps/phenome/src"],
+      "source_dirs": [
+        "_system/runtime/knowledge/scripts",
+        "_system/runtime/knowledge/src"
+      ],
       "compact": false
     }
   }

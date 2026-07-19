@@ -8,7 +8,10 @@ def test_sample_for_grouped_personal_protected_paths() -> None:
 
 
 def test_sample_for_nested_personal_append_only_paths() -> None:
-    pattern = "(^|/)(admin/(tax|immigration)|health/(research|entities|self-reports)|apps/phenome/docs/research)/"
+    pattern = (
+        "(^|/)(admin/(tax|immigration)|health/(research|entities|self-reports)|"
+        "_system/runtime/knowledge/docs/research)/"
+    )
     assert _sample_for(pattern) == "admin/tax/sample.dat"
 
 

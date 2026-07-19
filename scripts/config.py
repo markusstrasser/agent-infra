@@ -83,7 +83,7 @@ KNOWLEDGE_ELIGIBLE_PATTERNS = {
     "intel": ["analysis/entities/*.md"],
     "personal": [
         "health/research/**/*.md",
-        "apps/phenome/docs/research/**/*.md",
+        "_system/runtime/knowledge/docs/research/**/*.md",
         "health/entities/genes/*.md",
     ],
     "genomics": ["docs/research/*.md"],  # was empty (A6) but hook already indexes 22 files here
