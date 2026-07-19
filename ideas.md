@@ -296,6 +296,7 @@ Confusing native runtime convenience with your system’s epistemic source of tr
 
 ## Backlog
 
+- [ ] **Blocked-run terminal-state fold (W3 of ai-python integration)** — agentlogs derived per-session classification `completed | blocked-on-human | died` via HUMAN.md ask-write correlation; consumer operator-status-briefing/doctor ("N runs ended blocked on you"). GATE: W1/W2 live ≥1 week (shipped f9e128b 2026-07-19) AND briefing still can't answer "what's blocked on me" AND ask↔session join probed (asks now carry optional `session:` line). (Source: .claude/plans/e3eceeaf-ai-python-pattern-integration.md; research/2026-07-19-vercel-ai-python-deep-dive.md)
 - [ ] **Cron/auto-update skill** — Cross-project daily job monitoring new papers/tools/databases. (Source: genomics goals elicitation 2026-02-28)
 - [ ] **Telegram approval bot** — Notify + approve/reject/modify orchestrator tasks from phone. ~50 lines Python + BotFather token. Slots into `requires_approval` gate. (Source: orchestrator plan session 2026-03-01)
 - [ ] **Evolutionary/genetic parallel mutation** — Spawn N parallel sub-agents with injected noise, select survivors, mutate again. Divergence as structural byproduct of mutation+selection, not brainstorming. Blocked on orchestrator parallel sub-agent infrastructure. (Source: model-review 2026-03-06, G1)
