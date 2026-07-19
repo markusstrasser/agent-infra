@@ -11,6 +11,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | File | Topic | Consult before |
 |------|-------|----------------|
 | `2026-04-25-tool-attention-and-skill-bank.md` | Tool Attention + Co-Evolving Skill Bank — Two papers from arxiv week of 2026-... | TODO |
+| `2026-07-19-vercel-ai-python-deep-dive.md` | Vercel AI SDK Python — NO-ADOPT; harvest hook-suspend/replay, blocked-state fold, two-plane tool results | Building in-process Python agent loops, approval gates, subagent return contracts |
 | `2026-05-15-cross-project-knowledge-infra-dossier.md` | Cross-Project Knowledge Infrastructure — The Dossier | TODO |
 | `2026-05-27-agent-safety-alignment-4w.md` | Safety/alignment — METR ≥16% cheating; Opus 4.7 sycophancy halved; Exploration Hacking | Capability evals; sycophancy mitigation; sandboxing/control proposals |
 | `2026-05-27-agentic-coding-swe-4w.md` | Agentic coding & SWE — SWE-bench inflation, Claude Code v2.1.139, HiL-Bench | Extending dashboard/orchestrator; SWE benchmarking; epistemic-discipline hooks |
@@ -160,6 +161,9 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-07-15-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-15 (deterministic) | TODO |
 | `2026-07-16-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-16 (deterministic) | TODO |
 | `2026-07-17-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-17 (deterministic) | TODO |
+| `2026-07-18-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-18 (deterministic) | TODO |
+| `2026-07-19-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-19 (deterministic) | TODO |
+| `2026-07-19-vercel-ai-python-deep-dive.md` | Vercel AI SDK for Python (`vercel-labs/ai-python`) — code deep-dive | TODO |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
 | `adversarial-case-library.md` | Adversarial Case Library: The Best "Calling BS" Reviews | TODO |
 | `agent-behavior-refresh-2026-04.md` | Agent Behavior Delta — Memory, Self-Modification, Sycophancy | TODO |
