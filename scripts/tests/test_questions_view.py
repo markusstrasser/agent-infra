@@ -22,6 +22,8 @@ def _isolate_ambient_feeders(monkeypatch, tmp_path):
     import predictions
     monkeypatch.setattr(predictions, "LEDGER", tmp_path / "_no_predictions.jsonl")
     monkeypatch.setattr(qv, "CLASH_LOG", tmp_path / "_no_clash.jsonl")
+    monkeypatch.setattr(qv, "HUMAN_MD_ROOT", tmp_path / "_no_projects")
+    monkeypatch.setattr(qv, "STEWARD_DIR", tmp_path / "_no_steward")
 
 DECISION = """# Fix the rate-limit gate — pgrep over-counts, gate stuck closed
 
@@ -246,3 +248,109 @@ def test_render_no_drain_verb_when_fresh():
                     prompt="new proposal", created=fresh, ref="/tmp/x.md")
     section = qv.render_section(qv.ViewResult(questions=[q]))
     assert "questions-drain" not in section
+
+
+# ── human-md feeder (plan e3eceeaf: W1 open asks + W2 awaiting-agent fold) ───
+ARC_STYLE = """# HUMAN.md — escalation outbox
+
+Format (status tag: open | answered):
+```
+## YYYY-MM-DD HH:MM — <one-line ask>  STATUS
+the call: <question>  [open]
+```
+
+## 2026-07-20 09:00 — Approve the eval budget bump  [open]
+context: stage-2 needs $80
+the call: yes/no?
+
+## 2026-07-20 10:00 — Pick the corpus cutover date  [answered: Aug 1, go]
+context: blocking the sync rewrite
+
+## 2026-07-21 08:00 — Name the held-out reserve size  [answered: 20%]
+consumed: 2026-07-21 abc1234 — reserve wired into splitter
+"""
+
+HUTTER_STYLE = """# HUMAN.md
+
+### 2026-07-20 · restart the grinder with wider beam? · [open]
+context: beam=8 plateaued
+
+### 2026-07-01 · old pre-cutoff ask · [answered: yes]
+never consumed, but ask predates the cutoff fence
+"""
+
+
+def _mk_projects(tmp_path, **files):
+    root = tmp_path / "projects"
+    for repo, text in files.items():
+        d = root / repo
+        d.mkdir(parents=True)
+        (d / "HUMAN.md").write_text(text)
+    return root
+
+
+def test_human_md_open_asks_surface_both_grammars(tmp_path, monkeypatch):
+    root = _mk_projects(tmp_path, arc=ARC_STYLE, hutter=HUTTER_STYLE)
+    monkeypatch.setattr(qv, "HUMAN_MD_ROOT", root)
+    result = qv.collect_questions(tmp_path)  # empty repo → only human-md feeds
+    prompts = [q.prompt for q in result.questions]
+    assert any("eval budget bump" in p for p in prompts)      # ## — style
+    assert any("wider beam" in p for p in prompts)            # ### · style
+    assert all(q.source == "human-md" for q in result.questions)
+    assert len(result.questions) == 2  # fenced template line never counts
+
+
+def test_human_md_fenced_template_excluded(tmp_path, monkeypatch):
+    fence_only = "# H\n\n```\n## 2026-01-01 — template example  [open]\n```\n"
+    monkeypatch.setattr(qv, "HUMAN_MD_ROOT", _mk_projects(tmp_path, r=fence_only))
+    result = qv.collect_questions(tmp_path)
+    assert result.questions == [] and result.awaiting_agent == []
+
+
+def test_human_md_awaiting_agent_fold(tmp_path, monkeypatch):
+    monkeypatch.setattr(qv, "HUMAN_MD_ROOT", _mk_projects(tmp_path, arc=ARC_STYLE, hutter=HUTTER_STYLE))
+    result = qv.collect_questions(tmp_path)
+    waiting = [q.prompt for q in result.awaiting_agent]
+    # answered post-cutoff without consumed: → awaiting
+    assert any("corpus cutover" in p for p in waiting)
+    # answered WITH consumed: → not awaiting; pre-cutoff answered → grandfathered out
+    assert not any("held-out reserve" in p for p in waiting)
+    assert not any("old pre-cutoff" in p for p in waiting)
+    assert len(result.awaiting_agent) == 1
+    # awaiting rows never leak into the operator-question count
+    assert not any("corpus cutover" in q.prompt for q in result.questions)
+
+
+def test_human_md_awaiting_renders_own_subsection(tmp_path, monkeypatch):
+    monkeypatch.setattr(qv, "HUMAN_MD_ROOT", _mk_projects(tmp_path, arc=ARC_STYLE))
+    result = qv.collect_questions(tmp_path)
+    section = qv.render_section(result)
+    assert "Answers waiting on agents (1)" in section
+    assert "consumed:" in section  # the pickup instruction names the marker
+
+
+def test_human_md_nested_depth2_found(tmp_path, monkeypatch):
+    root = tmp_path / "projects"
+    d = root / "anim" / "evolver"
+    d.mkdir(parents=True)
+    (d / "HUMAN.md").write_text("## 2026-07-20 — nested ask  [open]\n")
+    monkeypatch.setattr(qv, "HUMAN_MD_ROOT", root)
+    result = qv.collect_questions(tmp_path)
+    assert len(result.questions) == 1 and "nested ask" in result.questions[0].prompt
+
+
+def test_human_md_bad_file_skipped_not_crash(tmp_path, monkeypatch):
+    root = _mk_projects(tmp_path, ok=ARC_STYLE)
+    bad = root / "bad"
+    bad.mkdir()
+    (bad / "HUMAN.md").mkdir()  # a DIRECTORY named HUMAN.md → read_text raises
+    monkeypatch.setattr(qv, "HUMAN_MD_ROOT", root)
+    result = qv.collect_questions(tmp_path)
+    assert any("human-md/bad" in s for s in result.skipped)
+    assert any("eval budget bump" in q.prompt for q in result.questions)  # peer survives
+
+
+def test_human_md_absent_root_silent(tmp_path, monkeypatch):
+    monkeypatch.setattr(qv, "HUMAN_MD_ROOT", tmp_path / "nowhere")
+    result = qv.collect_questions(tmp_path)
+    assert result.degraded == [] and result.questions == []

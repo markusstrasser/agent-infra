@@ -54,12 +54,20 @@ STEWARD_DIR = Path.home() / ".claude" / "steward-proposals"
 # 2026-04-16 proposals had sat invisible for 2 months).
 STALE_DAYS = 30
 CLASH_LOG = Path.home() / ".claude" / "clash-shadow.jsonl"
+# HUMAN.md feeder (plan e3eceeaf-ai-python-pattern-integration): per-repo escalation
+# outboxes are a READ-ONLY feeder — wakeup-cadence.md always said so; the code now agrees.
+# Depth ≤2 by design; lowercase human.md variants are out of scope (unverified class).
+HUMAN_MD_ROOT = Path.home() / "Projects"
+# Coarse migration fence on the BLOCK (ask) date — the answer date is not derivable
+# from the store. Answered blocks with an ask date before this never enter the
+# awaiting-agent fold (accepted limitation, self-extinguishing; critique fold-in #5).
+HUMAN_CONSUMED_CUTOFF = "2026-07-19"
 
 # Envelope taxonomy — the four classes a human-gated question can be ABOUT.
 CAT_ORDER = ("governance", "goal", "tool", "hook")
 CAT_LABEL = {"governance": "Governance", "goal": "Goals", "tool": "Tools", "hook": "Hooks"}
 SOURCE_LABEL = {"decisions-pending": "decision", "steward-proposals": "steward",
-                "predictions": "prediction", "clash": "clash"}
+                "predictions": "prediction", "clash": "clash", "human-md": "human"}
 
 
 # ── The envelope (the VIEW's lingua franca) ──────────────────────────────────
@@ -81,6 +89,10 @@ class ViewResult:
     questions: list[Question] = field(default_factory=list)
     degraded: list[str] = field(default_factory=list)  # feeder-LEVEL, LOUD (P8 fail-loud)
     skipped: list[str] = field(default_factory=list)    # item-level, quiet footnote count
+    # W2 lane — answered asks no agent has claimed via a `consumed:` line. Kept OUT of
+    # `questions` on purpose: pulse's questions_count / JSON `count` mean OPERATOR
+    # questions only (critique fold-in #2). Advisory signal: "agent claimed", not verified.
+    awaiting_agent: list[Question] = field(default_factory=list)
 
 
 # ── small pure helpers (testable in isolation) ───────────────────────────────
@@ -344,10 +356,92 @@ def _collect_clash(result: ViewResult) -> None:
         ))
 
 
+# ── HUMAN.md feeder (per-repo escalation outboxes — read-only) ───────────────
+# Grammar: a heading line `##`/`###` that carries an ISO date AND a trailing
+# [open] / [answered…] tag. Covers both live shapes (`## DATE — ask  [open]` and
+# `### date · ask · [open]`). Fenced code regions are stripped first — template
+# examples live in fences and must never count (the 5-vs-2 miscount, premise scout).
+# Sibling grammar: arc-agi/loop/human_lint.py (same #{2,3} + tag conventions);
+# cross-repo import isn't possible from the hub, so parity is held by fixtures
+# copied from the real formats (principle 9: vendored grammar behind drift tests).
+_HUMAN_HEAD_RE = re.compile(
+    r"^(?P<hashes>#{2,3})\s+(?P<title>.*\d{4}-\d{2}-\d{2}.*?)\s*"
+    r"\[(?P<tag>open|answered\b[^\]]*)\]\s*$",
+    re.I,
+)
+_HUMAN_CONSUMED_RE = re.compile(r"^\s*consumed:\s*\S", re.I | re.M)
+_HUMAN_DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+
+def _strip_fences(text: str) -> str:
+    """Blank out fenced code blocks (``` / ~~~) so template examples never parse."""
+    out: list[str] = []
+    fence = None
+    for line in text.splitlines():
+        s = line.lstrip()
+        if fence is None and (s.startswith("```") or s.startswith("~~~")):
+            fence = s[:3]
+            out.append("")
+            continue
+        if fence is not None:
+            if s.startswith(fence):
+                fence = None
+            out.append("")
+            continue
+        out.append(line)
+    return "\n".join(out)
+
+
+def _parse_human_md(path: Path, text: str, result: ViewResult) -> None:
+    """Parse one HUMAN.md into open questions + answered-awaiting-agent rows."""
+    repo = path.parent.name
+    lines = _strip_fences(text).splitlines()
+    heads: list[tuple[int, re.Match[str]]] = [
+        (i, m) for i, line in enumerate(lines) if (m := _HUMAN_HEAD_RE.match(line))
+    ]
+    for n, (i, m) in enumerate(heads):
+        body_end = heads[n + 1][0] if n + 1 < len(heads) else len(lines)
+        body = "\n".join(lines[i + 1 : body_end])
+        title = m.group("title").strip().strip("·—- ")
+        date_m = _HUMAN_DATE_RE.search(title)
+        created = date_m.group(0) if date_m else ""
+        prompt = _truncate(title, 200)
+        cat = _field_value(body, "category") or ""
+        q = Question(
+            id=make_id("human-md", f"{path}:{created}:{_norm(prompt)[:60]}"),
+            source="human-md",
+            category=cat if cat in CAT_ORDER else "goal",
+            prompt=prompt,
+            created=created,
+            ref=f"{path}:{i + 1}",
+            detail=f"repo={repo}",
+        )
+        tag = m.group("tag").lower()
+        if tag == "open":
+            result.questions.append(q)
+        elif created >= HUMAN_CONSUMED_CUTOFF and not _HUMAN_CONSUMED_RE.search(body):
+            result.awaiting_agent.append(q)
+
+
+def _collect_human_md(result: ViewResult, *, root: Path | None = None) -> None:
+    root = root or HUMAN_MD_ROOT
+    try:
+        files = sorted(set(root.glob("*/HUMAN.md")) | set(root.glob("*/*/HUMAN.md")))
+    except OSError as e:  # root-level discovery failure → fail loud (P8)
+        result.degraded.append(f"[DEGRADED: human-md unreadable — {type(e).__name__}]")
+        return
+    for f in files:
+        try:
+            _parse_human_md(f, f.read_text(encoding="utf-8", errors="replace"), result)
+        except Exception as e:  # one bad FILE → skip + count, never crash the section
+            result.skipped.append(f"human-md/{f.parent.name} ({type(e).__name__})")
+
+
 def _dedup(questions: list[Question]) -> list[Question]:
     """Dedup by stable id, then by normalized prompt across feeders. More-structured
     sources win (decisions-pending > steward > clash)."""
-    rank = {"decisions-pending": 0, "steward-proposals": 1, "predictions": 2, "clash": 3}
+    rank = {"decisions-pending": 0, "steward-proposals": 1, "predictions": 2, "clash": 3,
+            "human-md": 4}
     seen_id: set[str] = set()
     seen_prompt: set[str] = set()
     out: list[Question] = []
@@ -375,6 +469,7 @@ def collect_questions(repo: str | Path = REPO, *, include_clash: bool = False) -
         skip=set(), feeder="steward-proposals", result=result,
     )
     _collect_predictions(result)
+    _collect_human_md(result)
     if include_clash:
         _collect_clash(result)
     result.questions = _collapse_superseded(_dedup(result.questions))
@@ -384,7 +479,7 @@ def collect_questions(repo: str | Path = REPO, *, include_clash: bool = False) -
 # ── rendering ────────────────────────────────────────────────────────────────
 def render_section(result: ViewResult) -> str | None:
     """The focused 'Questions for you' markdown, or None when there is nothing to show."""
-    if not result.questions and not result.degraded:
+    if not result.questions and not result.degraded and not result.awaiting_agent:
         return None
     lines = [
         "## Questions for you",
@@ -429,6 +524,16 @@ def render_section(result: ViewResult) -> str | None:
                 sub += f" · {q.detail}"
             lines.append(sub)
         lines.append("")
+    if result.awaiting_agent:
+        # The mirror lane: operator already answered; an AGENT owes the pickup.
+        # Rendered separately so it never inflates the operator's question count.
+        lines.append(f"### Answers waiting on agents ({len(result.awaiting_agent)})")
+        lines.append("_Answered asks with no `consumed:` line — pick up, or record "
+                     "`consumed: <date> <ref> — deferred: <why>`._")
+        for q in sorted(result.awaiting_agent, key=lambda x: x.created, reverse=True):
+            lines.append(f"- **{q.prompt}**")
+            lines.append(f"  ↳ {q.detail} · {q.created or '?'} · `{_short(q.ref)}`")
+        lines.append("")
     if result.skipped:
         shown = ", ".join(result.skipped[:5])
         more = f" (+{len(result.skipped) - 5} more)" if len(result.skipped) > 5 else ""
@@ -462,7 +567,11 @@ def main() -> int:
             "questions": [asdict(q) for q in result.questions],
             "degraded": result.degraded,
             "skipped": result.skipped,
+            # `count` = OPERATOR questions only (stable contract); the agent-owed
+            # lane is additive under its own keys.
             "count": len(result.questions),
+            "awaiting_agent": [asdict(q) for q in result.awaiting_agent],
+            "awaiting_count": len(result.awaiting_agent),
         }, indent=2))
         return 0
 
