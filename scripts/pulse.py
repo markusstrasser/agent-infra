@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
@@ -305,6 +306,8 @@ def gather_status(repo: Path | None = None) -> dict:
         "funnel": funnel,
         "funnel_needs_attention": lf.needs_attention(funnel),
         "questions_count": len(questions.questions),
+        "questions_degraded": len(questions.degraded),
+        "awaiting_agent_count": len(questions.awaiting_agent),
         "questions_section": qsection,
         "predictions_due": due,
         "steward_reconcile": reconcile,
@@ -319,6 +322,12 @@ def status_needs_attention(m: dict) -> bool:
     if m["funnel_needs_attention"]:
         return True
     if m["questions_count"] > 0:
+        return True
+    # A degraded feeder must NOT read as all-clear (P8 fail-loud): with 0 questions
+    # and a dead feeder the inbox used to be deleted, hiding the degradation.
+    if m.get("questions_degraded", 0) > 0:
+        return True
+    if m.get("awaiting_agent_count", 0) > 0:
         return True
     if m["canary"]["alarm_count"] > 0:
         return True
@@ -423,6 +432,8 @@ def cmd_status(args) -> int:
             "disposition_queue": m["funnel"]["disposition_queue"],
             "unclassified": m["funnel"]["unclassified"],
             "questions_count": m["questions_count"],
+            "questions_degraded": m.get("questions_degraded", 0),
+            "awaiting_agent_count": m.get("awaiting_agent_count", 0),
             "predictions_due_count": len(m["predictions_due"]),
             "steward_reconcile_candidates": (m.get("steward_reconcile") or {}).get("candidate_count", 0),
             "canary_alarm_count": m["canary"]["alarm_count"],
@@ -438,7 +449,9 @@ def cmd_status(args) -> int:
         path = Path(args.inbox_path)
         if status_needs_attention(m):
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(digest, encoding="utf-8")
+            tmp = path.with_suffix(path.suffix + ".tmp")
+            tmp.write_text(digest, encoding="utf-8")
+            os.replace(tmp, path)
             print(f"[pulse status] wrote {path}")
         else:
             path.unlink(missing_ok=True)
