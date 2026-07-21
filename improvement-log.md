@@ -19,6 +19,12 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 > Session-analyst / `/observe` retro write behavioral findings as `[obs]`, never `[ ]`.
 > Backfill of the pre-2026-06-08 log: `scripts/reclassify_improvement_log.py`.
 
+### [2026-07-21] [x] SHIP: sessionstart-recent-deliverables SHADOW scaffold (advisory held)
+- **What:** `skills/hooks/sessionstart-recent-deliverables.py` — git-log path filter + audit/debug fallback; `RECENT_DELIVERABLES_MODE=shadow` logs to `~/.claude/sessionstart-recent-deliverables-shadow.jsonl`; advisory inject held until ≥2026-07-24 ablation close. **Not wired** into global settings (propose when graduating).
+- **Probe:** agent-infra cwd → 5 `docs/audit/*` paths logged.
+- **Source:** observe CONVERT + Fable SHIP WITH EDITS · skills@13732ea
+- **Status:** [x] shadow scaffold; open residual = wire+advisory after 7/24 (was `[ ]` HOOK 2026-07-20)
+
 ### [2026-07-21] [x] SHIP: expected_governance denial KPI split (closes 2026-07-16 `[ ]`)
 - **What:** `SupervisionType.objective=False` on structural `denial`; `governance_denials` on report; excluded from reduce_error + correction_rate; not counted in AIR correction turns.
 - **Conservation (7d live):** reduce_error 591→4 + gov 587; correction_rate 29.77%→1.08%; events+gov == sum(by_type).
