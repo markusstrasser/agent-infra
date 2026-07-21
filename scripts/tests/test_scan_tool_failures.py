@@ -38,6 +38,20 @@ class TestScanToolFailuresShellEnv(unittest.TestCase):
         key, _ = classify(text)
         self.assertEqual(key, "missing-module:duckdb")
 
+    def test_invoker_kind_keys_match_agg_buckets(self):
+        """Regression 2026-07-21: invoker_kind labels must be valid agg counter keys."""
+        kind = mod.invoker_kind("{}", "claude")
+        self.assertEqual(kind, "interactive_agent")
+        # Simulate scan() increment path — key must exist on the bucket template.
+        bucket = {
+            "interactive_agent": 0,
+            "harness": 0,
+            "unknown": 0,
+        }
+        self.assertIn(kind, bucket)
+        bucket[kind] += 1
+        self.assertEqual(bucket["interactive_agent"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()
