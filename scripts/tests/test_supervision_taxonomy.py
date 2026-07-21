@@ -65,11 +65,24 @@ def test_direction_vector_accumulation():
     vec = tax.empty_vector()
     tax.add_to_vector(vec, "over_caution", 2)
     tax.add_to_vector(vec, "rediscovery", 1)
-    tax.add_to_vector(vec, "denial", 3)  # structural → reduce_error
+    tax.add_to_vector(vec, "error_correction", 1)
+    tax.add_to_vector(vec, "denial", 3)  # expected_governance — objective=False, skipped
     assert vec["raise_autonomy"] == 2
     assert vec["grow_coverage"] == 1
-    assert vec["reduce_error"] == 3
+    assert vec["reduce_error"] == 1  # only error_correction; denials excluded
     assert vec["amplify_taste"] == 0
+
+
+def test_denial_objective_false_conservation():
+    """objective_events + governance_denials == sum(by_type) when only denial is non-objective."""
+    by_type = {
+        "over_caution": 2, "rediscovery": 1, "error_correction": 4,
+        "taste_steer": 0, "denial": 587, "repeated_instruction": 15,
+    }
+    assert tax.BY_ID["denial"].objective is False
+    obj = tax.objective_event_count(by_type)
+    assert obj == 2 + 1 + 4 + 15
+    assert obj + by_type["denial"] == sum(by_type.values())
 
 
 def test_taxonomy_is_closed_and_complete():

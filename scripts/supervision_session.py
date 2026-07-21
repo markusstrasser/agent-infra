@@ -149,12 +149,13 @@ def analyze_session(path: Path) -> SessionRecord:
 
             elif msg_type == "user" and obj.get("toolUseResult"):
                 if _is_denial(obj["toolUseResult"]):
+                    # expected_governance — structural permission denial; cost signal only
+                    # (not reduce_error, not AIR "correction after hook")
                     by_type["denial"] += 1
-                    correction_turn_indices.append(turn_index)
                     events.append(SupervisionEvent(
                             turn=turn_index,
                             type_id="denial",
-                            direction=tax.Direction.REDUCE_ERROR.value,
+                            direction="expected_governance",
                             method="structural",
                             score=1.0,
                             evidence="toolUseResult:denied",
@@ -267,7 +268,10 @@ def build_report(
     user_turns = sum(r.user_turns for r in records)
     by_type = aggregate_by_type(records)
     vector = aggregate_vector(records)
-    correction_events = sum(by_type.values())
+    governance_denials = by_type.get("denial", 0)
+    correction_events = tax.objective_event_count(by_type)
+    # Conservation: objective_events + governance_denials == sum(by_type) when only
+    # denial is objective=False (asserted in tests).
     trends = compute_direction_trends(records)
 
     air_sessions = [r for r in records if r.air is not None]
@@ -312,12 +316,13 @@ def build_report(
         "user_turns": user_turns,
         "correction_events": correction_events,
         "correction_rate_pct": round(100 * correction_events / user_turns, 2) if user_turns else 0.0,
+        "governance_denials": governance_denials,
         "by_type": by_type,
         "vector": vector,
         "gross_load": sum(r.load for r in records),
         "direction_labels": {
             "raise_autonomy": "agent was TIMID → loosen/act (pure autonomy signal)",
-            "reduce_error": "agent was WRONG → correctness guardrail",
+            "reduce_error": "agent was WRONG → correctness guardrail (excludes governance denials)",
             "grow_coverage": "agent missed CONTEXT → add detector",
             "amplify_taste": "agent missed TASTE → options, keep human judge",
         },

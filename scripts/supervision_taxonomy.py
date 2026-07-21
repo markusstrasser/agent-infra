@@ -77,7 +77,12 @@ DIRECTION_IS_AUTONOMY_GAIN: dict[Direction, bool] = {
 @dataclass(frozen=True)
 class SupervisionType:
     """One correction class. `regex` may be None (emb-only). `structural` types are counted by the
-    consumer (denials from tool results, repetition from similarity) rather than text-classified."""
+    consumer (denials from tool results, repetition from similarity) rather than text-classified.
+
+    `objective`: if False, the type is counted in by_type / gross_load (cost signal) but does NOT
+    enter the direction vector or correction_rate. Used for expected_governance permission denials
+    that measure harness policy, not agent error (observe 2026-07-16 / 2026-07-21).
+    """
 
     id: str
     direction: Direction
@@ -86,6 +91,7 @@ class SupervisionType:
     regex: re.Pattern | None = None
     seeds: tuple[str, ...] = ()
     structural: bool = False
+    objective: bool = True  # False → by_type only; excluded from vector + correction_rate
 
 
 @dataclass(frozen=True)
@@ -196,10 +202,12 @@ TAXONOMY: tuple[SupervisionType, ...] = (
     # so the vector is complete and single-sourced.
     SupervisionType(
         id="denial",
-        direction=Direction.REDUCE_ERROR,
+        direction=Direction.REDUCE_ERROR,  # legacy field; objective=False so add_to_vector no-ops
         weight=2,
-        doc="permission denial on a tool call (agent attempted something the human refused)",
+        doc="expected_governance: structural toolUseResult:denied (permission policy) — "
+            "NOT agent error; reported as governance_denials, excluded from reduce_error + correction_rate",
         structural=True,
+        objective=False,
     ),
     SupervisionType(
         id="repeated_instruction",
@@ -301,10 +309,18 @@ def empty_vector() -> dict[str, int]:
 
 
 def add_to_vector(vec: dict[str, int], type_id: str, n: int = 1) -> None:
-    """Accumulate a typed event count into the direction vector."""
+    """Accumulate a typed event count into the direction vector.
+
+    Types with `objective=False` (e.g. governance denials) are skipped — they stay in by_type.
+    """
     st = BY_ID.get(type_id)
-    if st is not None:
+    if st is not None and st.objective:
         vec[st.direction.value] = vec.get(st.direction.value, 0) + n
+
+
+def objective_event_count(by_type: dict[str, int]) -> int:
+    """Correction events that count toward correction_rate (excludes objective=False types)."""
+    return sum(v for k, v in by_type.items() if (st := BY_ID.get(k)) is not None and st.objective)
 
 
 def gross_load(vec_or_counts: dict[str, int], *, by_type: bool = False) -> int:

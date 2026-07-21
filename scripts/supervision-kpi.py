@@ -130,9 +130,17 @@ def _print_summary(records: list[ss.SessionRecord], args, window_days: int) -> N
 
     agg = ss.aggregate_vector(records)
     user_turns = sum(r.user_turns for r in records)
-    correction_events = sum(sum(r.by_type.values()) for r in records)
+    by_type_sum = ss.aggregate_by_type(records)
+    governance_denials = by_type_sum.get("denial", 0)
+    correction_events = tax.objective_event_count(by_type_sum)
     rate = 100 * correction_events / user_turns if user_turns else 0
-    print(f"CORRECTION RATE: {correction_events}/{user_turns} user turns ({rate:.1f}%)", file=sys.stderr)
+    print(f"CORRECTION RATE: {correction_events}/{user_turns} user turns ({rate:.1f}%)  [excludes governance denials]", file=sys.stderr)
+    if governance_denials:
+        print(
+            f"GOVERNANCE DENIALS: {governance_denials}  — expected_governance (permission); "
+            f"not in reduce_error / correction_rate",
+            file=sys.stderr,
+        )
     print("SUPERVISION VECTOR (by direction):", file=sys.stderr)
     for d in tax.Direction:
         label = {

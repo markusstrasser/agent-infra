@@ -39,9 +39,33 @@ def test_build_report_schema():
     assert report["schema"] == "supervision.report.v1"
     assert report["correction_events"] == 1
     assert report["correction_rate_pct"] == 10.0
+    assert report["governance_denials"] == 0
     assert report["vector"]["raise_autonomy"] == 1
     assert "wasted_pct" not in report
     assert "NEW_AGENCY" not in str(report)
+
+
+def test_build_report_excludes_governance_denials_from_rate_and_vector():
+    """Conservation: reduce_error_old-style (denials in vector) == reduce_error_new + denials."""
+    from datetime import datetime
+    r = _fake_record(
+        user_turns=100,
+        by_type={
+            "over_caution": 0, "rediscovery": 0, "error_correction": 4,
+            "taste_steer": 0, "denial": 96, "repeated_instruction": 0,
+        },
+        # pre-split vector would have put denials in reduce_error; post-split must not
+        vector={"raise_autonomy": 0, "reduce_error": 4, "grow_coverage": 0, "amplify_taste": 0},
+        load=4 + 96 * 2,
+    )
+    report = ss.build_report([r], days=1, since=datetime(2026, 6, 28), project_filter=None)
+    assert report["governance_denials"] == 96
+    assert report["correction_events"] == 4
+    assert report["correction_rate_pct"] == 4.0
+    assert report["vector"]["reduce_error"] == 4
+    # conservation vs legacy (denials counted as reduce_error):
+    assert report["vector"]["reduce_error"] + report["governance_denials"] == 100
+    assert report["correction_events"] + report["governance_denials"] == sum(r.by_type.values())
 
 
 def test_autonomy_reading_gain():

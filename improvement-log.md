@@ -19,14 +19,26 @@ Source: `/session-analyst` skill analyzing transcripts from `~/.claude/projects/
 > Session-analyst / `/observe` retro write behavioral findings as `[obs]`, never `[ ]`.
 > Backfill of the pre-2026-06-08 log: `scripts/reclassify_improvement_log.py`.
 
+### [2026-07-21] [x] SHIP: expected_governance denial KPI split (closes 2026-07-16 `[ ]`)
+- **What:** `SupervisionType.objective=False` on structural `denial`; `governance_denials` on report; excluded from reduce_error + correction_rate; not counted in AIR correction turns.
+- **Conservation (7d live):** reduce_error 591→4 + gov 587; correction_rate 29.77%→1.08%; events+gov == sum(by_type).
+- **Verifier:** `scripts/tests/test_supervision_{session,taxonomy}.py` 33 pass.
+- **Source:** `/improve` after observe `2026-07-21-2041` · Fable SHIP WITH EDITS · candidate `candidate_20260716_supervision_governance_denial_split`
+- **Status:** [x] implemented
+
+### [2026-07-21] [obs] Observe all (7d) — 0 promote; denial confounder + CONVERT carries
+- **Source:** `artifacts/observe/2026-07-21-2041/` · promote=0 / obs=27 / needs_evidence=9 · candidates=36
+- **Carry remaining `[ ]`:** stop-llmx enforce · sessionstart-recent-deliverables · stop-idle shadow→advisory (modify; ablation freeze→2026-07-24)
+- **Status:** [obs] calibration only
+
 ### [2026-07-16] Observe all (~30h) — promote: supervision denial metric split + llmx-child residual
 - **Source:** `artifacts/observe/2026-07-16-30h/` · preflight `promotions_allowed=true` · verdicts promote=2
 - **Session:** arc-agi `b7b20a06` / fleet supervision 2d · [Sessions](5a1a1245-4e62-4ea4-aed1-d1679a775801) · [Supervision](d4f2a54e-3409-48cb-b86b-7662535b7fea) · [Drift](40e2fe17-8940-4c2c-ad45-956214eb84b7)
-- **[ ] `expected_governance` denial split:** 532/535 REDUCE_ERROR events are single-turn arc-agi `toolUseResult:denied` permission prompts (88 sessions). Inflates correction_rate to 115%. Split into separate bucket in `supervision_session.py` / KPI report — exclude from reduce_error + correction_rate; report separately. Candidate `candidate_20260716_supervision_governance_denial_split`.
+- **[>] `expected_governance` denial split:** superseded-by 2026-07-21 ship entry above. Was: 532/535 REDUCE_ERROR = arc-agi denials. Candidate `candidate_20260716_supervision_governance_denial_split`.
 - **[ ] Escalate `stop-llmx-child-guard`:** shadow hook shipped 2026-07-15, but same-wave yield-churn still hit (`ratchet-math` + `selection-circularity` in `b7b20a06`; drift `drift_30h_llmx_wait_stop_hook`). Close residual: enforce mode on SubagentStop when scratchpad llmx child live + protocol memo unfinished; verify Codex/Cursor coverage. Not a greenfield hook.
 - **Held (needs_evidence / operator override):** HIGH `candidate_b7b20a06_stop1` (stop-hook live-lane WIP commits) · HIGH `candidate_019f5d11_prereg1` (audit burned prereg seeds) — recurrence gate; novel severity warrants maintain triage.
 - **Root cause:** system-design (metric) · skill-execution (subagent yield)
-- **Status:** [ ] proposed
+- **Status:** [ ] proposed (llmx escalate still open; denial split closed)
 
 ### [2026-07-15] Observe architecture follow-through — spend forensics + infra ratchet + llmx-child shadow + genomics ship ask
 - **Source:** user "OK do" after observe-all + harvest; architecture `2026-07-15.md` + drift genomics ship-path
