@@ -164,6 +164,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-07-18-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-18 (deterministic) | TODO |
 | `2026-07-19-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-19 (deterministic) | TODO |
 | `2026-07-19-vercel-ai-python-deep-dive.md` | Vercel AI SDK for Python (`vercel-labs/ai-python`) — code deep-dive | TODO |
+| `2026-07-23-raycast-snippets-shadow-harness.md` | Raycast snippets as a shadow harness — copyCount as a ranked failure-list for "architecture over instructions" | Deciding which behavior to promote to a hook; auto-commit/breaking-refactor enforcement; snippet→command graduation |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
 | `adversarial-case-library.md` | Adversarial Case Library: The Best "Calling BS" Reviews | TODO |
 | `agent-behavior-refresh-2026-04.md` | Agent Behavior Delta — Memory, Self-Modification, Sycophancy | TODO |
