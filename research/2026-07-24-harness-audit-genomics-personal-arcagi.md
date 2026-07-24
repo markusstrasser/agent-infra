@@ -274,6 +274,53 @@ folded into `substrate`/`genomics`, and CLAUDE.md is human-owned. Flagging rathe
 and deliberately not deleting the `phenome-phenotype-ontology-roadmap` memory, since its content
 may still be valid knowledge under a new home.
 
+## EXECUTED 2026-07-24 (operator approved both)
+
+### Skills relocation — budget back under ceiling
+
+**9,902 → 7,390 chars** (ceiling 8,000). 13 domain skills moved out of the always-loaded
+global farm into their owning repo, 36 remain global. Zero capability lost — each was
+symlinked into its owner *before* the global link was dropped, and the script refused to drop
+any global link whose local home didn't resolve. All 13 verified resolvable afterward.
+Reversible per row: `ln -s ~/Projects/skills/<name> ~/.claude/skills/<name>`.
+
+| Owner | Skills |
+|---|---|
+| genomics | life-science-research |
+| intel | data-acquisition, dataset-register, entity-management |
+| personal | oura-ring, neurokit2 |
+| anim-workbench | manim-animations, review-animations |
+| agent-infra | scientific-drawing, research-ops |
+| immigration-research | census-data |
+| corpus / publishing | corpus, ttcw-rubric-evaluator |
+
+Deliberately **kept global**: `agent-browser` (4 days old), `cursor-agent`, `debug`,
+`diagnose`, `verify-before`, `leverage`, `sweep`, `interview-prompt`, `goals`,
+`google-workspace` — either their real interface is a CLI/recipe (so Skill-tool count is the
+wrong instrument) or they're cross-cutting commands invokable from any repo.
+
+Checked first: `setup-friend.sh` is one-time onboarding with a hardcoded 9-skill list, not a
+running sync, so removals won't be silently restored. (Its list is itself stale — it wires to
+the retired `meta` project.)
+
+### agent-infra MCP registration dropped from all 9 repos
+
+Script kept and untouched; only the never-invoked protocol registration removed. All 9
+`.mcp.json` files re-validated as parseable afterward.
+
+A formatting guard (re-dump of the *unmodified* file must be byte-identical to disk) blocked
+`arc-agi` and `personal` — both would have taken a whole-file reformat, `personal` because it
+uses compact inline arrays. Those two were done as surgical text edits instead.
+
+**Committed:** arc-agi `15118a55`, personal `b042e737`, anim-workbench `23a7ac0`.
+**No commit needed:** immigration-research, genomics, anki — `.mcp.json` is untracked/gitignored
+there, so the change is purely local config.
+**NOT committed, deliberately:** `evals`, `intel`, `people` — each already carried *pre-existing
+uncommitted* edits from another session (evals + intel: a `corpus` server removal; people: an
+added `EXA_API_KEY` env var). Committing `.mcp.json` there would have swept a peer's work under
+this message — the e2ab1ceb incident class. The agent-infra removal is applied in their working
+trees; the owning session should commit it alongside its own change.
+
 ## Not done / left open
 
 - Every deletion touching 3+ projects (the 9-repo MCP registration, the global skills
