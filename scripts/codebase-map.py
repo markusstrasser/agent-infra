@@ -245,7 +245,7 @@ def generate_maps(project_root: Path, source_dirs: list[Path]) -> tuple[str, dic
         max_name = min(max(len(e[0]) + 3 for e in entries), 35)
 
         dlines = [
-            f"# Codebase detail — {detail_name} ({len(entries)} files)",
+            f"# Codebase detail — {detail_name} ({len(entries)} Python files)",
             f"# generated {today} · on-demand (not auto-loaded) · index: .claude/rules/codebase-map.md",
             "# Edge annotations: → imports  ← imported-by-N-files",
             "",
