@@ -117,7 +117,28 @@ never expected one (not a defect). `evals` looked like a hit but uses `core.hook
 scripts/githooks/` and is correctly configured — the `.git/hooks/pre-commit` proxy was the wrong
 instrument there.
 
-**GAP with a named consumer (the only one in genomics):** `scripts/git_hooks.py check` already
+**GAP CLOSED (built, positive-controlled, NOT committed — see below):**
+`.claude/hooks/session-start-git-hooks-drift.sh` — a 5th SessionStart hook of the existing
+advisory shape that runs the read-only `git_hooks.py check` and surfaces drift with the
+`just install-hooks` fix. Read-only, fail-open, ~75ms. Positive-controlled **both** ways before
+wiring, per the arm-time pair rule: silent with zero output on a healthy checkout, and firing
+with the real drift detail when `pre-commit` is hidden. Wired as the 5th entry in
+`settings.json`; all 5 verified to resolve and be executable.
+
+**Blocked from committing, deliberately not forced.** genomics' ownership guard refused the
+commit: the checkout has a *live* peer session (`138a8e25`, launch-33665, started 18:25 UTC) and
+`settings.json` is claimed by a third session (`019f45fe`). Its sanctioned remedy
+(`just commit-mine`) cannot attribute a foreign session — "no ownership tracker for session
+61053772." Per the acknowledge-guardrails rule this was surfaced rather than routed around. The
+changes were **unstaged** (so a peer's bare `git commit` cannot sweep them under its own message
+— the e2ab1ceb incident class) and preserved outside the repo as
+`scratchpad/genomics-git-hooks-drift.patch` + a copy of the hook. Working tree still carries both.
+Needs the owning session, or the operator, to land it.
+
+Note the restored `.git/hooks/` chain is unaffected by this — `.git/hooks/` is not
+version-controlled, so the actual safety fix is live now regardless of the commit.
+
+**The gap this closed:** `scripts/git_hooks.py check` already
 exists, is read-only, and just caught real drift — but nothing runs it automatically and nothing
 signalled the drift. A `SessionStart` advisory hook would be the 5th of an existing shape
 (`session-start-source-freshness.sh`, `-origin-staleness.sh`, `-worktree-base-staleness.sh`,
