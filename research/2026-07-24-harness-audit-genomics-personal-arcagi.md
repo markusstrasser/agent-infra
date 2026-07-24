@@ -92,7 +92,53 @@ from 9 `.mcp.json` files costs nothing if anyone still wants the CLI.
 
 ## Per-repo
 
-### genomics — audit partial (agent stalled at ~35 min; findings below are its verified subset)
+### genomics — the one live safety hole
+
+**FIXED this session: the commit-time guard chain was not installed.** `.git/hooks/pre-commit`
+was **missing** and `post-commit` did not match the tracked wrapper. Verified by the parent with
+the repo's own `scripts/git_hooks.py check` (not taken on the subagent's word), then restored via
+`just install-hooks`; `check` now passes.
+
+Mechanism, confirmed from the backed-up hook diff: the installed hooks were exactly `git lfs
+install`'s set (post-checkout, post-commit, post-merge, pre-push), and the drifted `post-commit`
+was the LFS wrapper with the tracked file's trailing
+`exec .claude/hooks/run-git-post-commit.sh` line **dropped**. `git lfs install` clobbered the
+chain. Pre-restore copy saved outside the repo.
+
+Consequence while it was off: the pre-commit lint/guard chain (ruff, F821, hardcoded-sample-ID
+checks, **protected-path / data-safety enforcement**) and the post-commit ownership-bypass audit
+were not running on commits to this checkout. This is the backstop MEMORY.md records as the
+enforcement that *survives Codex* (`commit-time-guard-backstop.md`) — silently off, with multiple
+in-repo audit docs still describing it as actively enforcing.
+
+**Class swept — genomics was the only instance.** Checked all repos: personal, arc-agi, hutter,
+anim-workbench have no pre-commit hook *and* no tracked wrapper or `install-hooks` recipe, so they
+never expected one (not a defect). `evals` looked like a hit but uses `core.hooksPath ->
+scripts/githooks/` and is correctly configured — the `.git/hooks/pre-commit` proxy was the wrong
+instrument there.
+
+**GAP with a named consumer (the only one in genomics):** `scripts/git_hooks.py check` already
+exists, is read-only, and just caught real drift — but nothing runs it automatically and nothing
+signalled the drift. A `SessionStart` advisory hook would be the 5th of an existing shape
+(`session-start-source-freshness.sh`, `-origin-staleness.sh`, `-worktree-base-staleness.sh`,
+`-worktree-disk-bloat.sh`). `install-hooks` is documented nowhere agent-visible, so a fresh
+checkout, a worktree promotion, or an incidental `git lfs install` drops the guard with no signal.
+
+**BROKEN:** `CLAUDE.md:187` lists an `epistemics` skill as "invoke when relevant" — it exists in
+none of the three places a skill can live. Probably a stale pointer to
+`.claude/rules/epistemic-tiers.md` (a rule, which needs no invoking). Also `CLAUDE.md:149` claims
+the always-loaded rule set is 3 files; it is 4.
+
+**Deletion correctly NOT re-proposed — worth recording.** Six genomics skills (`annotsv`,
+`clinpgx-database`, `data-transform`, `genomics-status`, `gget`, `vcfexpress`) show 0 Skill-tool
+invocations across the full window. That exact cut was made and reversed **same-day, 4 minutes
+apart**, on 2026-06-13 (`a9a77e301` → `db011b7c8`): "core deliberate-invoke domain capability.
+Dormant != dead… the usage-only audit over-cut." Zero invocations six weeks later is not new
+evidence against a decision whose whole point was that usage-only measurement is the wrong test
+for deliberate-invoke tools. **The reversal is not recorded in `vetoed-decisions.md`** — which is
+why it was nearly re-proposed a third time. That absence is the actionable item, not the skills.
+
+Remaining findings from the original scope:
 
 Always-loaded: **56,274 chars ≈ 14K tokens** (CLAUDE.md 24,814 + 4 unscoped rules).
 `vetoed-decisions.md` alone is 22,686 chars — nearly the size of CLAUDE.md, and grown past
@@ -190,11 +236,37 @@ system card (`research/2026-07-24-claude-opus-5-release.md`, System card section
    = our worktree isolation) — but delegation eagerness is up, so caps matter more than
    encouragement.
 
+## Hook wiring: verified clean everywhere it was checked
+
+arc-agi: every hook path in `.claude/settings.json` resolved individually (2 repo-local + 6
+global under `~/Projects/skills/hooks/`) — all exist, all executable, `.codex/hooks.json` mirrors
+correctly. genomics: same check run programmatically over `settings.json` + `settings.local.json`.
+personal: all resolve. The only broken wiring found anywhere was genomics' *git* hooks (above) and
+personal's two dangling `.agents/` symlinks — none in the Claude Code hook layer.
+
+## Stale reference: `phenome` no longer exists
+
+`~/Projects/phenome` is absent from disk with zero sessions in the retention window, yet
+agent-infra's `CLAUDE.md` `<reference_data>` cross-project table and several MEMORY.md entries
+still list it as a live project. Not resolved here: unclear whether it was deleted, renamed, or
+folded into `substrate`/`genomics`, and CLAUDE.md is human-owned. Flagging rather than guessing —
+and deliberately not deleting the `phenome-phenotype-ontology-roadmap` memory, since its content
+may still be valid knowledge under a new home.
+
 ## Not done / left open
 
-- genomics audit is partial — stray `.claude/` state files (6 checkpoints, `watch/`,
-  `worktree-salvage-2026-06-12/`, `saved-patches/`, `scratch/`, `inbox/`,
-  `novel-expansion/`) and its hook-path resolution were never reached.
 - Every deletion touching 3+ projects (the 9-repo MCP registration, the global skills
   symlink narrowing) is held for operator sign-off per hard limit #4.
 - 95 steward proposals and 28 stale control-plane questions were counted but not triaged.
+- The `vetoed-decisions.md` omission of the 2026-06-13 genomics-skills reversal is unfixed
+  (genomics' file, and the entry needs the owner's framing).
+
+## Method note — a mistake worth recording
+
+The parent twice read a stale file mtime as a dead subagent and acted on it: once dispatching a
+redundant nudge, once redispatching a second agent onto scope the "stalled" agent had already
+completed (stood down before it started). Both agents were alive and mid-write. This is the
+`wakeup-cadence.md` rule — *a staleness signal LOCATES, exact-PID DECIDES* — applied to the wrong
+instrument: for harness subagents there is no PID to check, so the correct probe is a status
+`SendMessage`, which costs one turn and is unambiguous. Do that first, never infer death from
+output mtime.
