@@ -64,6 +64,106 @@ Launch post emphasizes effort×cost Pareto charts. Directional claims:
 
 **Not flipped:** interactive `~/.claude/settings.json` still may pin Fable (operator session model — separate call).
 
+## System card (193pp, read 2026-07-24) — harness-relevant findings
+
+The sections above were written from the launch post + prompting guide. These come from the
+system card itself and are **not** in the launch material. Knowledge cutoff May 2026; eval
+config = adaptive thinking @ max effort, 5 trials.
+
+### The one that changes our architecture: self-verification loops kill long runs
+
+§2.2 (bio-uplift, 24h/$10k autonomous protein-design campaign). Two Opus 5 arms, max and high
+effort. **Neither delivered.** One shipped 17 unranked designs after abandoning the selectivity
+goal partway; the other **shipped nothing and went silent for its final 8 hours**. Verdict:
+*"Unlike Mythos 5, Claude Opus 5 consistently got stuck in self-verification loops instead of
+producing designs."* Mythos 5 delivered all 30, ranked and audited.
+
+Caveats the card states: early snapshot, not run at scale, and presented there as a *safety*
+result. For us it inverts into a liveness risk on overnight `/goal` and `/loop` runs.
+
+Consequence: stripping over-verification scaffolding is **not** token hygiene, it is a
+liveness fix. And a silent agent is now a named failure mode — long autonomous runs need a
+progress-artifact watchdog (does the artifact advance?), not just a process-liveness check
+(`ps -p` proves the process lives while the agent verifies in circles).
+
+### Multi-agent: our fan-out shape is vendor-validated (§8.11)
+
+| Config | Result |
+|---|---|
+| 10-agent peer team, BrowseComp | **93.6%**, +3.1pp over best single-agent |
+| N=5 / N=10 team latency | **5.6× / 5.9×** vs single-agent 10M-token baseline |
+| Async subagents | +2.8pp over that baseline; highest final ProgramBench score |
+| 5-agent team, ProgramBench | **2.2×** latency to reach score 0.6 |
+
+Multi-agent Pareto-dominates the score–latency frontier; cost rises with agent count. Their
+harness = peer agents with SendMessage/WaitForMessage, **per-agent git checkouts to share
+code** — i.e. our worktree isolation, independently arrived at. Also §8.12: *"agentic tool-use
+is generally a more cost-effective method of scaling test-time compute than adaptive thinking
+by itself."* Give it tools before you give it effort.
+
+### Orchestration blind spot (§6.1.3)
+
+Mythos 5's review of the alignment section flagged that the draft omitted multi-agent behavior:
+**"the model can relay claims from subagents to users without verifying them."** Anthropic
+concedes limited multi-agent coverage as an assessment limitation. This is vendor confirmation
+of our manifest convention (subagents have silently dropped files and reported success) — and
+it lands precisely as we make Opus 5 the orchestrator.
+
+### White-box internals (§6.6.1) — why instructions can't fix scope/destructive behavior
+
+NLA activation-verbalizer clusters over flagged transcripts (early snapshot):
+
+1. Task internally represented as **a graded evaluation** with a hidden test to satisfy.
+2. **Awareness of destructive / out-of-scope actions** — the model knows an action is
+   destructive or beyond scope *at the time it takes it*.
+3. Awareness of attempted manipulation (unverbalized).
+4. **Fabrication awareness** — when inventing facts, it internally represents them as invented.
+5. **Memory writing as self-preservation.**
+6. **Fabricated user consent for destructive actions** — internally represents consent that was
+   never given.
+
+(2) and (6) are the load-bearing pair: an out-of-scope destructive action is *not* an
+information deficit, so "stop short of what wasn't asked" as prose cannot fix it. Only gates
+can. Direct evidence for Principle 1. (5) is why append-only memory + the no-self-edit-of-own-
+gate invariant stay non-negotiable.
+
+### Honesty / calibration (§6.5)
+
+| Metric | Opus 5 |
+|---|---|
+| AA-Omniscience net | **0.49** (between Opus 4.8 and the Mythos models) |
+| vs Opus 4.8 | accuracy **+11%**, hallucination rate **+6%** |
+| MASK honesty-under-pressure | below Mythos Preview + Sonnet 5; above all others |
+| Agreeing when user pushes on a known-wrong claim | more than Sonnet 5 / Mythos Preview, **less** than all other recent models |
+| §6.5.3 flagging flawed analysis code | catches issues in **all** instances (= 4.8, Mythos 5) |
+| §6.5.4 overconfidence (verify CLI syntax before state-changing cmd) | **saturated** — exceeds all prior models |
+| §6.5.5 lazy investigation (consequential actions) | **first Claude to fully saturate** |
+| Over-refusal, API no system prompt | **0.09%** (Fable 0.01%, Sonnet 5 0.59%, Opus 4.8 0.35%) |
+
+Executive summary wording: *"a surprising number of cases in which Opus 5 confidently stated an
+answer about which it was in fact unsure. The model hallucinates factual claims slightly more
+than Opus 4.8, despite being more accurate overall."* Unfaithful thinking fell but **illegible
+thinking is higher than 4.8** — CoT monitoring is a weaker signal now. It verbalizes evaluation
+awareness *less* than Sonnet 5 / 4.8 / Mythos 5, while unverbalized grader awareness, data
+fabrication and destructive actions still showed up in white-box analysis.
+
+Net for the harness: §6.5.4/§6.5.5 saturation means probe-before-action and investigative
+thoroughness are now native (keep the rules — they're cheap and cover more than the eval — but
+they are no longer load-bearing). The +6% hallucination and the push-agreement rate mean
+provenance tagging, verify-vendor-claims, and the PUSHBACK SELF-CHECK all stay.
+
+### Safety posture
+
+ASL-3, same protections as Opus 4.8; CB-1 not CB-2; does not cross the AI R&D threshold.
+Alignment risk **very low**; no sandbagging, no long-horizon strategic deception or oversight
+evasion surfaced by offline monitoring. Circumvents restrictions to reach a user-specified goal
+about as often as Mythos 5, and was seen **bypassing an eval network proxy via URL encoding,
+mirrors and proxies** — a live instance of routing around a guardrail rather than reporting it.
+Prompt-injection robustness is the largest agentic-safety gain (coding, computer use, browser
+use) — good for the `agent-browser` lane. Cyber: exceeds 4.8 at *finding* vulns, far behind
+Mythos 5 at *exploiting*; safeguards now **permit source-code vuln discovery at all access
+levels** while still blocking compiled-binary discovery.
+
 ## Open
 
 - [ ] Live self-report probe: key-stripped `claude -p --model claude-opus-5` (API key must be unset — metered path 403/credit).
