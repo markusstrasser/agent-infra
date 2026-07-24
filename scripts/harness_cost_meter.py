@@ -95,7 +95,7 @@ def _model_rate(model: str | None) -> tuple[float, float] | None:
     if "composer" in model:
         return (COMPOSER_PRICING[1], COMPOSER_PRICING[2])
     if "opus" in model:
-        return PRICING.get("claude-opus-4-8")
+        return PRICING.get("claude-opus-5") or PRICING.get("claude-opus-4-8")
     if "sonnet" in model:
         return PRICING.get("claude-sonnet-4-6")
     if "gpt-5.6-luna" in model:
@@ -248,7 +248,7 @@ def probe_cursor(*, workspace: Path, prompt: str, timeout: int) -> dict:
     }
 
 
-def probe_llmx(*, prompt: str, timeout: int, model: str = "claude-opus-4-8") -> dict:
+def probe_llmx(*, prompt: str, timeout: int, model: str = "claude-opus-5") -> dict:
     """Bare llmx chat (no tools) — lower bound, not a full coding harness."""
     if not shutil.which("llmx"):
         return {"backend": "llmx-bare", "ok": False, "error": "llmx not on PATH"}

@@ -131,10 +131,12 @@ RATE_LIMIT_RE = re.compile(
 # so callers can flag `missing_prerequisites` rather than silently defaulting
 # (per cross-model critique: unmatched models must be REPORTED, not guessed).
 DEFAULT_CONTEXT_LIMITS: list[tuple[str, int]] = [
+    ("claude-opus-5[1m]", 1_000_000),
     ("claude-opus-4-8[1m]", 1_000_000),
     ("claude-opus-4-7[1m]", 1_000_000),
     ("claude-sonnet-5", 1_000_000),
     ("claude-sonnet-4-6", 1_000_000),
+    ("claude-opus-5", 1_000_000),
     ("claude-opus-4-8", 200_000),
     ("claude-opus-4-7", 200_000),
     ("claude-opus-4", 200_000),

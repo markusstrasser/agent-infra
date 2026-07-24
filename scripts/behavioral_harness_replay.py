@@ -32,7 +32,7 @@ from extract_behavioral_eval_cases import is_overcaution, load_signals, to_case 
 
 CASES_PATH = REPO / "artifacts" / "rsi-experiments" / "behavioral-eval-cases.jsonl"
 SNIPPETS_PATH = REPO / "config" / "harness_steer_snippets.yaml"
-MODEL = "claude-opus-4-8"
+MODEL = "claude-opus-5"
 
 ASK_RX = re.compile(
     r"(would you like|should i\b|shall i\b|want me to|do you want|let me know|"

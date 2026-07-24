@@ -10,6 +10,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 
 | File | Topic | Consult before |
 |------|-------|----------------|
+| `2026-07-24-claude-opus-5-release.md` | Claude Opus 5 — near-Fable at $5/$25; replaces 4.8 as primary Claude | Default Claude routing; effort re-sweep; cyber fallback 4.8 |
 | `2026-04-25-tool-attention-and-skill-bank.md` | Tool Attention + Co-Evolving Skill Bank — Two papers from arxiv week of 2026-... | TODO |
 | `2026-07-19-vercel-ai-python-deep-dive.md` | Vercel AI SDK Python — NO-ADOPT; harvest hook-suspend/replay, blocked-state fold, two-plane tool results | Building in-process Python agent loops, approval gates, subagent return contracts |
 | `2026-05-15-cross-project-knowledge-infra-dossier.md` | Cross-Project Knowledge Infrastructure — The Dossier | TODO |
