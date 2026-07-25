@@ -283,6 +283,17 @@ def check_test_health() -> list[Check]:
     except (json.JSONDecodeError, OSError, KeyError):
         return [Check("test-health", "global").warn("unreadable test-health.jsonl")]
 
+    # The log is append-only (belief history is calibration data — never rewrite it),
+    # so a retired suite's last record stays "latest" forever and reports as a live
+    # failure. Report only suites test_health.py still monitors. Fail open: if the
+    # import breaks, surface everything rather than silently hiding a real failure.
+    try:
+        from test_health import SUITES
+        monitored = {s.repo for s in SUITES}
+        latest = {r: rec for r, rec in latest.items() if r in monitored}
+    except Exception:
+        pass
+
     checks: list[Check] = []
     newest = ""
     for repo, rec in sorted(latest.items()):

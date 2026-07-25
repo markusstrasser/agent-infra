@@ -54,15 +54,13 @@ class RepoSuite:
 
 
 SUITES: tuple[RepoSuite, ...] = (
-    RepoSuite(
-        "personal-phenome",
-        HOME / "Projects" / "personal" / "apps" / "phenome",
-        ("tests/", "-m", "not slow"),
-        timeout_s=1200,
-    ),
     RepoSuite("agent-infra", HOME / "Projects" / "agent-infra",
               ("tests/", "scripts/tests/", "-m", "not slow")),
     # Deliberately NOT monitored:
+    #   personal-phenome — the phenome repo is gone (last session 2026-07-06); its
+    #     derived outputs live on under personal/life/research/phenome-{research,derived}.
+    #     The suite pointed at personal/apps/phenome, a path that no longer exists
+    #     either, so this row had been reporting no_repo rather than a real failure.
     #   genomics — no wholesale-runnable suite by design (the justfile runs
     #     curated subsets; ~20 modal test modules read GENOMICS_SAMPLE_ID at
     #     import and abort a full `pytest tests/`). With no "completes" baseline
