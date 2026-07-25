@@ -4171,3 +4171,53 @@ A source that fails the watchdog (e.g. the oversized `~/.gemini/tmp/{intel,genom
 - **[x] `doctor` gained `agentlogs-ingest-lag` (87b3b6a):** warn 6h / fail 12h on `MAX(sessions.start_ts)`. `agentlogs-archive-recency` read **ok** throughout (11d < its 14d warn) because it measures retention safety (cadence vs 30d prune), not ingest. Corpus size is the mechanism; ingest lag is the principal signal. Verified: new check fails at 22.0h while archive-recency reads ok at 10.5d.
 - **[ ] Split the archive job — cheap relocation should not ride the expensive prune:** one recipe does snapshot + prune + VACUUM (measured 6,200s) **and** the raw-file relocation, on a single weekly trigger against an intermittently-mounted external SSD. One missed mount window costs 7 days of corpus growth and takes the cheap half down with it. Proposal: raw-file relocation daily and mount-tolerant (skip + leave a marker doctor reads); DB snapshot+prune stays weekly. Until then the new ingest-lag check is the safety net, catching the consequence within 12h instead of 11 days.
 - **[obs] A health check aimed at one invariant silently vouched for another:** `archive-recency` exists for retention safety, but its green reading was read (by me, and by every consumer of `doctor`) as "archiving is fine" — while archiving's *other* job, keeping enumeration tractable, had been failing for 11 days. Proxy-vs-principal (epistemic P8) applies to health checks themselves: a check's name should not imply coverage it does not have.
+
+## [2026-07-25] Background-job liveness gate + two probes that changed the answer
+
+Prompted by benchmarks.bio's Opus 5 biology evaluation (4,674 trajectories). Triaged
+each finding against live repo state rather than adopting the report wholesale.
+
+- **[x] `stop-bg-job-liveness.py` shipped (c59dae3), agent-infra-local, 20 tests:** their
+  3/3 hard six-hour timeouts all ended parked on an await for a harness-backgrounded job
+  whose completion notification never came; a 4th run blocked 17 min because it read its
+  instructions as forbidding it to end a turn while any job was live. `wakeup-cadence.md`
+  carried SEVEN rules on this class and grep found **zero** hooks resolving liveness of the
+  job a turn was actually awaiting (`ps -p`/`pgrep`/`kill -0` appear only in peer-count,
+  pkill-anchor, heavy-load, monitor-pattern). Principle 1 trigger. Mechanism: every
+  backgrounded Bash writes `<tmp>/claude-<uid>/<slug>/<session>/tasks/<id>.output` and
+  `lsof` on it is authoritative (live job = whole process tree holds it; finished or reaped
+  = zero holders) — no PID ledger, no substring pgrep. Deliberately says *ending the turn
+  is correct* when the job is gone: the Stop fleet is 15 gates deep and several push
+  "don't stop", so a keep-going-only gate would deepen the ratchet that cost that run 17 min.
+- **[x] `stop-llmx-child-guard.py` 49.6s → 0.35s (skills@6ee8885):** found by running the
+  gate, not by reading. `_find_scratchpads` globbed `claude-*/**`, descending every
+  directory of every session tree on the box before filtering on the cwd slug. It failed
+  the 8s hooks-smoke (harness-eval RED) and taxed **every** SubagentStop ~50s. The slug
+  filter was exactly the second path segment; candidate sets byte-identical across three
+  cwds after the fix.
+- **[obs] Mocked tests proved nothing until an unmocked control ran.** All 18 single-job
+  tests passed while the hook no-op'd on a real envelope: a second, unrelated *live* job in
+  the session vouched for the named *dead* one, because liveness was decided before
+  scoping. Only the live-fire found it. This is F12's positive-control pair applied to hook
+  authoring — a gate proven only against its own fixtures is uncalibrated.
+- **[obs] Self-reversal detector NOT built — probe killed it.** Their sharpest case (computed
+  the correct 19.6%, talked itself out of it, shipped 85%) has no analogue in our corpus:
+  agentlogs hits 1 / 1 / 0 for reversal language. Declining to build a detector on the
+  strength of someone else's benchmark. Separately: `stop-stance-flip-shadow.sh` is
+  **data-starved, not undecided** — 12 rows in 43 days (0.28/day), `would_fire` 3, and the
+  lexical vs Haiku predicates disagree on 2 of the 4 positives. It cannot reach promotion
+  power at that rate; the open window-end comparison should switch to a retrospective
+  agentlogs+`emb` mine instead of waiting on live rows.
+- **[obs] Hook-latency consolidation rejected on measurement.** Opus 5's higher tool tempo
+  (27 Bash calls/run, 2.8/min) suggested the per-call fleet tax mattered; measured it at
+  0.58s/Bash call (6 PostToolUse gates 0.31s + dispatchers 0.27s) ≈ 16s/run. Not worth a
+  dispatcher migration.
+- **[obs] "Unreferenced hook" scans need a real reachability tool — three false verdicts in
+  one session.** A settings-grep said 71 orphans (dispatchers `importlib`-load their gates);
+  a widened scan said 17; but `postmerge-overview.sh` is invoked from `agent-infra/.git/hooks/post-merge`
+  **and** `intel/.git/hooks/post-merge` as file COPIES, which a symlink-only scan misses, and
+  `overview-staleness-cron.sh` was touched 2026-07-15. No deletions made. The match LOCATED;
+  reading DECIDED, three times over.
+
+Evidence: benchmarks.bio "How Good is Opus 5 at Biology?" 2026-07-25; hook grep, lsof
+probe, timing probe, parity probe, and corpus probe all run this session.
