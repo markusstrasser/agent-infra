@@ -507,6 +507,48 @@ def check_agentlogs_archive_recency() -> list[Check]:
     return [c.ok(msg)]
 
 
+def check_agentlogs_ingest_lag() -> list[Check]:
+    """Is agentlogs actually INGESTING? The archive-recency check above is about
+    retention safety (cadence vs the 30d prune) and says nothing about this.
+
+    2026-07-25: the weekly archive silently failed for 11 days (external SSD not
+    mounted when the job fired), so raw logs were never relocated; the corpus grew
+    to 27k files and every 2h indexer run blew its --max-run-seconds budget (exit
+    75) before reaching the claude vendor. Result: 16h with no successful index —
+    while archive-recency still read `ok` at 11d (its warn threshold is 14d) and
+    every agentlogs-backed consumer (observe, blindspot, supervision-kpi,
+    prior-context, harvest) silently served stale answers.
+
+    Corpus size is the mechanism; ingest lag is the PRINCIPAL signal — check that.
+    Indexer cadence is 2h, so warn at 6h (three missed runs), fail at 12h."""
+    c = Check("agentlogs-ingest-lag", "global")
+    db_path = CLAUDE_DIR / "agentlogs.db"
+    if not db_path.exists():
+        return [c.warn("agentlogs.db absent — nothing to index yet")]
+    try:
+        con = open_db_ro(db_path)
+        row = con.execute("SELECT MAX(start_ts) FROM sessions").fetchone()
+    except Exception as exc:  # noqa: BLE001 — health check must not crash doctor
+        return [c.warn(f"unreadable: {str(exc)[:80]}")]
+    newest = row[0] if row else None
+    if not newest:
+        return [c.warn("no sessions in agentlogs.db")]
+    try:
+        ts = datetime.fromisoformat(str(newest).replace("Z", "+00:00"))
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+    except ValueError:
+        return [c.warn(f"unparseable newest session ts: {newest}")]
+    lag_h = (datetime.now(timezone.utc) - ts).total_seconds() / 3600
+    msg = f"newest indexed session {lag_h:.1f}h old (indexer cadence 2h)"
+    if lag_h > 12:
+        return [c.fail(msg + " — indexer not completing; check corpus size "
+                              "(`just agentlogs-archive`) and com.agent-infra.agentlogs-index")]
+    if lag_h > 6:
+        return [c.warn(msg + " — three missed runs; check indexer exit codes")]
+    return [c.ok(msg)]
+
+
 def check_metered_spend() -> list[Check]:
     """Surface today's genuinely-billed (transport==api) llmx spend across ALL surfaces.
 
@@ -974,6 +1016,7 @@ def run_all_checks(project_filter: str | None = None) -> list[Check]:
         all_checks.extend(check_memory_health())
         all_checks.extend(check_stale_agents())
         all_checks.extend(check_telemetry_freshness())
+        all_checks.extend(check_agentlogs_ingest_lag())
         all_checks.extend(check_metered_spend())
         all_checks.extend(check_test_health())
         all_checks.extend(check_orphaned_generators())

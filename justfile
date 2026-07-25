@@ -867,7 +867,14 @@ goal-night ritual="420000" window="500000" *args:
     mkdir -p .claude
     SID=$(uuidgen | tr 'A-Z' 'a-z')
     printf '%s %s %s\n' "{{ritual}}" "$SID" "{{window}}" > .claude/goal-run
-    rm -f .claude/goal-done .claude/goal-blocked .claude/goal-wrapup-fired .claude/goal-compact-blocks .claude/goal-continues .claude/goal-unstarted-warned
+    # Clear ALL run-scoped goal state. Anything the Stop/compact hooks read as a
+    # "already did this once this run" suppression flag MUST be here, or the guard
+    # silently dies from the second run onward: arc-agi carried goal-done-challenged
+    # + goal-done-debt-challenged from 2026-07-12 into the run armed 07-13, so both
+    # premature-stop challenges were disarmed for every later run (found 2026-07-25).
+    # NOT cleared: .claude/goal-deliverable — operator-armed config, not run state.
+    # Drift-tested by skills/hooks/test_goal_night_controller.py::TestMarkerClearList.
+    rm -f .claude/goal-done .claude/goal-blocked .claude/goal-wrapup-fired .claude/goal-compact-blocks .claude/goal-continues .claude/goal-unstarted-warned .claude/goal-done-challenged .claude/goal-done-debt-challenged .claude/goal-quiet
     echo "goal-run armed: ritual@{{ritual}} window@{{window}} owner=$SID — give the session your /goal" >&2
     CLAUDE_CODE_AUTO_COMPACT_WINDOW={{window}} exec "$HOME/Projects/agent-infra/scripts/claude-launch.sh" --session-id "$SID" {{args}}
 
