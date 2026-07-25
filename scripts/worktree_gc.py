@@ -35,6 +35,7 @@ import shutil
 import stat
 import subprocess
 import sys
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -261,6 +262,177 @@ def parse_worktrees(repo: Path) -> list[tuple[Path, str | None]]:
     if wt is not None:
         rows.append((wt, branch))
     return [(p, b) for p, b in rows if p.resolve() != repo.resolve()]
+
+
+# Roots that hold worktrees no repo may still admit to owning. `/private/tmp` is where
+# hand-rolled `git worktree add` lands; `~/.cursor/worktrees` is cursor-agent's own
+# managed home (`cursor-agent -w` → `~/.cursor/worktrees/<repo>/<name>`), which nests one
+# level deeper than the rest and would be missed by a flat scan.
+#
+# Claude's `<repo>/.claude/worktrees/` is deliberately NOT here: those are found through
+# their repo by `parse_worktrees`, and a stranded one there is still reachable the same
+# way this scan reaches these — by walking to a depth that covers the layout in use.
+TEMP_ROOTS: tuple[Path, ...] = (
+    Path("/private/tmp"),
+    Path("/tmp"),
+    Path.home() / ".cursor" / "worktrees",
+)
+_SCAN_DEPTH = 2
+
+
+@dataclass
+class StrandedRow:
+    """A directory that WAS a worktree and no longer is.
+
+    `git worktree remove` unregisters before deleting, so an aborted removal leaves the
+    admin dir gone and the files behind. The directory still holds a `.git` FILE pointing
+    at a `gitdir:` that no longer exists — which is precisely why `git worktree list`
+    cannot report it, and why every audit built on that command has a blind spot the size
+    of whatever failed last. On 2026-07-25 that was ~13 GiB across ten trees, found only
+    by diffing on-disk markers against the registration list by hand.
+
+    The owning repo is still recoverable from the dangling gitdir path
+    (`<repo>/.git/worktrees/<name>`), so dirtiness is still checkable with an explicit
+    `--work-tree` — a stranded tree is unreadable to git, not unknowable.
+
+    That check is deliberately one-sided. The tree's own HEAD lived in the admin dir and
+    died with it, so the comparison runs against the REPO's current HEAD: commit drift
+    reads as modification. It therefore over-reports work and never under-reports it,
+    which keeps a tree out of the automatic set rather than deleting something real.
+    """
+
+    path: Path
+    repo_root: Path | None
+    size: str
+    tracked_dirty: int  # -1 when the owning repo could not be recovered
+    held: list[int]
+
+    @property
+    def reclaimable(self) -> bool:
+        return not self.held and self.tracked_dirty == 0
+
+
+def _admin_dir_of(wt: Path) -> str | None:
+    """Read the `gitdir:` marker of a linked worktree, or None if it isn't one."""
+    marker = wt / ".git"
+    try:
+        # A real repo has .git as a DIRECTORY — that is a clone, not a worktree. Temp
+        # roots also hold dirs this uid cannot stat at all (other users' sandboxes),
+        # and one unreadable neighbour must never abort the scan.
+        if not marker.is_file():
+            return None
+        text = marker.read_text(errors="ignore")
+    except OSError:
+        return None
+    admin = text.partition("gitdir:")[2].strip()
+    return admin or None
+
+
+def _repo_from_admin(admin: str) -> Path | None:
+    """`<repo>/.git/worktrees/<name>` → `<repo>`, even after the admin dir is gone."""
+    p = Path(admin)
+    parts = p.parts
+    try:
+        i = len(parts) - 1 - parts[::-1].index(".git")
+    except ValueError:
+        return None
+    repo = Path(*parts[:i])
+    return repo if (repo / ".git").is_dir() else None
+
+
+def _du(path: Path) -> str:
+    out = run(["du", "-sh", str(path)]).stdout.split()
+    return out[0] if out else "?"
+
+
+def _candidate_dirs(roots: tuple[Path, ...], depth: int = _SCAN_DEPTH) -> Iterator[Path]:
+    """Directories under ``roots`` that could be a stranded worktree.
+
+    Depth exists only because cursor-agent nests (`~/.cursor/worktrees/<repo>/<name>`)
+    while everything else is flat. Recursion stops as soon as a directory carries a `.git`
+    marker: a worktree never contains another worktree, and descending into one would walk
+    a full checkout for nothing.
+    """
+    for root in roots:
+        try:
+            if not root.is_dir():
+                continue
+            entries = sorted(root.iterdir())
+        except OSError:
+            continue
+        for entry in entries:
+            try:
+                if not entry.is_dir() or entry.is_symlink():
+                    continue
+                # Both stats must sit inside the guard: /private/tmp holds other uids'
+                # sandboxes, and one EACCES here would abort the whole scan — a silent
+                # zero that is indistinguishable from a clean box.
+                marked = (entry / ".git").exists()
+            except OSError:
+                continue
+            if marked:
+                yield entry
+            elif depth > 1:
+                yield from _candidate_dirs((entry,), depth - 1)
+
+
+def find_stranded(
+    holders: dict[str, list[int]],
+    roots: tuple[Path, ...] = TEMP_ROOTS,
+    with_size: bool = True,
+) -> list[StrandedRow]:
+    """Directories whose worktree registration is gone but whose files remain."""
+    rows: list[StrandedRow] = []
+    seen: set[Path] = set()
+    for entry in _candidate_dirs(roots):
+        try:
+            resolved = entry.resolve()
+        except OSError:
+            continue
+        if resolved in seen:  # /tmp is a symlink to /private/tmp on macOS
+            continue
+        admin = _admin_dir_of(entry)
+        if admin is None or Path(admin).exists():
+            continue  # not a worktree, or still properly registered
+        seen.add(resolved)
+        repo = _repo_from_admin(admin)
+        dirty = -1
+        if repo is not None:
+            out = run(
+                [
+                    "git",
+                    f"--git-dir={repo / '.git'}",
+                    f"--work-tree={entry}",
+                    "status",
+                    "--porcelain",
+                    "--untracked-files=no",
+                ]
+            )
+            # Count only edits that can CONTAIN work. A half-removed tree is missing most
+            # of its files, so a plain line count reports thousands of "edits" that are
+            # the aborted deletion itself — which would make every stranded tree look
+            # maximally dirty and permanently un-reclaimable, i.e. exactly the bytes this
+            # scan exists to recover. Deletions are the damage, not the work;
+            # modifications and adds are the work.
+            dirty = (
+                sum(
+                    1
+                    for ln in out.stdout.splitlines()
+                    if len(ln) >= 2 and set(ln[:2]) & {"M", "A", "R", "C", "U"}
+                )
+                if out.returncode == 0
+                else -1
+            )
+            rows.append(
+                StrandedRow(
+                    path=entry,
+                    repo_root=repo,
+                    size=_du(entry) if with_size else "?",
+                    tracked_dirty=dirty,
+                    held=holders_for(entry, holders),
+                )
+            )
+    return rows
 
 
 def ahead_of_main(repo: Path, branch: str) -> int:
@@ -537,7 +709,24 @@ def main() -> int:
             f"dirty={row.tracked_dirty:>3} {cls:9} {row.age:>14} {row.size:>6}  {row.path}{extra}"
         )
 
-    if not all_rows:
+    # Stranded trees are invisible to `git worktree list`, so they are found by scanning
+    # the temp roots directly rather than by asking any repo what it owns.
+    stranded = find_stranded(cwd_holders, with_size=with_size)
+    if stranded:
+        print("\nSTRANDED — registration gone, files remain (invisible to `git worktree list`):")
+        for s in stranded:
+            if s.held:
+                why = f"HELD by {' '.join(str(p) for p in s.held)}"
+            elif s.tracked_dirty > 0:
+                why = f"{s.tracked_dirty} tracked edits — recover before removing"
+            elif s.tracked_dirty < 0:
+                why = "owning repo unrecoverable — inspect by hand"
+            else:
+                why = "reclaimable"
+            owner = s.repo_root.name if s.repo_root else "?"
+            print(f"{'→' if s.reclaimable else ' '} {owner:15} {s.size:>6}  {s.path}  ({why})")
+
+    if not all_rows and not stranded:
         print("(no extra worktrees)")
         return 0
 
@@ -573,7 +762,35 @@ def main() -> int:
         except subprocess.CalledProcessError as e:
             print(f"FAIL {row.path}: {e.stderr or e}", file=sys.stderr)
 
-    print(f"\nremoved {removed}/{len(to_remove)} worktrees")
+    # Stranded trees are no longer worktrees, so `git worktree remove` cannot touch them —
+    # the directory is inert and the reclaim is a plain delete. Gated on the same evidence
+    # the registered rows use: no live holder, no tracked edits, owning repo recovered.
+    reclaimed = 0
+    for s in stranded:
+        if not s.reclaimable:
+            continue
+        try:
+            shutil.rmtree(s.path, ignore_errors=False)
+        except OSError:
+            for p in s.path.rglob("*"):
+                try:
+                    if not p.is_symlink():
+                        p.chmod(p.stat().st_mode | stat.S_IWUSR)
+                except OSError:
+                    pass
+            shutil.rmtree(s.path, ignore_errors=True)
+        if s.path.exists():
+            print(f"FAIL stranded {s.path}: still on disk", file=sys.stderr)
+            continue
+        print(f"reclaimed stranded {s.path} ({s.size})")
+        reclaimed += 1
+
+    # A registration whose directory is already gone is the mirror image of a stranded
+    # tree, and it is what makes `worktree list` report paths that do not exist.
+    for repo in repos:
+        run(["git", "worktree", "prune"], cwd=repo)
+
+    print(f"\nremoved {removed}/{len(to_remove)} worktrees; reclaimed {reclaimed} stranded")
     return 0
 
 
