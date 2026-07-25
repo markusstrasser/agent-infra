@@ -31,6 +31,8 @@ Evidence: standing #g metafix — worktree leak is harness hygiene, not telos.
 from __future__ import annotations
 
 import argparse
+import shutil
+import stat
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -381,7 +383,43 @@ def should_remove(
 
 
 def remove_worktree(repo: Path, wt: Path) -> None:
-    run(["git", "worktree", "remove", "--force", str(wt)], cwd=repo, check=True)
+    """Remove a worktree, surviving read-only caches and never half-removing.
+
+    `git worktree remove --force` unregisters FIRST and deletes files second, so a
+    permission error partway through leaves the worst possible state: the admin dir
+    under .git/worktrees is gone, the files are still on disk, and the directory is
+    no longer a worktree — so it is invisible to the next audit and its bytes are
+    never reclaimed. On 2026-07-25 that silently stranded ~13 GiB across ten
+    worktrees, and the run reported them as failures while they were in fact
+    already unregistered.
+
+    The trigger is `.claude/cache/source-epochs/`, which materializes trees
+    read-only on purpose. Make the tree writable first so the delete can finish;
+    then, if git still failed, finish the job rather than leaving a half-state.
+    """
+    for path in wt.rglob("*"):
+        try:
+            if not path.is_symlink():
+                path.chmod(path.stat().st_mode | stat.S_IWUSR)
+        except OSError:
+            pass
+    try:
+        run(["git", "worktree", "remove", "--force", str(wt)], cwd=repo, check=True)
+    except subprocess.CalledProcessError:
+        # Half-removed is not a state to leave behind. If git already unregistered
+        # it, the directory is now inert and only wastes disk; delete it and prune.
+        if wt.exists() and not (wt / ".git").exists():
+            shutil.rmtree(wt, ignore_errors=True)
+        elif wt.exists():
+            marker = (wt / ".git").read_text(errors="ignore") if (wt / ".git").is_file() else ""
+            admin = marker.partition("gitdir:")[2].strip()
+            if admin and not Path(admin).exists():
+                shutil.rmtree(wt, ignore_errors=True)
+            else:
+                raise
+        run(["git", "worktree", "prune"], cwd=repo)
+    if wt.exists():
+        raise RuntimeError(f"{wt} still on disk after removal")
     run(["git", "worktree", "prune"], cwd=repo)
 
 
