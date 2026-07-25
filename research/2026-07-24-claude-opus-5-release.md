@@ -199,16 +199,29 @@ workload-specific sweep on our own task classes (coding still starts at `xhigh`)
 | Cost per task vs Fable 5 | **−26%** |
 | HLE | 53% · Terminal-Bench v2.1 89% (max) |
 | AA-Omniscience **Index** | **31** — *below Fable 5's 40*, despite leading Intelligence |
-| Accuracy vs Opus 4.8 | **+7 points** |
-| **Hallucination rate** | **+14 points → 50%** |
 
-The card self-reported hallucination as *"slightly more than Opus 4.8"* (+6%). Independent
-measurement puts it at **+14pp, answering wrong half the time when it answers**. Opus 5 leads
-on raw intelligence and *trails Fable* on the metric that penalizes confident wrongness.
+⚠ **Provenance split — read the grades, they differ:**
 
-**Net:** provenance tagging, `verify-claim`, and the PUSHBACK SELF-CHECK are not
-belt-and-braces — they are load-bearing against a measured 50% hallucination rate. This is the
-one axis where the model got materially worse, and it is the axis our epistemic hooks cover.
+- **VERIFIED (fetched AA pages, 2026-07-25):** the per-effort curve above, Intelligence Index
+  61, and AA-Omniscience **Index 31 vs Fable 5's 40**. These come from
+  `artificialanalysis.ai/models/claude-opus-5{,-high,-medium,-low}` and `/evaluations/omniscience`.
+- **UNVERIFIED (second-hand):** *"accuracy +7pp, hallucination rate +14pp → 50%"* came from a
+  **search-engine summary of an X post** by @ArtificialAnlys — not from AA's own pages. A direct
+  re-fetch of the omniscience evaluation page and the Opus 5 model page returns the Index but
+  **not** accuracy or hallucination-rate figures for Opus 5, and x.com is unfetchable by policy
+  (`~/.claude/rules/*`). **Treat the +14pp/50% pair as an unconfirmed vendor-adjacent claim, not
+  a measurement.** To confirm: ask the operator to paste the X post, or wait for AA to surface
+  the per-model breakdown.
+
+**What survives on verified evidence alone:** Opus 5 leads the Intelligence Index (61) while
+scoring **below Fable 5 on the hallucination-penalized index (31 vs 40)**. The direction —
+better at answering, worse at knowing when not to — matches the card's own self-report
+(*"hallucinates factual claims slightly more than Opus 4.8, despite being more accurate
+overall"*, §6.5). Magnitude is unestablished.
+
+**Net:** provenance tagging, `verify-claim`, and the PUSHBACK SELF-CHECK stay load-bearing —
+justified by the verified index gap and the card's own admission, without needing the
+unconfirmed 50%.
 
 ## Open
 

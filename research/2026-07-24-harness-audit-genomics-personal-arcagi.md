@@ -329,6 +329,35 @@ trees; the owning session should commit it alongside its own change.
 - The `vetoed-decisions.md` omission of the 2026-06-13 genomics-skills reversal is unfixed
   (genomics' file, and the entry needs the owner's framing).
 
+## Correction, 2026-07-25 — "`embedding-models` content is gone" is WRONG
+
+The personal §BROKEN finding above states that `embedding-models` *"has no counterpart
+anywhere — that skill's content is gone, not misplaced."* Acting on that, a later session
+(this one) deleted the dangling `.agents/skills/embedding-models` symlink as a no-downside
+cleanup. **The content is not gone and the deletion destroyed the last trace of it.**
+
+```
+personal@fcdd7cbf  2026-07-19  [agents] Teach canonical workspace — delete retired routing
+  D  .claude/skills/embedding-models/SKILL.md   (129 lines)
+```
+
+Recoverable: `git -C ~/Projects/personal show fcdd7cbf^:.claude/skills/embedding-models/SKILL.md`.
+It has real authored history (`bb352e29` "Pareto frontier research, MPS gotchas, migration
+guide"). `embedding-models` was the **only** skill dropped in that commit, whose stated purpose
+was removing "legacy repository or platform vocabulary" — so whether *this* skill was
+deliberately retired or swept along in the cutover is **unresolved, and is the owner's call**.
+
+Both errors are the same class: `find`/`ls` over live paths is a **locator**; the deciding
+instrument for "does this content still exist" is `git log --diff-filter=D`. Neither the audit
+nor the follow-up ran it. Same class as the `epistemics` pointer removed and restored the same
+day — a dangling pointer to a capability is *evidence the capability mattered*, which is
+exactly how the 2026-06-13 genomics skill over-cut was caught (`db011b7c8`: "post-cut
+dangling-ref check surfaced the live CLAUDE.md pointer").
+
+**Not restoring the symlink** — a symlink to a nonexistent path genuinely delivers nothing to
+Codex, so the audit's mechanical call stands. What was wrong was the *foreclosing claim*, now
+corrected, with the recovery path recorded above.
+
 ## Method note — a mistake worth recording
 
 The parent twice read a stale file mtime as a dead subagent and acted on it: once dispatching a
