@@ -125,8 +125,35 @@ def check_settings_json(path: Path, scope: str) -> list[Check]:
                     if p == "--directory" and i + 1 < len(parts):
                         resolve_base = Path(os.path.expandvars(parts[i + 1])).expanduser()
                         break
+                # Hooks often define their own shell vars inline
+                # (`PROJECT_ROOT=${CLAUDE_PROJECT_DIR:-$PWD}; "$PROJECT_ROOT/x.sh"`).
+                # expandvars() can't see those, so the token stays literal and the
+                # path check false-positives. Bind them here before resolving.
+                inline_vars: dict[str, str] = {}
+                for p in parts:
+                    m = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$", p)
+                    if not m:
+                        break  # assignments only lead the command
+                    # shlex keeps the statement separator glued to the assignment
+                    # (`VAR=x;`), which would otherwise land inside the path.
+                    name, val = m.group(1), m.group(2).rstrip(";&|")
+                    if project_dir is not None:
+                        val = re.sub(
+                            r"\$\{CLAUDE_PROJECT_DIR(:-[^}]*)?\}|\$CLAUDE_PROJECT_DIR",
+                            str(project_dir),
+                            val,
+                        )
+                    inline_vars[name] = os.path.expandvars(val)
+
+                def bind_inline(token: str) -> str:
+                    for name, val in inline_vars.items():
+                        token = token.replace(f"${{{name}}}", val).replace(f"${name}", val)
+                    return token
+
                 # Find the script file — may be the command itself or an argument to bash/python3
                 script_token = next((p for p in parts if p.endswith(('.sh', '.py'))), None)
+                if script_token:
+                    script_token = bind_inline(script_token)
                 if script_token:
                     script = resolve(script_token, resolve_base)
                 elif parts and (parts[0].startswith(("/", "~", "$"))):
