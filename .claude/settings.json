@@ -98,6 +98,10 @@
           },
           {
             "type": "command",
+            "command": "/Users/alien/Projects/agent-infra/.claude/hooks/stop-bg-job-liveness.py"
+          },
+          {
+            "type": "command",
             "command": "/Users/alien/Projects/skills/hooks/plan-close-gate.py"
           }
         ]
