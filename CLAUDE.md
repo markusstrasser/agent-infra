@@ -218,7 +218,7 @@ Anchor: `decisions/2026-06-15-llmx-refactor-dispatch-layer.md`.
 - Stop hooks must check `stop_hook_active` to prevent infinite loops.
 - **Deployed prompt hooks:** Agent dispatch turn-budget validation (PreToolUse), Stop verification of claimed work (Stop), unsourced claim detection (PostToolUse Write|Edit).
 - **Hook fleets become dispatchers (2026-07-13).** N same-matcher command hooks = N process spawns + N stdin re-parses per event (measured: intel's 42 Write|Edit gates = 7.5s/edit, 38× cut; the 2 universal hooks' jq storm = 264ms/tool-call, 2.6× cut). At ~5+ hooks on one matcher, consolidate into ONE parse-once dispatcher that importlib-loads each gate's unmodified `main()` (stdin swapped, SystemExit caught) — zero edits to gate files keeps standalone contracts and is a behavioral mirror by construction. Ship with a frozen pre-migration snapshot fixture + parity pytest, fail-open wrapper, fail-fast on first exit-2. Reference impls: intel `.claude/hooks/pretool_writeedit_dispatch.py` · skills `hooks/pretool-universal-dispatch.py`.
-- Hook inventory and event types documented in MEMORY.md `hooks.md`.
+- Hook inventory and event types are **derived, never hand-listed**: `just orient` prints live fire count, unique scripts, and the per-event breakdown; `just hooks-smoke` catches silently-dead hooks; `just hook-roi` / `just hook-decay` flag advisory noise to cull and over-aggressive gates to demote.
 </reference_data>
 
 <!-- Cockpit: see cockpit.md + .claude/rules/cockpit.md (scripts). Cursor: .cursor/rules/cockpit.mdc. Session forensics: see .claude/rules/session-forensics.md -->
