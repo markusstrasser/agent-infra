@@ -1,6 +1,20 @@
 # Turn-level prior-context hook activation (2026-07-16)
 
-**Status:** DATA PLANE READY; LIVE HOOK HELD UNTIL 2026-07-24
+**Status:** UNBLOCKED 2026-07-25 — step 1 satisfied; shadow may begin
+
+> **Gate cleared.** The 2026-07-10 `over_caution` ablation closed with both
+> pre-registered bands passing: over_caution 0.40/day (baseline 1.29, band "flat or ↓")
+> and the rediscovery control 0.20/day (baseline 1.00, band ≤2.00 — no spike). The
+> control-hygiene freeze on rediscovery-touching changes is lifted. Verdict recorded in
+> `decisions/2026-07-25-over-caution-ablation-closed.md`; the control is weakly powered
+> (3 events/15d), so read it as "no evidence of harm," not proof.
+>
+> **Still escalated** because steps 2–4 edit a shared UserPromptSubmit hook (3+ projects
+> = shared blast radius). Step 1 is done; steps 2–4 are the remaining ask.
+>
+> Current hook ROI for reference (`just prior-context-stats`, since 2026-07-18):
+> 565 fires → 10 triage flags = **56.5 fires/flag**. That is the intent-gate's present
+> precision, and the number the shadow's ≥70% answer-bearing precision bar has to beat.
 
 ## Decision
 
