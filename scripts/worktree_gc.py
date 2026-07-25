@@ -479,11 +479,19 @@ def main() -> int:
         if row.held:
             extra = f"  ← {row.held} LIVE process(es) working here"
         elif row.daemon_held:
-            # Print the exact PID: the whole point is that reclaiming this needs a
-            # targeted kill, and a substring `pkill -f` on a shared box has already
-            # killed a healthy job here twice.
+            # State the OBSERVATION, never the conclusion. "Only a poller holds this
+            # cwd" is what lsof proves; "nobody is working here" is an inference that
+            # was caught being false on 2026-07-25 — an actively-running 6-sample wave
+            # classified DAEMON because its shells ran from a scratchpad directory
+            # elsewhere, leaving only the poller in the worktree's own cwd. The row
+            # stayed out of every apply set on git state, so nothing was at risk, but
+            # the wording claimed more than the evidence.
+            # Print the exact PID: reclaiming needs a targeted kill, and a substring
+            # `pkill -f` on a shared box has already killed a healthy job here twice.
             pids = " ".join(str(p) for p in row.daemon_pids)
-            extra = f"  ← orphaned poller only, no work — reclaim after: kill {pids}"
+            extra = f"  ← only a detached poller holds this cwd (kill {pids})"
+            if row.ahead > 0 or row.tracked_dirty:
+                extra += " — but it has commits/edits, verify before reclaiming"
         elif row.branch and row.ahead > 0:
             extra = f"  commits: {commit_preview(row.repo_root, row.branch)}"
         print(
