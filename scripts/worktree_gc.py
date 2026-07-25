@@ -54,6 +54,7 @@ class WorktreeRow:
     ancestor: bool  # detached HEAD is ancestor of main
     age: str = "?"  # relative last-commit date (currency signal)
     dup: bool = False  # ahead>0 but every patch already on main (git cherry all '-')
+    held: int = 0  # processes whose cwd is inside this worktree
 
     @property
     def stale(self) -> bool:
@@ -61,7 +62,16 @@ class WorktreeRow:
 
     @property
     def safe(self) -> bool:
-        """Stale on main, no local edits."""
+        """Stale on main, no local edits, and no process working in it.
+
+        The liveness term is not decoration. Until 2026-07-25 this property was git
+        state + age only, and on that day it called SIX worktrees SAFE — the default
+        apply set — while `lsof` showed a live python3 holding each one. Crash-loop
+        watchers and remat lanes poll on a timer and write nothing between polls, so a
+        clean tree with an old mtime is exactly what a *working* agent looks like.
+        """
+        if self.held:
+            return False
         if self.tracked_dirty:
             return False
         if self.branch is None:
@@ -77,6 +87,10 @@ class WorktreeRow:
         # (cherry-picked / rebased) — the heretic-fixes-stranded case. Safe to
         # reap, but surfaced distinctly so the operator reaps with confidence
         # rather than mistaking it for genuine unmerged work.
+        # HELD dominates every other verdict. A process working in the directory makes
+        # it un-reclaimable regardless of how clean or how old its git state looks.
+        if self.held:
+            return "HELD"
         if self.dup and not self.tracked_dirty:
             return "DUP"
         if self.safe:
@@ -88,8 +102,40 @@ class WorktreeRow:
         return "skip-dirty"
 
 
-def run(cmd: list[str], cwd: Path | None = None, check: bool = False) -> subprocess.CompletedProcess[str]:
+def run(
+    cmd: list[str], cwd: Path | None = None, check: bool = False
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, check=check)
+
+
+def live_cwd_lines() -> list[str]:
+    """Every process cwd on the box, in ONE lsof call.
+
+    One call rather than one per worktree: 39 worktrees would otherwise mean 39 lsof
+    invocations, and an audit that is slow gets run with the flag that skips it. `-d cwd`
+    only — never `+D`, which walks every file in the tree and takes minutes on repos this
+    size, which is why liveness got skipped here in the first place.
+
+    Returns [] when lsof is unavailable. That is the dangerous direction, so an empty
+    result means "unknown", never "nothing is running" — see the caller.
+    """
+    try:
+        result = subprocess.run(
+            ["lsof", "-a", "-d", "cwd", "-c", "python3", "-c", "bash", "-c", "git", "-c", "node"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []
+    return result.stdout.splitlines()
+
+
+def holders_for(path: Path, cwd_lines: list[str]) -> int:
+    """How many processes are working inside ``path``."""
+    needle = str(path)
+    return sum(1 for line in cwd_lines if needle in line)
 
 
 def is_main_checkout(repo: Path) -> bool:
@@ -103,7 +149,10 @@ def repo_roots(explicit: list[str] | None, all_projects: bool) -> list[Path]:
     elif all_projects:
         roots = sorted(p.resolve() for p in PROJECTS_HOME.iterdir() if (p / ".git").exists())
     else:
-        roots = [PROJECT_ROOTS["agent-infra"], *[PROJECT_ROOTS[k] for k in ("genomics", "personal")]]
+        roots = [
+            PROJECT_ROOTS["agent-infra"],
+            *[PROJECT_ROOTS[k] for k in ("genomics", "personal")],
+        ]
     return [r for r in roots if is_main_checkout(r)]
 
 
@@ -181,7 +230,7 @@ def audit_repo(repo: Path, with_size: bool = True) -> list[WorktreeRow]:
         st = run(["git", "status", "--porcelain"], cwd=wt)
         tracked_dirty = sum(1 for ln in st.stdout.splitlines() if not ln.startswith("??"))
         # `du` is the slow part; skip it on the cheap --check path (size irrelevant to the flag).
-        size = (run(["du", "-sh", str(wt)]).stdout.split()[0] if (with_size and wt.exists()) else "?")
+        size = run(["du", "-sh", str(wt)]).stdout.split()[0] if (with_size and wt.exists()) else "?"
         dup = False
         if branch:
             ahead = ahead_of_main(repo, branch)
@@ -226,6 +275,12 @@ def should_remove(
 ) -> bool:
     if any(k in str(row.path) for k in keep):
         return False
+    # Held beats every force flag, --force-all included. On 2026-07-25 the six worktrees
+    # this check now protects were all in the default apply set, each with a live
+    # process; the 2026-07-24 near-miss was the same class. Nothing about "remove all"
+    # implies "remove out from under a running agent" — kill the process first.
+    if row.held:
+        return False
     if force_all:
         return True
     if row.safe:
@@ -243,19 +298,39 @@ def remove_worktree(repo: Path, wt: Path) -> None:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("mode", nargs="?", default="audit", choices=("audit", "apply"))
-    ap.add_argument("--repo", action="append", help="repo path (repeatable); default agent-infra+genomics+personal")
+    ap.add_argument(
+        "--repo",
+        action="append",
+        help="repo path (repeatable); default agent-infra+genomics+personal",
+    )
     ap.add_argument("--all-projects", action="store_true", help="scan all ~/Projects/* git repos")
-    ap.add_argument("--include-unmerged", action="store_true",
-                    help="remove unmerged worktrees with no local edits (branch kept)")
-    ap.add_argument("--force-stale", action="store_true", help="remove ahead==0 worktrees even with local edits")
-    ap.add_argument("--force-all", action="store_true", help="remove all worktrees except --keep matches")
-    ap.add_argument("--keep", action="append", default=[], help="substring; skip paths containing this")
-    ap.add_argument("--prune-branches", action="store_true", help="delete branch after remove when ahead==0")
-    ap.add_argument("--check", action="store_true",
-                    help="cheap advisory flag for the control plane: print STRANDED line iff "
-                         "genuine-unmerged or reapable-DUP branches exist (skips du). Always exit 0.")
+    ap.add_argument(
+        "--include-unmerged",
+        action="store_true",
+        help="remove unmerged worktrees with no local edits (branch kept)",
+    )
+    ap.add_argument(
+        "--force-stale", action="store_true", help="remove ahead==0 worktrees even with local edits"
+    )
+    ap.add_argument(
+        "--force-all", action="store_true", help="remove all worktrees except --keep matches"
+    )
+    ap.add_argument(
+        "--keep", action="append", default=[], help="substring; skip paths containing this"
+    )
+    ap.add_argument(
+        "--prune-branches", action="store_true", help="delete branch after remove when ahead==0"
+    )
+    ap.add_argument(
+        "--check",
+        action="store_true",
+        help="cheap advisory flag for the control plane: print STRANDED line iff "
+        "genuine-unmerged or reapable-DUP branches exist (skips du). Always exit 0.",
+    )
     ap.add_argument("--no-size", action="store_true", help="skip du -sh (faster audit)")
     args = ap.parse_args()
 
@@ -268,6 +343,11 @@ def main() -> int:
             continue
         all_rows.extend(audit_repo(repo, with_size=with_size))
 
+    # Liveness last, in one lsof call for every row, so it also gates --check.
+    cwd_lines = live_cwd_lines()
+    for row in all_rows:
+        row.held = holders_for(row.path, cwd_lines)
+
     if args.check:
         # 3 buckets, all carrying unmerged COMMITS (so never a fresh active checkout):
         #   LAND   = unmerged clean      INSPECT = skip-dirty (commits + uncommitted)
@@ -277,16 +357,22 @@ def main() -> int:
         if not stranded:
             return 0  # silent when clean — no drift flag
         from collections import Counter
+
         counts = Counter(bucket[r.classify()] for r in stranded)
         bits = [f"{counts[b]} to {b}" for b in ("LAND", "INSPECT", "REAP") if counts.get(b)]
-        print(f"STRANDED worktree branches: {', '.join(bits)} — `just worktree-gc audit --all-projects`")
+        print(
+            f"STRANDED worktree branches: {', '.join(bits)} — `just worktree-gc audit --all-projects`"
+        )
         for r in sorted(stranded, key=lambda x: bucket[x.classify()]):
-            print(f"  [{bucket[r.classify()]:7}] {r.repo}/{r.branch}  ahead={r.ahead} dirty={r.tracked_dirty} age={r.age}")
+            print(
+                f"  [{bucket[r.classify()]:7}] {r.repo}/{r.branch}  ahead={r.ahead} dirty={r.tracked_dirty} age={r.age}"
+            )
         return 0
 
     keep = set(args.keep)
     to_remove = [
-        r for r in all_rows
+        r
+        for r in all_rows
         if should_remove(r, args.include_unmerged, args.force_stale, args.force_all, keep)
     ]
 
@@ -295,7 +381,9 @@ def main() -> int:
         mark = "→" if row in to_remove else " "
         br = row.branch or "(detached)"
         extra = ""
-        if row.branch and row.ahead > 0:
+        if row.held:
+            extra = f"  ← {row.held} LIVE process(es) working here"
+        elif row.branch and row.ahead > 0:
             extra = f"  commits: {commit_preview(row.repo_root, row.branch)}"
         print(
             f"{mark} {row.repo:15} {br:42} ahead={row.ahead:>3} "
@@ -312,9 +400,13 @@ def main() -> int:
         n_unmerged = sum(1 for r in all_rows if r.classify() == "unmerged")
         print(f"\n{len(all_rows)} worktrees; {n_safe} stale+clean (default apply)")
         if n_dup:
-            print(f"  {n_dup} DUP (patches already on main) — reap: --include-unmerged --prune-branches")
+            print(
+                f"  {n_dup} DUP (patches already on main) — reap: --include-unmerged --prune-branches"
+            )
         if n_unmerged:
-            print(f"  {n_unmerged} GENUINE unmerged+clean — LAND these; --include-unmerged drops dir but keeps branch")
+            print(
+                f"  {n_unmerged} GENUINE unmerged+clean — LAND these; --include-unmerged drops dir but keeps branch"
+            )
         print("Run: just worktree-gc apply --all-projects")
         return 0
 
