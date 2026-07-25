@@ -25,10 +25,13 @@ from collections import defaultdict
 # Per-MTok (input, output); output rate also applies to reasoning tokens. Exact model
 # keys (NOT prefixes) — an unpriced model returns None (surfaces as $0, never guessed).
 PRICING: dict[str, tuple[float, float]] = {
-    "gemini-3-flash-preview": (0.075, 0.30),
-    "gemini-3-flash": (0.075, 0.30),
-    "gemini-3.1-flash-lite-preview": (0.05, 0.20),
+    "gemini-3-flash-preview": (0.5, 3.0),
+    "gemini-3-flash": (0.5, 3.0),
+    "gemini-3.1-flash-lite-preview": (0.25, 1.5),
+    "gemini-3.1-flash-lite": (0.25, 1.5),
     "gemini-3.5-flash": (1.50, 9.0),
+    "gemini-3.5-flash-lite": (0.3, 2.5),
+    "gemini-3.6-flash": (1.5, 7.5),
     "gemini-3.1-pro-preview": (1.25, 10.0),
     # GPT-5.6 suite (developers.openai.com/api/docs/pricing, GA 2026-07-09)
     # Standard short-context: Sol $5/$30, Terra $2.50/$15, Luna $1/$6.
@@ -43,6 +46,7 @@ PRICING: dict[str, tuple[float, float]] = {
     "claude-opus-4-8": (5.0, 25.0),
     "claude-fable-5": (10.0, 50.0),
     "claude-sonnet-4-6": (3.0, 15.0),
+    "claude-sonnet-5": (3.0, 15.0),
     # SpaceXAI Grok 4.5 (docs.x.ai 2026-07-08): base $2/$6.
     "grok-4.5": (2.0, 6.0),
     # Cursor-pool Grok 4.5 slugs (2026-07-14 registry): mirrors llmx's
