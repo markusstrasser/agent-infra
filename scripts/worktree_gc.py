@@ -54,7 +54,9 @@ class WorktreeRow:
     ancestor: bool  # detached HEAD is ancestor of main
     age: str = "?"  # relative last-commit date (currency signal)
     dup: bool = False  # ahead>0 but every patch already on main (git cherry all '-')
-    held: int = 0  # processes whose cwd is inside this worktree
+    held: int = 0  # processes doing real work whose cwd is inside this worktree
+    daemon_held: int = 0  # detached pollers holding it forever by design (see DAEMON_SCRIPTS)
+    daemon_pids: tuple[int, ...] = ()  # their exact PIDs, so a kill never needs pkill -f
 
     @property
     def stale(self) -> bool:
@@ -70,7 +72,7 @@ class WorktreeRow:
         watchers and remat lanes poll on a timer and write nothing between polls, so a
         clean tree with an old mtime is exactly what a *working* agent looks like.
         """
-        if self.held:
+        if self.held or self.daemon_held:
             return False
         if self.tracked_dirty:
             return False
@@ -91,6 +93,13 @@ class WorktreeRow:
         # it un-reclaimable regardless of how clean or how old its git state looks.
         if self.held:
             return "HELD"
+        # DAEMON is HELD's honest sibling: the only thing here is a detached poller that
+        # will hold this cwd until someone kills it, so "live process" is true but
+        # "someone is working here" is false. Kept OUT of every automatic apply set —
+        # this only stops the operator reading an orphan as an agent, and supplies the
+        # exact PID to kill. Reaping it is a deliberate, separate act.
+        if self.daemon_held:
+            return "DAEMON"
         if self.dup and not self.tracked_dirty:
             return "DUP"
         if self.safe:
@@ -108,34 +117,108 @@ def run(
     return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, check=check)
 
 
-def live_cwd_lines() -> list[str]:
-    """Every process cwd on the box, in ONE lsof call.
+# Self-relaunching detached pollers that hold a worktree cwd FOREVER by design, whether
+# or not anyone is working there. Matched on the exact script path in the full command
+# line — never on the interpreter. Matching `python3` would reopen the precise hole the
+# liveness gate exists to close; matching `scripts/modal_crash_loop_watcher.py` cannot,
+# because an interactive agent is `claude`, a shell, a git process, or a DIFFERENT
+# script, and none of those can collide with an exact path.
+DAEMON_SCRIPTS: frozenset[str] = frozenset({"scripts/modal_crash_loop_watcher.py"})
+
+
+def live_cwd_holders() -> dict[str, list[int]]:
+    """Map every process cwd on the box to the PIDs there, in ONE lsof call.
 
     One call rather than one per worktree: 39 worktrees would otherwise mean 39 lsof
     invocations, and an audit that is slow gets run with the flag that skips it. `-d cwd`
     only — never `+D`, which walks every file in the tree and takes minutes on repos this
     size, which is why liveness got skipped here in the first place.
 
-    Returns [] when lsof is unavailable. That is the dangerous direction, so an empty
+    `-F pn` is field output — `p<pid>` then `n<path>` — so this parses PIDs exactly
+    instead of substring-matching a human-formatted table. The PID is what lets a caller
+    ask *what* is holding a directory rather than only *how many*.
+
+    Returns {} when lsof is unavailable. That is the dangerous direction, so an empty
     result means "unknown", never "nothing is running" — see the caller.
     """
     try:
         result = subprocess.run(
-            ["lsof", "-a", "-d", "cwd", "-c", "python3", "-c", "bash", "-c", "git", "-c", "node"],
+            [
+                "lsof",
+                "-a",
+                "-d",
+                "cwd",
+                "-F",
+                "pn",
+                "-c",
+                "python3",
+                "-c",
+                "bash",
+                "-c",
+                "git",
+                "-c",
+                "node",
+            ],
             capture_output=True,
             text=True,
             timeout=60,
             check=False,
         )
     except (OSError, subprocess.SubprocessError):
-        return []
-    return result.stdout.splitlines()
+        return {}
+    holders: dict[str, list[int]] = {}
+    pid: int | None = None
+    for line in result.stdout.splitlines():
+        if line.startswith("p"):
+            try:
+                pid = int(line[1:])
+            except ValueError:
+                pid = None
+        elif line.startswith("n") and pid is not None:
+            holders.setdefault(line[1:], []).append(pid)
+    return holders
 
 
-def holders_for(path: Path, cwd_lines: list[str]) -> int:
-    """How many processes are working inside ``path``."""
+def daemon_pids(pids: set[int]) -> set[int]:
+    """Which of ``pids`` are known detached daemons, by exact script path.
+
+    One batched `ps` for every candidate — a per-PID call would reintroduce the
+    fan-out this module already avoids for lsof. A PID that has exited between the
+    lsof and the ps simply does not come back, which is the safe direction: unknown
+    stays counted as a live holder.
+    """
+    if not pids:
+        return set()
+    try:
+        result = subprocess.run(
+            ["ps", "-o", "pid=,command=", "-p", ",".join(str(p) for p in sorted(pids))],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return set()
+    found: set[int] = set()
+    for line in result.stdout.splitlines():
+        head, _, command = line.strip().partition(" ")
+        try:
+            candidate = int(head)
+        except ValueError:
+            continue
+        if any(script in command for script in DAEMON_SCRIPTS):
+            found.add(candidate)
+    return found
+
+
+def holders_for(path: Path, holders: dict[str, list[int]]) -> list[int]:
+    """PIDs working inside ``path``, including nested subdirectories."""
     needle = str(path)
-    return sum(1 for line in cwd_lines if needle in line)
+    out: list[int] = []
+    for cwd, pids in holders.items():
+        if cwd == needle or cwd.startswith(needle + "/"):
+            out.extend(pids)
+    return out
 
 
 def is_main_checkout(repo: Path) -> bool:
@@ -281,6 +364,11 @@ def should_remove(
     # implies "remove out from under a running agent" — kill the process first.
     if row.held:
         return False
+    # A daemon-only hold is not work, but removing a directory a live process is chdir'd
+    # into is still not something a force flag should do silently. Kill the printed PID
+    # first, then the row reclassifies to SAFE on the next run and reaps normally.
+    if row.daemon_held:
+        return False
     if force_all:
         return True
     if row.safe:
@@ -343,10 +431,17 @@ def main() -> int:
             continue
         all_rows.extend(audit_repo(repo, with_size=with_size))
 
-    # Liveness last, in one lsof call for every row, so it also gates --check.
-    cwd_lines = live_cwd_lines()
+    # Liveness last, in one lsof call for every row, so it also gates --check. The
+    # daemon split needs one further batched `ps` over only the PIDs lsof actually
+    # found, so the cost is two calls total regardless of worktree count.
+    cwd_holders = live_cwd_holders()
+    per_row = {row.path: holders_for(row.path, cwd_holders) for row in all_rows}
+    daemons = daemon_pids({pid for pids in per_row.values() for pid in pids})
     for row in all_rows:
-        row.held = holders_for(row.path, cwd_lines)
+        pids = per_row[row.path]
+        row.daemon_pids = tuple(sorted(pid for pid in pids if pid in daemons))
+        row.daemon_held = len(row.daemon_pids)
+        row.held = len(pids) - row.daemon_held
 
     if args.check:
         # 3 buckets, all carrying unmerged COMMITS (so never a fresh active checkout):
@@ -383,6 +478,12 @@ def main() -> int:
         extra = ""
         if row.held:
             extra = f"  ← {row.held} LIVE process(es) working here"
+        elif row.daemon_held:
+            # Print the exact PID: the whole point is that reclaiming this needs a
+            # targeted kill, and a substring `pkill -f` on a shared box has already
+            # killed a healthy job here twice.
+            pids = " ".join(str(p) for p in row.daemon_pids)
+            extra = f"  ← orphaned poller only, no work — reclaim after: kill {pids}"
         elif row.branch and row.ahead > 0:
             extra = f"  commits: {commit_preview(row.repo_root, row.branch)}"
         print(
