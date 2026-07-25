@@ -100,9 +100,57 @@ Its content is entirely branch-backed. If that Cursor session is confirmed gone,
 3906 by exact PID** (never a substring pattern — that has killed a healthy job here twice) and
 it becomes Tier 3.
 
-## What this does not fix
+## The leak, and what shipped for it (2026-07-25 22:0x)
 
-Reclaiming 16.8 GB does not close the leak. `reclaim`'s worktree section still iterates only
-`$HOME/Projects/*/.claude/worktrees` (`~/.local/bin/reclaim:325`), and every large tree above
-was created by an ad-hoc `git worktree add /tmp/<name>` in an agent Bash call. Until the GC
-scans `/private/tmp`, this file gets rewritten next week with different names.
+Reclaiming 16.8 GB does not close the leak. Every large tree above came from an ad-hoc
+`git worktree add /tmp/<name>` in an agent Bash call, and nothing on this machine collects
+those.
+
+### Vendor coverage — narrower than the search summaries claim
+
+From the primary docs, not a blog:
+
+| Creator | Vendor cleanup |
+|---|---|
+| interactive `--worktree` / `EnterWorktree` | exit-time: clean+unnamed auto-removed, else prompt |
+| **`-p --worktree` (headless)** | **none** — "Claude doesn't clean up their worktrees" |
+| subagent `isolation: worktree`, background session | periodic sweep at `cleanupPeriodDays`; skips trees holding work |
+| **manual `git worktree add`** | **none** |
+
+The docs are explicit that the sweep "never removes worktrees you create with `--worktree`",
+and `ExitWorktree` that it "will NOT touch worktrees you created manually". We dispatch
+headless constantly and hand-rolled the rest, so we sat in the two uncovered rows.
+
+Two vendor facts I had wrong earlier, both corrected by measurement:
+
+- **Codex has no worktree feature at all** — no flag in `codex --help`, and `~/.codex/worktrees`
+  holds four *symlinks to `~/Projects` repos*, not worktrees. No lifecycle to route to.
+- **Cursor does have one** — `cursor-agent -w` → `~/.cursor/worktrees/<repo>/<name>`, nested one
+  level deeper than every other layout.
+
+### Shipped
+
+| Change | Where | Effect |
+|---|---|---|
+| `pretool-worktree-location-guard.py` | skills `50d979d` | Blocks `git worktree add` outside a managed dir. Wired into `pretool-bash-dispatch.py` (Claude) **and** `~/.codex/hooks.json` via the shim (Codex runs gates individually, not through the dispatcher). 16/16 selftest; verified firing on both paths. |
+| Stranded-tree discovery | agent-infra `db0a718` | `worktree_gc` scans `/private/tmp` + `~/.cursor/worktrees` (depth 2) instead of only asking repos what they own. 10 tests. |
+| Nightly GC | dotfiles `0d97cb1` | `com.dotfiles.reclaim-rotate` (04:10) now runs `worktree_gc apply --all-projects`. |
+| Cursor rule | `~/.cursor/rules/worktree-location.mdc` | Cursor doesn't run our hooks; a rule is the only lever. |
+
+### Rejected: lowering `cleanupPeriodDays`
+
+The obvious knob is a trap. It is a **single shared cutoff** — the docs: *"Claude Code deletes
+session files and other application data older than this period at startup. The same age cutoff
+applies to automatic removal of orphaned worktrees."* There is no worktree-only setting. Cutting
+it to 7 to reap worktrees sooner would delete 23 days of session transcripts, which
+`agentlogs`, `session-forensics` and every retro depend on. Left at the 30-day default; our own
+GC reaps on whatever schedule we want with none of that coupling.
+
+### The scheduled job was dead
+
+Worth recording separately: `com.dotfiles.reclaim-rotate` — the only scheduled disk-reclaim job
+on this box — had exit code 2 on **11/11 runs**. `uv cache prune` waits 300 s for a cache lock
+agents always hold, times out, and aborts the job. The script's own header had recorded that
+finding on 2026-06-10 and it kept running for six weeks. The prune now uses a 15 s timeout and
+is allowed to skip; the log prints a free-space delta so a future no-op is visible rather than
+silent.
