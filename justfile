@@ -712,29 +712,6 @@ clean-transcript input output='':
       uv run python3 scripts/clean_vtt.py "{{input}}" -o "{{output}}"
     fi
 
-# Legacy aliases (deprecated 2026-07-19)
-[group('epistemic')]
-debug repo scope='recent' *args='':
-    @just adversarial-debug-scout {{repo}} {{scope}} {{args}}
-[group('epistemic')]
-debug-triage audit_dir='docs/audit' *args='':
-    @just audit-findings-consolidation {{audit_dir}} --kind debug {{args}}
-[group('epistemic')]
-scout-triage audit_dir='docs/audit' *args='':
-    @just audit-findings-consolidation {{audit_dir}} {{args}}
-[group('epistemic')]
-session-classify *args='':
-    @just session-automation-telemetry {{args}}
-[group('epistemic')]
-audit-delta target='.' *args='':
-    @just baseline-since-last-green {{target}} {{args}}
-[group('epistemic')]
-commit-prep target='.' *args='':
-    @just commit-slice-planning {{target}} --status-only {{args}}
-[group('epistemic')]
-commit-plan target='.' *args='':
-    @just commit-slice-planning {{target}} {{args}}
-
 # Install git pre-commit hooks (chains no-large-binaries + append-only/protected guards + codebase-map refresh)
 [group('epistemic')]
 install-hooks:

@@ -49,4 +49,7 @@ Fire-and-forget convention: append `&` (or `run_in_background`) for scout/loop r
 - **Orchestrator model** → baseline, consolidation, commit-slice-planning, adversarial-debug-scout, verification-gate-runner
 - **Infra / launchd** → sensor-integration-ranking (no `--synthesis`), rsi-loop-funnel
 
-Legacy aliases until 2026-07-19: `audit-delta`, `commit-plan`, `scout-triage`, `debug`, `integrate-rank`, …
+Legacy aliases (`audit-delta`, `commit-plan`, `commit-prep`, `scout-triage`, `debug`,
+`debug-triage`, `session-classify`, `integrate-rank`) were **removed 2026-07-25** — the
+canonical names in the table above are the only ones. Historical research memos still cite
+the old names; that is correct, they record what was true then.
