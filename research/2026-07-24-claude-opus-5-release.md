@@ -164,12 +164,58 @@ use) — good for the `agent-browser` lane. Cyber: exceeds 4.8 at *finding* vuln
 Mythos 5 at *exploiting*; safeguards now **permit source-code vuln discovery at all access
 levels** while still blocking compiled-binary discovery.
 
+## Independent measurement — Artificial Analysis (fetched 2026-07-25)
+
+The vendor-claim discount now has a counterweight. AA evaluated Opus 5 pre-release at
+Anthropic's request, so it is *arranged* but not *self-reported*.
+
+### The effort curve is measured — and `max` is a bad default
+
+| Effort | AA Intelligence Index | Cost to run the index | Output tokens |
+|---|---|---|---|
+| low | 51 | $556 | 12M |
+| medium | 56 | $1,115 | 29M |
+| high | **59** | $1,974 | 52M |
+| max | **61** | $3,836 | 100M |
+
+**low→max buys +10 index points for 6.9× the cost and 8.3× the tokens.** The top step
+(high→max) buys **+2 points for +$1,862** — ~1.9× spend for a 3.4% relative gain. At max,
+Opus 5 emits 100M output tokens against a 63M median across models: AA's own note is *"very
+verbose in comparison."* At high it flips to *"fairly concise."*
+
+Read with §8.12 (*tool-use scales test-time compute more cost-effectively than adaptive
+thinking*), the routing consequence is concrete: **default `high`, reserve `max` for
+architecture and irreversible calls, and spend the difference on an in-loop verifier or probe
+rather than on the top effort tier.**
+
+Caveat: this is AA's task mix, not ours — a strong prior, not a substitute for a
+workload-specific sweep on our own task classes (coding still starts at `xhigh`).
+
+### Calibration: worse than the card implies
+
+| Metric | Value |
+|---|---|
+| AA Intelligence Index (max) | **61** — narrowly #1 (Fable 5 max 60, GPT-5.6 Sol max 59, Kimi K3 57) |
+| Cost per task vs Fable 5 | **−26%** |
+| HLE | 53% · Terminal-Bench v2.1 89% (max) |
+| AA-Omniscience **Index** | **31** — *below Fable 5's 40*, despite leading Intelligence |
+| Accuracy vs Opus 4.8 | **+7 points** |
+| **Hallucination rate** | **+14 points → 50%** |
+
+The card self-reported hallucination as *"slightly more than Opus 4.8"* (+6%). Independent
+measurement puts it at **+14pp, answering wrong half the time when it answers**. Opus 5 leads
+on raw intelligence and *trails Fable* on the metric that penalizes confident wrongness.
+
+**Net:** provenance tagging, `verify-claim`, and the PUSHBACK SELF-CHECK are not
+belt-and-braces — they are load-bearing against a measured 50% hallucination rate. This is the
+one axis where the model got materially worse, and it is the axis our epistemic hooks cover.
+
 ## Open
 
-- [ ] Live self-report probe: key-stripped `claude -p --model claude-opus-5` (API key must be unset — metered path 403/credit).
-- [ ] AA remeasure (Intelligence Index, Omniscience non-hallucination).
-- [ ] Effort-tier re-sweep (anim style) under Opus 5 low vs medium vs max.
-- [ ] Whether interactive default should move Max/Pro product default (Opus 5) vs keep Fable pin.
+- [x] Live self-report probe — **PASSES** 2026-07-25: key-stripped `env -u ANTHROPIC_API_KEY claude -p --model claude-opus-5` self-reports `claude-opus-5`.
+- [x] AA remeasure — done, above. Intelligence Index 61 (#1); AA-Omniscience Index 31, hallucination +14pp to 50%.
+- [~] Effort-tier re-sweep — **re-scoped.** AA's per-effort curve (above) answers the general-capability shape at $0; what remains is a workload-specific sweep on *our* task classes, now a 2-D design (effort × tools-in-loop) per §8.12, not the 1-D sweep originally planned.
+- [ ] Whether interactive default should move to the Max/Pro product default (Opus 5) vs keep the Fable pin — **operator call** (taste + session feel, not a benchmark question).
 
 ## Sources
 
