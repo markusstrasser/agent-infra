@@ -1289,7 +1289,7 @@ questions-drain *args:
 # term-match leg (correction-sweep pipeline retired 2026-05-29).
 [group('knowledge')]
 propagate term:
-    rg -n --type md "{{term}}" /Users/alien/Projects/personal/health/research /Users/alien/Projects/personal/apps/phenome/docs /Users/alien/Projects/personal/health/entities/genes /Users/alien/Projects/agent-infra/research /Users/alien/Projects/intel/analysis || true
+    rg -n --type md "{{term}}" /Users/alien/Projects/personal/health/research /Users/alien/Projects/personal/health/entities/genes /Users/alien/Projects/agent-infra/research /Users/alien/Projects/intel/analysis || true
 
 # Find unresolved correction/retraction blockquotes across the knowledge
 # repos. Replaces propagate-correction.py's @correction-scan leg.
