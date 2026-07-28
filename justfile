@@ -291,10 +291,23 @@ blindspot *args:
     uv run --project ~/Projects/emb python3 scripts/blindspot_miner.py --days 7 {{args}}
     uv run python3 scripts/rsi_hindsight_enqueue.py
 
+# The OTHER miss channel: errors the loop made, self-caught, self-fixed and forgot — no human
+# ever corrected them, so `blindspot` (which mines human corrections) is structurally blind to
+# them. Reads the hook event log nothing has ever read. $0, read-only.
+[group('health')]
+self-inflicted *args:
+    uv run --no-project python3 scripts/self_inflicted_miner.py {{args}}
+
 # Drain blindspot RSI-hindsight flags → artifacts/rsi-hindsight/queue.jsonl + LATEST.md
 [group('health')]
 rsi-hindsight-enqueue *args:
     uv run python3 scripts/rsi_hindsight_enqueue.py {{args}}
+
+# External URL / pointer disposition ledger (operator-free triage vocab:
+# known · in_queue · doesnt_apply · tried · adopted). RSI-hindsight CONVERT 2026-07-18.
+[group('gov')]
+pointer-disposition *args:
+    uv run python3 scripts/pointer_disposition.py {{args}}
 
 # Relocate raw agent session logs older than --keep-days to the external SSD
 # (reversible: --restore). The DB is derived + untouched; this only moves raw
