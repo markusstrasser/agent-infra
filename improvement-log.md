@@ -4223,3 +4223,18 @@ Evidence: benchmarks.bio "How Good is Opus 5 at Biology?" 2026-07-25; hook grep,
 probe, timing probe, parity probe, and corpus probe all run this session.
 - **[obs] "codex backlog" was a mis-framing — twice (2026-07-25):** I read codex `last_session_at 2026-07-24` as ingest failure and drained a "4,747-file backlog" for 25 min; it imported **zero** and bumped `orphaned_7d` 303→306. Ground truth: only **6** codex files exist newer than the last indexed session and none from today — **codex simply has not been used since 07-24**, so the timestamp was accurate, not stale. The 25 min was spent re-hitting legacy/continuation sources that collide on the `events.event_id` PK (`index.py` documents this: `--since-days` exists to avoid "re-touching never-indexed legacy sources whose re-import/continuation collides"). Two locate-vs-decide misses in one thread: a per-vendor timestamp LOCATES a possible gap; only "are there newer files on disk?" DECIDES it. Earlier in the same session I also derived codex production as ~940 files/day by dividing total files by 14 days — real rate is 8/day.
 - **[ ] Continuation-appends re-collide every scheduled run:** a codex rollout appended to after its first import (e.g. `rollout-2026-07-19T…019f78e3`, mtime 07-24) fails the `events.event_id` PK on re-import, so every 2h run re-reads it, logs collisions, imports nothing, and the mtime pre-skip cannot help because the mtime genuinely changed. Costs budget on every run forever and inflates `orphaned_7d`. Fix direction: per-source high-water seq so continuation imports append from the last seen `seq` instead of replaying from 0, or record a `collided` marker so a source whose events all collide is skipped until its content sha changes.
+
+### [2026-07-29] Observe-all + harvest (run 2026-07-29-2149)
+- **Session:** agent-infra (Grok observe→improve→Opus review)
+- **Evidence:** `artifacts/observe/2026-07-29-2149/` · harvest `artifacts/harvest/2026-07-29-30f16462-harvest.md`
+  - Supervision 1350 sess / 1.42% correction · vector grow_coverage=30 dominant · autonomy_reading=mixed
+  - Blindspot 26/1867 · triangulated HIGH: over_caution + rediscovery
+  - Failures top: BIOCONDA_HTS123×5/2d · arc_agi residual · agentlogs event_id PK (launchd exit 1)
+  - hooks-smoke red: genomics SessionStart `du` hang → **fixed** (2s timeout); re-smoke pass=242
+- **[obs] grow_coverage residual is worktree/migration inventory, not more prose prior-context** — operator rediscovery on genomics/8e03ff97 unmerged trees. Prior-context detector [x] 2026-07-09 is the wrong surface.
+- **[obs] over_caution residual post-ablation is design thrash (e549f6c1), not permission-ask** — do not re-open enforce (ablation closed 2026-07-25).
+- **[ ] REINFORCE agentlogs continuation event_id PK** — still open from 2026-07-25; every 2h run thrashing UNIQUE constraint + deadline. Top agent-infra-local build.
+- **[ ] Genomics: republish bioconda-hts123 Modal image** — symbol BIOCONDA_HTS123_PROFILE_NAME exists local `genome_kernel_images.py:128`, missing in baked `/root/scripts/`. Cross-repo.
+- **[ ] Worktree/migration inventory surface (genomics-first)** — SessionStart or maintain: `git worktree list` + age + tip; closes grow_coverage class. Propose-only until scoped.
+- **Status:** [obs] for behavioral; [ ] for the three builds above (agentlogs local · BIOCONDA genomics · inventory genomics)
+- **Freshness DUE (rotation, not backlog):** trending-scout 20d · agent-infra-sweep 20d
