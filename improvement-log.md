@@ -4238,3 +4238,11 @@ probe, timing probe, parity probe, and corpus probe all run this session.
 - **[ ] Worktree/migration inventory surface (genomics-first)** — SessionStart or maintain: `git worktree list` + age + tip; closes grow_coverage class. Propose-only until scoped.
 - **Status:** [obs] for behavioral; [ ] for the three builds above (agentlogs local · BIOCONDA genomics · inventory genomics)
 - **Freshness DUE (rotation, not backlog):** trending-scout 20d · agent-infra-sweep 20d
+
+### [2026-07-29] Operator gate: no genomics work this session (post-observe)
+- **#f / steer:** do not act in genomics after the observe/improve pass.
+- **Already landed (prior this session, leave alone unless operator asks revert):** genomics@`b7c5297cc` SessionStart du timeout — only genomics change; do not follow with BIOCONDA republish, worktree inventory, or further genomics commits from this package.
+- **Deferred out of this package (genomics-scoped `[ ]` from observe entry above):**
+  - BIOCONDA_HTS123 Modal image republish
+  - Worktree/migration inventory surface
+- **Still in scope (agent-infra-local):** agentlogs continuation `event_id` PK thrash; surveillance DUE (trending-scout, agent-infra-sweep); Opus review retry when not 529.
