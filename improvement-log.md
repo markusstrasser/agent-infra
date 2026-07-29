@@ -4254,3 +4254,19 @@ probe, timing probe, parity probe, and corpus probe all run this session.
 - **Missed this pass (valid):** cheap arc_agi residual probe; agentlogs containment while thrashing
 - **Autonomy:** SessionStart fix boundary-OK; no overstep on withheld rebuilds/MINTs
 - **Top 3 (agent-infra-local ranking, genomics deferred by operator):** (1) agentlogs-pk diagnose+fix (2) arc_agi residual probe (3) due surveillance workers
+
+### [2026-07-29] SHIPPED: agentlogs sticky event_id + high-water seq (Codex P0)
+- **Closes:** Continuation-appends re-collide / event_id PK thrash (open since 2026-07-25; reinforced observe 2026-07-29)
+- **Mechanism:** (1) ON CONFLICT(run_id, seq) no longer reassigns `event_id` (sticky identity). (2) `_write_parsed` only writes `seq > MAX(seq)` per run (append high-water). (3) pre-filter recycled event_ids that already exist under another seq.
+- **Evidence:** `tests/agentlogs/test_sticky_event_id.py` 3/3; reinstalled package; killed thrashing launchd indexer PID.
+- **Status:** [x] implemented
+
+### [2026-07-29] PROBE: arc_agi residual ModuleNotFound (Codex #2)
+- **Guard:** pretool-arc-agi-agent-cwd-guard selftest 33/33 PASS; live rewrite inserts `--directory …/agent` on bare `uv run python3 -c 'import arc_agi'`.
+- **Local:** bare root import fails; `uv run --directory agent` succeeds.
+- **Residual class:** (a) failure-miner double-counts when agents *tail logs* containing ModuleNotFound text; (b) some pytest/root paths still fail without rewrite. Not "guard dead."
+- **Status:** [obs] — no new shared hook this pass; optional miner FP filter later
+
+### [2026-07-29] Surveillance DUE cleared (Codex #3)
+- `research/trending-scout-2026-07-29.md` + `research/2026-07-29-agent-infra-sweep.md`
+- Vendor: CC 2.1.220, Codex ~0.146, Agent SDK 0.2.128/0.3.220; model suites already adopted

@@ -500,11 +500,17 @@ def _upsert_run(db, run_row, session_pk: int, source_id: int, token_totals: dict
 
 
 def _upsert_event(db, row, record_ref_id, import_id):
-    # (run_id, seq) is the stable identity within a run — event_id is derived
-    # from stable_id(raw_key, ...) which can shift between re-parses (e.g., if a
-    # line_no-based raw_key changes). Conflict target is the composite index, not
-    # the PK, so re-indexing updates the event_id in place instead of failing the
-    # whole vendor's transaction.
+    # (run_id, seq) is the stable identity within a run. event_id is derived from
+    # stable_id(raw_key, ...) and CAN SHIFT between re-parses (continuation append
+    # reorders raw_keys, line_no drift, …). Conflict target is the composite
+    # unique index, NOT the PK.
+    #
+    # STICKY event_id (2026-07-29): never reassign event_id on (run_id, seq)
+    # conflict. Updating event_id = excluded.event_id when that id already lives
+    # on another (run_id, seq) row trips events.event_id PK → IntegrityError →
+    # per-row fallback thrash under the 2h launchd deadline (continuation-append
+    # codex sources every run). Mutable payload fields still refresh; identity
+    # stays put. New seqs INSERT cleanly for true appends.
     trimmed = trim_payload(row.payload, row.kind, row.text)
     db.execute(
         """
@@ -514,7 +520,6 @@ def _upsert_event(db, row, record_ref_id, import_id):
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(run_id, seq) DO UPDATE SET
-            event_id = excluded.event_id,
             import_id = excluded.import_id,
             ts = COALESCE(excluded.ts, events.ts),
             kind = excluded.kind,
@@ -945,8 +950,26 @@ def _write_parsed(db, parsed, source_id: int, import_id: int, stats: IndexerStat
     # rows in one round-trip. Saves the per-event Python↔SQLite overhead, which
     # dominates write time on sources with thousands of events.
     if parsed.events:
+        # High-water seq (2026-07-29): append-only transcripts re-import the FULL
+        # parse after a size bump. Replaying already-ingested seqs is pure cost and
+        # is where residual event_id collisions still forced per-row thrash (sticky
+        # event_id fixes remaps on the same seq; high-water skips old seqs entirely).
+        # force=True callers that wiped prior rows via _cleanup_source_data start
+        # from empty, so max_seq is null and everything writes.
+        max_seq_by_run: dict[str, int] = {}
+        for (rid,) in {(ev.run_id,) for ev in parsed.events}:
+            row = db.execute(
+                "SELECT MAX(seq) AS m FROM events WHERE run_id = ?",
+                (_db_text(rid),),
+            ).fetchone()
+            if row is not None and row["m"] is not None:
+                max_seq_by_run[rid] = int(row["m"])
+
         event_rows = []
         for ev in parsed.events:
+            hi = max_seq_by_run.get(ev.run_id)
+            if hi is not None and ev.seq <= hi:
+                continue  # already ingested for this run
             record_ref_id = ref_map.get(ev.record_key) if ev.record_key else None
             trimmed = trim_payload(ev.payload, ev.kind, ev.text)
             event_rows.append((
@@ -963,6 +986,30 @@ def _write_parsed(db, parsed, source_id: int, import_id: int, stats: IndexerStat
         # two events that derive the same stable_id; one collision fails the whole
         # executemany. Last-wins; dict preserves insertion order.
         event_rows = list({row[0]: row for row in event_rows}.values())
+        # Drop rows whose event_id already exists (different seq / prior import).
+        # Prevents bulk executemany abort → 30k-row per-row fallback on one recycled id.
+        if event_rows:
+            ids = [r[0] for r in event_rows]
+            existing: set[str] = set()
+            _ID_BATCH = 500
+            for off in range(0, len(ids), _ID_BATCH):
+                chunk = ids[off : off + _ID_BATCH]
+                placeholders = ",".join("?" * len(chunk))
+                for (eid,) in db.execute(
+                    f"SELECT event_id FROM events WHERE event_id IN ({placeholders})",
+                    chunk,
+                ):
+                    existing.add(eid)
+            if existing:
+                before = len(event_rows)
+                event_rows = [r for r in event_rows if r[0] not in existing]
+                skipped_exist = before - len(event_rows)
+                if skipped_exist:
+                    print(
+                        f"[events] skipped {skipped_exist} new-seq row(s) whose event_id "
+                        f"already exists (recycled stable_id)"
+                    )
+        # Sticky event_id: never reassign on (run_id, seq) conflict — see _upsert_event.
         events_sql = """
             INSERT INTO events (
                 event_id, run_id, import_id, seq, ts, kind, vendor_kind, vendor_event_id,
@@ -970,7 +1017,6 @@ def _write_parsed(db, parsed, source_id: int, import_id: int, stats: IndexerStat
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(run_id, seq) DO UPDATE SET
-                event_id = excluded.event_id,
                 import_id = excluded.import_id,
                 ts = COALESCE(excluded.ts, events.ts),
                 kind = excluded.kind,
@@ -984,36 +1030,33 @@ def _write_parsed(db, parsed, source_id: int, import_id: int, stats: IndexerStat
                 correlation_id = COALESCE(excluded.correlation_id, events.correlation_id),
                 tool_call_id = COALESCE(excluded.tool_call_id, events.tool_call_id)
             """
-        try:
-            _EVENT_WRITE_BATCH = 2000
-            for off in range(0, len(event_rows), _EVENT_WRITE_BATCH):
-                db.executemany(events_sql, event_rows[off : off + _EVENT_WRITE_BATCH])
-            stats.events_written += len(event_rows)
-        except sqlite3.IntegrityError:
-            # The (run_id, seq) UPDATE branch sets event_id = excluded.event_id; on a
-            # re-import / cross-May-4 session continuation the seq↔event_id mapping
-            # shifts, so the UPDATE tries to assign an event_id that ALREADY exists on
-            # another (run_id, seq) row → PK violation, aborting the entire source's
-            # executemany (this is what kept codex dark post-May-4). Fall back to
-            # per-row so one colliding event is skipped instead of failing the source;
-            # log the first collision so the cause stays learnable. A failed-constraint
-            # statement does not abort the surrounding txn in sqlite, so this is safe.
-            written = skipped = 0
-            for r in event_rows:
-                try:
-                    db.execute(events_sql, r)
-                    written += 1
-                except sqlite3.IntegrityError:
-                    skipped += 1
-                    if skipped == 1:
-                        loc = db.execute(
-                            "SELECT run_id, seq FROM events WHERE event_id = ?", (r[0],)
-                        ).fetchone()
-                        print(f"[events] event_id collision: new (run={r[1]} seq={r[3]}) "
-                              f"id={r[0]} already at {tuple(loc) if loc else '?'} — skipping event")
-            stats.events_written += written
-            if skipped:
-                print(f"[events] per-row fallback: {written} written, {skipped} skipped (event_id collisions)")
+        if not event_rows:
+            pass  # pure re-touch of already-ingested content — nothing to write
+        else:
+            try:
+                _EVENT_WRITE_BATCH = 2000
+                for off in range(0, len(event_rows), _EVENT_WRITE_BATCH):
+                    db.executemany(events_sql, event_rows[off : off + _EVENT_WRITE_BATCH])
+                stats.events_written += len(event_rows)
+            except sqlite3.IntegrityError:
+                # Residual path: still keep per-row skip so one bad event can't fail
+                # the source. A failed-constraint statement does not abort the txn.
+                written = skipped = 0
+                for r in event_rows:
+                    try:
+                        db.execute(events_sql, r)
+                        written += 1
+                    except sqlite3.IntegrityError:
+                        skipped += 1
+                        if skipped == 1:
+                            loc = db.execute(
+                                "SELECT run_id, seq FROM events WHERE event_id = ?", (r[0],)
+                            ).fetchone()
+                            print(f"[events] event_id collision: new (run={r[1]} seq={r[3]}) "
+                                  f"id={r[0]} already at {tuple(loc) if loc else '?'} — skipping event")
+                stats.events_written += written
+                if skipped:
+                    print(f"[events] per-row fallback: {written} written, {skipped} skipped (event_id collisions)")
 
     # Tool calls
     for tc in parsed.tool_calls:
