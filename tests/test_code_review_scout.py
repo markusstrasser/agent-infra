@@ -33,6 +33,22 @@ def test_dispatch_returns_nonempty_reviewer_verdict(monkeypatch: pytest.MonkeyPa
     assert scout.dispatch_review("code", "patterns", PROVIDER, "test:batch-1") == "NO_ISSUES"
 
 
+def test_gemini_review_dispatch_sets_explicit_critique_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured = {}
+
+    def completed(*args, **kwargs):
+        captured.update(kwargs)
+        return subprocess.CompletedProcess(args[0], 0, "NO_ISSUES\n", "")
+
+    monkeypatch.setattr(scout.subprocess, "run", completed)
+    provider = {"name": "gemini", "model_flag": "-m test-model", "extra": ""}
+
+    assert scout.dispatch_review("code", "patterns", provider, "test:batch-1") == "NO_ISSUES"
+    assert captured["env"]["LLMX_GEMINI_OK"] == "1"
+
+
 @pytest.mark.parametrize(
     ("returncode", "stdout", "stderr", "match"),
     [
