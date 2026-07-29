@@ -4246,3 +4246,11 @@ probe, timing probe, parity probe, and corpus probe all run this session.
   - BIOCONDA_HTS123 Modal image republish
   - Worktree/migration inventory surface
 - **Still in scope (agent-infra-local):** agentlogs continuation `event_id` PK thrash; surveillance DUE (trending-scout, agent-infra-sweep); Opus review retry when not 529.
+
+### [2026-07-29] Codex cosign (gpt-5.6-sol / codex-cli) of observe package
+- **Artifact:** `artifacts/observe/2026-07-29-2149/codex-review.md` (Opus path 529×2; switched to Codex)
+- **Verdict:** ACCEPT with fixes
+- **Cosign changes:** downgrade `worktree-inventory` + `bioconda-image` → `needs_more_evidence` (false promotions as written); sole P0 = `agentlogs-pk` (diagnose duplicate event ingestion)
+- **Missed this pass (valid):** cheap arc_agi residual probe; agentlogs containment while thrashing
+- **Autonomy:** SessionStart fix boundary-OK; no overstep on withheld rebuilds/MINTs
+- **Top 3 (agent-infra-local ranking, genomics deferred by operator):** (1) agentlogs-pk diagnose+fix (2) arc_agi residual probe (3) due surveillance workers
