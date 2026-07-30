@@ -10,9 +10,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 
 | File | Topic | Consult before |
 |------|-------|----------------|
-| `2026-07-24-claude-opus-5-release.md` | Claude Opus 5 — near-Fable at $5/$25; replaces 4.8 as primary Claude | Default Claude routing; effort re-sweep; cyber fallback 4.8 |
 | `2026-04-25-tool-attention-and-skill-bank.md` | Tool Attention + Co-Evolving Skill Bank — Two papers from arxiv week of 2026-... | TODO |
-| `2026-07-19-vercel-ai-python-deep-dive.md` | Vercel AI SDK Python — NO-ADOPT; harvest hook-suspend/replay, blocked-state fold, two-plane tool results | Building in-process Python agent loops, approval gates, subagent return contracts |
 | `2026-05-15-cross-project-knowledge-infra-dossier.md` | Cross-Project Knowledge Infrastructure — The Dossier | TODO |
 | `2026-05-27-agent-safety-alignment-4w.md` | Safety/alignment — METR ≥16% cheating; Opus 4.7 sycophancy halved; Exploration Hacking | Capability evals; sycophancy mitigation; sandboxing/control proposals |
 | `2026-05-27-agentic-coding-swe-4w.md` | Agentic coding & SWE — SWE-bench inflation, Claude Code v2.1.139, HiL-Bench | Extending dashboard/orchestrator; SWE benchmarking; epistemic-discipline hooks |
@@ -165,7 +163,18 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-07-18-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-18 (deterministic) | TODO |
 | `2026-07-19-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-19 (deterministic) | TODO |
 | `2026-07-19-vercel-ai-python-deep-dive.md` | Vercel AI SDK for Python (`vercel-labs/ai-python`) — code deep-dive | TODO |
+| `2026-07-20-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-20 (deterministic) | TODO |
+| `2026-07-21-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-21 (deterministic) | TODO |
+| `2026-07-22-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-22 (deterministic) | TODO |
 | `2026-07-23-raycast-snippets-shadow-harness.md` | Raycast snippets as a shadow harness — copyCount as a ranked failure-list for "architecture over instructions" | Deciding which behavior to promote to a hook; auto-commit/breaking-refactor enforcement; snippet→command graduation |
+| `2026-07-23-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-23 (deterministic) | TODO |
+| `2026-07-24-claude-opus-5-release.md` | Claude Opus 5 — near-Fable at $5/$25; replaces 4.8 as primary Claude | Default Claude routing; effort re-sweep; cyber fallback 4.8 |
+| `2026-07-24-harness-audit-genomics-personal-arcagi.md` | Harness audit — genomics · personal · arc-agi · global layer | TODO |
+| `2026-07-24-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-24 (deterministic) | TODO |
+| `2026-07-25-disk-pressure-live-fleet.md` | Boot disk at 99% (4.8 GiB free) — measured 2026-07-25 | TODO |
+| `2026-07-25-opus5-arc-agi-generalization.md` | Opus 5 ARC-AGI split — 1/2 saturated+targeted (discount), 3 is the real signal and reads as agentic transfer; exploration gain is verifier-conditioned | Citing any ARC-AGI number as capability evidence; arguing model-vs-benchmark contamination; sizing effort-vs-verifier ROI on long autonomous runs |
+| `2026-07-25-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-25 (deterministic) | TODO |
+| `2026-07-25-worktree-reclaim-candidates.md` | Reclaim candidates — measured 2026-07-25 21:40 CEST | TODO |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
 | `adversarial-case-library.md` | Adversarial Case Library: The Best "Calling BS" Reviews | TODO |
 | `agent-behavior-refresh-2026-04.md` | Agent Behavior Delta — Memory, Self-Modification, Sycophancy | TODO |
