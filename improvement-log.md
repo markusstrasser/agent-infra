@@ -4289,3 +4289,10 @@ probe, timing probe, parity probe, and corpus probe all run this session.
 - **[x] agentlogs run-deadline residual:** cap source watchdog by remaining run budget; chunk `_cleanup_source_data` DELETEs — stops SIGALRM thrash mid-cleanup (launchd exit 75)
 - **RECONCILIATION:** trending-scout-2026-07-29 GPT-5.6 family GA — **Already adopted** (llmx + model-guide + usage-check sync); orphan-findings noise only
 - **Status:** [x] for lands above; genomics still memo-only; 4 decisions-pending escalated to operator this turn
+
+### [2026-08-01] Operator decisions applied (3 yes / genomics skip)
+- **Interactive model:** `~/.claude/settings.json` `claude-fable-5[1m]` → `claude-opus-5[1m]` (backup `settings.json.bak-fable-20260801`)
+- **agent-infra MCP deregister:** already gone from all `.mcp.json` / claude.json — closed pending as satisfied
+- **Prior-context turn retrieval SHADOW:** skills@userprompt-prior-context — log to `~/.claude/prior-context-shadow.jsonl`, no inject (smoke: status=timeout cold emb start; expected under 2s bar)
+- **Genomics ship path:** skip per operator
+- **Decisions:** `decisions/2026-08-01-*.md`; pending cleared except genomics export
