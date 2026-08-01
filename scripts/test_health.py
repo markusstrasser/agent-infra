@@ -31,7 +31,7 @@ import os
 import re
 import subprocess
 import sys
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -153,12 +153,33 @@ class SuiteResult:
     duration_s: float
     counts: dict
     detail: str
+    failed_nodeids: list[str] = field(default_factory=list)
+
+
+_FAILED_NODE_RE = re.compile(r"^FAILED\s+(\S+)")
+
+
+def _extract_failed_nodeids(out_text: str, *, limit: int = 30) -> list[str]:
+    """Parse pytest short-summary FAILED lines (works with -q --tb=no).
+
+    Overnight 2026-08-01 logged '12 failed' with 531s wall but no nodeids — the
+    sentinel only kept the summary line, so the 11 non-drift failures were
+    unrecoverable. Persist nodeids so a regressed green re-run can still name them.
+    """
+    found: list[str] = []
+    for ln in out_text.splitlines():
+        m = _FAILED_NODE_RE.match(ln.strip())
+        if m:
+            found.append(m.group(1))
+            if len(found) >= limit:
+                break
+    return found
 
 
 def run_suite(suite: RepoSuite, *, now: str) -> SuiteResult:
     if not suite.path.exists():
         return SuiteResult(now, suite.repo, "no_repo", False, None, 0.0, {},
-                           f"repo path missing: {suite.path}")
+                           f"repo path missing: {suite.path}", [])
     # `python3 -m pytest` (not the `pytest` console-script): the latter fails to
     # spawn from some repo roots, e.g. agent-infra — which would misfire as a
     # false "crashed". The module form runs wherever pytest is importable.
@@ -191,10 +212,11 @@ def run_suite(suite: RepoSuite, *, now: str) -> SuiteResult:
     tail = next((ln for ln in reversed(lines) if _COUNT_RE.search(ln)),
                 lines[-1] if lines else "")
     counts = parse_counts(tail)
+    nodeids = _extract_failed_nodeids(out_text)
     return SuiteResult(
         ts=now, repo=suite.repo, outcome=outcome,
         completed=outcome in _COMPLETED, exit_code=rc, duration_s=duration,
-        counts=counts, detail=tail[:300],
+        counts=counts, detail=tail[:300], failed_nodeids=nodeids,
     )
 
 

@@ -78,6 +78,25 @@ class TestIsRegression:
         assert th.is_regression(cur, prev) == (False, "")
 
 
+class TestExtractFailedNodeids:
+    def test_parses_short_summary_failed_lines(self):
+        out = (
+            "....F..\n"
+            "=========================== short test summary info ============================\n"
+            "FAILED tests/test_usage_check_pricing_drift.py::test_vendored_pricing_matches_llmx\n"
+            "FAILED scripts/tests/test_foo.py::test_bar - AssertionError\n"
+            "2 failed, 10 passed in 1.00s\n"
+        )
+        ids = th._extract_failed_nodeids(out)
+        assert ids == [
+            "tests/test_usage_check_pricing_drift.py::test_vendored_pricing_matches_llmx",
+            "scripts/tests/test_foo.py::test_bar",
+        ]
+
+    def test_empty_when_all_pass(self):
+        assert th._extract_failed_nodeids("10 passed in 1.00s\n") == []
+
+
 class TestParseCounts:
     def test_typical_summary(self):
         c = th.parse_counts("814 passed, 15 skipped, 2 xfailed in 155.71s (0:02:35)")
