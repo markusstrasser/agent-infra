@@ -148,6 +148,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-07-07-shepherd-syscall-jail-prior-art.md` | Shepherd — syscall-jail permissions as prior-art | TODO |
 | `2026-07-08-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-08 (deterministic) | TODO |
 | `2026-07-09-agent-infra-sweep.md` | Agent-infra frontier sweep — 15d delta (Grok niche + CC 2.1.198–205 + internal consume) | Before claiming frontier is quiet / starting a fresh deep RSI sweep |
+| `2026-08-01-pi-harness-internals-deep-dive.md` | Pi harness internals deep dive — compaction cut rules, overflow retry, steer/followUp, SQLite session scale (v0.83 clone) | Stealing context discipline into CC; harness $/task; compact artifact design |
 | `2026-07-09-databricks-pi-harness.md` | 2026 07 09 Databricks Pi Harness | TODO |
 | `2026-07-09-gpt-5.6-suite.md` | 2026 07 09 Gpt 5.6 Suite | TODO |
 | `2026-07-09-grok-4.5-release.md` | Grok 4.5 — transport + named niche (critique `grok` axis, scout `--scout-model`); not Default Routing | Before promoting Grok into defaults, adding critique axes, or picking scout models for tool-loop audits |
