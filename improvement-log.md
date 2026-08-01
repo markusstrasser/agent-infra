@@ -4270,3 +4270,17 @@ probe, timing probe, parity probe, and corpus probe all run this session.
 ### [2026-07-29] Surveillance DUE cleared (Codex #3)
 - `research/trending-scout-2026-07-29.md` + `research/2026-07-29-agent-infra-sweep.md`
 - Vendor: CC 2.1.220, Codex ~0.146, Agent SDK 0.2.128/0.3.220; model suites already adopted
+
+### [2026-08-01] Observe-all + improve (run 2026-08-01-0759) — Opus accept_with_fixes
+- **Session:** agent-infra (Grok → llmx Opus 5 cosign)
+- **Evidence:** `artifacts/observe/2026-08-01-0759/` · plan `artifacts/harvest/2026-08-01-30f16462-plan.md` · Opus `…-opus-review.md` · harvest `…-harvest.md` · genomics memo `…-genomics-memo.md`
+  - Supervision 3210 sess / 0.68% correction · grow_coverage=25 · autonomy_reading=mixed (thin signal — do not over-steer)
+  - Blindspot 26/1867 · triangulated HIGH: over_caution + rediscovery
+  - Failures top: BIOCONDA_HTS123 (genomics memo) · numpy/flash_attn Modal (not local)
+  - hooks-smoke green; agentlogs PK thrash already [x] 2026-07-29
+- **[x] Sync usage-check PRICING to llmx** — Luna $0.20/$1.20, Terra $2/$12 (2026-07-30 cut) + deepseek-v4-flash keys; knowing exception to load-invariant documented in file header
+- **[x] test_health failed_nodeids** — overnight 12-fail @531s had only summary line; nodeids now persisted in jsonl
+- **[obs] Overnight 12-fail names unrecoverable** — log shape gap; 531s wall ≠ 16s single-fail repro; one named fail was pricing drift
+- **[obs] grow_coverage/over_caution residual** — same class as 07-29 (worktree inventory / design thrash); genomics memo only; do not re-open enforce
+- **Status:** [x] for the two builds; [obs] for behavioral; genomics deferred to memo
+
