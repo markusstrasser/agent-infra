@@ -4284,3 +4284,8 @@ probe, timing probe, parity probe, and corpus probe all run this session.
 - **[obs] grow_coverage/over_caution residual** — same class as 07-29 (worktree inventory / design thrash); genomics memo only; do not re-open enforce
 - **Status:** [x] for the two builds; [obs] for behavioral; genomics deferred to memo
 
+### [2026-08-01] Non-genomics drain after observe package
+- **Landed WIP:** `pointer_disposition.py` + tests · `stop_lever_sweep.py` · blindspot emb-env fail-loud (`scripts/blindspot_miner.py`)
+- **[x] agentlogs run-deadline residual:** cap source watchdog by remaining run budget; chunk `_cleanup_source_data` DELETEs — stops SIGALRM thrash mid-cleanup (launchd exit 75)
+- **RECONCILIATION:** trending-scout-2026-07-29 GPT-5.6 family GA — **Already adopted** (llmx + model-guide + usage-check sync); orphan-findings noise only
+- **Status:** [x] for lands above; genomics still memo-only; 4 decisions-pending escalated to operator this turn
