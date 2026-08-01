@@ -124,6 +124,40 @@ def test_cleanup_no_force_skips_same_parser_version() -> None:
     db.close()
 
 
+def test_cleanup_force_chunks_many_import_ids() -> None:
+    """force=True must wipe ALL prior import rows even when count > chunk size.
+
+    Chunking (2026-08-01) was added so the progress handler can fire between
+    DELETE batches; behavior must stay identical to one multi-id DELETE.
+    """
+    from agentlogs.index import _cleanup_source_data, SCHEMA_VERSION
+    from agentlogs.db import connect
+
+    db = connect(":memory:")
+    db.execute(
+        "INSERT INTO sources (vendor, source_kind, path, sha256, discovered_at) "
+        "VALUES ('claude', 'transcript_jsonl', '/tmp/y', 'def', '2026-08-01')"
+    )
+    sid = int(db.execute("SELECT source_id FROM sources").fetchone()[0])
+    for i in range(40):
+        db.execute(
+            "INSERT INTO imports (source_id, source_sha256, parser_name, parser_version, "
+            "schema_version, imported_at, success) "
+            "VALUES (?, ?, 'claude', 'v1', ?, '2026-08-01', 1)",
+            (sid, f"sha{i}", SCHEMA_VERSION),
+        )
+        iid = int(db.execute("SELECT MAX(import_id) FROM imports").fetchone()[0])
+        db.execute(
+            "INSERT INTO record_refs (source_id, import_id, raw_record_hash, raw_record_key) "
+            "VALUES (?, ?, ?, ?)",
+            (sid, iid, f"h{i}", f"k{i}"),
+        )
+    assert db.execute("SELECT COUNT(*) FROM record_refs").fetchone()[0] == 40
+    _cleanup_source_data(db, sid, parser_name="claude", parser_version="v1", force=True)
+    assert db.execute("SELECT COUNT(*) FROM record_refs").fetchone()[0] == 0
+    db.close()
+
+
 # Finding #5 — cmd_index propagates vendor errors to exit code
 
 

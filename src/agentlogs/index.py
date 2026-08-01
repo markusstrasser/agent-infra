@@ -382,13 +382,19 @@ def _cleanup_source_data(
         )]
     if not import_ids:
         return
-    placeholders = ", ".join("?" for _ in import_ids)
-    db.execute(f"DELETE FROM file_touches WHERE import_id IN ({placeholders})", import_ids)
-    db.execute(f"DELETE FROM tool_calls WHERE import_id IN ({placeholders})", import_ids)
-    db.execute(f"DELETE FROM events WHERE import_id IN ({placeholders})", import_ids)
-    db.execute(
-        f"DELETE FROM record_refs WHERE import_id IN ({placeholders})", import_ids,
-    )
+    # Chunk DELETEs so the sqlite progress handler can fire between batches and
+    # abort a pathological wipe without one multi-minute statement holding the
+    # run until SIGALRM (exit 75). Whole call is still one outer transaction.
+    _CHUNK = 32
+    for off in range(0, len(import_ids), _CHUNK):
+        chunk = import_ids[off : off + _CHUNK]
+        placeholders = ", ".join("?" for _ in chunk)
+        db.execute(f"DELETE FROM file_touches WHERE import_id IN ({placeholders})", chunk)
+        db.execute(f"DELETE FROM tool_calls WHERE import_id IN ({placeholders})", chunk)
+        db.execute(f"DELETE FROM events WHERE import_id IN ({placeholders})", chunk)
+        db.execute(
+            f"DELETE FROM record_refs WHERE import_id IN ({placeholders})", chunk,
+        )
 
 
 def _ensure_session_pk(db: sqlite3.Connection, sr) -> int:
@@ -833,6 +839,22 @@ def index_vendor(
                 continue
 
             watchdog.disarm()
+            # Cap per-source DB budget by *remaining run deadline* so a long
+            # cleanup/write aborts via the sqlite progress handler (caught below)
+            # instead of the SIGALRM hard-exit 75 that kills the whole process mid
+            # DELETE (launchd residual 2026-08-01: index.err thrash on tool_calls
+            # cleanup). Leave a margin so the between-sources soft break can fire.
+            _RUN_MARGIN_S = 20.0
+            if deadline is not None:
+                remaining = deadline - time.monotonic()
+                if remaining <= _RUN_MARGIN_S:
+                    print(
+                        f"[agentlogs] run deadline near during {vendor}: "
+                        f"{len(sources) - idx} source(s) deferred "
+                        f"(remaining={remaining:.1f}s ≤ margin {_RUN_MARGIN_S}s)",
+                        file=sys.stderr,
+                    )
+                    break
             try:
                 parsed = adapter.parse_source(source)
             except Exception as exc:
@@ -845,7 +867,11 @@ def index_vendor(
                 stats.sources_failed += 1
                 continue
 
-            watchdog.arm(_scaled_source_timeout_s(source.path, source_timeout_s))
+            source_budget = _scaled_source_timeout_s(source.path, source_timeout_s)
+            if deadline is not None:
+                remaining = deadline - time.monotonic()
+                source_budget = min(source_budget, max(5.0, remaining - _RUN_MARGIN_S))
+            watchdog.arm(source_budget)
             try:
                 db.execute("BEGIN IMMEDIATE")
                 _cleanup_source_data(
