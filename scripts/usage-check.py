@@ -18,10 +18,11 @@ from collections import defaultdict
 
 
 # PRICING — VENDORED copy of llmx/llmx/usage_report.py:PRICING (the single source).
-# agent-infra can't import llmx (separate env), so this exact-model map is vendored
-# behind a drift-test — tests/test_usage_check_pricing_drift.py AST-parses the llmx
-# source and asserts equality, so the two can't silently diverge (epistemic-discipline
-# invariant #9). Edit rates in llmx; then sync here or the drift-test fails loudly.
+# KNOWING EXCEPTION to invariant #9 "one definition, consumers load it": agent-infra
+# can't import llmx (separate env), so the map is hand-synced. The drift-test
+# (tests/test_usage_check_pricing_drift.py) AST-parses both sources and fails loud
+# on divergence. Edit rates in llmx FIRST, then re-sync this dict (or:
+#   just -f ~/Projects/agent-infra/justfile  # when a sync recipe lands).
 # Per-MTok (input, output); output rate also applies to reasoning tokens. Exact model
 # keys (NOT prefixes) — an unpriced model returns None (surfaces as $0, never guessed).
 PRICING: dict[str, tuple[float, float]] = {
@@ -33,20 +34,21 @@ PRICING: dict[str, tuple[float, float]] = {
     "gemini-3.5-flash-lite": (0.3, 2.5),
     "gemini-3.6-flash": (1.5, 7.5),
     "gemini-3.1-pro-preview": (1.25, 10.0),
-    # GPT-5.6 suite (developers.openai.com/api/docs/pricing, GA 2026-07-09)
-    # Standard short-context: Sol $5/$30, Terra $2.50/$15, Luna $1/$6.
+    # GPT-5.6 suite (developers.openai.com/api/docs/pricing, GA 2026-07-09;
+    # price cut 2026-07-30: Luna -80% to $0.20/$1.20, Terra -20% to $2/$12, Sol
+    # unchanged — openai.com/index/advancing-the-price-performance-frontier-with-gpt-5-6)
     # Alias gpt-5.6 → sol. Pro mode bills at same model rates (more tokens).
     "gpt-5.6-sol": (5.0, 30.0),
     "gpt-5.6": (5.0, 30.0),
-    "gpt-5.6-terra": (2.50, 15.0),
-    "gpt-5.6-luna": (1.0, 6.0),
+    "gpt-5.6-terra": (2.0, 12.0),
+    "gpt-5.6-luna": (0.20, 1.20),
     "gpt-5.3-chat-latest": (1.75, 14.0),
     "gpt-5.3-codex": (1.25, 10.0),
     "claude-opus-5": (5.0, 25.0),
     "claude-opus-4-8": (5.0, 25.0),
     "claude-fable-5": (10.0, 50.0),
-    "claude-sonnet-4-6": (3.0, 15.0),
     "claude-sonnet-5": (3.0, 15.0),
+    "claude-sonnet-4-6": (3.0, 15.0),
     # SpaceXAI Grok 4.5 (docs.x.ai 2026-07-08): base $2/$6.
     "grok-4.5": (2.0, 6.0),
     # Cursor-pool Grok 4.5 slugs (2026-07-14 registry): mirrors llmx's
@@ -68,6 +70,9 @@ PRICING: dict[str, tuple[float, float]] = {
     "google/gemma-4-31b-it": (0.12, 0.35),
     "qwen/qwen3-32b": (0.08, 0.28),
     "mistralai/mistral-small-3.2-24b-instruct": (0.075, 0.20),
+    # DeepSeek V4 Flash (llmx 2026-08-01 openrouter verify — both ids same price)
+    "deepseek/deepseek-v4-flash-0731": (0.14, 0.28),
+    "deepseek/deepseek-v4-flash": (0.14, 0.28),
 }
 
 
