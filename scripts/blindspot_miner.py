@@ -110,7 +110,15 @@ def gather_candidates(days: int) -> list[dict]:
 def score(cands: list[dict]) -> list[dict]:
     """Flag = taxonomy regex tier-0 hit (precision) OR emb-contrastive match (recall).
     Each flag carries its type + direction + inspectable evidence."""
-    from emb.embed import EmbeddingEngine
+    try:
+        from emb.embed import EmbeddingEngine
+    except ModuleNotFoundError as e:
+        raise SystemExit(
+            "blindspot_miner needs emb's env (torch). Run:\n"
+            "  just blindspot\n"
+            "  # or: uv run --project ~/Projects/emb python3 scripts/blindspot_miner.py\n"
+            "Do NOT pip-install emb into agent-infra."
+        ) from e
     eng = EmbeddingEngine()
 
     emb_matches = tax.classify_emb_batch([c["lead"] for c in cands], eng) if cands else []
