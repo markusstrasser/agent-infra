@@ -6,8 +6,8 @@ zero-artifact age. Read-only. Complements improvement_log_accretion (log shape)
 with *usage* evidence so we stop rediscovering dead ceremony (F3 / session_quality class).
 
 Default is report-only (exit 0). Pass --strict to exit 1 on unadopted once a real
-consumer (hook / maintain-tick / CI) is wired. Source-text `rg` is a labeled proxy —
-not agentlogs execution evidence (Opus 2026-07-12 leftovers critique).
+consumer (hook / maintain-tick / CI) is wired. Static adoption uses the canonical
+evidence-bound code relation graph; it is still not agentlogs execution evidence.
 """
 from __future__ import annotations
 
@@ -18,6 +18,8 @@ import subprocess
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
+
+from code_relations import CodeRelationGraph, build_code_relations
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -104,32 +106,41 @@ def _git_last_touch(rel: Path) -> datetime | None:
         return None
 
 
-def _count_script_callers(rel: Path) -> int:
-    """Labeled proxy: non-test source mentions via rg (NOT agentlogs execution)."""
-    stem = rel.stem
+def _relation_graph() -> CodeRelationGraph:
+    source_dirs = [REPO]
+    source_dirs.extend(
+        path for path in (REPO / "scripts", REPO / "src") if path.is_dir()
+    )
+    return build_code_relations(REPO, source_dirs=source_dirs)
+
+
+def _count_script_callers(
+    rel: Path,
+    graph: CodeRelationGraph | None = None,
+) -> int:
+    """Count distinct non-test source paths with an evidence-bound relation."""
+    graph = graph or _relation_graph()
     try:
-        out = subprocess.check_output(
-            [
-                "rg", "-l",
-                rf"{stem}|{rel.as_posix()}",
-                str(REPO / "scripts"),
-                str(REPO / "justfile"),
-                str(REPO / ".claude"),
-            ],
-            text=True,
-            stderr=subprocess.DEVNULL,
+        hops = graph.impact(
+            rel.as_posix(),
+            max_depth=1,
+            relation_types={"calls", "executes", "imports", "launches", "sources"},
         )
-    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+    except ValueError:
         return 0
-    files = [Path(p) for p in out.splitlines() if p.strip()]
-    callers = [
-        f for f in files
-        if f.resolve() != (REPO / rel).resolve()
-        and "test_" not in f.name
-        and "/tests/" not in str(f)
-        and f.name != "infra_usage_check.py"
-    ]
-    return len(callers)
+    callers = {
+        graph.nodes[hop.relation.source].path
+        for hop in hops
+        if graph.nodes[hop.relation.source].path
+    }
+    return sum(
+        1
+        for path in callers
+        if path != rel.as_posix()
+        and "test_" not in Path(path).name
+        and "/tests/" not in f"/{path}"
+        and Path(path).name != "infra_usage_check.py"
+    )
 
 
 def _recipe_declared(name: str) -> bool:
@@ -141,7 +152,12 @@ def _recipe_declared(name: str) -> bool:
     return bool(pat.search(just.read_text(encoding="utf-8", errors="replace")))
 
 
-def check_surface(s: InfraSurface, *, now: datetime | None = None) -> dict:
+def check_surface(
+    s: InfraSurface,
+    *,
+    now: datetime | None = None,
+    relation_graph: CodeRelationGraph | None = None,
+) -> dict:
     now = now or datetime.now(timezone.utc)
     rel = Path(s.path)
     abs_path = REPO / rel
@@ -157,7 +173,7 @@ def check_surface(s: InfraSurface, *, now: datetime | None = None) -> dict:
         "parked": s.parked,
         "parked_reason": s.parked_reason or None,
         "parked_at": s.parked_at or None,
-        "adoption_signal": "rg_proxy",
+        "adoption_signal": "code_relations",
     }
     if s.kind == "artifact_dir":
         if not abs_path.is_dir():
@@ -194,20 +210,20 @@ def check_surface(s: InfraSurface, *, now: datetime | None = None) -> dict:
             result["status"] = "missing"
             result["detail"] = "script absent"
             return _maybe_park(result, s, now)
-        n = _count_script_callers(rel)
+        n = _count_script_callers(rel, relation_graph)
         result["usage_count"] = n
         touched = _git_last_touch(rel)
         age = (now - touched).days if touched else None
         result["age_days"] = age
         if n > 0:
             result["status"] = "adopted"
-            result["detail"] = f"{n} non-test caller(s) [rg_proxy]"
+            result["detail"] = f"{n} non-test caller(s) [code_relations]"
         elif age is not None and age >= s.stale_days:
             result["status"] = "unadopted"
-            result["detail"] = f"0 callers [rg_proxy]; last touched {age}d ago"
+            result["detail"] = f"0 callers [code_relations]; last touched {age}d ago"
         else:
             result["status"] = "young" if age is not None else "unadopted"
-            result["detail"] = f"0 callers [rg_proxy]; age={age}d"
+            result["detail"] = f"0 callers [code_relations]; age={age}d"
         return _maybe_park(result, s, now)
 
     if s.kind == "recipe":
@@ -251,7 +267,8 @@ def _maybe_park(result: dict, s: InfraSurface, now: datetime) -> dict:
 
 def run() -> dict:
     now = datetime.now(timezone.utc)
-    rows = [check_surface(s, now=now) for s in REGISTRY]
+    graph = _relation_graph()
+    rows = [check_surface(s, now=now, relation_graph=graph) for s in REGISTRY]
     unadopted = [r for r in rows if r["status"] == "unadopted"]
     parked_stale = [
         r for r in rows
@@ -264,7 +281,9 @@ def run() -> dict:
         "unadopted_ids": [r["id"] for r in unadopted],
         "n_parked": sum(1 for r in rows if r["status"] == "parked"),
         "n_parked_stale": len(parked_stale),
-        "adoption_signal_note": "rg_proxy / justfile_declare — not agentlogs execution",
+        "adoption_signal_note": (
+            "code_relations / artifact_files / justfile_declare — not agentlogs execution"
+        ),
     }
 
 
