@@ -31,13 +31,14 @@ Consumers: /upgrade pliability, /improve, a `just` top-N surface.
 from __future__ import annotations
 
 import argparse
-import ast
 import bisect
 import re
 import subprocess
 import time
 from collections import defaultdict
 from pathlib import Path
+
+from code_relations import build_code_relations
 
 CODE_EXT = {".py", ".js", ".ts", ".tsx", ".jsx", ".sh", ".go", ".rs", ".rb", ".java", ".sql"}
 MD_EXT = {".md"}
@@ -150,76 +151,6 @@ def _dup_scores(files: list[str], shingles: dict[str, frozenset[int]]) -> dict[s
     return scores
 
 
-# ---- python import graph: fan-in + cycles -------------------------------------
-
-def _imported_modules(text: str) -> set[str]:
-    try:
-        tree = ast.parse(text)
-    except SyntaxError:
-        return set()
-    mods: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            mods.update(a.name for a in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            mods.add(node.module)
-    return mods
-
-
-def _py_graph(py_files: list[str], contents: dict[str, str]) -> tuple[dict[str, int], set[str]]:
-    by_stem: dict[str, list[str]] = defaultdict(list)
-    for f in py_files:
-        by_stem[Path(f).stem].append(f)
-    edges: dict[str, set[str]] = {f: set() for f in py_files}
-    for f in py_files:
-        for mod in _imported_modules(contents[f]):
-            for target in by_stem.get(mod.split(".")[-1], []):
-                if target != f:
-                    edges[f].add(target)
-    fan_in: dict[str, int] = {f: 0 for f in py_files}
-    for f in py_files:
-        for t in edges[f]:
-            fan_in[t] += 1
-    return fan_in, _nodes_in_cycles(edges)
-
-
-def _nodes_in_cycles(edges: dict[str, set[str]]) -> set[str]:
-    """Tarjan SCC; nodes in an SCC of size>1 (or a self-loop) are in a cycle."""
-    index: dict[str, int] = {}
-    low: dict[str, int] = {}
-    on_stack: set[str] = set()
-    stack: list[str] = []
-    counter = [0]
-    in_cycle: set[str] = set()
-
-    def strongconnect(v: str) -> None:
-        index[v] = low[v] = counter[0]
-        counter[0] += 1
-        stack.append(v)
-        on_stack.add(v)
-        for w in edges.get(v, ()):
-            if w not in index:
-                strongconnect(w)
-                low[v] = min(low[v], low[w])
-            elif w in on_stack:
-                low[v] = min(low[v], index[w])
-        if low[v] == index[v]:
-            comp = []
-            while True:
-                w = stack.pop()
-                on_stack.discard(w)
-                comp.append(w)
-                if w == v:
-                    break
-            if len(comp) > 1 or comp[0] in edges.get(comp[0], ()):
-                in_cycle.update(comp)
-
-    for v in list(edges):
-        if v not in index:
-            strongconnect(v)
-    return in_cycle
-
-
 # ---- markdown signals ---------------------------------------------------------
 
 def _md_inbound(md_files: list[str], contents: dict[str, str]) -> dict[str, int]:
@@ -299,7 +230,19 @@ def main() -> int:
 
     code_dup = _dup_scores(code, shingles)
     md_dup = _dup_scores(md, shingles)
-    fan_in, in_cycle = _py_graph(py, contents)
+    relation_sources = [Path(cwd)] + [
+        Path(cwd) / name
+        for name in ("scripts", "src")
+        if (Path(cwd) / name).is_dir()
+    ]
+    relation_graph = build_code_relations(
+        Path(cwd),
+        source_dirs=relation_sources,
+        python_files=py,
+        include_operational=False,
+    )
+    fan_in = relation_graph.fan_in("imports")
+    in_cycle = relation_graph.nodes_in_cycles("imports")
     inbound = _md_inbound(md, contents)
     stems = {Path(f).stem for f in md}
     broken = _broken_wikilinks(md, contents, stems)

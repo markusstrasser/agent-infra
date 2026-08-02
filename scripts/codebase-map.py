@@ -18,8 +18,8 @@ is the signal `ls`/`Glob` cannot give, so it stays in Tier 1; the per-file
 prose — the part the study dings — moves to on-demand Tier 2.
 See decisions/2026-06-14-codebase-map-two-tier.md.
 
-Joins repo-summary cache (one-liner descriptions) with repo-imports
-internal graph (cross-file edges).
+Joins repo-summary cache (one-liner descriptions) with the canonical
+code-relations graph (cross-file edges with source evidence).
 
 Usage:
   codebase-map.py /path/to/project [--source-dirs scripts,src]
@@ -31,13 +31,8 @@ from collections import defaultdict
 from datetime import date
 from pathlib import Path
 
-# Import from sibling script
 sys.path.insert(0, str(Path(__file__).parent))
-import importlib
-_repo_imports = importlib.import_module("repo-imports")
-gather_py_files = _repo_imports.gather_py_files
-build_import_graph = _repo_imports.build_import_graph
-module_name = _repo_imports.module_name
+from code_relations import build_code_relations, gather_python_files
 
 CACHE_DIR = Path.home() / ".cache" / "repo-summary"
 SKIP_DIRS = {".git", "__pycache__", ".venv", "node_modules", ".tox",
@@ -59,38 +54,30 @@ def load_summaries(project_name: str) -> dict[str, str]:
     return {k: v["summary"] for k, v in data.items() if v.get("summary")}
 
 
-def build_edges(source_dirs: list[Path]) -> tuple[dict[str, set[str]], dict[str, int]]:
+def build_edges(
+    project_root: Path,
+    source_dirs: list[Path],
+) -> tuple[dict[str, set[str]], dict[str, int]]:
     """Build import edges and hub counts across all source dirs.
 
     Returns:
         imports_from: {module: set of modules it imports from}
         imported_by_count: {module: number of files that import it}
     """
-    imports_from: dict[str, set[str]] = defaultdict(set)
-    imported_by_count: dict[str, int] = defaultdict(int)
-
-    for src_dir in source_dirs:
-        result = build_import_graph(src_dir)
-        if not result:
-            continue
-        graph = result[0]  # (graph, internal_modules, files, base)
-
-        for mod, imps in graph.items():
-            for imp in imps:
-                if imp["kind"] == "internal":
-                    target = imp["module"].split(".")[0]
-                    if target != mod:
-                        imports_from[mod].add(target)
-                        imported_by_count[target] += 1
-
-    return dict(imports_from), dict(imported_by_count)
+    graph = build_code_relations(
+        project_root,
+        source_dirs=source_dirs,
+        include_operational=False,
+    )
+    imports_from = graph.file_edges("imports")
+    return imports_from, graph.fan_in("imports")
 
 
 def gather_all_files(source_dirs: list[Path]) -> list[tuple[Path, Path]]:
     """Gather (file, base_dir) pairs from all source dirs."""
     results = []
     for src_dir in source_dirs:
-        for f in gather_py_files(src_dir):
+        for f in gather_python_files(src_dir):
             results.append((f, src_dir))
     return results
 
@@ -182,15 +169,12 @@ def generate_maps(project_root: Path, source_dirs: list[Path]) -> tuple[str, dic
         summaries.update(load_summaries(src_dir.name))
     summaries.update(load_summaries(project_name))
 
-    imports_from, imported_by = build_edges(source_dirs)
+    imports_from, imported_by = build_edges(project_root, source_dirs)
 
     # Gather files and group by directory relative to project root
     groups: dict[str, list[tuple[str, str, Path]]] = defaultdict(list)
     all_files = gather_all_files(source_dirs)
-    base_of: dict[Path, Path] = {}
-
     for filepath, base_dir in all_files:
-        base_of[filepath] = base_dir
         rel_to_project = filepath.relative_to(project_root)
         rel_to_base = filepath.relative_to(base_dir)
 
@@ -206,15 +190,15 @@ def generate_maps(project_root: Path, source_dirs: list[Path]) -> tuple[str, dic
         groups[group].append((filepath.stem, summary, filepath))
 
     def imported_by_count(filepath: Path) -> int:
-        return imported_by.get(module_name(filepath, base_of[filepath]), 0)
+        return imported_by.get(filepath.relative_to(project_root).as_posix(), 0)
 
     def edge_annotation(filepath: Path) -> str:
-        mod = module_name(filepath, base_of[filepath])
+        rel = filepath.relative_to(project_root).as_posix()
         parts = []
-        targets = imports_from.get(mod, set())
+        targets = imports_from.get(rel, set())
         if targets:
-            parts.append(f"→ {', '.join(sorted(targets))}")
-        count = imported_by.get(mod, 0)
+            parts.append(f"→ {', '.join(sorted(Path(target).stem for target in targets))}")
+        count = imported_by.get(rel, 0)
         if count >= HUB_MIN:
             parts.append(f"← {count} files")
         return "  ".join(parts)

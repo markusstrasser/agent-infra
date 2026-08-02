@@ -25,6 +25,8 @@ import os
 from pathlib import Path
 from collections import defaultdict
 
+from code_relations import build_code_relations
+
 
 def _log_usage(script: str, subcommand: str, path: Path):
     """Append one line to usage log. Fire-and-forget."""
@@ -311,75 +313,42 @@ def symbol(filepath: Path, name: str):
     _log_usage("repo-outline", "symbol", filepath)
 
 
-def _load_repo_imports():
-    """Import repo-imports.py (hyphenated filename requires importlib)."""
-    import importlib.util
-    script = Path(__file__).resolve().parent / "repo-imports.py"
-    spec = importlib.util.spec_from_file_location("repo_imports", script)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
-
-
 def xrefs(path: Path, target: str = ""):
-    """Cross-file call resolution: join call edges with import graph."""
-    repo_imports = _load_repo_imports()
+    """Cross-file calls from the canonical evidence-bound relation graph."""
+    base = path if path.is_dir() else path.parent
+    graph = build_code_relations(
+        base,
+        source_dirs=[base],
+        include_operational=False,
+    )
+    files = gather_py_files(path)
 
-    result = repo_imports.build_import_graph(path)
-    if not result:
-        return
-    graph, internal_modules, files, base = result
+    def module_label(rel: str) -> str:
+        return rel.removesuffix(".py").replace("/", ".")
 
-    # Build per-file map: local_name -> (source_module, source_name)
-    import_map = {}
-    for mod, imps in graph.items():
-        local_names = {}
-        for imp in imps:
-            if imp["kind"] != "internal":
-                continue
-            src_mod = imp["module"]
-            name = imp["name"]
-            alias = imp["alias"]
-            if name:
-                # from module import name [as alias]
-                local_names[alias or name] = (src_mod, name)
-            else:
-                # import module [as alias]
-                local_names[alias or src_mod] = (src_mod, None)
-        import_map[mod] = local_names
-
-    # Walk each file's call edges, resolve cross-file targets
     cross_edges = []  # (src_mod, caller, dst_mod, dst_name, lineno)
-    for f in files:
-        try:
-            source = f.read_text()
-            tree = ast.parse(source, filename=str(f))
-        except (SyntaxError, UnicodeDecodeError):
+    for edge in graph.relations_of_type("calls"):
+        source = graph.nodes[edge.source]
+        destination = graph.nodes[edge.target]
+        if not source.path or not destination.path or source.path == destination.path:
             continue
-
-        file_mod = repo_imports.module_name(f, base)
-        local_names = import_map.get(file_mod, {})
-
-        visitor = CallGraphVisitor()
-        visitor.visit(tree)
-
-        for caller, callee, lineno in visitor.edges:
-            resolved = None
-            if callee in local_names:
-                src_mod, src_name = local_names[callee]
-                resolved = (src_mod, src_name or callee)
-            elif "." in callee:
-                prefix, attr = callee.split(".", 1)
-                if prefix in local_names:
-                    src_mod, _ = local_names[prefix]
-                    resolved = (src_mod, attr)
-            if resolved:
-                dst_mod, dst_name = resolved
-                cross_edges.append((file_mod, caller, dst_mod, dst_name, lineno))
+        cross_edges.append(
+            (
+                module_label(source.path),
+                source.qualname or "<module>",
+                module_label(destination.path),
+                destination.qualname or destination.label,
+                edge.evidence.line,
+            )
+        )
 
     # Output
     if target:
-        matches = [e for e in cross_edges if e[3] == target]
+        matches = [
+            edge
+            for edge in cross_edges
+            if edge[3] == target or edge[3].split(".")[-1] == target
+        ]
         if not matches:
             print(f"# No cross-file callers of '{target}' found")
             return

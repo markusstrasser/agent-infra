@@ -271,12 +271,18 @@ class CodeRelationGraph:
         wanted = set(relation_types)
         return [r for r in self.relations if r.relation in wanted]
 
-    def file_edges(self, *relation_types: str) -> dict[str, set[str]]:
+    def file_edges(
+        self,
+        *relation_types: str,
+        include_ambiguous: bool = False,
+    ) -> dict[str, set[str]]:
         """Return repo-relative file-to-file edges for the selected relation types."""
         wanted = set(relation_types)
         edges: dict[str, set[str]] = defaultdict(set)
         for relation in self.relations:
             if wanted and relation.relation not in wanted:
+                continue
+            if not include_ambiguous and relation.confidence is Confidence.AMBIGUOUS:
                 continue
             source = self.nodes.get(relation.source)
             target = self.nodes.get(relation.target)
@@ -536,12 +542,7 @@ class CodeRelationBuilder:
             return sorted(set(paths))
         paths = set()
         for source_dir in self.source_dirs:
-            if source_dir.is_file() and source_dir.suffix == ".py":
-                paths.add(source_dir)
-                continue
-            for path in source_dir.rglob("*.py"):
-                if not any(part in SKIP_DIRS for part in path.parts):
-                    paths.add(path.resolve())
+            paths.update(gather_python_files(source_dir))
         return sorted(paths)
 
     def _operational_paths(self) -> set[Path]:
@@ -1114,6 +1115,18 @@ def build_code_relations(
         python_files=python_files,
         include_operational=include_operational,
     ).build()
+
+
+def gather_python_files(path: Path) -> list[Path]:
+    """Gather Python files using the substrate's canonical exclusion rules."""
+    path = path.resolve()
+    if path.is_file():
+        return [path] if path.suffix == ".py" else []
+    return sorted(
+        candidate.resolve()
+        for candidate in path.rglob("*.py")
+        if not any(part in SKIP_DIRS for part in candidate.parts)
+    )
 
 
 def _diagnostic_payload(diagnostic: Diagnostic) -> dict[str, object]:
