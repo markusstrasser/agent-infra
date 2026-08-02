@@ -21,7 +21,6 @@ Usage:
 """
 import ast
 import sys
-import os
 from pathlib import Path
 from collections import defaultdict
 
@@ -30,7 +29,8 @@ from code_relations import build_code_relations
 
 def _log_usage(script: str, subcommand: str, path: Path):
     """Append one line to usage log. Fire-and-forget."""
-    import json, time
+    import json
+    import time
     log = Path.home() / ".cache" / "repo-tools-usage.jsonl"
     try:
         with open(log, "a") as f:

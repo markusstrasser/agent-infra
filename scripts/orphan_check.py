@@ -8,11 +8,10 @@ automatic so the answer to "why did a human have to notice" becomes "they don't.
 
 Computes four consumption signals per top-level `scripts/*.py|*.sh`, mechanically:
 
-  1. wired      — referenced in justfile, .claude/settings.json (Claude hooks),
-                  ~/.codex/hooks.json (Codex hooks), or launchd plists.
-  2. imported   — imported by another live script (plain `import` or the
-                  importlib `import_hyphenated("name")` idiom) or by the root MCP
-                  server agent_infra_mcp.py.
+  1. wired      — an evidence-bound Just/launchd/shell relation, or a reference
+                  in external hook settings not stored in this repository.
+  2. imported   — a resolved import/call relation from another live source file,
+                  including supported dynamic-import idioms.
   3. referenced — named in a REAL consumer: a skill, a non-inventory rule, a
                   decision, an active plan, an agent doc, or a memory file.
                   EXCLUDES auto-generated inventories (codebase-map.md,
@@ -41,11 +40,11 @@ Usage:
 from __future__ import annotations
 
 import json
-import re
 import sqlite3
 import sys
 
 from common.db import open_db_ro
+from code_relations import CodeRelationGraph, build_code_relations
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -99,10 +98,10 @@ def _read(path: Path) -> str:
 
 
 # ── signal sources (read once) ───────────────────────────────────────────────
-def wiring_corpus() -> str:
+def external_wiring_corpus() -> str:
+    """Hook/launchd wiring outside the repository relation graph."""
     parts: list[str] = []
-    for p in (REPO / "justfile",
-              REPO / ".claude" / "settings.json",
+    for p in (REPO / ".claude" / "settings.json",
               Path.home() / ".claude" / "settings.json",
               Path.home() / ".codex" / "hooks.json"):
         parts.append(_read(p))
@@ -145,20 +144,6 @@ def consumer_corpus() -> dict[str, str]:
     return out
 
 
-def importer_corpus() -> str:
-    """All live python source under scripts/ (recursively) + the root MCP."""
-    parts: list[str] = [_read(REPO / "agent_infra_mcp.py")]
-    for f in SCRIPTS.rglob("*.py"):
-        if "__pycache__" in f.parts:
-            continue
-        # Skip standalone packages nested below scripts; they cannot import
-        # agent-infra generators and can dominate the scan.
-        if "packages" in f.parts:
-            continue
-        parts.append(_read(f))
-    return "\n".join(parts)
-
-
 def invocation_counts(days: int) -> dict[str, str]:
     if not AGENTLOGS_DB.exists() or AGENTLOGS_DB.stat().st_size == 0:
         return {}
@@ -192,40 +177,41 @@ def is_generator(path: Path) -> bool:
     return True
 
 
-def module_aliases(name: str) -> list[str]:
-    """How this file could be referenced as an import / invocation target."""
-    stem = name.rsplit(".", 1)[0]
-    underscore = stem.replace("-", "_")
-    return sorted({name, stem, underscore})
+def _incoming_paths(
+    graph: CodeRelationGraph,
+    rel: str,
+    relation_types: set[str],
+) -> set[str]:
+    try:
+        hops = graph.impact(rel, max_depth=1, relation_types=relation_types)
+    except ValueError:
+        return set()
+    return {
+        graph.nodes[hop.relation.source].path
+        for hop in hops
+        if graph.nodes[hop.relation.source].path
+        and graph.nodes[hop.relation.source].path != rel
+    }
 
 
-def imported_targets(importers: str) -> set[str]:
-    """All module/script names referenced as an import target, extracted in ONE
-    pass over the corpus. Replaces a per-script 5-regex scan (389 searches × 0.2s
-    ≈ 78s) with a handful of findall passes + O(1) membership — the difference
-    between ~80s and ~1s. Covers static imports (incl. a dotted `scripts.` prefix)
-    and the dynamic-import idioms (import_hyphenated / spec_from_file_location /
-    with_name)."""
-    names: set[str] = set()
-    names |= set(re.findall(r'(?:^|\n)\s*import\s+(?:[\w.]+\.)?(\w+)', importers))
-    names |= set(re.findall(r'(?:^|\n)\s*from\s+(?:[\w.]+\.)?(\w+)\s+import\b', importers))
-    names |= set(re.findall(r'import_hyphenated\(\s*["\']([\w-]+)["\']', importers))
-    names |= set(re.findall(r'spec_from_file_location\([^)]*["\']([\w.]+)', importers))
-    names |= set(re.findall(r'with_name\(\s*["\']([\w.-]+)["\']', importers))
-    return names
-
-
-def imported_by_someone(name: str, imported: set[str]) -> bool:
-    stem = name.rsplit(".", 1)[0]
-    return name in imported or stem in imported or stem.replace("-", "_") in imported
-
-
-def check_script(path: Path, *, wiring: str, consumers: dict[str, str],
-                 imported_set: set[str], inv_blob: str) -> dict:
+def check_script(
+    path: Path,
+    *,
+    external_wiring: str,
+    consumers: dict[str, str],
+    graph: CodeRelationGraph,
+    inv_blob: str,
+) -> dict:
     name = path.name
+    rel = path.relative_to(REPO).as_posix()
 
-    wired = any(a in wiring for a in (name, name.rsplit(".", 1)[0]))
-    imported = imported_by_someone(name, imported_set)
+    wired_paths = _incoming_paths(
+        graph, rel, {"executes", "invokes_recipe", "launches", "sources"}
+    )
+    wired = bool(wired_paths) or any(
+        alias in external_wiring for alias in (name, name.rsplit(".", 1)[0])
+    )
+    imported = bool(_incoming_paths(graph, rel, {"calls", "imports"}))
 
     ref_areas = [area for area, blob in consumers.items()
                  if any(a in blob for a in (name, name.rsplit(".", 1)[0]))]
@@ -250,9 +236,12 @@ def check_script(path: Path, *, wiring: str, consumers: dict[str, str],
 
 
 def scan(days: int = 90, with_invocations: bool = False) -> dict:
-    wiring = wiring_corpus()
+    external_wiring = external_wiring_corpus()
     consumers = consumer_corpus()
-    imported_set = imported_targets(importer_corpus())  # one pass, not per-script
+    source_dirs = [REPO, SCRIPTS]
+    if (REPO / "src").is_dir():
+        source_dirs.append(REPO / "src")
+    graph = build_code_relations(REPO, source_dirs=source_dirs)
     # The invocation signal scans the whole agentlogs args_json (11GB / ~500K rows)
     # into memory — seconds-to-minutes. It is the WEAKEST signal (it only RESCUES a
     # statically-orphaned script that's actually run directly) and report-only output
@@ -265,8 +254,12 @@ def scan(days: int = 90, with_invocations: bool = False) -> dict:
         if not is_generator(f):
             continue
         results.append(check_script(
-            f, wiring=wiring, consumers=consumers,
-            imported_set=imported_set, inv_blob=inv_blob))
+            f,
+            external_wiring=external_wiring,
+            consumers=consumers,
+            graph=graph,
+            inv_blob=inv_blob,
+        ))
 
     flagged = [r for r in results if r["flagged"]]
     suppressed = [r for r in results

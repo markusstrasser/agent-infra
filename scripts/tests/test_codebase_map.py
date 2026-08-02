@@ -43,6 +43,20 @@ def test_slugify_strips_glob_markers():
     assert _cmap.slugify_group("scripts/modal_*") == "scripts-modal"
 
 
+def test_build_edges_uses_stable_paths_and_resolved_fan_in(tmp_path):
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "shared.py").write_text("VALUE = 1\n")
+    (src / "one.py").write_text("import shared\n")
+    (src / "two.py").write_text("from shared import VALUE\n")
+
+    edges, fan_in = _cmap.build_edges(tmp_path, [src])
+
+    assert edges["src/one.py"] == {"src/shared.py"}
+    assert edges["src/two.py"] == {"src/shared.py"}
+    assert fan_in["src/shared.py"] == 2
+
+
 def test_staged_paths_git_failure_is_non_fatal(capsys):
     with patch.object(
         _refresh_on_commit,

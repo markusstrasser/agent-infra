@@ -1,8 +1,7 @@
 """Tests for scripts/infra_usage_check.py — adoption ratchet."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
+from datetime import datetime, timezone
 
 import infra_usage_check as iuc
 
@@ -54,3 +53,23 @@ def test_script_missing(tmp_path, monkeypatch):
     )
     r = iuc.check_surface(surf)
     assert r["status"] == "missing"
+
+
+def test_script_adoption_uses_resolved_code_relations(tmp_path, monkeypatch):
+    monkeypatch.setattr(iuc, "REPO", tmp_path)
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    (scripts / "producer.py").write_text("def run():\n    return 1\n")
+    (scripts / "consumer.py").write_text("from producer import run\nrun()\n")
+    surf = iuc.InfraSurface(
+        id="producer",
+        kind="script",
+        path="scripts/producer.py",
+        description="t",
+    )
+
+    result = iuc.check_surface(surf, relation_graph=iuc._relation_graph())
+
+    assert result["status"] == "adopted"
+    assert result["usage_count"] == 1
+    assert result["adoption_signal"] == "code_relations"

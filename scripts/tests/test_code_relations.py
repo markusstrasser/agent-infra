@@ -17,6 +17,61 @@ from code_relations import (  # noqa: E402
 )
 
 
+@pytest.fixture(scope="module")
+def live_graph():
+    return build_code_relations(ROOT, source_dirs=["scripts", "src"])
+
+
+@pytest.mark.parametrize(
+    ("source", "target", "relation"),
+    [
+        ("scripts/codebase-map.py", "scripts/code_relations.py", "imports"),
+        ("scripts/repo-outline.py", "scripts/code_relations.py", "imports"),
+        ("scripts/structure_debt_rank.py", "scripts/code_relations.py", "imports"),
+        ("scripts/infra_usage_check.py", "scripts/code_relations.py", "imports"),
+        ("scripts/orphan_check.py", "scripts/code_relations.py", "imports"),
+        ("justfile", "scripts/pulse.py", "executes"),
+        ("scripts/pulse-tick.sh", "scripts/pulse.py", "executes"),
+        ("scripts/pulse_tick.py", "scripts/pulse.py", "executes"),
+        (
+            "ops/launchd/com.agent-infra.pulse-tick.plist",
+            "scripts/pulse-tick.sh",
+            "launches",
+        ),
+        ("scripts/pulse.py", "scripts/pulse_tick.py", "imports"),
+        ("scripts/pulse.py", "scripts/fm.py", "executes"),
+        ("scripts/pulse.py", "scripts/questions_view.py", "imports"),
+        ("scripts/orient.py", "scripts/system_inventory.py", "imports"),
+        ("scripts/orient.py", "scripts/config.py", "imports"),
+        ("justfile", "scripts/infra_usage_check.py", "executes"),
+        ("justfile", "scripts/orphan_check.py", "executes"),
+        ("justfile", "scripts/structure_debt_rank.py", "executes"),
+        (
+            "ops/launchd/com.agent-infra.codebase-map-refresh.plist",
+            "scripts/refresh-codebase-maps.sh",
+            "launches",
+        ),
+        (
+            "scripts/refresh-codebase-maps.sh",
+            "scripts/refresh_all_codebase_maps.py",
+            "executes",
+        ),
+        ("scripts/orphan_check.py", "scripts/common/db.py", "imports"),
+    ],
+)
+def test_live_dependency_questions(
+    live_graph, source: str, target: str, relation: str
+) -> None:
+    assert any(
+        edge.relation == relation
+        and live_graph.nodes[edge.source].path == source
+        and live_graph.nodes[edge.target].path == target
+        and edge.confidence is Confidence.RESOLVED
+        and edge.evidence.line > 0
+        for edge in live_graph.relations
+    )
+
+
 def _write(root: Path, rel: str, content: str) -> Path:
     path = root / rel
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -80,6 +135,10 @@ def test_duplicate_module_name_is_ambiguous_not_arbitrarily_resolved(
         "two/utils.py",
     }
     assert {edge.confidence for edge in edges} == {Confidence.AMBIGUOUS}
+    assert graph.file_edges("imports") == {}
+    assert graph.file_edges("imports", include_ambiguous=True) == {
+        "app/main.py": {"one/utils.py", "two/utils.py"}
+    }
     assert any(d.code == "ambiguous_target" for d in graph.validate())
     with pytest.raises(AmbiguousTargetError):
         graph.resolve("utils.py")

@@ -185,6 +185,21 @@ def _broken_wikilinks(md_files: list[str], contents: dict[str, str], stems: set[
     return broken
 
 
+def _python_graph_metrics(cwd: str, py_files: list[str]) -> tuple[dict[str, int], set[str]]:
+    """Return resolved import fan-in and cycle membership from code relations."""
+    root = Path(cwd)
+    relation_sources = [root] + [
+        root / name for name in ("scripts", "src") if (root / name).is_dir()
+    ]
+    relation_graph = build_code_relations(
+        root,
+        source_dirs=relation_sources,
+        python_files=py_files,
+        include_operational=False,
+    )
+    return relation_graph.fan_in("imports"), relation_graph.nodes_in_cycles("imports")
+
+
 # ---- scoring ------------------------------------------------------------------
 
 def _norm(values: list[float], sparse: bool):
@@ -230,19 +245,7 @@ def main() -> int:
 
     code_dup = _dup_scores(code, shingles)
     md_dup = _dup_scores(md, shingles)
-    relation_sources = [Path(cwd)] + [
-        Path(cwd) / name
-        for name in ("scripts", "src")
-        if (Path(cwd) / name).is_dir()
-    ]
-    relation_graph = build_code_relations(
-        Path(cwd),
-        source_dirs=relation_sources,
-        python_files=py,
-        include_operational=False,
-    )
-    fan_in = relation_graph.fan_in("imports")
-    in_cycle = relation_graph.nodes_in_cycles("imports")
+    fan_in, in_cycle = _python_graph_metrics(cwd, py)
     inbound = _md_inbound(md, contents)
     stems = {Path(f).stem for f in md}
     broken = _broken_wikilinks(md, contents, stems)
