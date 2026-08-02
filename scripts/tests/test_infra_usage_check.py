@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 
 import infra_usage_check as iuc
 
@@ -72,4 +73,23 @@ def test_script_adoption_uses_resolved_code_relations(tmp_path, monkeypatch):
 
     assert result["status"] == "adopted"
     assert result["usage_count"] == 1
+    assert result["usage_by_relation"] == {"calls": 1, "imports": 1}
     assert result["adoption_signal"] == "code_relations"
+
+
+def test_ambiguous_import_does_not_count_as_adoption(tmp_path, monkeypatch):
+    monkeypatch.setattr(iuc, "REPO", tmp_path)
+    for directory in ("app", "one", "two"):
+        (tmp_path / directory).mkdir()
+    (tmp_path / "app" / "consumer.py").write_text("import producer\n")
+    (tmp_path / "one" / "producer.py").write_text("VALUE = 1\n")
+    (tmp_path / "two" / "producer.py").write_text("VALUE = 2\n")
+    from code_relations import build_code_relations
+
+    graph = build_code_relations(
+        tmp_path,
+        python_source_dirs=["app", "one", "two"],
+        include_operational=False,
+    )
+
+    assert iuc._script_consumers(Path("one/producer.py"), graph) == {}

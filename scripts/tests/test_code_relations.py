@@ -13,13 +13,14 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from code_relations import (  # noqa: E402
     AmbiguousTargetError,
     Confidence,
+    IncompleteGraphError,
     build_code_relations,
 )
 
 
 @pytest.fixture(scope="module")
 def live_graph():
-    return build_code_relations(ROOT, source_dirs=["scripts", "src"])
+    return build_code_relations(ROOT, python_source_dirs=["scripts", "src"])
 
 
 @pytest.mark.parametrize(
@@ -57,6 +58,16 @@ def live_graph():
             "executes",
         ),
         ("scripts/orphan_check.py", "scripts/common/db.py", "imports"),
+        (
+            "scripts/friend-sync.sh",
+            "scripts/cursor-skills-sync.sh",
+            "executes",
+        ),
+        (
+            "justfile",
+            "scripts/pre-commit-architecture-render.sh",
+            "configures",
+        ),
     ],
 )
 def test_live_dependency_questions(
@@ -88,7 +99,7 @@ def test_python_import_and_call_share_source_evidence(tmp_path: Path) -> None:
     )
 
     graph = build_code_relations(
-        tmp_path, source_dirs=["src"], include_operational=False
+        tmp_path, python_source_dirs=["src"], include_operational=False
     )
     imports = [
         edge
@@ -121,7 +132,7 @@ def test_duplicate_module_name_is_ambiguous_not_arbitrarily_resolved(
 
     graph = build_code_relations(
         tmp_path,
-        source_dirs=["app", "one", "two"],
+        python_source_dirs=["app", "one", "two"],
         include_operational=False,
     )
     edges = [
@@ -151,7 +162,7 @@ def test_corrupt_inputs_emit_diagnostics_without_poisoning_other_files(
     _write(tmp_path, "src/bad.py", "def broken(:\n")
     _write(tmp_path, "ops/launchd/bad.plist", "not a plist")
 
-    graph = build_code_relations(tmp_path, source_dirs=["src"])
+    graph = build_code_relations(tmp_path, python_source_dirs=["src"])
     codes = {diagnostic.code for diagnostic in graph.validate()}
 
     assert "python_parse_error" in codes
@@ -162,6 +173,17 @@ def test_corrupt_inputs_emit_diagnostics_without_poisoning_other_files(
     )
     assert graph.resolve("src/good.py")
     assert any(node.qualname == "healthy" for node in graph.nodes.values())
+    with pytest.raises(IncompleteGraphError):
+        graph.require_complete()
+
+
+def test_invalid_python_source_directory_fails_instead_of_widening_scope(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path, "src/app.py", "VALUE = 1\n")
+
+    with pytest.raises(ValueError, match="Python source directories not found"):
+        build_code_relations(tmp_path, python_source_dirs=["typo"])
 
 
 def test_reverse_impact_crosses_launchd_shell_just_and_python(tmp_path: Path) -> None:
@@ -193,7 +215,7 @@ def test_reverse_impact_crosses_launchd_shell_just_and_python(tmp_path: Path) ->
 """,
     )
 
-    graph = build_code_relations(tmp_path, source_dirs=["scripts"])
+    graph = build_code_relations(tmp_path, python_source_dirs=["scripts"])
     hops = graph.impact("scripts/pulse.py", max_depth=3)
     observed = {
         (
@@ -227,13 +249,72 @@ def test_hidden_directory_path_does_not_collapse_into_suffix_match(tmp_path: Pat
     assert edges[0].confidence is Confidence.RESOLVED
 
 
+def test_partial_suffix_and_echo_do_not_create_resolved_execution_edges(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path, "a/pkg/tool.py", "VALUE = 1\n")
+    _write(
+        tmp_path,
+        "run.sh",
+        "echo a/pkg/tool.py\npython3 pkg/tool.py\npython3 a/pkg/tool.py # exact\n",
+    )
+
+    graph = build_code_relations(tmp_path)
+    edges = [
+        edge
+        for edge in graph.relations_of_type("executes")
+        if graph.nodes[edge.source].path == "run.sh"
+    ]
+
+    assert len(edges) == 2
+    by_line = {edge.evidence.line: edge for edge in edges}
+    assert graph.nodes[by_line[2].target].kind == "path"
+    assert by_line[2].confidence is Confidence.EXTRACTED
+    assert graph.nodes[by_line[3].target].path == "a/pkg/tool.py"
+    assert by_line[3].confidence is Confidence.RESOLVED
+
+
+def test_ambiguous_impact_can_be_excluded_for_decision_consumers(tmp_path: Path) -> None:
+    _write(tmp_path, "app/main.py", "import util\n")
+    _write(tmp_path, "one/util.py", "VALUE = 1\n")
+    _write(tmp_path, "two/util.py", "VALUE = 2\n")
+    graph = build_code_relations(
+        tmp_path,
+        python_source_dirs=["app", "one", "two"],
+        include_operational=False,
+    )
+
+    assert graph.impact("one/util.py", max_depth=1)
+    assert not graph.impact(
+        "one/util.py", max_depth=1, include_ambiguous=False
+    )
+
+
+def test_non_dictionary_plist_is_an_incomplete_graph(tmp_path: Path) -> None:
+    _write(tmp_path, "src/app.py", "VALUE = 1\n")
+    _write(
+        tmp_path,
+        "ops/launchd/list.plist",
+        "<?xml version='1.0'?><plist version='1.0'><array/></plist>",
+    )
+
+    graph = build_code_relations(tmp_path, python_source_dirs=["src"])
+
+    assert any(
+        diagnostic.code == "plist_shape_error" and diagnostic.severity == "error"
+        for diagnostic in graph.validate()
+    )
+    with pytest.raises(IncompleteGraphError):
+        graph.require_complete()
+
+
 def test_fan_in_and_cycles_use_resolved_file_edges(tmp_path: Path) -> None:
     _write(tmp_path, "src/a.py", "import b\n")
     _write(tmp_path, "src/b.py", "import a\n")
     _write(tmp_path, "src/c.py", "import b\n")
 
     graph = build_code_relations(
-        tmp_path, source_dirs=["src"], include_operational=False
+        tmp_path, python_source_dirs=["src"], include_operational=False
     )
 
     assert graph.fan_in("imports")["src/b.py"] == 2
@@ -245,7 +326,7 @@ def test_integrity_validation_has_no_errors_for_valid_graph(tmp_path: Path) -> N
     _write(tmp_path, "src/b.py", "from a import one\nvalue = one()\n")
 
     graph = build_code_relations(
-        tmp_path, source_dirs=["src"], include_operational=False
+        tmp_path, python_source_dirs=["src"], include_operational=False
     )
 
     assert not [d for d in graph.validate() if d.severity == "error"]

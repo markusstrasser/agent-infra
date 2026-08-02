@@ -193,10 +193,11 @@ def _python_graph_metrics(cwd: str, py_files: list[str]) -> tuple[dict[str, int]
     ]
     relation_graph = build_code_relations(
         root,
-        source_dirs=relation_sources,
+        python_source_dirs=relation_sources,
         python_files=py_files,
         include_operational=False,
     )
+    relation_graph.require_complete()
     return relation_graph.fan_in("imports"), relation_graph.nodes_in_cycles("imports")
 
 

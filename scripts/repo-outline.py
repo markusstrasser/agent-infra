@@ -3,8 +3,8 @@
 
 Four modes:
   outline  — TOC of classes/functions with signatures, one line each
-  callgraph — who-calls-what within a file or directory
-  xrefs    — cross-file call resolution (joins callgraph with import graph)
+  callgraph — same-file calls from the canonical relation graph
+  xrefs    — resolved cross-file calls from the canonical relation graph
   symbol   — extract and print the full source of a named function/class
 
 Uses only stdlib `ast`. Zero deps, zero index, reads live code.
@@ -14,7 +14,7 @@ Usage:
   repo-outline.py outline <path>          # file or directory
   repo-outline.py outline <path> --depth 1  # classes only, skip methods
   repo-outline.py callgraph <path>        # call edges within scope
-  repo-outline.py callgraph <path> --external  # include calls to imported names
+  repo-outline.py callgraph <path> --external  # include imported/unresolved calls
   repo-outline.py xrefs <path>            # cross-file call edges
   repo-outline.py xrefs <path> --for NAME # who calls NAME across the project?
   repo-outline.py symbol <file> <name>    # print full source of class/function
@@ -24,7 +24,7 @@ import sys
 from pathlib import Path
 from collections import defaultdict
 
-from code_relations import build_code_relations
+from code_relations import Confidence, build_code_relations, gather_python_files
 
 
 def _log_usage(script: str, subcommand: str, path: Path):
@@ -38,15 +38,6 @@ def _log_usage(script: str, subcommand: str, path: Path):
                                 "cmd": subcommand, "path": str(path)}) + "\n")
     except Exception:
         pass
-
-
-def gather_py_files(path: Path) -> list[Path]:
-    if path.is_file():
-        return [path] if path.suffix == ".py" else []
-    files = sorted(path.rglob("*.py"))
-    # skip hidden dirs, __pycache__, .venv, node_modules
-    skip = {".git", "__pycache__", ".venv", "node_modules", ".tox", ".mypy_cache"}
-    return [f for f in files if not any(p in skip for p in f.parts)]
 
 
 def format_args(node: ast.FunctionDef) -> str:
@@ -134,7 +125,7 @@ def outline_file(filepath: Path, base: Path, max_depth: int = 99) -> list[str]:
 
 
 def outline(path: Path, max_depth: int = 99):
-    files = gather_py_files(path)
+    files = gather_python_files(path)
     if not files:
         print(f"No Python files found in {path}")
         return
@@ -150,104 +141,41 @@ def outline(path: Path, max_depth: int = 99):
         print(line)
 
 
-class CallGraphVisitor(ast.NodeVisitor):
-    """Extract call edges from a function/method body."""
-
-    def __init__(self):
-        self.current_scope = None
-        self.edges = []  # (caller, callee)
-        self.defined = set()  # names defined in this scope
-
-    def visit_FunctionDef(self, node):
-        self.defined.add(node.name)
-        old_scope = self.current_scope
-        self.current_scope = node.name
-        self.generic_visit(node)
-        self.current_scope = old_scope
-
-    visit_AsyncFunctionDef = visit_FunctionDef
-
-    def visit_ClassDef(self, node):
-        self.defined.add(node.name)
-        old_scope = self.current_scope
-        for child in ast.iter_child_nodes(node):
-            if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef):
-                method_name = f"{node.name}.{child.name}"
-                self.defined.add(method_name)
-                self.current_scope = method_name
-                self.generic_visit(child)
-        self.current_scope = old_scope
-
-    def visit_Call(self, node):
-        if self.current_scope is None:
-            self.generic_visit(node)
-            return
-
-        callee = None
-        if isinstance(node.func, ast.Name):
-            callee = node.func.id
-        elif isinstance(node.func, ast.Attribute):
-            # obj.method — try to resolve
-            if isinstance(node.func.value, ast.Name):
-                callee = f"{node.func.value.id}.{node.func.attr}"
-            else:
-                callee = f"?.{node.func.attr}"
-
-        if callee:
-            self.edges.append((self.current_scope, callee, node.lineno))
-
-        self.generic_visit(node)
-
-
-def callgraph_file(filepath: Path, base: Path, include_external: bool) -> list[str]:
-    try:
-        source = filepath.read_text()
-        tree = ast.parse(source, filename=str(filepath))
-    except (SyntaxError, UnicodeDecodeError):
-        return []
-
-    visitor = CallGraphVisitor()
-    visitor.visit(tree)
-
-    if not visitor.edges:
-        return []
-
-    rel = filepath.relative_to(base) if base != filepath else filepath.name
-    lines = [f"\n## {rel}"]
-
-    # Group by caller
-    by_caller = defaultdict(list)
-    for caller, callee, _lineno in visitor.edges:
-        if not include_external and callee not in visitor.defined:
-            # Check if it's a method of a defined class
-            if "." in callee:
-                cls = callee.split(".")[0]
-                if cls not in visitor.defined:
-                    continue
-        by_caller[caller].append(callee)
-
-    for caller in sorted(by_caller):
-        callees = sorted(set(by_caller[caller]))
-        lines.append(f"  {caller} -> {', '.join(callees)}")
-
-    return lines if len(lines) > 1 else []
-
-
 def callgraph(path: Path, include_external: bool = False):
-    files = gather_py_files(path)
+    files = gather_python_files(path)
     if not files:
         print(f"No Python files found in {path}")
         return
 
     base = path if path.is_dir() else path.parent
-    total_lines = []
-    for f in files:
-        total_lines.extend(callgraph_file(f, base, include_external))
+    graph = build_code_relations(
+        base,
+        python_source_dirs=[base],
+        include_operational=False,
+        include_unresolved_calls=include_external,
+    )
+    graph.require_complete()
+    selected = {f.relative_to(base).as_posix() for f in files}
+    by_file: dict[str, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
+    for edge in graph.relations_of_type("calls"):
+        source = graph.nodes[edge.source]
+        target = graph.nodes[edge.target]
+        if not source.path or source.path not in selected:
+            continue
+        if edge.confidence is Confidence.AMBIGUOUS:
+            continue
+        if not include_external and target.path != source.path:
+            continue
+        caller = source.qualname or "<module>"
+        callee = target.qualname or target.label
+        by_file[source.path][caller].add(callee)
 
     print(f"# Call graph: {path}")
     print(f"# {len(files)} files, {'including' if include_external else 'excluding'} external calls")
-    for line in total_lines:
-        print(line)
+    for rel in sorted(by_file):
+        print(f"\n## {rel}")
+        for caller in sorted(by_file[rel]):
+            print(f"  {caller} -> {', '.join(sorted(by_file[rel][caller]))}")
 
 
 def symbol(filepath: Path, name: str):
@@ -318,10 +246,11 @@ def xrefs(path: Path, target: str = ""):
     base = path if path.is_dir() else path.parent
     graph = build_code_relations(
         base,
-        source_dirs=[base],
+        python_source_dirs=[base],
         include_operational=False,
     )
-    files = gather_py_files(path)
+    graph.require_complete()
+    files = gather_python_files(path)
 
     def module_label(rel: str) -> str:
         return rel.removesuffix(".py").replace("/", ".")
@@ -330,6 +259,8 @@ def xrefs(path: Path, target: str = ""):
     for edge in graph.relations_of_type("calls"):
         source = graph.nodes[edge.source]
         destination = graph.nodes[edge.target]
+        if edge.confidence is Confidence.AMBIGUOUS:
+            continue
         if not source.path or not destination.path or source.path == destination.path:
             continue
         cross_edges.append(

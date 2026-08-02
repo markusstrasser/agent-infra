@@ -13,8 +13,8 @@ Supported relationships:
 - launchd ProgramArguments
 
 Usage:
-  code_relations.py impact <repo> <target> [--source-dirs scripts,src]
-  code_relations.py validate <repo> [--source-dirs scripts,src] [--json]
+  code_relations.py impact <repo> <target> [--python-source-dirs scripts,src]
+  code_relations.py validate <repo> [--python-source-dirs scripts,src] [--json]
 """
 
 from __future__ import annotations
@@ -24,6 +24,7 @@ import ast
 import json
 import plistlib
 import re
+import shlex
 import sys
 from collections import defaultdict, deque
 from dataclasses import asdict, dataclass
@@ -57,6 +58,7 @@ EXEC_CALLS = {
 }
 TRAVERSAL_RELATIONS = {
     "calls",
+    "configures",
     "executes",
     "imports",
     "invokes_recipe",
@@ -114,6 +116,10 @@ class ImpactHop:
 
 class AmbiguousTargetError(ValueError):
     """Raised when a short query matches multiple stable node identities."""
+
+
+class IncompleteGraphError(RuntimeError):
+    """Raised when a consumer requires a graph with no error diagnostics."""
 
 
 def _relpath(root: Path, path: Path) -> str:
@@ -267,6 +273,24 @@ class CodeRelationGraph:
                 )
         return list(dict.fromkeys(out))
 
+    @property
+    def has_errors(self) -> bool:
+        return any(diagnostic.severity == "error" for diagnostic in self.validate())
+
+    def require_complete(self) -> None:
+        errors = [
+            diagnostic for diagnostic in self.validate() if diagnostic.severity == "error"
+        ]
+        if not errors:
+            return
+        summary = "; ".join(
+            f"{diagnostic.code} at {diagnostic.path or '<graph>'}"
+            for diagnostic in errors[:5]
+        )
+        raise IncompleteGraphError(
+            f"code relation graph is incomplete ({len(errors)} error(s)): {summary}"
+        )
+
     def relations_of_type(self, *relation_types: str) -> list[CodeRelation]:
         wanted = set(relation_types)
         return [r for r in self.relations if r.relation in wanted]
@@ -340,6 +364,7 @@ class CodeRelationGraph:
         *,
         max_depth: int = 3,
         relation_types: Iterable[str] = TRAVERSAL_RELATIONS,
+        include_ambiguous: bool = True,
     ) -> list[ImpactHop]:
         """Traverse incoming edges from a target and preserve the deciding evidence."""
         seeds = self.resolve(target)
@@ -356,6 +381,11 @@ class CodeRelationGraph:
         incoming: dict[str, list[CodeRelation]] = defaultdict(list)
         for relation in self.relations:
             if relation.relation in wanted:
+                if (
+                    not include_ambiguous
+                    and relation.confidence is Confidence.AMBIGUOUS
+                ):
+                    continue
                 source = self.nodes.get(relation.source)
                 target_node = self.nodes.get(relation.target)
                 if (
@@ -486,34 +516,54 @@ class CodeRelationBuilder:
         self,
         root: Path,
         *,
-        source_dirs: Iterable[Path | str] | None = None,
+        python_source_dirs: Iterable[Path | str] | None = None,
         python_files: Iterable[Path | str] | None = None,
         include_operational: bool = True,
+        include_unresolved_calls: bool = False,
     ):
         self.root = root.resolve()
-        self.source_dirs = self._normalize_source_dirs(source_dirs)
+        self.python_source_dirs = self._normalize_python_source_dirs(
+            python_source_dirs
+        )
         self.explicit_python_files = list(python_files) if python_files is not None else None
         self.include_operational = include_operational
+        self.include_unresolved_calls = include_unresolved_calls
         self.graph = CodeRelationGraph(self.root)
         self.units: dict[str, _PythonUnit] = {}
         self.module_index: dict[str, set[str]] = defaultdict(set)
         self.module_stem_index: dict[str, set[str]] = defaultdict(set)
         self.basename_index: dict[str, set[str]] = defaultdict(set)
 
-    def _normalize_source_dirs(
+    def _normalize_python_source_dirs(
         self, source_dirs: Iterable[Path | str] | None
     ) -> list[Path]:
         if source_dirs is None:
             return [self.root]
         out: list[Path] = []
+        missing: list[Path] = []
         for source_dir in source_dirs:
             path = Path(source_dir)
             if not path.is_absolute():
                 path = self.root / path
             path = path.resolve()
-            if path.exists() and path not in out:
+            try:
+                path.relative_to(self.root)
+            except ValueError as exc:
+                raise ValueError(
+                    f"Python source directory is outside repository root: {path}"
+                ) from exc
+            if not path.exists():
+                missing.append(path)
+            elif path not in out:
                 out.append(path)
-        return out or [self.root]
+        if missing:
+            raise ValueError(
+                "Python source directories not found: "
+                + ", ".join(str(path) for path in missing)
+            )
+        if not out:
+            raise ValueError("python_source_dirs cannot be empty")
+        return out
 
     def build(self) -> CodeRelationGraph:
         python_paths = self._python_paths()
@@ -541,7 +591,7 @@ class CodeRelationBuilder:
                     paths.append(path.resolve())
             return sorted(set(paths))
         paths = set()
-        for source_dir in self.source_dirs:
+        for source_dir in self.python_source_dirs:
             paths.update(gather_python_files(source_dir))
         return sorted(paths)
 
@@ -560,7 +610,7 @@ class CodeRelationBuilder:
 
     def _module_aliases(self, path: Path) -> tuple[str, ...]:
         aliases: set[str] = set()
-        bases = [self.root, *self.source_dirs]
+        bases = [self.root, *self.python_source_dirs]
         for base in bases:
             try:
                 rel = path.relative_to(base)
@@ -768,10 +818,19 @@ class CodeRelationBuilder:
         line: int,
         raw_target: str,
     ) -> None:
-        # Calls are useful only when they resolve to repository code. Recording
-        # every builtin/library call as an external node would swamp xrefs and
-        # reverse impact; imports retain that broader dependency inventory.
         if not targets:
+            if self.include_unresolved_calls:
+                target = f"callable:{raw_target}"
+                self.graph.add_node(CodeNode(target, "callable", raw_target))
+                self.graph.add_relation(
+                    source_id,
+                    target,
+                    "calls",
+                    Confidence.EXTRACTED,
+                    path=unit.rel,
+                    line=line,
+                    snippet=self._source_line(unit, line),
+                )
             return
         confidence = Confidence.RESOLVED if len(targets) == 1 else Confidence.AMBIGUOUS
         for target in sorted(set(targets)):
@@ -871,17 +930,9 @@ class CodeRelationBuilder:
         exact = file_node_id(repo_relative)
         if exact in self.graph.nodes:
             return [exact]
-        if "/" in normalized:
-            suffix_matches = [
-                node.id
-                for node in self.graph.nodes.values()
-                if node.kind == "file"
-                and node.path
-                and node.path.endswith(repo_relative)
-            ]
-            if suffix_matches:
-                return sorted(set(suffix_matches))
-        return sorted(self.basename_index.get(Path(normalized).name, set()))
+        if "/" in repo_relative:
+            return []
+        return sorted(self.basename_index.get(Path(repo_relative).name, set()))
 
     def _extract_python_execution(
         self, unit: _PythonUnit, source_id: str, node: ast.Call, name: str
@@ -949,24 +1000,100 @@ class CodeRelationBuilder:
                 line=line,
             )
 
+    def _expand_shell_token(self, token: str, variables: dict[str, str]) -> str:
+        expanded = token
+        for _ in range(len(variables) + 1):
+            before = expanded
+            for name, value in variables.items():
+                expanded = expanded.replace(f"${{{name}}}", value).replace(
+                    f"${name}", value
+                )
+            if expanded == before:
+                break
+        return expanded
+
+    def _shell_variables(self, lines: list[str]) -> dict[str, str]:
+        variables = {"HOME": str(Path.home())}
+        assignment = re.compile(r"^\s*([A-Za-z_]\w*)=(['\"]?)(.*?)\2\s*$")
+        for line in lines:
+            match = assignment.match(line)
+            if not match or "$(" in match.group(3) or "${" in match.group(3) and ":-" in match.group(3):
+                continue
+            variables[match.group(1)] = self._expand_shell_token(
+                match.group(3), variables
+            )
+        return variables
+
+    def _command_script_refs(
+        self,
+        line: str,
+        variables: dict[str, str] | None = None,
+    ) -> list[tuple[str, str]]:
+        """Return scripts in shell command position, excluding prose/arguments."""
+        variables = variables or {}
+        try:
+            tokens = shlex.split(line, comments=True, posix=True)
+        except ValueError:
+            return []
+        segments: list[list[str]] = [[]]
+        for token in tokens:
+            if token in {"&&", "||", ";", "|"}:
+                segments.append([])
+            else:
+                segments[-1].append(token)
+
+        refs: list[tuple[str, str]] = []
+        for segment in segments:
+            index = 0
+            while index < len(segment) and re.match(r"^[A-Za-z_]\w*=", segment[index]):
+                index += 1
+            if index >= len(segment):
+                continue
+            command = Path(segment[index]).name
+            if command in {"source", "."}:
+                if index + 1 < len(segment) and Path(segment[index + 1]).suffix in CODE_SUFFIXES:
+                    refs.append(
+                        (self._expand_shell_token(segment[index + 1], variables), "sources")
+                    )
+                continue
+
+            runner_seen = False
+            while index < len(segment):
+                token = segment[index]
+                base = Path(token).name
+                is_python = bool(re.fullmatch(r"python\d*(?:\.\d+)?", base))
+                if (
+                    base in {"bash", "command", "env", "exec", "run", "sh", "uv", "zsh"}
+                    or is_python
+                    or token.startswith("-")
+                    or re.match(r"^[A-Za-z_]\w*=", token)
+                ):
+                    runner_seen = True
+                    index += 1
+                    continue
+                if Path(token).suffix in CODE_SUFFIXES and (runner_seen or index == 0):
+                    refs.append((self._expand_shell_token(token, variables), "executes"))
+                break
+        return refs
+
     def _extract_shell(self, operational_paths: set[Path]) -> None:
-        target_re = re.compile(r"(?:[\w./${}~-]+/)?[\w.-]+\.(?:py|sh)")
         for shell in sorted(path for path in operational_paths if path.suffix == ".sh"):
             rel = _relpath(self.root, shell)
             try:
                 lines = shell.read_text(encoding="utf-8").splitlines()
             except (OSError, UnicodeDecodeError) as exc:
-                self.graph.add_diagnostic("shell_read_error", str(exc), path=rel)
+                self.graph.add_diagnostic(
+                    "shell_read_error", str(exc), path=rel, severity="error"
+                )
                 continue
+            variables = self._shell_variables(lines)
             for lineno, line in enumerate(lines, 1):
-                stripped = line.strip()
-                if not stripped or stripped.startswith("#"):
-                    continue
-                relation = "sources" if re.match(r"^(?:source|\.)\s", stripped) else "executes"
-                for raw in target_re.findall(stripped):
+                for raw, relation in self._command_script_refs(
+                    line.strip(), variables
+                ):
                     self._add_path_relation(
                         file_node_id(rel),
-                        raw.strip('"\''),
+                        raw,
                         relation,
                         path=rel,
                         line=lineno,
@@ -981,10 +1108,13 @@ class CodeRelationBuilder:
         try:
             lines = justfile.read_text(encoding="utf-8").splitlines()
         except (OSError, UnicodeDecodeError) as exc:
-            self.graph.add_diagnostic("justfile_read_error", str(exc), path=rel)
+            self.graph.add_diagnostic(
+                "justfile_read_error", str(exc), path=rel, severity="error"
+            )
             return
         header_re = re.compile(r"^([A-Za-z_][\w-]*)(?:\s+[^:=]+)?\s*:\s*(?:#.*)?$")
-        target_re = re.compile(r"(?:[\w./${}~-]+/)?[\w.-]+\.(?:py|sh)")
+        path_re = re.compile(r"(?:[\w./${}~-]+/)?[\w.-]+\.(?:py|sh)")
+        variables = {"HOME": str(Path.home())}
         recipe_lines: dict[str, int] = {}
         for lineno, line in enumerate(lines, 1):
             if line and not line[0].isspace() and not line.startswith(("#", "[", "set ")):
@@ -1012,7 +1142,9 @@ class CodeRelationBuilder:
                 continue
             if not current or not line[:1].isspace():
                 continue
-            for raw in target_re.findall(line):
+            for raw, relation in self._command_script_refs(line.strip(), variables):
+                if relation != "executes":
+                    continue
                 self._add_path_relation(
                     recipe_node_id(current),
                     raw,
@@ -1021,6 +1153,17 @@ class CodeRelationBuilder:
                     line=lineno,
                     snippet=line,
                 )
+            nearby = " ".join(lines[max(0, lineno - 3) : min(len(lines), lineno + 2)])
+            if "printf" in nearby and ".git/hooks/" in nearby:
+                for raw in path_re.findall(line):
+                    self._add_path_relation(
+                        recipe_node_id(current),
+                        self._expand_shell_token(raw, variables),
+                        "configures",
+                        path=rel,
+                        line=lineno,
+                        snippet=line,
+                    )
             for invoked in re.findall(r"(?:^|[;&|]\s*)just\s+([\w-]+)", line.strip()):
                 target = recipe_node_id(invoked)
                 if target not in self.graph.nodes:
@@ -1046,7 +1189,26 @@ class CodeRelationBuilder:
                 payload = plistlib.loads(raw_bytes)
                 lines = raw_bytes.decode("utf-8").splitlines()
             except (OSError, UnicodeDecodeError, plistlib.InvalidFileException) as exc:
-                self.graph.add_diagnostic("plist_parse_error", str(exc), path=rel)
+                self.graph.add_diagnostic(
+                    "plist_parse_error", str(exc), path=rel, severity="error"
+                )
+                continue
+            if not isinstance(payload, dict):
+                self.graph.add_diagnostic(
+                    "plist_shape_error",
+                    "launchd plist root must be a dictionary",
+                    path=rel,
+                    severity="error",
+                )
+                continue
+            arguments = payload.get("ProgramArguments", [])
+            if not isinstance(arguments, list):
+                self.graph.add_diagnostic(
+                    "plist_shape_error",
+                    "ProgramArguments must be a list",
+                    path=rel,
+                    severity="error",
+                )
                 continue
             label = str(payload.get("Label") or plist_path.stem)
             source_id = launchd_node_id(rel, label)
@@ -1061,7 +1223,7 @@ class CodeRelationBuilder:
                 line=label_line,
                 snippet=lines[label_line - 1],
             )
-            for argument in payload.get("ProgramArguments", []):
+            for argument in arguments:
                 if not isinstance(argument, str) or Path(argument).suffix not in CODE_SUFFIXES:
                     continue
                 lineno = next((i for i, line in enumerate(lines, 1) if argument in line), 1)
@@ -1116,15 +1278,22 @@ def _nodes_in_cycles(edges: dict[str, set[str]]) -> set[str]:
 def build_code_relations(
     root: Path,
     *,
-    source_dirs: Iterable[Path | str] | None = None,
+    python_source_dirs: Iterable[Path | str] | None = None,
     python_files: Iterable[Path | str] | None = None,
     include_operational: bool = True,
+    include_unresolved_calls: bool = False,
 ) -> CodeRelationGraph:
+    """Build live relations.
+
+    ``python_source_dirs`` scopes Python discovery only. Operational wiring is
+    repository-wide by design and uses the canonical ``SKIP_DIRS`` exclusions.
+    """
     return CodeRelationBuilder(
         root,
-        source_dirs=source_dirs,
+        python_source_dirs=python_source_dirs,
         python_files=python_files,
         include_operational=include_operational,
+        include_unresolved_calls=include_unresolved_calls,
     ).build()
 
 
@@ -1150,14 +1319,25 @@ def main(argv: list[str] | None = None) -> int:
     for command in ("impact", "validate"):
         sub = subparsers.add_parser(command)
         sub.add_argument("repo", type=Path)
-        sub.add_argument("--source-dirs", help="comma-separated source directories")
+        sub.add_argument(
+            "--python-source-dirs",
+            help="comma-separated Python source directories; operational wiring is repo-wide",
+        )
         sub.add_argument("--json", action="store_true")
         if command == "impact":
             sub.add_argument("target")
             sub.add_argument("--depth", type=int, default=3)
     args = parser.parse_args(argv)
-    source_dirs = args.source_dirs.split(",") if args.source_dirs else None
-    graph = build_code_relations(args.repo, source_dirs=source_dirs)
+    python_source_dirs = (
+        args.python_source_dirs.split(",") if args.python_source_dirs else None
+    )
+    try:
+        graph = build_code_relations(
+            args.repo, python_source_dirs=python_source_dirs
+        )
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
 
     if args.command == "validate":
         diagnostics = graph.validate()
@@ -1176,8 +1356,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1 if any(d.severity == "error" for d in diagnostics) else 0
 
     try:
+        graph.require_complete()
         hops = graph.impact(args.target, max_depth=args.depth)
-    except AmbiguousTargetError as exc:
+    except (AmbiguousTargetError, IncompleteGraphError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     if args.json:

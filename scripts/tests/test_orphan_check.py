@@ -21,7 +21,7 @@ def test_check_script_distinguishes_imported_and_operational_wiring(
     )
     monkeypatch.setattr(orphan, "REPO", tmp_path)
     monkeypatch.setattr(orphan, "SCRIPTS", scripts)
-    graph = build_code_relations(tmp_path, source_dirs=[scripts])
+    graph = build_code_relations(tmp_path, python_source_dirs=[scripts])
 
     result = orphan.check_script(
         target,

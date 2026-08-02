@@ -183,7 +183,12 @@ def _incoming_paths(
     relation_types: set[str],
 ) -> set[str]:
     try:
-        hops = graph.impact(rel, max_depth=1, relation_types=relation_types)
+        hops = graph.impact(
+            rel,
+            max_depth=1,
+            relation_types=relation_types,
+            include_ambiguous=False,
+        )
     except ValueError:
         return set()
     return {
@@ -206,7 +211,9 @@ def check_script(
     rel = path.relative_to(REPO).as_posix()
 
     wired_paths = _incoming_paths(
-        graph, rel, {"executes", "invokes_recipe", "launches", "sources"}
+        graph,
+        rel,
+        {"configures", "executes", "invokes_recipe", "launches", "sources"},
     )
     wired = bool(wired_paths) or any(
         alias in external_wiring for alias in (name, name.rsplit(".", 1)[0])
@@ -241,7 +248,8 @@ def scan(days: int = 90, with_invocations: bool = False) -> dict:
     source_dirs = [REPO, SCRIPTS]
     if (REPO / "src").is_dir():
         source_dirs.append(REPO / "src")
-    graph = build_code_relations(REPO, source_dirs=source_dirs)
+    graph = build_code_relations(REPO, python_source_dirs=source_dirs)
+    graph.require_complete()
     # The invocation signal scans the whole agentlogs args_json (11GB / ~500K rows)
     # into memory — seconds-to-minutes. It is the WEAKEST signal (it only RESCUES a
     # statically-orphaned script that's actually run directly) and report-only output

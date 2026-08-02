@@ -66,9 +66,10 @@ def build_edges(
     """
     graph = build_code_relations(
         project_root,
-        source_dirs=source_dirs,
+        python_source_dirs=source_dirs,
         include_operational=False,
     )
+    graph.require_complete()
     imports_from = graph.file_edges("imports")
     return imports_from, graph.fan_in("imports")
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """infra_usage_check.py — detect built-but-unadopted gated infra (adoption ratchet).
 
-Walks a declared registry of governance/gated surfaces and reports zero-caller /
+Walks a declared registry of governance/gated surfaces and reports zero-consumer /
 zero-artifact age. Read-only. Complements improvement_log_accretion (log shape)
 with *usage* evidence so we stop rediscovering dead ceremony (F3 / session_quality class).
 
@@ -57,7 +57,7 @@ REGISTRY: list[InfraSurface] = [
         id="mechanism-record-script",
         kind="script",
         path="scripts/mechanism_record.py",
-        description="F3 recorder script — callers outside tests?",
+        description="F3 recorder script — resolved consumers outside tests?",
         parked=True,
         parked_reason="paired with f3-mechanism-records park",
         parked_at="2026-07-04",
@@ -111,36 +111,46 @@ def _relation_graph() -> CodeRelationGraph:
     source_dirs.extend(
         path for path in (REPO / "scripts", REPO / "src") if path.is_dir()
     )
-    return build_code_relations(REPO, source_dirs=source_dirs)
+    graph = build_code_relations(REPO, python_source_dirs=source_dirs)
+    graph.require_complete()
+    return graph
 
 
-def _count_script_callers(
+def _script_consumers(
     rel: Path,
     graph: CodeRelationGraph | None = None,
-) -> int:
-    """Count distinct non-test source paths with an evidence-bound relation."""
+) -> dict[str, set[str]]:
+    """Group distinct resolved non-test consumers by relation type."""
     graph = graph or _relation_graph()
     try:
         hops = graph.impact(
             rel.as_posix(),
             max_depth=1,
-            relation_types={"calls", "executes", "imports", "launches", "sources"},
+            relation_types={
+                "calls",
+                "configures",
+                "executes",
+                "imports",
+                "launches",
+                "sources",
+            },
+            include_ambiguous=False,
         )
     except ValueError:
-        return 0
-    callers = {
-        graph.nodes[hop.relation.source].path
-        for hop in hops
-        if graph.nodes[hop.relation.source].path
-    }
-    return sum(
-        1
-        for path in callers
-        if path != rel.as_posix()
-        and "test_" not in Path(path).name
-        and "/tests/" not in f"/{path}"
-        and Path(path).name != "infra_usage_check.py"
-    )
+        return {}
+    consumers: dict[str, set[str]] = {}
+    for hop in hops:
+        path = graph.nodes[hop.relation.source].path
+        if (
+            not path
+            or path == rel.as_posix()
+            or "test_" in Path(path).name
+            or "/tests/" in f"/{path}"
+            or Path(path).name == "infra_usage_check.py"
+        ):
+            continue
+        consumers.setdefault(hop.relation.relation, set()).add(path)
+    return consumers
 
 
 def _recipe_declared(name: str) -> bool:
@@ -169,6 +179,7 @@ def check_surface(
         "status": "ok",
         "detail": "",
         "usage_count": 0,
+        "usage_by_relation": {},
         "age_days": None,
         "parked": s.parked,
         "parked_reason": s.parked_reason or None,
@@ -210,20 +221,30 @@ def check_surface(
             result["status"] = "missing"
             result["detail"] = "script absent"
             return _maybe_park(result, s, now)
-        n = _count_script_callers(rel, relation_graph)
+        consumers = _script_consumers(rel, relation_graph)
+        n = len({path for paths in consumers.values() for path in paths})
         result["usage_count"] = n
+        result["usage_by_relation"] = {
+            relation: len(paths) for relation, paths in sorted(consumers.items())
+        }
         touched = _git_last_touch(rel)
         age = (now - touched).days if touched else None
         result["age_days"] = age
         if n > 0:
             result["status"] = "adopted"
-            result["detail"] = f"{n} non-test caller(s) [code_relations]"
+            kinds = ", ".join(
+                f"{relation}={count}"
+                for relation, count in result["usage_by_relation"].items()
+            )
+            result["detail"] = (
+                f"{n} resolved non-test consumer(s) [code_relations: {kinds}]"
+            )
         elif age is not None and age >= s.stale_days:
             result["status"] = "unadopted"
-            result["detail"] = f"0 callers [code_relations]; last touched {age}d ago"
+            result["detail"] = f"0 consumers [code_relations]; last touched {age}d ago"
         else:
             result["status"] = "young" if age is not None else "unadopted"
-            result["detail"] = f"0 callers [code_relations]; age={age}d"
+            result["detail"] = f"0 consumers [code_relations]; age={age}d"
         return _maybe_park(result, s, now)
 
     if s.kind == "recipe":
