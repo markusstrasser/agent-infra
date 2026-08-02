@@ -588,6 +588,7 @@ class CodeRelationBuilder:
                     str(exc),
                     path=rel,
                     line=getattr(exc, "lineno", None),
+                    severity="error",
                 )
                 continue
             lines = source.splitlines()
@@ -837,7 +838,16 @@ class CodeRelationBuilder:
         elif base == "spec_from_file_location" and len(node.args) >= 2:
             values = [v for v in self._string_values(node.args[1]) if v.endswith(".py")]
             raw = values[-1] if values else ""
-            candidates = self._path_candidates(raw) if raw else []
+            if raw:
+                self._add_path_relation(
+                    source_id,
+                    raw,
+                    "imports",
+                    path=unit.rel,
+                    line=node.lineno,
+                    snippet=self._source_line(unit, node.lineno),
+                )
+            return
         if raw:
             self._add_resolved_edges(
                 source_id,
@@ -857,7 +867,8 @@ class CodeRelationBuilder:
                 normalized = absolute.resolve().relative_to(self.root).as_posix()
             except ValueError:
                 pass
-        exact = file_node_id(normalized.lstrip("./"))
+        repo_relative = normalized.removeprefix("./")
+        exact = file_node_id(repo_relative)
         if exact in self.graph.nodes:
             return [exact]
         if "/" in normalized:
@@ -866,7 +877,7 @@ class CodeRelationBuilder:
                 for node in self.graph.nodes.values()
                 if node.kind == "file"
                 and node.path
-                and node.path.endswith(normalized.lstrip("./"))
+                and node.path.endswith(repo_relative)
             ]
             if suffix_matches:
                 return sorted(set(suffix_matches))
@@ -885,13 +896,13 @@ class CodeRelationBuilder:
             if Path(value).suffix in CODE_SUFFIXES
         }
         for raw in sorted(raw_paths):
-            self._add_resolved_edges(
+            self._add_path_relation(
                 source_id,
-                self._path_candidates(raw),
+                raw,
                 "executes",
-                unit,
-                node.lineno,
-                raw_target=raw,
+                path=unit.rel,
+                line=node.lineno,
+                snippet=self._source_line(unit, node.lineno),
             )
 
     def _add_path_relation(

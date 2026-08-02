@@ -156,6 +156,10 @@ def test_corrupt_inputs_emit_diagnostics_without_poisoning_other_files(
 
     assert "python_parse_error" in codes
     assert "plist_parse_error" in codes
+    assert any(
+        diagnostic.code == "python_parse_error" and diagnostic.severity == "error"
+        for diagnostic in graph.validate()
+    )
     assert graph.resolve("src/good.py")
     assert any(node.qualname == "healthy" for node in graph.nodes.values())
 
@@ -204,6 +208,23 @@ def test_reverse_impact_crosses_launchd_shell_just_and_python(tmp_path: Path) ->
     assert ("scripts/runner.py", "executes", 5) in observed
     assert ("justfile", "executes", 2) in observed
     assert ("ops/launchd/com.test.pulse.plist", "launches", 5) in observed
+
+
+def test_hidden_directory_path_does_not_collapse_into_suffix_match(tmp_path: Path) -> None:
+    _write(tmp_path, ".config/tool.py", "VALUE = 1\n")
+    _write(tmp_path, "xconfig/tool.py", "VALUE = 2\n")
+    _write(tmp_path, "run.sh", "python3 ./.config/tool.py\n")
+
+    graph = build_code_relations(tmp_path)
+    edges = [
+        edge
+        for edge in graph.relations_of_type("executes")
+        if graph.nodes[edge.source].path == "run.sh"
+    ]
+
+    assert len(edges) == 1
+    assert graph.nodes[edges[0].target].path == ".config/tool.py"
+    assert edges[0].confidence is Confidence.RESOLVED
 
 
 def test_fan_in_and_cycles_use_resolved_file_edges(tmp_path: Path) -> None:
