@@ -484,6 +484,14 @@ def audit_repo(repo: Path, with_size: bool = True) -> list[WorktreeRow]:
     for wt, branch in parse_worktrees(repo):
         if any(s in str(wt) for s in SKIP_PATH_SUBSTR):
             continue
+        if not wt.exists():
+            # Registered but the directory is gone (e.g. a scratchpad worktree whose
+            # session dir was deleted out from under git). No cwd exists to run
+            # anything in — subprocess with a missing cwd raises FileNotFoundError,
+            # which killed the whole nightly GC 10 nights running (2026-08). The
+            # `git worktree prune` at the end of apply clears the registration.
+            print(f"  (prunable: {wt} — registered, directory gone)")
+            continue
         st = run(["git", "status", "--porcelain"], cwd=wt)
         tracked_dirty = sum(1 for ln in st.stdout.splitlines() if not ln.startswith("??"))
         # `du` is the slow part; skip it on the cheap --check path (size irrelevant to the flag).
