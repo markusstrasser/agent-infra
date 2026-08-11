@@ -42,5 +42,8 @@
       "Bash(rm -f data/enwik3 /tmp/_g/*)",
       "Bash(sqlite3 -header -column ledger.db \"SELECT id,substr\\(ts,12,8\\) t,variant,slice,s_bytes,d_s,verdict FROM experiments WHERE id>=31 ORDER BY id;\")"
     ]
-  }
+  },
+  "disabledMcpjsonServers": [
+    "scite"
+  ]
 }
