@@ -14,3 +14,14 @@ On **propose / diagnose / evaluate / status** prompts: before recommending archi
 4. For **infra-design** prompts (schema, view, hook, just recipe): Claude Code also injects `EXISTING-INFRA` via `userprompt-prior-context.py` — Read `.claude/rules/codebase-map.md`, grep `scripts/`, `just --list`, and recent git-touched paths (`git log --name-only`) before proposing new surfaces
 
 Build on prior work, narrow to the gap, or supersede explicitly — do not re-derive from scratch.
+
+## External URLs (pointer disposition — RSI-hindsight CONVERT 2026-07-18)
+
+When the user pastes a URL (GitHub / arxiv / HF / blog), **before** evaluating relevance:
+
+```bash
+just -f ~/Projects/agent-infra/justfile pointer-disposition lookup '<url>'
+```
+
+Open the reply with one of: `known` · `in_queue` · `doesnt_apply` · `tried` · `adopted`.
+If `pending`: evaluate, then `just pointer-disposition record <url> --disposition … --reason "…" --project <repo>` in the same turn. Never cold-eval a pointer the ledger already holds.
