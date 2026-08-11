@@ -4296,3 +4296,21 @@ probe, timing probe, parity probe, and corpus probe all run this session.
 - **Prior-context turn retrieval SHADOW:** skills@userprompt-prior-context — log to `~/.claude/prior-context-shadow.jsonl`, no inject (smoke: status=timeout cold emb start; expected under 2s bar)
 - **Genomics ship path:** skip per operator
 - **Decisions:** `decisions/2026-08-01-*.md`; pending cleared except genomics export
+
+### [2026-08-11] Observe-all (run 2026-08-11-1258) — full RSI pass
+- **Session:** agent-infra (Grok Build · observe_run all · 4 lane subagents)
+- **Evidence:** `artifacts/observe/2026-08-11-1258/` · preflight promotions_allowed=true · promote=2 / obs=15 / needs_evidence=5
+  - Supervision (agent-infra strict 7d): 6 sess · 0.0% correction · vector zero · autonomy_reading=mixed (thin)
+  - Blindspot fleet: 12 corrections (GROW=9 · RAISE=2 · REDUCE=1) · genomics=7
+  - Failures: 10 clusters · **0 REAL** (export-ship/ship-clean WIP ImportErrors, not main)
+  - Sessions: 1 real interactive (`554b1579` storage reclaim + arc-agi offload data loss); 4 stop-hook satellites
+  - Triangulation: fleet rediscovery ≠ agent-infra supervision zero; path+sample inventory is the GROW surface
+- **[ ] Plan-review kill-switch vertical slice gate** — authority-deleting / kernel-cutover plans must front-load a kill-switch race with pre-registered pass/fail before multi-phase build. Evidence: genomics `cac39da3` (journal race beat 989-line design). candidate=`arch_0811_killswitch_plan_gate` lifecycle=add. Fix surface: advisory plan-review checklist / review_gate rule (agent-infra first).
+- **[ ] Cohort sample×stage freshness matrix (genomics)** — on remediation entry, print sibling sample status for the stage under diagnosis (catches markus-vs-syn* whatshap parity). Evidence: de558900 + 5fecb8a5 multi-flag. candidate=`drift_0811_cohort_freshness_parity` lifecycle=add. Fix: `just cohort-freshness` or extend sample_readiness; auto-print not more prior-context prose.
+- **[obs] Offload directory-presence proxy → data loss (needs_evidence)** — 554b1579 treated "exists locally" as full SSD duplicate and `rm -rf`'d ~2GB `microscale_mealy/out/`; documented arc-agi `DATA_LOSS_2026-08-07.md`. Gates: rec=1. Harvest next: refuse whole-dir offload when `git ls-files` non-empty; per-file only.
+- **[obs] Silent-dead reclaim motors (needs_evidence / janitor health plane)** — uv prune 11/11 nights failed (MCP lock); worktree_gc FileNotFound 10 nights; fixed same turn (`b371c1d`). Residual: effect-receipt + doctor canary for zero-reclaim streaks. Do not re-enter as fresh [ ] until rec≥2 or operator boost.
+- **[obs] Taste boundary reclaim ranking** — agent ranked personal Documents/Voice Memos/medical as "big wins"; operator *"Terrible picks"* (kept machine/cache/experiment classes). Amplify drafts only after operator scope when free disk is not emergency.
+- **[obs] GROW_COVERAGE residual = volume/sample inventory, not prior-context** — top blindspot +1.00: 2TBPNY already had syn2/syn3. Prior-context detector [x] 2026-07-09 wrong altitude; reinforces 07-29 worktree-inventory [ ] with path+sample scope.
+- **[obs] Failures ImportError cascade = export WIP** — 7 clusters on export-ship + deleted ship-clean; main HEAD symbols elsewhere. Do not stage REAL_INFRA_BREAK.
+- **Do not:** re-open over_caution enforce · RAISE_AUTONOMY on agent-infra from fleet-only blindspot · re-propose prior-context
+- **Status:** [ ] for two gated promotes; [obs] for behavioral + needs_evidence calibration
