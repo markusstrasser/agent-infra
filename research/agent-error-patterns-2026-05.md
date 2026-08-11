@@ -237,3 +237,49 @@ as-is, nothing principled to switch to.
 Fixed at the server, once for all clients: `research-mcp` `main()` now backfills
 `os.environ` from `~/.env` (setdefault only — explicit env wins). Live-verified: keys
 load, sentinel env survives.
+
+
+---
+
+## Revision 2026-07-18 — weekly window + MCP auth-rot census
+
+**Weekly error-rate table (W25–W28, the only windowable weeks):**
+
+| week | calls | errors | rate |
+|---|---:|---:|---:|
+| 2026-W25 | 22,433 | 4,080 | 18.2% |
+| 2026-W26 | 49,370 | 8,542 | 17.3% |
+| 2026-W27 | 82,265 | 18,002 | 21.9% |
+| 2026-W28 | 85,484 | 17,026 | 19.9% |
+
+Volume ramped ~4× in three weeks; the error rate did not move — **error rate is a
+workflow property, not a load effect.** Older rows (43,668) carry no windowable
+`ts_start` (the cursor/kimi source gap documented above), so longer-window rates stay
+unmeasurable until ingest backfills timestamps from `runs.started_at`.
+
+**New meta-class observed live (2026-07-18): MCP auth/config rot beats tool logic as
+the external-lane failure mode.** In one session: Parallel `401 invalid API key` (both
+tools), Exa `401`, Brave `422 SUBSCRIPTION_TOKEN_INVALID`, Gemini deep-research MCP
+request timeout, and the subagent provider `429 insufficient balance` — 5 of 6 external
+research lanes dead simultaneously, none for tool-logic reasons; scite was the sole
+survivor (and reported free-tier exhaustion mid-use). Consequence for fallback-lane
+design: probe lanes cheaply before committing a research plan to them, and hold one
+surviving lane (here: scite + direct file tools) sufficient to complete a bounded pass.
+
+
+## Correction 2026-07-18 (later) — the auth-rot census resolved
+
+The "5 of 6 external lanes dead" entry above over-aggregated. Root causes, now known:
+
+- **exa / brave / parallel (kimi 401/422): NOT auth rot.** Keys valid in the shell env (direct probes:
+  exa 200, brave 200, parallel auth-pass/422). Kimi loads the repo-root `.mcp.json` (Claude convention —
+  proven by `parallel`/`duckdb` tools existing in-session, which only that file defines), whose `${VAR}`
+  env entries override the user-level `~/.kimi-code/mcp.json`; kimi does not resolve `${VAR}` from the
+  shell environment, so servers received literal/unresolved values. Fixed by writing literal-key entries
+  to both kimi config levels (user + git-excluded project). **Same failure class as the codex
+  EXA_API_KEY miss: per-client MCP env delivery — not the server, not the key. Every client config is
+  its own delivery surface; probe the client, not just the key.**
+- **perplexity 401:** key rejected even on direct curl — account out of credits. Not a config bug.
+- **deep_research timeout:** undetermined — MCP client tool-timeout (the research entry sets none) vs
+  server-side Gemini latency. Lever: `toolTimeoutMs` on the server entry.
+- **subagent 429:** provider billing, unrelated to MCP.
