@@ -131,7 +131,8 @@
       "source": "artifacts/observe/2026-08-11-1258/ promotion-verdicts drift_0811_cohort_freshness_parity; blindspot de558900/5fecb8a5",
       "build_kind": "recipe",
       "proposal_outline": "just cohort-freshness (or extend sample_readiness): per-sample \u00d7 stage last-success + principal artifact age from control-plane/volume current.json. Auto-surface sibling rows when diagnosing sample S stage T. Closes markus-vs-syn* whatshap parity class. blast_radius=shared \u2192 not tier-0 auto; human/genomics route.",
-      "done": false
+      "done": true,
+      "done_evidence": "genomics 7f4f29684 / merge ef0bf707a (2026-08-11): just cohort-freshness renders sample\u00d7stage last-success|STALE|ABSENT from SampleReadiness; explicit ABSENT rows for verdict-less stages; remediation prompt requires sibling check; live-verified whatshap matrix across 6 samples (named markus gap had drifted closed)."
     },
     {
       "id": "offload-guard-dir-presence",
