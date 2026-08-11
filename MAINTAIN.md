@@ -254,3 +254,77 @@ Status of `~/.claude/steward-proposals/` after 2026-04-17 archive sweep (4 imple
 - [2026-07-17] RSI close queued: genomics/7eac8d87 (real_issue_signal)
 
 - [2026-07-17] RSI close queued: arc-agi/8a740469 (real_issue_signal)
+
+- [2026-07-17] RSI close queued: agent-infra/9fe83401 (real_issue_signal)
+
+- [2026-07-17] RSI close queued: intel/33bd00d8 (real_issue_signal)
+
+- [2026-07-17] RSI close queued: agent-infra/ae939407 (real_issue_signal)
+
+- [2026-07-18] RSI close queued: arc-agi/cb20aa86 (real_issue_signal)
+
+- [2026-07-19] RSI close queued: arc-agi/6f4a8626 (real_issue_signal)
+
+- [2026-07-20] RSI close queued: arc-agi/01f58174 (explicit_rsi_close)
+
+- [2026-07-20] RSI close queued: agent-infra/6822f087 (real_issue_signal)
+
+- [2026-07-21] RSI close queued: arc-agi/131bd1e3 (real_issue_signal)
+
+- [2026-07-23] RSI close queued: arc-agi/5e9b82a2 (real_issue_signal)
+
+- [2026-07-23] RSI close queued: arc-agi/88ceac14 (real_issue_signal)
+
+- [2026-07-23] RSI close queued: agent-infra/80e35f73 (explicit_rsi_close)
+
+- [2026-07-24] RSI close queued: arc-agi/f2184dbe (real_issue_signal)
+
+- [2026-07-24] RSI close queued: arc-agi/c7ab7340 (real_issue_signal)
+
+- [2026-07-24] RSI close queued: genomics/138a8e25 (real_issue_signal)
+
+- [2026-07-24] RSI close queued: genomics/75566605 (real_issue_signal)
+
+- [2026-07-25] RSI close queued: agent-infra/fff3998e (explicit_rsi_close)
+
+- [2026-07-25] RSI close queued: arc-agi/56b4ac68 (real_issue_signal)
+
+- [2026-07-25] RSI close queued: genomics/8e03ff97 (real_issue_signal)
+
+- [2026-07-26] RSI close queued: agent-infra/8042d0d9 (real_issue_signal)
+
+- [2026-07-26] RSI close queued: arc-agi/666dd3c4 (real_issue_signal)
+
+- [2026-07-26] RSI close queued: agent-infra/61053772 (real_issue_signal)
+
+- [2026-07-26] RSI close queued: genomics/c80be220 (real_issue_signal)
+
+- [2026-07-26] RSI close queued: genomics/0d6693dd (real_issue_signal)
+
+- [2026-07-27] RSI close queued: genomics/e549f6c1 (real_issue_signal)
+
+- [2026-07-27] RSI close queued: agent-infra/a33aac36 (real_issue_signal)
+
+- [2026-07-28] RSI close queued: arc-agi/c0db7fc1 (real_issue_signal)
+
+- [2026-07-31] RSI close queued: arc-agi/31f49d08 (real_issue_signal)
+
+- [2026-07-31] RSI close queued: arc-agi/52208648 (real_issue_signal)
+
+- [2026-08-01] RSI close queued: arc-agi/9ea76090 (real_issue_signal)
+
+- [2026-08-01] RSI close queued: arc-agi/69c40f44 (real_issue_signal)
+
+- [2026-08-01] RSI close queued: arc-agi/45eed8bb (real_issue_signal)
+
+- [2026-08-01] RSI close queued: arc-agi/a2d2e4d4 (real_issue_signal)
+
+- [2026-08-01] RSI close queued: arc-agi/3d59c141 (real_issue_signal)
+
+- [2026-08-04] RSI close queued: intel/c12ee83b (real_issue_signal)
+
+- [2026-08-06] RSI close queued: genomics/de558900 (goal_achieved)
+
+- [2026-08-07] RSI close queued: genomics/5fecb8a5 (real_issue_signal)
+
+- [2026-08-11] RSI close queued: genomics/cac39da3 (real_issue_signal)
