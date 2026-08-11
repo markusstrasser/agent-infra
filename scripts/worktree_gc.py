@@ -799,6 +799,17 @@ def main() -> int:
         run(["git", "worktree", "prune"], cwd=repo)
 
     print(f"\nremoved {removed}/{len(to_remove)} worktrees; reclaimed {reclaimed} stranded")
+    # Janitor effect-receipt (observe 2026-08-11 B3): principal = trees removed+reclaimed
+    try:
+        from janitor_receipt import write_receipt
+
+        write_receipt(
+            "worktree_gc",
+            principal_metric=removed + reclaimed,
+            detail=f"removed={removed} reclaimed_stranded={reclaimed}",
+        )
+    except Exception as e:  # never fail the GC over a receipt write
+        print(f"janitor_receipt write skipped: {e}", file=sys.stderr)
     return 0
 
 

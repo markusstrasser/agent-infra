@@ -4314,3 +4314,11 @@ probe, timing probe, parity probe, and corpus probe all run this session.
 - **[obs] Failures ImportError cascade = export WIP** — 7 clusters on export-ship + deleted ship-clean; main HEAD symbols elsewhere. Do not stage REAL_INFRA_BREAK.
 - **Do not:** re-open over_caution enforce · RAISE_AUTONOMY on agent-infra from fleet-only blindspot · re-propose prior-context
 - **Status:** [ ] for two gated promotes; [obs] for behavioral + needs_evidence calibration
+
+### [2026-08-11] Ship B2/B3/B1 (post Fable plan) — agent-infra only
+- **[x] Offload guard** — `scripts/offload_guard.py` + tests: refuse whole-dir when `git ls-files` non-empty; per-file content-equal only for SSD prune. DATA_LOSS class.
+- **[x] Janitor receipts v1** — `scripts/janitor_receipt.py`; `worktree_gc` writes on apply; `dotfiles/reclaim-rotate-cron` writes uv_cache_prune + reclaim_rotate; `doctor.check_janitor_receipts` (stale>36h fail, missing warn).
+- **[x] Kill-switch plan gate** — `.claude/rules/killswitch-plan-gate.md` + `scripts/lint_plan_killswitch.py` (agent-infra-local).
+- **[x] arc-agi watch-delta** — `loop/scripts/watch_delta.py` + `just watch-delta` + WATCH.md step 1b (quiet streak stub; non-quiet full-probe).
+- **Genomics C1/C2** — not built this turn; operator handoff prompt only.
+- **Status:** [x] for agent-infra/arc/dotfiles ships; cohort/volume inventory still open on genomics

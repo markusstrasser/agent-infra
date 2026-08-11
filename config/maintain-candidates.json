@@ -116,7 +116,8 @@
       "source": "artifacts/observe/2026-08-11-1258/ promotion-verdicts arch_0811_killswitch_plan_gate; genomics cac39da3 journal race",
       "build_kind": "rule",
       "proposal_outline": "Advisory plan-review / review_gate checklist: when a plan names authority deletion, dual-write cutover, or multi-phase kernel refactor, require a front-loaded ## Kill-switch vertical slice with pre-registered pass/fail + race alternative. Fail-open lint on .claude/plans. agent-infra + genomics first. Not a hard block on all large plans.",
-      "done": false
+      "done": true,
+      "_done_note": "Shipped 2026-08-11: .claude/rules/killswitch-plan-gate.md + scripts/lint_plan_killswitch.py + tests. agent-infra-local only."
     },
     {
       "id": "cohort-freshness-parity-matrix",
@@ -131,6 +132,36 @@
       "build_kind": "recipe",
       "proposal_outline": "just cohort-freshness (or extend sample_readiness): per-sample \u00d7 stage last-success + principal artifact age from control-plane/volume current.json. Auto-surface sibling rows when diagnosing sample S stage T. Closes markus-vs-syn* whatshap parity class. blast_radius=shared \u2192 not tier-0 auto; human/genomics route.",
       "done": false
+    },
+    {
+      "id": "offload-guard-dir-presence",
+      "title": "Offload safety: refuse whole-dir when git-tracked; per-file repair only",
+      "blast_radius": "agent-infra",
+      "reversible": true,
+      "evidence_sessions": 1,
+      "checkable": true,
+      "low_downside": true,
+      "clear_win_vs_baseline": true,
+      "source": "observe 2026-08-11-1258 sessions DATA_LOSS; scripts/offload_guard.py",
+      "build_kind": "script",
+      "proposal_outline": "offload_guard.py + tests",
+      "done": true,
+      "_done_note": "Shipped 2026-08-11: scripts/offload_guard.py + scripts/tests/test_offload_guard.py (12 suite total with siblings)."
+    },
+    {
+      "id": "janitor-effect-receipts-v1",
+      "title": "Janitor effect-receipts v1 (last_success>36h doctor alarm)",
+      "blast_radius": "agent-infra",
+      "reversible": true,
+      "evidence_sessions": 1,
+      "checkable": true,
+      "low_downside": true,
+      "clear_win_vs_baseline": true,
+      "source": "observe 2026-08-11-1258 architecture P1; scripts/janitor_receipt.py",
+      "build_kind": "script",
+      "proposal_outline": "receipts + doctor + reclaim-rotate-cron",
+      "done": true,
+      "_done_note": "Shipped 2026-08-11: janitor_receipt.py, worktree_gc write, reclaim-rotate-cron receipts, doctor check_janitor_receipts. v2 flat-N deferred."
     }
   ]
 }

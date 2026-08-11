@@ -484,6 +484,43 @@ def check_launchd_spawn_health() -> list[Check]:
         f"`launchctl kickstart -k gui/{uid}/{label}`)") for label in failed]
 
 
+def check_janitor_receipts() -> list[Check]:
+    """Silent-motor death plane (observe 2026-08-11 B3 v1).
+
+    Motors that should run nightly write ~/.cache/reclaim/<motor>.receipt.json.
+    Alarm only on last_success >36h or error_class set. Missing receipt for a
+    motor that has never been wired = warn (not fail) until first successful write.
+    """
+    checks: list[Check] = []
+    try:
+        from janitor_receipt import DEFAULT_MAX_AGE_HOURS, DEFAULT_MOTORS, stale_motors
+    except ImportError:
+        return [Check("janitor:receipts", "global").warn("janitor_receipt import failed")]
+
+    # Motors that reclaim-rotate-cron / worktree_gc actually write after this ship
+    wired = ("worktree_gc", "uv_cache_prune", "reclaim_rotate")
+    rows = stale_motors(wired, max_age_hours=DEFAULT_MAX_AGE_HOURS)
+    for r in rows:
+        c = Check(f"janitor:{r['motor']}", "global")
+        st = r["status"]
+        if st == "ok":
+            checks.append(c.ok(r["message"]))
+        elif st == "missing":
+            # First nights after deploy have no history — warn until first fire
+            checks.append(c.warn(r["message"]))
+        elif st in ("stale", "error"):
+            checks.append(c.fail(r["message"]))
+        else:
+            checks.append(c.warn(r["message"]))
+    # Also surface optional motors (archive) as warn-only if present+stale
+    optional = [m for m in DEFAULT_MOTORS if m not in wired]
+    for r in stale_motors(tuple(optional), max_age_hours=DEFAULT_MAX_AGE_HOURS):
+        if r["status"] in ("stale", "error"):
+            c = Check(f"janitor:{r['motor']}", "global")
+            checks.append(c.warn(r["message"]))
+    return checks
+
+
 def check_agentlogs_archive_recency() -> list[Check]:
     """The weekly keep-everything archive (agentlogs-*.db.zst on 2TBPNY) went stale.
 
@@ -1026,6 +1063,7 @@ def run_all_checks(project_filter: str | None = None) -> list[Check]:
         all_checks.extend(check_launchd_script_integrity())
         all_checks.extend(check_launchd_spawn_health())
         all_checks.extend(check_agentlogs_archive_recency())
+        all_checks.extend(check_janitor_receipts())
         all_checks.extend(check_uv_tool_editables())
         all_checks.extend(check_approval_tiers())
         all_checks.extend(check_critique_routing_verdict())
