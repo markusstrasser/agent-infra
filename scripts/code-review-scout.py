@@ -130,15 +130,16 @@ PROVIDERS = {
 def gather_files(root: Path) -> list[Path]:
     """Collect reviewable source files."""
     files = []
-    for f in sorted(root.rglob("*")):
-        if not f.is_file() or f.suffix not in EXTENSIONS:
+    for path in sorted(root.rglob("*")):
+        if not path.is_file() or path.suffix not in EXTENSIONS:
             continue
-        if any(p in SKIP_DIRS for p in f.parts):
+        repository_relative = path.relative_to(root)
+        if any(part in SKIP_DIRS for part in repository_relative.parts[:-1]):
             continue
-        size = checked_size(f)
+        size = checked_size(path)
         if size < 50:  # skip trivially small files
             continue
-        files.append(f)
+        files.append(path)
     return files
 
 

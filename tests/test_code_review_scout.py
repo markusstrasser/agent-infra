@@ -23,6 +23,22 @@ PROVIDER = {
 }
 
 
+def test_gather_files_scopes_skipped_directories_to_repository_root(
+    tmp_path: Path,
+) -> None:
+    repository = tmp_path / ".claude" / "worktrees" / "target-repository"
+    included = repository / "src" / "included.py"
+    included.parent.mkdir(parents=True)
+    included.write_text("included = True\n" * 10)
+    excluded = repository / ".claude" / "excluded.py"
+    excluded.parent.mkdir()
+    excluded.write_text("excluded = True\n" * 10)
+
+    assert repository.is_absolute()
+    assert ".claude" in repository.parts
+    assert scout.gather_files(repository) == [included]
+
+
 def test_dispatch_returns_nonempty_reviewer_verdict(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         scout.subprocess,
