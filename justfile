@@ -784,6 +784,10 @@ agentlogs-archive dest="/Volumes/2TBPNY/agentlogs-archive" keep_days="30":
     #!/usr/bin/env bash
     set -euo pipefail
     DB="$HOME/.claude/agentlogs.db"
+    # A wheel-materialized site-packages/agentlogs shadows the editable src tree
+    # and serves stale code (broke this job silently 2026-08-04..17). Fail loud.
+    got=$(uv run python3 -c "import agentlogs; print(agentlogs.__file__)")
+    case "$got" in */src/agentlogs/*) ;; *) echo "FAIL: agentlogs imports from $got — stale venv shadow; rm .venv/.../site-packages/agentlogs" >&2; exit 1;; esac
     test -d "$(dirname "{{dest}}")" || { echo "FAIL: archive volume not mounted: {{dest}}" >&2; exit 1; }
     mkdir -p "{{dest}}"
     need=$(( $(stat -f %z "$DB") * 3 / 2 / 1048576 ))
