@@ -60,8 +60,10 @@ _RECREATE_TRIGGERS = (
     "INSERT INTO events_fts(rowid, text) VALUES (new.rowid, new.text); END",
 )
 
-_OLD_SESSIONS = ("SELECT session_pk FROM sessions "
-                 "WHERE start_ts IS NOT NULL AND start_ts < datetime('now', :cut)")
+_OLD_SESSIONS = (
+    "SELECT session_pk FROM sessions "
+    "WHERE start_ts IS NOT NULL AND start_ts < datetime('now', :cut)"
+)
 _OLD_RUNS = f"SELECT run_id FROM runs WHERE session_pk IN ({_OLD_SESSIONS})"
 
 # (table, where-clause) deleted by old run_id, children-first.
@@ -83,8 +85,13 @@ _ORPHANED_RECORD_REFS_DELETE = (
     " SELECT i.import_id FROM imports i"
     " WHERE NOT EXISTS (SELECT 1 FROM events e WHERE e.import_id = i.import_id))"
 )
-# NULL surviving pointers into just-deleted record_refs (rare cross-import case).
+# NULL surviving pointers into just-deleted rows (rare cross-import / cross-run
+# cases). A file_touch in a SURVIVING run can reference a tool_call in a pruned
+# run (resumed-session backref); one such row failed the FK gate and blocked the
+# weekly archive job 2026-08-04..17 — NULL the pointer, keep the touch.
 _NULL_DANGLING_REFS = (
+    "UPDATE file_touches SET tool_call_id=NULL WHERE tool_call_id IS NOT NULL "
+    "AND NOT EXISTS(SELECT 1 FROM tool_calls t WHERE t.tool_call_id=file_touches.tool_call_id)",
     "UPDATE file_touches SET record_ref_id=NULL WHERE record_ref_id IS NOT NULL "
     "AND NOT EXISTS(SELECT 1 FROM record_refs r WHERE r.record_ref_id=file_touches.record_ref_id)",
     "UPDATE tool_calls SET start_record_ref_id=NULL WHERE start_record_ref_id IS NOT NULL "
@@ -126,25 +133,34 @@ def plan_prune(db: sqlite3.Connection, keep_days: int) -> PrunePlan:
     cutoff = db.execute("SELECT datetime('now', :cut)", p).fetchone()[0]
     sessions = db.execute(f"SELECT COUNT(*) FROM ({_OLD_SESSIONS})", p).fetchone()[0]
     runs = db.execute(f"SELECT COUNT(*) FROM ({_OLD_RUNS})", p).fetchone()[0]
-    events = db.execute(
-        f"SELECT COUNT(*) FROM events WHERE run_id IN ({_OLD_RUNS})", p).fetchone()[0]
+    events = db.execute(f"SELECT COUNT(*) FROM events WHERE run_id IN ({_OLD_RUNS})", p).fetchone()[
+        0
+    ]
     tool_calls = db.execute(
-        f"SELECT COUNT(*) FROM tool_calls WHERE run_id IN ({_OLD_RUNS})", p).fetchone()[0]
+        f"SELECT COUNT(*) FROM tool_calls WHERE run_id IN ({_OLD_RUNS})", p
+    ).fetchone()[0]
     file_touches = db.execute(
-        f"SELECT COUNT(*) FROM file_touches WHERE run_id IN ({_OLD_RUNS})", p).fetchone()[0]
+        f"SELECT COUNT(*) FROM file_touches WHERE run_id IN ({_OLD_RUNS})", p
+    ).fetchone()[0]
     total_refs, total_events = db.execute(
         "SELECT (SELECT COUNT(*) FROM record_refs), (SELECT COUNT(*) FROM events)"
     ).fetchone()
     record_refs = int(events * total_refs / total_events) if total_events else 0
     return PrunePlan(
-        keep_days=keep_days, cutoff=cutoff, sessions=sessions, runs=runs,
-        events=events, tool_calls=tool_calls, file_touches=file_touches,
-        record_refs=record_refs, size_before_mb=_db_size_mb(db))
+        keep_days=keep_days,
+        cutoff=cutoff,
+        sessions=sessions,
+        runs=runs,
+        events=events,
+        tool_calls=tool_calls,
+        file_touches=file_touches,
+        record_refs=record_refs,
+        size_before_mb=_db_size_mb(db),
+    )
 
 
 def _new_fk_violations(db: sqlite3.Connection) -> list:
-    rows = db.execute(
-        'SELECT DISTINCT "table", "parent" FROM pragma_foreign_key_check').fetchall()
+    rows = db.execute('SELECT DISTINCT "table", "parent" FROM pragma_foreign_key_check').fetchall()
     return [(t, par) for (t, par) in rows if (t, par) not in _KNOWN_PREEXISTING_FK]
 
 
@@ -203,14 +219,24 @@ def apply_prune(db: sqlite3.Connection, keep_days: int) -> PrunePlan:
             _log(f"VACUUM (freelist {freelist:,}/{pages:,} pages)...")
             db.execute("VACUUM")
         else:
-            _log(f"VACUUM skipped (freelist {freelist:,}/{pages:,} pages below "
-                 f"{_VACUUM_FREELIST_FRACTION:.0%})")
+            _log(
+                f"VACUUM skipped (freelist {freelist:,}/{pages:,} pages below "
+                f"{_VACUUM_FREELIST_FRACTION:.0%})"
+            )
         truncate_wal(db)
-        _log(f"done ({time.monotonic()-t0:.0f}s total, light path)")
+        _log(f"done ({time.monotonic() - t0:.0f}s total, light path)")
         return PrunePlan(
-            keep_days=keep_days, cutoff=cutoff, sessions=0, runs=0, events=0,
-            tool_calls=0, file_touches=0, record_refs=refs,
-            size_before_mb=size_before, size_after_mb=_db_size_mb(db))
+            keep_days=keep_days,
+            cutoff=cutoff,
+            sessions=0,
+            runs=0,
+            events=0,
+            tool_calls=0,
+            file_touches=0,
+            record_refs=refs,
+            size_before_mb=size_before,
+            size_after_mb=_db_size_mb(db),
+        )
 
     db.execute("PRAGMA foreign_keys=OFF")  # only legal outside a transaction
     db.execute("BEGIN IMMEDIATE")
@@ -219,12 +245,13 @@ def apply_prune(db: sqlite3.Connection, keep_days: int) -> PrunePlan:
             db.execute(f"DROP TRIGGER IF EXISTS {trig}")
         for table, where in _BY_RUN:
             counts[table] = db.execute(f"DELETE FROM {table} WHERE {where}", p).rowcount
-            _log(f"deleted {counts[table]:,} {table} ({time.monotonic()-t0:.0f}s)")
+            _log(f"deleted {counts[table]:,} {table} ({time.monotonic() - t0:.0f}s)")
         for table, where in _BY_SESSION:
             counts[table] = db.execute(f"DELETE FROM {table} WHERE {where}", p).rowcount
         counts["sessions"] = db.execute(
             "DELETE FROM sessions WHERE start_ts IS NOT NULL AND start_ts < datetime('now', :cut)",
-            p).rowcount
+            p,
+        ).rowcount
         counts["record_refs"] = db.execute(_ORPHANED_RECORD_REFS_DELETE).rowcount
         for stmt in _NULL_DANGLING_REFS:
             db.execute(stmt)
@@ -237,7 +264,7 @@ def apply_prune(db: sqlite3.Connection, keep_days: int) -> PrunePlan:
         if bad:
             raise RuntimeError(f"prune introduced FK violations: {bad}")
         db.execute("COMMIT")
-        _log(f"committed ({time.monotonic()-t0:.0f}s)")
+        _log(f"committed ({time.monotonic() - t0:.0f}s)")
     except Exception:
         db.execute("ROLLBACK")
         db.execute("PRAGMA foreign_keys=ON")
@@ -253,10 +280,17 @@ def apply_prune(db: sqlite3.Connection, keep_days: int) -> PrunePlan:
     _log("VACUUM...")
     db.execute("VACUUM")
     truncate_wal(db)
-    _log(f"done ({time.monotonic()-t0:.0f}s total)")
+    _log(f"done ({time.monotonic() - t0:.0f}s total)")
 
     return PrunePlan(
-        keep_days=keep_days, cutoff=cutoff, sessions=counts["sessions"],
-        runs=counts["runs"], events=counts["events"], tool_calls=counts["tool_calls"],
-        file_touches=counts["file_touches"], record_refs=counts["record_refs"],
-        size_before_mb=size_before, size_after_mb=_db_size_mb(db))
+        keep_days=keep_days,
+        cutoff=cutoff,
+        sessions=counts["sessions"],
+        runs=counts["runs"],
+        events=counts["events"],
+        tool_calls=counts["tool_calls"],
+        file_touches=counts["file_touches"],
+        record_refs=counts["record_refs"],
+        size_before_mb=size_before,
+        size_after_mb=_db_size_mb(db),
+    )
