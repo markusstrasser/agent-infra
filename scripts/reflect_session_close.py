@@ -321,7 +321,9 @@ def latest_digest(session_id: str | None = None) -> dict | None:
             continue
         sid = str(row.get("session_id", ""))
         if session_id is not None:
-            if sid == session_id:
+            # Prefix-match: the SessionStart nudge prints the 8-char short id, and callers
+            # paste it back (exact-only match cost a 3-call detour, arc-agi 2026-08-17).
+            if sid == session_id or (len(session_id) >= 8 and sid.startswith(session_id)):
                 found = row  # latest wins
         elif sid not in closed:
             found = row
