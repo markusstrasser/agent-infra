@@ -94,14 +94,16 @@ def collect_launchd_jobs() -> list[dict]:
             exit_code = int(status)
         except ValueError:
             exit_code = None
-        jobs.append({
-            "name": short,
-            "label": label,
-            "loaded": True,
-            "running": pid not in ("-", "0") and pid.isdigit(),
-            "last_exit": exit_code,
-            "ok": exit_code == 0,
-        })
+        jobs.append(
+            {
+                "name": short,
+                "label": label,
+                "loaded": True,
+                "running": pid not in ("-", "0") and pid.isdigit(),
+                "last_exit": exit_code,
+                "ok": exit_code == 0,
+            }
+        )
     return sorted(jobs, key=lambda j: j["name"])
 
 
@@ -127,6 +129,115 @@ def plist_program_paths(path: Path) -> list[str]:
     return paths
 
 
+def plist_schedule_seconds(path: Path) -> int | None:
+    """The job's own declared period, in seconds, or None if it is not periodic.
+
+    `StartInterval` is already seconds. `StartCalendarInterval` is a fire-time
+    spec, not a period: a bare Hour/Minute means daily (86400); adding Weekday
+    or Day makes it weekly/monthly. Read the plist as XML rather than regex —
+    a nested dict under StartCalendarInterval is exactly where a regex would
+    silently match the wrong key.
+    """
+    try:
+        root = ET.fromstring(path.read_text(encoding="utf-8", errors="replace"))
+    except (OSError, ET.ParseError):
+        return None
+    top = root.find("dict")
+    if top is None:
+        return None
+    children = list(top)
+    for index, node in enumerate(children):
+        if node.tag != "key" or index + 1 >= len(children):
+            continue
+        value = children[index + 1]
+        if node.text == "StartInterval" and value.tag == "integer" and value.text:
+            try:
+                return int(value.text)
+            except ValueError:
+                return None
+        if node.text == "StartCalendarInterval":
+            # One dict, or an array of dicts (multiple fire times per period).
+            entries = [value] if value.tag == "dict" else list(value)
+            keys = {
+                key.text for entry in entries if entry.tag == "dict" for key in entry.findall("key")
+            }
+            if "Month" in keys:
+                return 365 * 86400
+            if "Day" in keys:
+                return 31 * 86400
+            if "Weekday" in keys:
+                return 7 * 86400
+            return 86400
+    return None
+
+
+def _last_run_epoch(path: Path) -> float | None:
+    """Newest mtime across the job's stdout/stderr sinks — launchd reopens them
+    on every invocation, so this is when the job last actually FIRED."""
+    try:
+        root = ET.fromstring(path.read_text(encoding="utf-8", errors="replace"))
+    except (OSError, ET.ParseError):
+        return None
+    stamps: list[float] = []
+    for node in root.iter("string"):
+        text = (node.text or "").strip()
+        if text.endswith((".out", ".err")) and text.startswith("/"):
+            try:
+                stamps.append(Path(text).stat().st_mtime)
+            except OSError:
+                continue
+    return max(stamps) if stamps else None
+
+
+def collect_stale_jobs(now: float | None = None) -> list[dict]:
+    """Periodic jobs that have not FIRED within a tolerant multiple of their period.
+
+    The third and decisive launchd failure mode, and the only one that is
+    invisible to both existing checks. `check_launchd_script_integrity` catches
+    a deleted script (leading); `check_launchd_spawn_health` catches a job
+    launchd cannot exec (leading); a job that fails while running is caught by
+    `last_exit`. NONE of them catch a loaded, intact, spawnable job that simply
+    never fires — it reports no error because it produces no run at all.
+
+    Measured 2026-08-18: `test-health` (daily) had not fired since 2026-08-04
+    and `pulse-tick` (45 min) not since 2026-07-20 — 14 and 29 days of silence,
+    while `launchctl list` showed only a stale `last_exit` from their final real
+    run. The job whose entire purpose is catching broken tests was itself dead,
+    which is why 22 test-collection errors accumulated unnoticed in genomics.
+
+    Tolerance is 2.5x the declared period: a laptop asleep at the fire time
+    legitimately delays one run, but not three.
+    """
+    reference = now if now is not None else datetime.now(timezone.utc).timestamp()
+    live = {job["label"]: job for job in collect_launchd_jobs() if job.get("label")}
+    stale: list[dict] = []
+    for plist in collect_plist_sources():
+        label = plist_label(plist)
+        if label not in live:
+            continue
+        period = plist_schedule_seconds(plist)
+        if period is None:
+            continue  # on-demand / WatchPaths job — silence is not a signal
+        last = _last_run_epoch(plist)
+        if last is None:
+            continue  # no log sink declared; nothing to date the run from
+        age = reference - last
+        if age <= period * 2.5:
+            continue
+        stale.append(
+            {
+                "name": label.replace("com.agent-infra.", ""),
+                "label": label,
+                "period_s": period,
+                "age_s": int(age),
+                "missed_runs": int(age // period),
+                "last_run": datetime.fromtimestamp(last, timezone.utc).isoformat(),
+                "last_exit": live[label].get("last_exit"),
+            }
+        )
+    return sorted(stale, key=lambda job: -job["age_s"])
+
+
 def collect_orphan_scripts() -> list[dict]:
     """Loaded agent-infra jobs whose ProgramArguments script no longer exists.
 
@@ -147,12 +258,14 @@ def collect_orphan_scripts() -> list[dict]:
         referenced = plist_program_paths(plist)
         missing = [p for p in referenced if not Path(p).exists()]
         if missing:
-            orphans.append({
-                "name": job["name"],
-                "label": job["label"],
-                "missing_paths": missing,
-                "last_exit": job.get("last_exit"),
-            })
+            orphans.append(
+                {
+                    "name": job["name"],
+                    "label": job["label"],
+                    "missing_paths": missing,
+                    "last_exit": job.get("last_exit"),
+                }
+            )
     return orphans
 
 
@@ -166,17 +279,21 @@ def collect_plist_manifest() -> list[dict]:
         slug = label.replace("com.agent-infra.", "")
         tags = parse_system_tags(text)
         state = tags.get("state", "active")
-        rows.append({
-            "name": slug,
-            "label": label,
-            "source": str(path.relative_to(REPO_ROOT) if path.is_relative_to(REPO_ROOT) else path),
-            "layer": tags.get("layer", "watch"),
-            "role": tags.get("role", "miner"),
-            "llm": tags.get("llm", "none"),
-            "state": state,
-            "tags": tags,
-            "tagged": bool(tags),
-        })
+        rows.append(
+            {
+                "name": slug,
+                "label": label,
+                "source": str(
+                    path.relative_to(REPO_ROOT) if path.is_relative_to(REPO_ROOT) else path
+                ),
+                "layer": tags.get("layer", "watch"),
+                "role": tags.get("role", "miner"),
+                "llm": tags.get("llm", "none"),
+                "state": state,
+                "tags": tags,
+                "tagged": bool(tags),
+            }
+        )
     return sorted(rows, key=lambda r: r["name"])
 
 
@@ -193,13 +310,15 @@ def collect_orchestrator_recipes() -> list[dict]:
         if name in seen:
             continue
         seen.add(name)
-        rows.append({
-            "recipe": name,
-            "llm": llm,
-            "layer": layer or "session",
-            "role": role or "orchestrator-tool",
-            "kind": "just-recipe",
-        })
+        rows.append(
+            {
+                "recipe": name,
+                "llm": llm,
+                "layer": layer or "session",
+                "role": role or "orchestrator-tool",
+                "kind": "just-recipe",
+            }
+        )
     return rows
 
 
@@ -230,20 +349,22 @@ def merge_launchd(manifest: list[dict], live: list[dict]) -> list[dict]:
     for name in names:
         m = man_by.get(name, {})
         l = live_by.get(name, {})
-        rows.append({
-            "name": name,
-            "loaded": l.get("loaded", False),
-            "running": l.get("running", False),
-            "last_exit": l.get("last_exit"),
-            "ok": l.get("ok"),
-            "layer": m.get("layer", "watch"),
-            "role": m.get("role", "miner"),
-            "llm": m.get("llm", "none"),
-            "source": m.get("source"),
-            "tagged": m.get("tagged", False),
-            "state": m.get("state", "active"),
-            "kind": "launchd-job",
-        })
+        rows.append(
+            {
+                "name": name,
+                "loaded": l.get("loaded", False),
+                "running": l.get("running", False),
+                "last_exit": l.get("last_exit"),
+                "ok": l.get("ok"),
+                "layer": m.get("layer", "watch"),
+                "role": m.get("role", "miner"),
+                "llm": m.get("llm", "none"),
+                "source": m.get("source"),
+                "tagged": m.get("tagged", False),
+                "state": m.get("state", "active"),
+                "kind": "launchd-job",
+            }
+        )
     return rows
 
 
@@ -275,16 +396,15 @@ def collect_drift() -> dict:
     launchd = inv["launchd"]
     untagged_loaded = [j["name"] for j in launchd if j.get("loaded") and not j.get("tagged")]
     manifest_not_loaded = [
-        j["name"] for j in launchd
+        j["name"]
+        for j in launchd
         if j.get("source") and not j.get("loaded") and j.get("state", "active") == "active"
     ]
-    loaded_no_source = [
-        j["name"] for j in launchd
-        if j.get("loaded") and not j.get("source")
-    ]
+    loaded_no_source = [j["name"] for j in launchd if j.get("loaded") and not j.get("source")]
     llm_jobs = [j["name"] for j in launchd if j.get("llm") == "required" and j.get("loaded")]
     untagged_ops = [
-        m["name"] for m in collect_plist_manifest()
+        m["name"]
+        for m in collect_plist_manifest()
         if not m.get("tagged") and str(m.get("source", "")).startswith("ops/")
     ]
     orphan_scripts = collect_orphan_scripts()
@@ -295,8 +415,13 @@ def collect_drift() -> dict:
         "loaded_no_manifest_in_repo": loaded_no_source,
         "orphan_dead_script": orphan_scripts,
         "llm_launchd_jobs": llm_jobs,
-        "has_drift": bool(untagged_loaded or untagged_ops or manifest_not_loaded
-                          or loaded_no_source or orphan_scripts),
+        "has_drift": bool(
+            untagged_loaded
+            or untagged_ops
+            or manifest_not_loaded
+            or loaded_no_source
+            or orphan_scripts
+        ),
     }
 
 
@@ -320,7 +445,11 @@ def format_orchestrator_summary(recipes: list[dict]) -> str:
     if not recipes:
         return "/orchestrate — see orchestrator-tool-names.md"
     core = [r["recipe"] for r in recipes if r["role"] != "operator-tool"]
-    return "/orchestrate · " + " · ".join(core) + "<br/>just -f agent-infra/justfile &lt;recipe&gt; &lt;repo&gt;"
+    return (
+        "/orchestrate · "
+        + " · ".join(core)
+        + "<br/>just -f agent-infra/justfile &lt;recipe&gt; &lt;repo&gt;"
+    )
 
 
 def render_architecture_mmd(inv: dict | None = None) -> str:
@@ -344,7 +473,9 @@ def render_architecture_mmd(inv: dict | None = None) -> str:
         "{{ORCHESTRATOR_SUMMARY}}": format_orchestrator_summary(inv["orchestrator_recipes"]),
         "{{LLM_LAUNCHD}}": ", ".join(inv.get("drift", {}).get("llm_launchd_jobs", []))
         if inv.get("drift")
-        else ", ".join(j["name"] for j in launchd if j.get("llm") == "required" and j.get("loaded")),
+        else ", ".join(
+            j["name"] for j in launchd if j.get("llm") == "required" and j.get("loaded")
+        ),
     }
     drift = collect_drift()
     replacements["{{LLM_LAUNCHD}}"] = ", ".join(drift["llm_launchd_jobs"]) or "none loaded"
@@ -368,8 +499,8 @@ def _normalize_volatile_inventory(text: str) -> str:
         count=1,
     )
     text = re.sub(
-        r'pulse-tick · rsi-motor · llm:none · (?:loaded|NOT LOADED)',
-        'pulse-tick · rsi-motor · llm:none · STABLE',
+        r"pulse-tick · rsi-motor · llm:none · (?:loaded|NOT LOADED)",
+        "pulse-tick · rsi-motor · llm:none · STABLE",
         text,
     )
     return text
@@ -378,7 +509,9 @@ def _normalize_volatile_inventory(text: str) -> str:
 def write_architecture_mmd(check: bool = False) -> tuple[Path, bool]:
     out = REPO_ROOT / "architecture.mmd"
     rendered = render_architecture_mmd()
-    changed = not out.exists() or _normalize_volatile_inventory(out.read_text()) != _normalize_volatile_inventory(rendered)
+    changed = not out.exists() or _normalize_volatile_inventory(
+        out.read_text()
+    ) != _normalize_volatile_inventory(rendered)
     if check:
         return out, changed
     out.write_text(rendered)
@@ -394,12 +527,16 @@ def main() -> int:
         else:
             for o in drift.get("orphan_dead_script", []):
                 exit_note = f" (exit {o['last_exit']})" if o.get("last_exit") else ""
-                print(f"✗ ORPHAN dead script{exit_note}: {o['name']} → {', '.join(o['missing_paths'])} "
-                      f"(loaded but script deleted — `launchctl bootout` + rm the plist, or restore the script)")
+                print(
+                    f"✗ ORPHAN dead script{exit_note}: {o['name']} → {', '.join(o['missing_paths'])} "
+                    f"(loaded but script deleted — `launchctl bootout` + rm the plist, or restore the script)"
+                )
             if drift["loaded_no_manifest_in_repo"]:
                 print(f"loaded but no ops plist: {', '.join(drift['loaded_no_manifest_in_repo'])}")
             if drift.get("untagged_ops_manifest"):
-                print(f"ops/launchd plists missing @system: {', '.join(drift['untagged_ops_manifest'])}")
+                print(
+                    f"ops/launchd plists missing @system: {', '.join(drift['untagged_ops_manifest'])}"
+                )
             if drift["untagged_loaded"]:
                 print(f"loaded plists missing @system tags: {', '.join(drift['untagged_loaded'])}")
             if drift["manifest_not_loaded"]:
@@ -428,7 +565,9 @@ def main() -> int:
         if not j.get("loaded"):
             continue
         st = "ok" if j.get("ok") else f"exit {j.get('last_exit')}"
-        print(f"  {j['name']:<24} layer={j['layer']:<7} role={j['role']:<12} llm={j['llm']:<8} {st}")
+        print(
+            f"  {j['name']:<24} layer={j['layer']:<7} role={j['role']:<12} llm={j['llm']:<8} {st}"
+        )
     not_loaded = [j["name"] for j in inv["launchd"] if j.get("source") and not j.get("loaded")]
     if not_loaded:
         print(f"\nManifest not loaded: {', '.join(not_loaded)}")

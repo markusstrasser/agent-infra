@@ -25,6 +25,7 @@ PROJECTS_DIR = Path.home() / "Projects"
 PROJECTS = list(PROJECT_ROOTS.keys())
 from common.paths import CLAUDE_DIR
 from common.db import open_db_ro
+
 GLOBAL_SETTINGS = CLAUDE_DIR / "settings.json"
 GLOBAL_CLAUDE_MD = CLAUDE_DIR / "CLAUDE.md"
 MEMORY_WARN_LINES = 180
@@ -151,7 +152,7 @@ def check_settings_json(path: Path, scope: str) -> list[Check]:
                     return token
 
                 # Find the script file — may be the command itself or an argument to bash/python3
-                script_token = next((p for p in parts if p.endswith(('.sh', '.py'))), None)
+                script_token = next((p for p in parts if p.endswith((".sh", ".py"))), None)
                 if script_token:
                     script_token = bind_inline(script_token)
                 if script_token:
@@ -289,6 +290,7 @@ def check_test_health() -> list[Check]:
     # import breaks, surface everything rather than silently hiding a real failure.
     try:
         from test_health import SUITES
+
         monitored = {s.repo for s in SUITES}
         latest = {r: rec for r, rec in latest.items() if r in monitored}
     except Exception:
@@ -306,15 +308,22 @@ def check_test_health() -> list[Check]:
             # got worse since last run — escalate above chronic-but-stable failures
             checks.append(c.fail(f"regressed: {rec.get('regression_note', '?')}"))
         elif counts.get("failed") or counts.get("errors"):
-            checks.append(c.warn(f"{counts.get('failed', 0)} failed, {counts.get('errors', 0)} errors (stable)"))
+            checks.append(
+                c.warn(
+                    f"{counts.get('failed', 0)} failed, {counts.get('errors', 0)} errors (stable)"
+                )
+            )
         else:
             checks.append(c.ok(f"{counts.get('passed', 0)} passed"))
 
     try:
         age = datetime.now(timezone.utc) - datetime.fromisoformat(newest)
         if age > timedelta(days=2):
-            checks.append(Check("test-health:freshness", "global").warn(
-                f"last run {age.days}d ago — sentinel may not be running"))
+            checks.append(
+                Check("test-health:freshness", "global").warn(
+                    f"last run {age.days}d ago — sentinel may not be running"
+                )
+            )
     except (ValueError, TypeError):
         pass
     return checks
@@ -376,9 +385,7 @@ def check_stale_agents() -> list[Check]:
             # Extract agent ID, check if any claude process references it
             agent_id = jsonl.stem.replace("agent-", "")
             try:
-                ps = subprocess.run(
-                    ["pgrep", "-f", agent_id], capture_output=True, timeout=5
-                )
+                ps = subprocess.run(["pgrep", "-f", agent_id], capture_output=True, timeout=5)
                 has_process = ps.returncode == 0
             except Exception:
                 has_process = True  # fail open — don't report if pgrep fails
@@ -437,17 +444,77 @@ def check_launchd_script_integrity() -> list[Check]:
     such orphans for days before a SWEEP caught them — 2026-06-24)."""
     try:
         from system_inventory import collect_orphan_scripts
+
         orphans = collect_orphan_scripts()
     except Exception as exc:
         return [Check("launchd-integrity", "global").warn(f"check failed: {exc}")]
     if not orphans:
-        return [Check("launchd-integrity", "global").ok("all loaded agent-infra jobs resolve their scripts")]
+        return [
+            Check("launchd-integrity", "global").ok(
+                "all loaded agent-infra jobs resolve their scripts"
+            )
+        ]
     checks = []
     for o in orphans:
         exit_note = f", exit {o['last_exit']}" if o.get("last_exit") else ""
-        checks.append(Check(f"launchd-integrity:{o['name']}", "global").fail(
-            f"loaded but script deleted{exit_note}: {', '.join(o['missing_paths'])} "
-            f"— `launchctl bootout gui/$(id -u)/{o['label']}` + rm the plist, or restore the script"))
+        checks.append(
+            Check(f"launchd-integrity:{o['name']}", "global").fail(
+                f"loaded but script deleted{exit_note}: {', '.join(o['missing_paths'])} "
+                f"— `launchctl bootout gui/$(id -u)/{o['label']}` + rm the plist, or restore the script"
+            )
+        )
+    return checks
+
+
+def check_launchd_job_health() -> list[Check]:
+    """Jobs that ARE loaded, intact, and spawnable — but failing or not firing.
+
+    The lagging half the script-integrity check explicitly defers, plus the one
+    failure mode no other check sees: a job that never fires at all. Both are
+    silent by construction — launchctl records a `last_exit` nobody reads, and a
+    job that stops firing produces no error because it produces no run.
+
+    Measured 2026-08-18, with nothing surfacing any of it: agentlogs-archive
+    exit 1 for two weeks (a venv shadow served stale code, so the weekly archive
+    + prune never ran), test-health exit 1 (the job whose purpose is catching
+    broken tests — 22 test-collection errors had accumulated in genomics),
+    pulse-tick exit 1, and spend-alarm not fired since 2026-08-05 (~598 missed
+    runs on the job that warns about compute overspend).
+
+    Monitors owe liveness proof for the same reason gates owe positive controls:
+    an alarm that has never fired and an alarm that cannot fire look identical.
+    """
+    checks: list[Check] = []
+    try:
+        from system_inventory import collect_launchd_jobs, collect_stale_jobs
+
+        jobs = [j for j in collect_launchd_jobs() if not j.get("unavailable")]
+        stale = collect_stale_jobs()
+    except Exception as exc:
+        return [Check("launchd-job-health", "global").warn(f"check failed: {exc}")]
+
+    failing = [j for j in jobs if j.get("last_exit") not in (0, None)]
+    for job in failing:
+        checks.append(
+            Check(f"launchd-exit:{job['name']}", "global").fail(
+                f"last run exited {job['last_exit']} — read "
+                f"~/.claude/logs/{job['name']}.err, or run its ProgramArguments by hand"
+            )
+        )
+    for job in stale:
+        days = job["age_s"] // 86400
+        checks.append(
+            Check(f"launchd-stale:{job['name']}", "global").fail(
+                f"has not fired in {days}d (~{job['missed_runs']} missed runs, period "
+                f"{job['period_s']}s, last {job['last_run'][:16]}) — job is loaded but dead"
+            )
+        )
+    if not checks:
+        checks.append(
+            Check("launchd-job-health", "global").ok(
+                f"{len(jobs)} jobs: all last-exited 0 and firing on schedule"
+            )
+        )
     return checks
 
 
@@ -463,25 +530,37 @@ def check_launchd_spawn_health() -> list[Check]:
     reads the authoritative per-job state."""
     uid = os.getuid()
     try:
-        listing = subprocess.run(["launchctl", "list"], capture_output=True, text=True, timeout=10).stdout
+        listing = subprocess.run(
+            ["launchctl", "list"], capture_output=True, text=True, timeout=10
+        ).stdout
     except Exception as exc:
         return [Check("launchd-spawn", "global").warn(f"launchctl list failed: {exc}")]
     labels = [line.split()[-1] for line in listing.splitlines() if "com.agent-infra." in line]
     failed = []
     for label in labels:
         try:
-            info = subprocess.run(["launchctl", "print", f"gui/{uid}/{label}"],
-                                  capture_output=True, text=True, timeout=10).stdout
+            info = subprocess.run(
+                ["launchctl", "print", f"gui/{uid}/{label}"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            ).stdout
         except Exception:
             continue
         if "job state = spawn failed" in info:
             failed.append(label)
     if not failed:
-        return [Check("launchd-spawn", "global").ok(f"no spawn-failed jobs among {len(labels)} loaded")]
-    return [Check(f"launchd-spawn:{label}", "global").fail(
-        "job state = spawn failed — launchd cannot exec it (check StandardOut/ErrorPath "
-        "is a writable LOCAL path, not a symlink onto an external volume; then "
-        f"`launchctl kickstart -k gui/{uid}/{label}`)") for label in failed]
+        return [
+            Check("launchd-spawn", "global").ok(f"no spawn-failed jobs among {len(labels)} loaded")
+        ]
+    return [
+        Check(f"launchd-spawn:{label}", "global").fail(
+            "job state = spawn failed — launchd cannot exec it (check StandardOut/ErrorPath "
+            "is a writable LOCAL path, not a symlink onto an external volume; then "
+            f"`launchctl kickstart -k gui/{uid}/{label}`)"
+        )
+        for label in failed
+    ]
 
 
 def check_janitor_receipts() -> list[Check]:
@@ -538,9 +617,16 @@ def check_agentlogs_archive_recency() -> list[Check]:
     age_days = (time.time() - snaps[-1].stat().st_mtime) / 86400
     msg = f"newest snapshot {snaps[-1].name} is {age_days:.1f}d old (weekly cadence, 30d prune window)"
     if age_days > 24:
-        return [c.fail(msg + " — run `just agentlogs-archive` NOW, before prune outruns the archive")]
+        return [
+            c.fail(msg + " — run `just agentlogs-archive` NOW, before prune outruns the archive")
+        ]
     if age_days > 14:
-        return [c.warn(msg + " — check com.agent-infra.agentlogs-archive (spawn health, volume mounted at Sun 03:30)")]
+        return [
+            c.warn(
+                msg
+                + " — check com.agent-infra.agentlogs-archive (spawn health, volume mounted at Sun 03:30)"
+            )
+        ]
     return [c.ok(msg)]
 
 
@@ -579,8 +665,12 @@ def check_agentlogs_ingest_lag() -> list[Check]:
     lag_h = (datetime.now(timezone.utc) - ts).total_seconds() / 3600
     msg = f"newest indexed session {lag_h:.1f}h old (indexer cadence 2h)"
     if lag_h > 12:
-        return [c.fail(msg + " — indexer not completing; check corpus size "
-                              "(`just agentlogs-archive`) and com.agent-infra.agentlogs-index")]
+        return [
+            c.fail(
+                msg + " — indexer not completing; check corpus size "
+                "(`just agentlogs-archive`) and com.agent-infra.agentlogs-index"
+            )
+        ]
     if lag_h > 6:
         return [c.warn(msg + " — three missed runs; check indexer exit codes")]
     return [c.ok(msg)]
@@ -598,9 +688,16 @@ def check_metered_spend() -> list[Check]:
     """
     c = Check("metered-spend:today", "global")
     out = run(
-        ["uv", "run", "python3", str(Path(__file__).parent / "usage-check.py"),
-         "--metered-today", "--json"],
-        cwd=str(Path(__file__).parent.parent), timeout=20,
+        [
+            "uv",
+            "run",
+            "python3",
+            str(Path(__file__).parent / "usage-check.py"),
+            "--metered-today",
+            "--json",
+        ],
+        cwd=str(Path(__file__).parent.parent),
+        timeout=20,
     )
     if out is None:
         return [c.ok("usage-check unavailable — skipped")]
@@ -693,7 +790,7 @@ def check_telemetry_freshness() -> list[Check]:
         )
     elif receipt_count / transcript_count < 0.5:
         c_receipt.warn(
-            f"Receipt coverage low ({receipt_count}/{transcript_count} = {receipt_count/transcript_count:.0%} in 24h)"
+            f"Receipt coverage low ({receipt_count}/{transcript_count} = {receipt_count / transcript_count:.0%} in 24h)"
         )
     else:
         c_receipt.ok(f"{receipt_count} receipts / {transcript_count} transcripts in 24h")
@@ -707,7 +804,7 @@ def check_telemetry_freshness() -> list[Check]:
         )
     elif session_log_count / transcript_count < 0.5:
         c_log.warn(
-            f"Session-log coverage low ({session_log_count}/{transcript_count} = {session_log_count/transcript_count:.0%} in 24h)"
+            f"Session-log coverage low ({session_log_count}/{transcript_count} = {session_log_count / transcript_count:.0%} in 24h)"
         )
     else:
         c_log.ok(f"{session_log_count} log entries / {transcript_count} transcripts in 24h")
@@ -759,6 +856,7 @@ def check_orphaned_generators() -> list[Check]:
     c = Check("global:orphan-generators", "global")
     try:
         import orphan_check
+
         rep = orphan_check.scan()
     except Exception as e:  # noqa: BLE001 — advisory, fail open
         return [c.warn(f"orphan_check unavailable: {str(e)[:80]}")]
@@ -767,8 +865,12 @@ def check_orphaned_generators() -> list[Check]:
         return [c.ok(f"{rep['total_generators']} generators, 0 orphaned")]
     names = ", ".join(r["script"] for r in flagged[:6])
     extra = f" (+{len(flagged) - 6})" if len(flagged) > 6 else ""
-    return [c.warn(f"{len(flagged)} candidate orphan(s): {names}{extra} — "
-                   f"re-verify via `just orphan-check`")]
+    return [
+        c.warn(
+            f"{len(flagged)} candidate orphan(s): {names}{extra} — "
+            f"re-verify via `just orphan-check`"
+        )
+    ]
 
 
 def check_orphaned_findings() -> list[Check]:
@@ -782,18 +884,24 @@ def check_orphaned_findings() -> list[Check]:
     c = Check("global:orphan-findings", "global")
     try:
         import orphan_findings
+
         rep = orphan_findings.scan(all_memos=True)
     except Exception as e:  # noqa: BLE001 — advisory, fail open
         return [c.warn(f"orphan_findings unavailable: {str(e)[:80]}")]
     flagged = rep["flagged_memos"]
     if not flagged:
         return [c.ok(f"{rep['actionable']} actionable verdicts, 0 un-harvested")]
-    memos = ", ".join(m["memo"].replace("trending-scout-", "ts-").replace(".md", "")
-                      for m in flagged[:5])
+    memos = ", ".join(
+        m["memo"].replace("trending-scout-", "ts-").replace(".md", "") for m in flagged[:5]
+    )
     extra = f" (+{len(flagged) - 5})" if len(flagged) > 5 else ""
-    return [c.warn(f"{rep['orphaned_findings']} un-harvested finding(s) in "
-                   f"{len(flagged)} memo(s): {memos}{extra} — "
-                   f"promote live ones via `just orphan-findings`")]
+    return [
+        c.warn(
+            f"{rep['orphaned_findings']} un-harvested finding(s) in "
+            f"{len(flagged)} memo(s): {memos}{extra} — "
+            f"promote live ones via `just orphan-findings`"
+        )
+    ]
 
 
 def check_decisions_pending() -> list[Check]:
@@ -811,10 +919,15 @@ def check_decisions_pending() -> list[Check]:
     if not items:
         return [c.ok("0 pending decisions")]
     import time
+
     stale = [p for p in items if (time.time() - p.stat().st_mtime) > 7 * 86400]
     names = ", ".join(p.stem for p in items[:5])
     if stale:
-        return [c.warn(f"{len(items)} pending decision(s) — {len(stale)} >7d unread: {names} — review/disposition")]
+        return [
+            c.warn(
+                f"{len(items)} pending decision(s) — {len(stale)} >7d unread: {names} — review/disposition"
+            )
+        ]
     return [c.warn(f"{len(items)} pending decision(s) awaiting sign-off: {names}")]
 
 
@@ -869,13 +982,18 @@ def check_agentlogs_indexer() -> list[Check]:
             checks.append(c.warn(f"unparseable last_success_at={last_success_at!r}"))
             continue
         if age_h > 48:
-            checks.append(c.warn(f"stale: last success {age_h:.0f}h ago (>48h), {success_7d} ok/7d"))
+            checks.append(
+                c.warn(f"stale: last success {age_h:.0f}h ago (>48h), {success_7d} ok/7d")
+            )
         else:
             checks.append(c.ok(f"fresh ({age_h:.0f}h ago)"))
 
     for vendor, n in stuck:
-        checks.append(Check(f"indexer:{vendor}", "global").warn(
-            f"{n} run(s) stuck 'running' >2h — likely a hung/dead holder; reap + investigate"))
+        checks.append(
+            Check(f"indexer:{vendor}", "global").warn(
+                f"{n} run(s) stuck 'running' >2h — likely a hung/dead holder; reap + investigate"
+            )
+        )
 
     try:
         row = con.execute("SELECT MAX(authored_at) FROM git_commits").fetchone()
@@ -885,9 +1003,12 @@ def check_agentlogs_indexer() -> list[Check]:
                 age_d = (now - last_git).total_seconds() / 86400
                 c = Check("agentlogs:git-import-cache", "global")
                 if age_d > 3:
-                    checks.append(c.warn(
-                        f"git_commits cache stale: newest {age_d:.0f}d ago (>3d) — "
-                        f"run `agentlogs git-import` or rely on whence reconstruct"))
+                    checks.append(
+                        c.warn(
+                            f"git_commits cache stale: newest {age_d:.0f}d ago (>3d) — "
+                            f"run `agentlogs git-import` or rely on whence reconstruct"
+                        )
+                    )
                 else:
                     checks.append(c.ok(f"git_commits fresh ({age_d:.1f}d ago)"))
             except (ValueError, TypeError):
@@ -937,11 +1058,17 @@ def check_uv_tool_editables() -> list[Check]:
         return checks
     dead = [(t, s) for t, s in sorted(seen) if not Path(s).is_dir()]
     for tool, src in dead:
-        checks.append(Check(f"uv-tool:{tool}", "global").warn(
-            f"editable -> MISSING {src} (stale pointer; package moved? "
-            f"fix: uv tool install --force --editable <new-path>)"))
-    checks.append(Check("uv-tools", "global").ok(
-        f"{len(seen) - len(dead)}/{len(seen)} editable installs resolve"))
+        checks.append(
+            Check(f"uv-tool:{tool}", "global").warn(
+                f"editable -> MISSING {src} (stale pointer; package moved? "
+                f"fix: uv tool install --force --editable <new-path>)"
+            )
+        )
+    checks.append(
+        Check("uv-tools", "global").ok(
+            f"{len(seen) - len(dead)}/{len(seen)} editable installs resolve"
+        )
+    )
     return checks
 
 
@@ -953,12 +1080,20 @@ def check_approval_tiers() -> list[Check]:
     c = Check("approval-tiers", "global")
     chk = at.validate_manifest()
     if chk.missing_files:
-        return [c.fail(f"missing hook files: {', '.join(chk.missing_files[:5])}"
-                        + ("…" if len(chk.missing_files) > 5 else ""))]
+        return [
+            c.fail(
+                f"missing hook files: {', '.join(chk.missing_files[:5])}"
+                + ("…" if len(chk.missing_files) > 5 else "")
+            )
+        ]
     if chk.uncovered_global:
-        return [c.warn(f"{len(chk.uncovered_global)} global pretool(s) not in manifest: "
-                       f"{', '.join(chk.uncovered_global[:4])}"
-                       + ("…" if len(chk.uncovered_global) > 4 else ""))]
+        return [
+            c.warn(
+                f"{len(chk.uncovered_global)} global pretool(s) not in manifest: "
+                f"{', '.join(chk.uncovered_global[:4])}"
+                + ("…" if len(chk.uncovered_global) > 4 else "")
+            )
+        ]
     n = len(at.manifest_hooks())
     g = len(at.global_pretool_hooks())
     return [c.ok(f"{n} manifest hooks, {g} global pretools covered")]
@@ -1062,6 +1197,7 @@ def run_all_checks(project_filter: str | None = None) -> list[Check]:
         all_checks.extend(check_agentlogs_indexer())
         all_checks.extend(check_launchd_script_integrity())
         all_checks.extend(check_launchd_spawn_health())
+        all_checks.extend(check_launchd_job_health())
         all_checks.extend(check_agentlogs_archive_recency())
         all_checks.extend(check_janitor_receipts())
         all_checks.extend(check_uv_tool_editables())
@@ -1105,7 +1241,10 @@ from common.console import con as _con
 def print_results(checks: list[Check], as_json: bool = False):
     """Print check results."""
     if as_json:
-        out = [{"name": c.name, "scope": c.scope, "status": c.status, "message": c.message} for c in checks]
+        out = [
+            {"name": c.name, "scope": c.scope, "status": c.status, "message": c.message}
+            for c in checks
+        ]
         print(json.dumps(out, indent=2))
         return
 
