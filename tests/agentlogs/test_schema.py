@@ -12,7 +12,7 @@ from agentlogs import index as ix
 
 def test_fresh_db_reaches_head_version(tmp_path: Path) -> None:
     db = agentlogs.connect(tmp_path / "new.db")
-    assert agentlogs.current_version(db) == 9
+    assert agentlogs.current_version(db) == 10
     db.close()
 
 
@@ -36,6 +36,16 @@ def test_tool_calls_has_no_result_json(tmp_path: Path) -> None:
     cols = {r[1] for r in db.execute("PRAGMA table_info(tool_calls)")}
     assert "result_json" not in cols
     assert "args_json" in cols
+    db.close()
+
+
+def test_record_refs_are_source_stable_not_import_scoped(tmp_path: Path) -> None:
+    db = agentlogs.connect(tmp_path / "new.db")
+    cols = {r[1] for r in db.execute("PRAGMA table_info(record_refs)")}
+    assert "import_id" not in cols
+    assert {"source_id", "raw_record_key", "raw_record_hash"}.issubset(cols)
+    indexes = {r[1] for r in db.execute("PRAGMA index_list(record_refs)")}
+    assert indexes
     db.close()
 
 
@@ -105,7 +115,7 @@ def test_migrations_idempotent_on_reopen(tmp_path: Path) -> None:
     db1 = agentlogs.connect(path)
     db1.close()
     db2 = agentlogs.connect(path)
-    assert agentlogs.current_version(db2) == 9
+    assert agentlogs.current_version(db2) == 10
     db2.close()
 
 

@@ -3,7 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from ..textcap import CAPPED_ROLES, cap_text
+from ..authorship import is_injected_user_text
+from ..textcap import CAPPED_ROLES, CAPPED_VENDOR_KINDS, cap_text
 from .common import (
     DiscoveredSource,
     EventRow,
@@ -242,6 +243,11 @@ def _parse_response_item(
         text = "\n".join(typed_text_parts(payload.get("content"))).strip()
         if role in {"user", "assistant", "developer"} and text:
             kind_map = {"user": "user_message", "developer": "developer_message"}
+            vendor_kind = (
+                "meta_injected"
+                if role == "user" and is_injected_user_text(text)
+                else inner_type
+            )
             bundle.events.append(
                 EventRow(
                     event_id=stable_id("evt_", run_id, raw_key, role),
@@ -249,12 +255,16 @@ def _parse_response_item(
                     seq=len(bundle.events) + 1,
                     ts=timestamp,
                     kind=kind_map.get(role, "assistant_message"),
-                    vendor_kind=inner_type,
+                    vendor_kind=vendor_kind,
                     role=role,
                     # llmx `-f` dispatches paste whole files into the prompt;
                     # storing them verbatim cost 2.6GB (2026-07-14). Raw JSONL
                     # stays source of truth. Assistant output is never capped.
-                    text=cap_text(text) if role in CAPPED_ROLES else text,
+                    text=(
+                        cap_text(text)
+                        if role in CAPPED_ROLES or vendor_kind in CAPPED_VENDOR_KINDS
+                        else text
+                    ),
                     payload=payload,
                     record_key=raw_key,
                 )

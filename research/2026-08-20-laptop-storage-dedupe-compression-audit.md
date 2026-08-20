@@ -2,10 +2,12 @@
 
 **Verdict:**
 
-- The largest current opportunity is not another general cleaner. The existing
+- The largest opportunity was not another general cleaner. The existing
   `agentlogs-archive` owner is stalled because `/Volumes/2TBPNY` is not mounted:
-  its dry run finds **6.9 GB of old raw sessions**, while the derived live search
-  DB has grown to **19 GB** and has 2,559 sessions beyond its 30-day window.
+  its dry run finds **6.9 GB of old raw sessions**. Separately, the derived live
+  search DB had grown to **19 GB** because append re-indexes duplicated raw-record
+  provenance. That root defect is now repaired; the live DB is **3.56 GB**. See
+  the final execution update for the preservation proof and rollback path.
 - A second, non-overlapping **roughly 8–10 GiB** is available from narrow,
   rederivable surfaces after their applications are stopped: a 1.4 GiB Codex
   hook audit log, 1.36 GiB of free SQLite pages, a 1.2 GiB stale Raycast tree,
@@ -75,6 +77,10 @@ but omitting them makes the report systematically incomplete.
 ### P0 — unblock the owner already designed for the largest backlog
 
 #### Agent history: archive backlog plus retention prune
+
+The measurements in this subsection are the pre-repair snapshot. The raw archive
+backlog remains current, but the 19 GB live-DB and record-reference figures were
+superseded by the root repair documented in the final execution update.
 
 - `~/.claude/agentlogs.db`: **19 GB** / 19,597 MB according to `agentlogs`.
 - `~/.codex/sessions`: **8.9 GB**; 6.9 GB of the archive dry run comes from
@@ -287,3 +293,55 @@ Still gated:
 - IQ compression, ARC recording CAS, source-epoch GC, and all personal-data
   transformations: these require consumer/backup gates rather than a cleanup
   command.
+
+## Execution update — agentlogs root repair, 2026-08-20 13:20 CEST
+
+The 19 GB search database was not large because text intrinsically needed that
+space. Its dominant table, `record_refs`, identified a raw JSONL record by the
+fresh `import_id` assigned to each parse. When a transcript grew, the high-water
+logic correctly skipped old events but still inserted provenance rows for every
+old line under the new import. A frequently appended Claude source had been
+parsed 1,274 times; the store contained **76,866,378 record references** for only
+about one million structured events.
+
+The representation is now source-stable:
+
+- Raw-record identity is `(source_id, raw_record_key)`, independent of how many
+  times the source is parsed. Ingest upserts that row and materializes only
+  records actually referenced by an event, tool call, or file touch.
+- A populated v9 database fails loudly instead of silently launching a many-GB
+  connect-time migration. The explicit repair command is dry-run by default and
+  runs under the single-writer lock on a verified clone.
+- Prune and forced re-index remove only provenance with no surviving consumer;
+  child foreign-key columns now have indexes, so cleanup is bounded by real
+  references rather than repeated import history.
+
+The clone repair reduced `record_refs` from **76,866,378 to 962,652** and the
+SQLite file from **19,758 MB to 3,550 MB**. Before any new append probe, every
+table count and the event text/payload byte aggregates matched the original
+exactly; every event, tool, and file provenance pointer was remapped, and
+`PRAGMA integrity_check` returned `ok`. A real append then added 236 events and
+exactly 236 provenance rows rather than another full-transcript copy. The live
+launchd indexer subsequently completed a production run with zero source
+failures.
+
+The taste-bearing distinction is explicit now as well. Genuine operator inputs
+remain byte-exact and are never capped. Codex harness envelopes that arrive with
+`role=user` are recognized only by canonical start prefixes, labeled
+`meta_injected`, and may be compacted like developer context. The historical
+backfill relabeled **4,360 rows across 3,897 Codex sessions**; zero recognized
+envelopes remain classified as ordinary operator messages, and affected
+`first_message` values were regenerated from the real operator input. The full
+agentlogs test suite passes (**103 tests**).
+
+Production now uses schema v10 at `~/.claude/agentlogs.db` (**3.5 GiB**). The
+untouched v9 database was retained losslessly as
+`~/.claude/agentlogs-legacy-v9-2026-08-20.db.zst` (**6.3 GiB**); `zstd -t`
+passed. Keeping that rollback still cuts the combined live-plus-rollback
+footprint to about 9.8 GiB, versus 19.3 GiB for the former live file alone. The
+Data volume currently has **107 GiB available**.
+
+Raw Claude/Codex JSONL compression remains owned by the snapshot-and-manifest
+archive once `2TBPNY` is mounted. No second compressor was added: raw transcripts
+are the source of truth, while the repaired local search surface now stores only
+the provenance needed to retrieve their signal.

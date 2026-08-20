@@ -88,9 +88,12 @@ def _db() -> sqlite3.Connection:
     return db
 
 
-def test_backfill_caps_oversized_message_rows():
+def test_backfill_caps_explicitly_injected_user_rows():
     db = _db()
-    db.execute("INSERT INTO events VALUES ('e1', 'user_message', 'message', ?)", (BIG,))
+    db.execute(
+        "INSERT INTO events VALUES ('e1', 'user_message', 'meta_injected', ?)",
+        (BIG,),
+    )
     db.commit()
 
     plan = tr.apply_trim(db)
@@ -108,6 +111,18 @@ def test_backfill_leaves_genuine_user_text_alone():
     it is 39MB across the whole DB and is the content we actually want."""
     db = _db()
     db.execute("INSERT INTO events VALUES ('e1', 'user_message', 'user', ?)", (BIG,))
+    db.commit()
+
+    plan = tr.apply_trim(db)
+
+    assert plan.rows == 0
+    assert db.execute("SELECT LENGTH(text) FROM events").fetchone()[0] == len(BIG)
+
+
+def test_backfill_leaves_codex_operator_text_alone():
+    """Codex uses vendor_kind=message for real operator turns; keep them exact."""
+    db = _db()
+    db.execute("INSERT INTO events VALUES ('e1', 'user_message', 'message', ?)", (BIG,))
     db.commit()
 
     plan = tr.apply_trim(db)
@@ -145,9 +160,41 @@ def test_assistant_output_is_never_capped():
     assert parsed.events[0].text == BIG, "assistant output must reach the DB verbatim"
 
 
+def test_codex_operator_input_is_exact_but_harness_envelope_is_labeled_and_capped():
+    from agentlogs.adapters.codex import _parse_response_item
+    from agentlogs.adapters.common import ParsedSource
+
+    operator = ParsedSource()
+    _parse_response_item(
+        operator,
+        {"type": "message", "role": "user",
+         "content": [{"type": "input_text", "text": BIG}]},
+        raw_key="codex:line:1",
+        timestamp=None,
+        tool_calls={},
+        run_id="run-1",
+    )
+    assert operator.events[0].vendor_kind == "message"
+    assert operator.events[0].text == BIG
+
+    injected = ParsedSource()
+    injected_text = "<recommended_plugins>\n" + BIG
+    _parse_response_item(
+        injected,
+        {"type": "message", "role": "user",
+         "content": [{"type": "input_text", "text": injected_text}]},
+        raw_key="codex:line:2",
+        timestamp=None,
+        tool_calls={},
+        run_id="run-1",
+    )
+    assert injected.events[0].vendor_kind == "meta_injected"
+    assert injected.events[0].text == cap_text(injected_text)
+
+
 def test_backfill_is_idempotent():
     db = _db()
-    db.execute("INSERT INTO events VALUES ('e1', 'user_message', 'message', ?)", (BIG,))
+    db.execute("INSERT INTO events VALUES ('e1', 'user_message', 'meta_injected', ?)", (BIG,))
     db.commit()
 
     first = tr.apply_trim(db)
@@ -163,7 +210,10 @@ def test_fts_stays_searchable_on_the_kept_tail():
     """The events_au trigger must keep FTS in sync, so the surviving head/tail
     remain searchable — that is what makes the index shrink safely."""
     db = _db()
-    db.execute("INSERT INTO events VALUES ('e1', 'user_message', 'message', ?)", (BIG,))  # events_ai fills FTS
+    db.execute(
+        "INSERT INTO events VALUES ('e1', 'user_message', 'meta_injected', ?)",
+        (BIG,),
+    )  # events_ai fills FTS
     db.commit()
 
     def hits(token: str) -> int:
@@ -184,7 +234,7 @@ def test_fts_stays_searchable_on_the_kept_tail():
 
 def test_plan_does_not_mutate():
     db = _db()
-    db.execute("INSERT INTO events VALUES ('e1', 'user_message', 'message', ?)", (BIG,))
+    db.execute("INSERT INTO events VALUES ('e1', 'user_message', 'meta_injected', ?)", (BIG,))
     db.commit()
 
     plan = tr.plan_trim(db)
@@ -203,12 +253,14 @@ def test_ingest_and_backfill_agree():
     from agentlogs.adapters.codex import _parse_response_item
     from agentlogs.adapters.common import ParsedSource
 
+    injected_text = "<recommended_plugins>\n" + BIG
+
     # Through the real adapter code path.
     parsed = ParsedSource()
     _parse_response_item(
         parsed,
         {"type": "message", "role": "user",
-         "content": [{"type": "input_text", "text": BIG}]},
+         "content": [{"type": "input_text", "text": injected_text}]},
         raw_key="codex:line:1",
         timestamp=None,
         tool_calls={},
@@ -216,13 +268,17 @@ def test_ingest_and_backfill_agree():
     )
     ingested_text = parsed.events[0].text
     assert ingested_text is not None
+    assert parsed.events[0].vendor_kind == "meta_injected"
 
     # Through the backfill.
     db = _db()
-    db.execute("INSERT INTO events VALUES ('e1', 'user_message', 'message', ?)", (BIG,))
+    db.execute(
+        "INSERT INTO events VALUES ('e1', 'user_message', 'meta_injected', ?)",
+        (injected_text,),
+    )
     db.commit()
     tr.apply_trim(db)
     backfilled_text = db.execute("SELECT text FROM events").fetchone()[0]
 
     assert ingested_text == backfilled_text
-    assert len(ingested_text) < len(BIG)
+    assert len(ingested_text) < len(injected_text)

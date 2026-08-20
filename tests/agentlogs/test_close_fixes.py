@@ -11,11 +11,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
-import pytest
-
 import agentlogs
 from agentlogs import index as ix
-from agentlogs.adapters.common import DiscoveredSource
 
 
 # Finding #2 / #7 — UPSERT on imports table
@@ -68,8 +65,7 @@ def test_session_uuid_namespaced_by_vendor(tmp_path: Path) -> None:
 
 def test_migrations_atomic_on_failure(tmp_path: Path) -> None:
     """A migration that fails mid-script must leave user_version unchanged."""
-    from agentlogs.migrations import _split_sql, apply_migrations
-    from agentlogs.db import connect
+    from agentlogs.migrations import _split_sql
 
     # Verify _split_sql respects BEGIN/END blocks (the FTS5 triggers).
     sql = """
@@ -96,7 +92,6 @@ def test_cleanup_no_force_skips_same_parser_version() -> None:
     a no-op (relies on UPSERT for append). When force=True or parser_version
     differs, it wipes the prior import_ids' rows.
     """
-    import sqlite3 as _sqlite3
     from agentlogs.index import _cleanup_source_data, SCHEMA_VERSION
     from agentlogs.db import connect
 
@@ -108,11 +103,9 @@ def test_cleanup_no_force_skips_same_parser_version() -> None:
                "schema_version, imported_at, success) "
                "VALUES (?, 'abc', 'gemini', 'v1', ?, '2026-04-20', 1)",
                (sid, SCHEMA_VERSION))
-    iid = db.execute("SELECT import_id FROM imports").fetchone()[0]
-
-    # Plant a record_ref with that import_id
-    db.execute("INSERT INTO record_refs (source_id, import_id, raw_record_hash, raw_record_key) "
-               "VALUES (?, ?, 'h', 'k')", (sid, iid))
+    # Plant an unreferenced source-stable record_ref.
+    db.execute("INSERT INTO record_refs (source_id, raw_record_hash, raw_record_key) "
+               "VALUES (?, 'h', 'k')", (sid,))
 
     # Same parser_version, no force → record_ref must SURVIVE
     _cleanup_source_data(db, sid, parser_name="gemini", parser_version="v1", force=False)
@@ -146,11 +139,10 @@ def test_cleanup_force_chunks_many_import_ids() -> None:
             "VALUES (?, ?, 'claude', 'v1', ?, '2026-08-01', 1)",
             (sid, f"sha{i}", SCHEMA_VERSION),
         )
-        iid = int(db.execute("SELECT MAX(import_id) FROM imports").fetchone()[0])
         db.execute(
-            "INSERT INTO record_refs (source_id, import_id, raw_record_hash, raw_record_key) "
-            "VALUES (?, ?, ?, ?)",
-            (sid, iid, f"h{i}", f"k{i}"),
+            "INSERT INTO record_refs (source_id, raw_record_hash, raw_record_key) "
+            "VALUES (?, ?, ?)",
+            (sid, f"h{i}", f"k{i}"),
         )
     assert db.execute("SELECT COUNT(*) FROM record_refs").fetchone()[0] == 40
     _cleanup_source_data(db, sid, parser_name="claude", parser_version="v1", force=True)

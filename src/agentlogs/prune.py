@@ -25,9 +25,8 @@ Hard-won shape (every one of these was a real failure on 2026-06-10):
      one (run_edges/run_configs were missed first) leaves dangling rows.
 
   4. We KEEP sources/imports rows (the indexer's "already imported -> skip"
-     markers). record_refs of now-empty imports are removed by import_id, and
-     the handful of surviving file_touches/tool_calls that pointed at them are
-     NULLed (those columns are nullable provenance offsets).
+     markers). Source-stable record_refs are removed only when no surviving
+     event/tool/file row points to them.
 
   5. A trust-but-verify ``foreign_key_check`` inside the txn fails loud
      (ROLLBACK) if we introduced any dangling rows. It tolerates the known
@@ -81,9 +80,15 @@ _BY_SESSION = (
 )
 
 _ORPHANED_RECORD_REFS_DELETE = (
-    "DELETE FROM record_refs WHERE import_id IN ("
-    " SELECT i.import_id FROM imports i"
-    " WHERE NOT EXISTS (SELECT 1 FROM events e WHERE e.import_id = i.import_id))"
+    "DELETE FROM record_refs "
+    "WHERE NOT EXISTS(SELECT 1 FROM events e "
+    "                 WHERE e.record_ref_id=record_refs.record_ref_id) "
+    "AND NOT EXISTS(SELECT 1 FROM tool_calls t "
+    "               WHERE t.start_record_ref_id=record_refs.record_ref_id) "
+    "AND NOT EXISTS(SELECT 1 FROM tool_calls t "
+    "               WHERE t.end_record_ref_id=record_refs.record_ref_id) "
+    "AND NOT EXISTS(SELECT 1 FROM file_touches f "
+    "               WHERE f.record_ref_id=record_refs.record_ref_id)"
 )
 # NULL surviving pointers into just-deleted rows (rare cross-import / cross-run
 # cases). A file_touch in a SURVIVING run can reference a tool_call in a pruned

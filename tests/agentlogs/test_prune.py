@@ -92,8 +92,8 @@ def test_light_path_still_cleans_orphaned_record_refs(tmp_path):
         "VALUES (7, 7, 'abc', 'p', '1', 1, '2026-01-01', 1)"
     )
     db.execute(
-        "INSERT INTO record_refs (record_ref_id, source_id, import_id, raw_record_hash, "
-        "raw_record_key, line_no) VALUES (1, 7, 7, 'h', 'k', 1)"
+        "INSERT INTO record_refs (record_ref_id, source_id, raw_record_hash, "
+        "raw_record_key, line_no) VALUES (1, 7, 'h', 'k', 1)"
     )
     db.commit()
 

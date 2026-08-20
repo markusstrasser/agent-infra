@@ -24,17 +24,19 @@ from __future__ import annotations
 HEAD_CHARS = 4096
 TAIL_CHARS = 3072
 
-# WHAT MAY BE CAPPED: only INJECTED CONTEXT — the pasted files and system
-# boilerplate that codex echoes back into every dispatch. Assistant messages are
+# WHAT MAY BE CAPPED: only INJECTED CONTEXT — developer messages and user-role
+# harness envelopes explicitly labeled meta_injected. Assistant messages are
 # the model's own OUTPUT, the work product agentlogs exists to search, and are
 # never capped: they are 5,442 over-cap rows worth 266MB against 3,101MB for the
 # injected kinds (2026-07-14), so exempting them costs 8% of the reclaim and
 # keeps 100% of the authored content.
 #
-# The role form (ingest, pre-DB) and kind form (backfill, post-DB) name the same
-# set — kept adjacent so they cannot drift apart.
-CAPPED_ROLES = frozenset({"user", "developer"})
-CAPPED_KINDS = frozenset({"user_message", "developer_message"})
+# Genuine operator messages are never capped. Codex historically conflated its
+# injected startup envelope with role=user; authorship.py now labels that
+# envelope before this policy is applied.
+CAPPED_ROLES = frozenset({"developer"})
+CAPPED_KINDS = frozenset({"developer_message"})
+CAPPED_VENDOR_KINDS = frozenset({"meta_injected"})
 
 # Stable substring marking an already-capped row. Load-bearing: it is the
 # idempotency sentinel, so a re-run of the backfill cannot double-cap. Never

@@ -105,6 +105,20 @@ def _make_parser() -> argparse.ArgumentParser:
     # stats
     sub.add_parser("stats", help="Per-vendor counts + indexer health + DB size")
 
+    # explicit v9 -> v10 provenance repair (never runs during ordinary connect)
+    s_repair = sub.add_parser(
+        "repair-provenance",
+        help="Canonicalize legacy per-import record refs (dry-run by default)",
+    )
+    s_repair.add_argument("--yes", dest="apply", action="store_true")
+    s_repair.add_argument("--wait-seconds", type=float, default=1800.0)
+
+    s_authorship = sub.add_parser(
+        "authorship-reindex",
+        help="Label harness-injected user-role envelopes (dry-run by default)",
+    )
+    s_authorship.add_argument("--yes", dest="apply", action="store_true")
+
     # git-import
     s_git = sub.add_parser("git-import",
                            help="Import git commits with Session-ID attribution")
@@ -646,6 +660,55 @@ def cmd_prune(args) -> int:
         return 3
 
 
+def cmd_repair_provenance(args) -> int:
+    from .locks import IndexerLockBusy, indexer_lock
+    from .paths import AGENTLOGS_LOCK
+    from .provenance_repair import apply_repair, open_unmigrated, plan_repair
+
+    try:
+        with indexer_lock(AGENTLOGS_LOCK, timeout_s=args.wait_seconds):
+            db = open_unmigrated(_resolve_db_path(args))
+            try:
+                if not args.apply:
+                    plan = plan_repair(db)
+                    print("[dry-run] legacy per-import provenance")
+                    print(f"  record_refs={plan.record_refs:,} "
+                          f"pointer_upper_bound={plan.pointer_upper_bound:,}")
+                    print(f"  db size now: {plan.size_before_mb:,.0f} MB")
+                    print("  re-run with --yes on a verified database clone")
+                    return 0
+                result = apply_repair(db, log=lambda message: print(message, flush=True))
+                print("[repaired] source-stable provenance")
+                print(f"  record_refs: {result.record_refs_before:,} -> "
+                      f"{result.record_refs_after:,}")
+                print(f"  db size: {result.size_before_mb:,.0f} MB -> "
+                      f"{result.size_after_mb:,.0f} MB")
+                print(f"  elapsed: {result.elapsed_s:,.1f}s")
+                return 0
+            finally:
+                db.close()
+    except IndexerLockBusy:
+        print("another agentlogs writer is running; NOT repaired (exit 3)", file=sys.stderr)
+        return 3
+
+
+def cmd_authorship_reindex(args) -> int:
+    from . import authorship_reindex as ar
+    from .gateway import IndexerLockBusy, write_gateway
+
+    try:
+        with write_gateway(_resolve_db_path(args)) as db:
+            plan = ar.apply_reindex(db) if args.apply else ar.plan_reindex(db)
+            tag = "labeled" if args.apply else "dry-run"
+            print(f"[{tag}] meta_injected rows={plan.rows:,} sessions={plan.sessions:,}")
+            if not args.apply:
+                print("  re-run with --yes to label and refresh first_message")
+            return 0
+    except IndexerLockBusy:
+        print("another agentlogs writer is running; NOT relabeled (exit 3)", file=sys.stderr)
+        return 3
+
+
 def cmd_trim(args) -> int:
     from . import trim as tr
     from .gateway import IndexerLockBusy, write_gateway
@@ -737,6 +800,8 @@ def cmd_lifecycle_reindex(args) -> int:
 
 _COMMANDS = {
     "index": cmd_index,
+    "repair-provenance": cmd_repair_provenance,
+    "authorship-reindex": cmd_authorship_reindex,
     "prune": cmd_prune,
     "compact": cmd_compact,
     "trim": cmd_trim,

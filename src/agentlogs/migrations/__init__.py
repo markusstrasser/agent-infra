@@ -18,6 +18,10 @@ from importlib import resources
 _MIGRATION_RE = re.compile(r"^(\d{3})_[a-z0-9_]+\.sql$")
 
 
+class ExplicitProvenanceRepairRequired(RuntimeError):
+    """A populated v9 store must use the observable provenance repair path."""
+
+
 def _migration_files() -> list[tuple[int, str]]:
     """Return [(version, filename), …] sorted by version."""
     files: list[tuple[int, str]] = []
@@ -78,6 +82,19 @@ def apply_migrations(db: sqlite3.Connection) -> list[int]:
     for version, filename in _migration_files():
         if version <= current:
             continue
+        if version == 10 and current == 9:
+            # Migration 010 changes the identity and shape of the 16+ GiB
+            # provenance table. Never let an ordinary read command silently
+            # launch that rewrite. Fresh databases are empty and can migrate
+            # normally; populated stores use the progress-reporting repair CLI
+            # on a verified clone before an atomic swap.
+            populated = db.execute("SELECT 1 FROM record_refs LIMIT 1").fetchone()
+            if populated is not None:
+                raise ExplicitProvenanceRepairRequired(
+                    "agentlogs schema v9 contains legacy per-import provenance; "
+                    "clone the database and run `agentlogs --db <clone> "
+                    "repair-provenance --yes`, then verify and atomically swap"
+                )
         statements = _split_sql(_read_migration(filename))
         db.execute("BEGIN")
         try:

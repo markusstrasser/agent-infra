@@ -19,19 +19,18 @@ import sqlite3
 import time
 from dataclasses import dataclass
 
-from .textcap import CAP_CHARS, CAPPED_KINDS, cap_text
+from .textcap import CAP_CHARS, CAPPED_KINDS, CAPPED_VENDOR_KINDS, cap_text
 
-# Only codex's injected-context rows. Two exclusions, both load-bearing:
-#   vendor_kind='message' — the codex adapter's whole-context rows. Genuine typed
-#     text (claude adapter, vendor_kind 'user') is 39MB DB-wide and is never touched.
-#   kind IN CAPPED_KINDS  — assistant OUTPUT is exempt (see textcap).
-# The kind list is LOADED from textcap, never re-stated here: ingest and backfill
-# must name the same set or they would disagree about what gets capped.
+# Only explicit injected-context rows. Genuine operator text is never touched.
+# The policy sets are LOADED from textcap: ingest and backfill cannot drift.
 _KIND_PLACEHOLDERS = ", ".join(f"'{k}'" for k in sorted(CAPPED_KINDS))
+_VENDOR_KIND_PLACEHOLDERS = ", ".join(
+    f"'{k}'" for k in sorted(CAPPED_VENDOR_KINDS)
+)
 _OVERSIZED = f"""
     SELECT event_id, text FROM events
-    WHERE vendor_kind = 'message'
-      AND kind IN ({_KIND_PLACEHOLDERS})
+    WHERE (kind IN ({_KIND_PLACEHOLDERS})
+           OR vendor_kind IN ({_VENDOR_KIND_PLACEHOLDERS}))
       AND text IS NOT NULL
       AND LENGTH(text) > :cap
 """

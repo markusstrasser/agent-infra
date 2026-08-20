@@ -15,23 +15,11 @@ import sqlite3
 from pathlib import Path
 from typing import Iterator
 
+from agentlogs.authorship import is_injected_user_text
+
 
 DEFAULT_DB = Path.home() / ".claude" / "agentlogs.db"
 MESSAGE_VENDOR_KINDS = {None, "message", "user", "assistant"}
-INJECTED_PREFIXES = (
-    "# AGENTS.md instructions for ",
-    "<codex_delegation>",
-    "<permissions instructions>",
-    "<app-context>",
-    "<collaboration_mode>",
-    "<skills_instructions>",
-    "<apps_instructions>",
-    "<plugins_instructions>",
-    "<environment_context>",
-    "<recommended_plugins>",
-)
-
-
 def normalize(text: str) -> str:
     return " ".join(text.split())
 
@@ -40,7 +28,7 @@ def is_retrievable_turn(role: str | None, vendor_kind: str | None, text: str | N
     if role not in {"user", "assistant"} or vendor_kind not in MESSAGE_VENDOR_KINDS:
         return False
     stripped = (text or "").strip()
-    return bool(stripped) and not stripped.startswith(INJECTED_PREFIXES)
+    return bool(stripped) and not is_injected_user_text(stripped)
 
 
 def iter_turn_records(

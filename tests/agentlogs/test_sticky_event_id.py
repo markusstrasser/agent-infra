@@ -12,7 +12,6 @@ raise IntegrityError.
 """
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -182,6 +181,72 @@ def test_write_parsed_bulk_high_water_append_only(tmp_path: Path) -> None:
         (3, "id-C", "c"),
         (4, "id-D", "d"),   # new
     ]
+    db.close()
+
+
+def test_append_reimport_does_not_duplicate_source_record_provenance(tmp_path: Path) -> None:
+    """A full append reparse keeps one ref per raw source record, not per import."""
+    db = agentlogs.connect(tmp_path / "canonical-refs.db")
+    iid1 = _seed_run(db)
+
+    def _record(key: str, line: int):
+        return SimpleNamespace(
+            raw_record_key=key,
+            raw_record_hash=f"hash-{key}",
+            line_no=line,
+            byte_start=line * 10,
+            byte_end=line * 10 + 9,
+            ts_raw="2026-01-01T00:00:00Z",
+        )
+
+    def _ev(eid: str, seq: int, key: str):
+        return SimpleNamespace(
+            event_id=eid,
+            run_id="run-1",
+            seq=seq,
+            ts="2026-01-01T00:00:00Z",
+            kind="user_message",
+            vendor_kind="message",
+            vendor_event_id=None,
+            role="user",
+            text=key,
+            payload=None,
+            parent_event_id=None,
+            correlation_id=None,
+            tool_call_id=None,
+            record_key=key,
+        )
+
+    empty = dict(sessions=[], runs=[], run_configs=[], tool_calls=[],
+                 file_touches=[], run_edges=[])
+    first = SimpleNamespace(
+        **empty,
+        records=[_record("r1", 1), _record("r2", 2)],
+        events=[_ev("e1", 1, "r1"), _ev("e2", 2, "r2")],
+    )
+    ix._write_parsed(db, first, source_id=1, import_id=iid1, stats=ix.IndexerStats())
+
+    db.execute(
+        "INSERT INTO imports (source_id, source_sha256, parser_name, parser_version, "
+        "schema_version, imported_at, success) "
+        "VALUES (1, 'def', 'codex', '1', '1', '2026-01-01', 1)"
+    )
+    iid2 = int(db.execute("SELECT MAX(import_id) FROM imports").fetchone()[0])
+    appended = SimpleNamespace(
+        **empty,
+        records=[_record("r1", 1), _record("r2", 2), _record("r3", 3)],
+        events=[
+            _ev("e1", 1, "r1"), _ev("e2", 2, "r2"), _ev("e3", 3, "r3"),
+        ],
+    )
+    stats = ix.IndexerStats()
+    ix._write_parsed(db, appended, source_id=1, import_id=iid2, stats=stats)
+
+    assert stats.events_written == 1
+    assert db.execute("SELECT COUNT(*) FROM record_refs").fetchone()[0] == 3
+    assert db.execute(
+        "SELECT COUNT(DISTINCT record_ref_id) FROM events WHERE run_id='run-1'"
+    ).fetchone()[0] == 3
     db.close()
 
 

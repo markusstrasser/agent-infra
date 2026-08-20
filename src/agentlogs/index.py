@@ -392,9 +392,22 @@ def _cleanup_source_data(
         db.execute(f"DELETE FROM file_touches WHERE import_id IN ({placeholders})", chunk)
         db.execute(f"DELETE FROM tool_calls WHERE import_id IN ({placeholders})", chunk)
         db.execute(f"DELETE FROM events WHERE import_id IN ({placeholders})", chunk)
-        db.execute(
-            f"DELETE FROM record_refs WHERE import_id IN ({placeholders})", chunk,
-        )
+    # Source records have source-stable identity in schema v10. After wiping
+    # structured rows for a force/parser-version refresh, remove only canonical
+    # records no surviving consumer points to. The FK columns are indexed by
+    # migration 010, so this is source-bounded rather than a full-table scan.
+    db.execute(
+        "DELETE FROM record_refs WHERE source_id = ? "
+        "AND NOT EXISTS(SELECT 1 FROM events e "
+        "               WHERE e.record_ref_id=record_refs.record_ref_id) "
+        "AND NOT EXISTS(SELECT 1 FROM tool_calls t "
+        "               WHERE t.start_record_ref_id=record_refs.record_ref_id) "
+        "AND NOT EXISTS(SELECT 1 FROM tool_calls t "
+        "               WHERE t.end_record_ref_id=record_refs.record_ref_id) "
+        "AND NOT EXISTS(SELECT 1 FROM file_touches f "
+        "               WHERE f.record_ref_id=record_refs.record_ref_id)",
+        (source_id,),
+    )
 
 
 def _ensure_session_pk(db: sqlite3.Connection, sr) -> int:
@@ -923,30 +936,53 @@ def index_vendor(
 
 def _write_parsed(db, parsed, source_id: int, import_id: int, stats: IndexerStats) -> None:
     """Write a ParsedSource bundle under a single import_id."""
-    # Record refs first — events reference them.
-    # Batched: one executemany + one SELECT to recover ids by natural key.
+    # Record refs first — events reference them. A raw record is identified by
+    # (source_id, raw_record_key), NOT by the import pass that happened to see
+    # it. Only materialize records consumed by a structured row; session_meta /
+    # turn_context lines without a consumer remain recoverable from raw JSONL.
     ref_map: dict[str, int] = {}
     if parsed.records:
+        needed_record_keys = {
+            key
+            for key in (
+                [ev.record_key for ev in parsed.events]
+                + [tc.start_record_key for tc in parsed.tool_calls]
+                + [tc.end_record_key for tc in parsed.tool_calls]
+                + [ft.record_key for ft in parsed.file_touches]
+            )
+            if key
+        }
         record_rows = [
-            (source_id, import_id, r.raw_record_hash, r.raw_record_key,
+            (source_id, r.raw_record_hash, r.raw_record_key,
              r.line_no, r.byte_start, r.byte_end, _db_text(r.ts_raw))
             for r in parsed.records
+            if r.raw_record_key in needed_record_keys
         ]
         db.executemany(
             """
-            INSERT INTO record_refs (source_id, import_id, raw_record_hash, raw_record_key,
+            INSERT INTO record_refs (source_id, raw_record_hash, raw_record_key,
                                      line_no, byte_start, byte_end, ts_raw)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(source_id, raw_record_key) DO UPDATE SET
+                raw_record_hash=excluded.raw_record_hash,
+                line_no=excluded.line_no,
+                byte_start=excluded.byte_start,
+                byte_end=excluded.byte_end,
+                ts_raw=excluded.ts_raw
+            WHERE record_refs.raw_record_hash IS NOT excluded.raw_record_hash
+               OR record_refs.line_no IS NOT excluded.line_no
+               OR record_refs.byte_start IS NOT excluded.byte_start
+               OR record_refs.byte_end IS NOT excluded.byte_end
+               OR record_refs.ts_raw IS NOT excluded.ts_raw
             """,
             record_rows,
         )
-        # Fetch back by (source_id, import_id) — the import is fresh so the rows
-        # we just inserted are the only ones matching this pair.
+        # Fetch the source-stable ids needed by this parsed bundle.
         ref_map = dict(
             db.execute(
                 "SELECT raw_record_key, record_ref_id FROM record_refs "
-                "WHERE source_id = ? AND import_id = ?",
-                (source_id, import_id),
+                "WHERE source_id = ?",
+                (source_id,),
             )
         )
 
