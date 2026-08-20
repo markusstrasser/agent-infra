@@ -247,3 +247,43 @@ derived state because the current backup precondition fails.
 No new all-purpose cleanup automation is justified. The bounded owners above
 cover the real mechanisms and keep raw evidence, expensive state, and personal
 data out of generic deletion paths.
+
+## Execution update — 2026-08-20 12:02 CEST
+
+The operator authorized the no-SSD slice after this memo was written. The slice
+completed with **90 GiB → 99 GiB free** on `/System/Volumes/Data`: about 12.3 GiB
+of logical targets produced a measured **9 GiB physical reclaim**. The smaller
+physical delta is consistent with the memo's APFS clone warning.
+
+Completed and verified:
+
+- Rotated the 1.42 GiB Codex hook-fire log and compressed it losslessly to a
+  **57 MiB** zstd archive. `zstd -t` passed, and the new live JSONL was recreated
+  automatically and continued receiving valid records.
+- Removed two obsolete Claude Code binaries, three obsolete Cursor Agent
+  versions, two obsolete Grok downloads, and the stale stable-Raycast extension
+  tree. Current Claude 2.1.237, Cursor Agent 2026.08.11, Grok 1.0.5, and Raycast
+  Beta remained live.
+- Cleared the 984 MiB Bun install cache using the native command. Operational
+  footgun: `bun pm cache rm` failed outside a package root and succeeded from the
+  publishing repository, so a future `reclaim` owner must provide a valid cwd.
+- Removed ignored publishing output (`.svelte-kit`, `node_modules`, and `build`),
+  reducing that repository from about 3.5 GiB to **843 MiB** without changing
+  Git status; `bun.lock` remains the reconstruction contract.
+- Removed two Chrome code-sign clones with zero live handles, four orphaned
+  genomics index temp trees with zero live handles, and inactive clang/Blender
+  caches. A deletion-time recheck found Chrome mapped both `erU5kP` and
+  `isGZQE`; both were preserved even though an earlier scan saw only one.
+- Trash was empty before each recoverable move, contained only the enumerated
+  targets afterward, and was then emptied. No personal data was touched.
+
+Still gated:
+
+- `agentlogs-archive`, its 30-day DB prune, and 6.9 GB raw-session relocation:
+  `2TBPNY` remains unmounted.
+- `logs_2.sqlite` offline VACUUM and Codex runtime removal: Codex is active.
+- npm cache removal: several live MCP servers are executing from `_npx`.
+- The two mapped Chrome clones: Chrome is active.
+- IQ compression, ARC recording CAS, source-epoch GC, and all personal-data
+  transformations: these require consumer/backup gates rather than a cleanup
+  command.
