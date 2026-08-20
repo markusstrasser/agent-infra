@@ -1,4 +1,4 @@
-# Governance Index — agent-infra-corpus-019f6268 (GENERATED — do not edit)
+# Governance Index — agent-infra (GENERATED — do not edit)
 
 Compact single-source governance for curated injection + clash-detection.
 Consumers LOAD this; never re-state it. Canonical: GOALS.md · CLAUDE.md <constitution> · .claude/rules/vetoed-decisions.md. Regen: `just governance-index`.
@@ -29,6 +29,7 @@ Consumers LOAD this; never re-state it. Canonical: GOALS.md · CLAUDE.md <consti
 - P15 Provisional by construction (the dissent license)
 
 ## VETOED (do not re-propose)
+- Cutting deliberate-invoke domain skills on usage counts alone — genomics cut 6 bio skills (annotsv, clinpgx-database, data-transform, genomics-status, gget, vcfexpress) for 0 invocati…
 - repo-tools MCP server — retired 2026-03-20, zero usage / 4,287 runs; CLI via Bash instead.
 - Speculative shared-utility extraction — a TEST, not a ban (rewritten 2026-06-09): extract a shared package ONLY when the contract is proven common across ≥2 re…
 - PyMC/ArviZ for telemetry — 2026-03-19; 200MB dep for 75 data points.
