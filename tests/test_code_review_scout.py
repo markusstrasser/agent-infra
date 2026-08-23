@@ -39,6 +39,17 @@ def test_gather_files_scopes_skipped_directories_to_repository_root(
     assert scout.gather_files(repository) == [included]
 
 
+def test_gather_files_includes_component_framework_sources(tmp_path: Path) -> None:
+    sources = tmp_path / "src"
+    sources.mkdir()
+    svelte = sources / "Page.svelte"
+    svelte.write_text("<script>let count = 0;</script>\n" * 3)
+    tsx = sources / "Panel.tsx"
+    tsx.write_text("export const Panel = () => <section />;\n" * 3)
+
+    assert scout.gather_files(tmp_path) == [svelte, tsx]
+
+
 def test_dispatch_returns_nonempty_reviewer_verdict(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         scout.subprocess,

@@ -41,7 +41,19 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # focused review quality (not a hard transport limit).
 MAX_BATCH_BYTES = 80_000  # ~80KB of code per batch
 MAX_FILE_BYTES = 75_000  # fail loud above this until line-aware chunking exists
-EXTENSIONS = {".py", ".js", ".ts", ".sh", ".sql", ".rs", ".go"}
+EXTENSIONS = {
+    ".py",
+    ".js",
+    ".jsx",
+    ".ts",
+    ".tsx",
+    ".svelte",
+    ".vue",
+    ".sh",
+    ".sql",
+    ".rs",
+    ".go",
+}
 SKIP_DIRS = {
     ".git",
     "__pycache__",
