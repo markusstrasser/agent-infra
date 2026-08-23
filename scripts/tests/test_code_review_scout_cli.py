@@ -83,13 +83,13 @@ def test_exact_file_above_batch_budget_fails_loud(tmp_path: Path) -> None:
     module = tmp_path / "pkg"
     module.mkdir()
     selected = module / "too-large.py"
-    selected.write_text("x" * 80_001)
+    selected.write_text("x" * 100_001)
 
     result = run_scout(tmp_path, "--file", "pkg/too-large.py")
 
     assert result.returncode == 2
-    assert "selected limit=80000" in result.stderr
-    assert "pkg/too-large.py: 80001 bytes" in result.stderr
+    assert "selected limit=100000" in result.stderr
+    assert "pkg/too-large.py: 100001 bytes" in result.stderr
 
 
 def test_exact_file_cannot_escape_project_root(tmp_path: Path) -> None:

@@ -39,7 +39,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # CLI context budget: tested up to 100KB via gemini-cli/codex-cli (stdin piping).
 # Model context is 1M tokens but CLI calls are free — keep batches moderate for
 # focused review quality (not a hard transport limit).
-MAX_BATCH_BYTES = 80_000  # ~80KB of code per batch
+MAX_BATCH_BYTES = 100_000  # exact-file transport is verified through 100KB
 MAX_FILE_BYTES = 75_000  # fail loud above this until line-aware chunking exists
 EXTENSIONS = {
     ".py",
