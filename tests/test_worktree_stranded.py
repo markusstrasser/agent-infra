@@ -53,7 +53,11 @@ def test_finds_a_stranded_tree_and_names_its_repo(repo: Path, tmp_path: Path) ->
 
     # Precondition: this is exactly the blind spot — git cannot see it.
     listed = subprocess.run(
-        ["git", "worktree", "list"], cwd=repo, capture_output=True, text=True, check=True
+        ["git", "worktree", "list"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
     ).stdout
     assert "lane-a" not in listed
 
@@ -101,7 +105,9 @@ def test_live_holder_blocks_reclaim(repo: Path, tmp_path: Path) -> None:
     assert not rows[0].reclaimable
 
 
-def test_a_standalone_clone_is_not_a_stranded_worktree(repo: Path, tmp_path: Path) -> None:
+def test_a_standalone_clone_is_not_a_stranded_worktree(
+    repo: Path, tmp_path: Path
+) -> None:
     """NEGATIVE CONTROL — `.git` as a DIRECTORY is a clone. Six of these were
     misread as stranded worktrees in the 2026-07-25 first pass."""
     root = tmp_path / "tmproot"
@@ -125,7 +131,9 @@ def test_a_registered_worktree_is_not_reported(repo: Path, tmp_path: Path) -> No
     assert find_stranded({}, roots=(root,), with_size=False) == []
 
 
-def test_unreadable_neighbour_does_not_abort_the_scan(repo: Path, tmp_path: Path) -> None:
+def test_unreadable_neighbour_does_not_abort_the_scan(
+    repo: Path, tmp_path: Path
+) -> None:
     """/private/tmp holds other uids' sandboxes; one EACCES must not blind the scan."""
     root = tmp_path / "tmproot"
     root.mkdir()
@@ -168,5 +176,34 @@ def test_scan_does_not_descend_into_a_worktree(repo: Path, tmp_path: Path) -> No
 
 
 def test_repo_from_admin_survives_a_dead_admin_dir() -> None:
-    assert _repo_from_admin("/x/y/repo/.git/worktrees/gone") is None  # repo doesn't exist
+    assert (
+        _repo_from_admin("/x/y/repo/.git/worktrees/gone") is None
+    )  # repo doesn't exist
     assert _repo_from_admin("/no/git/segment/here") is None
+
+
+def test_untracked_files_in_a_registered_worktree_are_work(
+    repo: Path, tmp_path: Path
+) -> None:
+    """2026-08-27 02:49Z: two lane worktrees holding only untracked report stubs read
+    `ahead=0 dirty=0 SAFE` and were reaped by the nightly apply. Untracked, non-ignored
+    files are work; the tree must not be SAFE."""
+    from worktree_gc import audit_repo
+
+    wt = tmp_path / "lane"
+    _git("worktree", "add", "-q", "-b", "lane", str(wt), cwd=repo)
+    (wt / "report-stub.md").write_text("**Verdict:** IN PROGRESS\n")
+    rows = [r for r in audit_repo(repo, with_size=False) if r.path == wt]
+    assert rows, "the registered worktree must be audited"
+    row = rows[0]
+    assert row.untracked_work == 1 and row.tracked_dirty == 0
+    assert not row.safe
+    assert row.classify() == "stale-dirty"
+
+
+def test_empty_liveness_scan_is_unknown_not_idle() -> None:
+    """An honest cwd scan always contains this process; {} means the scan failed."""
+    from worktree_gc import liveness_known
+
+    assert liveness_known({"/some/worktree": [123]}) is True
+    assert liveness_known({}) is False

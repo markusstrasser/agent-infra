@@ -58,8 +58,22 @@ class WorktreeRow:
     age: str = "?"  # relative last-commit date (currency signal)
     dup: bool = False  # ahead>0 but every patch already on main (git cherry all '-')
     held: int = 0  # processes doing real work whose cwd is inside this worktree
-    daemon_held: int = 0  # detached pollers holding it forever by design (see DAEMON_SCRIPTS)
-    daemon_pids: tuple[int, ...] = ()  # their exact PIDs, so a kill never needs pkill -f
+    daemon_held: int = (
+        0  # detached pollers holding it forever by design (see DAEMON_SCRIPTS)
+    )
+    daemon_pids: tuple[
+        int, ...
+    ] = ()  # their exact PIDs, so a kill never needs pkill -f
+    # Untracked, non-ignored files. A lane's first hour of work is exactly this — a report
+    # stub, a new test module — with zero tracked edits. On 2026-08-27 02:49Z the nightly
+    # apply reaped two such worktrees (`ahead=0 dirty=0 SAFE`) out from under three live
+    # codex processes each; the `??` lines were the only evidence and they were filtered out.
+    untracked_work: int = 0
+
+    @property
+    def dirty(self) -> int:
+        """Edits that can contain work: tracked modifications plus untracked files."""
+        return self.tracked_dirty + self.untracked_work
 
     @property
     def stale(self) -> bool:
@@ -77,7 +91,7 @@ class WorktreeRow:
         """
         if self.held or self.daemon_held:
             return False
-        if self.tracked_dirty:
+        if self.dirty:
             return False
         if self.branch is None:
             return self.ancestor
@@ -85,7 +99,7 @@ class WorktreeRow:
 
     @property
     def unmerged_clean(self) -> bool:
-        return self.ahead > 0 and self.tracked_dirty == 0 and self.branch is not None
+        return self.ahead > 0 and self.dirty == 0 and self.branch is not None
 
     def classify(self) -> str:
         # DUP: commits exist (ahead>0) but their patches are already on main
@@ -103,13 +117,13 @@ class WorktreeRow:
         # exact PID to kill. Reaping it is a deliberate, separate act.
         if self.daemon_held:
             return "DAEMON"
-        if self.dup and not self.tracked_dirty:
+        if self.dup and not self.dirty:
             return "DUP"
         if self.safe:
             return "SAFE"
         if self.unmerged_clean:
             return "unmerged"
-        if self.stale and self.tracked_dirty:
+        if self.stale and self.dirty:
             return "stale-dirty"
         return "skip-dirty"
 
@@ -161,6 +175,8 @@ def live_cwd_holders() -> dict[str, list[int]]:
                 "git",
                 "-c",
                 "node",
+                "-c",
+                "codex",
             ],
             capture_output=True,
             text=True,
@@ -214,6 +230,17 @@ def daemon_pids(pids: set[int]) -> set[int]:
     return found
 
 
+def liveness_known(holders: dict[str, list[int]]) -> bool:
+    """False iff the cwd scan came back empty.
+
+    This very process has a cwd, so an honest `lsof -d cwd` can never report nothing:
+    an empty map means the scan FAILED (timeout, missing binary), never "nothing is
+    running". Treating it as "nothing running" would put every held worktree in the
+    default apply set — the exact hole the liveness term exists to close.
+    """
+    return bool(holders)
+
+
 def holders_for(path: Path, holders: dict[str, list[int]]) -> list[int]:
     """PIDs working inside ``path``, including nested subdirectories."""
     needle = str(path)
@@ -233,7 +260,9 @@ def repo_roots(explicit: list[str] | None, all_projects: bool) -> list[Path]:
     if explicit:
         roots = [Path(p).expanduser().resolve() for p in explicit]
     elif all_projects:
-        roots = sorted(p.resolve() for p in PROJECTS_HOME.iterdir() if (p / ".git").exists())
+        roots = sorted(
+            p.resolve() for p in PROJECTS_HOME.iterdir() if (p / ".git").exists()
+        )
     else:
         roots = [
             PROJECT_ROOTS["agent-infra"],
@@ -345,7 +374,9 @@ def _du(path: Path) -> str:
     return out[0] if out else "?"
 
 
-def _candidate_dirs(roots: tuple[Path, ...], depth: int = _SCAN_DEPTH) -> Iterator[Path]:
+def _candidate_dirs(
+    roots: tuple[Path, ...], depth: int = _SCAN_DEPTH
+) -> Iterator[Path]:
     """Directories under ``roots`` that could be a stranded worktree.
 
     Depth exists only because cursor-agent nests (`~/.cursor/worktrees/<repo>/<name>`)
@@ -493,9 +524,18 @@ def audit_repo(repo: Path, with_size: bool = True) -> list[WorktreeRow]:
             print(f"  (prunable: {wt} — registered, directory gone)")
             continue
         st = run(["git", "status", "--porcelain"], cwd=wt)
-        tracked_dirty = sum(1 for ln in st.stdout.splitlines() if not ln.startswith("??"))
+        tracked_dirty = sum(
+            1 for ln in st.stdout.splitlines() if not ln.startswith("??")
+        )
+        # Porcelain already omits ignored paths (.venv, caches), so every `??` line is a
+        # real file somebody put here on purpose.
+        untracked_work = sum(1 for ln in st.stdout.splitlines() if ln.startswith("??"))
         # `du` is the slow part; skip it on the cheap --check path (size irrelevant to the flag).
-        size = run(["du", "-sh", str(wt)]).stdout.split()[0] if (with_size and wt.exists()) else "?"
+        size = (
+            run(["du", "-sh", str(wt)]).stdout.split()[0]
+            if (with_size and wt.exists())
+            else "?"
+        )
         dup = False
         if branch:
             ahead = ahead_of_main(repo, branch)
@@ -516,6 +556,7 @@ def audit_repo(repo: Path, with_size: bool = True) -> list[WorktreeRow]:
                 branch=branch,
                 ahead=ahead,
                 tracked_dirty=tracked_dirty,
+                untracked_work=untracked_work,
                 size=size,
                 ancestor=ancestor,
                 age=age,
@@ -591,7 +632,11 @@ def remove_worktree(repo: Path, wt: Path) -> None:
         if wt.exists() and not (wt / ".git").exists():
             shutil.rmtree(wt, ignore_errors=True)
         elif wt.exists():
-            marker = (wt / ".git").read_text(errors="ignore") if (wt / ".git").is_file() else ""
+            marker = (
+                (wt / ".git").read_text(errors="ignore")
+                if (wt / ".git").is_file()
+                else ""
+            )
             admin = marker.partition("gitdir:")[2].strip()
             if admin and not Path(admin).exists():
                 shutil.rmtree(wt, ignore_errors=True)
@@ -613,23 +658,34 @@ def main() -> int:
         action="append",
         help="repo path (repeatable); default agent-infra+genomics+personal",
     )
-    ap.add_argument("--all-projects", action="store_true", help="scan all ~/Projects/* git repos")
+    ap.add_argument(
+        "--all-projects", action="store_true", help="scan all ~/Projects/* git repos"
+    )
     ap.add_argument(
         "--include-unmerged",
         action="store_true",
         help="remove unmerged worktrees with no local edits (branch kept)",
     )
     ap.add_argument(
-        "--force-stale", action="store_true", help="remove ahead==0 worktrees even with local edits"
+        "--force-stale",
+        action="store_true",
+        help="remove ahead==0 worktrees even with local edits",
     )
     ap.add_argument(
-        "--force-all", action="store_true", help="remove all worktrees except --keep matches"
+        "--force-all",
+        action="store_true",
+        help="remove all worktrees except --keep matches",
     )
     ap.add_argument(
-        "--keep", action="append", default=[], help="substring; skip paths containing this"
+        "--keep",
+        action="append",
+        default=[],
+        help="substring; skip paths containing this",
     )
     ap.add_argument(
-        "--prune-branches", action="store_true", help="delete branch after remove when ahead==0"
+        "--prune-branches",
+        action="store_true",
+        help="delete branch after remove when ahead==0",
     )
     ap.add_argument(
         "--check",
@@ -653,6 +709,12 @@ def main() -> int:
     # daemon split needs one further batched `ps` over only the PIDs lsof actually
     # found, so the cost is two calls total regardless of worktree count.
     cwd_holders = live_cwd_holders()
+    if not liveness_known(cwd_holders):
+        print(
+            "[DEGRADED] liveness unknown — lsof reported no cwd holders at all; "
+            "every removal is refused until the scan works",
+            file=sys.stderr,
+        )
     per_row = {row.path: holders_for(row.path, cwd_holders) for row in all_rows}
     daemons = daemon_pids({pid for pids in per_row.values() for pid in pids})
     for row in all_rows:
@@ -672,13 +734,15 @@ def main() -> int:
         from collections import Counter
 
         counts = Counter(bucket[r.classify()] for r in stranded)
-        bits = [f"{counts[b]} to {b}" for b in ("LAND", "INSPECT", "REAP") if counts.get(b)]
+        bits = [
+            f"{counts[b]} to {b}" for b in ("LAND", "INSPECT", "REAP") if counts.get(b)
+        ]
         print(
             f"STRANDED worktree branches: {', '.join(bits)} — `just worktree-gc audit --all-projects`"
         )
         for r in sorted(stranded, key=lambda x: bucket[x.classify()]):
             print(
-                f"  [{bucket[r.classify()]:7}] {r.repo}/{r.branch}  ahead={r.ahead} dirty={r.tracked_dirty} age={r.age}"
+                f"  [{bucket[r.classify()]:7}] {r.repo}/{r.branch}  ahead={r.ahead} dirty={r.dirty} age={r.age}"
             )
         return 0
 
@@ -686,7 +750,9 @@ def main() -> int:
     to_remove = [
         r
         for r in all_rows
-        if should_remove(r, args.include_unmerged, args.force_stale, args.force_all, keep)
+        if should_remove(
+            r, args.include_unmerged, args.force_stale, args.force_all, keep
+        )
     ]
 
     for row in all_rows:
@@ -708,20 +774,22 @@ def main() -> int:
             # `pkill -f` on a shared box has already killed a healthy job here twice.
             pids = " ".join(str(p) for p in row.daemon_pids)
             extra = f"  ← only a detached poller holds this cwd (kill {pids})"
-            if row.ahead > 0 or row.tracked_dirty:
+            if row.ahead > 0 or row.dirty:
                 extra += " — but it has commits/edits, verify before reclaiming"
         elif row.branch and row.ahead > 0:
             extra = f"  commits: {commit_preview(row.repo_root, row.branch)}"
         print(
             f"{mark} {row.repo:15} {br:42} ahead={row.ahead:>3} "
-            f"dirty={row.tracked_dirty:>3} {cls:9} {row.age:>14} {row.size:>6}  {row.path}{extra}"
+            f"dirty={row.dirty:>3} {cls:9} {row.age:>14} {row.size:>6}  {row.path}{extra}"
         )
 
     # Stranded trees are invisible to `git worktree list`, so they are found by scanning
     # the temp roots directly rather than by asking any repo what it owns.
     stranded = find_stranded(cwd_holders, with_size=with_size)
     if stranded:
-        print("\nSTRANDED — registration gone, files remain (invisible to `git worktree list`):")
+        print(
+            "\nSTRANDED — registration gone, files remain (invisible to `git worktree list`):"
+        )
         for s in stranded:
             if s.held:
                 why = f"HELD by {' '.join(str(p) for p in s.held)}"
@@ -732,7 +800,9 @@ def main() -> int:
             else:
                 why = "reclaimable"
             owner = s.repo_root.name if s.repo_root else "?"
-            print(f"{'→' if s.reclaimable else ' '} {owner:15} {s.size:>6}  {s.path}  ({why})")
+            print(
+                f"{'→' if s.reclaimable else ' '} {owner:15} {s.size:>6}  {s.path}  ({why})"
+            )
 
     if not all_rows and not stranded:
         print("(no extra worktrees)")
@@ -753,6 +823,10 @@ def main() -> int:
             )
         print("Run: just worktree-gc apply --all-projects")
         return 0
+
+    if not liveness_known(cwd_holders):
+        print("refusing to remove anything: liveness unknown (see [DEGRADED] above)")
+        return 2
 
     removed = 0
     seen: set[Path] = set()
@@ -798,7 +872,9 @@ def main() -> int:
     for repo in repos:
         run(["git", "worktree", "prune"], cwd=repo)
 
-    print(f"\nremoved {removed}/{len(to_remove)} worktrees; reclaimed {reclaimed} stranded")
+    print(
+        f"\nremoved {removed}/{len(to_remove)} worktrees; reclaimed {reclaimed} stranded"
+    )
     # Janitor effect-receipt (observe 2026-08-11 B3): principal = trees removed+reclaimed
     try:
         from janitor_receipt import write_receipt
