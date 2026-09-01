@@ -98,7 +98,8 @@
         "pretool-dataset-probe-first.sh",
         "pretool-eval-preflight.sh",
         "pretool-terse-bash.sh",
-        "pretool-genomics-mcp-routing.sh"
+        "pretool-genomics-mcp-routing.sh",
+        "pretool-modal-run-detach-nudge.sh"
       ]
     },
     {
