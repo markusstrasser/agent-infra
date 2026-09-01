@@ -38,17 +38,30 @@ def _extract_pricing(path: pathlib.Path) -> dict:
 
 
 def _extract_literal(path: pathlib.Path, name: str):
-    """Return a top-level name's literal value from a module source, via AST."""
+    """Return a top-level name's value from a module source, via AST.
+
+    Handles plain literals and `A + B` concatenations of other top-level names
+    (llmx@0ee1c9e 2026-08-27: `CURSOR_GROK_MODELS = CURSOR_GROK45_MODELS +
+    CURSOR_GROK46_MODELS`), resolving the operands recursively.
+    """
     tree = ast.parse(path.read_text())
+
+    def _resolve(value: ast.expr):
+        if isinstance(value, ast.BinOp) and isinstance(value.op, ast.Add):
+            return tuple(_resolve(value.left)) + tuple(_resolve(value.right))
+        if isinstance(value, ast.Name):
+            return _extract_literal(path, value.id)
+        return ast.literal_eval(value)
+
     for node in ast.walk(tree):
         targets = getattr(node, "targets", None)
         if isinstance(node, ast.Assign) and targets:
             for t in targets:
                 if isinstance(t, ast.Name) and t.id == name:
-                    return ast.literal_eval(node.value)
+                    return _resolve(node.value)
         if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) \
                 and node.target.id == name and node.value is not None:
-            return ast.literal_eval(node.value)
+            return _resolve(node.value)
     raise AssertionError(f"no {name} literal found in {path}")
 
 
@@ -64,21 +77,26 @@ def _apply_programmatic_pricing(path: pathlib.Path, pricing: dict) -> dict:
     so changes on the llmx side are still caught rather than hardcoded here.
     """
     tree = ast.parse(path.read_text())
-    fast_rate = base_rate = None
+    fast_rate = base_rate = slug_source = None
     for node in ast.walk(tree):
         if not isinstance(node, ast.For):
             continue
-        if not (isinstance(node.iter, ast.Name) and node.iter.id == "CURSOR_GROK45_MODELS"):
+        # The loop iterates a name imported from model_ids.py; read that name off
+        # the loop instead of hardcoding it (it was renamed CURSOR_GROK45_MODELS →
+        # CURSOR_GROK_MODELS on 2026-08-27 and this test silently returned the
+        # bare literal for 5 days, reporting the vendored Grok rows as drift).
+        if not (isinstance(node.iter, ast.Name) and node.iter.id.startswith("CURSOR_GROK")):
             continue
+        slug_source = node.iter.id
         for stmt in node.body:
             value = getattr(stmt, "value", None)
             if isinstance(stmt, ast.Assign) and isinstance(value, ast.IfExp):
                 fast_rate = ast.literal_eval(value.body)
                 base_rate = ast.literal_eval(value.orelse)
-    if fast_rate is None:
+    if fast_rate is None or slug_source is None:
         return pricing  # loop removed upstream — literal dict is the whole truth
     out = dict(pricing)
-    for model in _extract_literal(_LLMX_MODEL_IDS, "CURSOR_GROK45_MODELS"):
+    for model in _extract_literal(_LLMX_MODEL_IDS, slug_source):
         out[model] = fast_rate if model.endswith("-fast") else base_rate
     return out
 

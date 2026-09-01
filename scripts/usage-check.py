@@ -47,24 +47,38 @@ PRICING: dict[str, tuple[float, float]] = {
     "claude-opus-5": (5.0, 25.0),
     "claude-opus-4-8": (5.0, 25.0),
     "claude-fable-5": (10.0, 50.0),
+    "claude-fable-5-1": (10.0, 50.0),
     "claude-sonnet-5": (3.0, 15.0),
     "claude-sonnet-4-6": (3.0, 15.0),
     # SpaceXAI Grok 4.5 (docs.x.ai 2026-07-08): base $2/$6.
     "grok-4.5": (2.0, 6.0),
-    # Cursor-pool Grok 4.5 slugs (2026-07-14 registry): mirrors llmx's
-    # CURSOR_GROK45_MODELS loop; the drift-test re-derives these from
-    # llmx/model_ids.py so a slug or rate change upstream still fails loudly.
+    # Cursor-pool Grok slugs (4.5: 2026-07-14 registry; 4.6 incl. xhigh: llmx
+    # 2026-08-27): mirrors llmx's CURSOR_GROK_MODELS shadow-price loop; the
+    # drift-test re-derives these from llmx/model_ids.py so a slug or rate change
+    # upstream still fails loudly.
     "cursor-grok-4.5-low": (2.0, 6.0),
     "cursor-grok-4.5-medium": (2.0, 6.0),
     "cursor-grok-4.5-high": (2.0, 6.0),
     "cursor-grok-4.5-low-fast": (4.0, 18.0),
     "cursor-grok-4.5-medium-fast": (4.0, 18.0),
     "cursor-grok-4.5-high-fast": (4.0, 18.0),
+    "cursor-grok-4.6-low": (2.0, 6.0),
+    "cursor-grok-4.6-medium": (2.0, 6.0),
+    "cursor-grok-4.6-high": (2.0, 6.0),
+    "cursor-grok-4.6-xhigh": (2.0, 6.0),
+    "cursor-grok-4.6-low-fast": (4.0, 18.0),
+    "cursor-grok-4.6-medium-fast": (4.0, 18.0),
+    "cursor-grok-4.6-high-fast": (4.0, 18.0),
+    "cursor-grok-4.6-xhigh-fast": (4.0, 18.0),
     # Kimi K3 (kimi.com research announcement 2026-07-16): $3.00/$15.00 per MTok
     # cache-miss; cache-hit input $0.30 — priced at the conservative cache-miss rate.
     "kimi-k3": (3.0, 15.0),
     # openrouter (verified live 2026-07-07: /api/v1/models pricing.prompt/completion)
     "qwen/qwen3.6-27b": (0.285, 2.40),
+    # Qwen3.8 family (llmx 2026-08-17, openrouter-verified)
+    "qwen/qwen3.8-27b": (0.45, 3.20),
+    "qwen/qwen3.8-2.4t-a95b": (2.0, 6.0),
+    "qwen/qwen3.8-max": (2.0, 6.0),
     # dense-student screen candidates (arc-agi research/2026-07-10-dense-student-candidates.md,
     # web-verified 2026-07-10; per-M USD prompt/completion)
     "google/gemma-4-31b-it": (0.12, 0.35),
