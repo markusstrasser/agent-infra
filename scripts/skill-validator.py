@@ -201,7 +201,11 @@ def validate_skill(
                 if not isinstance(tool, str):
                     result["errors"].append(f"allowed-tools entries must be strings: {tool!r}")
                     continue
-                if tool not in NATIVE_TOOLS and not tool.startswith("mcp__"):
+                # Claude Code accepts `Tool(pattern)` permission syntax here, e.g.
+                # `Bash(agent-browser:*)` — validate the base tool name, not the
+                # pattern (agent-browser was a false ERROR on every run, 2026-09-01).
+                base = tool.split("(", 1)[0]
+                if base not in NATIVE_TOOLS and not tool.startswith("mcp__"):
                     result["errors"].append(f"Unknown tool in allowed-tools: {tool}")
                 if tool.startswith("mcp__"):
                     # Extract server name: mcp__SERVER__tool_name
