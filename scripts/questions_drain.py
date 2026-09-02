@@ -13,9 +13,15 @@ the stale predicate (is_stale / STALE_DAYS — single source); this verb consume
 
 Each scout answers ONE question: does the problem/opportunity this item names
 still exist TODAY in the repos it targets? Verdict STILL-VALID | MOOT | SUPERSEDED
-+ evidence. Scouts only RECOMMEND — this script never mutates the stores;
-disposition (resolve-moot status edits, drops) stays with the orchestrator model
-/ operator per the item's human-gating.
++ evidence. Scouts only RECOMMEND; the sweep itself never mutates the stores.
+
+  --apply-verdicts MEMO   apply a sweep's MOOT/SUPERSEDED verdicts (llm: none):
+              steward proposals move to steward-proposals/resolved/ with the
+              verdict + evidence stamped at the top (append-only: mark, never
+              delete); decisions-pending files are unlinked (their git history
+              is the record — the standing convention for that dir); anything
+              else is listed for a human. STILL-VALID items are never touched.
+              The operator gates the sweep, not each item (2026-09-02 queue freeze).
 """
 
 from __future__ import annotations
@@ -112,6 +118,77 @@ def _memo(rows: list[tuple[questions_view.Question, ScoutReply, float]], backend
     return "\n".join(lines)
 
 
+_CLOSING_VERDICTS = frozenset({"MOOT", "SUPERSEDED"})
+
+
+def parse_memo(text: str) -> list[dict]:
+    """Sections of a drain memo → [{prompt, ref, verdict, evidence, recommended}]."""
+    items: list[dict] = []
+    for chunk in text.split("\n## ")[1:]:
+        head, _, body = chunk.partition("\n")
+        if head.strip().lower() in {"token cost", "dispositions applied"} or head.startswith("Dispositions applied"):
+            continue
+        item = {"prompt": head.strip(), "ref": "", "verdict": "", "evidence": "", "recommended": ""}
+        for ln in body.splitlines():
+            s = ln.strip()
+            if s.startswith("- ref: `"):
+                item["ref"] = s[len("- ref: `"):].split("`", 1)[0]
+            elif s.upper().startswith("VERDICT:"):
+                item["verdict"] = s.split(":", 1)[1].strip().upper()
+            elif s.upper().startswith("EVIDENCE:") and not item["evidence"]:
+                item["evidence"] = s.split(":", 1)[1].strip()
+            elif s.upper().startswith("RECOMMENDED:"):
+                item["recommended"] = s.split(":", 1)[1].strip()
+        items.append(item)
+    return items
+
+
+def apply_verdicts(
+    memo_path: Path, *, steward_dir: Path, pending_dir: Path, dry_run: bool = False,
+) -> dict[str, list[dict]]:
+    """Apply MOOT/SUPERSEDED verdicts from *memo_path*. Returns {resolved, deleted, kept, manual}."""
+    out: dict[str, list[dict]] = {"resolved": [], "deleted": [], "kept": [], "manual": []}
+    stamp_day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    resolved_dir = steward_dir / "resolved"
+    for item in parse_memo(memo_path.read_text(encoding="utf-8")):
+        ref = Path(item["ref"]).expanduser() if item["ref"] else None
+        if item["verdict"] not in _CLOSING_VERDICTS:
+            out["kept"].append(item)
+            continue
+        if ref is None or not ref.exists():
+            out["manual"].append({**item, "why": "ref missing on disk"})
+            continue
+        if ref.parent == steward_dir:
+            if not dry_run:
+                resolved_dir.mkdir(exist_ok=True)
+                stamp = (
+                    f"> **{item['verdict']}** — resolved {stamp_day} by the stale-question drain "
+                    f"(codex scout; memo `{memo_path}`). Evidence: {item['evidence'] or '(none quoted)'}\n\n"
+                )
+                (resolved_dir / ref.name).write_text(
+                    stamp + ref.read_text(encoding="utf-8"), encoding="utf-8",
+                )
+                ref.unlink()
+            out["resolved"].append(item)
+        elif ref.parent == pending_dir:
+            if not dry_run:
+                ref.unlink()
+            out["deleted"].append(item)
+        else:
+            out["manual"].append({**item, "why": "ref outside the two drainable stores"})
+    if not dry_run:
+        lines = [f"\n## Dispositions applied {datetime.now(timezone.utc).isoformat(timespec='seconds')}", ""]
+        for key in ("resolved", "deleted", "manual", "kept"):
+            lines.append(f"- {key}: {len(out[key])}")
+        for item in out["resolved"] + out["deleted"]:
+            lines.append(f"  - {item['verdict']} → `{item['ref']}`")
+        for item in out["manual"]:
+            lines.append(f"  - MANUAL ({item['why']}) `{item['ref']}` — {item['prompt'][:80]}")
+        with memo_path.open("a", encoding="utf-8") as fh:
+            fh.write("\n".join(lines) + "\n")
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Drain stale human-gated questions (revalidate-or-drop)")
     ap.add_argument("--repo", default=str(REPO))
@@ -126,7 +203,27 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=0, help="cap items (0 = all)")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--apply-verdicts", metavar="MEMO",
+                    help="apply MOOT/SUPERSEDED verdicts from a drain memo (llm: none; see docstring)")
     args = ap.parse_args()
+
+    if args.apply_verdicts:
+        print("llm: none", file=sys.stderr)
+        res = apply_verdicts(
+            Path(args.apply_verdicts),
+            steward_dir=questions_view.STEWARD_DIR,
+            pending_dir=Path(args.repo) / "decisions-pending",
+            dry_run=args.dry_run,
+        )
+        verb = "would" if args.dry_run else "did"
+        print(f"[apply] {verb} resolve {len(res['resolved'])} steward proposal(s), "
+              f"delete {len(res['deleted'])} decisions-pending file(s); "
+              f"{len(res['kept'])} kept (STILL-VALID / no verdict), {len(res['manual'])} manual")
+        for item in res["manual"]:
+            print(f"  MANUAL ({item['why']}): {item['ref']} — {item['prompt'][:80]}")
+        for item in res["kept"]:
+            print(f"  KEEP {item['verdict'] or '(no verdict)':<11} {item['prompt'][:90]}")
+        return 0
 
     print(f"llm: {'required' if args.dispatch else 'none'}", file=sys.stderr)
     parse_backend_spec(args.backend)  # validate early, fail loud
