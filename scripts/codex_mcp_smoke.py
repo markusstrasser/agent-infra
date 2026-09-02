@@ -161,7 +161,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Smoke-test project Codex stdio MCP deltas.")
     parser.add_argument("--repo", action="append", choices=REPOS, help="repo(s) to check; default all")
     parser.add_argument("--server", action="append", help="server id(s) to check; default all stdio deltas")
-    parser.add_argument("--timeout", type=float, default=20.0, help="per-server timeout in seconds")
+    # 45s: personal:knowledge cold-starts in >20s and failed the 20s default once
+    # in three runs on 2026-09-02 — a flaky gate is a masking gate.
+    parser.add_argument("--timeout", type=float, default=45.0, help="per-server timeout in seconds")
     args = parser.parse_args(argv)
 
     wanted_repos = args.repo or list(REPOS)
