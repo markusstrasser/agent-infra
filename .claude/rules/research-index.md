@@ -108,7 +108,6 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-06-19-rsi-labs-blogposts-delta.md` | RSI labs/practitioner blogposts — delta | TODO |
 | `2026-06-19-rsi-sota-arxiv-delta.md` | RSI & Self-Evolving Agents — arXiv SoTA Delta | TODO |
 | `2026-06-19-rsi-sota-synthesis-what-to-integrate.md` | RSI / autoresearch SoTA — what to integrate | TODO |
-| `2026-06-19-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-19 (deterministic) | TODO |
 | `2026-06-19-steering-vectors.md` | Steering vectors — session mine (2026-06-19) | TODO |
 | `2026-06-19-tooling-api-critique-synthesis.md` | Critique → ship | TODO |
 | `2026-06-20-agent-landscape-fresh-sweep.md` | Agent landscape NON-RSI delta (12-axis sweep) — typed trace-IR, uncertainty-decomp ask-gate, SkillDAG typed edges, raw-trace-adjacency, model×harness evals (PawBench/WildClawBench), tool-pair compaction, Jun open-model wave | "what's new in agent frameworks/tools/MCP/memory/evals/coding-agents"; before adopting any framework/benchmark; harness-eval design; compaction/skill-lifecycle work |
@@ -117,66 +116,35 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-06-20-paper-integration-plan.md` | Integration Plan — grounded in 38 full-paper reads | TODO |
 | `2026-06-20-research-agent-orchestration-tooling.md` | Research-Agent Orchestration Tooling — 2026-06-20 | TODO |
 | `2026-06-20-rsi-loop-unification-synthesis.md` | RSI loop unification — synthesis + Opus 4.8 review | TODO |
-| `2026-06-20-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-20 (deterministic) | TODO |
 | `2026-06-21-leverage-rsi-post-observe-v3.md` | Leverage Hunt — RSI loop post-observe v3 | TODO |
 | `2026-06-21-llm-error-vectors-since-sonnet-3.5.md` | Persistent LLM Error Vectors Since Sonnet 3.5 — Full-Evidence Memo (~86 vectors/10 families, capability-vs-reliability split, FIXED/PERSISTS/UNMEASURED ledger) | Any claim about LLM/agent failure modes, sycophancy/hallucination/reliability state, or "did newer models fix X?"; designing a hook/eval against a known error vector; arguing capability-vs-reliability or verification-bound autonomy |
-| `2026-06-21-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-21 (deterministic) | TODO |
 | `2026-06-21-substrate-knowledge-graph-evolution.md` | The Substrate Knowledge Graph — Evolution Across Repos: savant/synth/synthoric → selve/phenome → genomics/intel/personal → substrate/corpus; verifier-conditioned divergence; the build-then-retire attestation arc | Tracing the substrate/KG lineage or any rename; understanding WHY it was reimplemented (~5×); onboarding to phenome/genomics/intel/substrate stores; proposing new substrate/attestation work |
-| `2026-06-22-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-22 (deterministic) | TODO |
-| `2026-06-23-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-23 (deterministic) | TODO |
 | `2026-06-24-rsi-loop-vs-harness-evolution-sweep.md` | Agent-Infra Sweep — our RSI loop vs the harness-self-evolution frontier (2026... | TODO |
-| `2026-06-24-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-24 (deterministic) | TODO |
-| `2026-06-25-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-25 (deterministic) | TODO |
 | `2026-06-26-long-context-fundamental-vs-engineering.md` | Long-Context Degradation — Fundamental vs Engineering | TODO |
-| `2026-06-26-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-26 (deterministic) | TODO |
-| `2026-06-27-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-27 (deterministic) | TODO |
-| `2026-06-28-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-28 (deterministic) | TODO |
-| `2026-06-29-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-29 (deterministic) | TODO |
 | `2026-06-30-claude-sonnet-5-release.md` | Claude Sonnet 5 — system card findings + cross-repo adoption sites | TODO |
 | `2026-06-30-nous-hermes-agent-scout.md` | Nous Hermes Agent — scout for harness/RSI transfer (2026-06-30) | TODO |
-| `2026-06-30-sensor-integration-ranking.md` | Sensor integration ranking — 2026-06-30 (deterministic) | TODO |
-| `2026-07-01-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-01 (deterministic) | TODO |
 | `2026-07-02-latent-trait-estimation-public-proxies.md` | Estimating latent traits from public proxies — precision honesty, population-conditional proxy discounts, premise-check on proposed corrections | estimating any unobservable (ability, credibility, capability) from credentials/speech/portfolio; applying a user-proposed bias discount |
-| `2026-07-02-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-02 (deterministic) | TODO |
 | `2026-07-03-osmani-two-axis-autonomy-delta.md` | Osmani "Agentic Autonomy Levels" (2026-07-03) — delta vs our constitution | TODO |
-| `2026-07-03-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-03 (deterministic) | TODO |
-| `2026-07-04-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-04 (deterministic) | TODO |
-| `2026-07-05-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-05 (deterministic) | TODO |
-| `2026-07-06-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-06 (deterministic) | TODO |
 | `2026-07-06-skill-usage-value-audit.md` | Skill Usage & Value Audit — 2026-07-06 | TODO |
-| `2026-07-07-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-07 (deterministic) | TODO |
 | `2026-07-07-shepherd-syscall-jail-prior-art.md` | Shepherd — syscall-jail permissions as prior-art | TODO |
-| `2026-07-08-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-08 (deterministic) | TODO |
 | `2026-07-09-agent-infra-sweep.md` | Agent-infra frontier sweep — 15d delta (Grok niche + CC 2.1.198–205 + internal consume) | Before claiming frontier is quiet / starting a fresh deep RSI sweep |
-| `2026-08-01-pi-harness-internals-deep-dive.md` | Pi harness internals deep dive — compaction cut rules, overflow retry, steer/followUp, SQLite session scale (v0.83 clone) | Stealing context discipline into CC; harness $/task; compact artifact design |
-| `2026-08-20-laptop-storage-dedupe-compression-audit.md` | Laptop storage dedupe, compression, and cleanup audit — 2026-08-20 | Before machine-wide cleanup, storage dedupe/compression, reclaim CLI expansion, or agent-history pruning |
 | `2026-07-09-databricks-pi-harness.md` | 2026 07 09 Databricks Pi Harness | TODO |
 | `2026-07-09-gpt-5.6-suite.md` | 2026 07 09 Gpt 5.6 Suite | TODO |
 | `2026-07-09-grok-4.5-release.md` | Grok 4.5 — transport + named niche (critique `grok` axis, scout `--scout-model`); not Default Routing | Before promoting Grok into defaults, adding critique axes, or picking scout models for tool-loop audits |
-| `2026-07-09-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-09 (deterministic) | TODO |
-| `2026-07-10-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-10 (deterministic) | TODO |
-| `2026-07-11-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-11 (deterministic) | TODO |
 | `2026-07-14-cleanup-campaign-ledger.md` | 2026-07-14 Cleanup Sessions — Ledger | TODO |
-| `2026-07-14-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-14 (deterministic) | TODO |
 | `2026-07-14-storage-cost-dossier.md` | Storage-cost dossier — reduce footprint, keep full functionality | TODO |
-| `2026-07-15-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-15 (deterministic) | TODO |
-| `2026-07-16-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-16 (deterministic) | TODO |
-| `2026-07-17-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-17 (deterministic) | TODO |
-| `2026-07-18-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-18 (deterministic) | TODO |
-| `2026-07-19-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-19 (deterministic) | TODO |
 | `2026-07-19-vercel-ai-python-deep-dive.md` | Vercel AI SDK for Python (`vercel-labs/ai-python`) — code deep-dive | TODO |
-| `2026-07-20-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-20 (deterministic) | TODO |
-| `2026-07-21-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-21 (deterministic) | TODO |
-| `2026-07-22-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-22 (deterministic) | TODO |
 | `2026-07-23-raycast-snippets-shadow-harness.md` | Raycast snippets as a shadow harness — copyCount as a ranked failure-list for "architecture over instructions" | Deciding which behavior to promote to a hook; auto-commit/breaking-refactor enforcement; snippet→command graduation |
-| `2026-07-23-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-23 (deterministic) | TODO |
 | `2026-07-24-claude-opus-5-release.md` | Claude Opus 5 — near-Fable at $5/$25; replaces 4.8 as primary Claude | Default Claude routing; effort re-sweep; cyber fallback 4.8 |
 | `2026-07-24-harness-audit-genomics-personal-arcagi.md` | Harness audit — genomics · personal · arc-agi · global layer | TODO |
-| `2026-07-24-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-24 (deterministic) | TODO |
 | `2026-07-25-disk-pressure-live-fleet.md` | Boot disk at 99% (4.8 GiB free) — measured 2026-07-25 | TODO |
 | `2026-07-25-opus5-arc-agi-generalization.md` | Opus 5 ARC-AGI split — 1/2 saturated+targeted (discount), 3 is the real signal and reads as agentic transfer; exploration gain is verifier-conditioned | Citing any ARC-AGI number as capability evidence; arguing model-vs-benchmark contamination; sizing effort-vs-verifier ROI on long autonomous runs |
-| `2026-07-25-sensor-integration-ranking.md` | Sensor integration ranking — 2026-07-25 (deterministic) | TODO |
 | `2026-07-25-worktree-reclaim-candidates.md` | Reclaim candidates — measured 2026-07-25 21:40 CEST | TODO |
+| `2026-07-29-agent-infra-sweep.md` | Agent-infra Frontier Sweep — 2026-07-29 (20-day delta) | TODO |
+| `2026-08-01-agent-infra-sweep.md` | Agent-infra sweep — 2026-08-01 | TODO |
+| `2026-08-01-pi-harness-internals-deep-dive.md` | Pi harness internals deep dive — compaction cut rules, overflow retry, steer/followUp, SQLite session scale (v0.83 clone) | Stealing context discipline into CC; harness $/task; compact artifact design |
+| `2026-08-20-laptop-storage-dedupe-compression-audit.md` | Laptop storage dedupe, compression, and cleanup audit — 2026-08-20 | Before machine-wide cleanup, storage dedupe/compression, reclaim CLI expansion, or agent-history pruning |
+| `2026-09-01-fable-5.1-tabula-rasa.md` | Fable 5.1 tabula rasa | TODO |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
 | `adversarial-case-library.md` | Adversarial Case Library: The Best "Calling BS" Reviews | TODO |
 | `agent-behavior-refresh-2026-04.md` | Agent Behavior Delta — Memory, Self-Modification, Sycophancy | TODO |
@@ -368,5 +336,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `trending-scout-2026-06-19.md` | Trending Scout — 2026-06-19 | TODO |
 | `trending-scout-2026-06-24.md` | Trending Scout — 2026-06-24 | TODO |
 | `trending-scout-2026-07-09.md` | Trending Scout — 2026-07-09 | TODO |
+| `trending-scout-2026-07-29.md` | Trending Scout — 2026-07-29 | TODO |
+| `trending-scout-2026-08-01.md` | Trending Scout — 2026-08-01 | TODO |
 | `weekly-agent-infra-sweep-2026-04-02.md` | Weekly Agent Infra Sweep 2026 04 02 | TODO |
 | `wiki-vs-flat-for-agents.md` | Wiki Vs Flat For Agents | TODO |

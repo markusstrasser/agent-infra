@@ -17,6 +17,7 @@ and cleans plans older than 14 days.
 import argparse
 import re
 import subprocess
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -26,6 +27,29 @@ RESEARCH_DIR = ROOT / "research"
 RESEARCH_INDEX = ROOT / ".claude" / "rules" / "research-index.md"
 CLAUDE_MD = ROOT / "CLAUDE.md"
 DECISIONS_DIR = ROOT / "decisions"
+
+
+def _research_memo_names() -> list[str]:
+    """Top-level research memo filenames as git sees them: tracked, plus untracked
+    but NOT gitignored. The index is a tracked file, so derived/gitignored output
+    (the daily ``*-sensor-integration-ranking.md`` series — 73 files on 2026-09-01)
+    must never enter it: a plain glob had put 73 phantom rows into the always-loaded,
+    path-scoped index and inflated the CLAUDE.md memo count. Falls back to the glob
+    only when git itself cannot run."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(ROOT), "ls-files", "--cached", "--others",
+             "--exclude-standard", "--", "research/*.md"],
+            capture_output=True, text=True, check=True, timeout=30,
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return sorted((f.name for f in RESEARCH_DIR.glob("*.md")), key=str.lower)
+    names = {
+        Path(line).name
+        for line in out.splitlines()
+        if line.startswith("research/") and line.count("/") == 1 and (ROOT / line).is_file()
+    }
+    return sorted(names, key=str.lower)
 
 
 def extract_title(path: Path) -> str:
@@ -63,10 +87,7 @@ def generate_research_index(fix: bool) -> list[str]:
     """Generate research index, return list of issues found."""
     issues = []
 
-    actual_files = sorted(
-        [f.name for f in RESEARCH_DIR.glob("*.md")],
-        key=str.lower,
-    )
+    actual_files = _research_memo_names()
     existing = parse_research_index(RESEARCH_INDEX)
     existing_names = set(existing.keys())
     actual_names = set(actual_files)
@@ -115,7 +136,7 @@ def generate_research_index(fix: bool) -> list[str]:
 def update_claude_md_count(fix: bool) -> list[str]:
     """Check and optionally fix research memo count in CLAUDE.md."""
     issues = []
-    actual_count = len(list(RESEARCH_DIR.glob("*.md")))
+    actual_count = len(_research_memo_names())
 
     text = CLAUDE_MD.read_text()
     m = re.search(r'(\d+)\s+research memos in `research/`', text)
