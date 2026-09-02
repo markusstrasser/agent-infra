@@ -31,8 +31,6 @@ ARTIFACT_EXCLUDE_PREFIXES = (
 
 ARTIFACT_EXCLUDE_NAMES = (
     "commit-plan",
-    "commit-slice-planning",
-    "baseline-since-last-green",
 )
 
 

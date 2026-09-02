@@ -10,7 +10,7 @@
 orient *args:
     uv run python3 scripts/orient.py {{args}}
 
-# Typed system inventory (@system tags · launchd · orchestrator recipes)
+# Typed system inventory (@system tags · launchd)
 [group('orientation')]
 system-inventory *args:
     uv run python3 scripts/system_inventory.py {{args}}
@@ -665,13 +665,6 @@ pulse *args:
 [group('epistemic')]
 maintain-tick *args:
     uv run python3 scripts/maintain_tick.py {{args}}
-
-# ── Orchestrator-model tooling (canonical; see .claude/rules/orchestrator-tool-names.md) ──
-
-[group('epistemic')]
-operator-status-briefing target='.' *args='':
-    uv run python3 scripts/operator_status_briefing.py --repo {{target}} {{args}}
-
 
 # Parallel read-only scouts → docs/audit/*.md. Pass-through: --backend cursor,codex
 # --model grok-4.5-xhigh (Grok niche lens on cursor backend).
