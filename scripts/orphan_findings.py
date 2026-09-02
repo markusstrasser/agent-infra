@@ -4,7 +4,7 @@
 Sibling to orphan_check.py. That one catches orphaned *generators* (a script
 nothing calls); this one catches orphaned *findings* — an adopt-grade research
 verdict that never reached the loop's read path (improvement-log.md), so
-/improve maintain never sees it and it dies in the memo.
+/observe maintain never sees it and it dies in the memo.
 
 This is the disease named in decisions/2026-06-04-consumption-over-autonomy.md
 Finding 1: "a research finding with no consumer is equivalent to no verifier."
@@ -48,7 +48,7 @@ cross-model panel (2026-06-14) proposed stable finding IDs + a consumption ledge
 closes the silent-recurrence hole without new ID grammar, and auto-promotion
 would reintroduce the F1 [ ]-inflation risk (promotion needs judgment):
   - Scope = trending-scout only (the one generator we KNOW leaked). Other
-    generators (sweeps deliberately excluded; /leverage; research proposals) are
+    generators (sweeps deliberately excluded; /observe lever; research proposals) are
     not covered. Trigger to generalize: a second generator is found leaking.
   - Consumption is still instruction-driven (harvest 2f / source routing); only
     DETECTION is deterministic (this script in doctor). If the doctor line gets

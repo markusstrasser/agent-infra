@@ -3,7 +3,7 @@
 
 When scan_tool_failures surfaces zsh-env:* clusters above threshold AND
 cross-harness shell guards are missing/broken (doctor), stage an actionable
-candidate so /improve harvest doesn't rely on the human noticing transcript noise.
+candidate so /observe harvest doesn't rely on the human noticing transcript noise.
 
 Usage:
     shell_env_loop_gate.py --days 30

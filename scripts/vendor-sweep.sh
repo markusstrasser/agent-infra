@@ -3,7 +3,7 @@
 # Fetches latest vendor docs/changelogs + extracts the Claude Code binary's
 # embedded skill prompts (an unpublished vendor changelog), then commits any
 # diffs. The semantic half (trending-scout, agent-infra-sweep) is surfaced as
-# DUE by `just freshness` and run by /improve maintain — NOT here.
+# DUE by `just freshness` and run by /observe maintain — NOT here.
 #
 # Scheduled daily via com.agent-infra.vendor-sweep; also runnable as
 # `just vendor-sweep`. Idempotent: unchanged sources produce no git churn.

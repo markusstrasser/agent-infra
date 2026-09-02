@@ -25,7 +25,7 @@ Design rationale:
   percentile. Dense axes (size, orphan/stale) use plain percentile.
 
 Native-first: git log + ast + line counts. No deps. Report-only.
-Consumers: /upgrade pliability, /improve, a `just` top-N surface.
+Consumers: /observe pliability, /observe harvest, a `just` top-N surface.
 """
 
 from __future__ import annotations

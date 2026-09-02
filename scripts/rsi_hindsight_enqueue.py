@@ -145,7 +145,7 @@ def enqueue(digest_path: Path, *, dry_run: bool = False) -> dict:
 By project: {", ".join(f"{k}={v}" for k, v in sorted(by_proj.items(), key=lambda kv: -kv[1])) or "(none)"}
 
 ## CLOSE contract
-Each row is a labeled loop-miss. `/rsi close` and `/improve maintain` must cite a
+Each row is a labeled loop-miss. `/rsi close` and `/observe maintain` must cite a
 file artifact (this queue or a maintain draft), not a chat apology.
 Do **not** expand REDISCOVERY regexes while over_caution ablation is measuring
 (see `decisions-pending/2026-07-10-ablate-over-caution-enforce.md`).

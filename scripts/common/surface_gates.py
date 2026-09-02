@@ -374,7 +374,7 @@ def sync_skill_symlinks(
     for skill_dir in iter_skill_dirs(src):
         # Codex has no verified disable-model-invocation support, so every
         # mirrored skill lands in its AMBIENT auto-fire index. Explicit-only
-        # skills (fa0ce09: execute/leverage/…) therefore stay Claude-side;
+        # skills (fa0ce09: execute/research-ops/verify-before) therefore stay Claude-side;
         # mirroring them would grant Codex exactly the ambient auto-fire the
         # flag exists to prevent — and they burn its 8K description budget.
         fm, _ = parse_skill_frontmatter(skill_dir / "SKILL.md")

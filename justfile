@@ -1070,7 +1070,7 @@ vendor-sweep:
     bash scripts/vendor-sweep.sh
 
 # Surveillance freshness — which sweeps are DUE (deterministic, zero-API).
-# Consumed by /improve maintain to decide whether to run a semantic sweep.
+# Consumed by /observe maintain to decide whether to run a semantic sweep.
 # vendor-docs/binary are fetched by launchd daily; the agent runs the rest.
 [group('health')]
 freshness:

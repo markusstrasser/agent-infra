@@ -935,7 +935,7 @@ def check_agentlogs_indexer() -> list[Check]:
     """Surface a stalled cross-vendor session indexer.
 
     The agentlogs indexer (launchd, every 2h) is the substrate for the agentlogs
-    CLI, /leverage's measure step, and the tool-friction back-edge. It can stall
+    CLI, /observe lever's measure step, and the tool-friction back-edge. It can stall
     silently: a single hung `executemany` holds the fcntl lock, every later cron
     fire hits IndexerLockBusy and exits 0, and the vendor's `indexer_runs` row
     sits 'running' forever — which is exactly how Codex went dark for a month
@@ -1028,7 +1028,7 @@ def check_uv_tool_editables() -> list[Check]:
     import can half-work off a leftover copy while the CLI entry point is gone,
     and NO launchd/import check catches it (the library still imports; only
     invoking the CLI fails). 2026-06-14: the `corpus` CLI was dead for exactly
-    this reason and a full /improve health loop missed it — every check was
+    this reason and a full /observe health loop missed it — every check was
     green because none exercised this surface. Deterministic: the recorded
     source dir either exists or it doesn't.
     """

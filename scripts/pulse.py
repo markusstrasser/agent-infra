@@ -419,7 +419,7 @@ def render_status(m: dict) -> str:
             )
         parts.append("")
     parts.extend([
-        "**Next:** `/rsi close` · `just reflect-review` · `/improve maintain` · `just questions`",
+        "**Next:** `/rsi close` · `just reflect-review` · `/observe maintain` · `just questions`",
     ])
     return "\n".join(parts) + "\n"
 

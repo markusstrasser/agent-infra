@@ -13,7 +13,7 @@ Two symmetric passes:
 
 
 The audit research/2026-06-19-auto-self-improvement-audit.md found the loop has
-healthy sensors but no MOTOR: `/improve maintain` is interactive-only, the
+healthy sensors but no MOTOR: `/observe maintain` is interactive-only, the
 launchd maintain job was eradicated 2026-06-07, and `maintain-tick` last ran
 2026-06-14. tier-0 builds sit `[ ]` because nothing autonomously picks and ships
 them. This is that picker — but it ships NOTHING on its own. It:
@@ -51,7 +51,7 @@ GROUND TRUTH (verified 2026-06-21, recorded so a future reader doesn't re-derive
 """
 # Gov-ID: hook:maintain-tick-motor
 # goal: ship the dead maintain-tick MOTOR so tier-0 agent-infra-local items don't
-#       sit `[ ]` for days waiting for a human to start a /improve session — but
+#       sit `[ ]` for days waiting for a human to start a /observe session — but
 #       SAFE BY DEFAULT (draft proposal only; never auto-edit/commit/deploy)
 # verifier: null  # the SAFE contract is structurally checkable (asserts no code
 #                 # edit / no commit / no deploy in dry-run) via the test

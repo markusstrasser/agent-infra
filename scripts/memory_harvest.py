@@ -10,7 +10,7 @@ gap (the lessons sit siloed where they were learned).
 This script is the DETERMINISTIC pre-filter: it clusters memories by theme and flags
 clusters that look generalizable (span ≥2 projects, OR a single-project silo whose theme
 maps to an existing shared home like the `modal` skill). It does NOT judge generalizability
-or do the factoring — that semantic step stays with the agent in `/improve harvest` Phase 2g,
+or do the factoring — that semantic step stays with the agent in `/observe harvest` Phase 2h,
 which dedups each candidate against the shared rules/skills before proposing.
 
 Usage:  uv run python3 scripts/memory_harvest.py [--min-span 2] [--json]
