@@ -178,7 +178,9 @@ def main() -> int:
     ctx = gather_context(args.days)
     ctx_path.write_text(ctx, encoding="utf-8")
 
-    out_research = REPO / "research" / f"{day}-sensor-integration-ranking.md"
+    # Daily derived output lives beside its context in artifacts/ (gitignored) —
+    # 74 of these had leaked into research/ and the tracked index (2026-09-02).
+    out_research = art / f"{day}-sensor-integration-ranking.md"
     tmp_out = art / f"{day}-rank.md"
 
     if use_llm and llm_rank(ctx_path, tmp_out):

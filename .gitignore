@@ -113,6 +113,4 @@ maintenance-actions.jsonl
 # Downloaded paper PDFs (binaries — archival, not committed)
 research/papers/
 
-# Derived: daily deterministic output of scripts/sensor_integration_ranking.py — track the generator, not the output (#g 2026-06-18)
-research/*-sensor-integration-ranking.md
 .claude/goal-*

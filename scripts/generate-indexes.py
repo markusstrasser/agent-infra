@@ -32,7 +32,8 @@ DECISIONS_DIR = ROOT / "decisions"
 def _research_memo_names() -> list[str]:
     """Top-level research memo filenames as git sees them: tracked, plus untracked
     but NOT gitignored. The index is a tracked file, so derived/gitignored output
-    (the daily ``*-sensor-integration-ranking.md`` series — 73 files on 2026-09-01)
+    (the daily ``*-sensor-integration-ranking.md`` series — 73 files on 2026-09-01,
+    since relocated to ``artifacts/sensor-integration-ranking/``)
     must never enter it: a plain glob had put 73 phantom rows into the always-loaded,
     path-scoped index and inflated the CLAUDE.md memo count. Falls back to the glob
     only when git itself cannot run."""
