@@ -14,6 +14,5 @@ TRIGGERS_FILE = CLAUDE_DIR / "hook-triggers.jsonl"
 EVENT_LOG = CLAUDE_DIR / "event-log.jsonl"  # hook action log {ts,hook,action,detail,...}
 
 # Databases
-ORCHESTRATOR_DB = CLAUDE_DIR / "orchestrator.db"
 AGENTLOGS_DB = Path(os.environ.get("AGENTLOGS_DB", str(CLAUDE_DIR / "agentlogs.db")))
 FINDINGS_DB = CLAUDE_DIR / "findings.db"

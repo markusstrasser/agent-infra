@@ -2,7 +2,7 @@
 """Propose ranked work items from cross-project signals.
 
 Combines: git staleness, hook ROI highlights, unresolved improvement-log findings,
-doctor.py failures, daily cost, orchestrator queue, session-retro findings,
+doctor.py failures, daily cost, session-retro findings,
 design-review patterns, MANUAL_COORDINATION patterns, and supervision-audit labels.
 
 Output: ~/.claude/morning-brief.md (default), or JSON signals for research-cycle.
@@ -15,7 +15,6 @@ Usage:
 import json
 import logging
 import re
-import sqlite3
 import subprocess
 import sys
 from datetime import datetime, timedelta, date
@@ -26,7 +25,7 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 
 from common.paths import (
-    CLAUDE_DIR, ORCHESTRATOR_DB, RECEIPTS_PATH as RECEIPTS_FILE,
+    CLAUDE_DIR, RECEIPTS_PATH as RECEIPTS_FILE,
     TRIGGERS_FILE,
 )
 PROJECTS_DIR = Path.home() / "Projects"
@@ -197,34 +196,6 @@ def daily_cost_summary(days: int = 1) -> dict:
     return {"sessions": sessions, "cost": total_cost, "by_project": by_project}
 
 
-def orchestrator_queue() -> dict:
-    """Get orchestrator queue snapshot."""
-    if not ORCHESTRATOR_DB.exists():
-        return {"pending": 0, "running": 0, "failed": 0, "tasks": []}
-
-    from common.db import open_db
-    db = open_db(ORCHESTRATOR_DB)
-
-    try:
-        pending = db.execute(
-            "SELECT count(*) as n FROM tasks WHERE status='pending'"
-        ).fetchone()["n"]
-        running = db.execute(
-            "SELECT count(*) as n FROM tasks WHERE status='running'"
-        ).fetchone()["n"]
-        failed_recent = db.execute(
-            "SELECT id, pipeline, step, error FROM tasks WHERE status='failed' "
-            "AND date(finished_at) >= date('now', '-3 days', 'localtime') "
-            "ORDER BY finished_at DESC LIMIT 5"
-        ).fetchall()
-    except sqlite3.OperationalError:
-        db.close()
-        return {"pending": 0, "running": 0, "failed": 0, "tasks": []}
-    db.close()
-    tasks = [dict(r) for r in failed_recent]
-    return {"pending": pending, "running": running, "failed": len(tasks), "tasks": tasks}
-
-
 def last_session_retro() -> str | None:
     """Read most recent session-retro artifact."""
     if not RETRO_DIR.exists():
@@ -300,7 +271,7 @@ def _rank_score(proposal: dict) -> float:
     """Score a proposal for sorting. Higher = more urgent.
 
     Derived from autoresearch experiment (experiments/proposal-ranker/).
-    Constitutional priority: health > orchestrator > high-block hooks >
+    Constitutional priority: health > high-block hooks >
     autonomy findings > staleness > cosmetic/info.
     """
     category = proposal.get("category", "")
@@ -312,7 +283,6 @@ def _rank_score(proposal: dict) -> float:
 
     score = {
         "health": 800,
-        "orchestrator": 650,
         "drift": 500,
         "hook-roi": 450,
         "strategic": 380,
@@ -386,7 +356,7 @@ def generate_proposals(data: dict) -> list[dict]:
                 "category": "staleness",
                 "title": f"{proj['project']} has no commits in {proj['days_ago']} days",
                 "metadata": {"days_ago": proj["days_ago"], "project": proj["project"]},
-                "command": f'orchestrator.py run -p {proj["project"]} --prompt "Review recent state, check for stale TODOs or pending work"',
+                "command": None,
             })
 
     # Doctor failures
@@ -484,21 +454,6 @@ def generate_proposals(data: dict) -> list[dict]:
             "command": None,
         })
 
-    # Failed orchestrator tasks
-    for task in data["orchestrator"].get("tasks", []):
-        pipeline = task.get("pipeline", "?")
-        title = f"Task #{task['id']} failed: {pipeline}/{task.get('step', '?')} — {(task.get('error') or '?')[:60]}"
-        proposals.append({
-            "category": "orchestrator",
-            "title": title,
-            "metadata": {
-                "pipeline": pipeline,
-                "consecutive_failures": task.get("consecutive_failures", 1),
-                "risk_class": _infer_risk_class(title),
-            },
-            "command": f"orchestrator.py show {task['id']} --full",
-        })
-
     # Score and sort (higher score = more urgent = first)
     for p in proposals:
         p["score"] = _rank_score(p)
@@ -528,12 +483,6 @@ def render_brief(data: dict, proposals: list[dict]) -> str:
         parts = [f"{p}: ${c:.2f}" for p, c in sorted(cost["by_project"].items(), key=lambda x: -x[1])]
         lines.append(f"  By project: {', '.join(parts)}")
     lines.append("")
-
-    # Orchestrator
-    orch = data["orchestrator"]
-    if orch["pending"] or orch["running"] or orch["failed"]:
-        lines.append(f"**Orchestrator:** {orch['pending']} pending, {orch['running']} running, {orch['failed']} recently failed")
-        lines.append("")
 
     # Proposals
     if proposals:
@@ -809,7 +758,6 @@ def emit_json_signals(data: dict, proposals: list[dict],
         sig = {
             "source": {
                 "health": "calibration-canary",
-                "orchestrator": "orchestrator-queue",
                 "staleness": "git-staleness",
                 "improvement-log": "improvement-log",
                 "hook-roi": "fix-verify",
@@ -916,7 +864,6 @@ def main():
         "unresolved_findings": unresolved_findings(),
         "doctor_failures": doctor_failures(),
         "cost_summary": daily_cost_summary(args.days),
-        "orchestrator": orchestrator_queue(),
         "last_retro": last_session_retro(),
         "last_hook_roi": last_hook_roi(),
         "design_review_proposals": design_review_proposals(days=7),

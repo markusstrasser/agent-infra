@@ -12,7 +12,6 @@ import statistics
 import sys
 from collections import defaultdict
 from datetime import datetime, timedelta
-from pathlib import Path
 
 from agent_receipts import collect_codex_receipts, load_openai_receipts
 
@@ -137,9 +136,6 @@ def main():
             iters = r.get("usage", {}).get("iterations", []) if isinstance(r.get("usage"), dict) else []
             all_cost += base + sum(float(it.get("cost_usd", 0)) for it in iters if isinstance(it, dict))
         print(f"  All-time: {len(receipts)} sessions, ${all_cost:.2f} total")
-
-    # --- Orchestrator panel ---
-    print_orchestrator_panel(cutoff)
 
     # --- OpenAI / Codex panel ---
     print_openai_panel(cutoff)
@@ -300,90 +296,6 @@ def print_openai_panel(cutoff: datetime):
         )
         if task_label != "-":
             print(f"      {task_label[:90]}")
-
-
-def print_orchestrator_panel(cutoff: datetime):
-    """Print orchestrator task stats from SQLite DB."""
-    from common.paths import ORCHESTRATOR_DB as db_path
-    if not db_path.exists():
-        return
-
-    from common.db import open_db
-    db = open_db(db_path)
-
-    cutoff_str = cutoff.strftime("%Y-%m-%d %H:%M:%S")
-    try:
-        tasks = db.execute("""
-            SELECT * FROM tasks
-            WHERE created_at >= ? OR finished_at >= ?
-            ORDER BY created_at DESC
-        """, (cutoff_str, cutoff_str)).fetchall()
-    except Exception:
-        db.close()
-        return
-
-    if not tasks:
-        db.close()
-        return
-
-    print()
-    print(f"{'=' * 50}")
-    print("  Orchestrator")
-    print(f"{'=' * 50}")
-    print()
-
-    by_status = defaultdict(int)
-    total_cost = 0.0
-    total_tokens_in = 0
-    total_tokens_out = 0
-    for t in tasks:
-        by_status[t["status"]] += 1
-        total_cost += t["cost_usd"] or 0
-        total_tokens_in += t["tokens_in"] or 0
-        total_tokens_out += t["tokens_out"] or 0
-
-    status_str = ", ".join(f"{v} {k}" for k, v in sorted(by_status.items()))
-    print(f"  Tasks:        {len(tasks)} ({status_str})")
-    print(f"  Total cost:   ${total_cost:.2f}")
-    if total_tokens_in or total_tokens_out:
-        print(f"  Tokens:       {total_tokens_in:,} in / {total_tokens_out:,} out")
-
-    # By pipeline
-    by_pipeline = defaultdict(lambda: {"done": 0, "failed": 0, "pending": 0, "cost": 0.0})
-    for t in tasks:
-        p = t["pipeline"] or "(one-off)"
-        if t["status"] in ("done", "done_with_denials"):
-            by_pipeline[p]["done"] += 1
-        elif t["status"] == "failed":
-            by_pipeline[p]["failed"] += 1
-        else:
-            by_pipeline[p]["pending"] += 1
-        by_pipeline[p]["cost"] += t["cost_usd"] or 0
-
-    if by_pipeline:
-        print()
-        print("  By pipeline:")
-        for pipe, stats in sorted(by_pipeline.items(), key=lambda x: -x[1]["cost"]):
-            parts = []
-            if stats["done"]:
-                parts.append(f"{stats['done']} done")
-            if stats["failed"]:
-                parts.append(f"{stats['failed']} failed")
-            if stats["pending"]:
-                parts.append(f"{stats['pending']} pending")
-            print(f"    {pipe:<25} {', '.join(parts):<25} ${stats['cost']:.2f}")
-
-    # Recent failures
-    failures = [t for t in tasks if t["status"] == "failed"]
-    if failures:
-        print()
-        print("  Recent failures:")
-        for t in failures[:5]:
-            err = (t["error"] or "?")[:60]
-            print(f"    #{t['id']} {t['pipeline'] or '-'}/{t['step'] or '-'}: {err}")
-
-    print()
-    db.close()
 
 
 def print_overview_panel():

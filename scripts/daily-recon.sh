@@ -57,13 +57,3 @@ if [ -f "$DAILY_LOG" ]; then
   echo "Daily log exists: $DAILY_LOG"
 fi
 
-# 4. Orchestrator tasks
-DB=~/.claude/orchestrator.db
-if [ -f "$DB" ]; then
-  tasks=$(sqlite3 "$DB" "SELECT count(*), status FROM tasks WHERE date(created_at) = '$DATE' GROUP BY status" 2>/dev/null || true)
-  if [ -n "$tasks" ]; then
-    echo
-    echo "Orchestrator tasks:"
-    echo "$tasks" | sed 's/|/ /g; s/^/  /'
-  fi
-fi

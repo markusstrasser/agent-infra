@@ -1,4 +1,3 @@
-import sqlite3
 import json
 from pathlib import Path
 
@@ -22,20 +21,6 @@ def test_hook_roi_highlights_tolerates_non_utf8_trigger_log(monkeypatch, tmp_pat
     hooks = {h["hook"]: h for h in out["hooks"]}
     assert hooks["clean"]["blocks"] == 1
     assert hooks["bad-�"]["warns"] == 1
-
-
-def test_orchestrator_queue_tolerates_empty_stale_db(monkeypatch, tmp_path):
-    mod = import_hyphenated("propose-work")
-    db_path = tmp_path / "orchestrator.db"
-    sqlite3.connect(db_path).close()
-    monkeypatch.setattr(mod, "ORCHESTRATOR_DB", db_path)
-
-    assert mod.orchestrator_queue() == {
-        "pending": 0,
-        "running": 0,
-        "failed": 0,
-        "tasks": [],
-    }
 
 
 def _proposal_ranker_cases() -> list[dict]:
@@ -63,11 +48,6 @@ def _proposal_ranker_cases() -> list[dict]:
             "higher": {"category": "improvement-log", "title": "Unresolved: agent cannot proceed after hook denial", "metadata": {"age_days": 1, "tags": ["autonomy", "hook"]}},
             "lower": {"category": "improvement-log", "title": "Unresolved: old commit-scope style nit", "metadata": {"age_days": 90, "tags": ["style"]}},
         },
-        {
-            "name": "morning brief repeated failure beats optional stale repo",
-            "higher": {"category": "orchestrator", "title": "Task failed: morning-brief — 3rd consecutive failure", "metadata": {"pipeline": "morning-brief", "consecutive_failures": 3}},
-            "lower": {"category": "staleness", "title": "research-mcp has no commits in 21 days", "metadata": {"days_ago": 21}},
-        },
     ]
 
 
@@ -94,7 +74,6 @@ def test_generate_proposals_enriches_rank_metadata():
         "strategic_notes": [],
         "drift_alerts": [],
         "maintenance_errors": {},
-        "orchestrator": {"tasks": [{"id": 3, "pipeline": "morning-brief", "step": "collect", "error": "DB locked"}]},
     }
 
     proposals = mod.generate_proposals(data)
@@ -104,4 +83,3 @@ def test_generate_proposals_enriches_rank_metadata():
     assert metadata_by_category["health"]["scope"] == "shared"
     assert "autonomy" in metadata_by_category["improvement-log"]["tags"]
     assert metadata_by_category["hook-roi"]["risk_class"] == "false-positive-hook"
-    assert metadata_by_category["orchestrator"]["pipeline"] == "morning-brief"
