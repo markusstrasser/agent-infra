@@ -9,6 +9,7 @@ envelope format inline (per ADR), not import this module.
 
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 from dataclasses import asdict, dataclass, field
@@ -330,14 +331,39 @@ def validate_closeout_dispatch(data: dict[str, Any]) -> list[str]:
     return errors
 
 
+def claude_disabled_skills(settings_path: Path | None = None) -> frozenset[str]:
+    """Skill names the operator switched off via `skillOverrides` in ~/.claude/settings.json.
+
+    A Codex mirror that ignores this loads every skill the operator turned off into
+    Codex's ambient index — the parity bug behind `codex_global 9362 > 8000` on
+    2026-09-01 (16 `off` skills were mirrored). `name-only` and `user-invocable-only`
+    have no Codex equivalent and stay mirrored; only `off` is excluded.
+    """
+    path = settings_path or (Path.home() / ".claude" / "settings.json")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return frozenset()
+    overrides = data.get("skillOverrides") or {}
+    if not isinstance(overrides, dict):
+        return frozenset()
+    return frozenset(name for name, mode in overrides.items() if mode == "off")
+
+
 def sync_skill_symlinks(
     src: Path,
     dst: Path,
     *,
     check: bool = False,
+    exclude: frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
-    """Mirror skill directory symlinks from src → dst (Codex/Claude parity)."""
-    result = {"created": 0, "updated": 0, "removed": 0, "ok": True, "errors": []}
+    """Mirror skill directory symlinks from src → dst (Codex/Claude parity).
+
+    `exclude` names skills that must NOT be mirrored (the operator's
+    `skillOverrides: off` set — see `claude_disabled_skills`); an existing link
+    for an excluded skill is removed like any other stale link.
+    """
+    result = {"created": 0, "updated": 0, "removed": 0, "excluded": 0, "ok": True, "errors": []}
     if not src.is_dir():
         result["ok"] = False
         result["errors"].append(f"missing source: {src}")
@@ -353,6 +379,10 @@ def sync_skill_symlinks(
         # flag exists to prevent — and they burn its 8K description budget.
         fm, _ = parse_skill_frontmatter(skill_dir / "SKILL.md")
         if fm.get("disable-model-invocation"):
+            continue
+        if skill_dir.name in exclude:
+            # Parity means the operator's "off" is off on both vendors.
+            result["excluded"] += 1
             continue
         target = skill_dir.resolve()
         expected[skill_dir.name] = target

@@ -9,6 +9,12 @@ only; managed skills live under ~/.agents/skills (+ per-repo .agents/skills).
 
 Per-repo parity remains codex_parity_sync.py (.agents/skills -> .claude/skills).
 
+Honors `skillOverrides: off` from ~/.claude/settings.json: a skill the operator
+switched off for Claude is not mirrored into Codex's ambient index either (Codex
+has no per-skill disable, so the mirror is the only place parity can be kept).
+2026-09-01: 16 off skills were mirrored, pushing the Codex index to 9,362 chars
+against its 8,000 ceiling.
+
 Usage:
     uv run python3 scripts/sync_agent_skills.py
     uv run python3 scripts/sync_agent_skills.py --check
@@ -21,7 +27,7 @@ import sys
 from pathlib import Path
 
 from common import con
-from common.surface_gates import sync_skill_symlinks
+from common.surface_gates import claude_disabled_skills, sync_skill_symlinks
 
 
 def main() -> int:
@@ -31,6 +37,7 @@ def main() -> int:
 
     home = Path.home()
     src = home / ".claude" / "skills"
+    off = claude_disabled_skills(home / ".claude" / "settings.json")
     targets = [
         ("codex_agents", home / ".agents" / "skills"),
     ]
@@ -38,7 +45,7 @@ def main() -> int:
     con.header("Agent skills sync" + (" (check)" if args.check else ""))
     exit_code = 0
     for label, dst in targets:
-        result = sync_skill_symlinks(src, dst, check=args.check)
+        result = sync_skill_symlinks(src, dst, check=args.check, exclude=off)
         if result["errors"]:
             for err in result["errors"]:
                 con.fail(f"{label}: {err}")
@@ -48,7 +55,7 @@ def main() -> int:
         con.kv(
             label,
             f"{verb} +{result['created']} ~{result['updated']} -{result['removed']} "
-            f"from {src}",
+            f"from {src}; {result['excluded']} skipped (skillOverrides=off)",
         )
     return exit_code
 
