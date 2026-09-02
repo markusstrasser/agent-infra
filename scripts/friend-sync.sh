@@ -221,14 +221,18 @@ if [ -d "$SKILLS_SRC" ]; then
         fi
     done
 
-    # Remove dead symlinks (skills deleted upstream)
-    for link in "$SKILLS_DST"/*/; do
-        [ -L "${link%/}" ] && [ ! -e "${link%/}" ] && {
+    # Remove dead symlinks (skills deleted upstream).
+    # NOTE: glob must be */ -> * . A dangling symlink is neither a directory nor a
+    # symlink-to-directory, so "$SKILLS_DST"/*/ never matches one and this loop was
+    # unreachable dead code (verified 2026-09-02: retiring 3 skills left 3 live dead
+    # links plus a dangling coast-cli-skill that friend-sync had never cleaned).
+    for link in "$SKILLS_DST"/*; do
+        [ -L "$link" ] && [ ! -e "$link" ] && {
             if [ "$DRY_RUN" = "1" ]; then
-                would "remove dead link $(basename "${link%/}") (deleted upstream)"
+                would "remove dead link $(basename "$link") (deleted upstream)"
             else
-                rm "${link%/}"
-                warn "$(basename "${link%/}") — removed (deleted upstream)"
+                rm "$link"
+                warn "$(basename "$link") — removed (deleted upstream)"
             fi
         }
     done
