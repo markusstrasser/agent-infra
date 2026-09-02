@@ -216,7 +216,7 @@ def _category(*, boundary: str = "", klass: str = "", title: str = "", body: str
         return "governance"
     if any(k in hay for k in ("hook", "guard", "gate")):
         return "hook"
-    if any(k in hay for k in ("skill", "transport", "mcp", "/improve", "/critique", "/observe", " cli")):
+    if any(k in hay for k in ("skill", "transport", "mcp", "/critique", "/observe", " cli")):
         return "tool"
     if any(k in hay for k in ("optimize for", "telos", "what to optimize", "direction")):
         return "goal"
