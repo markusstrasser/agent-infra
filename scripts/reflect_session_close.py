@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -378,6 +378,58 @@ def ack_digest(session_id: str, *, hindsight: dict | list[dict] | None = None) -
     return n
 
 
+def ack_stale_digests(older_than_days: int, *, note: str, dry_run: bool = False) -> list[dict]:
+    """Ack every un-acked digest older than N days, LABELED as unreviewed.
+
+    A queue nobody drains is the flooding GOALS.md forbids: 28 pending digests (oldest
+    2026-07-06) nagged every SessionStart while no session ever ran /rsi close on them.
+    The ack row carries ``reason: stale-unreviewed`` so the ledger never reads these as
+    verified closes — a labeled screen, not a silent substitute (2026-09-02 queue freeze).
+    Returns the digests acked (or, with dry_run, the ones that would be).
+    """
+    if not DIGEST_LOG.exists():
+        return []
+    closed = _closed_sessions()
+    cutoff = datetime.now(timezone.utc) - timedelta(days=older_than_days)
+    latest: dict[str, dict] = {}
+    for line in DIGEST_LOG.read_text(encoding="utf-8", errors="replace").splitlines():
+        try:
+            row = json.loads(line)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        if row.get("schema") != "reflect.close-digest.v1":
+            continue
+        sid = str(row.get("session_id", ""))
+        if sid and sid not in closed:
+            latest[sid] = row  # latest digest per session wins
+    stale: list[dict] = []
+    for sid, row in latest.items():
+        try:
+            ts = datetime.fromisoformat(str(row.get("ts", "")))
+        except ValueError:
+            continue
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        if ts >= cutoff:
+            continue
+        stale.append({"session_id": sid, "project": row.get("project"), "digest_ts": row.get("ts")})
+    if dry_run:
+        return stale
+    with DIGEST_LOG.open("a", encoding="utf-8") as fh:
+        for item in stale:
+            ack = {
+                "schema": "reflect.close-ack.v1",
+                "session_id": item["session_id"],
+                "rsi_closed": True,
+                "reason": "stale-unreviewed",
+                "note": note,
+                "digest_ts": item["digest_ts"],
+                "ts": _utc_now(),
+            }
+            fh.write(json.dumps(ack, ensure_ascii=False) + "\n")
+    return stale
+
+
 def _current_project() -> str:
     """Project asking for a nudge — cwd basename, matching the digest 'project' convention."""
     try:
@@ -442,7 +494,31 @@ def main(argv: list[str] | None = None) -> int:
         "bare/empty the latest un-acked one. Exit 1 if none.",
     )
     parser.add_argument("--limit", type=int, default=10)
+    parser.add_argument(
+        "--ack-stale",
+        type=int,
+        metavar="DAYS",
+        help="Ack every un-acked digest older than DAYS, labeled reason=stale-unreviewed "
+        "(queue freeze; never counts as a verified close)",
+    )
+    parser.add_argument(
+        "--note",
+        default="bulk ack at the 2026-09-02 RSI queue freeze — never reviewed",
+        help="note stored on each --ack-stale row",
+    )
+    parser.add_argument("--dry-run", action="store_true", help="with --ack-stale: list, write nothing")
     args = parser.parse_args(argv)
+
+    if args.ack_stale is not None:
+        stale = ack_stale_digests(args.ack_stale, note=args.note, dry_run=args.dry_run)
+        for item in stale:
+            print(f"{str(item['session_id'])[:8]}  {item['project']}  {item['digest_ts']}")
+        verb = "would ack" if args.dry_run else "acked"
+        sys.stderr.write(
+            f"[reflect-session-close] {verb} {len(stale)} stale digest(s) older than "
+            f"{args.ack_stale}d (reason=stale-unreviewed)\n"
+        )
+        return 0
 
     if args.ack:
         hindsight = None
