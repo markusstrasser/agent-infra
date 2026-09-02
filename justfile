@@ -434,10 +434,6 @@ memory-harvest *args:
 context-health *args:
     uv run python3 scripts/agent_surface.py {{args}}
 
-# Maintainability metrics for conservatively agent-attributed commits
-[group('health')]
-maintainability *args:
-    uv run python3 scripts/agent_maintainability.py {{args}}
 
 # Canonical runner for standalone review-tool tests
 [group('health')]
@@ -676,17 +672,6 @@ maintain-tick *args:
 operator-status-briefing target='.' *args='':
     uv run python3 scripts/operator_status_briefing.py --repo {{target}} {{args}}
 
-[group('epistemic')]
-baseline-since-last-green target='.' *args='':
-    uv run python3 scripts/baseline_since_last_green.py --repo {{target}} {{args}}
-
-[group('epistemic')]
-audit-findings-consolidation audit_dir='docs/audit' *args='':
-    uv run python3 scripts/audit_findings_consolidation.py {{audit_dir}} {{args}}
-
-[group('epistemic')]
-commit-slice-planning target='.' *args='':
-    uv run python3 scripts/commit_slice_planning.py --repo {{target}} {{args}}
 
 # Parallel read-only scouts → docs/audit/*.md. Pass-through: --backend cursor,codex
 # --model grok-4.5-xhigh (Grok niche lens on cursor backend).
@@ -703,13 +688,6 @@ adversarial-debug-scout repo scope='recent' *args='':
 debug-until-dry repo scope='recent' *args='':
     uv run python3 scripts/debug_until_dry.py {{repo}} {{scope}} {{args}}
 
-[group('epistemic')]
-verification-gate-runner target='.' *args='':
-    uv run python3 scripts/verification_gate_runner.py --repo {{target}} {{args}}
-
-[group('epistemic')]
-session-automation-telemetry *args='':
-    uv run python3 scripts/session_automation_telemetry.py {{args}}
 
 [group('epistemic')]
 sensor-integration-ranking *args='':
@@ -923,30 +901,12 @@ goal-loop id *args:
     done
     echo "episode cap (48) reached without goal-done"; exit 1
 
-# Ingest new sessions from all vendors (Claude, Codex, Cursor, Gemini, Kimi) into agentlogs.db
-[group('sessions')]
-agentlogs-index *args:
-    uv run agentlogs index {{args}}
-
-# Search FTS across all vendors' sessions
-[group('sessions')]
-agentlogs-search *args:
-    uv run agentlogs search {{args}}
-
-# DB size + per-vendor counts + indexer health
-[group('sessions')]
-agentlogs-stats:
-    uv run agentlogs stats
 
 # Run a named analytical query (omit name to list available)
 [group('sessions')]
 agentlogs-query *args:
     uv run agentlogs query {{args}}
 
-# Import git commits with Session-ID attribution (populates v_session_commits etc.)
-[group('sessions')]
-agentlogs-git-import days="30":
-    uv run agentlogs git-import --days {{days}}
 
 # Generic passthrough: agentlogs <any-subcommand>
 [group('sessions')]
@@ -1066,21 +1026,6 @@ complexity *args:
     count=$(uvx radon cc scripts/ -nc -n C 2>&1 | grep -cE ' - [C-F]$' || true)
     echo "Total high-complexity functions (C+): $count"
 
-# Cyclomatic complexity across meta + selve + genomics
-[group('health')]
-complexity-all:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    for repo in meta selve genomics; do
-        dir="$HOME/Projects/$repo"
-        if [ -d "$dir/scripts" ]; then
-            echo "=== $repo ==="
-            uvx radon cc "$dir/scripts/" -a -nc -s 2>&1 | tail -5
-            count=$(uvx radon cc "$dir/scripts/" -nc -n C 2>&1 | grep -cE ' - [C-F]$' || true)
-            echo "High-complexity (C+): $count"
-            echo ""
-        fi
-    done
 
 # ── Lint ───────────────────────────────────────────────────────────
 
