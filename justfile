@@ -122,7 +122,13 @@ hetzner-reap name *args:
 [group('health')]
 smoke:
     #!/usr/bin/env bash
-    set -euo pipefail
+    # Every gate runs; failures are collected and summarized at the end so one red
+    # cannot hide the sections after it. 2026-09-02: four pre-existing reds surfaced
+    # one per run (codex parity → codex hook compat → input-contract lint → MCP
+    # startup) because `set -e` aborted the recipe at the first non-zero exit.
+    set -uo pipefail
+    nfail=0; failed_names=""
+    gate() { local name="$1"; shift; if "$@"; then return 0; fi; nfail=$((nfail+1)); failed_names="$failed_names · $name"; echo "✗ gate failed: $name"; return 1; }
     echo "=== Index check (informational) ==="
     uv run python3 scripts/generate-indexes.py --check 2>&1 | tail -5 || true
     echo "=== Governance index currency (regen from canonical if stale) ==="
@@ -130,34 +136,35 @@ smoke:
       && echo "OK: governance-index current" \
       || echo "STALE: run \`just governance-index\` (a canonical source changed)"
     echo "=== Research index frontmatter ==="
-    head -1 .claude/rules/research-index.md | grep -q '^---$' || { echo "FAIL: research-index.md missing YAML frontmatter"; exit 1; }
-    echo "OK: frontmatter intact"
+    gate "research-index frontmatter" bash -c 'head -1 .claude/rules/research-index.md | grep -q "^---$"' && echo "OK: frontmatter intact"
     echo "=== Routing-doc reference closure (advisory) ==="
     uv run python3 scripts/skill_reference_validator.py --repo agent-infra 2>&1 | grep -E 'dangling|missing absolute|closure OK' || true
     echo "=== agentlogs DB ==="
-    sqlite3 "$HOME/.claude/agentlogs.db" "SELECT COUNT(*) FROM sessions" > /dev/null 2>&1 || { echo "FAIL: agentlogs sessions"; exit 1; }
-    echo "OK: agentlogs readable"
+    gate "agentlogs sessions" bash -c 'sqlite3 "$HOME/.claude/agentlogs.db" "SELECT COUNT(*) FROM sessions" > /dev/null 2>&1' && echo "OK: agentlogs readable"
     echo "=== Doc-vs-reality drift (advisory: live launchd jobs vs CLAUDE.md) ==="
     uv run python3 scripts/orient.py --drift 2>&1 | tail -2 || true
     echo "=== MCP server contracts (in-process, \$0, no LLM) ==="
-    uv run python3 scripts/mcp_contract_smoke.py
+    gate "mcp contracts" uv run python3 scripts/mcp_contract_smoke.py
     echo "=== Skill routing locked evals ==="
-    uv run python3 scripts/skill-routing.py --cases schemas/skill-routing-cases.json
-    uv run python3 experiments/skill-routing/eval.py --locked
+    gate "skill-routing cases" uv run python3 scripts/skill-routing.py --cases schemas/skill-routing-cases.json
+    gate "skill-routing locked eval" uv run python3 experiments/skill-routing/eval.py --locked
     echo "=== Codex parity (.codex/ + .agents/skills mirror Claude assets) ==="
-    uv run --no-project python3 scripts/codex_parity_sync.py --check 2>&1 | tail -6
+    gate "codex parity" bash -o pipefail -c 'uv run --no-project python3 scripts/codex_parity_sync.py --check 2>&1 | tail -6'
     echo "=== Skills vendor sync (~/.agents/skills mirror) ==="
     uv run python3 scripts/sync_agent_skills.py --check 2>&1 | tail -4 || true
     echo "=== Skills index budget (advisory until trim) ==="
     uv run python3 scripts/skills_budget.py 2>&1 | tail -6 || true
     echo "=== Claude hook smoke (silently-dead hook gate) ==="
-    uv run --no-project python3 scripts/hooks_smoke.py --timeout 8
+    gate "hooks smoke" uv run --no-project python3 scripts/hooks_smoke.py --timeout 8
     echo "=== Codex hook compatibility ==="
-    uv run --no-project python3 scripts/codex_hook_compat.py --timeout 8
+    gate "codex hook compat" uv run --no-project python3 scripts/codex_hook_compat.py --timeout 8
     echo "=== Hook input contract (stdin/.tool_input — all surfaces) ==="
-    uv run --no-project python3 "$HOME/Projects/skills/hooks/lint_hook_input_contract.py" --surfaces
+    gate "hook input contract" uv run --no-project python3 "$HOME/Projects/skills/hooks/lint_hook_input_contract.py" --surfaces
     echo "=== Codex project MCP startup ==="
-    uv run --no-project python3 scripts/codex_mcp_smoke.py
+    gate "codex mcp startup" uv run --no-project python3 scripts/codex_mcp_smoke.py
+    echo "=== smoke summary ==="
+    if [ "$nfail" -gt 0 ]; then echo "✗ $nfail gate(s) failed:${failed_names}"; exit 1; fi
+    echo "✓ all smoke gates passed"
 
 # Mirror per-repo .claude/ assets (MCP, hooks, skills) into Codex's .codex/ layers
 [group('health')]

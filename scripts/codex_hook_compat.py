@@ -194,7 +194,13 @@ def run_hook(repo: str, root: Path, hook: HookRef, timeout: float) -> HookResult
         temp_file.write_text("codex hook compatibility smoke\n", encoding="utf-8")
         payload = smoke_payload(hook.event, tool_name, temp_file)
         if hook.event == "SessionStart":
-            payload["cwd"] = str(root)
+            # Isolate like hooks_smoke does: SessionStart hooks persist state under
+            # `$cwd/.claude/` (Codex session-init's phases write current-session-id
+            # from the payload's session_id + cwd). With cwd = the real repo, the
+            # smoke overwrote the live file with "codex-hook-compat-smoke" — the id
+            # prepare-commit-msg stamps into Session-ID: trailers (2026-09-02, twice).
+            (tmp_root / ".claude").mkdir(exist_ok=True)
+            payload["cwd"] = str(tmp_root)
         payload_text = json.dumps(payload)
         env = os.environ.copy()
         env.update(

@@ -170,8 +170,19 @@ def main(argv: list[str] | None = None) -> int:
     for repo in wanted_repos:
         config_path, servers = load_project_servers(repo)
         if not servers:
-            if not (PROJECTS / repo / ".mcp.json").exists():
+            mcp_json = PROJECTS / repo / ".mcp.json"
+            if not mcp_json.exists():
                 skipped.append((repo, "<config>", "no .mcp.json — repo has no project MCP servers"))
+                continue
+            # A .mcp.json that declares zero servers ({"mcpServers": {}}) has nothing
+            # to mirror, so codex_parity_sync writes no config.toml for it. That is
+            # parity, not a missing mirror (substrate, 2026-09-02).
+            try:
+                declared = json.loads(mcp_json.read_text(encoding="utf-8")).get("mcpServers") or {}
+            except (OSError, ValueError):
+                declared = None
+            if declared == {}:
+                skipped.append((repo, "<config>", ".mcp.json declares no servers — nothing to mirror"))
                 continue
             results.append(ServerResult(repo, "<config>", "fail", problem=f"missing or empty {config_path}"))
             continue
