@@ -63,7 +63,7 @@ INVENTORY_DIRS = ("overviews",)
 # false negative can hide — review additions.
 OCCASIONAL_MANUAL = {
     # manual convenience
-    "git-push-all.sh", "daily-recon.sh", "best-sync.py",
+    "git-push-all.sh", "daily-recon.sh",
     "ts-replace.py", "usage-check.py",
     # completed one-shot migrations (harmless, delete-eligible)
     "compress-research-index.py",
