@@ -4,4 +4,4 @@
 set -uo pipefail
 export PATH="/Users/alien/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 cd /Users/alien/Projects/agent-infra || exit 1
-exec uv run python3 scripts/refresh_all_codebase_maps.py "$@"
+exec uv run python3 scripts/refresh_all_codebase_maps.py "$@" > /dev/null  # stdout was the whole map, 98 MB/quarter in the launchd log (2026-09-02)
