@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from codex_parity_sync import compute_mcp_delta  # noqa: E402
 from common.project_registry import MIRRORED_REPOS  # noqa: E402
 
 HOME = Path.home()
@@ -183,6 +184,13 @@ def main(argv: list[str] | None = None) -> int:
                 declared = None
             if declared == {}:
                 skipped.append((repo, "<config>", ".mcp.json declares no servers — nothing to mirror"))
+                continue
+            # Servers that are all already in ~/.codex/config.toml produce an empty
+            # delta, and parity sync now REMOVES the mirror in that case (2026-09-02)
+            # instead of leaving a stale one behind. No file is the correct state.
+            emit, _drift = compute_mcp_delta(repo, PROJECTS / repo)
+            if not emit:
+                skipped.append((repo, "<config>", "all project servers already global — no mirror needed"))
                 continue
             results.append(ServerResult(repo, "<config>", "fail", problem=f"missing or empty {config_path}"))
             continue

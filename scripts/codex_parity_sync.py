@@ -544,6 +544,32 @@ def ensure_gitignored(repo_dir: Path, entry: str, check: bool) -> bool:
     return True
 
 
+def reconcile_mcp_config(cfg_path: Path, emit: dict[str, dict], *, check: bool) -> tuple[str, bool]:
+    """Make the generated .codex/config.toml equal the CURRENT delta — including removals.
+
+    A server dropped from .mcp.json must disappear from the mirror too; before
+    2026-09-02 an empty delta left a stale file in place, so Codex kept launching
+    servers Claude no longer declared (arc-agi brave-search, evals context7/parallel).
+    Returns (state, would_or_did_update).
+    """
+    if emit:
+        toml_text = emit_mcp_toml(emit)
+        current = cfg_path.read_text() if cfg_path.exists() else ""
+        if current == toml_text:
+            return "in sync", False
+        if check:
+            return "WOULD UPDATE", True
+        cfg_path.parent.mkdir(exist_ok=True)
+        cfg_path.write_text(toml_text)
+        return "updated", True
+    if not cfg_path.exists():
+        return "none", False
+    if check:
+        return "WOULD REMOVE stale mirror", True
+    cfg_path.unlink()
+    return "stale mirror removed", True
+
+
 def sync_repo(repo: str, check: bool) -> dict:
     repo_dir = PROJECTS / repo
     result = {"repo": repo, "mcp": 0, "hooks": 0, "skills": None, "drift": [], "would_update": 0}
@@ -558,18 +584,18 @@ def sync_repo(repo: str, check: bool) -> dict:
     result["mcp"] = len(emit)
     codex_dir = repo_dir / ".codex"
     cfg_path = codex_dir / "config.toml"
+    state, updated = reconcile_mcp_config(cfg_path, emit, check=check)
+    result["would_update"] += int(updated)
     if emit:
-        toml_text = emit_mcp_toml(emit)
+        names = ", ".join(sorted(emit))
         if check:
-            current = cfg_path.read_text() if cfg_path.exists() else ""
-            updated = current != toml_text
-            result["would_update"] += int(updated)
-            state = "WOULD UPDATE" if updated else "in sync"
-            con.kv("mcp delta", f"{', '.join(sorted(emit))} [{state}]")
+            con.kv("mcp delta", f"{names} [{state}]")
         else:
-            codex_dir.mkdir(exist_ok=True)
-            cfg_path.write_text(toml_text)
-            con.ok(f"mcp delta -> .codex/config.toml ({', '.join(sorted(emit))})")
+            con.ok(f"mcp delta -> .codex/config.toml ({names})")
+    elif state == "stale mirror removed":
+        con.ok("mcp delta none — stale .codex/config.toml removed (servers no longer declared)")
+    elif state == "WOULD REMOVE stale mirror":
+        con.kv("mcp delta", "none [WOULD REMOVE stale .codex/config.toml]")
     else:
         con.kv("mcp delta", "none (all project servers already global)")
 
