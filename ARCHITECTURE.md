@@ -10,10 +10,9 @@ front-door; the prose detail lives in the pointers at the bottom.
 | Artifact | Role |
 |---|---|
 | [`architecture.template.mmd`](architecture.template.mmd) | Stable topology — two loops, blocks, proposed edges |
-| [`architecture.mmd`](architecture.mmd) | **Generated** — template + live launchd/orchestrator inventory |
+| [`architecture.mmd`](architecture.mmd) | **Generated** — template + live launchd inventory |
 | [`config/system-kinds.json`](config/system-kinds.json) | Closed vocabulary for `@system` tags (`layer`, `role`, `llm`) |
 | Plist `<!-- @system layer=… role=… llm=… -->` | Per-job typed manifest in `ops/launchd/` |
-| [`.claude/rules/orchestrator-tool-names.md`](.claude/rules/orchestrator-tool-names.md) | Session just-recipes + `layer`/`role` |
 
 Regenerate: `just render-architecture` then `mmdc` (below). `just orient --drift` fails if
 `architecture.mmd` is stale vs template+inventory. `architecture.png` is **gitignored** (derived).
@@ -82,7 +81,7 @@ our regime is observable **scaffolding-RSI**, the converging non-FOOM kind.
 | Session extraction (embed-once) | session blobs support corpus mining; answer-bearing turns support exact prior-context retrieval without losing late decisions. Both use local cached `emb` generations | `research/2026-06-17-embed-once-validated-recurring-mistakes.md` · `scripts/export_sessions_for_emb.py` · `scripts/prior-context-index` |
 | Lifecycle graph | `just graph <id>` — rederivable neighborhood over the RSI-lifecycle artifacts (decisions·research·predictions·commits) joined through ONE canonical relation vocab (invert-safe folds, `relates_to` non-traversable); materialized in agentlogs.db, no new store. Densified by commit→decision `implements`-edges parsed from commit bodies. | `scripts/lifecycle_relations.json` (vocab, single source) · `src/agentlogs/lifecycle.py` · `decisions-pending/2026-06-18-phaseB-implements-trailer.md` |
 | Self-monitoring | zero-API launchd jobs (sense half of RSI) — **derived:** `just orient` · `just system-inventory` | `config/system-kinds.json` · `ops/launchd/*.plist` (`@system` tags) |
-| Session orchestrator | file-bus pipeline — `/orchestrate`, typed just recipes | `.claude/rules/orchestrator-tool-names.md` |
+| Audit scouts | `adversarial-debug-scout` · `debug-until-dry` — read-only fan-out to `<repo>/docs/audit/`, triaged inline by the parent session (file-bus recipes + `/orchestrate` retired 2026-09-02, 2 calls/90d) | `/debug` skill · `scripts/debug_scout.py` |
 | RSI governance | observe → improvement-log → promote to architecture | `CLAUDE.md` <constitution> · `.claude/rules/gov-id.md` |
 | Governed projects | intel/phenome/genomics/skills + their stances | `research/cross-project-architecture-overview.md` (prose, 2026-05-11) |
 | Codebase | py files by group + import-hubs (count is GENERATED, never hand-kept) | `.claude/rules/codebase-map.md` |

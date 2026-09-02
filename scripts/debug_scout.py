@@ -303,7 +303,7 @@ def main() -> int:
         file=sys.stderr,
     )
     print(
-        f"Next: just audit-findings-consolidation {audit_dir} --date {day}",
+        f"Next: triage {audit_dir} findings inline — fix confirmed ones, note rejections in the memo ({day})",
         file=sys.stderr,
     )
     return 0 if ok_n == len(results) else 2

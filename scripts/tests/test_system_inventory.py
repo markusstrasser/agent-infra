@@ -6,14 +6,6 @@ import sys
 import system_inventory as si
 
 
-def test_orchestrator_recipes_have_layer_role():
-    rows = si.collect_orchestrator_recipes()
-    assert rows
-    assert rows[0]["recipe"] == "operator-status-briefing"
-    assert rows[0]["layer"] == "session"
-    assert rows[0]["role"] == "operator-tool"
-
-
 def test_plist_manifest_tags_pulse_tick():
     manifest = si.collect_plist_manifest()
     pt = next(m for m in manifest if m["name"] == "pulse-tick")
@@ -26,7 +18,8 @@ def test_render_architecture_substitutes_placeholders():
     inv = si.collect_inventory()
     mmd = si.render_architecture_mmd(inv)
     assert "{{GENERATED_AT}}" not in mmd
-    assert "FILEBUS" in mmd
+    assert "WATCH" in mmd
+    assert "FILEBUS" not in mmd  # file-bus orchestrator retired 2026-09-02
     assert "pulse-tick" in mmd
 
 
@@ -49,5 +42,5 @@ def test_json_entrypoint(capsys, monkeypatch):
     assert si.main() == 0
     data = json.loads(capsys.readouterr().out)
     assert "launchd" in data
-    assert "orchestrator_recipes" in data
+    assert "orchestrator_recipes" not in data
     assert "kinds" in data

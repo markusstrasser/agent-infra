@@ -35,7 +35,6 @@ from system_inventory import (
     collect_drift as inventory_drift,
     collect_inventory,
     collect_launchd_inventory,
-    collect_orchestrator_recipes,
     write_architecture_mmd,
 )
 
@@ -174,17 +173,6 @@ def collect_maps() -> list[dict]:
     return rows
 
 
-def collect_orchestrator_tools() -> dict:
-    """File-bus pipeline recipes — from orchestrator-tool-names.md via system_inventory."""
-    recipes = collect_orchestrator_recipes()
-    return {
-        "registry": ".claude/rules/orchestrator-tool-names.md",
-        "skill": "/orchestrate",
-        "invoke": "just -f ~/Projects/agent-infra/justfile <recipe> <target>",
-        "recipes": [{"recipe": r["recipe"], "llm": r["llm"], "layer": r["layer"], "role": r["role"]} for r in recipes],
-    }
-
-
 def collect_drift(loops: list[dict]) -> dict:
     """Drift guard: tagged plist manifests vs live launchd + generated architecture.mmd."""
     inv = inventory_drift()
@@ -242,17 +230,6 @@ def render(data: dict) -> None:
     s = data["skills"]
     con.kv("count", str(s["count"]))
     con.kv("dir", s["dir"])
-    if "orchestrate" in s.get("names", []):
-        con.kv("orchestrator workflow", "/orchestrate  (see Orchestrator tools below)")
-
-    ot = data.get("orchestrator_tools") or {}
-    con.header("Orchestrator tools — file-bus pipeline (agent-infra)")
-    con.kv("skill", ot.get("skill", "/orchestrate"))
-    con.kv("registry", ot.get("registry", ""))
-    con.kv("from any repo", ot.get("invoke", ""))
-    for r in ot.get("recipes") or []:
-        con.step(f"{r['recipe']:<36} llm:{r['llm']:<8} {r.get('layer', '')}/{r.get('role', '')}")
-
     con.header("Launchd inventory — typed (@system tags)")
     for j in data.get("launchd_inventory") or []:
         if not j.get("loaded"):
@@ -315,7 +292,6 @@ def main() -> int:
         "hooks": _safe(collect_hooks, "hooks"),
         "mcp": _safe(collect_mcp, "mcp"),
         "skills": _safe(collect_skills, "skills"),
-        "orchestrator_tools": _safe(collect_orchestrator_tools, "orchestrator_tools"),
         "launchd_inventory": _safe(lambda: collect_inventory()["launchd"], "launchd_inventory"),
         "maps": _safe(collect_maps, "maps"),
     }

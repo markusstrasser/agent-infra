@@ -17,16 +17,8 @@ def test_json_entrypoint_emits_all_sections(capsys, monkeypatch):
     rc = orient.main()
     assert rc == 0
     data = json.loads(capsys.readouterr().out)
-    for key in ("repos", "loops", "hooks", "mcp", "skills", "orchestrator_tools", "launchd_inventory", "maps", "drift"):
+    for key in ("repos", "loops", "hooks", "mcp", "skills", "launchd_inventory", "maps", "drift"):
         assert key in data, f"missing section: {key}"
-
-
-def test_orchestrator_tools_shape():
-    ot = orient.collect_orchestrator_tools()
-    assert ot["skill"] == "/orchestrate"
-    assert ot["recipes"]
-    assert ot["recipes"][0]["recipe"] == "operator-status-briefing"
-    assert all(r["llm"] in ("none", "optional", "required") for r in ot["recipes"])
 
 
 def test_human_render_never_raises(capsys, monkeypatch):

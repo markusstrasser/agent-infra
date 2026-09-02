@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Unified system inventory — typed, derived from ground truth.
 
-Machine tags (@system) live on plists and orchestrator-tool-names.md.
+Machine tags (@system) live on plists.
 Live launchd state comes from launchctl; recipes from justfile + registry.
 
 Usage:
@@ -25,13 +25,9 @@ HOME = Path.home()
 LAUNCH_AGENTS = HOME / "Library" / "LaunchAgents"
 SCRIPT_PATH_RE = re.compile(r"(/[^\s\"']+\.(?:sh|py))")
 KINDS_PATH = REPO_ROOT / "config" / "system-kinds.json"
-ORCHESTRATOR_REGISTRY = REPO_ROOT / ".claude/rules/orchestrator-tool-names.md"
 SYSTEM_TAG = re.compile(
     r"@system\s+((?:[a-z_]+=[a-z0-9_-]+\s*)+)",
     re.IGNORECASE,
-)
-ORCHESTRATOR_ROW = re.compile(
-    r"\| \*\*(none|optional|required)\*\* \| `([^`]+)` \| `?([^|`]+)`? \| `?([^|`]+)`? \|"
 )
 
 
@@ -303,31 +299,6 @@ def collect_plist_manifest() -> list[dict]:
     return sorted(rows, key=lambda r: r["name"])
 
 
-def collect_orchestrator_recipes() -> list[dict]:
-    if not ORCHESTRATOR_REGISTRY.exists():
-        return []
-    rows: list[dict] = []
-    seen: set[str] = set()
-    for line in ORCHESTRATOR_REGISTRY.read_text().splitlines():
-        m = ORCHESTRATOR_ROW.match(line.strip())
-        if not m:
-            continue
-        llm, name, layer, role = m.group(1), m.group(2), m.group(3), m.group(4)
-        if name in seen:
-            continue
-        seen.add(name)
-        rows.append(
-            {
-                "recipe": name,
-                "llm": llm,
-                "layer": layer or "session",
-                "role": role or "orchestrator-tool",
-                "kind": "just-recipe",
-            }
-        )
-    return rows
-
-
 def collect_skills() -> list[dict]:
     skills_dir = HOME / "Projects" / "skills"
     if not skills_dir.exists():
@@ -339,9 +310,7 @@ def collect_skills() -> list[dict]:
         layer, role = "session", "skill"
         if m := re.search(r"^name:\s*(\S+)", text, re.M):
             name = m.group(1)
-        if name == "orchestrate":
-            layer, role = "session", "orchestrator-workflow"
-        elif name == "debug":
+        if name == "debug":
             layer, role = "session", "scout-workflow"
         rows.append({"skill": name, "layer": layer, "role": role, "kind": "skill"})
     return rows
@@ -386,13 +355,11 @@ def collect_inventory() -> dict:
     live = collect_launchd_jobs()
     manifest = collect_plist_manifest()
     launchd = collect_launchd_inventory()
-    orchestrator = collect_orchestrator_recipes()
     skills = collect_skills()
     return {
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         "kinds": kinds,
         "launchd": launchd,
-        "orchestrator_recipes": orchestrator,
         "skills": skills,
     }
 
@@ -447,17 +414,6 @@ def format_watch_summary(launchd: list[dict]) -> str:
     return "<br/>".join(parts) if parts else "no loaded jobs"
 
 
-def format_orchestrator_summary(recipes: list[dict]) -> str:
-    if not recipes:
-        return "/orchestrate — see orchestrator-tool-names.md"
-    core = [r["recipe"] for r in recipes if r["role"] != "operator-tool"]
-    return (
-        "/orchestrate · "
-        + " · ".join(core)
-        + "<br/>just -f agent-infra/justfile &lt;recipe&gt; &lt;repo&gt;"
-    )
-
-
 def render_architecture_mmd(inv: dict | None = None) -> str:
     inv = inv or collect_inventory()
     template_path = REPO_ROOT / "architecture.template.mmd"
@@ -476,7 +432,6 @@ def render_architecture_mmd(inv: dict | None = None) -> str:
         "{{GENERATED_AT}}": inv["generated_at"],
         "{{WATCH_INVENTORY}}": format_watch_summary(launchd),
         "{{RSI_MOTOR_STATUS}}": motor_line,
-        "{{ORCHESTRATOR_SUMMARY}}": format_orchestrator_summary(inv["orchestrator_recipes"]),
         "{{LLM_LAUNCHD}}": ", ".join(inv.get("drift", {}).get("llm_launchd_jobs", []))
         if inv.get("drift")
         else ", ".join(
@@ -577,7 +532,6 @@ def main() -> int:
     not_loaded = [j["name"] for j in inv["launchd"] if j.get("source") and not j.get("loaded")]
     if not_loaded:
         print(f"\nManifest not loaded: {', '.join(not_loaded)}")
-    print(f"\nOrchestrator recipes: {len(inv['orchestrator_recipes'])}")
     print(f"Skills: {len(inv['skills'])}")
     return 0
 

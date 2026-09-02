@@ -9,7 +9,7 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 cd "$ROOT"
 STAGED=$(git diff --cached --name-only 2>/dev/null || true)
 needs=0
-for pat in architecture.template.mmd config/system-kinds.json .claude/rules/orchestrator-tool-names.md ops/launchd/; do
+for pat in architecture.template.mmd config/system-kinds.json ops/launchd/; do
   if echo "$STAGED" | grep -q "$pat"; then needs=1; break; fi
 done
 [[ "$needs" -eq 1 ]] || exit 0

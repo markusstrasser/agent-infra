@@ -3,7 +3,7 @@
     "watch": "launchd recurring miners — zero-API sense half of RSI",
     "gov": "RSI governance — promotion, drain, motor, human gates",
     "verify": "harness verification — pre-commit / replay gates",
-    "session": "in-session file-bus orchestrator tools (just recipes)",
+    "session": "in-session skills and scout recipes",
     "infra": "cross-cutting infra jobs and telemetry"
   },
   "roles": {
@@ -14,8 +14,7 @@
     "drain": "human-gated disposition queue",
     "sync": "cross-repo sync / refresh",
     "review": "risk or diff review",
-    "orchestrator-tool": "deterministic or hybrid just recipe for orchestrator model",
-    "operator-tool": "operator glance / briefing",
+    "scout": "read-only audit fan-out — writes docs/audit/ files only, never commits",
     "skill": "user-invocable workflow skill"
   },
   "llm": ["none", "optional", "required"],

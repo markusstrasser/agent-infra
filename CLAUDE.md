@@ -23,9 +23,8 @@ just gather <plan.md>                   # deterministic context gather (no LLM)
 just critique <plan.md>                 # gather → cross-model critique
 just questions                          # human-gated pending decisions (act-drain VIEW)
 just graph <id>                         # RSI-lifecycle neighborhood of a decision/commit/finding (agentlogs-native; canonical relation vocab)
-just operator-status-briefing [repo]  # operator glance (llm:none)
-/orchestrate [repo] [status|audit|fix|ship]  # file-bus pipeline skill (cross-repo: just -f ~/Projects/agent-infra/justfile …)
-just orient                             # includes orchestrator-tool recipe list from ground truth
+just adversarial-debug-scout <repo> &   # read-only audit scouts → <repo>/docs/audit/ (background; from any repo: just -f ~/Projects/agent-infra/justfile …)
+just debug-until-dry <repo> &           # scout wave loop until no new confirmed bugs; triage docs/audit/ inline
 ```
 
 ## Key Files
@@ -159,11 +158,11 @@ How to verify this constitution is working (check via `/observe sessions` after 
 
 ```bash
 just orient                    # Loops + typed launchd inventory
-just system-inventory --json   # full @system-tagged manifest + orchestrator recipes
+just system-inventory --json   # full @system-tagged manifest
 just system-inventory --drift  # manifest vs launchctl + architecture.mmd freshness
 ```
 
-Summary: zero-API local jobs for agentlogs indexing, drift/blindspot/act-drain RSI loop, corpus sync, codebase-map refresh, vendor sweep, **maintain-tick** (RSI motor, dry-run); one LLM job (`clash-detect`, gemini-flash shadow). Queue **orchestrator** eradicated 2026-06-07 — session **orchestrator model** tools are `/orchestrate` + agent-infra just recipes.
+Summary: zero-API local jobs for agentlogs indexing, drift/blindspot/act-drain RSI loop, corpus sync, codebase-map refresh, vendor sweep, **maintain-tick** (RSI motor, dry-run); one LLM job (`clash-detect`, gemini-flash shadow). Queue **orchestrator** eradicated 2026-06-07; the file-bus recipes and `/orchestrate` retired 2026-09-02 (2 calls in 90d) — only the two audit scouts remain.
 
 ## Backlog
 

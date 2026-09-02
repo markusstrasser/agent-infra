@@ -24,9 +24,6 @@ flowchart TD
         LG["lifecycle graph · just graph &lt;id&gt;<br/>decisions·research·predictions·commits → lifecycle_edges<br/>canonical relation vocab (invert-safe · relates_to non-traversable) · agentlogs-native projection, no new store"]
     end
 
-    subgraph FILEBUS["📋 Session orchestrator — file-bus · derived {{GENERATED_AT}}"]
-        FB["{{ORCHESTRATOR_SUMMARY}}"]
-    end
 
     subgraph WATCH["🔁 Self-monitoring — launchd · derived {{GENERATED_AT}}"]
         L["{{WATCH_INVENTORY}}"]
@@ -64,7 +61,6 @@ flowchart TD
     S1 -->|shaped by| HARNESS
     HARNESS ==>|context + tools · ⚡ SHORT reflex loop, this session| S1
     DIG -->|surfaced| S1
-    FB -->|baseline · audit · commit-slice| S1
 
     %% ===== writes to durable memory =====
     S1 -->|granular commits| GIT
@@ -104,10 +100,8 @@ flowchart TD
     classDef watch fill:#3b2f0b,stroke:#fbbf24,color:#e5e7eb;
     classDef verify fill:#1e3a5f,stroke:#38bdf8,color:#e5e7eb;
     classDef prop fill:#2a1a3a,stroke:#c084fc,color:#e5e7eb,stroke-dasharray:5 5;
-    classDef filebus fill:#1a2e1a,stroke:#86efac,color:#e5e7eb;
     class GIT,DB,CORP,EMB,LG store;
     class OBS,LOG,RULE,KPI gov;
     class L,DIG,PULSE,MT,LLMJOBS watch;
     class HE,AT,ST verify;
-    class FB filebus;
     class AW,PW,PH,ANT prop;
