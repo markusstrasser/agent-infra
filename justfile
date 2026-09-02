@@ -184,25 +184,20 @@ codex-mcp-smoke *args:
 [group('health')]
 mcp-health:
     #!/usr/bin/env bash
+    # `claude mcp call` no longer exists (verified 2026-09-01: `claude mcp` has add/get/list/…),
+    # so the old per-tool probes printed 5/5 FAIL while every server was healthy — a
+    # false-alarm instrument. `claude mcp list` health-checks each configured server.
+    # ANTHROPIC_API_KEY is unset for the call: with it set, claude.ai connectors are
+    # disabled by API-key precedence and would read as missing.
     set -uo pipefail
-    ok=0; fail=0
-    check() {
-        local name=$1 cmd=$2
-        if eval "$cmd" > /dev/null 2>&1; then
-            echo "  OK: $name"; ((ok++))
-        else
-            echo "  FAIL: $name"; ((fail++))
-        fi
-    }
-    echo "=== Research MCP health ==="
-    check "Exa (web_search)" "claude mcp call exa web_search_exa '{\"query\":\"test\",\"numResults\":1}' 2>/dev/null"
-    check "Semantic Scholar" "curl -sf 'https://api.semanticscholar.org/graph/v1/paper/search?query=test&limit=1' > /dev/null"
-    check "scite" "claude mcp call scite search_literature '{\"term\":\"test\",\"limit\":1}' 2>/dev/null"
-    check "Perplexity" "claude mcp call perplexity perplexity_search '{\"query\":\"test\"}' 2>/dev/null"
-    check "Brave" "claude mcp call brave-search brave_web_search '{\"query\":\"test\",\"count\":1}' 2>/dev/null"
+    echo "=== MCP server health (claude mcp list) ==="
+    out="$(env -u ANTHROPIC_API_KEY timeout 90 claude mcp list 2>&1 | sed -E 's/([?&][A-Za-z]*[Kk]ey=)[^&[:space:]]+/\1***/g')" || true
+    printf '%s\n' "$out" | grep -E ' - (✔|✘|⊘)' || printf '%s\n' "$out" | tail -5
+    conn=$(printf '%s\n' "$out" | grep -c '✔ Connected' || true)
+    fail=$(printf '%s\n' "$out" | grep -c '✘' || true)
     echo "---"
-    echo "$ok OK, $fail FAIL"
-    [[ $fail -eq 0 ]]
+    echo "$conn connected, $fail failed"
+    [[ $conn -gt 0 && $fail -eq 0 ]]
 
 # Cross-project health check
 [group('health')]

@@ -35,4 +35,10 @@ if [ "$STATUS" -eq 1 ]; then
 else
     echo "$TS ok metered=\$$TOTAL cap=\$$CAP" >> "$LOG"
 fi
+# Heartbeat to launchd's stdout sink. doctor's launchd-stale check dates a job's last
+# run from the mtime of its StandardOutPath/StandardErrorPath, and launchd does NOT
+# touch mtime on open — only a write does. This job logged only to $LOG, so its
+# sinks froze on 2026-08-05 and doctor reported it dead for 26 days while it ran
+# every 30 min (false alarm caught 2026-09-01).
+tail -n1 "$LOG"
 exit 0

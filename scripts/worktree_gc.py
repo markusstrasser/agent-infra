@@ -35,6 +35,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import time
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -43,6 +44,12 @@ from config import PROJECT_ROOTS
 
 PROJECTS_HOME = Path.home() / "Projects"
 SKIP_PATH_SUBSTR = ("factory", "-factory")
+# lsof lives in /usr/sbin; a launchd/cron PATH without it turns the liveness scan
+# into an OSError → empty map → "liveness unknown" → every nightly apply exits 2.
+# Never let PATH decide a safety scan.
+LSOF = shutil.which("lsof") or "/usr/sbin/lsof"
+# Why the last cwd scan came back the way it did — printed with the [DEGRADED] line.
+LAST_SCAN_DIAG = "scan not run"
 
 
 @dataclass
@@ -158,10 +165,12 @@ def live_cwd_holders() -> dict[str, list[int]]:
     Returns {} when lsof is unavailable. That is the dangerous direction, so an empty
     result means "unknown", never "nothing is running" — see the caller.
     """
+    global LAST_SCAN_DIAG
+    started = time.monotonic()
     try:
         result = subprocess.run(
             [
-                "lsof",
+                LSOF,
                 "-a",
                 "-d",
                 "cwd",
@@ -183,8 +192,16 @@ def live_cwd_holders() -> dict[str, list[int]]:
             timeout=60,
             check=False,
         )
-    except (OSError, subprocess.SubprocessError):
+    except subprocess.TimeoutExpired:
+        LAST_SCAN_DIAG = f"lsof timed out after 60s (a sleeping/unreachable mount stalls stat())"
         return {}
+    except (OSError, subprocess.SubprocessError) as exc:
+        LAST_SCAN_DIAG = f"lsof could not run: {exc!r}"
+        return {}
+    LAST_SCAN_DIAG = (
+        f"lsof rc={result.returncode} in {time.monotonic() - started:.1f}s, "
+        f"{len(result.stdout.splitlines())} output lines, stderr={result.stderr.strip()[:200]!r}"
+    )
     holders: dict[str, list[int]] = {}
     pid: int | None = None
     for line in result.stdout.splitlines():
@@ -710,9 +727,12 @@ def main() -> int:
     # found, so the cost is two calls total regardless of worktree count.
     cwd_holders = live_cwd_holders()
     if not liveness_known(cwd_holders):
+        # Say WHY the scan is empty: the nightly apply has exited 2 here every
+        # night since 2026-08-27 with a bare message, so the receipt could not
+        # tell a timeout from a missing binary from a genuinely empty parse.
         print(
             "[DEGRADED] liveness unknown — lsof reported no cwd holders at all; "
-            "every removal is refused until the scan works",
+            f"every removal is refused until the scan works ({LAST_SCAN_DIAG})",
             file=sys.stderr,
         )
     per_row = {row.path: holders_for(row.path, cwd_holders) for row in all_rows}

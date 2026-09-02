@@ -172,8 +172,14 @@ def plist_schedule_seconds(path: Path) -> int | None:
 
 
 def _last_run_epoch(path: Path) -> float | None:
-    """Newest mtime across the job's stdout/stderr sinks — launchd reopens them
-    on every invocation, so this is when the job last actually FIRED."""
+    """Newest mtime across the job's stdout/stderr sinks.
+
+    Contract: launchd does NOT touch a sink's mtime on open — only a WRITE does. So
+    this dates the job's last run only if the job writes at least one line per run
+    to stdout/stderr. A job that logs elsewhere and stays silent on its sinks reads
+    as dead (spend-alarm: sinks frozen 2026-08-05, reported "not fired in 26d" on
+    2026-09-01 while its own log showed a run every 30 min). Every periodic job owes
+    a stdout heartbeat; the false alarm is the detector's, not the job's."""
     try:
         root = ET.fromstring(path.read_text(encoding="utf-8", errors="replace"))
     except (OSError, ET.ParseError):
