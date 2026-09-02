@@ -32,7 +32,6 @@ HOOK_DESCRIPTIONS = {
     'pretool-append-only-guard.sh': 'blocks deletion in append-only files (improvement-log, decisions/)',
     'pretool-shared-infra-guard.sh': 'warns on shared infrastructure file modifications',
     'pretool-ast-precommit.sh': 'validates Python syntax before commit',
-    'pretool-goal-drift.sh': 'warns when edits drift from stated task goal',
     'pretool-regression-dag-gate.sh': 'blocks edits that would break dependency chains',
     'pretool-companion-remind.sh': 'suggests companion skills for current task',
     'permission-auto-allow.sh': 'auto-allows pre-approved permission patterns',

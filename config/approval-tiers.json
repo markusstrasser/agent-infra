@@ -88,7 +88,6 @@
         "pretool-corpus-remind.sh",
         "pretool-exa-context-guard.sh",
         "pretool-governance-edit-notice.sh",
-        "pretool-goal-drift.sh",
         "pretool-research-provenance-warn.sh",
         "pretool-search-burst.sh",
         "pretool-consensus-search.sh",

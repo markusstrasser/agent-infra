@@ -36,7 +36,6 @@ _HINDSIGHT_GRADES: dict[str, Path] = {
 }
 _VALID_HINDSIGHT_GRADES = frozenset({"DERIVABLE", "NON-DERIVABLE", "HAD-LEVER", "HAD-PARTS", "NOVEL"})
 CAPTURE_LOG = Path.home() / ".claude" / "reflect-capture.jsonl"
-UNSUPPORTED_SHADOW = Path.home() / ".claude" / "unsupported-completion-shadow.jsonl"
 MAINTAIN = REPO / "MAINTAIN.md"
 
 
@@ -68,25 +67,6 @@ def _session_corrections(session_id: str) -> list[dict]:
     return rows
 
 
-def _unsupported_completion(session_id: str) -> dict | None:
-    """Latest unsupported-completion shadow fire for this session (claimed success w/o evidence).
-
-    A real fabrication-risk signal — the highest-value thing a verify-close can catch. Returns the
-    row (success_hits/evidence_hits/msg_tail) when present, else None. Written by
-    stop-unsupported-completion.sh; absent file → None (fail open)."""
-    if not UNSUPPORTED_SHADOW.exists():
-        return None
-    found: dict | None = None
-    for line in UNSUPPORTED_SHADOW.read_text(encoding="utf-8", errors="replace").splitlines():
-        try:
-            row = json.loads(line)
-        except (json.JSONDecodeError, ValueError):
-            continue
-        if row.get("session") == session_id:
-            found = row  # latest wins
-    return found
-
-
 def build_digest(intent: dict) -> dict | None:
     """Build digest from a close-queue intent row. Returns None if not eligible."""
     session_id = intent.get("session_id", "unknown")
@@ -95,10 +75,8 @@ def build_digest(intent: dict) -> dict | None:
 
     # Gate on a REAL empirical issue (single-source predicate) — cheap, no transcript read.
     real_issue, kinds = real_issue_signal(corrects)
-    uc = _unsupported_completion(session_id)
-    if uc and uc.get("would_fire"):
-        real_issue = True
-        kinds = sorted(set(kinds) | {"unsupported_completion"})
+    # The unsupported-completion shadow (stop-unsupported-completion.sh) was retired
+    # 2026-09-02 after 4.6 months past its window with no grader; its log is archived.
 
     eligible, reason = tier1_eligible(goal_state, real_issue=real_issue)
     if not eligible and not intent.get("force_tier1"):
@@ -175,10 +153,7 @@ def build_digest(intent: dict) -> dict | None:
         "ts": _utc_now(),
         "tier1_reason": reason,
         "real_issue_kinds": kinds,                       # WHY this close was triggered (the issue)
-        "unsupported_completion": (
-            {k: uc.get(k) for k in ("would_fire", "success_hits", "evidence_hits", "msg_tail")}
-            if uc else None
-        ),
+        "unsupported_completion": None,  # shadow retired 2026-09-02; key kept for digest readers
         "fail_then_user_count": fail_then_user,
         "goal_state": goal_state,
         "session_end_reason": intent.get("reason"),
