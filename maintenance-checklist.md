@@ -150,7 +150,7 @@ Reusable hook scripts symlinked into projects. All fail open (broken hook ≠ bl
 | `postwrite-source-check.sh` | PostToolUse | Blocks writes to research paths without source tags (exit 2) |
 | `stop-research-gate.sh` | Stop | Reminds about primary sources + disconfirmation before stopping |
 | `pretool-data-guard.sh` | PreToolUse | Generalized data file protection (configurable paths) |
-| `pretool-bash-loop-guard.sh` | PreToolUse | Blocks multiline for/while/if that causes zsh parse errors |
+| `pretool-bash-loop-guard.sh` | PreToolUse | Uses non-executing `zsh -n` to block parser-confirmed multiline control-structure errors |
 | `posttool-bash-failure-loop.sh` | PostToolUse | Detects 5+ consecutive Bash failures, warns agent to stop retrying |
 | `pretool-commit-check.sh` | PreToolUse:Bash | Checks git commit messages: [prefix], no Co-Authored-By, governance trailers |
 | `pretool-search-burst.sh` | PreToolUse | Warns at 4, blocks at 8 consecutive searches |

@@ -1056,7 +1056,7 @@ cat > "$HOME/.claude/hooks/spinning-detector.sh" <<'SPINNING'
 #     per-tool ceilings produced zero useful blocks and the harness reformatted
 #     them as "BLOCKED", actively misleading the agent.
 #   - No Bash handling. Bash loops are caught upstream by the PreToolUse
-#     pretool-bash-loop-guard.sh (real block) and posttool-bash-failure-loop.sh.
+#     pretool-bash-loop-guard.sh (parser-confirmed block) and posttool-bash-failure-loop.sh.
 #   - No warn-at-5 pre-nag, and no re-firing on every call past threshold
 #     (the old >=8 branch logged ~23x per 30-call episode — pure amplification).
 #

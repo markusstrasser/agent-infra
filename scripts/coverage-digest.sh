@@ -20,7 +20,7 @@ python3 -c "
 import json, os, sys
 
 HOOK_DESCRIPTIONS = {
-    'pretool-bash-loop-guard.sh': 'blocks infinite bash for/while loops',
+    'pretool-bash-loop-guard.sh': 'blocks parser-confirmed multiline zsh syntax errors',
     'tool-tracker.sh': 'blocks duplicate file reads (>3x same file in recency window)',
     'pretool-search-burst.sh': 'blocks >5 search/web calls in 60s window',
     'pretool-llmx-guard.sh': 'blocks known-broken llmx patterns (-f with gemini, wrong flags)',

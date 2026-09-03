@@ -101,7 +101,7 @@ These can be sections in a plan file, a research memo, or standalone. The point:
 
 **9. Skills governance.** Agent-infra owns skill quality: authoring, testing, propagation. Skills stay in `~/Projects/skills/` (separate). Agent-infra governs through `/observe` (sees usage across projects) and improvement-log.
 
-**10. Fail open, carve out exceptions.** Hooks fail open by default. Explicit fail-closed list: protected data writes, multiline bash, repeated failure loops (>5). List grows only with measured ROI data.
+**10. Fail open, carve out exceptions.** Hooks fail open by default. Explicit fail-closed list: protected data writes, parser-confirmed shell syntax errors, repeated failure loops (>5). Valid multiline shell syntax is never itself a block condition. List grows only with measured ROI data.
 
 **11. Recurring patterns become architecture.** If used/encountered 10+ times → hook, skill, or scaffolding. Not a snippet, not a manual habit. (The Raycast heuristic.)
 
