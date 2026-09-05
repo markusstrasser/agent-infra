@@ -6,7 +6,6 @@ Fast path: no --full extract, per-project byte caps, never blocks on genomics fu
 from __future__ import annotations
 
 import argparse
-import subprocess
 import sys
 from pathlib import Path
 
@@ -44,35 +43,29 @@ def _trim_text_to_bytes(text: str, max_bytes: int) -> str:
 def _extract_project(project: str, sessions: int, work: Path) -> tuple[str, int]:
     claude_out = work / f"{project}-claude.md"
     codex_out = work / f"{project}-codex.md"
-    try:
-        _run([
-            sys.executable,
-            str(SKILL / "scripts/extract_transcript.py"),
-            project,
-            "--sessions",
-            str(sessions),
-            "--output",
-            str(claude_out),
-        ])
-    except subprocess.CalledProcessError:
-        claude_out.write_text("")
-    try:
-        _run([
-            sys.executable,
-            str(SKILL / "scripts/extract_codex_transcript.py"),
-            project,
-            "--sessions",
-            str(sessions),
-            "--output",
-            str(codex_out),
-        ])
-    except subprocess.CalledProcessError:
-        codex_out.write_text("")
+    _run([
+        sys.executable,
+        str(SKILL / "scripts/extract_transcript.py"),
+        project,
+        "--sessions",
+        str(sessions),
+        "--output",
+        str(claude_out),
+    ])
+    _run([
+        sys.executable,
+        str(SKILL / "scripts/extract_codex_transcript.py"),
+        project,
+        "--sessions",
+        str(sessions),
+        "--output",
+        str(codex_out),
+    ])
 
     claude = _head_text(claude_out, CLAUDE_CAP)
-    if not claude.strip():
-        return "", 0
     codex = _head_text(codex_out, CODEX_CAP)
+    if not claude.strip() and not codex.strip():
+        return "", 0
     chunk = f"\n\n# PROJECT: {project}\n\n{claude}"
     if codex.strip():
         chunk += f"\n\n--- codex ---\n\n{codex}"

@@ -62,19 +62,16 @@ def extract(project: str, sessions: int, days: int | None, full: bool, out: Path
         codex_out = out.parent / (out.stem.replace("input", "codex") + ".md")
         if out.name == "input.md":
             codex_out = out.parent / "codex.md"
-        try:
-            _run([
-                sys.executable,
-                str(SKILL / "scripts/extract_codex_transcript.py"),
-                project,
-                "--sessions",
-                str(sessions),
-                *([] if not days else ["--days", str(days)]),
-                "--output",
-                str(codex_out),
-            ])
-        except subprocess.CalledProcessError:
-            codex_out.write_text("")
+        _run([
+            sys.executable,
+            str(SKILL / "scripts/extract_codex_transcript.py"),
+            project,
+            "--sessions",
+            str(sessions),
+            *([] if not days else ["--days", str(days)]),
+            "--output",
+            str(codex_out),
+        ])
     else:
         (out.parent / "codex.md").write_text("")
 
@@ -95,8 +92,8 @@ def build_context(
         digest = Path(__file__).resolve().parents[1] / "scripts/coverage-digest.sh"
         _run_shell_to_file(digest, cov)
 
-    parts: list[Path] = [input_md]
-    if include_codex and codex_md.stat().st_size > 0:
+    parts: list[Path] = [input_md] if input_md.is_file() else []
+    if include_codex and codex_md.is_file() and codex_md.stat().st_size > 0:
         parts.append(codex_md)
     if ops.is_file() and ops.stat().st_size > 0:
         parts.append(ops)
