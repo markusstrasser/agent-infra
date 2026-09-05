@@ -41,7 +41,7 @@ just debug-until-dry <repo> &           # scout wave loop until no new confirmed
 ~330 research memos in `research/`. Routing index with topics and "consult before" triggers: `.claude/rules/research-index.md` (path-scoped to `research/**`, `decisions/**`).
 
 <constitution>
-> **Human-protected.** Agent may propose changes but must not modify without explicit approval.
+> **Human-owned.** Changes follow the Autonomy Boundaries below, including the existing explicit-or-confidently-inferred approval rule for clear, reversible Constitution/GOALS edits.
 
 ### Generative Principle
 
