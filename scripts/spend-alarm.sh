@@ -32,6 +32,8 @@ if [ "$STATUS" -eq 1 ]; then
     MSG="Metered llmx spend \$$TOTAL today >= \$$CAP cap. Hard block active in llmx; set LLMX_SPEND_OVERRIDE=1 only for an intended large job."
     osascript -e "display notification \"$MSG\" with title \"llmx spend cap\" sound name \"Basso\"" >/dev/null 2>&1 || true
     echo "$TS ALARM metered=\$$TOTAL cap=\$$CAP" >> "$LOG"
+elif [ "$STATUS" -ne 0 ]; then
+    echo "$TS DEGRADED status=$STATUS known_subtotal=\$$TOTAL cap=\$$CAP; usage accounting incomplete or unavailable" >> "$LOG"
 else
     echo "$TS ok metered=\$$TOTAL cap=\$$CAP" >> "$LOG"
 fi

@@ -38,18 +38,9 @@ import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from llmx.usage_report import PRICING, cost_for_usage, est_cost, output_tokens
+
 REPO = Path(__file__).resolve().parent.parent
-
-import importlib.util
-
-_uc_spec = importlib.util.spec_from_file_location(
-    "usage_check", REPO / "scripts" / "usage-check.py"
-)
-_uc = importlib.util.module_from_spec(_uc_spec)
-assert _uc_spec.loader is not None
-_uc_spec.loader.exec_module(_uc)
-PRICING = _uc.PRICING
-est_cost = _uc.est_cost
 
 DEFAULT_DB = Path.home() / ".claude" / "agentlogs.db"
 DEFAULT_TASK = (
@@ -108,6 +99,8 @@ def _model_rate(model: str | None) -> tuple[float, float] | None:
 
 
 def _est_session_usd(model: str | None, in_tok: int, out_tok: int) -> float | None:
+    # A session aggregate loses request boundaries/cache categories. This is a
+    # base-rate shadow estimate, not an Astra tier calculation or billing check.
     rate = _model_rate(model)
     if rate is None:
         return None
@@ -162,11 +155,11 @@ def observe(
             e = _est_session_usd(r["model"], int(r["in_tok"]), int(r["out_tok"]))
             if e is not None:
                 usd.append(e)
-        note = ""
+        note = "Base-rate shadow estimate; session totals lack request boundaries and cache categories."
         if vendor == "cursor" and not in_known:
-            note = "cursor runs often lack token fields in agentlogs — use probe mode"
+            note += " Cursor runs often lack token fields in agentlogs — use probe mode."
         if vendor == "codex" and in_known and statistics.mean(in_known) > 500_000:
-            note = "codex input_tokens often cumulative/re-fed — compare tools+duration too"
+            note += " Codex input_tokens often cumulative/re-fed — compare tools+duration too."
         out.append(
             VendorRollup(
                 vendor=vendor,
@@ -263,7 +256,7 @@ def probe_llmx(*, prompt: str, timeout: int, model: str = "claude-opus-5") -> di
     elapsed = round(time.time() - t0, 2)
     # Prefer usage log attribution over parsing mixed stdout
     log = Path.home() / ".claude" / "llmx-usage.jsonl"
-    in_tok = out_tok = reason = 0
+    usage_record = None
     if log.is_file():
         for line in reversed(log.read_text().splitlines()[-20:]):
             if not line.strip():
@@ -273,11 +266,9 @@ def probe_llmx(*, prompt: str, timeout: int, model: str = "claude-opus-5") -> di
             except json.JSONDecodeError:
                 continue
             if rec.get("caller") == "harness-cost-meter" and rec.get("model") == model:
-                in_tok = int(rec.get("prompt_tokens") or 0)
-                out_tok = int(rec.get("completion_tokens") or 0)
-                reason = int(rec.get("reasoning_tokens") or 0)
+                usage_record = rec
                 break
-    usd = est_cost(model, in_tok, out_tok + reason) or 0.0
+    usd = cost_for_usage(usage_record, conservative=True) if usage_record else None
     err = None
     if r.returncode != 0:
         err = (r.stderr or r.stdout or "")[-400:]
@@ -285,15 +276,15 @@ def probe_llmx(*, prompt: str, timeout: int, model: str = "claude-opus-5") -> di
         "backend": "llmx-bare",
         "ok": r.returncode == 0,
         "model": model,
-        "in_tok": in_tok,
-        "out_tok": out_tok + reason,
-        "cached_tok": 0,
-        "est_usd": round(usd, 6),
+        "in_tok": usage_record.get("prompt_tokens") if usage_record else None,
+        "out_tok": output_tokens(usage_record) if usage_record and usage_record.get("completion_tokens") is not None else None,
+        "cached_tok": usage_record.get("cached_tokens") if usage_record else None,
+        "est_usd": round(usd, 6) if usd is not None else None,
         "latency_s": elapsed,
         "exit": r.returncode,
         "result_preview": (r.stdout or "")[:200],
         "error": err,
-        "pricing_note": "bare chat (no tools) — not comparable to full coding harness",
+        "pricing_note": "Conservative estimate; unknown Astra input is charged at the cache-write rate. Bare chat (no tools) — not comparable to full coding harness.",
     }
 
 
@@ -459,7 +450,7 @@ def _print_observe(rows: list[VendorRollup], *, project: str, days: int) -> None
         if r.note:
             print(f"         note: {r.note}")
     print()
-    print("Notes: $/sess uses usage-check PRICING (API list rates); subscription = $0 marginal.")
+    print("Notes: $/sess uses llmx base rates; session totals cannot resolve request tiers/cache. Subscription = $0 marginal.")
     print("       Cursor often has 0 token fields — run `probe --backends cursor` for a live sample.")
     print("       Pi not installed → skip; install earendil-works/pi to extend probe.")
 
@@ -476,9 +467,12 @@ def _print_probe(rows: list[dict]) -> None:
         if r.get("error") and not r.get("ok"):
             print(f"         error: {r['error'][:200]}")
             continue
+        tokens = {key: f"{r[key]:,}" if r.get(key) is not None else "?"
+                  for key in ("in_tok", "out_tok", "cached_tok")}
+        cost = f"${r['est_usd']}" if r.get("est_usd") is not None else "unknown"
         print(
-            f"         in={r.get('in_tok'):,} out={r.get('out_tok'):,} "
-            f"cached={r.get('cached_tok'):,} est_usd=${r.get('est_usd')} "
+            f"         in={tokens['in_tok']} out={tokens['out_tok']} "
+            f"cached={tokens['cached_tok']} est_usd={cost} "
             f"latency={r.get('latency_s')}s"
         )
         if r.get("pricing_note"):

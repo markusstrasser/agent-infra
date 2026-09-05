@@ -711,6 +711,8 @@ def check_metered_spend() -> list[Check]:
     who = f" top={top[0]['caller']}@{top[0]['repo']}" if top else ""
     if spend >= 25:
         return [c.fail(f"${spend:.2f} metered today ({calls} calls, cap $25){who}")]
+    if data.get("cost_complete") is False:
+        return [c.warn(f"known subtotal ${spend:.2f}; {data.get('unknown_cost_calls', 0)} metered calls have unknown cost{who}")]
     if spend >= 10:
         return [c.warn(f"${spend:.2f} metered today ({calls} calls){who}")]
     return [c.ok(f"${spend:.2f} metered today ({calls} calls)")]

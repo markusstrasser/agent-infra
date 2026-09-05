@@ -18,109 +18,8 @@ import sys
 from collections import defaultdict
 
 
-# PRICING — VENDORED copy of llmx/llmx/usage_report.py:PRICING (the single source).
-# KNOWING EXCEPTION to invariant #9 "one definition, consumers load it": agent-infra
-# can't import llmx (separate env), so the map is hand-synced. The drift-test
-# (tests/test_usage_check_pricing_drift.py) AST-parses both sources and fails loud
-# on divergence. Edit rates in llmx FIRST, then re-sync this dict (or:
-#   just -f ~/Projects/agent-infra/justfile  # when a sync recipe lands).
-# Per-MTok (input, output); output rate also applies to reasoning tokens. Exact model
-# keys (NOT prefixes) — an unpriced model returns None (surfaces as $0, never guessed).
-PRICING: dict[str, tuple[float, float]] = {
-    "gemini-3-flash-preview": (0.5, 3.0),
-    "gemini-3-flash": (0.5, 3.0),
-    "gemini-3.1-flash-lite-preview": (0.25, 1.5),
-    "gemini-3.1-flash-lite": (0.25, 1.5),
-    "gemini-3.5-flash": (1.50, 9.0),
-    "gemini-3.5-flash-lite": (0.3, 2.5),
-    "gemini-3.8-flash": (0.75, 3.75),
-    "gemini-3.7-flash": (0.75, 3.75),
-    "gemini-3.6-flash": (1.5, 7.5),
-    "gemini-3.1-pro-preview": (1.25, 10.0),
-    "gpt-6-astra": (10.0, 50.0),
-    "gpt-6": (10.0, 50.0),
-    # GPT-5.6 suite (developers.openai.com/api/docs/pricing, GA 2026-07-09;
-    # price cut 2026-07-30: Luna -80% to $0.20/$1.20, Terra -20% to $2/$12, Sol
-    # unchanged — openai.com/index/advancing-the-price-performance-frontier-with-gpt-5-6)
-    # Alias gpt-5.6 → sol. Pro mode bills at same model rates (more tokens).
-    "gpt-5.6-sol": (5.0, 30.0),
-    "gpt-5.6": (5.0, 30.0),
-    "gpt-5.6-terra": (2.0, 12.0),
-    "gpt-5.6-luna": (0.20, 1.20),
-    "gpt-5.3-chat-latest": (1.75, 14.0),
-    "gpt-5.3-codex": (1.25, 10.0),
-    "claude-opus-5": (5.0, 25.0),
-    "claude-opus-4-8": (5.0, 25.0),
-    "claude-fable-5": (10.0, 50.0),
-    "claude-fable-5-1": (10.0, 50.0),
-    "claude-sonnet-5": (3.0, 15.0),
-    "claude-sonnet-4-6": (3.0, 15.0),
-    # SpaceXAI Grok 4.5 (docs.x.ai 2026-07-08): base $2/$6.
-    "grok-4.5": (2.0, 6.0),
-    # Cursor-pool Grok slugs (4.5: 2026-07-14 registry; 4.6 incl. xhigh: llmx
-    # 2026-08-27): mirrors llmx's CURSOR_GROK_MODELS shadow-price loop; the
-    # drift-test re-derives these from llmx/model_ids.py so a slug or rate change
-    # upstream still fails loudly.
-    "cursor-grok-4.5-low": (2.0, 6.0),
-    "cursor-grok-4.5-medium": (2.0, 6.0),
-    "cursor-grok-4.5-high": (2.0, 6.0),
-    "cursor-grok-4.5-low-fast": (4.0, 18.0),
-    "cursor-grok-4.5-medium-fast": (4.0, 18.0),
-    "cursor-grok-4.5-high-fast": (4.0, 18.0),
-    "cursor-grok-4.6-low": (2.0, 6.0),
-    "cursor-grok-4.6-medium": (2.0, 6.0),
-    "cursor-grok-4.6-high": (2.0, 6.0),
-    "cursor-grok-4.6-xhigh": (2.0, 6.0),
-    "cursor-grok-4.6-low-fast": (4.0, 18.0),
-    "cursor-grok-4.6-medium-fast": (4.0, 18.0),
-    "cursor-grok-4.6-high-fast": (4.0, 18.0),
-    "cursor-grok-4.6-xhigh-fast": (4.0, 18.0),
-    # Kimi K3 (kimi.com research announcement 2026-07-16): $3.00/$15.00 per MTok
-    # cache-miss; cache-hit input $0.30 — priced at the conservative cache-miss rate.
-    "kimi-k3": (3.0, 15.0),
-    # openrouter (verified live 2026-07-07: /api/v1/models pricing.prompt/completion)
-    "qwen/qwen3.6-27b": (0.285, 2.40),
-    # Qwen3.8 family (llmx 2026-08-17, openrouter-verified)
-    "qwen/qwen3.8-27b": (0.45, 3.20),
-    "qwen/qwen3.8-2.4t-a95b": (2.0, 6.0),
-    "qwen/qwen3.8-max": (2.0, 6.0),
-    # dense-student screen candidates (arc-agi research/2026-07-10-dense-student-candidates.md,
-    # web-verified 2026-07-10; per-M USD prompt/completion)
-    "google/gemma-4-31b-it": (0.12, 0.35),
-    "qwen/qwen3-32b": (0.08, 0.28),
-    "mistralai/mistral-small-3.2-24b-instruct": (0.075, 0.20),
-    # DeepSeek V4 Flash (llmx 2026-08-01 openrouter verify — both ids same price)
-    "deepseek/deepseek-v4-flash-0731": (0.14, 0.28),
-    "deepseek/deepseek-v4-flash": (0.14, 0.28),
-    # Cerebras public shared endpoints (llmx usage_report, 2026-09-03)
-    "qwen-3.8-27b": (0.99, 1.49),
-    "gpt-oss-120b": (0.35, 0.75),
-}
-
-
-def _is_metered(transport) -> bool:
-    """True iff genuinely billed (per-token API). Metered rows: `api` + `*-api`
-    (e.g. `agent-api` = perplexity research). Subscription/CLI (`claude-cli`,
-    `codex-cli`) are $0. Mirrors llmx spend_guard.is_metered_transport."""
-    return bool(transport) and (transport == "api" or transport.endswith("-api"))
-
-
-def est_cost(model: str, prompt_tok: int, out_tok: int):
-    """Exact-model cost estimate, or None if the model is unpriced."""
-    rate = PRICING.get(model or "")
-    if rate is None:
-        return None
-    return (prompt_tok * rate[0] + out_tok * rate[1]) / 1_000_000
-
-
-def estimate_cost(
-    provider: str, model: str, prompt_tok: int, completion_tok: int, reasoning_tok: int = 0
-) -> float:
-    """Best-effort cost estimate. Reasoning tokens billed as output. Unpriced → $0
-    (undercount rather than guess). `provider` kept for call-site compatibility;
-    pricing is model-keyed via the single-sourced PRICING map."""
-    out_tok = completion_tok + (reasoning_tok or 0)
-    return est_cost(model, prompt_tok, out_tok) or 0.0
+from llmx.spend_guard import is_metered_transport
+from llmx.usage_report import cost_for_usage, output_tokens
 
 
 def metered_today(args) -> None:
@@ -138,6 +37,7 @@ def metered_today(args) -> None:
         lambda: {"calls": 0, "in_tok": 0, "out_tok": 0, "cost": 0.0}
     )
     total = {"calls": 0, "in_tok": 0, "out_tok": 0, "cost": 0.0}
+    unknown_cost_calls = 0
     for line in args.log.read_text().splitlines():
         if not line.strip():
             continue
@@ -147,14 +47,13 @@ def metered_today(args) -> None:
             continue
         if not (r.get("ts", "") or "").startswith(today):
             continue
-        if not _is_metered(r.get("transport")):  # subscription/CLI = $0; only billed rows count
+        if not is_metered_transport(r.get("transport")):
             continue
-        prov, model = r.get("provider", "?"), r.get("model", "?")
         p_tok = r.get("prompt_tokens") or 0
-        out_tok = (r.get("completion_tokens") or 0) + (r.get("reasoning_tokens") or 0)
-        cost = estimate_cost(
-            prov, model, p_tok, r.get("completion_tokens") or 0, r.get("reasoning_tokens") or 0
-        )
+        out_tok = output_tokens(r)
+        estimate = cost_for_usage(r, conservative=True)
+        unknown_cost_calls += estimate is None
+        cost = estimate or 0.0
         repo = (r.get("cwd", "") or "").rstrip("/").split("/")[-1] or "?"
         key = (r.get("caller") or "?", repo)
         for d in (by_spender[key], total):
@@ -171,6 +70,8 @@ def metered_today(args) -> None:
                     "date": today,
                     "metered_total_usd": round(total["cost"], 2),
                     "metered_calls": total["calls"],
+                    "cost_complete": unknown_cost_calls == 0,
+                    "unknown_cost_calls": unknown_cost_calls,
                     "alarm_threshold_usd": args.alarm,
                     "alarm": alarm,
                     "by_spender": [
@@ -181,7 +82,7 @@ def metered_today(args) -> None:
                         }
                         for k, v in sorted(by_spender.items(), key=lambda x: -x[1]["cost"])
                     ],
-                    "note": "transport==api only; cost is an estimate from approximate per-M rates (undercounts unpriced models).",
+                    "note": "Metered transports only; conservative estimate from llmx request tiers/cache categories. Unknown Astra input is charged at the cache-write rate. Unknown costs are excluded; an incomplete total is a known subtotal.",
                 },
                 indent=2,
             )
@@ -196,8 +97,10 @@ def metered_today(args) -> None:
             f"{'TOTAL':47s} ${total['cost']:>6.2f}"
             + (f"  ⚠ ALARM ≥ ${args.alarm}" if alarm else "")
         )
-        print("Note: estimate; transport==api only (subscription/CLI = $0, excluded).")
-    sys.exit(1 if alarm else 0)
+        print("Note: conservative estimate; unknown Astra input is charged at the cache-write rate. Metered transports only (subscription/CLI = $0, excluded).")
+    if unknown_cost_calls:
+        print(f"[DEGRADED] {unknown_cost_calls} metered calls have unknown cost; total is a known subtotal.", file=sys.stderr)
+    sys.exit(1 if alarm else 2 if unknown_cost_calls and args.alarm is not None else 0)
 
 
 def main():
@@ -261,26 +164,31 @@ def main():
         rows.append(r)
 
     by_key = defaultdict(
-        lambda: {"calls": 0, "prompt_tok": 0, "completion_tok": 0, "reasoning_tok": 0, "cost": 0.0}
+        lambda: {"calls": 0, "prompt_tok": 0, "completion_tok": 0, "reasoning_tok": 0, "output_tok": 0, "cost": 0.0}
     )
-    total = {"calls": 0, "prompt_tok": 0, "completion_tok": 0, "reasoning_tok": 0, "cost": 0.0}
+    total = {"calls": 0, "prompt_tok": 0, "completion_tok": 0, "reasoning_tok": 0, "output_tok": 0, "cost": 0.0}
+    unknown_cost_calls = 0
     for r in rows:
         prov = r.get("provider", "?")
         model = r.get("model", "?")
         p_tok = r.get("prompt_tokens") or 0
         c_tok = r.get("completion_tokens") or 0
         rr_tok = r.get("reasoning_tokens") or 0
-        cost = estimate_cost(prov, model, p_tok, c_tok, rr_tok)
+        estimate = cost_for_usage(r, conservative=True)
+        unknown_cost_calls += estimate is None and is_metered_transport(r.get("transport"))
+        cost = estimate or 0.0
         key = (prov, model)
         by_key[key]["calls"] += 1
         by_key[key]["prompt_tok"] += p_tok
         by_key[key]["completion_tok"] += c_tok
         by_key[key]["reasoning_tok"] += rr_tok
+        by_key[key]["output_tok"] += output_tokens(r)
         by_key[key]["cost"] += cost
         total["calls"] += 1
         total["prompt_tok"] += p_tok
         total["completion_tok"] += c_tok
         total["reasoning_tok"] += rr_tok
+        total["output_tok"] += output_tokens(r)
         total["cost"] += cost
 
     if args.json:
@@ -295,7 +203,9 @@ def main():
                 for k, v in sorted(by_key.items(), key=lambda x: -x[1]["cost"])
             ],
             "total": total,
-            "note": "Cost is an estimate from approximate per-million rates; CLI-transport calls (Gemini) have null tokens and contribute $0.",
+            "cost_complete": unknown_cost_calls == 0,
+            "unknown_cost_calls": unknown_cost_calls,
+            "note": "Conservative estimate from llmx request tiers/cache categories; unknown Astra input is charged at the cache-write rate. Output tokens include reasoning once. Unknown metered costs are excluded; an incomplete total is a known subtotal.",
         }
         print(json.dumps(out, indent=2))
         return
@@ -305,16 +215,19 @@ def main():
     print(f"{'provider':10s} {'model':28s} {'calls':6s} {'in_tok':10s} {'out_tok':10s} {'$est':8s}")
     for k, v in sorted(by_key.items(), key=lambda x: -x[1]["cost"]):
         print(
-            f"{k[0]:10s} {k[1][:28]:28s} {v['calls']:6d} {v['prompt_tok']:>10,} {v['completion_tok'] + v['reasoning_tok']:>10,} ${v['cost']:>6.2f}"
+            f"{k[0]:10s} {k[1][:28]:28s} {v['calls']:6d} {v['prompt_tok']:>10,} {v.get('output_tok', 0):>10,} ${v['cost']:>6.2f}"
         )
     print(f"{'-' * 80}")
     print(
-        f"{'TOTAL':39s} {total['calls']:6d} {total['prompt_tok']:>10,} {total['completion_tok'] + total['reasoning_tok']:>10,} ${total['cost']:>6.2f}"
+        f"{'TOTAL':39s} {total['calls']:6d} {total['prompt_tok']:>10,} {total.get('output_tok', 0):>10,} ${total['cost']:>6.2f}"
     )
     print()
     print(
-        "Note: estimate from approximate per-M rates; CLI-transport calls (Gemini CLI) log null tokens."
+        "Note: conservative estimate; unknown Astra input is charged at the cache-write rate. "
+        "CLI-transport calls can log null tokens."
     )
+    if unknown_cost_calls:
+        print(f"[DEGRADED] {unknown_cost_calls} metered calls have unknown cost; total is a known subtotal.")
 
 
 if __name__ == "__main__":

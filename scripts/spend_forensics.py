@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """spend_forensics.py — monthly metered-spend compositor (no scratchpad reinvent).
 
-Wraps the same PRICING + transport rules as usage-check.py. Answers
+Uses llmx's canonical request-cost and transport rules. Answers
 "why did the bill spike?" with: monthly metered USD by provider/model/repo,
 subscription vs api call ratio, and pointers to spend ADRs.
 
@@ -13,11 +13,13 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
-import importlib.util
 import json
 import pathlib
 import sys
 from collections import defaultdict
+
+from llmx.spend_guard import is_metered_transport
+from llmx.usage_report import PRICING, cost_for_usage, output_tokens
 
 ADRS = [
     "decisions/2026-05-31-gemini-cli-to-paid-api-migration.md",
@@ -25,16 +27,6 @@ ADRS = [
     "decisions-pending/2026-06-25-metered-spend-funnel-enforcement.md",
 ]
 DEFAULT_LOG = pathlib.Path.home() / ".claude" / "llmx-usage.jsonl"
-_USAGE_CHECK = pathlib.Path(__file__).resolve().parent / "usage-check.py"
-
-
-def _load_usage_check():
-    spec = importlib.util.spec_from_file_location("usage_check", _USAGE_CHECK)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"cannot load {_USAGE_CHECK}")
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
 
 
 def _month_prefix(month: str | None) -> str:
@@ -44,7 +36,6 @@ def _month_prefix(month: str | None) -> str:
 
 
 def rollup(log: pathlib.Path, month: str) -> dict:
-    uc = _load_usage_check()
     by_model: dict[tuple, dict] = defaultdict(
         lambda: {"calls": 0, "in_tok": 0, "out_tok": 0, "cost": 0.0}
     )
@@ -52,6 +43,7 @@ def rollup(log: pathlib.Path, month: str) -> dict:
     metered = {"calls": 0, "cost": 0.0}
     subscription = {"calls": 0}
     unpriced_models: set[str] = set()
+    unknown_cost_calls = 0
 
     if not log.is_file():
         return {"error": f"missing log {log}", "month": month}
@@ -67,20 +59,21 @@ def rollup(log: pathlib.Path, month: str) -> dict:
         if not ts.startswith(month):
             continue
         transport = r.get("transport")
-        if not uc._is_metered(transport):
+        if not is_metered_transport(transport):
             subscription["calls"] += 1
             continue
         prov, model = r.get("provider") or "?", r.get("model") or "?"
         p_tok = r.get("prompt_tokens") or 0
-        c_tok = r.get("completion_tokens") or 0
-        rr_tok = r.get("reasoning_tokens") or 0
-        cost = uc.estimate_cost(prov, model, p_tok, c_tok, rr_tok)
-        if model and model not in uc.PRICING:
-            unpriced_models.add(model)
+        estimated = cost_for_usage(r, conservative=True)
+        if estimated is None:
+            unknown_cost_calls += 1
+            if model not in PRICING:
+                unpriced_models.add(model)
+        cost = estimated or 0.0
         key = (prov, model)
         by_model[key]["calls"] += 1
         by_model[key]["in_tok"] += p_tok
-        by_model[key]["out_tok"] += c_tok + rr_tok
+        by_model[key]["out_tok"] += output_tokens(r)
         by_model[key]["cost"] += cost
         repo = (r.get("cwd") or "").rstrip("/").split("/")[-1] or "?"
         by_repo[repo]["calls"] += 1
@@ -109,8 +102,10 @@ def rollup(log: pathlib.Path, month: str) -> dict:
             for k, v in sorted(by_repo.items(), key=lambda x: -x[1]["cost"])
         ],
         "unpriced_models": sorted(unpriced_models),
+        "cost_complete": unknown_cost_calls == 0,
+        "unknown_cost_calls": unknown_cost_calls,
         "adrs": ADRS,
-        "note": "transport==api (or *-api) only for $; subscription/CLI counted separately. Unpriced models undercount.",
+        "note": "Metered transports only; conservative estimate with unknown Astra input charged at the cache-write rate. Subscription/CLI counted separately. Unknown costs are excluded; an incomplete total is a known subtotal.",
     }
 
 
@@ -146,6 +141,8 @@ def main() -> int:
         print(f"{row['repo'][:24]:24s} {row['calls']:6d} ${row['cost_usd']:>6.2f}")
     if report["unpriced_models"]:
         print(f"\n⚠ unpriced models (undercount): {', '.join(report['unpriced_models'][:8])}")
+    if report["unknown_cost_calls"]:
+        print(f"[DEGRADED] {report['unknown_cost_calls']} metered calls have unknown cost; total is a known subtotal.")
     print("\nADRs:")
     for a in report["adrs"]:
         print(f"  · {a}")

@@ -11,9 +11,13 @@ dependencies = [
     "fastmcp>=3.4.2,<4.0",
     "google-genai>=2.8.0",
     "inspect-ai>=0.3.0",
+    "llmx",
     "openai>=2.26.0",
     "parallel-web>=0.4.0",
 ]
+
+[tool.uv.sources]
+llmx = { path = "../llmx", editable = true }
 
 [project.scripts]
 agentlogs = "agentlogs.cli:main"
