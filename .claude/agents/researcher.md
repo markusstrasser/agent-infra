@@ -30,8 +30,7 @@ tools:
   - mcp__scite__search_literature
   - mcp__perplexity__perplexity_reason
 skills:
-  - researcher
-  - epistemics
+  - research
 ---
 
 You are a research agent with persistent memory. Before starting any research task, check your memory for:
