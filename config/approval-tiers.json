@@ -3,6 +3,14 @@
   "description": "Eve needsApproval analog \u2014 maps pretool hooks to block / predicate / warn tiers. Doctor enforces manifest \u2194 disk; new global pretool guards should land here.",
   "tiers": [
     {
+      "id": "secret_reads",
+      "action": "block",
+      "description": "Reads of protected secret paths",
+      "hooks": [
+        "pretool-secret-path-read-guard.py"
+      ]
+    },
+    {
       "id": "irreversible_write",
       "action": "block",
       "description": "Protected data, append-only files, archive moves",
