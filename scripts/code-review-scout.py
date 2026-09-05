@@ -132,7 +132,7 @@ PROVIDERS = {
         "name": "gemini",
     },
     "openai": {
-        "model_flag": "-p openai -m gpt-5.6-sol",
+        "model_flag": "-p openai -m gpt-6-astra",
         "extra": "--reasoning-effort medium --timeout 180",
         "name": "gpt",
     },
@@ -232,9 +232,7 @@ def load_previous_findings(project_name: str) -> set[str]:
 _rate_limited_providers: set[str] = set()
 
 
-def dispatch_review(
-    code_context: str, focus: str, provider_cfg: dict, batch_label: str
-) -> str:
+def dispatch_review(code_context: str, focus: str, provider_cfg: dict, batch_label: str) -> str:
     """Send code to LLM CLI for review. Returns raw output.
 
     On rate limit: retries once after 30s. If still limited, marks the provider
@@ -244,9 +242,7 @@ def dispatch_review(
 
     provider_name = provider_cfg["name"]
     if provider_name in _rate_limited_providers:
-        raise DispatchError(
-            f"[{batch_label}] not reviewed because {provider_name} is rate limited"
-        )
+        raise DispatchError(f"[{batch_label}] not reviewed because {provider_name} is rate limited")
 
     focus_prompt = FOCUS_PROMPTS[focus]
 
@@ -311,15 +307,11 @@ Review the following code files. Focus: {focus_prompt}
                         f"[{batch_label}] reviewer rate limited twice: {provider_name}"
                     )
             if result.returncode != 0:
-                detail = (
-                    result.stderr.strip() or result.stdout.strip() or "no diagnostic"
-                )
+                detail = result.stderr.strip() or result.stdout.strip() or "no diagnostic"
                 raise DispatchError(
                     f"[{batch_label}] reviewer exited {result.returncode}: {detail[:1000]}"
                 )
-            raise DispatchError(
-                f"[{batch_label}] reviewer exited successfully without a verdict"
-            )
+            raise DispatchError(f"[{batch_label}] reviewer exited successfully without a verdict")
         except subprocess.TimeoutExpired:
             raise DispatchError(f"[{batch_label}] reviewer timed out after 300s")
         except FileNotFoundError:
@@ -384,13 +376,9 @@ def parse_findings(
 
     if invalid_lines:
         preview = " | ".join(invalid_lines[:3])
-        raise DispatchError(
-            "reviewer violated the findings output contract: " + preview[:1000]
-        )
+        raise DispatchError("reviewer violated the findings output contract: " + preview[:1000])
     if not findings:
-        raise DispatchError(
-            "reviewer returned neither exact NO_ISSUES nor a parseable finding"
-        )
+        raise DispatchError("reviewer returned neither exact NO_ISSUES nor a parseable finding")
     return findings
 
 
@@ -400,9 +388,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("project_path", type=Path)
-    parser.add_argument(
-        "--focus", default="refactoring", choices=list(FOCUS_PROMPTS.keys())
-    )
+    parser.add_argument("--focus", default="refactoring", choices=list(FOCUS_PROMPTS.keys()))
     parser.add_argument(
         "--provider",
         default="cursor",
@@ -437,12 +423,8 @@ def main():
         action="store_true",
         help="List modules and their sizes, then exit",
     )
-    parser.add_argument(
-        "--dry-run", action="store_true", help="Show batches without dispatching"
-    )
-    parser.add_argument(
-        "--workers", type=int, default=2, help="Parallel dispatch workers"
-    )
+    parser.add_argument("--dry-run", action="store_true", help="Show batches without dispatching")
+    parser.add_argument("--workers", type=int, default=2, help="Parallel dispatch workers")
     parser.add_argument(
         "--delay",
         type=float,

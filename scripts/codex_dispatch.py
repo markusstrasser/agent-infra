@@ -23,7 +23,7 @@ import sys
 import time
 from pathlib import Path
 
-DEFAULT_MODEL = "gpt-5.6-sol"
+DEFAULT_MODEL = "gpt-6-astra"
 MAX_PARALLEL_MCP = 4
 
 
@@ -42,8 +42,7 @@ def dispatch(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Clean env to avoid nested session detection
-    env = {k: v for k, v in os.environ.items()
-           if k not in ("CLAUDECODE", "CLAUDE_SESSION_ID")}
+    env = {k: v for k, v in os.environ.items() if k not in ("CLAUDECODE", "CLAUDE_SESSION_ID")}
 
     results: list[dict] = []
     active: list[dict] = []
@@ -61,10 +60,14 @@ def dispatch(
                 time.sleep(2)
 
         cmd = [
-            "codex", "exec",
-            "-s", "workspace-write",
-            "-m", m,
-            "-o", str(output_file),
+            "codex",
+            "exec",
+            "-s",
+            "workspace-write",
+            "-m",
+            m,
+            "-o",
+            str(output_file),
             prompt,
         ]
         if project:
@@ -117,12 +120,14 @@ def collect(output_dir: Path) -> list[dict]:
         if not f.is_file() or f.name.startswith("."):
             continue
         content = f.read_text().strip()
-        results.append({
-            "name": f.stem,
-            "file": str(f),
-            "size": len(content),
-            "content": content,
-        })
+        results.append(
+            {
+                "name": f.stem,
+                "file": str(f),
+                "size": len(content),
+                "content": content,
+            }
+        )
     return results
 
 
@@ -186,8 +191,11 @@ def main() -> int:
             parser.error("Provide prompts_file or --prompt")
             return 1
         results = dispatch(
-            prompts, args.output_dir, model=args.model,
-            project=args.project, max_parallel=args.max_parallel,
+            prompts,
+            args.output_dir,
+            model=args.model,
+            project=args.project,
+            max_parallel=args.max_parallel,
         )
         if args.wait:
             pids = [r["pid"] for r in results]

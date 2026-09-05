@@ -10,7 +10,7 @@ Backends (read-only enforcement is structural, not prompt-trusted):
   cursor — `agent` CLI ask mode (read-only by mode), composer-2.5 default;
            override with --scout-model (e.g. grok-4.5-xhigh for Grok 4.5 niche lens —
            always pass an effort slug; bare grok-4.5 → fast-xhigh)
-  codex  — `codex exec -s read-only` (sandbox), config-default model (gpt-5.6-sol),
+  codex  — `codex exec -s read-only` (sandbox), config-default model (gpt-6-astra),
            effort defaults to `medium` (user-config xhigh blows scout timeouts)
   claude — `claude -p` headless: Write/Edit/arbitrary-Bash auto-DENIED in -p
            (no interactive prompt), only a curated read-only Bash allowlist is
@@ -118,9 +118,7 @@ def _cursor_ask(repo: Path, prompt: str, timeout: int, model: str) -> ScoutReply
         return ScoutReply(r.returncode == 0, body)
 
 
-def _codex_ask(
-    repo: Path, prompt: str, timeout: int, model: str, effort: str
-) -> ScoutReply:
+def _codex_ask(repo: Path, prompt: str, timeout: int, model: str, effort: str) -> ScoutReply:
     with tempfile.NamedTemporaryFile(mode="r", suffix=".md", delete=False) as tf:
         out_path = Path(tf.name)
     cmd = [
@@ -162,9 +160,7 @@ def _codex_ask(
     return reply
 
 
-def _claude_ask(
-    repo: Path, prompt: str, timeout: int, model: str, effort: str
-) -> ScoutReply:
+def _claude_ask(repo: Path, prompt: str, timeout: int, model: str, effort: str) -> ScoutReply:
     cmd = [
         "claude", "-p",
         "--output-format", "json",

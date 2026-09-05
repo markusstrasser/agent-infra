@@ -9,6 +9,7 @@ Use mid-session to answer "are we approaching the cap?" without re-deriving
 from chat logs. Per-call records are appended by llmx automatically; nothing
 else to wire up.
 """
+
 import argparse
 import datetime as dt
 import json
@@ -32,8 +33,12 @@ PRICING: dict[str, tuple[float, float]] = {
     "gemini-3.1-flash-lite": (0.25, 1.5),
     "gemini-3.5-flash": (1.50, 9.0),
     "gemini-3.5-flash-lite": (0.3, 2.5),
+    "gemini-3.8-flash": (0.75, 3.75),
+    "gemini-3.7-flash": (0.75, 3.75),
     "gemini-3.6-flash": (1.5, 7.5),
     "gemini-3.1-pro-preview": (1.25, 10.0),
+    "gpt-6-astra": (10.0, 50.0),
+    "gpt-6": (10.0, 50.0),
     # GPT-5.6 suite (developers.openai.com/api/docs/pricing, GA 2026-07-09;
     # price cut 2026-07-30: Luna -80% to $0.20/$1.20, Terra -20% to $2/$12, Sol
     # unchanged — openai.com/index/advancing-the-price-performance-frontier-with-gpt-5-6)
@@ -87,6 +92,9 @@ PRICING: dict[str, tuple[float, float]] = {
     # DeepSeek V4 Flash (llmx 2026-08-01 openrouter verify — both ids same price)
     "deepseek/deepseek-v4-flash-0731": (0.14, 0.28),
     "deepseek/deepseek-v4-flash": (0.14, 0.28),
+    # Cerebras public shared endpoints (llmx usage_report, 2026-09-03)
+    "qwen-3.8-27b": (0.99, 1.49),
+    "gpt-oss-120b": (0.35, 0.75),
 }
 
 
@@ -105,7 +113,9 @@ def est_cost(model: str, prompt_tok: int, out_tok: int):
     return (prompt_tok * rate[0] + out_tok * rate[1]) / 1_000_000
 
 
-def estimate_cost(provider: str, model: str, prompt_tok: int, completion_tok: int, reasoning_tok: int = 0) -> float:
+def estimate_cost(
+    provider: str, model: str, prompt_tok: int, completion_tok: int, reasoning_tok: int = 0
+) -> float:
     """Best-effort cost estimate. Reasoning tokens billed as output. Unpriced → $0
     (undercount rather than guess). `provider` kept for call-site compatibility;
     pricing is model-keyed via the single-sourced PRICING map."""
@@ -124,7 +134,9 @@ def metered_today(args) -> None:
     cost-guard but lands in this ledger like every other llmx call.
     """
     today = dt.datetime.now(dt.timezone.utc).date().isoformat()
-    by_spender: dict[tuple, dict] = defaultdict(lambda: {"calls": 0, "in_tok": 0, "out_tok": 0, "cost": 0.0})
+    by_spender: dict[tuple, dict] = defaultdict(
+        lambda: {"calls": 0, "in_tok": 0, "out_tok": 0, "cost": 0.0}
+    )
     total = {"calls": 0, "in_tok": 0, "out_tok": 0, "cost": 0.0}
     for line in args.log.read_text().splitlines():
         if not line.strip():
@@ -140,7 +152,9 @@ def metered_today(args) -> None:
         prov, model = r.get("provider", "?"), r.get("model", "?")
         p_tok = r.get("prompt_tokens") or 0
         out_tok = (r.get("completion_tokens") or 0) + (r.get("reasoning_tokens") or 0)
-        cost = estimate_cost(prov, model, p_tok, r.get("completion_tokens") or 0, r.get("reasoning_tokens") or 0)
+        cost = estimate_cost(
+            prov, model, p_tok, r.get("completion_tokens") or 0, r.get("reasoning_tokens") or 0
+        )
         repo = (r.get("cwd", "") or "").rstrip("/").split("/")[-1] or "?"
         key = (r.get("caller") or "?", repo)
         for d in (by_spender[key], total):
@@ -151,23 +165,37 @@ def metered_today(args) -> None:
 
     alarm = args.alarm is not None and total["cost"] >= args.alarm
     if args.json:
-        print(json.dumps({
-            "date": today,
-            "metered_total_usd": round(total["cost"], 2),
-            "metered_calls": total["calls"],
-            "alarm_threshold_usd": args.alarm,
-            "alarm": alarm,
-            "by_spender": [{"caller": k[0], "repo": k[1], **{kk: (round(vv, 4) if kk == "cost" else vv) for kk, vv in v.items()}}
-                           for k, v in sorted(by_spender.items(), key=lambda x: -x[1]["cost"])],
-            "note": "transport==api only; cost is an estimate from approximate per-M rates (undercounts unpriced models).",
-        }, indent=2))
+        print(
+            json.dumps(
+                {
+                    "date": today,
+                    "metered_total_usd": round(total["cost"], 2),
+                    "metered_calls": total["calls"],
+                    "alarm_threshold_usd": args.alarm,
+                    "alarm": alarm,
+                    "by_spender": [
+                        {
+                            "caller": k[0],
+                            "repo": k[1],
+                            **{kk: (round(vv, 4) if kk == "cost" else vv) for kk, vv in v.items()},
+                        }
+                        for k, v in sorted(by_spender.items(), key=lambda x: -x[1]["cost"])
+                    ],
+                    "note": "transport==api only; cost is an estimate from approximate per-M rates (undercounts unpriced models).",
+                },
+                indent=2,
+            )
+        )
     else:
         print(f"# llmx metered spend (transport==api) — {today} ({total['calls']} billed calls)")
         print(f"{'caller':22s} {'repo':18s} {'calls':6s} {'$est':8s}")
         for k, v in sorted(by_spender.items(), key=lambda x: -x[1]["cost"]):
             print(f"{k[0][:22]:22s} {k[1][:18]:18s} {v['calls']:6d} ${v['cost']:>6.2f}")
         print("-" * 60)
-        print(f"{'TOTAL':47s} ${total['cost']:>6.2f}" + (f"  ⚠ ALARM ≥ ${args.alarm}" if alarm else ""))
+        print(
+            f"{'TOTAL':47s} ${total['cost']:>6.2f}"
+            + (f"  ⚠ ALARM ≥ ${args.alarm}" if alarm else "")
+        )
         print("Note: estimate; transport==api only (subscription/CLI = $0, excluded).")
     sys.exit(1 if alarm else 0)
 
@@ -175,16 +203,27 @@ def metered_today(args) -> None:
 def main():
     parser = argparse.ArgumentParser(description="Session cost meter (llmx-usage.jsonl).")
     parser.add_argument("--hours", type=float, default=6.0, help="Window in hours (default 6).")
-    parser.add_argument("--since", type=str, default=None, help="ISO timestamp lower bound (overrides --hours).")
+    parser.add_argument(
+        "--since", type=str, default=None, help="ISO timestamp lower bound (overrides --hours)."
+    )
     parser.add_argument("--json", action="store_true", help="Machine-readable JSON output.")
-    parser.add_argument("--log", type=pathlib.Path, default=pathlib.Path.home() / ".claude" / "llmx-usage.jsonl")
-    parser.add_argument("--metered-today", action="store_true",
-                        help="Only today's genuinely-billed (transport==api) spend, grouped by (caller, cwd). "
-                             "This is the surface-agnostic funnel: every llmx call — foreground Bash, backgrounded "
-                             "worker, or Python subprocess — appends here, so background/pipeline spend the "
-                             "foreground-Bash cost-guard cannot see surfaces here. Exits 1 if --alarm exceeded.")
-    parser.add_argument("--alarm", type=float, default=None,
-                        help="With --metered-today: exit 1 if today's metered spend (USD) >= this. For doctor/sweep alarms.")
+    parser.add_argument(
+        "--log", type=pathlib.Path, default=pathlib.Path.home() / ".claude" / "llmx-usage.jsonl"
+    )
+    parser.add_argument(
+        "--metered-today",
+        action="store_true",
+        help="Only today's genuinely-billed (transport==api) spend, grouped by (caller, cwd). "
+        "This is the surface-agnostic funnel: every llmx call — foreground Bash, backgrounded "
+        "worker, or Python subprocess — appends here, so background/pipeline spend the "
+        "foreground-Bash cost-guard cannot see surfaces here. Exits 1 if --alarm exceeded.",
+    )
+    parser.add_argument(
+        "--alarm",
+        type=float,
+        default=None,
+        help="With --metered-today: exit 1 if today's metered spend (USD) >= this. For doctor/sweep alarms.",
+    )
     args = parser.parse_args()
 
     if not args.log.exists():
@@ -221,7 +260,9 @@ def main():
             continue
         rows.append(r)
 
-    by_key = defaultdict(lambda: {"calls": 0, "prompt_tok": 0, "completion_tok": 0, "reasoning_tok": 0, "cost": 0.0})
+    by_key = defaultdict(
+        lambda: {"calls": 0, "prompt_tok": 0, "completion_tok": 0, "reasoning_tok": 0, "cost": 0.0}
+    )
     total = {"calls": 0, "prompt_tok": 0, "completion_tok": 0, "reasoning_tok": 0, "cost": 0.0}
     for r in rows:
         prov = r.get("provider", "?")
@@ -244,8 +285,15 @@ def main():
 
     if args.json:
         out = {
-            "window": {"since": cutoff.isoformat(), "now": now.isoformat(), "hours": (now - cutoff).total_seconds() / 3600},
-            "by_model": [{"provider": k[0], "model": k[1], **v} for k, v in sorted(by_key.items(), key=lambda x: -x[1]["cost"])],
+            "window": {
+                "since": cutoff.isoformat(),
+                "now": now.isoformat(),
+                "hours": (now - cutoff).total_seconds() / 3600,
+            },
+            "by_model": [
+                {"provider": k[0], "model": k[1], **v}
+                for k, v in sorted(by_key.items(), key=lambda x: -x[1]["cost"])
+            ],
             "total": total,
             "note": "Cost is an estimate from approximate per-million rates; CLI-transport calls (Gemini) have null tokens and contribute $0.",
         }
@@ -256,11 +304,17 @@ def main():
     print()
     print(f"{'provider':10s} {'model':28s} {'calls':6s} {'in_tok':10s} {'out_tok':10s} {'$est':8s}")
     for k, v in sorted(by_key.items(), key=lambda x: -x[1]["cost"]):
-        print(f"{k[0]:10s} {k[1][:28]:28s} {v['calls']:6d} {v['prompt_tok']:>10,} {v['completion_tok'] + v['reasoning_tok']:>10,} ${v['cost']:>6.2f}")
+        print(
+            f"{k[0]:10s} {k[1][:28]:28s} {v['calls']:6d} {v['prompt_tok']:>10,} {v['completion_tok'] + v['reasoning_tok']:>10,} ${v['cost']:>6.2f}"
+        )
     print(f"{'-' * 80}")
-    print(f"{'TOTAL':39s} {total['calls']:6d} {total['prompt_tok']:>10,} {total['completion_tok'] + total['reasoning_tok']:>10,} ${total['cost']:>6.2f}")
+    print(
+        f"{'TOTAL':39s} {total['calls']:6d} {total['prompt_tok']:>10,} {total['completion_tok'] + total['reasoning_tok']:>10,} ${total['cost']:>6.2f}"
+    )
     print()
-    print("Note: estimate from approximate per-M rates; CLI-transport calls (Gemini CLI) log null tokens.")
+    print(
+        "Note: estimate from approximate per-M rates; CLI-transport calls (Gemini CLI) log null tokens."
+    )
 
 
 if __name__ == "__main__":
