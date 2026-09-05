@@ -62,13 +62,13 @@ def dispatch(
 
         cmd = [
             "codex", "exec",
-            "--full-auto",
+            "-s", "workspace-write",
             "-m", m,
             "-o", str(output_file),
             prompt,
         ]
         if project:
-            cmd.extend(["--cwd", project])
+            cmd.extend(["-C", project])
 
         proc = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         entry = {

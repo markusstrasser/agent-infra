@@ -675,7 +675,7 @@ def _run_mutator_codex(config: dict, worktree: Path, prompt: str) -> tuple[str, 
     """
     cmd = [
         "codex", "exec",
-        "--full-auto",
+        "-s", "workspace-write",
         prompt,
     ]
     model = config.get("model")
