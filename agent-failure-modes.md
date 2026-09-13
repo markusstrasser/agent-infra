@@ -862,3 +862,24 @@ one session a killed multi-stage job read as "completed, no output". **Contract:
 long backgrounded jobs write their own progress/output files (`-o`, tee) and are
 judged by artifacts on disk, never by piped exit codes.** (Same family as
 llmx-guide §3.5, generalized beyond llmx.) Source: imagegen 2026-06-10 session.
+
+### FM: Detached jobs share the tool's reaped process group
+<!--
+FM-ID: detached-job-tool-group-reaping
+signature: nohup/disown launch returns a PID, but the supervisor and child disappear at tool return without a done marker
+target_surface: skills/bin/bgrun process-group isolation and liveness-aware wait; skills/tests/test_bgrun.py
+status: active
+evidence_count: 1
+-->
+2026-09-13, genomics: dataset durability audit PID 40174 vanished without completion
+after Codex exec returned. Matched 20-second probes showed the inherited-group child
+disappearing, while native in-script `set -m` and separate-session controls survived.
+Repair: reuse `bin/lane`'s group isolation, close stdin and the lock descriptor in the
+detached supervisor, atomically publish numeric completion, and fail loudly on missing
+completion or changed supervisor identity. Native `lockf` serializes launch and
+identity/receipt reads and releases a killed launcher's ownership. Regression:
+`skills/tests/test_bgrun.py` (15 controls, including killed lock owner and replacement
+receipt races). Evidence: `genomics/.claude/cache/propagation-20260913/bgrun-diagnosis.md`
+and `bgrun-final-manifest.json`. The native proof establishes survival across the observed
+tool-return cleanup boundary; it does not establish reboot persistence or the tool's
+internal signal.
