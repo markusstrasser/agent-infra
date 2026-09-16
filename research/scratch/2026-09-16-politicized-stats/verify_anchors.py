@@ -109,6 +109,28 @@ ANCHORS = [
     ("A36.1 BLS preliminary benchmark announcement 2024-08-21 (Wayback)",
      "https://web.archive.org/web/2024id_/https://www.bls.gov/web/empsit/cesprelbmk.htm",
      ["818,000"], [], False),
+    # ---- lane B epoch 2 ----
+    ("B40.D Lancet Calisher statement 2020-02-19 (EuropePMC)", EPMC.format("PMC7159294"),
+     ["strongly condemn conspiracy theories", "We declare no competing interests"], [], False),
+    ("B40.D Lancet competing-interests addendum 2021-06-21 (EuropePMC)", EPMC.format("PMC8215723"),
+     ["invited the 27 authors", "recombinant bat coronaviruses"], [], False),
+    ("B40.E Proximal Origin, Nat Med 2020 (EuropePMC)", EPMC.format("PMC7095063"),
+     ["not a laboratory construct or a purposefully manipulated virus", "we do not believe that any type of laboratory-based scenario is plausible"], [], False),
+    ("B40.E House Select Subcommittee interim report 2023-07-11 (PDF)",
+     "https://oversight.house.gov/wp-content/uploads/2023/07/Final-Report-6.pdf",
+     ["we cannot possibly distinguish between natural evolution and escape", "I totally agree that that"], [], True),
+    ("B40.E Andersen sworn testimony 2023-07 (PDF)",
+     "https://oversight.house.gov/wp-content/uploads/2023/07/Testimony-of-Dr.-Kristian-Andersen.pdf",
+     ["until mid/end February", "during revision of the paper"], [], True),
+    ("B44.B Cass Review final report April 2024 (Wayback PDF)",
+     "https://web.archive.org/web/2024id_/https://cass.independent-review.uk/wp-content/uploads/2024/04/CassReview_Final.pdf",
+     ["remarkably weak evidence", "25 moderate quality studies and 24 low quality studies", "overstates the strength of the evidence"], [], True),
+    ("B43.B Trump–Woodward transcript 2020-03-19 (rev.com)",
+     "https://www.rev.com/transcripts/donald-trump-bob-woodward-conversation-transcript-trump-playing-down-coronavirus",
+     ["I wanted to always play it down", "more deadly than even your strenuous flus"], [], False),
+    ("B45.B CRS RS22458 on the Tiahrt amendment (everycrsreport mirror)",
+     "https://www.everycrsreport.com/reports/RS22458.html",
+     ["ATF has not disclosed trace data", "bona fide"], [], False),  # CRS renders it as a quoted 'bona fide' criminal investigation
 ]
 
 
