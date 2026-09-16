@@ -53,6 +53,34 @@ ANCHORS = [
     ("C41.1 Hausfather & Peters, Nature 2020-01-29 (Crossref)",
      "https://api.crossref.org/works/10.1038/d41586-020-00177-3",
      ["business as usual", "2020"], [], False),
+    # ---- lane D (science as authority) ----
+    ("D52.1 Pew 2024-11-14 trust in scientists (page)",
+     "https://www.pewresearch.org/science/2024/11/14/public-trust-in-scientists-and-views-on-their-role-in-policymaking/",
+     ["a great deal (26%) or a fair amount (51%)", "87%", "85% majority of Republicans", "66%", "40%"], [], False),
+    ("D48.1 Nature Human Behaviour editorial 2022-08-18",
+     "https://www.nature.com/articles/s41562-022-01443-2",
+     ["Although academic freedom is fundamental, it is not unbounded", "regardless of whether a research project was reviewed and approved"], [], False),
+    ("D48.2 Doctors for America v. OPM, memorandum opinion 2025-07-03 (PDF)",
+     "https://litigationtracker.law.georgetown.edu/wp-content/uploads/2025/05/Doctors-for-America_2025.07.03_MEMORANDUM-OPINION.pdf",
+     ["acting first and thinking later", "Executive Order 14168", "hundreds or even thousands"], [], True),
+    ("D51.1 MAHA report live PDF — fabricated JAMA Pediatrics citation absent",
+     "https://www.whitehouse.gov/wp-content/uploads/2025/05/WH-The-MAHA-Report-Assessment.pdf",
+     ["Make America Healthy Again"], ["Changes in mental health and substance use among US adolescents", "Keyes"], True),
+    ("D51.2 DOE Climate Working Group report July 2025 (PDF)",
+     "https://www.energy.gov/sites/default/files/2025-07/DOE_Critical_Review_of_Impacts_of_GHG_Emissions_on_the_US_Climate_July_2025.pdf",
+     ["I exerted no control over their conclusions", "no editorial oversight", "could not comprehensively review all topics"], [], True),
+    ("D49.1 House Select Subcommittee Fauci staff memo 2024-05-31 (PDF)",
+     "https://oversight.house.gov/wp-content/uploads/2024/05/FINAL_Fauci-Memo.pdf",
+     ["sort of just appeared", "empiric decision"], [], True),
+    ("D50.1 ASD Hamilton 68 methodology brief (PDF)",
+     "https://securingdemocracy.org/wp-content/uploads/2018/06/ASD-Policy-Brief-Latest-edited.pdf",  # gmfus.org host returns 526
+     ["600", "not all of the accounts are directly controlled by Russia", "98 percent"], [], True),
+    ("D47.1 IRA supporting economists' letter 2022-08-02 (verbatim mirror; documentcloud 403s)",
+     "https://gwagner.com/ira-letter",
+     ["downward pressure on inflation", "will fight inflation"], [], False),
+    ("D47.1 BLS CPI-U CUUR0000SA0 Aug 2022/2023/2024 (public API)",
+     "https://api.bls.gov/publicAPI/v2/timeseries/data/CUUR0000SA0?startyear=2022&endyear=2024",
+     ["296.171", "307.026", "314.796"], [], False),
 ]
 
 
@@ -62,9 +90,10 @@ def fetch(url: str, is_pdf: bool) -> str:
     if is_pdf:
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
             f.write(raw)
-        return subprocess.run(["pdftotext", f.name, "-"], capture_output=True, text=True).stdout
-    text = raw.decode("utf-8", "replace")
-    return html.unescape(re.sub(r"<[^>]+>", " ", text))
+        text = subprocess.run(["pdftotext", f.name, "-"], capture_output=True, text=True).stdout
+    else:
+        text = html.unescape(re.sub(r"<[^>]+>", " ", raw.decode("utf-8", "replace")))
+    return re.sub(r"\s+", " ", text)  # PDFs wrap phrases across lines; compare on collapsed whitespace
 
 
 def main() -> int:
