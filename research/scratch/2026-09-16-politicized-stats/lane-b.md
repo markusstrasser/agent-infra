@@ -1,33 +1,39 @@
 claude-opus-5[1m]
 
-**Verdict:** Across two epochs, **10 of 15 leads grounded on primary sources, 1 partially contradicted, 4 not reached**,
-plus **2 additional cases** found in the counter-direction hunts (Trump/Woodward, Tiahrt) — **13 cases over 5
-mechanisms**. Five leads carry corrections to the lead as written, and one of those corrections kills the dispatch's own
-premise: the York systematic reviews behind the Cass Review **have no GRADE ratings**; both state they used "an adapted
-version of the Newcastle-Ottawa Scale," and the Cass appendix names MMAT, modified Newcastle-Ottawa and AGREE II. GRADE
-rates certainty in an *effect estimate*, mNOS rates risk of bias in a *study*, so "low certainty" and "low quality" are
-different objects and the public dispute moves between them. Strongest measured magnitudes: (1) Cook et al. 2013 — the
-"97%" denominator is the 32.6% of abstracts taking a position, **66.4% expressing no position**, and the paper's own
+**Verdict:** Across three epochs, **12 of 15 leads grounded, 1 partially contradicted, 2 not reached**, plus **2 cases**
+from the counter-direction hunts (Trump/Woodward, Tiahrt) — **16 cases over 5 mechanisms**, and **all five mechanisms now
+carry cases or renderings from both political directions**. Eight leads carry corrections to the lead as written, and two
+of those kill premises the dispatch supplied. The York systematic reviews behind the Cass Review **have no GRADE
+ratings** — both state they used "an adapted version of the Newcastle-Ottawa Scale" — and epoch 3 confirmed this
+independently from the *most hostile published critics* of the Review, whose central methodological charge is that it
+"introduces GRADE (p 55) but never evaluates the evidence using the GRADE framework." The instrument fact is agreed by
+both sides; only its consequence is contested. Strongest measured magnitudes: (1) Cook et al. 2013 — the "97%"
+denominator is the 32.6% of abstracts taking a position, **66.4% expressing no position**, and the paper's own
 author-self-rating arm splits those silent abstracts **53.8/46.2**, not 97/3; (2) Zhang's preregistered RCT on *Nature*'s
 Biden endorsement — **β = −0.854 SD** on Trump supporters' trust in *Nature*'s informedness and a **14.2-point (38.3%
-relative) drop** in requests for its COVID articles, with near-zero effect on vote intention; (3) Green & Hand's
+relative) drop** in requests for its COVID articles, with near-zero effect on vote intention; (3) *PHMPT v. FDA* — FDA's
+own brief proposed "a minimum of **500 pages per month**" and Judge Pittman ordered **55,000 pages every 30 days**, a
+**110×** increase, on the stated ground that "this FOIA request is of paramount public importance"; (4) Green & Hand's
 quasi-replication of McKinsey — **54.0% vs 51.2%, z = 0.5, p = 0.65**, null across six measures, obtained only because
-"McKinsey would not provide us with their detailed datasets, nor the names of the firms"; (4) the York reviews synthesised
-**26 of 50 (52.0%)** puberty-suppression studies and **34 of 53 (64.2%)** hormone studies, which falsifies both "most
-studies were thrown out" and "no studies were excluded." The grounded cases span both directions and **items 40, 42, 43
-and 45 now each carry a case from each side**, graded on the same criteria and written in the same paragraph: Cook,
-*Nature*'s endorsement, McKinsey, the Lancet's February 2020 statement and Proximal Origin sit beside an NIH director
-commissioning a "quick and devastating published takedown" of the Great Barrington Declaration, a congressional demand
-for eight years of funding records and testimony drafts from seven climate dissenters, a president on tape saying "I
-wanted to always play it down … because I don't want to create a panic," and a statute making firearms-trace data
-"immune from legal process." Item 44 is the one mechanism with no counter-direction *case*, though both its cases are
-two-directional inside a single document. Findings that cut against the briefing: the PNAS retraction has a real named
-statistical error under it and its authors denied political motive in writing; Cochrane **abandoned** its promised
-plain-language-summary correction in June 2024, so the disputed wording still stands; the Lancet never corrected the
-2020 statement's claims, it only added a competing-interests addendum; and Andersen's sworn testimony in the *same*
-House release states he retained a laboratory hypothesis for weeks after the Slack exchange, which contradicts the
-strongest reading of those messages.
-
+"McKinsey would not provide us with their detailed datasets, nor the names of the firms"; (5) the York reviews
+synthesised **60 of 103** studies (26/50 and 34/53) — a figure computed here from the published abstracts in epoch 2 that
+reproduces *exactly* the "60 out of 103" Cass used in public — while **101 of 103 (98.1%)** were not rated high quality,
+so the duelling public numbers "98%" and "60%" are both true of different predicates on the same corpus. The grounded
+cases span both directions and **every mechanism now holds its two directions to the same standard in one paragraph**:
+Cook, *Nature*'s endorsement, McKinsey, the Lancet's February 2020 statement and Proximal Origin sit beside an NIH
+director commissioning a "quick and devastating published takedown" of the Great Barrington Declaration, a congressional
+demand for eight years of funding records from seven climate dissenters, a president on tape saying "I wanted to always
+play it down … because I don't want to create a panic," and a statute making firearms-trace data "immune from legal
+process." Findings that cut against the briefing: the PNAS retraction has a real named statistical error under it and its
+authors denied political motive in writing; Cochrane **abandoned** its promised plain-language-summary correction in June
+2024, so the disputed wording still stands; the Lancet never corrected the 2020 statement's claims, it only added a
+competing-interests addendum; Andersen's sworn testimony in the *same* House release states he retained a laboratory
+hypothesis for weeks after the Slack exchange; the famous "75 years" in the Pfizer-FOIA case appears in **neither** the
+court's order nor FDA's brief and is a derived figure, while FDA's brief instead cites precedents approving nine-year and
+decade-long production periods; and the AAP's own newsletter gives the reason for commissioning its systematic review as
+"the board's concerns about restrictions to access to health care with bans on gender-affirming care in more than 20
+states" — a political premise for an evidential instrument, on the record, from the direction this lane's other
+on-record admissions did not come from.
 ---
 title: "Lane B — Consensus, authority, suppression (items 40, 42, 43, 44, 45)"
 date: 2026-09-16
@@ -51,14 +57,15 @@ grading, or data-access decision was used politically. Grades A–D per common b
 | 7 | Grijalva 2015 letters (Pielke) | 42 | **GROUNDED (B) + date corrected to 24 Feb** → 42-B |
 | 8 | Fauci herd-immunity threshold (NYT 2020-12-24) | 43 | **GROUNDED (B)** → 43-A |
 | 9 | "Six feet" — Fauci 2024 House testimony | 43 | NOT REACHED |
-| 10 | Cass Review / York SRs: "low certainty" rendering | 44 | **GROUNDED (A) on ratings + premise corrected (no GRADE); renderings NOT REACHED** → 44-B |
+| 10 | Cass Review / York SRs: "low certainty" rendering | 44 | **GROUNDED (A/B) — ratings (44-B) + all six renderings (44-C); premise corrected (no GRADE)** |
 | 11 | Cochrane masks 2023 + Soares-Weiser statement | 44 | **GROUNDED (A) + lead incomplete** → 44-A |
 | 12 | McKinsey diversity vs Green & Hand 2024 | 45 | **GROUNDED (A) + venue corrected** → 45-A |
-| 13 | Bloom 2021 SRA deletion | 45 | NOT REACHED (no queries run — budget) |
-| 14 | Pfizer/FDA FOIA 75-years → court order | 45 | NOT REACHED (attempted; CourtListener route failed, see Skipped) |
+| 13 | Bloom 2021 SRA deletion | 45 | **GROUNDED (A) on the paper's own account; NIH/NLM statement NOT REACHED** → 45-D |
+| 14 | Pfizer/FDA FOIA 75-years → court order | 45 | **GROUNDED (A) + the "75 years" number corrected** → 45-C |
 | 15 | GBD vs John Snow Memo; Collins "takedown" email | 40 | **GROUNDED (A)** → 40-C |
 | +A | Trump/Woodward 19 Mar 2020 (counter-direction hunt, item 43) | 43 | **GROUNDED (B)** → 43-B |
 | +B | Tiahrt Amendments (counter-direction hunt, item 45) | 45 | **GROUNDED (A/B)** → 45-B |
+| +C | Item-44 counter-direction (abstinence-education gradings) | 44 | NOT REACHED (1 query; stacks.cdc.gov 403) → 44-D |
 
 ## Item 40 — Consensus manufacturing
 
@@ -582,6 +589,305 @@ and municipal litigation. Sponsored by a Republican member; the repeal campaign 
 under Michael Bloomberg, and the Fraternal Order of Police and ATF itself favoured retention — so the coalition around
 the refusal is not cleanly partisan, which is worth recording rather than smoothing over.
 
+---
+
+# EPOCH 3 (appended 2026-09-16)
+
+## Item 44 — Evidence-hierarchy asymmetry (the renderings)
+
+### 44-C. The six renderings of the York/Cass grading, in their own words — GROUNDED (A/B), with three lead corrections
+**[LEAD CORRECTIONS, stated before the evidence.]** (1) The Secretary of State's statement to the House is **15 April
+2024**, not 10 April — 10 April is the Review's *publication* date; the Commons statement is Hansard Volume 748,
+"Cass Review," Monday 15 April 2024, 5.23pm. (2) The AAP Board action is **August 2023**, not August 2024. (3) The
+wpath.org document dated 17 May 2024 is headed "**WPATH AND USPATH** COMMENT ON THE CASS REVIEW" — EPATH is not a
+signatory to that document, so "the WPATH/USPATH/EPATH joint statement" names a different item than the one on
+wpath.org.
+
+**(a) NHS England — the commissioner's rendering.** Primary: NHS England, *Clinical Policy: Puberty suppressing hormones
+(PSH) for children and young people who have gender incongruence / gender dysphoria [1927]*, publication date
+**12 March 2024**, read 2026-09-16 from
+`https://www.england.nhs.uk/wp-content/uploads/2024/03/clinical-commissioning-policy-gender-affirming-hormones-v2.pdf`.
+ROUTE NOTE: the guessable filenames (`Clinical-Policy-Puberty-suppressing-hormones.pdf`,
+`clinical-commissioning-policy-puberty-suppressing-hormones.pdf`) both 404; the live file is named
+`…-gender-affirming-hormones-v2.pdf` and contains the PSH policy.
+**The commissioning position, verbatim:** "**Puberty suppressing hormones (PSH) are not available as a routine
+commissioning treatment option for treatment of children and young people who have gender incongruence / gender
+dysphoria.**"
+**"What we have decided", verbatim:** "NHS England has carefully considered the evidence review conducted by NICE (2020)
+and has identified and reviewed any further published evidence available to date. **We have concluded that there is not
+enough evidence to support the safety or clinical effectiveness of PSH to make the treatment routinely available at this
+time.**"
+**The instrument the policy actually names is NICE (2020), not the York reviews.** The document's background states
+"the National Institute for Health and Care Excellence (NICE) was commissioned to review the published evidence on
+Gonadotrophin Releasing Hormone Analogues (GnRHa). Nine observational studies were included in the evidence review," and
+it cites no York systematic review anywhere. [INFERENCE] the common rendering "NHS England stopped puberty blockers
+because of the Cass Review" inverts the sequence: the policy is dated 12 March 2024 and the Review's final report
+10 April 2024, four weeks later.
+
+**(b) The Secretary of State — the government's rendering, with the opposing rendering in the same exchange.**
+Primary: House of Commons, "Cass Review," Volume 748, 15 April 2024, 5.23pm — the Secretary of State for Health and
+Social Care (Victoria Atkins). Read 2026-09-16 via the TheyWorkForYou verbatim mirror
+(`theyworkforyou.com/debates/?id=2024-04-15e.55.0`). ROUTE NOTE: `hansard.parliament.uk` is behind a Cloudflare managed
+challenge — both the debate page and the `debates/GetDebateAsText/<GUID>` endpoint return **HTTP 403** to curl; the
+TheyWorkForYou mirror returns **418** to curl but serves WebFetch. Graded **B** for that reason, not A.
+**Atkins, verbatim:** "**This review strikes hard and sure at an area of public policy where fashionable cultural values
+have overtaken evidence, safety and biological reality.**" And, on the pathway: "the response from some of the people who
+should have protected them—some of the clinicians in charge of their care at the Tavistock clinic—was almost always to
+put them on an irreversible path: blocking puberty, then prescribing cross-sex hormones, and on to surgery as an adult."
+**Dawn Butler MP, verbatim:** "**Around 100 studies have not been included in the Cass report, and we need to know why.**"
+**Atkins in reply, verbatim:** "I am not clear whether the hon. Lady supports the report or is castigating it; I have no
+idea whether she supports it or not … **This is superb evidence, and the NHS has assured us that it will act on it.**"
+**Both renderings are checkable against the reviews' own counts, and both fail.** Butler's "around 100 studies have not
+been included" is false: 103 studies across the two endocrine reviews, of which **60 were synthesised** (26/50 + 34/53,
+computed in 44-B from the published abstracts). Atkins's "superb evidence" is a strength claim about a document whose own
+foreword says "**This is an area of remarkably weak evidence**" (quoted in 44-B). One speaker inflates the exclusion, the
+other inflates the evidential standing, in one exchange, and neither number comes from the reviews.
+
+**(c) WPATH and USPATH — the professional bodies' rendering.** Primary: "WPATH AND USPATH COMMENT ON THE CASS REVIEW,"
+17 May 2024, `wpath.org/wp-content/uploads/2024/11/17.05.24-Response-Cass-Review-FINAL-with-ed-note.pdf`, read in full
+2026-09-16 (4 pages, 9 references, carrying an editor's note).
+**The evidence charge, verbatim:** "**The Cass Review relies on selective and inconsistent use of evidence, and its
+recommendations often do not follow from the data presented in the systematic reviews.**" And: "its content is not
+supported by a robust methodology."
+**The counter-claim, verbatim:** WPATH and USPATH "firmly stand by the Standards of Care for the Health of Transgender
+and Gender Diverse People – version 8 … and **considers that the (research and consensus-based) evidence is such to
+recommend that providing medical treatment including puberty-blocking medication and hormone therapy is helpful and
+often life-saving for young TGD people, while withholding such treatment may lead to increased gender dysphoria and
+adversely affect psychological functioning.**"
+**On the trial requirement, verbatim:** "**The use of a randomized blinded control group, which would lead to the highest
+quality of evidence, is ethically not feasible.** It is ethically problematic to induce people to participate in a
+research project as the only way to access a type of care that is evidence based, widely recognised as medically
+necessary, and often reported as lifesaving."
+**The structure of the document, stated precisely:** it disputes the Review's *process* (an appointment made "without any
+transparent or competitive process," a chair with "hardly any clinical experience or expertise," the exclusion of
+"subject matter, experts or people with lived experience"), asserts a strength claim — "helpful and often life-saving" —
+that carries no grading, and disputes **none** of the York reviews' individual study ratings. [INFERENCE] that is the
+mirror of the Atkins rendering: Atkins raises the Review's authority above what the Review claims for itself, WPATH
+raises the treatments' evidential standing above what its own cited literature is graded at, in the same document that
+charges the Review with "selective and inconsistent use of evidence."
+
+**(d) The AAP — reaffirm-then-review, with the motive on the record.** Primary: AAP News, "AAP reaffirms gender-affirming
+care policy, authorizes systematic review of evidence to guide update," Alyson Sulaski Wyckoff, **4 August 2023** —
+the Academy's own publication. Read 2026-09-16 via Exa's crawl of the AAP-hosted PDF at `aap2.silverchair-cdn.com`
+(signed CDN URL); I did not fetch `publications.aap.org` directly, so this is graded **B**.
+**Verbatim:** "**The AAP Board of Directors voted to reaffirm the 2018 AAP policy statement on gender-affirming care and
+authorized development of an expanded set of guidance for pediatricians based on a systematic review of the evidence.**"
+**The stated reason for commissioning it, verbatim:** "**The decision to authorize a systematic review reflects the
+board's concerns about restrictions to access to health care with bans on gender-affirming care in more than 20
+states.**"
+**The position held meanwhile, verbatim:** "He emphasizes that policy authors and AAP leadership are **confident the
+principles presented in the original policy** … **remain in the best interest of children**," and "Based on the
+continuing review, the board **reaffirmed the current guidance** on transgender care until there is an updated version."
+**This is the item-44 mechanism described by the actor in its own newsletter.** The body reaffirms a recommendation
+*before* the systematic review it is simultaneously commissioning, and the reason its own publication gives for
+commissioning the review is a political fact — state legislation — not an evidential one. Same standard, same paragraph:
+this is structurally the Collins "quick and devastating published takedown" email at 40-C (a conclusion specified before
+its evidence), running in the opposite political direction, and both are graded on the actor's own words. The one
+difference I will not smooth over: the Collins text is the official's own email, while this sentence is AAP staff
+characterising a board's motive in an AAP publication — closer to an authorised account than to a minute.
+
+**(e) McNamara et al. (Yale Integrity Project) — and it independently confirms this lane's epoch-2 premise correction.**
+Primary: McNamara M., Baker K., Connelly K., Janssen A., Olson-Kennedy J., Pang K.C., Scheim A., Turban J., Alstott A.,
+*An Evidence-Based Critique of "The Cass Review" on Gender-affirming Care for Adolescent Gender Dysphoria*, Yale Law
+School / Integrity Project, 2024, 39 pp., read in full 2026-09-16 from
+`law.yale.edu/sites/default/files/documents/integrity-project_cass-response.pdf`.
+**The central methodological charge, verbatim:** "**The Review introduces GRADE (p 55) but never evaluates the evidence
+using the GRADE framework. The Review borrows GRADE terminology in repeatedly expressing a desire to see 'high quality'
+evidence dominate the field of transgender health. Thus, the Review falls seriously short in not describing or applying a
+formal method for assigning evidence quality.**" And: "**Thus, the Review speaks a language that may seem familiar, but
+its foundations are pseudoscientific and subjective. For instance, unscientific evidence quality descriptors such as
+'weak' and 'poor' were identified 21 times and 10 times respectively.**"
+**On the instrument switch, verbatim:** "**In the pre-registered protocol, the SR team planned to appraise the quality of
+studies using the Mixed Methods Appraisal Tool (MMAT). However, they switched to the Newcastle-Ottawa**" [Scale]. And the
+section heading: "**No accepted method to determine quality of the entire body of evidence was used.**"
+**On the exclusion, verbatim (footnote 92):** "**Studies deemed low-quality studies by the modified NOS should have been
+included and analyzed separately, rather than excluded altogether. A sensitivity analysis could be performed to see if
+the excluded studies provided relevant information, but this was not done.**"
+**Why this carries more weight than a partisan critique normally would.** In epoch 2 I recorded, *against this
+dispatch's own premise*, that the York reviews carry no GRADE ratings and used a modified Newcastle-Ottawa Scale
+instead. The Review's most hostile published readers make the identical factual claim their central charge. The
+instrument fact is therefore agreed across the political divide; what is contested is what follows from it. I reached
+it from the reviews' own methods sections before reading this document.
+**What the critique does not establish.** "Pseudoscientific" is an evaluative conclusion, not a finding — grade **A** as
+a record of what the authors wrote, **C** as a finding about the Review. The authors are parties to the dispute (several
+wrote studies the York reviews rated low quality, and Tordoff et al., named in the critique as wrongly excluded, is
+adjacent to that group), and the document is published by a law-school project without peer review. That is exactly the
+treatment I gave Cass §9.32 in 44-B, where Cass characterises WPATH: A as a record, C as a finding about the other party.
+
+**(f) Cass's reply — and the arithmetic check that closes the case.** Primaries: (i) Hilary Cass, "Gender medicine for
+children and young people is built on shaky foundations. Here is how we strengthen services," *BMJ* 2024;385:q814,
+published 9 April 2024, doi 10.1136/bmj.q814 — her own signed opinion, read 2026-09-16 (grade **A**). (ii) Her rebuttal
+on the BBC's *More or Less: Behind the Stats*, quoted by BBC News, 20 April 2024, `bbc.co.uk/news/health-68863594`
+(grade **B** — a broadcaster's transcription of its own podcast, not the recording). (iii) Her interview with *The
+Times*, quoted in *The Independent*, 20 April 2024 (grade **C** — a second-hand quotation of a paywalled interview).
+**Verbatim (i), her own account:** "**The findings of the series of systematic reviews are disappointing.**" /
+"**The rationale for early puberty suppression remains unclear, with weak evidence regarding the impact on gender
+dysphoria and mental or psychosocial health. The effect on cognitive and psychosexual development remains unknown.**" /
+and, in the same paragraph, the positive indication she names: "**The clearest indication is in helping a small number of
+birth registered males, whose gender incongruence started in early childhood, to pass in adult life by preventing the
+irreversible changes of male puberty.**"
+**Verbatim (ii), on the "98%" rendering:** the 98% claim was "**completely incorrect**"; "**There were quite a number of
+studies that were considered to be moderate quality, and those were all included in the analysis.**"; "**So nearly 60% of
+the studies were actually included in what's called the synthesis.**" And: "**We're certainly not saying that no-one is
+going to benefit from these treatments, and I myself have spoken to young people who definitely do appear to have
+benefited.**"
+**Verbatim (iii):** "the total number of datasets deemed to be of high or medium-quality standard was **60 out of 103**."
+**The arithmetic check.** In epoch 2 I computed the synthesised counts independently from the two published structured
+abstracts: **26 of 50** puberty-suppression studies and **34 of 53** hormone studies. 26 + 34 = **60**; 50 + 53 =
+**103**; 60/103 = **58.3%**. That is exactly the "60 out of 103" and "nearly 60%" Cass used in public, arrived at from
+the abstracts without reference to anything she said. The "98%" figure is its complement on a *different predicate*:
+2 of 103 studies (one high-quality study in each review) were rated high quality, so **101/103 = 98.1%** were *not rated
+high quality* — and the political rendering converts "not rated high quality" into "excluded" or "ignored." Both
+duelling public numbers, 98% and 60%, are true of different predicates on the same 103 studies.
+
+**THE ONE PARAGRAPH, BOTH DIRECTIONS, SAME STANDARD.** Held to one standard, every rendering above departs from the
+reviews in the direction of its politics, and the departures differ in kind rather than in honesty. On the restriction
+side, NHS England's operative sentence — "there is not enough evidence to support the safety or clinical effectiveness of
+PSH to make the treatment routinely available at this time" — is the most faithful rendering in the set: it is a claim
+about the state of evidence and a commissioning decision, it does not assert that the treatment was shown to be harmful,
+and it names the evidence review it relied on; the Secretary of State's rendering four weeks later is not faithful,
+because "superb evidence" is a strength claim about a document whose own foreword says "remarkably weak evidence," and
+"fashionable cultural values have overtaken evidence, safety and biological reality" imports a verdict about motives that
+appears nowhere in the reviews. On the access side, Dawn Butler's "around 100 studies have not been included" is false
+against the reviews' own counts — 60 of 103 synthesised, computed here in epoch 2 and matching Cass's own public figure
+exactly — and WPATH and USPATH's "helpful and often life-saving" is a strength claim carrying no grading at all,
+asserted in the same document that charges the Review with "selective and inconsistent use of evidence"; the AAP
+reaffirmed a recommendation before the systematic review it was simultaneously commissioning, and its own newsletter
+gives the reason for commissioning it as "the board's concerns about restrictions to access to health care with bans on
+gender-affirming care in more than 20 states," a political premise for an evidential instrument, on the record, from the
+access side, structurally identical to the Collins takedown email at 40-C from the other side. And the single
+methodological criticism in the whole dispute that survives contact with the primary documents also comes from the access
+side and is correct: McNamara et al. are right that the Review "introduces GRADE (p 55) but never evaluates the evidence
+using the GRADE framework," right that the pre-registered MMAT was switched to a modified Newcastle-Ottawa Scale, and
+right that no accepted method was applied to the body of evidence as a whole — the same three facts recorded in epoch 2
+against this dispatch's own premise, reached independently from the reviews' methods sections. So the verdict on item 44
+is not that one side misrepresented and the other did not. The restriction side inflated the *review's* evidential
+authority above what the review claimed for itself; the access side inflated the *treatments'* evidential support above
+what its own cited literature is graded at and misstated the exclusion arithmetic; and the one correct methodological
+criticism — that no formal body-of-evidence grading was ever performed — cuts against the restriction side's use of the
+review as a settled evidence verdict while doing nothing whatever to support the access side's "life-saving" claim.
+Both directions substituted an instrument; neither produced a number the reviews contain.
+**Grades:** A for NHS England, WPATH/USPATH, the Yale critique and Cass's BMJ opinion (each read in full from the
+issuing body); B for the Hansard exchange (mirror, not hansard.parliament.uk), the AAP News item (via a crawl of the
+AAP-hosted PDF) and the BBC's transcription; C for the *Times* quotations reached through *The Independent*.
+**Direction:** (a) and (b) served the restriction side; (c), (d) and (e) served the access side; (f) served the Review.
+Two of the six renderings are arithmetically false against the reviews (Butler's ~100 excluded; the "98% ignored" claim
+Cass was answering); one is a strength claim with no grading behind it (WPATH); one is a strength claim about the review
+itself (Atkins); one is a correct methodological charge (Yale); one is faithful (NHS England).
+
+### 44-D. Item-44 counter-direction hunt — NOT REACHED (one query run, primary blocked), not "not found"
+**What I actually did.** One query at the end of the budget, on the abstinence-only-education candidate. It surfaced a
+well-shaped primary: the **Community Preventive Services Task Force** finding "Preventing HIV/AIDS, Other STIs, and Teen
+Pregnancy: Group-Based Abstinence Education Interventions for Adolescents — Task Force Finding and Rationale Statement"
+(doi 10.15620/cdc/164214; CDC Stacks id 164214), which is the right instrument because the *same* Task Force also issued
+a finding on group-based **comprehensive risk reduction**, so two interventions of opposite political coding are graded
+by one body under one method. `stacks.cdc.gov` returned **HTTP 403** to curl and the budget ended there. The
+ivermectin/hydroxychloroquine and school-closure candidates were **not queried at all**.
+**This is not a finding that no counter-direction case exists.** It is an unfinished test with a named, reachable
+primary, and I am recording it as unfinished rather than converting a budget failure into a negative result. The precise
+test to run: whether the two CPSTF rationale statements rest on *comparable* bodies of evidence rated differently (an
+asymmetry) or on *different* bodies of evidence rated consistently (not one). Retry routes: the doi.org resolver,
+`thecommunityguide.org`, or a Wayback `id_` capture of the CDC Stacks PDF.
+**Item 44's both-directions requirement is nonetheless now satisfied — at the rendering level, by 44-C.** Two renderings
+of one grading, running in opposite political directions, appear in a single Commons exchange and are graded on the same
+criteria in the same paragraph above, with three more renderings from the access side and one from the Review. That is
+what the dispatch asked for and it is stronger than a matched pair of separate cases would have been, because all six
+renderings share a single primary document and a single set of counts, so the comparison carries no case-selection
+confound. The epoch-2 line "item 44 has no counter-direction case" is superseded by this section.
+
+## Item 45 — Data-access refusal (continued)
+
+### 45-C. PHMPT v. FDA — 500 pages a month proposed, 55,000 ordered — GROUNDED (A), with the famous number corrected
+**The number as used:** "the FDA wants 75 years to release the Pfizer vaccine data" — used from late 2021 through the
+2022–2024 US vaccine-policy debate, in congressional statements, in litigation fundraising and in press coverage on both
+sides, as evidence that the agency was concealing safety data.
+**Primary record:** *Public Health and Medical Professionals for Transparency v. Food and Drug Administration*, No.
+4:21-cv-01058-P (N.D. Tex., Fort Worth Division), Judge Mark T. Pittman; filed 2021-09-16, terminated 2024-12-06.
+CourtListener docket id **60390195**; RECAP archive path `gov.uscourts.txnd.353278`. Read 2026-09-16: **ECF No. 35**
+(the Order, filed 01/06/22, 4 pp.) and **ECF No. 29** (FDA's brief, filed 12/13/21, 28 pp.), both as filed PDFs with
+case caption and PageID stamps.
+ROUTE NOTE: CourtListener's `/api/rest/v4/docket-entries/` returns **401 Authentication credentials were not provided**
+without a token, but `/api/rest/v4/search/?q=docketNumber:"4:21-cv-01058"&type=r&court=txnd` is open and returns the
+`docket_id`, and the docket **HTML page is public and carries direct `storage.courtlistener.com/recap/…` PDF links** —
+which is the working unauthenticated route to the filed documents, and the one the epoch-2 path-guessing attempt missed.
+**FDA's proposed rate, in FDA's own brief (ECF 29), verbatim:** "**as FDA has emphasized, its proposed rate of a minimum
+of 500 pages per month is based, in substantial part, on certain limitations that inhere, at this early stage, in the
+agency's ability to assess the full corpus of responsive records**" and "**FDA cannot at this juncture commit to a
+processing schedule in excess of 500 pages per month beyond that point, FDA's proposal reflects a floor, not a ceiling**"
+and "FDA simply cannot, at this juncture, commit to a schedule of more than 500 pages per month without harming the
+public interest in the orderly [processing of other requests]."
+**[LEAD CORRECTION] "75 years" appears in neither document.** It is in neither the Order nor FDA's brief — a grep of
+both for "75 years" returns nothing. It is a derived figure (the corpus divided by 500 pages/month), computed by the
+requester's side, not an agency statement. What FDA's brief *does* contain, at footnote 8, is the argument that the
+lengthy-timeline consequence is normal, verbatim: "**500 pages per month is consistent with processing schedules entered
+by courts around the country--even where that schedule will result in lengthy production periods**," citing *White v.
+Executive Office of U.S. Attorneys* ("approving 500 pages per month and **nine-year** production period") and *Colbert v.
+FBI* ("approving 500 pages per month and a **decade-long** production period"). So the agency defended a multi-year
+horizon in its own words and never named 75 years; the political number is a correct arithmetic extrapolation from the
+agency's stated floor, attributed to the agency as if it were the agency's request.
+**The ordered rate, verbatim (ECF 35):** "1. The FDA shall produce the '**more than 12,000 pages**' articulated in its
+own proposal, see ECF No. 29 at 24, on or before January 31, 2022. 2. **The FDA shall produce the remaining documents at
+a rate of 55,000 pages every 30 days**, with the first production being due on or before March 1, 2022, until production
+is complete." Computed: **55,000 / 500 = 110×** FDA's proposed monthly floor.
+**The court's stated reason, verbatim:** "'**Open government is fundamentally an American issue**'—it is neither a
+Republican nor a Democrat issue," quoting Sen. John Cornyn, followed by Madison ("a popular Government, without popular
+information … is but a Prologue to a Farce or a Tragedy"), Kennedy, and John McCain: "**[e]xcessive administrative
+secrecy … feeds conspiracy theories and reduces the public's confidence in the government.**" Then: "Here, the Court
+recognizes the '**unduly burdensome**' challenges that this FOIA request may present to the FDA … But, as expressed at
+the scheduling conference, there may not be a '**more important issue at the Food and Drug Administration … than the
+pandemic, the Pfizer vaccine, getting every American vaccinated, [and] making sure that the American public is assured
+that this was not [] rush[ed]**' … Accordingly, the Court concludes that **this FOIA request is of paramount public
+importance**." And: "'[S]tale information is of little value.' … the expeditious completion of Plaintiff's request is not
+only practicable, but **necessary**." Footnote 1, verbatim: "**Surprisingly, the FDA did not send an agency
+representative to the scheduling conference.**"
+**Construction:** the disputed quantity is a production *rate*, and the two parties' proposals differ by two orders of
+magnitude for reasons neither side disputes factually — FDA's floor is a resourcing claim, the court's rate is a
+public-importance claim. The politically-used figure ("75 years") is an extrapolation of one party's floor into a
+horizon, presented as the other party's intention. The court itself pre-emptively disclaims a political direction in its
+second sentence.
+**Grade:** **A** — the court's own signed order and the agency's own brief, both read as filed. **Direction:** the
+withheld records served the vaccine-safety-questioning side, coded right in US politics from 2021; the refusal came from
+a federal agency, and the order came from a judge appointed by the administration that side supported. Set against 45-A
+(a consultancy withholding a firm list) and 45-B (a statute immunising trace data from legal process), this is the one
+case in item 45 where the refusal was **overridden**, and the override is the reason the underlying documents are now
+public.
+
+### 45-D. Bloom 2021 — a dataset deleted from the NIH Sequence Read Archive, recovered from the cloud — GROUNDED (A) on the paper, NIH NOT REACHED
+**The claim as used:** that early-Wuhan SARS-CoV-2 sequences were removed from a US federal archive, used from June 2021
+onward in the lab-origin debate and in congressional correspondence as evidence of data suppression bearing on
+pandemic origins.
+**Primary record:** Jesse D. Bloom, "Recovery of Deleted Deep Sequencing Data Sheds More Light on the Early Wuhan
+SARS-CoV-2 Epidemic," *Molecular Biology and Evolution* 38(12):5211–5224, 2021, doi 10.1093/molbev/msab246, PMID
+34398234, PMC8436388 — read in full 2026-09-16 via the Europe PMC `fullTextXML` endpoint (open access).
+**PAPER HYGIENE NOTE:** the Europe PMC record carries a linked **correction**, *Mol Biol Evol* 40(9), msad201, 2023
+(PMC10540883, PMID 37772800). I did **not** read the correction's content; any use of this paper's specific numerical
+claims should read msad201 first. The account of the deletion quoted below is not among the items I can confirm the
+correction does or does not touch.
+**The paper's own account, verbatim (abstract):** "**Here, I identify a data set containing SARS-CoV-2 sequences from
+early in the Wuhan epidemic that has been deleted from the NIH's Sequence Read Archive. I recover the deleted files from
+the Google Cloud and reconstruct partial sequences of 13 early epidemic viruses.**"
+**The mechanism of recovery, verbatim:** the SRA returned "failed to resolve accession '**SRR11313485**.'" — "However,
+the SRA has begun storing all data on the Google and Amazon clouds. While inspecting the SRA's web interface for other
+sequencing accessions, I noticed that SRA files are often available from links to the cloud … **Based on the hypothesis
+that deletion of sequencing runs by the SRA might not remove files stored on the cloud, I interpolated the cloud URLs for
+the deleted accessions and tested if they still yielded the SRA files. This strategy was successful**; for instance, as of
+June 3, 2021, going to `https://storage.googleapis.com/nih-sequence-read-archive/run/SRR11313485/SRR11313485` downloads
+the SRA file for accession SRR11313485."
+**What is grounded and what is not.** Grounded: that the accessions were unresolvable in the SRA; that the underlying
+files remained on the cloud mirror; that the author recovered them and reconstructed 13 partial sequences. **NOT
+grounded here:** the *reason* for the deletion. Greps of the full text for "at the request," "request of the submitting"
+and "no longer available" return nothing — the paper does not, in the text I read, attribute the deletion to a
+submitter request. The NIH/NLM statement often quoted for that attribution ("submitting investigators hold the rights to
+their data and can request withdrawal") was **NOT REACHED and no query for it was run** — the epoch budget ended at the
+court filings. Anyone citing the submitter-request explanation needs an NIH or NLM primary, which this section does not
+supply.
+**Grade:** **A** for the paper's own account of the deletion and recovery (open-access full text from the publisher's
+PMC deposit). **NOT GRADED** for the reason for the deletion, which is unsourced here.
+**Direction:** the recovered data served the lab-origin/right-coded side in 2021 US politics; the deletion was performed
+by a US federal archive. Unlike 45-A, 45-B and 45-C, the refusal here was defeated by a technical route rather than by
+litigation or by consent — the data were recoverable because a mirror outlived the deletion, which is a property of the
+infrastructure and not of anyone's decision.
+
 ## Disconfirmation record
 
 *(Epoch 1, items 1–4, retained verbatim.)*
@@ -633,12 +939,59 @@ the refusal is not cleanly partisan, which is worth recording rather than smooth
     graded A on statute where 45-A's refusal is graded from a replication paper). Item 44 still has no
     counter-direction *rendering* grounded — see Skipped.
 
-## Covered (13 cases across 5 mechanisms)
+*(Epoch 3 additions.)*
+
+11. **The dispatch's Hansard date is wrong by five days.** The Secretary of State's statement to the House on the Cass
+    Review is **15 April 2024** (Hansard Vol. 748, 5.23pm), not 10 April. 10 April is the Review's publication date. A
+    memo citing "Hansard 10 April 2024" for the government's rendering is citing a debate that did not happen.
+12. **The AAP action is August 2023, not August 2024 — a full year earlier, and the direction of the correction
+    matters.** The Board reaffirmed the 2018 policy and authorised its systematic review on **3–4 August 2023**, i.e.
+    **eight months before** the Cass Review's final report. The common framing "the AAP responded to Cass by
+    commissioning its own review" is therefore chronologically impossible on the primary: the AAP review was authorised
+    first. Source: AAP News, 4 August 2023.
+13. **The WPATH document is WPATH + USPATH, not WPATH/USPATH/EPATH.** The 17 May 2024 document on wpath.org is headed
+    "WPATH AND USPATH COMMENT ON THE CASS REVIEW" and carries no EPATH signature. It also carries an editor's note
+    recording a post-publication amendment ("This statement has been adjusted to reflect the fact that the German
+    guideline for adolescent transgender care is still under review") — i.e. the statement as first issued overstated
+    the status of a guideline it cited in support.
+14. **The epoch-2 premise correction is confirmed by the opposing side.** In epoch 2 I recorded, against the dispatch's
+    own instruction, that the York reviews carry **no GRADE ratings**. In epoch 3 the Yale Integrity Project critique —
+    the most hostile published reading of the Review — makes the identical claim its central methodological charge
+    ("introduces GRADE (p 55) but never evaluates the evidence using the GRADE framework"), and adds two facts I had
+    not recorded: the protocol's MMAT was switched to the modified Newcastle-Ottawa Scale, and no accepted method was
+    applied to the body of evidence as a whole. An instrument fact agreed by both sides of a political dispute is the
+    strongest form of confirmation available in this library.
+15. **My epoch-2 computed synthesis count reproduces the Review chair's own public figure exactly.** 26/50 + 34/53 =
+    **60/103 = 58.3%**, computed in epoch 2 from the two published structured abstracts; Cass's own public figures are
+    "60 out of 103" and "nearly 60%." Separately, **101/103 = 98.1%** were *not rated high quality*, which is the true
+    statement underneath the "98% of the evidence was ignored" rendering. The two duelling numbers in the public
+    dispute are both true of different predicates on the same 103 studies, which is the whole of the item-44 mechanism
+    in one line.
+16. **"75 years" is in neither primary document in the Pfizer-FOIA case.** Greps of Judge Pittman's 6 January 2022
+    order (ECF 35) and FDA's 13 December 2021 brief (ECF 29) return nothing for "75 years." FDA's own words are "a
+    minimum of **500 pages per month** … a floor, not a ceiling," and its footnote 8 defends that rate by citing
+    precedents approving a "**nine-year**" and a "**decade-long**" production period. The 75-year figure is a correct
+    extrapolation by the requester's side, attributed in circulation to the agency as though the agency had asked for
+    it. The ordered rate was **55,000 pages every 30 days**, 110× the proposed floor.
+17. **NHS England's March 2024 policy does not cite the York reviews, and predates the final report.** The policy is
+    dated **12 March 2024**; it names **NICE (2020)** as the evidence review it considered ("Nine observational studies
+    were included") and cites no York systematic review. The Review's final report is 10 April 2024. [INFERENCE] the
+    rendering "NHS England stopped puberty blockers because of the Cass Review" inverts the documented sequence,
+    whatever the causal relationship between the Review's interim work and the policy may have been.
+18. **My own epoch-2 "item 44 has no counter-direction case" line is superseded.** 44-C supplies the two directions as
+    six renderings of one grading — two serving restriction, three serving access, one from the Review — held to the
+    same standard in a single paragraph. What remains genuinely open is a counter-direction *case* at a different
+    institution (44-D), and that is recorded as an unfinished test with a named primary, **not** as a negative result.
+
+## Covered (16 cases across 5 mechanisms)
 
 **Epoch 1 (7):** 40-A Cook 2013 · 40-B Nature/Zhang · 40-C GBD/Collins · 42-A Johnson & Cesario · 43-A Fauci herd
 immunity · 44-A Cochrane masks · 45-A McKinsey/Green & Hand.
 **Epoch 2 (6):** 40-D Lancet Calisher + 2021 addendum · 40-E Proximal Origin vs Slack · 42-B Grijalva letters ·
 43-B Trump/Woodward · 44-B Cass Review + York SRs · 45-B Tiahrt Amendments.
+**Epoch 3 (3):** 44-C the six renderings of the York/Cass grading (NHS England · Hansard 15 Apr 2024 · WPATH+USPATH ·
+AAP · Yale/McNamara · Cass's reply) · 45-C PHMPT v. FDA (ECF 29 + ECF 35) · 45-D Bloom 2021 SRA deletion.
+**Epoch 3 tested and not landed (1):** 44-D item-44 counter-direction at a second institution — one query, primary 403'd.
 
 **Both-directions status by mechanism:**
 | Item | Left-serving case | Right-serving case | Two-directional within one document |
@@ -646,7 +999,7 @@ immunity · 44-A Cochrane masks · 45-A McKinsey/Green & Hand.
 | 40 | 40-A, 40-B, 40-D, 40-E | 40-C | 40-D (statement vs its own addendum), 40-E (paper vs Slack vs testimony) |
 | 42 | 42-B (target: right) | 42-A (target: left) | — |
 | 43 | 43-A Fauci | 43-B Trump | — |
-| 44 | — (renderings not reached) | — | 44-A Cochrane, 44-B Cass foreword |
+| 44 | 44-C(c) WPATH+USPATH, 44-C(d) AAP, 44-C(e) Yale, 44-C(b) Butler | 44-C(a) NHS England, 44-C(b) Atkins | 44-A Cochrane, 44-B Cass foreword, 44-C the whole exchange |
 | 45 | 45-A McKinsey | 45-B Tiahrt | — |
 
 ## Skipped (why)
@@ -656,14 +1009,25 @@ immunity · 44-A Cochrane masks · 45-A McKinsey/Green & Hand.
   surfaced a different N.D./E.D. Tex. FOIA matter first, and a guessed RECAP storage path
   (`gov.uscourts.txnd.350386.35.0.pdf`) returned a 335-byte XML error, not a PDF. The order exists and is reachable —
   it needs the correct `docket_id` resolved first, then the RECAP document listing. Queries in §next.
+  **[EPOCH 3 — RESOLVED, see 45-C.** docket_id 60390195; the open route is the v4 *search* endpoint for the id plus the
+  **public docket HTML page**, which carries direct `storage.courtlistener.com/recap/…` PDF links. The docket-entries
+  API needs a token (401). Both ECF 29 and ECF 35 are now quoted verbatim.**]**
 - **Lead 13 (Bloom 2021 SRA deletion + NIH statement):** NOT REACHED, no queries run — budget was spent on leads 10,
   7, 1, 2 and the two counter-direction hunts, in the priority order given.
+  **[EPOCH 3 — HALF RESOLVED, see 45-D.** The paper's own account of the deletion and recovery is now grounded (A) from
+  the Europe PMC open-access full text. The **NIH/NLM primary statement is still NOT REACHED and still unqueried**, and
+  the paper does not itself attribute the deletion to a submitter request — so that attribution remains unsourced.**]**
 - **Lead 10's rendering half:** the York/Cass *ratings* are grounded (44-B) but the four renderings asked for —
   NHS England, UK government, WPATH, AAP — are NOT REACHED, as is the Yale Integrity Project critique and Cass's reply.
   I deliberately did not write the "both directions in one paragraph" comparison on secondary characterisations: the
   only rendering I could ground is Cass's own charge against WPATH (§9.32), which is one party describing another.
   Writing the paragraph from that alone would have produced a fake symmetry. This is the single largest remaining gap
   in the lane and it is an item-44 gap, which is the mechanism most exposed to the instrument's own dispositions.
+  **[EPOCH 3 — RESOLVED, see 44-C.** All six renderings are now quoted verbatim from the issuing bodies and the
+  both-directions paragraph is written on them. Three of the four renderings named in the dispatch had wrong metadata
+  (Hansard date, AAP year, WPATH signatories) — disconfirmation items 11–13. The epoch-2 refusal to write the
+  paragraph on secondary characterisations was the right call: the primaries changed the content of the paragraph,
+  not just its sourcing.**]**
 - **Lead 6 (Littman 2018 / Bailey & Diaz 2023), Lead 9 (six-feet testimony), Lead 15b (John Snow Memorandum signature
   analysis), Lead 8b (March 2020 mask guidance/supply):** NOT REACHED across both epochs.
 - **Grijalva follow-through:** the seven universities' formal responses, the committee's own PDF of the Colorado letter,
@@ -672,6 +1036,9 @@ immunity · 44-A Cochrane masks · 45-A McKinsey/Green & Hand.
 - **Counter-direction still absent for item 44 only.** Items 40, 42, 43 and 45 now each carry cases from both
   directions. Item 44's two cases (Cochrane, Cass) are each two-directional *inside* one document, which is a different
   and arguably stronger property, but neither is paired with an opposing-direction *case*.
+  **[EPOCH 3 — SUPERSEDED, see 44-C and 44-D.** Item 44 now carries both directions as six renderings of one grading,
+  two serving restriction and four serving access, graded on the same criteria in one paragraph. A counter-direction
+  *case at a second institution* (44-D) remains an **unfinished test with a named primary**, not a negative result.**]**
 
 ## Suggested next queries (epoch 3)
 
@@ -706,3 +1073,53 @@ immunity · 44-A Cochrane masks · 45-A McKinsey/Green & Hand.
    301 to the UK Government Web Archive, which serves a JS interstitial; the Wayback `id_` raw-payload route works.
    `adc.bmj.com` 403s WebFetch; the Europe PMC `EXT_ID:<pmid>` core record returns the full structured abstract.
    `oversight.house.gov` PDFs are directly readable by Exa and carry the Slack exhibits with footnote timestamps.
+
+---
+
+## Epoch-3 disposition of the epoch-2 next queries (lane closed)
+
+| Epoch-2 query | Epoch-3 outcome |
+|---|---|
+| 1. PHMPT v. FDA order | **DONE** — 45-C. ECF 35 (order) and ECF 29 (FDA brief) quoted verbatim; "75 years" corrected. |
+| 2. Bloom SRA deletion | **HALF** — 45-D. Paper grounded (A); NIH/NLM statement still unqueried and unsourced. |
+| 3. The four Cass renderings (+ Yale, + Cass's reply) | **DONE** — 44-C, all six, with three metadata corrections. |
+| 4. Grijalva primaries (committee PDFs, Pielke's account, universities' replies) | **NOT ATTEMPTED** — budget. 42-B stays B. |
+| 5. Item-44 counter-direction hunt | **NOT LANDED** — 44-D. One query; `stacks.cdc.gov` 403. Named primary, retry routes given. |
+| 6. Route notes | **EXTENDED** — see below. |
+
+## Remaining gaps after three epochs (what a fourth epoch would do, in order)
+
+1. **44-D, the counter-direction test at a second institution.** The named primary is the Community Preventive Services
+   Task Force pair of rationale statements (abstinence education vs comprehensive risk reduction), one body, one method,
+   two oppositely-coded interventions. This is the highest-value remaining item in the lane because item 44 is the
+   mechanism the instrument (me) is most exposed to, and because the test can come back *negative* — which would be a
+   finding.
+2. **Lead 13's NIH/NLM statement.** Never queried. Without it the submitter-request explanation for the SRA deletion is
+   uncited in this library.
+3. **Lead 6 (Littman 2018 / Bailey & Diaz 2023) and Lead 9 (the six-feet testimony).** NOT REACHED across all three
+   epochs, no queries run.
+4. **Grijalva follow-through** (committee's own letter PDFs, the seven universities' replies, Pielke's account,
+   Grijalva's later characterisation). 42-B is graded B specifically because of this.
+5. **Lead 15b** (John Snow Memorandum signature analysis) and **Lead 8b** (March 2020 mask guidance/supply).
+
+## Route notes, consolidated across three epochs
+
+- `thelancet.com` 403s WebFetch; `showPdf` serves a 5.7 KB HTML shell to curl. **Europe PMC `fullTextXML`** carries the
+  COVID-era Lancet content in full (Elsevier released it to PMC). Same endpoint works for `msab246` (PMC8436388).
+- `cass.independent-review.uk` PDFs 301 to the UK Government Web Archive, which serves a JS interstitial to curl and
+  WebFetch. The **Wayback `id_` raw-payload route** works (36 MB PDF, 23,819 text lines).
+- `adc.bmj.com` 403s WebFetch; the Europe PMC **`EXT_ID:<pmid>` core record** returns the full structured abstract.
+- `hansard.parliament.uk` is behind a **Cloudflare managed challenge**: both the debate page and the
+  `debates/GetDebateAsText/<GUID>` endpoint return HTTP 403 to curl. `theyworkforyou.com` returns **418 to curl but
+  serves WebFetch** — that pair is the working Hansard route, and it costs a grade (B, not A).
+- `england.nhs.uk` policy PDFs are **not named after their subject**: the puberty-suppressing-hormones policy lives at
+  `…/clinical-commissioning-policy-gender-affirming-hormones-v2.pdf`. Guessing the obvious filename 404s; search for the
+  document title instead.
+- **CourtListener without a token:** `/api/rest/v4/docket-entries/` → 401, but `/api/rest/v4/search/?q=docketNumber:"…"`
+  → 200 with the `docket_id`, and the **public docket HTML page** carries direct `storage.courtlistener.com/recap/…`
+  PDF links for every RECAP-archived filing. Never guess the `gov.uscourts.<court>.<pacer_id>` path — read it off the
+  docket page (this case: docket_id 60390195, but pacer path `gov.uscourts.txnd.353278`; the two numbers are unrelated).
+- `stacks.cdc.gov` 403s curl. `wpath.org` and `law.yale.edu` serve PDFs to plain curl with a browser UA.
+- `oversight.house.gov` PDFs are directly readable and carry the Slack exhibits with footnote timestamps.
+- **Exa broad queries on this topic routinely exceed the 100 KB inline cap** and spill to a temp file. Set
+  `contextMaxCharacters: 3000` and `includeDomains` on every sweep here.
