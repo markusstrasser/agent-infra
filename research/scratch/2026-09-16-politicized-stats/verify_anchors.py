@@ -168,26 +168,70 @@ ANCHORS = [
     ("D50.B Meta, More Speech and Fewer Mistakes, 2025-01-07",
      "https://about.fb.com/news/2025/01/meta-more-speech-fewer-mistakes/",
      ["A program intended to inform too often became a tool to censor", "one to two out of every 10"], [], False),
+    ("B44.C(a) NHS England clinical policy 1927 on PSH, 12 Mar 2024 - names NICE (2020), cites no York review",
+     "https://www.england.nhs.uk/wp-content/uploads/2024/03/clinical-commissioning-policy-gender-affirming-hormones-v2.pdf",
+     ["not enough evidence to support the safety or clinical effectiveness of PSH", "Nine observational studies", "NICE (2020)"],
+     ["University of York"], True),
+    ("B44.C(b) Commons statement 'Cass Review', 15 Apr 2024 (TheyWorkForYou mirror)",
+     "https://www.theyworkforyou.com/debates/?id=2024-04-15e.55.0",
+     ["fashionable cultural values have overtaken evidence", "Around 100 studies have not been included", "This is superb evidence"],
+     [], False),
+    ("B44.C(c) WPATH and USPATH comment on the Cass Review, 17 May 2024 - no EPATH",
+     "https://wpath.org/wp-content/uploads/2024/11/17.05.24-Response-Cass-Review-FINAL-with-ed-note.pdf",
+     ["WPATH AND USPATH", "selective and inconsistent use of evidence", "helpful and often life-saving"], ["EPATH"], True),
+    ("B44.C(d) AAP News 4 Aug 2023, reaffirm-then-review (Wayback of the AAP page)",
+     "https://web.archive.org/web/2024id_/https://publications.aap.org/aapnews/news/25340/AAP-reaffirms-gender-affirming-care-policy",
+     ["reaffirm the 2018 AAP policy statement on gender-affirming care", "more than 20 states", "reaffirmed the current guidance"],
+     [], False),
+    ("B44.C(e) Yale Integrity Project critique of the Cass Review, 2024",
+     "https://law.yale.edu/sites/default/files/documents/integrity-project_cass-response.pdf",
+     ["never evaluates the evidence using the GRADE framework", "Mixed Methods Appraisal Tool", "Newcastle-Ottawa"], [], True),
+    ("B44.C(f) Cass, BMJ 2024;385:q814 (Wayback)",
+     "https://web.archive.org/web/2024id_/https://www.bmj.com/content/385/bmj.q814",
+     ["findings of the series of systematic reviews are disappointing", "The clearest indication is in helping a small number"],
+     [], False),
+    ("B44.C(f) BBC News 20 Apr 2024 - Cass on the 98% claim",
+     "https://www.bbc.co.uk/news/health-68863594",
+     ["completely incorrect", "nearly 60% of the studies"], [], False),
+    ("B45.C PHMPT v. FDA ECF 29, FDA brief 13 Dec 2021 - 500-page floor, no '75 years'",
+     "https://storage.courtlistener.com/recap/gov.uscourts.txnd.353278/gov.uscourts.txnd.353278.29.0.pdf",
+     ["500 pages per month", "a floor, not a ceiling", "nine-year", "decade-long"], ["75 years", "75-year"], True),
+    ("B45.C PHMPT v. FDA ECF 35, order 6 Jan 2022 - 55,000 pages per 30 days, no '75 years'",
+     "https://storage.courtlistener.com/recap/gov.uscourts.txnd.353278/gov.uscourts.txnd.353278.35.0.pdf",
+     ["more than 12,000 pages", "55,000 pages every 30 days", "paramount public importance"], ["75 years", "75-year"], True),
+    ("B45.D Bloom 2021 MBE msab246 - SRA deletion, cloud recovery (EuropePMC full text)",
+     "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC8436388/fullTextXML",
+     ["Sequence Read Archive. I recover the deleted files from the Google Cloud", "SRR11313485", "This strategy was successful"],
+     ["request of the submitting"], False),
+    ("B44.B York hormones review abstract, Arch Dis Child 2024, PMID 38594053 - 1 high / 33 moderate / 19 low",
+     "https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=EXT_ID:38594053%20AND%20SRC:MED&resultType=core&format=json",
+     ['were included (n=53)', 'One cohort study was high-quality', 'moderate (n=33) and low-quality (n=19)'], [], False),
+    ("B44.B York puberty-suppression review abstract, Arch Dis Child 2024, PMID 38594047 - 1 high / 25 moderate / 24 low",
+     "https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=EXT_ID:38594047%20AND%20SRC:MED&resultType=core&format=json",
+     ['were included (n=50)', 'One cross-sectional study was high quality, 25 studies were moderate quality', 'Only moderate-quality and high-quality studies were synthesised'], [], False),
 ]
 
 
-def fetch(url: str, is_pdf: bool) -> str:
-    raw = subprocess.run(["curl", "-s", "--compressed", "-L", "-A", "Mozilla/5.0", "--max-time", "300", url],
-                         capture_output=True).stdout
+def fetch(url: str, is_pdf: bool) -> tuple[str, int]:
+    # 900s cap: the archived Cass Review PDF is 36 MB and Wayback served it at ~150 KB/s on 2026-09-16 (~4 min),
+    # which a 300s cap turned into an empty body. curl's rc is returned so a timeout (rc 28) is named, not len=0.
+    proc = subprocess.run(["curl", "-s", "--compressed", "-L", "-A", "Mozilla/5.0", "--max-time", "900", url],
+                          capture_output=True)
+    raw = proc.stdout
     if is_pdf:
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
             f.write(raw)
         text = subprocess.run(["pdftotext", f.name, "-"], capture_output=True, text=True).stdout
     else:
         text = html.unescape(re.sub(r"<[^>]+>", " ", raw.decode("utf-8", "replace")))
-    return re.sub(r"\s+", " ", text)  # PDFs wrap phrases across lines; compare on collapsed whitespace
+    return re.sub(r"\s+", " ", text), proc.returncode  # collapse whitespace: PDFs wrap phrases across lines
 
 
 def main() -> int:
     failures = 0
     for label, url, present, absent, is_pdf in ANCHORS:
         try:
-            t = fetch(url, is_pdf)
+            t, rc = fetch(url, is_pdf)
         except Exception as e:  # noqa: BLE001
             print(f"✗ {label}: fetch error {e}"); failures += 1; continue
         missing = [s for s in present if s not in t]
@@ -195,7 +239,7 @@ def main() -> int:
         ok = not missing and not leaked and len(t) > 500
         failures += 0 if ok else 1
         mark = "✔" if ok else "✗"
-        detail = "" if ok else f"  missing={missing} present-but-should-be-absent={leaked} len={len(t)}"
+        detail = "" if ok else f"  missing={missing} present-but-should-be-absent={leaked} len={len(t)} curl_rc={rc}"
         print(f"{mark} {label}{detail}")
     print(f"\n{len(ANCHORS) - failures}/{len(ANCHORS)} anchors verified")
     return 1 if failures else 0
