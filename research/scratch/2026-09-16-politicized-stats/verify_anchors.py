@@ -81,11 +81,39 @@ ANCHORS = [
     ("D47.1 BLS CPI-U CUUR0000SA0 Aug 2022/2023/2024 (public API)",
      "https://api.bls.gov/publicAPI/v2/timeseries/data/CUUR0000SA0?startyear=2022&endyear=2024",
      ["296.171", "307.026", "314.796"], [], False),
+    # ---- lane A epoch 2 ----
+    ("A38.2 Dept of Commerce v. New York slip opinion 18-966 (PDF)",
+     "https://www.supremecourt.gov/opinions/18pdf/18-966_bq7c.pdf",
+     ["seems to have been contrived", "Accepting contrived reasons would defeat the purpose"], [], True),
+    ("A34.6 NVSS Vital Statistics Reporting Guidance No. 3, April 2020 (Wayback PDF)",
+     "https://web.archive.org/web/20200417id_/https://www.cdc.gov/nchs/data/nvss/vsrg/vsrg03-508.pdf",
+     ["Part II and not in Part I", "probable", "presumed", "only those conditions that actually contributed to death"], [], True),
+    ("A34.6 Colorado CDPHE case-data page, archived 2020-06-11 (Wayback)",
+     "https://web.archive.org/web/20200611170512id_/https://covid19.colorado.gov/data/case-data",
+     ["Beginning May 15", "should not be added together", "deaths among people who died from COVID-19"], [], False),
+    ("A38.3 European Parliament briefing IPOL_BRI(2017)614481 quoting Eurostat (PDF)",
+     "https://web.archive.org/web/2019id_/https://www.europarl.europa.eu/RegData/etudes/BRIE/2017/614481/IPOL_BRI(2017)614481_EN.pdf",  # live host answers scripted fetches with an empty 202
+     ["refutes allegations that the deficit of 2009 was over-estimated", "without any reservation"], [], True),
+    ("A34.1 White House Maternal Health Blueprint, June 2022 (PDF)",
+     "https://bidenwhitehouse.archives.gov/wp-content/uploads/2022/06/Maternal-Health-Blueprint.pdf",
+     ["maternal health crisis", "more than double the rate of peer countries"], [], True),
+    ("A34.1 NCHS Health E-Stat maternal mortality 2022 (Wayback)",
+     "https://web.archive.org/web/2024id_/https://www.cdc.gov/nchs/data/hestat/maternal-mortality/2022/maternal-mortality-rates-2022.htm",
+     ["22.3", "32.9", "fluctuate from year to year"], [], False),
+    ("A34.4 CDC dataset 54ys-qyzm metadata — partially vaccinated EXCLUDED (JSON)",
+     "https://data.cdc.gov/api/views/54ys-qyzm.json",
+     ["Excluded were partially vaccinated people", "and partially vaccinated people from the 2019"], [], False),
+    ("A34.4 Utah DHHS dashboard technical notes (Wayback)",
+     "https://web.archive.org/web/20211215id_/https://coronavirus-dashboard.utah.gov/risk.html",  # dashboard retired; live 404
+     ["Unvaccinated Case", "one dose", "14 days have not passed"], [], False),
+    ("A36.1 BLS preliminary benchmark announcement 2024-08-21 (Wayback)",
+     "https://web.archive.org/web/2024id_/https://www.bls.gov/web/empsit/cesprelbmk.htm",
+     ["818,000"], [], False),
 ]
 
 
 def fetch(url: str, is_pdf: bool) -> str:
-    raw = subprocess.run(["curl", "-s", "--compressed", "-L", "-A", "Mozilla/5.0", "--max-time", "60", url],
+    raw = subprocess.run(["curl", "-s", "--compressed", "-L", "-A", "Mozilla/5.0", "--max-time", "120", url],
                          capture_output=True).stdout
     if is_pdf:
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
