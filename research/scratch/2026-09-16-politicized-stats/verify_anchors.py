@@ -135,7 +135,7 @@ ANCHORS = [
 
 
 def fetch(url: str, is_pdf: bool) -> str:
-    raw = subprocess.run(["curl", "-s", "--compressed", "-L", "-A", "Mozilla/5.0", "--max-time", "120", url],
+    raw = subprocess.run(["curl", "-s", "--compressed", "-L", "-A", "Mozilla/5.0", "--max-time", "300", url],
                          capture_output=True).stdout
     if is_pdf:
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
