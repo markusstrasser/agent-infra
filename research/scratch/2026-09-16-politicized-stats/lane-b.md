@@ -1,8 +1,8 @@
 claude-opus-5[1m]
 
-**Verdict:** Across three epochs, **12 of 15 leads grounded, 1 partially contradicted, 2 not reached**, plus **2 cases**
-from the counter-direction hunts (Trump/Woodward, Tiahrt) — **16 cases over 5 mechanisms**, and **all five mechanisms now
-carry cases or renderings from both political directions**. Eight leads carry corrections to the lead as written, and two
+**Verdict:** Across four epochs, **12 of 15 leads grounded, 1 partially contradicted, 2 not reached**, plus **3 cases**
+from the counter-direction hunts (Trump/Woodward, Tiahrt, and the CPSTF pair) — **17 cases over 5 mechanisms**, and
+**all five mechanisms now carry cases or renderings from both political directions**. Eight leads carry corrections to the lead as written, and two
 of those kill premises the dispatch supplied. The York systematic reviews behind the Cass Review **have no GRADE
 ratings** — both state they used "an adapted version of the Newcastle-Ottawa Scale" — and epoch 3 confirmed this
 independently from the *most hostile published critics* of the Review, whose central methodological charge is that it
@@ -33,7 +33,22 @@ court's order nor FDA's brief and is a derived figure, while FDA's brief instead
 decade-long production periods; and the AAP's own newsletter gives the reason for commissioning its systematic review as
 "the board's concerns about restrictions to access to health care with bans on gender-affirming care in more than 20
 states" — a political premise for an evidential instrument, on the record, from the direction this lane's other
-on-record admissions did not come from.
+on-record admissions did not come from. **Epoch 4 closed the one open test and it came back negative.** The Community
+Preventive Services Task Force pair — group-based comprehensive risk reduction vs group-based abstinence education,
+one body, one method, one search window — is **not** an asymmetry: the bodies differ by **3.0× in studies (62 vs 21)
+and 3.6× in study arms (83 vs 23)**, and CRR carries favorable significant results on **seven** outcomes with no
+adverse result anywhere while abstinence education carries **one** favorable significant outcome, a non-significant
+adverse STI estimate and a **statistically significant adverse pregnancy estimate (OR=1.15, 1.00–1.32)**. Different
+bodies rated consistently is not an asymmetry under the test this lane wrote in epoch 3, so **item 44 has no
+counter-direction case at a second institution**, and the residue is narrower: a design-dependence caveat attached to
+the abstinence estimate twice and to no risk-reduction estimate, in tension with an Evidence Gaps paragraph appearing
+**verbatim and identically on both pages** which says there was "no consistent evidence of differential effects … for
+any of the 12 critical moderator variables" including study design. The HHS Teen Pregnancy Prevention lead is **half
+grounded and stays unwritten as a case**: the three termination opinions were read as filed from govinfo, and the
+statutory standard ("replicating programs that have been **proven effective through rigorous evaluation**") is
+verbatim, but HHS's own evidence rationale was reachable only as a complaint's paraphrase inside a court opinion and
+the standard applied to the programs HHS favoured was not reached at all — half a symmetry is the thing this lane
+refused to write in epoch 2.
 ---
 title: "Lane B — Consensus, authority, suppression (items 40, 42, 43, 44, 45)"
 date: 2026-09-16
@@ -65,7 +80,8 @@ grading, or data-access decision was used politically. Grades A–D per common b
 | 15 | GBD vs John Snow Memo; Collins "takedown" email | 40 | **GROUNDED (A)** → 40-C |
 | +A | Trump/Woodward 19 Mar 2020 (counter-direction hunt, item 43) | 43 | **GROUNDED (B)** → 43-B |
 | +B | Tiahrt Amendments (counter-direction hunt, item 45) | 45 | **GROUNDED (A/B)** → 45-B |
-| +C | Item-44 counter-direction (abstinence-education gradings) | 44 | NOT REACHED (1 query; stacks.cdc.gov 403) → 44-D |
+| +C | Item-44 counter-direction (abstinence-education gradings) | 44 | **ANSWERED — NO ASYMMETRY (A)**; case grounded → 44-E |
+| +D | HHS Teen Pregnancy Prevention terminations 2017–18 | 44 | **HALF GROUNDED (A/C)** — not written as a case → 44-F |
 
 ## Item 40 — Consensus manufacturing
 
@@ -983,7 +999,7 @@ infrastructure and not of anyone's decision.
     same standard in a single paragraph. What remains genuinely open is a counter-direction *case* at a different
     institution (44-D), and that is recorded as an unfinished test with a named primary, **not** as a negative result.
 
-## Covered (16 cases across 5 mechanisms)
+## Covered (17 cases across 5 mechanisms)
 
 **Epoch 1 (7):** 40-A Cook 2013 · 40-B Nature/Zhang · 40-C GBD/Collins · 42-A Johnson & Cesario · 43-A Fauci herd
 immunity · 44-A Cochrane masks · 45-A McKinsey/Green & Hand.
@@ -992,6 +1008,9 @@ immunity · 44-A Cochrane masks · 45-A McKinsey/Green & Hand.
 **Epoch 3 (3):** 44-C the six renderings of the York/Cass grading (NHS England · Hansard 15 Apr 2024 · WPATH+USPATH ·
 AAP · Yale/McNamara · Cass's reply) · 45-C PHMPT v. FDA (ECF 29 + ECF 35) · 45-D Bloom 2021 SRA deletion.
 **Epoch 3 tested and not landed (1):** 44-D item-44 counter-direction at a second institution — one query, primary 403'd.
+**Epoch 4 (1 case + 1 resolved negative + 1 half):** 44-E CPSTF abstinence education vs comprehensive risk reduction
+(**answers 44-D: no asymmetry**, and grounds the "insufficient evidence" → "doesn't work" rendering with the Task
+Force's own refutation) · 44-F HHS TPP terminations, half grounded, deliberately not written as a case.
 
 **Both-directions status by mechanism:**
 | Item | Left-serving case | Right-serving case | Two-directional within one document |
@@ -999,10 +1018,36 @@ AAP · Yale/McNamara · Cass's reply) · 45-C PHMPT v. FDA (ECF 29 + ECF 35) · 
 | 40 | 40-A, 40-B, 40-D, 40-E | 40-C | 40-D (statement vs its own addendum), 40-E (paper vs Slack vs testimony) |
 | 42 | 42-B (target: right) | 42-A (target: left) | — |
 | 43 | 43-A Fauci | 43-B Trump | — |
-| 44 | 44-C(c) WPATH+USPATH, 44-C(d) AAP, 44-C(e) Yale, 44-C(b) Butler | 44-C(a) NHS England, 44-C(b) Atkins | 44-A Cochrane, 44-B Cass foreword, 44-C the whole exchange |
+| 44 | 44-C(c) WPATH+USPATH, 44-C(d) AAP, 44-C(e) Yale, 44-C(b) Butler, 44-E grade | 44-C(a) NHS England, 44-C(b) Atkins, 44-E own refutation | 44-A Cochrane, 44-B Cass foreword, 44-C the whole exchange, 44-E |
 | 45 | 45-A McKinsey | 45-B Tiahrt | — |
 
 ## Skipped (why)
+
+*(Epoch 4 additions, at the top because they supersede the item-44 entries below.)*
+
+- **44-D is no longer open — it is answered negative (44-E).** The epoch-3 entry below reads as an unfinished test; it
+  is finished. The CPSTF pair does not show an asymmetry, and the reason is arithmetic, not access: 62 studies/83 arms
+  vs 21 studies/23 arms, 7 favorable-significant outcomes vs 1, and one adverse-significant outcome on the abstinence
+  side with no counterpart. **Item 44 has no counter-direction case at a second institution, and this is now a finding
+  rather than a gap.**
+- **44-F (HHS TPP) is half grounded and NOT written as a case.** Missing: (i) an HHS primary stating the evidence
+  rationale for the 2017 terminations — the only version reached is the D. Md. opinion's recital of the plaintiffs'
+  Amended Complaint ¶¶ 107–08; (ii) the evidence standard applied to the favoured programs, which lives in the
+  funding-announcement cases (*Planned Parenthood of N.Y.C. v. HHS*, 337 F. Supp. 3d 308; *Multnomah County v. Azar*,
+  340 F. Supp. 3d 1046; *Planned Parenthood of Greater Washington v. HHS*, 946 F.3d 1100 (9th Cir. 2020)). Retry: the
+  govinfo package for `USCOURTS-nysd-1_18-cv-05680` returned an error page rather than a PDF; try `-1`/`-2` suffixes
+  or the D. Or. and 9th Cir. packages, and search hhs.gov/OASH for the 2017 statement and the FY2019 budget
+  justification.
+- **The Fourth Circuit *Healthy Teen Network v. Azar* (2019) named in the dispatch is NOT FOUND.** Queries:
+  `courtlistener.com/api/rest/v4/search/?q="Healthy Teen Network"&type=o` (14 results, none ca4) and
+  `…?q="Teen Pregnancy Prevention"&type=o&court=ca4` (0 results). The decision in the index is D. Md., 25 April 2018.
+- **CDC Stacks is closed to curl.** `stacks.cdc.gov` 403s even with full browser headers and a Referer; the Wayback
+  `id_` capture 404s and archive.org rate-limited (429). Not needed: the Community Guide finding pages carry the same
+  finding text and all per-outcome estimates and serve plain curl.
+- **The AJPM full text did not yield the design-stratified tables.** Extraction shows ligature corruption ("fındings"),
+  and greps for "differed by study design" and "sensitivity analys" return zero in a document whose own abstract
+  contains the first phrase. So whether the design-stratification was run on the CRR outcomes is **unresolved by
+  extraction limits**, not answered in the negative.
 
 - **Lead 14 (PHMPT v. FDA, Judge Pittman's 6 Jan 2022 order):** NOT REACHED. Attempted and failed this epoch. The
   CourtListener v4 search API on `"Public Health and Medical Professionals for Transparency"` (type=r, 23 dockets)
@@ -1123,3 +1168,152 @@ AAP · Yale/McNamara · Cass's reply) · 45-C PHMPT v. FDA (ECF 29 + ECF 35) · 
 - `oversight.house.gov` PDFs are directly readable and carry the Slack exhibits with footnote timestamps.
 - **Exa broad queries on this topic routinely exceed the 100 KB inline cap** and spill to a temp file. Set
   `contextMaxCharacters: 3000` and `includeDomains` on every sweep here.
+
+---
+
+# EPOCH 4 (appended 2026-09-16)
+
+**Status line (written before the first fetch):** one target — close 44-D, the matched evidence-grading test at a second
+institution: (a) the Community Preventive Services Task Force pair, group-based abstinence education vs group-based
+comprehensive risk reduction; (b) the 2017–2018 HHS Teen Pregnancy Prevention terminations and the evidence standard
+applied to the programs HHS favoured, with the court opinions read as filed. Bloom/NIH and the msad201 correction are
+out of scope this epoch (parent-owned). Results below are appended as each part lands.
+
+## Item 44 — the second-institution test
+
+### 44-E. CPSTF: abstinence education vs comprehensive risk reduction — NO ASYMMETRY on the test as written, with one narrower documented tension
+**The test, restated from 44-D:** comparable bodies of evidence rated differently is an asymmetry; different bodies
+rated consistently is not. Counts first, judgment after.
+**Primary records, read 2026-09-16:**
+- CPSTF finding page, "HIV, other STIs and Teen Pregnancy: **Group-Based Abstinence Education** Interventions for
+  Adolescents," `thecommunityguide.org/findings/hivaids-other-stis-and-teen-pregnancy-group-based-abstinence-education-interventions.html`
+- CPSTF finding page, "… **Group-Based Comprehensive Risk Reduction** Interventions for Adolescents," same path with
+  `…-group-based-comprehensive-risk-reduction-interventions.html`
+- Chin H.B., Sipe T.A., Elder R., Mercer S.L., Chattopadhyay S.K., Jacob V., Wethington H.R., Kirby D., Elliston D.B.
+  et al., "The effectiveness of group-based comprehensive risk-reduction and abstinence education interventions …: two
+  systematic reviews for the Guide to Community Preventive Services," *Am J Prev Med* 2012;42(3):272–294, PMID
+  22341164, doi 10.1016/j.amepre.2011.11.006 — the review behind both findings, full text retrieved (161,053 chars).
+  PAPER HYGIENE: quality card inspected — `vetoed: false`, not retracted, study_design meta-analysis.
+ROUTE NOTE resolving the epoch-3 block: `doi.org/10.15620/cdc/164214` 302s to `stacks.cdc.gov/view/cdc/164214`, which
+**403s curl even with full browser headers**, and the Wayback `id_` capture 404s (archive.org also rate-limited, 429).
+The Community Guide's own finding pages carry the same finding text and the per-outcome meta-analysis results, and
+serve plain curl. That is the working route; CDC Stacks is not needed.
+
+**The counts, both from the Task Force's own pages (same review team, same method, same search period 1988–Aug 2007):**
+| | Comprehensive risk reduction | Abstinence education |
+|---|---|---|
+| Studies / study arms (CPSTF page) | **62 studies, 83 arms** | **21 studies, 23 arms** |
+| Studies (AJPM abstract wording) | 66 | 23 |
+| CPSTF finding | **Recommended** | **Insufficient evidence** (June 2009) |
+| Outcomes favorable **and** significant | **7** | **1** |
+| Outcomes favorable, non-significant | 3 (+ consistent condom use) | 1 |
+| Outcomes **adverse**, non-significant | 0 | 1 (STIs, OR=1.08, 0.90–1.29; 9 arms) |
+| Outcomes **adverse and significant** | 0 | 1 (pregnancy, OR=1.15, 1.00–1.32; 10 arms) |
+| Economic review conducted | Yes (10 studies; benefit:cost 2.7–3.7) | **No** |
+
+[DISCREPANCY, stated not smoothed] the AJPM abstract says "**66 studies of comprehensive risk reduction and 23 studies
+of abstinence education** … were included in the respective reviews," while the CPSTF pages say "62 studies with 83
+study arms" (CRR) and "21 studies with 23 study arms" (AE). The page wording is "qualified for analysis in this
+review." Two CPSTF-affiliated primaries give different totals for the same reviews; I report both rather than picking.
+
+**CRR results, verbatim from the CPSTF page:** "Sexual activity: decrease of approximately 12% (54 study arms);
+Frequency of sexual activity: odds ratio (OR) = 0.81, 95% CI 0.72, 0.90 (14 study arms); Number of partners: decrease
+of approximately 14% (OR = 0.83, 95% CI 0.74, 0.93; 27 study arms); Unprotected sexual activity: decrease of
+approximately 25% (OR = 0.70, 95% CI 0.60, 0.82; 28 study arms); STIs: decrease of approximately 31% (OR = 0.65, 95% CI
+0.47, 0.90; 8 study arms); Use of protection …: increase of approximately 13% (OR = 1.39, 95% CI 1.19, 1.62; 50 study
+arms); Condom use: increase of approximately 12% (OR = 1.45, 95% CI 1.20, 1.74; 44 study arms)."
+**AE results, verbatim from the CPSTF page:** "Sexual activity: decrease of approximately 16% (odds ratio [OR]=0.81,
+95% confidence interval [CI] 0.70, 0.94; 21 study arms). **This decrease is statistically significant, however, effect
+estimates differed by study design with larger effects for nonrandomized controlled trials compared to randomized
+controlled trials. Studies with both designs had problems such as differences in follow-up time and multiple studies
+conducted by the same investigators.**" / "Frequency of sex OR=0.77, 95% CI 0.57, 1.04 (5 study arms) … statistically
+nonsignificant." / "STIs: increase of approximately 8% that was statistically nonsignificant (OR=1.08 …)." /
+"Pregnancy: increase of approximately 12% (OR=1.15, 1.00, 1.32; 10 study arms). **Although this increase is
+statistically significant, sensitivity analyses suggest that the effect estimate is unreliable.**"
+
+**THE TEST RESOLVES AGAINST THE ASYMMETRY, and I am recording that rather than rescuing the hypothesis.** The two
+bodies are not comparable on any axis that matters: CRR has **3.0× the studies and 3.6× the study arms**, favorable and
+statistically significant results on **seven** outcomes including the two biological endpoints most resistant to
+self-report bias (STIs OR=0.65) and the largest behavioural arm counts (50 and 44 arms), and no adverse result
+anywhere; AE has favorable significance on **one** outcome, a non-significant adverse STI estimate, and a
+**statistically significant adverse pregnancy estimate**. A body with 7/10 favorable-significant outcomes and a body
+with 1/4 favorable-significant plus one adverse-significant are different objects, and grading them "recommended" and
+"insufficient evidence" is *different bodies rated consistently*, which by the test I wrote in 44-D is **not** an
+asymmetry. **44-D is therefore answered: NO ASYMMETRY at this institution.** Reporting it the other way would have
+required ignoring the arm counts I set out to collect.
+**The one narrower finding that does stand, held to the same standard.** On the single outcome where both reviews
+produced a statistically significant favorable estimate of similar size — current sexual activity, CRR −12% on 54 arms
+and AE OR=0.81 (−16% in odds) on 21 arms — the design-dependence caveat ("effect estimates differed by study design
+with larger effects for nonrandomized controlled trials") is attached to the AE estimate **twice** and to **no CRR
+estimate**, while the **Evidence Gaps paragraph that appears verbatim and identically on both pages** states:
+"**Across both reviews, there was no consistent evidence of differential effects on outcomes for any of the 12 critical
+moderator variables (sex, virginity status, age, race/ethnicity, setting, dosage, focus, deliverer, multicomponent,
+targeting, study design, and comparison group type).**" Those two statements sit in tension: study design is named in
+the shared list of moderators that showed *no consistent differential effect*, and design-dependence is simultaneously
+given as a reason to distrust the AE estimate. The AJPM abstract repeats the AE-side version — "inconsistent findings
+across studies that varied by study design and follow-up time, leading to considerable uncertainty around effect
+estimates." **NOT RESOLVED:** whether the review ran the same design-stratified analysis on the CRR outcomes and found
+nothing worth reporting, or did not run it. The retrieved full text did not yield the design-stratified tables
+(extraction shows ligature corruption — "fındings" for "findings" — and greps for "differed by study design" and
+"sensitivity analys" return zero hits in a document whose abstract contains the first phrase), so this is an
+extraction limitation and **not** evidence that the analysis is absent.
+**And the political rendering is refuted on the Task Force's own page — the 44-A pattern again.** Verbatim: "**CPSTF
+did not have enough evidence to determine whether the intervention is or is not effective. This does not mean that the
+intervention does not work, but rather that additional research is needed to determine whether or not the intervention
+is effective.**" Also: "An economic review of this intervention was not conducted **because CPSTF did not have enough
+information to determine if the intervention works**," and applicability "was not assessed" for the same reason. So the
+"insufficient evidence" grade cascades into two further absences, which a reader can mistake for further negative
+findings. Like Cochrane 2023 (44-A) and Cass (44-B), the source document pre-registers the misreading that will be
+applied to it.
+**Grade:** **A** (the Task Force's own finding pages plus the peer-reviewed review behind them). **Direction:** the
+"insufficient evidence" grade served the comprehensive-sex-education side and was used against federally funded
+abstinence education; the CPSTF's own "this does not mean that the intervention does not work" sentence serves the
+other side. Both are quoted above from the same page.
+
+### 44-F. HHS Teen Pregnancy Prevention terminations, 2017–2018 — HALF GROUNDED, and the half that matters is missing
+**What grounded (A), read as filed from govinfo USCOURTS packages 2026-09-16:**
+- *Healthy Teen Network v. Azar*, No. CCB-18-468 (D. Md.), **Doc. 35, filed 04/25/18**, 21 pp. (Judge Catherine C.
+  Blake) — `govinfo.gov/content/pkg/USCOURTS-mdd-1_18-cv-00468/pdf/USCOURTS-mdd-1_18-cv-00468-0.pdf`
+- *Policy and Research, LLC v. HHS*, No. 18-cv-00346 (KBJ) (D.D.C.), **Doc. 22, filed 05/11/18**, 34 pp. (Judge
+  Ketanji Brown Jackson), 313 F. Supp. 3d 62 — `…USCOURTS-dcd-1_18-cv-00346-0.pdf`
+- *Healthy Futures of Texas v. HHS*, No. 18-cv-00992 (KBJ) (D.D.C.), **Docs. 27 and 28, filed 06/01/18**, 315 F. Supp.
+  3d 339 — `…USCOURTS-dcd-1_18-cv-00992-{0,1}.pdf`
+**The statutory evidence standard, verbatim (D. Md., quoting Consolidated Appropriations Act, 2010, Pub. L. 111-117):**
+"$110,000,000 shall be for making competitive contracts and grants … **to fund medically accurate and age appropriate
+programs that reduce teen pregnancy** … of which not less than $75,000,000 **shall be for replicating programs that
+have been proven effective through rigorous evaluation** to reduce teenage pregnancy, behavioral risk factors
+underlying teenage pregnancy, or other associated risk factors, of which not less than $25,000,000 shall be available
+for research and demonstration grants to develop, replicate, refine, and test additional models…" The D.D.C. opinion
+quotes the same clause from the **2018** Act (Pub. L. 115-141) for the $101 million cycle.
+**HHS's stated rationale — and the honest limit on it.** The D. Md. opinion records, verbatim: "After ending Baltimore
+City's and Healthy Teen Network's project periods early, **HHS later provided two public explanations for its
+decision. It claimed: (1) 'that there was strong evidence of negative impact or no impact by the funded projects;' and
+(2) that because the President's proposed budget for Fiscal Year 2018 eliminated funding for the TPP program, HHS
+anticipated it would lack funding for the projects and terminated them early.**" **[LIMIT]** that passage cites the
+plaintiffs' Amended Complaint (¶¶ 107–08). It is therefore a court's recital of one party's characterisation of HHS's
+public statements — **not an HHS primary**. The dispatch asked for HHS's own stated evidence rationale; I did not reach
+an HHS document (statement, budget justification or Federal Register notice) containing it, and I am not going to treat
+a complaint's paraphrase as the agency's words. The same opinion records that "HHS's decision was **unexplained**"
+at the time it was made.
+**NOT REACHED — and this is the half that would have made the case.** The evidence standard HHS applied to the programs
+it *favoured* (the 2018 funding announcements, "sexual risk avoidance," and the SMARTool/protective-factors checklist)
+is **not in any of the three opinions I read** — greps for "SMARTool," "sexual risk avoidance" and "TAC" return zero
+across all three. Those questions were litigated in the *funding-announcement* cases I did not retrieve: *Planned
+Parenthood of N.Y.C. v. HHS*, 337 F. Supp. 3d 308 (S.D.N.Y. 2018) (the govinfo package for nysd 1:18-cv-05680 returned
+an error page, not a PDF); *Multnomah County v. Azar*, 340 F. Supp. 3d 1046 (D. Or. 2018); and *Planned Parenthood of
+Greater Washington & North Idaho v. HHS*, **946 F.3d 1100 (9th Cir. 2020)**, which is the appellate decision that does
+exist in the record.
+**[LEAD CORRECTION — the Fourth Circuit case is not corroborated.]** Queries run on the CourtListener v4 opinion index:
+`q="Healthy Teen Network"&type=o` → **14 results, none from ca4**; `q="Teen Pregnancy Prevention"&type=o&court=ca4` →
+**0 results**. The *Healthy Teen Network v. Azar* decision in the index is the **D. Md.** decision of **25 April
+2018**, not a 2019 Fourth Circuit opinion. Absence from one index is weaker than proof of non-existence, so I record
+this as **NOT FOUND with the queries logged**, not as a contradiction.
+**Verdict on 44-F:** with HHS's own rationale reachable only through an opposing party's pleading, and with the
+standard applied to the favoured programs not reached at all, **this does not ground an item-44 asymmetry.** The
+symmetric comparison the dispatch describes — one standard to terminate, a weaker one to fund — is exactly the claim
+that requires both halves, and I have one. Asserting it on the half I have would be the manufactured symmetry this
+lane refused in epoch 2.
+**Grade:** A for the three opinions as filed and for the statutory text; **C** for HHS's rationale as recited from a
+complaint; **NOT GRADED** for the favoured-program standard.
+**Direction:** the terminations served the abstinence/sexual-risk-avoidance side; the litigation outcome served the
+comprehensive-programs side. Not written up as a case because the evidence is half.
