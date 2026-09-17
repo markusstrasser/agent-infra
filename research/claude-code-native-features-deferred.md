@@ -34,6 +34,7 @@
 **Trigger to revisit:** When #32105 ships (subscribe to github.com/anthropics/claude-code/issues/32105).
 
 > **[STATUS 2026-06-11, trending-scout]** #32105 was CLOSED in the 2026-05/06 window, but no built-in tool compression appears in any 2.1.145–2.1.170 changelog entry — most likely closed-declined/stale, NOT shipped (closing comment inaccessible; unverified). Trigger NOT met. Watch for a successor issue/feature.
+> **[STATUS 2026-09-17, trending-scout]** **TRIGGER MET.** `updatedToolOutput` is now documented for regular (built-in) tools on `PostToolUse`/`PostToolUseFailure` (code.claude.com/docs/en/hooks), alongside `updatedMCPToolOutput` which `posttool_research_reformat.py` already emits. #32105's own disposition still unverified; the capability is present regardless. Also: item 3 (scoped write-access MCP) is superseded by `--restricted` (2.1.248) + `--permission-prompts none` (2.1.259). research/trending-scout-2026-09-17.md
 
 ## 3. Scoped Write-Access MCP Tools
 

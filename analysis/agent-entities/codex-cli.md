@@ -2,7 +2,7 @@
 name: Codex CLI
 category: coding-agent
 vendor: OpenAI
-last_refreshed: 2026-06-19
+last_refreshed: 2026-09-17
 status: active
 ---
 
@@ -10,11 +10,11 @@ status: active
 
 ## Current State
 
-- **Version:** 0.141.0 (npm + local)
-- **Latest release date:** 2026-06-18 (0.141.0)
-- **Pricing:** per-token via OpenAI API; GPT-5.5 bundled with ChatGPT subscription (our `llmx chat --subscription` $0 path)
+- **Version:** 0.154.0 (npm, 2026-09-09; local 0.153.4)
+- **Latest release date:** 2026-09-09 (0.154.0)
+- **Pricing:** per-token via OpenAI API; GPT-6 Astra ($10/$50, GA 2026-09-03) + GPT-5.6 Sol/Terra/Luna bundled with ChatGPT subscription (our `llmx chat --subscription` $0 path). Sol promo $4/$20 through at least 2026-11-21
 - **Transport:** CLI; daemon-managed `codex remote-control` (0.131+); `/app` Desktop handoff (0.138)
-- **Models supported:** GPT-5.5 flagship under ChatGPT auth
+- **Models supported:** GPT-6 Astra flagship, GPT-5.6 family under ChatGPT auth; reasoning effort now includes `ultra` above `max` (0.149 SDK)
 - **MCP:** runtime enable/disable (0.131); per-server env targeting + OAuth for streamable-HTTP servers + `readOnlyHint` concurrent execution + `$ref`/`$defs` preserved (0.134); `oneOf`/`allOf` preserved (0.139). The 2026-04 "~37K bundled-MCP overhead, no disable flag" state is obsolete
 - **Config:** profiles v2 — `--profile` primary selector, legacy `[profiles.]` blocks in config.toml REJECTED, settings live in `$CODEX_HOME/.config.toml` (0.134). Our config verified clean 2026-06-11
 - **Skills:** open agent skills standard (`SKILL.md`); discovers `~/.agents/skills` + repo `.agents/skills` (we symlink via `codex_parity_sync.py` / `sync_agent_skills.py`). `~/.codex/skills` is left for Codex-bundled `.system/` only — we do not mirror managed skills there. Progressive disclosure; ~8k char skills index budget. No `Skill` tool in agentlogs — loads via `exec_command` reads of SKILL.md. [SOURCE: developers.openai.com/codex/skills]
@@ -23,6 +23,7 @@ status: active
 
 ## Recent Changes
 
+- 2026-09-17 [trending-scout] 0.146→0.154: `codex mcp-server` entry point REMOVED (.154 — no callers here); planning tool off by default, `tools.update_plan.enabled=true` restores (.152); experimental `--worktree`/`/worktree` isolated checkouts (.154); async hooks + MCP-tool hook invocation (.148 — re-run `codex_hook_shim` canary); `Interrupt` hook (.150); `codex queue`/`codex agents`/`codex exec fork` (.148–.149); `--approve-for-me` Guardian LLM-judge approvals (.147+); per-tool MCP `output_token_limit` (.152); `--full-auto` removed (.147); MCP SDK 3.0 w/ opt-in 2026-07-28 protocol (.147); `context_management.experimental_mode` ChatGPT-auth only (.153). research/trending-scout-2026-09-17.md
 - 2026-06-19 [trending-scout] 0.139→0.141: blocking PostToolUse now gates code-mode calls + hook-trust persists through `codex exec` resume (.141); per-thread stdio MCP servers (.141); tool timeout→300s (.141); `/usage` daily/weekly/cumulative token views (.140); `codex delete`/`/delete` permanent session deletion (.140 — append-only conflict, do NOT wire); MCP transient-startup retries + corrupt-SQLite auto-rebuild (.140). research/trending-scout-2026-06-19.md
 - 2026-06-11 [trending-scout] 0.132→0.139 sweep: profiles v2 breaking (.134 — verified no local impact); MCP OAuth + readOnlyHint concurrency + schema preservation (.134/.139); multi-agent v2 + remote-control controller grants via app-server v2 RPCs (.137); `/app` desktop handoff + v2 personal access tokens + plugin `--json` (.138); hook exec bug #25875 closed 2026-06-04. https://github.com/openai/codex/releases — full detail: research/trending-scout-2026-06-11.md
 - 2026-05-19 [trending-scout] 0.131: daemon-managed `codex remote-control`, runtime MCP enable/disable. research/trending-scout-2026-05-19.md

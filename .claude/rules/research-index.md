@@ -339,5 +339,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `trending-scout-2026-07-09.md` | Trending Scout — 2026-07-09 | TODO |
 | `trending-scout-2026-07-29.md` | Trending Scout — 2026-07-29 | TODO |
 | `trending-scout-2026-08-01.md` | Trending Scout — 2026-08-01 | TODO |
+| `trending-scout-2026-09-17.md` | Trending Scout — 2026-09-17: Zed Delta WATCH (no CC integration, API-key-only Claude, no CLI); CC 2.1.220→274 adopt list; openai<3 + Modal 1.6 latent breaks; Sol $4/$20 | Delta/Conductor/agent-workspace questions; before wiring new CC hook events; openai/modal upgrades |
+| `trending-scout-2026-09-17.md` | Trending Scout — 2026-09-17 | TODO |
 | `weekly-agent-infra-sweep-2026-04-02.md` | Weekly Agent Infra Sweep 2026 04 02 | TODO |
 | `wiki-vs-flat-for-agents.md` | Wiki Vs Flat For Agents | TODO |

@@ -2,7 +2,7 @@
 name: Kimi CLI
 category: coding-agent
 vendor: Moonshot AI
-last_refreshed: 2026-04-21
+last_refreshed: 2026-09-17
 status: active
 ---
 
@@ -10,8 +10,8 @@ status: active
 
 ## Current State
 
-- **Version:** 1.37.0 (PyPI latest as of 2026-04-21)
-- **Latest release date:** 2026-04-20 (1.37.0)
+- **Version:** 1.50.0 (PyPI, 2026-09-01; local binary 0.29.0 is an older artifact line)
+- **Latest release date:** 2026-09-01 (1.50.0 — single header fix; one release in 6.5 weeks)
 - **Pricing:** Pay-per-token via Moonshot API. No bundled-subscription auth. See `research/kimi-k2.6-release-2026-04-20.md` for current rates (K2.6: $0.95 / $0.16 cached / $4.00 per MTok, long-context tier).
 - **Context window:** 262,144 tokens on K2.6.
 - **Transport:** CLI (Python, installed via `uv tool install kimi-cli`). Experimental wire protocol + ACP server (`kimi acp`) for editor integration.
@@ -19,6 +19,10 @@ status: active
 - **Hook events:** 13 — `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `UserPromptSubmit`, `Stop`, `StopFailure`, `SessionStart`, `SessionEnd`, `SubagentStart`, `SubagentStop`, `PreCompact`, `PostCompact`, `Notification`. Protocol: JSON over stdin, exit 2 = block, regex `matcher` per hook. Same contract as Claude Code (verified from `kimi_cli/hooks/events.py`).
 - **Skills:** Native SKILL.md + YAML frontmatter (open agentskills.io standard). Discovery roots: `$REPO/.kimi/skills/`, `~/.kimi/skills/`, plus native discovery of `~/.claude/skills/` and `~/.agents/skills/`.
 - **Local wiring:** `~/.kimi/skills` → `~/Projects/skills` symlink (2026-04-17). `~/.kimi/mcp.json` has 14 servers (exa, phenome, genomics, genomics-consumer, research, agent-infra, parallel, context7, brave-search, biomedical, biomcp, paperclip, perplexity, scite). `~/.kimi/config.toml` `[[hooks]]` registers SessionStart (Session-ID trailer) and PreToolUse:Write|Edit (append-only-guard).
+
+## Status note (2026-09-17, trending-scout)
+
+kimi-cli is being superseded by a standalone **Kimi Code** (1.47.0 added `/upgrade` migrating config + sessions). Do not invest further in the kimi-cli integration (adapter, hooks, skills symlink); no new hook events in the window, so the "strictly more hookable" trigger did not fire. research/trending-scout-2026-09-17.md
 
 ## Our Integration Status (2026-04-21)
 
