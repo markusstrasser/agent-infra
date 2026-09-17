@@ -5,6 +5,6 @@ from __future__ import annotations
 
 MIRRORED_REPOS = (
     "agent-infra", "intel", "genomics", "publishing", "personal",
-    "substrate", "imagegen", "ext", "arc-agi",
+    "substrate", "imagegen", "ext",
 )
 SKILL_REPOS = ("skills", *MIRRORED_REPOS)
