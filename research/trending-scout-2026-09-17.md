@@ -157,3 +157,24 @@ Tool gotcha from the sweep: Python `urllib` to arxiv.org is blocked in the Bash 
 ## Search log
 
 Routing gotchas worth keeping: `code.claude.com/docs/en/changelog` only renders 2.1.261+ — use the raw GitHub CHANGELOG for older versions. `developers.openai.com` docs return clean markdown with a `.md` suffix. Modal changelog moved to `/docs/sdk/py/releases`. `api.github.com/repos/openai/codex/releases?per_page=100` hangs; `gh release view rust-vN` works. WebSearch tool was unavailable this run; Exa + direct fetch covered it.
+
+## Revisions
+
+**2026-09-17 (same day, operator: "do whatever needs doing")** — applied, each its own commit:
+
+| Item | Where | Check |
+|---|---|---|
+| `openai<3` pin | agent-infra `pyproject.toml` + lock; llmx `pyproject.toml` + lock | lock unchanged at 2.31.0 / 2.26.0; import OK |
+| GPT-5.6 Sol $4/$20 | llmx `usage_report.PRICING` (`45575db`) | `test_usage_accounting` 18 passed |
+| `--permission-prompts none` | llmx `cli_backends.py` claude -p base cmd; agent-infra `justfile` goal-run episodes | llmx tests -k claude/backend/dispatch 47 passed |
+| Dead `TaskCreated` hook unwired | `~/.claude/settings.json` (`7b83683`); script deleted | `just hooks-smoke` 198 pass / 0 fail |
+| `notify_when_idle` rule | `~/.claude/rules/wakeup-cadence.md` | — |
+| claude-agent-sdk 0.1.55 → 0.2.154, floor `>=0.2.140` | agent-infra (`e2033e3`) | `mcp_contract_smoke` 5 tools intact |
+| Codex planning tool: explicit `[tools] update_plan.enabled = false` | `~/.codex/config.toml` (untracked) | — |
+| `.agents/prepare` steal | skills `bin/lane` `run_worktree_prepare` (`2a9b110`); agent-infra `.claude/prepare` = `uv sync --frozen` (`d9db10d`) | `tests/test_lane.sh` PASS (two stale expectations from 046438e/fad4418 fixed on the way) |
+| Codex parity mirror regenerated (intel hooks.json, gitignored) | — | parity gate in sync |
+| `arc-agi` dropped from `MIRRORED_REPOS` (`0503ccf`) | `scripts/common/project_registry.py` | hook compat 546 pass; **`~/Projects/arc-agi` is gone with no recorded removal — operator to confirm** |
+
+Already present before this pass: `fresh-eyes-review.md` carried `omitClaudeMd: true`.
+
+Not applied (named consumer or measurement first): `omitClaudeMd` on researcher/session-analyst (they lean on global epistemic rules — measure token drop on one agent before widening); `PostToolBatch`/`InstructionsLoaded`/`WorktreeCreate`/`PreModelSwitch` hooks (each is a design, not a flag); Bash/Read `updatedToolOutput` trimming hook; fastmcp 3.4.2 → 4.0.4 across the 5 pinned repos; Modal 1.6 deprecation capture (needs one live Marker run); `.agents/linked` (no repo has a gitignored `.env` today); deja-vu head-to-head on LongMemEval-S; Gemini pricing / google-genai 2.x gap.
