@@ -41,7 +41,7 @@ requires-dist = [
     { name = "google-genai", specifier = ">=2.8.0" },
     { name = "inspect-ai", specifier = ">=0.3.0" },
     { name = "llmx", editable = "../llmx" },
-    { name = "openai", specifier = ">=2.26.0" },
+    { name = "openai", specifier = ">=2.26.0,<3" },
     { name = "parallel-web", specifier = ">=0.4.0" },
 ]
 
@@ -1617,7 +1617,7 @@ dependencies = [
 requires-dist = [
     { name = "click", specifier = ">=8.1.7" },
     { name = "google-genai", specifier = ">=2.7.0" },
-    { name = "openai", specifier = ">=1.50.0" },
+    { name = "openai", specifier = ">=1.50.0,<3" },
     { name = "pillow", specifier = ">=10.0.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "rich", specifier = ">=13.7.0" },
