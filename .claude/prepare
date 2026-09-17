@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Per-worktree bootstrap, run by `lane` right after `git worktree add`
+# (~/Projects/skills/bin/lane run_worktree_prepare; same contract as Delta's
+# .agents/prepare — .agents/ is gitignored here, so it lives under .claude/).
+# Fast, idempotent, non-interactive: pre-warm the venv from the lockfile so the
+# first `uv run` inside the lane does not pay the resolve.
+set -euo pipefail
+command -v uv >/dev/null 2>&1 || exit 0
+[ -f uv.lock ] || exit 0
+uv sync -q --frozen
