@@ -101,9 +101,26 @@ Full 44-release classification in the Anthropic scout file (scratchpad; key rows
 
 No new commercial knowledge/notebook-with-agents product surfaced in the window; Exa's Aug–Sep agent-memory sweep beyond the above was 0–9★ repos.
 
-## 6. Papers
+## 6. Papers (arXiv 2026-08-01 → 09-17; 759 unique hits from 25 windowed queries, 8 PDFs title-verified)
 
-See `## Revisions` — papers scout appended when it completes.
+| Paper | ID | Finding | Verdict |
+|---|---|---|---|
+| **Subagents vs Agent Skills** (MSR Cambridge + Cornell) | 2609.09233 | 64 SkillsBench tasks, 7 models: subagent execution beats in-context SKILL.md loading **only for skills with explicit input/output contracts**; with the curated non-contract skills the ordering reverses on all 7 models. Subagents hold lower peak context on 28–95% of tasks. Caveat: the two skill sets differ in content, so only the within-set execution-mode comparison is controlled | **Integrate** — a skill worth dispatching to a subagent must declare inputs and a return contract; loose guidance stays in-context |
+| **Loop-Back Authority in LLM Agent Teams** (Leiden) | 2609.14767 | Paired n=43 / 86 runs, one link varied (manager may reject and force revision). Flat beats hierarchical on Utility d=0.42 p=0.009; hierarchical hedges 53% more and costs **51.5% more tokens**; the hierarchical writer's first draft equals flat output, damage happens in the revision loop. ~61% power; one open-ended synthesis task, not code | **Integrate** — a supervisor pays for itself when it can verify and is a liability when it can only opine (= our verifier-conditioned scope, now with a number) |
+| **The Double Measurement Confound** (UAM Madrid) | 2609.09218 | Two frontier models posted identical 97.5 means on ComtradeBench and a rule-based baseline landed near them: the benchmark measured its scaffold. Scaffold ownership was an uncontrolled axis in every benchmark probed (4-scaffold × model interaction on tau-bench) | **Integrate (method)** in evals: de-scaffold, seeded ground truth, report tail alongside mean |
+| **Skill Issue** (JetBrains Research) | 2609.12742 | Real merged-PR tasks, 3 Kotlin repos: GEPA-optimized SKILLs +4.9pp, SkillOpt +0.1pp, **neither significant** at 20–26 held-out tasks. Agent-generated init files (CLAUDE.md-class) −0.5%/−2% resolution at **+20–23% cost**. Prior SKILL-synthesis gains came from a reduced agent on a small model; real Claude Code saturates at 100% with no skill | **Cite (negative)** — supports the SkillOpt veto's "gated on scored evals" condition and the instruction-mass lever |
+| Protocol-Preserving Context Trimming (Intuit) | 2609.16461 | Recency/relevance/summarization trimming: ~60% savings at 67–77% success; protocol-aware → 92.2%; adaptive guardrail → 96.0% at 56% savings. Retaining ≤25% of context raises failure odds **10.92×** vs ≥50%. Single author, no code, unstated corpus | Cite — directional numbers for compaction policy; HAD-PARTS vs 06-20 sweep item #6 |
+| When Agents Slow Down (Elo-per-token; Berkeley/UW) | 2609.15309 | Agents beat independent-sampling Elo scaling early then fall below it; splitting 100M tokens at the inflection across parallel sessions gained +264 Elo over one long session | Cite — supports splitting long lanes per unit |
+| What Eviction Destroys | 2609.08279 | Restore-counterfactual audit on LongMemEval-S: irreversible share of eviction errors 0.67–0.73 at 80k budget, **1.00 for all policies at 8k** | Cite — for compaction floor decisions |
+| Scanning the Harness | 2609.07360 | 16.0% of 2,660 agent setups carry a confirmed security defect; 17.5% configure >1 assistant with nothing reconciling their instruction files (we do reconcile via parity sync) | Cite |
+| Reviewer Habituation in AI Code Review | 2609.06213 | 11,429 reviews / 400 reviewers: approval rates rise 30.5% → 36.6% early→late under agent-PR volume | Cite — scrutiny decay is measurable |
+| Judge papers: Debiasing as Measurement Intervention (2609.12439), Can We Trust LLM Judges (2609.12002) | — | Instructing judges to ignore presentation cues suppresses bias but damages resolution; a judge's own task accuracy predicts its bias in absolute scoring | Cite alongside 06-11 judge-bias memos |
+| Persistent Memory Poisoning (2609.13889), CapScope (2609.08371), Agora git-as-shared-memory (2609.18094), RSIAgent (2609.15364), ModularRSI (2609.14857), Bad Genius (2609.18366), SkillSeam (2609.13321), Grounding Agent Memory (2609.11060) | — | Abstract-level only, not body-verified | Watch |
+| Reality Is the Final Verifier (2609.12039), Reproducibility = Context Engineering (2609.11728) | — | Positions we already hold (live-execution-is-the-verifier; decision journal) | Ignore |
+
+Hindsight grading (rg over research/, decisions/, .claude/): protocol-aware trimming, de-scaffolding, Elo-per-token, restore-counterfactual, loop-back authority, harness supply-chain — **NOVEL** (zero matches). SkillsBench and GEPA present; the contract condition is new. 2609.16461 is HAD-PARTS.
+
+Tool gotcha from the sweep: Python `urllib` to arxiv.org is blocked in the Bash sandbox while `curl` is not; shell out for arXiv Atom queries.
 
 ## 7. Version table
 
