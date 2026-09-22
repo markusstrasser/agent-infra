@@ -45,7 +45,7 @@ from inspect_ai.scorer import Score, Scorer, Target, mean, scorer
 from inspect_ai.solver import TaskState
 
 DECOMPOSER_MODEL = os.environ.get(
-    "CLAIM_BENCH_DECOMPOSER_MODEL", "google/gemini-2.5-flash"
+    "CLAIM_BENCH_DECOMPOSER_MODEL", "google/gemini-3.8-flash"
 )
 
 # How much text we send to the decomposer per side. Decomposer is judge-

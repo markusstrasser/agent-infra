@@ -345,7 +345,7 @@ def probe_pi(*, workspace: Path, prompt: str, timeout: int) -> dict:
         return {"backend": "pi", "ok": False, "error": "pi not installed (skip)"}
 
     provider = os.environ.get("PI_PROVIDER", "google")
-    model = os.environ.get("PI_MODEL", "gemini-3-flash")
+    model = os.environ.get("PI_MODEL", "gemini-3.8-flash")
     # Sandbox often can't write ~/.pi — keep agent state under repo .scratch
     pi_home = REPO / ".scratch" / "pi-home"
     (pi_home / ".pi" / "agent").mkdir(parents=True, exist_ok=True)

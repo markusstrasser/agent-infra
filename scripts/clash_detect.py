@@ -81,7 +81,7 @@ def _dispatch(index: str, messages: list[str]) -> str:
     tmp = Path("/tmp/clash-detect-prompt.md")
     tmp.write_text(prompt)
     proc = subprocess.run(
-        ["llmx", "chat", "--subscription", "-m", "gemini-3-flash-preview",
+        ["llmx", "chat", "--subscription", "-m", "gemini-3.8-flash",
          "-s", SYSTEM, "-f", str(tmp), "Classify every directive now."],
         capture_output=True, text=True, timeout=120,
     )
@@ -147,7 +147,7 @@ def main() -> int:
             v = verdicts.get(i + 1, {"verdict": "PARSE_FAIL", "item": None, "why": None})
             fh.write(json.dumps({
                 "ts": row.get("ts"), "session_id": row.get("session_id"),
-                "message": row.get("message"), "model": "gemini-3-flash-preview",
+                "message": row.get("message"), "model": "gemini-3.8-flash",
                 **v,
             }) + "\n")
 

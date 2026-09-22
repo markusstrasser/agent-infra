@@ -377,7 +377,7 @@ def _interpret_crossref_message(msg: dict[str, Any] | None) -> dict[str, Any]:
 # ─── Currency scorer (deterministic + judge hybrid) ──────────────────────────
 
 CURRENCY_JUDGE_MODEL = os.environ.get(
-    "CLAIM_BENCH_CURRENCY_JUDGE_MODEL", "google/gemini-2.5-flash"
+    "CLAIM_BENCH_CURRENCY_JUDGE_MODEL", "google/gemini-3.8-flash"
 )
 
 CURRENCY_JUDGE_PROMPT = """You are auditing whether an AI claim-verification system correctly handled a STALE source that appeared in its retrieval trace.

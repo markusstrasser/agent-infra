@@ -22,8 +22,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 CACHE_DIR = Path.home() / ".cache" / "repo-summary"
 MODELS = {
     "haiku": "claude-haiku-4-5-20251001",
-    "flash": "gemini-3-flash-preview",
-    "sonnet": "claude-sonnet-4-6",
+    "flash": "gemini-3.8-flash",
+    "sonnet": "claude-sonnet-5",
 }
 EXTENSIONS = {".py", ".js", ".ts", ".tsx", ".jsx", ".rs", ".go", ".sh", ".sql"}
 SKIP_DIRS = {".git", "__pycache__", ".venv", "node_modules", ".tox", ".mypy_cache", "dist", "build"}

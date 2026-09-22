@@ -606,7 +606,7 @@ cdx() {
   if [[ "$1" == "update" ]]; then
     npm update -g @openai/codex
   else
-    codex -m gpt-5.1-codex -c model_reasoning_effort="medium" --search "$@"
+    codex -m gpt-6-astra -c model_reasoning_effort="medium" --search "$@"
   fi
 }
 

@@ -259,7 +259,7 @@ def opus_adjudicate(prompt: str, timeout: int, dry_run: bool) -> tuple[bool, str
         "chat",
         "--subscription",
         "-m",
-        "claude-opus-5",
+        "claude-opus-5-5",
         "-e",
         "high",
         "--timeout",

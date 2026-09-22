@@ -42,7 +42,7 @@ VERDICTS = (
 # GOOGLE_API_KEY in the environment — the session has GEMINI_API_KEY, so
 # the eval must be run with GOOGLE_API_KEY=$GEMINI_API_KEY.
 GROUNDEDNESS_JUDGE_MODEL = os.environ.get(
-    "CLAIM_BENCH_JUDGE_MODEL", "google/gemini-2.5-flash"
+    "CLAIM_BENCH_JUDGE_MODEL", "google/gemini-3.8-flash"
 )
 
 
