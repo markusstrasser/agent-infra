@@ -79,7 +79,8 @@
         "pretool-regression-dag-gate.sh",
         "pretool-cursor-model-guard.py",
         "pretool-research-skill-gate.py",
-        "pretool-subagent-settings-guard.py"
+        "pretool-subagent-settings-guard.py",
+        "pretool-live-batch-edit-guard.py"
       ]
     },
     {
