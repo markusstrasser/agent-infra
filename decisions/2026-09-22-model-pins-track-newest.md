@@ -38,3 +38,6 @@ Every live model pin moves to the newest model in its role, using the mapping in
 
 ## Supersedes
 None.
+
+## Revisions
+- 2026-09-22: the Decision mapping omits two rows the sweep applied: Gemini flash-lite → `gemini-3.5-flash-lite`, and Haiku 4.5 stays. Where a flat mapping would put both tiers of a deliberate pair on one id, the pair was split instead (research-mcp `cag.py`) or the dead tier removed (intel `--deep`); see the memo's §5.

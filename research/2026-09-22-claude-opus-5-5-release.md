@@ -47,7 +47,9 @@ Sources: card digest `~/Projects/skills/model-guide/references/opus-5-5-system-c
 | Dispatch guards recognize Opus 5.5 (subscription allowlist; the concurrency advisory missed Opus 5 and 5.5) | Stale patterns; arc-agi twin definition is gone | skills `97a8aa2` |
 | agentlogs indexes narration stored in thinking blocks as `assistant_update` (parser `2026-09-22.1`) | 2,508 notes in 30 days (Opus 5.5: 134 vs 66 text blocks) were unsearchable | agent-infra `2f7e700` |
 | Cost meter prices `claude-opus-5-5[1m]` exactly | It matched `claude-opus-5` by prefix: 25% high | agent-infra `86b6a5a` |
-| SDK callers parse by block type; canary passes temperature via `extra_body` | SDK 1.x; thinking-first replies | agent-infra `92251cc` |
+| SDK callers parse by block type; canary passes temperature via `extra_body` | SDK 1.x; thinking-first replies | agent-infra `92251cc`, skills `5194a77` |
+| Commit guard blocks `git commit -- <paths>` when a listed path has staged and unstaged changes; a git error (exit 128) no longer counts | A sweep worker committed a peer's WIP twice this way (§5) | skills `f10ce69`, `4b16bb5` |
+| Cat guard checks only a `$(cat …)` the shell would execute, via a shared lexer (`live_mask`); one token filter for its three callers | Three false blocks in this session: text in `<<'EOF'` bodies and an escaped `\$(` | skills `a8e2812` |
 | New subagent death class: the Opus 5.5 AUP stop | Lane E | ~/.claude `6c016db` |
 | Fable agent bodies: plan status corrected, bounded research off `opus-low` | Opus 5.5 at `low` scores DRACO 72.5 / WANDR 31.2 | `~/.claude/agents` (untracked) |
 
@@ -60,7 +62,34 @@ Sources: card digest `~/Projects/skills/model-guide/references/opus-5-5-system-c
 
 ## 5. Model-pin sweep
 
-(filled in from the sweep result files)
+Operator, 2026-09-22: "remove all these old settings or none at all … we should use the newest models". The policy and its alternatives are in `decisions/2026-09-22-model-pins-track-newest.md`. Four Sonnet 5 workers each took a set of repos and shared one mapping and keep-rules file. Every live pin moved; every record stayed. Result files: `scratchpad/opus55/sweep/W{1..4}-result.md` (session 916e6e99).
+
+Mapping: Opus 4.x/5 → `claude-opus-5-5`, or the `opus` alias where the caller is `claude --model`; Fable 5 → `claude-fable-5-1`; Sonnet 4.x → `claude-sonnet-5`; GPT flagship roles and the retired `gpt-5.5` (llmx exit 2) → `gpt-6-astra`; metered cheap roles → `gpt-5.6-luna`; Gemini flash → `gemini-3.8-flash`, pro → `gemini-3.1-pro-preview`, flash-lite → `gemini-3.5-flash-lite`. Haiku 4.5 stays.
+
+| Repo | Commit | What moved | Checks |
+|---|---|---|---|
+| skills | `b42a22f`, `6d8d2f0`, `4f2542c` | 24 edits in 9 files: critique preflight probes, the `claude_review` dispatch profile, llmx-guide how-tos, raw-OpenAI guard advice; `lane` Claude workers on `opus`; person-into-scene's Flash localizer line | 165 hook + 86 critique tests |
+| llmx | `c8cdad7` | SVG fallback, review_plan, README examples; `_MODEL_UPGRADES["gpt-4o-mini"]` pointed at another retired id (`gpt-5.1-mini`) | 180 pass; the 1 failure is the Grok 4.7 peer's in-flight test |
+| substrate | `58645bd` | pdf_llm, figure_extract, resolve_references defaults; evalcore docstrings | 281 + 21 |
+| research-mcp | `8aa545c` | extraction, rcs, pdf_llm, the Modal Marker config; cag.py's broad/focused pair split lite/full | 71 |
+| emb | `536596d` | contextualize default (was `gemini-2.0-flash`) | 171 |
+| imagegen | `92e87f7` | four QC, inspect and label defaults | 54 |
+| intel | `ba95eee7`, `d71e988e` | 36 files: `gpt-5.5` → astra (~30), `gpt-5.3-chat-latest` → luna (4, metered bulk role), flash (~40), flash-lite, opus-4-8 → 5-5 (11); pricing rows added beside the old ones; the `--deep` tier dropped once both tiers mapped to one id | 108 targeted pass; the full suite's 22 failures predate the sweep (unmounted external volume, unrelated matcher tests) |
+| personal, anim-workbench, evo, observer | `ba390477`, `bf05842`, `5f1322c`, `7745667` | psg critique table and essay-pilot judge; outer-loop `claude --model opus`, heretic lane, pulse review; overview script; style-eval default | syntax, build and JSON checks (no suites) |
+| evals | `67a1107` | 28 files: the shared judge block in 9 configs and the template, evalcore examples, eval scripts | evalcore self-tests + 38 pytest |
+| genomics | `c8e899e1c` | verifier_policy: Anthropic biology lane → `claude-opus-5` (rule F), Gemini → 3.8-flash; six GPT defaults; cost tables gained rows and kept history | 5,327 pass |
+| agent-infra | `d3e2343` | claim_bench judge defaults, behavioral replay, debug_until_dry, repo-summary aliases, clash_detect | 827 + 221 |
+| immigration-research | none | ~500 hits, all provenance strings in dated results | — |
+
+Kept, by rule: registries, pricing and capability tables; dated records and memos; model docs, including the vendored claude-api examples and model-guide; pattern matchers; test fixtures; the biology and cyber lanes pinned to exact older IDs; completed experiment arms (evals bake-off candidates, the `frontier_verify_edge` stale-floor arm). One more pin sat outside any repo: `session-phases/03-env-export.sh` had exported `CLAUDE_CODE_SUBAGENT_MODEL=claude-sonnet-4-6` to every shell since before Sonnet 4.6 retired (2026-07-07), pinning subagents of every Bash-launched `claude`. The export is removed (untracked file).
+
+What the sweep found beyond version strings:
+
+- **Two-tier pairs collapse under a flat mapping.** research-mcp `cag.py` would have put both tiers on one id, the bug its 2026-06-01 comment records; broad moved to flash-lite instead. intel's extract_episode tiers collapsed, so the dead `--deep` flag was removed.
+- **Metered cost rose.** intel calls GPT through the metered SDK: `gpt-6-astra` is $10/$50 per MTok, about 3.3× `gpt-5.5`, so `unit_shipment`'s budget gate moved from $0.015 to $0.05 per call. Routing those calls through `--subscription` is the operator's call.
+- **Deferred:** `gemini_model_name` in the local Marker config (substrate and research-mcp `pdf_marker.py`). A peer's in-flight rewrite changed its tier, so the pick belongs to that rewrite. The Modal Marker app runs the old default until redeployed; the redeploy was not done.
+- **Incidents:** a worker's `git commit -- <paths>` pulled a peer's uncommitted work into two commits (reset, then guarded: §3). Editing genomics main in place left `scripts/` dirty through two ~5-minute test runs, and genomics launches refuse a dirty tree, so a peer's batch row died. Repos whose runners gate on a clean tree need edits in a worktree.
+- **Loose ends for owners:** llmx `PROVIDER_CONFIGS["anthropic"]["legacy_model"]` is never read. Some prose is now stale: evals `run_case_gpt.py` and `gdpval/config.toml`, and claim_bench's Gemini 2.5 price comment. evals `frontier_incorpus_edge/config.toml` is untracked, and its judges still name `gpt-5.5`, which exits 2. OpenRouter has no Opus 5.5 slug yet for intel's pricing anchors. The genomics touch-log hook did not record a teammate's edits, so its ownership guard attributed the file to another session.
 
 ## 6. Deferred, with reasons
 
