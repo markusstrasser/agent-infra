@@ -153,7 +153,9 @@ def ask_canary_sampling(client, *, model: str, canary: dict, temperature: float,
     response = client.messages.create(
         model=model,
         max_tokens=30,
-        temperature=temperature,
+        # anthropic SDK 1.x dropped sampling params from create(); the API still
+        # takes them for models that support them (default Haiku 4.5 does).
+        extra_body={"temperature": temperature},
         messages=[{"role": "user", "content": prompt}],
     )
     text = "".join(
@@ -175,7 +177,7 @@ def ask_canary(client, *, model: str, canary: dict, temperature: float, backend:
     response = client.messages.create(
         model=model,
         max_tokens=80,
-        temperature=temperature,
+        extra_body={"temperature": temperature},
         messages=[{"role": "user", "content": prompt}],
     )
     text = "".join(

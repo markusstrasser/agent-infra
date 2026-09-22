@@ -98,7 +98,7 @@ JSON array:"""
         }],
     )
 
-    result = response.content[0].text.strip()
+    result = "".join(b.text for b in response.content if b.type == "text").strip()
     # Parse JSON array from response
     try:
         # Find JSON array in response
@@ -148,7 +148,7 @@ JSON array:"""
         }],
     )
 
-    result = response.content[0].text.strip()
+    result = "".join(b.text for b in response.content if b.type == "text").strip()
     try:
         match = re.search(r'\[.*\]', result, re.DOTALL)
         if match:
@@ -323,7 +323,7 @@ If evidence is irrelevant or doesn't address the claim, say "unclear"."""
         }],
     )
 
-    result = response.content[0].text.strip().lower()
+    result = "".join(b.text for b in response.content if b.type == "text").strip().lower()
     if "supported" in result:
         return "supported"
     elif "contradicted" in result:

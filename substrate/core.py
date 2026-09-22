@@ -515,7 +515,9 @@ class KnowledgeDB:
                 max_tokens=max_tokens,
                 messages=[{"role": "user", "content": prompt}],
             )
-            text = response.content[0].text
+            # Type-filter: on thinking models content[0] is a thinking block,
+            # and .text on it would silently trip the fallback below.
+            text = "".join(b.text for b in response.content if b.type == "text")
             input_tokens = response.usage.input_tokens
             output_tokens = response.usage.output_tokens
         except Exception:
