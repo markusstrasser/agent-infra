@@ -7,8 +7,10 @@ generators) — which leave no per-session Edit/Write ledger — fell through to
 (2026-06-20: agent-failure-modes.md + a sensor digest mis-flagged). The fix reads
 a recency window of ~/.claude/automation-write-ledger.jsonl and excludes those
 paths. This is the first test for this hook; it locks the differential:
-  - a NEW untracked file is surfaced in the hook output (control), but
+  - a NEW untracked file is counted in the hook output (control), but
   - the SAME file, registered in the automation ledger, is EXCLUDED (treatment).
+Since skills 7936a23 the hook counts files it cannot attribute and never names
+them, so both sides assert on the count line, not the filename.
 """
 from __future__ import annotations
 
@@ -45,7 +47,9 @@ def test_unregistered_file_is_surfaced(tmp_path):
         import pytest
         pytest.skip("global stop hook not present")
     out = _run_hook(_mk_repo(tmp_path), f"e2e-ctrl-{int(time.time())}")
-    assert "auto_file.md" in out, "control: an unregistered new file must be surfaced"
+    assert "1 uncommitted file not touched by this session" in out, (
+        "control: an unregistered new file must be counted"
+    )
 
 
 def test_automation_registered_file_is_excluded(tmp_path):
@@ -57,4 +61,4 @@ def test_automation_registered_file_is_excluded(tmp_path):
     from common.automation_ledger import register
     register(repo / "auto_file.md", "test")  # recent → inside the hook window
     out = _run_hook(repo, f"e2e-treat-{int(time.time())}")
-    assert "auto_file.md" not in out, "treatment: a registered automation file must be excluded"
+    assert "uncommitted file" not in out, "treatment: a registered automation file must be excluded"

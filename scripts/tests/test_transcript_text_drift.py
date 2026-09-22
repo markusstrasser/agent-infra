@@ -1,6 +1,6 @@
 """Drift-test: skills' vendored transcript reader == canonical common.transcript_text.
 
-skills/improve/scripts/extract_user_tags.py can't import agent-infra's
+skills/observe/scripts/extract_user_tags.py can't import agent-infra's
 scripts/common (different repo), so it vendors the same semantics. Epistemic
 principle #9: a vendored copy of a correctness invariant is allowed ONLY
 behind a drift-test asserting equality. If this fails, fix BOTH to match —
@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from common.transcript_text import user_texts
 
 SKILLS_COPY = (
-    Path.home() / "Projects" / "skills" / "improve" / "scripts" / "extract_user_tags.py"
+    Path.home() / "Projects" / "skills" / "observe" / "scripts" / "extract_user_tags.py"
 )
 
 

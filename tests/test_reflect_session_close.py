@@ -25,7 +25,6 @@ def paths(tmp_path, monkeypatch):
     monkeypatch.setattr(rsc, "CLOSE_QUEUE", queue)
     monkeypatch.setattr(rsc, "DIGEST_LOG", digest)
     monkeypatch.setattr(rsc, "CAPTURE_LOG", capture)
-    monkeypatch.setattr(rsc, "UNSUPPORTED_SHADOW", tmp_path / "unsupported-shadow.jsonl")
     monkeypatch.setattr(rsc, "MAINTAIN", tmp_path / "MAINTAIN.md")
     return {"queue": queue, "digest": digest, "transcript": transcript}
 

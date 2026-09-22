@@ -8,7 +8,7 @@ extract_user_tags (total false-zero), reflect_capture and blindspot_miner
 (compaction re-quotes double-counted). Epistemic principle #9: an invariant
 whose inconsistency is a correctness bug gets ONE definition.
 
-Cross-repo consumer: skills/improve/scripts/extract_user_tags.py vendors the
+Cross-repo consumer: skills/observe/scripts/extract_user_tags.py vendors the
 same semantics (different repo, can't import this); the equality is pinned by
 scripts/tests/test_transcript_text_drift.py.
 
