@@ -77,18 +77,22 @@ def _connect(db: Path) -> sqlite3.Connection:
 def _model_rate(model: str | None) -> tuple[float, float] | None:
     if not model:
         return None
-    if model in PRICING:
-        return PRICING[model]
-    # prefix / family fallbacks for agentlogs model strings
-    for key, rate in PRICING.items():
-        if model.startswith(key) or key in model:
-            return rate
+    # Claude Code session ids carry a context suffix ("claude-opus-5-5[1m]").
+    base = model.split("[", 1)[0]
+    if base in PRICING:
+        return PRICING[base]
+    # Prefix / family fallbacks for agentlogs model strings. Longest key first:
+    # "claude-opus-5" is a prefix of "claude-opus-5-5", and first-match in dict
+    # order priced Opus 5.5 at the Opus 5 rate.
+    for key in sorted(PRICING, key=len, reverse=True):
+        if base.startswith(key) or key in base:
+            return PRICING[key]
     if "composer" in model:
         return (COMPOSER_PRICING[1], COMPOSER_PRICING[2])
     if "opus" in model:
-        return PRICING.get("claude-opus-5") or PRICING.get("claude-opus-4-8")
+        return PRICING.get("claude-opus-5-5") or PRICING.get("claude-opus-5")
     if "sonnet" in model:
-        return PRICING.get("claude-sonnet-4-6")
+        return PRICING.get("claude-sonnet-5") or PRICING.get("claude-sonnet-4-6")
     if "gpt-5.6-luna" in model:
         return PRICING.get("gpt-5.6-luna")
     if "gpt-5.6-terra" in model:
@@ -241,7 +245,7 @@ def probe_cursor(*, workspace: Path, prompt: str, timeout: int) -> dict:
     }
 
 
-def probe_llmx(*, prompt: str, timeout: int, model: str = "claude-opus-5") -> dict:
+def probe_llmx(*, prompt: str, timeout: int, model: str = "claude-opus-5-5") -> dict:
     """Bare llmx chat (no tools) — lower bound, not a full coding harness."""
     if not shutil.which("llmx"):
         return {"backend": "llmx-bare", "ok": False, "error": "llmx not on PATH"}

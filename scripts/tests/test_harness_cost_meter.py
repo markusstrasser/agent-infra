@@ -139,5 +139,14 @@ class TestProbe(unittest.TestCase):
         self.assertEqual(preview, "second")
 
 
+class TestModelRate(unittest.TestCase):
+    def test_context_suffix_prices_the_exact_model(self):
+        # "claude-opus-5" is a prefix of "claude-opus-5-5"; first-match lookup
+        # priced "claude-opus-5-5[1m]" at the Opus 5 rate (2026-09-22).
+        self.assertEqual(hcm._model_rate("claude-opus-5-5[1m]"), hcm.PRICING["claude-opus-5-5"])
+        self.assertEqual(hcm._model_rate("claude-opus-5[1m]"), hcm.PRICING["claude-opus-5"])
+        self.assertEqual(hcm._model_rate("claude-fable-5-1[1m]"), hcm.PRICING["claude-fable-5-1"])
+
+
 if __name__ == "__main__":
     unittest.main()
