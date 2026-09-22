@@ -70,8 +70,8 @@ def trace_session(con, session_pk: int) -> dict:
         ):
             kind, role, text, tcid, parent, seq = row
             if kind not in (
-                "user_message", "assistant_message", "tool_use", "tool_result",
-                "error", "permission_denied", "permission_requested",
+                "user_message", "assistant_message", "assistant_update", "tool_use",
+                "tool_result", "error", "permission_denied", "permission_requested",
             ):
                 continue
             turn["events"].append({

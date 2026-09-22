@@ -27,7 +27,7 @@ from .common import (
 )
 
 PARSER_NAME = "claude"
-PARSER_VERSION = "2026-03-05.1"
+PARSER_VERSION = "2026-09-22.1"
 CLIENT = "claude-code"
 
 
@@ -205,6 +205,7 @@ def _parse_assistant_record(
     message = obj.get("message", {})
     model = message.get("model")
     text_parts: list[str] = []
+    thinking_parts: list[str] = []
     timestamp = parse_timestamp(obj.get("timestamp"))
 
     for index, item in enumerate(message.get("content") or []):
@@ -215,6 +216,16 @@ def _parse_assistant_record(
             text = item.get("text")
             if text:
                 text_parts.append(str(text))
+            continue
+        if item_type == "thinking":
+            # Since late Aug 2026 (first seen CC 2.1.241, Fable 5) the
+            # narration Claude Code shows the operator between tool calls is
+            # stored in thinking blocks; 30-day count on 2026-09-22: 2,508
+            # such blocks beside 7,981 text blocks. Empty thinking blocks
+            # carry nothing and are skipped. Never copy `signature` (opaque).
+            thinking = item.get("thinking")
+            if thinking:
+                thinking_parts.append(str(thinking))
             continue
         if item_type != "tool_use":
             continue
@@ -262,6 +273,26 @@ def _parse_assistant_record(
                 record_key=raw_key,
                 correlation_id=native_id,
                 tool_call_id=tool_call_id,
+            )
+        )
+
+    if thinking_parts:
+        # One aggregate event per record (mirrors the text_parts pattern below),
+        # emitted before assistant_message: thinking blocks precede text/tool_use
+        # in content ordering and chronologically precede the visible response.
+        bundle.events.append(
+            EventRow(
+                event_id=stable_id("evt_", run_id, raw_key, "assistant_update"),
+                run_id=run_id,
+                seq=_next_seq(bundle),
+                ts=timestamp,
+                kind="assistant_update",
+                vendor_kind="thinking",
+                vendor_event_id=obj.get("uuid"),
+                role="assistant",
+                text="\n".join(thinking_parts),
+                payload={"type": "assistant_update"},
+                record_key=raw_key,
             )
         )
 
