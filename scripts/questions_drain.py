@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import concurrent.futures as cf
 import json
+import re
 import sys
 import time
 from datetime import datetime, timezone
@@ -150,7 +151,10 @@ def apply_verdicts(
     out: dict[str, list[dict]] = {"resolved": [], "deleted": [], "kept": [], "manual": []}
     stamp_day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     resolved_dir = steward_dir / "resolved"
-    for item in parse_memo(memo_path.read_text(encoding="utf-8")):
+    memo_text = memo_path.read_text(encoding="utf-8")
+    backend = re.search(r"\(backend: ([\w-]+)", memo_text)
+    scout = f"{backend.group(1)} scout" if backend else "scout"
+    for item in parse_memo(memo_text):
         ref = Path(item["ref"]).expanduser() if item["ref"] else None
         if item["verdict"] not in _CLOSING_VERDICTS:
             out["kept"].append(item)
@@ -163,7 +167,7 @@ def apply_verdicts(
                 resolved_dir.mkdir(exist_ok=True)
                 stamp = (
                     f"> **{item['verdict']}** — resolved {stamp_day} by the stale-question drain "
-                    f"(codex scout; memo `{memo_path}`). Evidence: {item['evidence'] or '(none quoted)'}\n\n"
+                    f"({scout}; memo `{memo_path}`). Evidence: {item['evidence'] or '(none quoted)'}\n\n"
                 )
                 (resolved_dir / ref.name).write_text(
                     stamp + ref.read_text(encoding="utf-8"), encoding="utf-8",
