@@ -25,7 +25,7 @@ import re
 import sys
 from pathlib import Path
 
-from common.transcript_text import is_harness_injected
+from common.transcript_text import is_harness_injected, is_operator_authored
 
 CAPTURE_LOG = Path.home() / ".claude" / "reflect-capture.jsonl"
 CLOSE_QUEUE = Path.home() / ".claude" / "close-queue"
@@ -78,7 +78,8 @@ def parse_events(lines: list[str]) -> list[dict]:
 
     Each event: {role, texts:[str], tools:[{name,input}], errors:int}. Tool
     results arrive as role='user' with tool_result blocks; we separate genuine
-    user text from tool_result envelopes.
+    user text from tool_result envelopes. A user-role text line the operator did
+    not type is dropped, so every extractor below sees only operator text.
     """
     events: list[dict] = []
     for line in lines:
@@ -113,6 +114,13 @@ def parse_events(lines: list[str]) -> list[dict]:
                 ev["is_tool_result"] = True
                 if block.get("is_error"):
                     ev["errors"] += 1
+        # Operator attribution: a headless `claude -p` dispatch prompt, a teammate/peer
+        # relay, local-command output, an interrupt marker or a task notification arrives
+        # role=user but is not operator input. Mined as such it forged operator_dx digests
+        # (headless grader 5e968e6b, teammate relays in b49d6a14) and fail_then_user rescues
+        # (48 of 49 captured were the interrupt marker, 2026-09-23).
+        if role == "user" and ev["texts"] and not ev["is_tool_result"] and not is_operator_authored(obj):
+            continue
         events.append(ev)
     return events
 
@@ -159,12 +167,9 @@ def extract_operator_dx_interventions(events: list[dict]) -> list[dict]:
         text = " ".join(ev["texts"]).strip()
         if not text:
             continue
-        # Harness-injected blocks arrive role=user but are NOT operator input — a
-        # <task-notification> containing "RSI" produced a false operator_dx digest
-        # (session 836ff036, caught at the 2026-07-10 ack). Same class: system-reminder,
-        # command stdout wrappers.
-        if text.lstrip().startswith(("<task-notification>", "<system-reminder>", "[SYSTEM NOTIFICATION"))                 or "<task-notification>" in text[:200]:
-            continue
+        # Task notifications (the session-836ff036 false digest), teammate relays and
+        # headless prompts never reach here: parse_events drops every user-role line
+        # that common.transcript_text.is_operator_authored rejects.
         stub = classify_operator_dx(text)
         if stub:
             out.append(stub)
