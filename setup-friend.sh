@@ -1148,7 +1148,9 @@ except: sys.exit(0)
 if data.get("stop_hook_active", False): sys.exit(0)
 ppid = os.getppid()
 cwd = data.get("cwd") or os.getcwd()
-sid_path = os.path.join(cwd, ".claude", "current-session-id")
+import subprocess  # session-init.sh writes the id at the git toplevel
+top = subprocess.run(["git", "-C", cwd, "rev-parse", "--show-toplevel"], capture_output=True, text=True).stdout.strip()
+sid_path = os.path.join(top or cwd, ".claude", "current-session-id")
 session_id = ""
 if os.path.isfile(sid_path):
     try:
@@ -1215,9 +1217,11 @@ INPUT=$(cat)
 SESSION=$(echo "$INPUT" | jq -r '.session_id // ""' 2>/dev/null)
 CWD=$(echo "$INPUT" | jq -r '.cwd // ""' 2>/dev/null)
 [ -z "$SESSION" ] || [ -z "$CWD" ] && exit 0
+# Per-project state lives at the git toplevel, not the subdirectory the session started in.
+CWD=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null || echo "$CWD")
 mkdir -p "$CWD/.claude"
 echo "$SESSION" > "$CWD/.claude/current-session-id"
-if [ -d "$CWD/.git" ]; then
+if [ -e "$CWD/.git" ]; then
     git -C "$CWD" status --short > "/tmp/session-baseline-${SESSION}.txt" 2>/dev/null || true
 fi
 CLAUDE_PID=$PPID "$HOME/.claude/hooks/tab-color.sh" idle 2>/dev/null || true
