@@ -55,6 +55,10 @@ repo(s)/paths under ~/Projects (or ~/.claude) it targets.
 2. Check CURRENT state: `git -C <repo> log --oneline --since={created}` on the \
 targeted paths; read the current implementation the proposal criticizes or wants.
 3. A grep hit/miss only LOCATES — read the source before concluding.
+4. Judge the PROBLEM, not the proposed design. If a different mechanism now \
+prevents the incident (check the files the incident involved, not only the \
+proposal's design), that is SUPERSEDED. STILL-VALID means the incident can \
+still happen today.
 
 Return ONLY this block (no preamble):
 VERDICT: STILL-VALID | MOOT | SUPERSEDED
