@@ -81,23 +81,28 @@ INTENTIONAL_OVERRIDES = {
     "intel": {"duckdb"},  # intel wants motherduck on intel.duckdb, not agent-infra duckdb-mcp
 }
 
+# Launched from the venv, not `uv run`: that re-synced at every session start (a session
+# opened mid-upgrade got a half-updated env) and held the uv cache lock for the server's
+# lifetime (2026-09-23).
+AGENT_INFRA_BIN = PROJECTS / "agent-infra" / ".venv" / "bin"
+
 LOCAL_PROJECT_MCP = {
     "agent-infra": {
         "agent-infra": {
-            "command": "uv",
-            "args": ["run", "--directory", str(PROJECTS / "agent-infra"), "agent-infra-mcp"],
+            "command": str(AGENT_INFRA_BIN / "agent-infra-mcp"),
+            "args": [],
         },
         "duckdb": {
-            "command": "uv",
-            "args": ["run", "--directory", str(PROJECTS / "agent-infra"), "duckdb-mcp"],
+            "command": str(AGENT_INFRA_BIN / "duckdb-mcp"),
+            "args": [],
         },
         "modal-triage": {
-            "command": "uv",
-            "args": ["run", "--directory", str(PROJECTS / "agent-infra"), "modal-triage-mcp"],
+            "command": str(AGENT_INFRA_BIN / "modal-triage-mcp"),
+            "args": [],
         },
         "parallel": {
-            "command": "uv",
-            "args": ["run", "--directory", str(PROJECTS / "agent-infra"), "parallel-mcp"],
+            "command": str(AGENT_INFRA_BIN / "parallel-mcp"),
+            "args": [],
             "env": {
                 "PARALLEL_API_KEY": "${PARALLEL_API_KEY}",
             },
