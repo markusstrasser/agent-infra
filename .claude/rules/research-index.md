@@ -130,7 +130,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-07-09-agent-infra-sweep.md` | Agent-infra frontier sweep — 15d delta (Grok niche + CC 2.1.198–205 + internal consume) | Before claiming frontier is quiet / starting a fresh deep RSI sweep |
 | `2026-07-09-databricks-pi-harness.md` | 2026 07 09 Databricks Pi Harness | TODO |
 | `2026-07-09-gpt-5.6-suite.md` | 2026 07 09 Gpt 5.6 Suite | TODO |
-| `2026-07-09-grok-4.5-release.md` | Grok 4.5 — transport + named niche (critique `grok` axis, scout `--scout-model`); not Default Routing | Before promoting Grok into defaults, adding critique axes, or picking scout models for tool-loop audits |
+| `2026-07-09-grok-4.5-release.md` | Grok named niche (not Default Routing). Current pin is Grok 4.7 (`grok-4.7-high`, no `cursor-` prefix, verified live 2026-09-23); this memo is the 4.5 decision | Before promoting Grok into defaults, adding critique axes, or picking scout models |
 | `2026-07-14-cleanup-campaign-ledger.md` | 2026-07-14 Cleanup Sessions — Ledger | TODO |
 | `2026-07-14-storage-cost-dossier.md` | Storage-cost dossier — reduce footprint, keep full functionality | TODO |
 | `2026-07-19-vercel-ai-python-deep-dive.md` | Vercel AI SDK for Python (`vercel-labs/ai-python`) — code deep-dive | TODO |
