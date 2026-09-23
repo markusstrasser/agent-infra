@@ -15,6 +15,7 @@ import json
 import re
 from pathlib import Path
 
+import reflect_session_close as rsc
 from session_automation_telemetry import summarize, fetch_sessions, DB as AGENTLOGS_DB
 
 REPO = Path(__file__).resolve().parent.parent
@@ -22,7 +23,7 @@ CAPTURE_LOG = Path.home() / ".claude" / "reflect-capture.jsonl"
 PROCESSED = Path.home() / ".claude" / "reflect-processed.json"
 QUARANTINE_DIR = Path.home() / ".claude" / "reflect-quarantine"
 STEWARD_DIR = Path.home() / ".claude" / "steward-proposals"
-DIGEST_LOG = Path.home() / ".claude" / "reflect-close-digest.jsonl"
+DIGEST_LOG = rsc.DIGEST_LOG
 CLOSE_QUEUE = Path.home() / ".claude" / "close-queue"
 FM_EVIDENCE = Path.home() / ".claude" / "fm-evidence.jsonl"
 
@@ -41,34 +42,11 @@ def _count_jsonl(path: Path, pred=None) -> int:
     return n
 
 
-def _closed_sessions() -> set[str]:
-    closed: set[str] = set()
-    if not DIGEST_LOG.exists():
-        return closed
-    for line in DIGEST_LOG.read_text(encoding="utf-8", errors="replace").splitlines():
-        try:
-            row = json.loads(line)
-        except (json.JSONDecodeError, ValueError):
-            continue
-        if row.get("rsi_closed") and row.get("session_id"):
-            closed.add(str(row["session_id"]))
-    return closed
-
-
 def rsi_pending() -> list[dict]:
-    closed = _closed_sessions()
-    pending: list[dict] = []
-    if not DIGEST_LOG.exists():
-        return pending
-    for line in DIGEST_LOG.read_text(encoding="utf-8", errors="replace").splitlines():
-        try:
-            row = json.loads(line)
-        except (json.JSONDecodeError, ValueError):
-            continue
-        sid = row.get("session_id")
-        if row.get("invoke_skill") and sid and sid not in closed:
-            pending.append(row)
-    return pending
+    """Pending RSI closes, oldest first. reflect_session_close owns the definition, so the
+    control-plane "RSI close pending" count agrees with the SessionStart nudge and the
+    bare `--latest-digest` (a restated copy here missed prefix acks)."""
+    return rsc.pending_digests(log=DIGEST_LOG)
 
 
 def quarantine_pending() -> list[dict]:

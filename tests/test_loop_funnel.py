@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -44,14 +45,38 @@ def test_metrics_and_needs_attention(paths):
     assert lf.needs_attention(m)
 
 
-def test_rsi_pending_respects_ack(paths):
+def _digest_row(sid: str, transcript: Path) -> dict:
+    return {
+        "schema": "reflect.close-digest.v1",
+        "invoke_skill": True,
+        "session_id": sid,
+        "project": "genomics",
+        "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "transcript_path": str(transcript),
+    }
+
+
+def test_rsi_pending_respects_ack(paths, tmp_path):
+    transcript = tmp_path / "t.jsonl"
+    transcript.write_text("{}\n", encoding="utf-8")
     paths["digest"].write_text(
-        json.dumps({"invoke_skill": True, "session_id": "s1", "project": "genomics"})
+        json.dumps(_digest_row("s1", transcript))
         + "\n"
         + json.dumps({"rsi_closed": True, "session_id": "s1"})
         + "\n",
         encoding="utf-8",
     )
+    assert lf.rsi_pending() == []
+
+
+def test_rsi_pending_honours_prefix_ack(paths, tmp_path):
+    transcript = tmp_path / "t.jsonl"
+    transcript.write_text("{}\n", encoding="utf-8")
+    sid = "45eed8bb-0adf-4b91-8775-622295a0c272"
+    paths["digest"].write_text(json.dumps(_digest_row(sid, transcript)) + "\n", encoding="utf-8")
+    assert [r["session_id"] for r in lf.rsi_pending()] == [sid]
+    with paths["digest"].open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"rsi_closed": True, "session_id": sid[:8]}) + "\n")
     assert lf.rsi_pending() == []
 
 

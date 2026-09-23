@@ -29,6 +29,11 @@ from reflect_capture import (  # noqa: E402
 
 CLOSE_QUEUE = Path.home() / ".claude" / "close-queue"
 DIGEST_LOG = Path.home() / ".claude" / "reflect-close-digest.jsonl"
+DIGEST_SCHEMA = "reflect.close-digest.v1"
+ACK_SCHEMA = "reflect.close-ack.v1"
+# Shortest session-id prefix accepted: the SessionStart nudge used to print 8-char ids,
+# and closers paste those back into --latest-digest / --ack.
+MIN_ID_PREFIX = 8
 
 # Projects with loop/hindsight_grades.jsonl (HINDSIGHT Mode 3 bridge).
 _HINDSIGHT_GRADES: dict[str, Path] = {
@@ -147,7 +152,7 @@ def build_digest(intent: dict) -> dict | None:
     ]
 
     digest = {
-        "schema": "reflect.close-digest.v1",
+        "schema": DIGEST_SCHEMA,
         "session_id": session_id,
         "project": intent.get("project", "unknown"),
         "ts": _utc_now(),
@@ -257,19 +262,111 @@ def drain_queue(limit: int = 10) -> dict:
     return stats
 
 
-def _closed_sessions() -> set[str]:
-    """Session ids with an rsi_closed ack in the digest log."""
-    closed: set[str] = set()
-    if not DIGEST_LOG.exists():
-        return closed
-    for line in DIGEST_LOG.read_text(encoding="utf-8", errors="replace").splitlines():
+class DigestLookupError(LookupError):
+    """A pasted session id that names no digest, or more than one session."""
+
+    def __init__(self, message: str, candidates: list[str] | None = None) -> None:
+        super().__init__(message)
+        self.candidates = candidates or []
+
+
+def _read_rows(log: Path | None = None) -> list[dict]:
+    """Every parseable row of the digest log (digest.v1 and close-ack.v1 interleaved)."""
+    path = DIGEST_LOG if log is None else log
+    if not path.exists():
+        return []
+    rows: list[dict] = []
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         try:
             row = json.loads(line)
         except (json.JSONDecodeError, ValueError):
             continue
-        if row.get("rsi_closed") and row.get("session_id"):
-            closed.add(str(row["session_id"]))
-    return closed
+        if isinstance(row, dict):
+            rows.append(row)
+    return rows
+
+
+def _id_key(raw: object) -> str:
+    """A pasted session id, trimmed of whitespace and a trailing ellipsis ('992ed156-...')."""
+    return str(raw or "").strip().rstrip(".…")
+
+
+def _id_matches(session_id: str, key: str) -> bool:
+    """Does `key` name `session_id`: the full id, or a prefix of >= MIN_ID_PREFIX chars."""
+    return bool(key) and (
+        session_id == key or (len(key) >= MIN_ID_PREFIX and session_id.startswith(key))
+    )
+
+
+def _closed_keys(rows: list[dict]) -> set[str]:
+    keys: set[str] = set()
+    for row in rows:
+        key = _id_key(row.get("session_id")) if row.get("rsi_closed") else ""
+        if key:
+            keys.add(key)
+    return keys
+
+
+def _is_closed(session_id: str, closed: set[str]) -> bool:
+    """An ack closes a digest by full id OR by prefix — acks written with the nudge's
+    8-char id (666dd3c4, b49d6a14, 2026-07/08) were inert under exact matching."""
+    return session_id in closed or any(_id_matches(session_id, k) for k in closed)
+
+
+def _closed_sessions() -> set[str]:
+    """Normalized ack keys (full ids or prefixes) in the digest log."""
+    return _closed_keys(_read_rows())
+
+
+def resolve_session(key: str, rows: list[dict] | None = None) -> str:
+    """The one digest session a pasted id means: exact id or unique prefix.
+
+    Raises DigestLookupError when nothing matches or a prefix is ambiguous — callers
+    must never guess between sessions or write an ack no reader will match.
+    """
+    rows = _read_rows() if rows is None else rows
+    k = _id_key(key)
+    matches: list[str] = []
+    for row in rows:
+        if row.get("schema") != DIGEST_SCHEMA:
+            continue
+        sid = str(row.get("session_id") or "")
+        if sid and _id_matches(sid, k) and sid not in matches:
+            matches.append(sid)
+    if k in matches:
+        return k
+    if len(matches) == 1:
+        return matches[0]
+    if matches:
+        raise DigestLookupError(
+            f"session id {key!r} is ambiguous — matches {', '.join(matches)}", matches
+        )
+    if len(k) < MIN_ID_PREFIX:
+        raise DigestLookupError(
+            f"no close-digest for session {key!r} (prefixes need >= {MIN_ID_PREFIX} chars)"
+        )
+    raise DigestLookupError(f"no close-digest for session {key!r}")
+
+
+def pending_digests(*, log: Path | None = None) -> list[dict]:
+    """THE pending-close definition, oldest first: each session's latest digest.v1 row
+    that no ack closes (by full id or prefix).
+
+    Every surface loads this instead of re-stating it — the SessionStart nudge, the bare
+    `--latest-digest`, `--ack-stale` and the loop funnel (control-plane "RSI close pending").
+    """
+    rows = _read_rows(log)
+    closed = _closed_keys(rows)
+    latest: dict[str, dict] = {}
+    for row in rows:
+        if row.get("schema") != DIGEST_SCHEMA:
+            continue
+        sid = str(row.get("session_id") or "")
+        if not sid:
+            continue
+        latest.pop(sid, None)  # re-insert: order follows each session's LATEST digest
+        latest[sid] = row
+    return [row for sid, row in latest.items() if not _is_closed(sid, closed)]
 
 
 def latest_digest(session_id: str | None = None) -> dict | None:
@@ -280,28 +377,24 @@ def latest_digest(session_id: str | None = None) -> dict | None:
     was appended last — in practice an ack (the /rsi SKILL.md Step-1 failure). This owns
     that selection so consumers load it instead of re-stating it.
 
-    With session_id: that session's latest digest, acked or not (explicit ask).
-    Without: the latest digest whose session has no rsi_closed ack — the pending close.
+    With session_id (full id or unique prefix): that session's latest digest, acked or
+    not (explicit ask); None when no digest matches; DigestLookupError when a prefix is
+    ambiguous. Without: the newest pending close (pending_digests()).
     """
-    if not DIGEST_LOG.exists():
+    if session_id is None:
+        pending = pending_digests()
+        return pending[-1] if pending else None
+    rows = _read_rows()
+    try:
+        sid = resolve_session(session_id, rows)
+    except DigestLookupError as exc:
+        if exc.candidates:
+            raise
         return None
-    closed = _closed_sessions() if session_id is None else set()
     found: dict | None = None
-    for line in DIGEST_LOG.read_text(encoding="utf-8", errors="replace").splitlines():
-        try:
-            row = json.loads(line)
-        except (json.JSONDecodeError, ValueError):
-            continue
-        if row.get("schema") != "reflect.close-digest.v1":
-            continue
-        sid = str(row.get("session_id", ""))
-        if session_id is not None:
-            # Prefix-match: the SessionStart nudge prints the 8-char short id, and callers
-            # paste it back (exact-only match cost a 3-call detour, arc-agi 2026-08-17).
-            if sid == session_id or (len(session_id) >= 8 and sid.startswith(session_id)):
-                found = row  # latest wins
-        elif sid not in closed:
-            found = row
+    for row in rows:
+        if row.get("schema") == DIGEST_SCHEMA and str(row.get("session_id")) == sid:
+            found = row  # latest wins
     return found
 
 
@@ -356,10 +449,16 @@ def operator_hindsight_from_digest(digest: dict, reflex: dict, *, grade: str) ->
 
 
 def ack_digest(session_id: str, *, hindsight: dict | list[dict] | None = None) -> int:
-    """Append rsi_closed marker; optionally append HINDSIGHT Mode 3 grade(s). Returns count appended."""
+    """Append rsi_closed marker; optionally append HINDSIGHT Mode 3 grade(s). Returns count appended.
+
+    The ack is written under the FULL session id that `session_id` (full id or unique
+    prefix) resolves to; an id naming no digest, or an ambiguous prefix, raises
+    DigestLookupError and writes nothing (a prefix ack used to land as an inert row).
+    """
+    sid = resolve_session(session_id)
     row = {
-        "schema": "reflect.close-ack.v1",
-        "session_id": session_id,
+        "schema": ACK_SCHEMA,
+        "session_id": sid,
         "rsi_closed": True,
         "ts": _utc_now(),
     }
@@ -367,7 +466,7 @@ def ack_digest(session_id: str, *, hindsight: dict | list[dict] | None = None) -
         fh.write(json.dumps(row, ensure_ascii=False) + "\n")
     if not hindsight:
         return 0
-    digest = latest_digest(session_id) or {}
+    digest = latest_digest(sid) or {}
     project = str(digest.get("project") or "")
     rows = hindsight if isinstance(hindsight, list) else [hindsight]
     n = 0
@@ -387,23 +486,9 @@ def ack_stale_digests(older_than_days: int, *, note: str, dry_run: bool = False)
     verified closes — a labeled screen, not a silent substitute (2026-09-02 queue freeze).
     Returns the digests acked (or, with dry_run, the ones that would be).
     """
-    if not DIGEST_LOG.exists():
-        return []
-    closed = _closed_sessions()
     cutoff = datetime.now(timezone.utc) - timedelta(days=older_than_days)
-    latest: dict[str, dict] = {}
-    for line in DIGEST_LOG.read_text(encoding="utf-8", errors="replace").splitlines():
-        try:
-            row = json.loads(line)
-        except (json.JSONDecodeError, ValueError):
-            continue
-        if row.get("schema") != "reflect.close-digest.v1":
-            continue
-        sid = str(row.get("session_id", ""))
-        if sid and sid not in closed:
-            latest[sid] = row  # latest digest per session wins
     stale: list[dict] = []
-    for sid, row in latest.items():
+    for row in pending_digests():
         try:
             ts = datetime.fromisoformat(str(row.get("ts", "")))
         except ValueError:
@@ -412,13 +497,15 @@ def ack_stale_digests(older_than_days: int, *, note: str, dry_run: bool = False)
             ts = ts.replace(tzinfo=timezone.utc)
         if ts >= cutoff:
             continue
-        stale.append({"session_id": sid, "project": row.get("project"), "digest_ts": row.get("ts")})
-    if dry_run:
+        stale.append(
+            {"session_id": str(row["session_id"]), "project": row.get("project"), "digest_ts": row.get("ts")}
+        )
+    if dry_run or not stale:
         return stale
     with DIGEST_LOG.open("a", encoding="utf-8") as fh:
         for item in stale:
             ack = {
-                "schema": "reflect.close-ack.v1",
+                "schema": ACK_SCHEMA,
                 "session_id": item["session_id"],
                 "rsi_closed": True,
                 "reason": "stale-unreviewed",
@@ -444,30 +531,18 @@ def pending_nudge(here: str | None = None) -> str | None:
     Cross-project digests are not SessionStart noise — drain via `/rsi close` or
     `just loop-funnel` when the operator chooses. The queue is still drained by
     whichever session runs `/rsi close`; this governs only the unprompted nudge.
+    Prints the FULL session id so the closer's `--ack` needs no prefix resolution.
     """
-    if not DIGEST_LOG.exists():
-        return None
     if here is None:
         here = _current_project()
     if not here:
         return None
-    closed = _closed_sessions()
-    in_project: dict | None = None
-    for line in DIGEST_LOG.read_text(encoding="utf-8", errors="replace").splitlines():
-        try:
-            row = json.loads(line)
-        except (json.JSONDecodeError, ValueError):
-            continue
-        sid = row.get("session_id")
-        if not (row.get("invoke_skill") and sid and sid not in closed):
-            continue
-        if row.get("project") == here:
-            in_project = row  # latest in-project wins
-    if in_project is None:
+    in_project = [row for row in pending_digests() if row.get("project") == here]
+    if not in_project:
         return None
-    session_short = str(in_project.get("session_id", ""))[:8]
+    session_id = str(in_project[-1].get("session_id", ""))  # latest in-project wins
     return (
-        f"Prior {here} session {session_short} has an RSI close digest. "
+        f"Prior {here} session {session_id} has an RSI close digest. "
         f"Run `/rsi close` to verify one claim and attach evidence."
     )
 
@@ -478,7 +553,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="RSI session-close digest drain")
     parser.add_argument("--drain", action="store_true", help="Process close-queue entries")
     parser.add_argument("--nudge", action="store_true", help="Print SessionStart nudge if any")
-    parser.add_argument("--ack", metavar="SESSION_ID", help="Mark session RSI-closed (stops nudge)")
+    parser.add_argument(
+        "--ack",
+        metavar="SESSION_ID",
+        help="Mark session RSI-closed (stops nudge); full id or unique >=8-char prefix, "
+        "written as the full id. Exit 1, nothing written, if it names no digest",
+    )
     parser.add_argument(
         "--hindsight",
         metavar="JSON",
@@ -490,8 +570,9 @@ def main(argv: list[str] | None = None) -> int:
         const="",
         default=None,
         metavar="SESSION_ID",
-        help="Print latest close-digest row (never an ack): with SESSION_ID that session's, "
-        "bare/empty the latest un-acked one. Exit 1 if none.",
+        help="Print latest close-digest row (never an ack): with SESSION_ID (full id or "
+        "unique prefix) that session's, bare/empty the latest pending one. Exit 1 if none "
+        "or if a prefix is ambiguous.",
     )
     parser.add_argument("--limit", type=int, default=10)
     parser.add_argument(
@@ -528,14 +609,22 @@ def main(argv: list[str] | None = None) -> int:
             except json.JSONDecodeError:
                 sys.stderr.write("[reflect-session-close] invalid --hindsight JSON\n")
                 return 1
-        n = ack_digest(args.ack, hindsight=hindsight)
+        try:
+            n = ack_digest(args.ack, hindsight=hindsight)
+        except DigestLookupError as exc:
+            sys.stderr.write(f"[reflect-session-close] ack refused, nothing written: {exc}\n")
+            return 1
         if args.hindsight and n == 0:
             sys.stderr.write("[reflect-session-close] hindsight grade skipped (bad project/grade/item)\n")
         elif n:
             sys.stderr.write(f"[reflect-session-close] {n} hindsight grade(s) appended\n")
         return 0
     if args.latest_digest is not None:
-        digest = latest_digest(args.latest_digest or None)
+        try:
+            digest = latest_digest(args.latest_digest or None)
+        except DigestLookupError as exc:
+            sys.stderr.write(f"[reflect-session-close] {exc}\n")
+            return 1
         if digest is None:
             sys.stderr.write("[reflect-session-close] no matching close-digest\n")
             return 1
