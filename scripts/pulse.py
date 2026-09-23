@@ -363,10 +363,9 @@ def render_status(m: dict) -> str:
             parts.append(f"{i}. **[{item.get('klass', '?')}]** {item.get('title', '?')}")
             parts.append(f"   - → {item.get('action', '?')}")
         parts.append("")
-    parts.append("## Loop funnel")
     sys.path.insert(0, str(REPO / "scripts"))
     import loop_funnel as lf  # noqa: E402
-    parts.append(lf.render(m["funnel"]).rstrip())
+    parts.append(lf.render(m["funnel"]).rstrip())  # render() carries its own "## Loop funnel"
     parts.append("")
     tick = m.get("tick") or {}
     sense = (tick.get("phases") or {}).get("sense") or {}
