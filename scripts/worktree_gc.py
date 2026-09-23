@@ -540,7 +540,9 @@ def audit_repo(repo: Path, with_size: bool = True) -> list[WorktreeRow]:
             # `git worktree prune` at the end of apply clears the registration.
             print(f"  (prunable: {wt} — registered, directory gone)")
             continue
-        st = run(["git", "status", "--porcelain"], cwd=wt)
+        # --no-optional-locks: a plain `git status` rewrites the index stat cache,
+        # which would reset the idle clock (index mtime) on every nightly audit.
+        st = run(["git", "--no-optional-locks", "status", "--porcelain"], cwd=wt)
         tracked_dirty = sum(
             1 for ln in st.stdout.splitlines() if not ln.startswith("??")
         )
@@ -664,6 +666,251 @@ def remove_worktree(repo: Path, wt: Path) -> None:
         raise RuntimeError(f"{wt} still on disk after removal")
     run(["git", "worktree", "prune"], cwd=repo)
 
+# ---------------------------------------------------------------------------
+# Archive-then-reap for stale dirty trees, and cache stripping for idle ones.
+#
+# The 2026-09-23 04:10 nightly listed 26 worktrees (19 genomics, ~18 GB) as
+# stale-dirty/skip-dirty and removed 0: lanes landed onto main by per-file patch
+# keep their uncommitted diff forever, and --force-stale discards it. Archiving
+# the diff + untracked files (with HEAD pinned under refs/wt-archive/) makes the
+# removal reversible, so idle age alone can gate it. Both options default OFF.
+# ---------------------------------------------------------------------------
+ARCHIVE_ROOT = Path.home() / ".local" / "share" / "worktree-archives"
+CACHE_DIRS: tuple[str, ...] = (".venv", ".uv-cache", "node_modules")
+STRIP_DIRS: tuple[str, ...] = (".venv", ".uv-cache")
+
+
+def _mtime(path: Path) -> float | None:
+    try:
+        return path.lstat().st_mtime
+    except OSError:
+        return None  # vanished between status and stat
+
+
+def idle_age_days(wt: Path, now: float | None = None) -> float:
+    """Days since the newest touch of any dirty path or the git-dir index/HEAD.
+
+    Last-commit age is deliberately NOT used: a detached lane sits on an old main
+    commit while someone edits it all day.
+    """
+    now = time.time() if now is None else now
+    # -uall: a collapsed `dir/` entry carries the directory's mtime, which editing a file
+    # inside it never bumps; list every untracked file so each edit counts as activity.
+    st = run(
+        ["git", "--no-optional-locks", "status", "--porcelain", "-z", "-uall"],
+        cwd=wt,
+    )
+    stamps: list[float] = []
+    entries = st.stdout.split("\0")
+    i = 0
+    while i < len(entries):
+        ent = entries[i]
+        i += 1
+        if len(ent) < 4:
+            continue
+        code, rel = ent[:2], ent[3:]
+        if "R" in code or "C" in code:
+            i += 1  # -z rename carries the source path as the next entry
+        m = _mtime(wt / rel)
+        if m is not None:
+            stamps.append(m)
+    gd = run(["git", "rev-parse", "--git-dir"], cwd=wt).stdout.strip()
+    if gd:
+        gdir = Path(gd) if Path(gd).is_absolute() else wt / gd
+        for name in ("index", "HEAD"):
+            m = _mtime(gdir / name)
+            if m is not None:
+                stamps.append(m)
+    if not stamps:
+        return 0.0  # unknown → treat as fresh (the safe direction)
+    return max(0.0, (now - max(stamps)) / 86400.0)
+
+
+def _under_cache(rel: str) -> bool:
+    return any(part in CACHE_DIRS for part in Path(rel).parts)
+
+
+def _write_patch(wt: Path, dest: Path) -> None:
+    # --no-ext-diff: the operator's diff.external=difft writes non-patches otherwise.
+    out = subprocess.run(
+        ["git", "diff", "--no-ext-diff", "--binary", "HEAD"],
+        cwd=wt,
+        capture_output=True,
+        check=True,
+    )
+    dest.write_bytes(out.stdout)
+
+
+def _archive_name(row: WorktreeRow) -> str:
+    """The leaf, qualified by its parent when the leaf is just the repo's name.
+
+    Codex lanes end in `<lane>/<repo>` (~/.codex/worktrees/<lane>/genomics), so the leaf
+    alone names every codex tree of a repo alike.
+    """
+    wt = row.path
+    return f"{wt.parent.name}--{wt.name}" if wt.name == row.repo else wt.name
+
+
+def _fresh_dir(base: Path) -> Path:
+    """Create and return base, else base-2, base-3 …: an archive is never written over.
+
+    A shared directory would let the second archive overwrite the first after the first
+    tree was already removed — the one irreversible outcome this path exists to prevent.
+    """
+    dest, n = base, 1
+    while True:
+        try:
+            dest.mkdir(parents=True)
+            return dest
+        except FileExistsError:
+            n += 1
+            dest = base.with_name(f"{base.name}-{n}")
+
+
+def _pin_ref(repo: Path, name: str, day: str, head: str) -> str:
+    base = f"refs/wt-archive/{name}-{day}"
+    ref, n = base, 1
+    while True:
+        cur = run(["git", "rev-parse", "--verify", "-q", ref], cwd=repo).stdout.strip()
+        if not cur or cur == head:
+            break
+        n += 1
+        ref = f"{base}-{n}"
+    run(["git", "update-ref", ref, head], cwd=repo, check=True)
+    return ref
+
+
+@dataclass
+class ArchiveResult:
+    dir: Path
+    ok: bool
+    reason: str = ""
+    patch_bytes: int = 0
+    untracked: int = 0
+    ref: str = ""
+
+
+def archive_worktree(
+    row: WorktreeRow, now: float | None = None, root: Path | None = None
+) -> ArchiveResult:
+    """Write a restorable archive of ``row`` and self-check it. Never removes.
+
+    Ignored files outside the cache dirs are not archived: the same contract as the SAFE
+    path, whose removal deletes them too.
+    """
+    now = time.time() if now is None else now
+    root = ARCHIVE_ROOT if root is None else root
+    wt = row.path
+    day = time.strftime("%Y-%m-%d", time.localtime(now))
+    name = _archive_name(row)
+    dest = _fresh_dir(root / row.repo / day / name)
+    head = run(["git", "rev-parse", "HEAD"], cwd=wt).stdout.strip()
+    (dest / "head.txt").write_text(head + "\n")
+    status = run(
+        ["git", "--no-optional-locks", "status", "--porcelain"], cwd=wt
+    ).stdout
+    (dest / "status.txt").write_text(status)
+    patch = dest / "tracked.patch"
+    _write_patch(wt, patch)
+    others = run(
+        ["git", "ls-files", "--others", "--exclude-standard", "-z"], cwd=wt
+    ).stdout.split("\0")
+    files = [f for f in others if f and not _under_cache(f)]
+    (dest / "untracked.list").write_text("".join(f + "\n" for f in files))
+    tgz = dest / "untracked.tgz"
+    if files:
+        subprocess.run(
+            ["tar", "-czf", str(tgz), "--null", "-T", "-"],
+            cwd=wt,
+            input="\0".join(files).encode(),
+            capture_output=True,
+            check=True,
+        )
+    (dest / "RESTORE.md").write_text(
+        f"# Restore {wt}\n\nArchived {day} from repo `{row.repo_root}`.\n\n```sh\n"
+        f"git -C {row.repo_root} worktree add --detach {wt} {head}\n"
+        f"git -C {wt} apply {patch}\n"
+        + (f"tar -xzf {tgz} -C {wt}\n" if files else "")
+        + "```\n"
+    )
+    res = ArchiveResult(
+        dir=dest, ok=False, patch_bytes=patch.stat().st_size, untracked=len(files)
+    )
+    if res.patch_bytes:
+        chk = run(["git", "apply", "--check", "-R", str(patch)], cwd=wt)
+        if chk.returncode != 0:
+            res.reason = f"patch does not reverse-apply: {chk.stderr.strip()[:160]}"
+            return res
+    if files:
+        listed = run(["tar", "-tzf", str(tgz)])
+        have = {ln.rstrip("/") for ln in listed.stdout.splitlines()}
+        missing = [f for f in files if f not in have]
+        if listed.returncode != 0 or missing:
+            res.reason = f"tarball missing {len(missing)} of {len(files)} entries"
+            return res
+    res.ref = _pin_ref(
+        row.repo_root, name, time.strftime("%Y%m%d", time.localtime(now)), head
+    )
+    res.ok = True
+    return res
+
+
+def _real_dir(path: Path) -> bool:
+    return not path.is_symlink() and path.is_dir()
+
+
+def strip_candidates(wt: Path) -> list[Path]:
+    """Real `.venv` / `.uv-cache` dirs; a symlink is never followed or deleted."""
+    return [wt / d for d in STRIP_DIRS if _real_dir(wt / d)]
+
+
+def strip_idle_caches(wt: Path) -> dict[str, str]:
+    sizes: dict[str, str] = {}
+    for p in strip_candidates(wt):
+        sizes[p.name] = _du(p)
+        if p.is_symlink():  # re-check immediately before deleting
+            continue
+        for sub in p.rglob("*"):
+            try:
+                if not sub.is_symlink():
+                    sub.chmod(sub.stat().st_mode | stat.S_IWUSR)
+            except OSError:
+                pass
+        shutil.rmtree(p, ignore_errors=True)
+    return sizes
+
+
+def plan_idle_actions(
+    rows: list[WorktreeRow],
+    archive_days: float | None,
+    strip_days: float | None,
+    keep: set[str],
+    exclude: list[WorktreeRow],
+    now: float | None = None,
+) -> tuple[list[WorktreeRow], list[WorktreeRow]]:
+    """(rows to archive+remove, rows to strip). Empty when both options are off."""
+    if archive_days is None and strip_days is None:
+        return [], []
+    archive: list[WorktreeRow] = []
+    strip: list[WorktreeRow] = []
+    for row in rows:
+        if row.held or row.daemon_held or any(k in str(row.path) for k in keep):
+            continue
+        if row in exclude or not row.path.exists():
+            continue
+        idle = idle_age_days(row.path, now)
+        if (
+            archive_days is not None
+            and row.classify() in ("stale-dirty", "skip-dirty")
+            and idle >= archive_days
+        ):
+            archive.append(row)
+            continue
+        if strip_days is not None and idle >= strip_days and strip_candidates(row.path):
+            strip.append(row)
+    return archive, strip
+
+
 
 def main() -> int:
     ap = argparse.ArgumentParser(
@@ -711,6 +958,22 @@ def main() -> int:
         "genuine-unmerged or reapable-DUP branches exist (skips du). Always exit 0.",
     )
     ap.add_argument("--no-size", action="store_true", help="skip du -sh (faster audit)")
+    ap.add_argument(
+        "--archive-stale-days",
+        type=float,
+        default=None,
+        metavar="N",
+        help="archive (patch + untracked tgz + pinned HEAD ref) then remove "
+        "stale-dirty/skip-dirty trees idle >= N days; audit marks would-archive",
+    )
+    ap.add_argument(
+        "--strip-idle-venvs-days",
+        type=float,
+        default=None,
+        metavar="N",
+        help="delete real .venv/.uv-cache dirs (never symlinks) in any non-held "
+        "tree idle >= N days; audit marks would-strip",
+    )
     args = ap.parse_args()
 
     with_size = not (args.no_size or args.check)
@@ -775,6 +1038,14 @@ def main() -> int:
         )
     ]
 
+    archive_rows, strip_rows = plan_idle_actions(
+        all_rows,
+        args.archive_stale_days,
+        args.strip_idle_venvs_days,
+        keep,
+        exclude=to_remove,
+    )
+
     for row in all_rows:
         cls = row.classify()
         mark = "→" if row in to_remove else " "
@@ -829,6 +1100,11 @@ def main() -> int:
         return 0
 
     if args.mode == "audit":
+        for row in archive_rows:
+            print(f"would-archive {row.path} ({row.classify()}, {row.repo})")
+        for row in strip_rows:
+            sizes = " ".join(f"{p.name}={_du(p)}" for p in strip_candidates(row.path))
+            print(f"would-strip {row.path} {sizes}")
         n_safe = sum(1 for r in all_rows if r.safe)
         n_dup = sum(1 for r in all_rows if r.classify() == "DUP")
         n_unmerged = sum(1 for r in all_rows if r.classify() == "unmerged")
@@ -864,6 +1140,37 @@ def main() -> int:
         except subprocess.CalledProcessError as e:
             print(f"FAIL {row.path}: {e.stderr or e}", file=sys.stderr)
 
+    archived = 0
+    for row in archive_rows:
+        try:
+            res = archive_worktree(row)
+        except (subprocess.CalledProcessError, OSError) as e:
+            print(f"HOLD {row.path}: archive self-check failed (archive error: {e})")
+            continue
+        if not res.ok:
+            print(f"HOLD {row.path}: archive self-check failed ({res.reason})")
+            continue
+        try:
+            remove_worktree(row.repo_root, row.path)
+        except (subprocess.CalledProcessError, RuntimeError) as e:
+            print(f"FAIL {row.path}: archived at {res.dir} but removal failed: {e}", file=sys.stderr)
+            continue
+        print(
+            f"ARCHIVED {row.path} -> {res.dir} (patch={res.patch_bytes}B "
+            f"untracked={res.untracked}) pinned={res.ref}"
+        )
+        archived += 1
+
+    stripped = 0
+    for row in strip_rows:
+        sizes = strip_idle_caches(row.path)
+        if sizes:
+            print(
+                f"STRIPPED {row.path} "
+                + " ".join(f"{k}={sizes.get(k, '-')}" for k in STRIP_DIRS)
+            )
+            stripped += 1
+
     # Stranded trees are no longer worktrees, so `git worktree remove` cannot touch them —
     # the directory is inert and the reclaim is a plain delete. Gated on the same evidence
     # the registered rows use: no live holder, no tracked edits, owning repo recovered.
@@ -894,6 +1201,13 @@ def main() -> int:
 
     print(
         f"\nremoved {removed}/{len(to_remove)} worktrees; reclaimed {reclaimed} stranded"
+        + (
+            f"; archived {archived}/{len(archive_rows)} (under {ARCHIVE_ROOT}); "
+            f"stripped {stripped}"
+            if args.archive_stale_days is not None
+            or args.strip_idle_venvs_days is not None
+            else ""
+        )
     )
     # Janitor effect-receipt (observe 2026-08-11 B3): principal = trees removed+reclaimed
     try:
@@ -901,8 +1215,11 @@ def main() -> int:
 
         write_receipt(
             "worktree_gc",
-            principal_metric=removed + reclaimed,
-            detail=f"removed={removed} reclaimed_stranded={reclaimed}",
+            principal_metric=removed + reclaimed + archived,
+            detail=(
+                f"removed={removed} reclaimed_stranded={reclaimed} "
+                f"archived={archived} stripped={stripped} archive_root={ARCHIVE_ROOT}"
+            ),
         )
     except Exception as e:  # never fail the GC over a receipt write
         print(f"janitor_receipt write skipped: {e}", file=sys.stderr)
