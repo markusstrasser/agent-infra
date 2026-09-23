@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Generate the compact governance index from the CANONICAL sources.
 
-The single-source substrate for curated-governance injection (critique) and
-governance clash-detection (ADR 2026-06-16-governance-clash-detection). Consumers
+The single-source substrate for curated-governance injection (critique). Governance
+clash-detection (ADR 2026-06-16-governance-clash-detection) also read it until its
+pre-registered CUT on 2026-09-23 (2 CLASH verdicts in 10 weeks). Consumers
 LOAD `.claude/governance-index.md`; none re-state governance (the shared-invariant
 rule — a re-stated copy is exactly the stale-noise anti-pattern this exists to kill).
 
@@ -85,7 +86,7 @@ def build_index(repo: Path) -> str:
     lines = [
         f"# Governance Index — {repo.name} (GENERATED — do not edit)",
         "",
-        "Compact single-source governance for curated injection + clash-detection.",
+        "Compact single-source governance for curated injection.",
         "Consumers LOAD this; never re-state it. Canonical: GOALS.md · CLAUDE.md"
         " <constitution> · .claude/rules/vetoed-decisions.md. Regen: `just governance-index`.",
         "",

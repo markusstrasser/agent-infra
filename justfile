@@ -1185,20 +1185,11 @@ refresh-maps:
 
 # Regenerate the compact governance index from the canonical sources (GOALS.md,
 # CLAUDE.md constitution, vetoed-decisions.md). Single source for curated-governance
-# injection + clash-detection; consumers LOAD it, never re-state it. Deterministic
+# injection; consumers LOAD it, never re-state it. Deterministic
 # (no git churn unless a source changed). `--check` fails if the on-disk copy is stale.
 [group('knowledge')]
 governance-index *args:
     uv run python3 scripts/build_governance_index.py --repo "$(pwd)" {{args}}
-
-# Offline governance clash-detection over captured directive-class user messages
-# (Phase 2 SHADOW, ADR 2026-06-16-governance-clash-detection). Judges captures against
-# .claude/governance-index.md, writes verdicts to ~/.claude/clash-shadow.jsonl — surfaces
-# NOTHING (measure precision on real messages before promoting to the human back-queue).
-# `just clash-detect` runs detection · `just clash-detect --summary` shows the tally.
-[group('knowledge')]
-clash-detect *args:
-    uv run python3 scripts/clash_detect.py --repo "$(pwd)" {{args}}
 
 # Focused "Questions for you" VIEW over the human-gated stores (decisions-pending +
 # steward-proposals) — the VIEW-not-STORE deliverable (ADR 2026-06-16-agent-question-
