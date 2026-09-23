@@ -8,8 +8,9 @@ code-review-scout's diff-as-context, wrong for repo-roaming scouts).
 
 Backends (read-only enforcement is structural, not prompt-trusted):
   cursor — `agent` CLI ask mode (read-only by mode), composer-2.5 default;
-           override with --scout-model (e.g. grok-4.5-xhigh for Grok 4.5 niche lens —
-           always pass an effort slug; bare grok-4.5 → fast-xhigh)
+           override with --scout-model to an exact live Cursor slug, e.g.
+           grok-4.7-high (4.7 carries no cursor- prefix; cursor-grok-4.6-high
+           still does). Bare grok-4.7 (no effort suffix) is Grok Build/xAI, not Cursor
   codex  — `codex exec -s read-only` (sandbox), config-default model (gpt-6-astra),
            effort defaults to `medium` (user-config xhigh blows scout timeouts)
   claude — `claude -p` headless: Write/Edit/arbitrary-Bash auto-DENIED in -p
