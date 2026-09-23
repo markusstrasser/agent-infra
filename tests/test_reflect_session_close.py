@@ -26,6 +26,10 @@ def paths(tmp_path, monkeypatch):
     monkeypatch.setattr(rsc, "DIGEST_LOG", digest)
     monkeypatch.setattr(rsc, "CAPTURE_LOG", capture)
     monkeypatch.setattr(rsc, "MAINTAIN", tmp_path / "MAINTAIN.md")
+    # The CLI scopes the bare --latest-digest and --ack to the invoking project (cwd
+    # basename); run as a closer inside the fixture digests' project.
+    (tmp_path / "agent-infra").mkdir()
+    monkeypatch.chdir(tmp_path / "agent-infra")
     return {"queue": queue, "digest": digest, "transcript": transcript}
 
 
@@ -244,6 +248,7 @@ class TestHindsightMode3:
                 "gap": "noop",
             }
         )
+        monkeypatch.chdir(tmp_path / "arc-agi")  # an arc-agi closer acks its own digest
         assert rsc.main(["--ack", "sess-h", "--hindsight", payload]) == 0
         err = capsys.readouterr().err
         assert "1 hindsight grade(s) appended" in err

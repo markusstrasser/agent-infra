@@ -24,6 +24,7 @@ from reflect_capture import (  # noqa: E402
     extract_corrections,
     extract_operator_dx_interventions,
     parse_events,
+    project_from_cwd,
     real_issue_signal,
 )
 
@@ -348,9 +349,9 @@ def resolve_session(key: str, rows: list[dict] | None = None) -> str:
     raise DigestLookupError(f"no close-digest for session {key!r}")
 
 
-def pending_digests(*, log: Path | None = None) -> list[dict]:
+def pending_digests(*, log: Path | None = None, project: str | None = None) -> list[dict]:
     """THE pending-close definition, oldest first: each session's latest digest.v1 row
-    that no ack closes (by full id or prefix).
+    that no ack closes (by full id or prefix); `project` narrows it to one project.
 
     Every surface loads this instead of re-stating it — the SessionStart nudge, the bare
     `--latest-digest`, `--ack-stale` and the loop funnel (control-plane "RSI close pending").
@@ -366,10 +367,14 @@ def pending_digests(*, log: Path | None = None) -> list[dict]:
             continue
         latest.pop(sid, None)  # re-insert: order follows each session's LATEST digest
         latest[sid] = row
-    return [row for sid, row in latest.items() if not _is_closed(sid, closed)]
+    return [
+        row
+        for sid, row in latest.items()
+        if not _is_closed(sid, closed) and (project is None or row.get("project") == project)
+    ]
 
 
-def latest_digest(session_id: str | None = None) -> dict | None:
+def latest_digest(session_id: str | None = None, *, project: str | None = None) -> dict | None:
     """Latest reflect.close-digest.v1 row — NEVER an ack.
 
     The digest log is a mixed event stream (digest.v1 + close-ack.v1 about the same
@@ -378,11 +383,13 @@ def latest_digest(session_id: str | None = None) -> dict | None:
     that selection so consumers load it instead of re-stating it.
 
     With session_id (full id or unique prefix): that session's latest digest, acked or
-    not (explicit ask); None when no digest matches; DigestLookupError when a prefix is
-    ambiguous. Without: the newest pending close (pending_digests()).
+    not (explicit ask, any project); None when no digest matches; DigestLookupError when
+    a prefix is ambiguous. Without: the newest pending close, in `project` when given —
+    the CLI passes the invoking project, so an arc-agi close never picks up another
+    project's claims (steward 2026-07-21).
     """
     if session_id is None:
-        pending = pending_digests()
+        pending = pending_digests(project=project)
         return pending[-1] if pending else None
     rows = _read_rows()
     try:
@@ -448,14 +455,28 @@ def operator_hindsight_from_digest(digest: dict, reflex: dict, *, grade: str) ->
     }
 
 
-def ack_digest(session_id: str, *, hindsight: dict | list[dict] | None = None) -> int:
+def ack_digest(
+    session_id: str,
+    *,
+    hindsight: dict | list[dict] | None = None,
+    here: str | None = None,
+) -> int:
     """Append rsi_closed marker; optionally append HINDSIGHT Mode 3 grade(s). Returns count appended.
 
     The ack is written under the FULL session id that `session_id` (full id or unique
     prefix) resolves to; an id naming no digest, or an ambiguous prefix, raises
     DigestLookupError and writes nothing (a prefix ack used to land as an inert row).
+    With `here`, a digest from another project is refused too: closing it means
+    verifying claims without that project's context (the CLI's --any-project lifts it).
     """
     sid = resolve_session(session_id)
+    if here is not None:
+        owner = str((latest_digest(sid) or {}).get("project") or "")
+        if owner != here:
+            raise DigestLookupError(
+                f"digest {sid} belongs to project {owner!r}, not {here!r} — close it from "
+                f"that project or pass --any-project"
+            )
     row = {
         "schema": ACK_SCHEMA,
         "session_id": sid,
@@ -518,9 +539,9 @@ def ack_stale_digests(older_than_days: int, *, note: str, dry_run: bool = False)
 
 
 def _current_project() -> str:
-    """Project asking for a nudge — cwd basename, matching the digest 'project' convention."""
+    """Project asking for a nudge/close — the capture path's own cwd → project mapping."""
     try:
-        return Path.cwd().name
+        return project_from_cwd(Path.cwd())
     except OSError:
         return ""
 
@@ -537,7 +558,7 @@ def pending_nudge(here: str | None = None) -> str | None:
         here = _current_project()
     if not here:
         return None
-    in_project = [row for row in pending_digests() if row.get("project") == here]
+    in_project = pending_digests(project=here)
     if not in_project:
         return None
     session_id = str(in_project[-1].get("session_id", ""))  # latest in-project wins
@@ -571,8 +592,13 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         metavar="SESSION_ID",
         help="Print latest close-digest row (never an ack): with SESSION_ID (full id or "
-        "unique prefix) that session's, bare/empty the latest pending one. Exit 1 if none "
-        "or if a prefix is ambiguous.",
+        "unique prefix) that session's, bare/empty the latest pending one in THIS project. "
+        "Exit 1 if none or if a prefix is ambiguous.",
+    )
+    parser.add_argument(
+        "--any-project",
+        action="store_true",
+        help="let the bare --latest-digest and --ack reach another project's digest",
     )
     parser.add_argument("--limit", type=int, default=10)
     parser.add_argument(
@@ -609,8 +635,9 @@ def main(argv: list[str] | None = None) -> int:
             except json.JSONDecodeError:
                 sys.stderr.write("[reflect-session-close] invalid --hindsight JSON\n")
                 return 1
+        here = None if args.any_project else _current_project()
         try:
-            n = ack_digest(args.ack, hindsight=hindsight)
+            n = ack_digest(args.ack, hindsight=hindsight, here=here)
         except DigestLookupError as exc:
             sys.stderr.write(f"[reflect-session-close] ack refused, nothing written: {exc}\n")
             return 1
@@ -620,13 +647,25 @@ def main(argv: list[str] | None = None) -> int:
             sys.stderr.write(f"[reflect-session-close] {n} hindsight grade(s) appended\n")
         return 0
     if args.latest_digest is not None:
+        here = None if args.any_project else _current_project()
         try:
-            digest = latest_digest(args.latest_digest or None)
+            digest = latest_digest(args.latest_digest or None, project=here)
         except DigestLookupError as exc:
             sys.stderr.write(f"[reflect-session-close] {exc}\n")
             return 1
         if digest is None:
-            sys.stderr.write("[reflect-session-close] no matching close-digest\n")
+            scope = "any project" if here is None else f"project {here!r}"
+            sys.stderr.write(f"[reflect-session-close] no matching close-digest ({scope})\n")
+            if args.latest_digest:
+                # /rsi close looks up the CURRENT session; a prior session's digest (the
+                # SessionStart-nudge case) would otherwise never be closed (steward 2026-08-18).
+                pending = pending_digests(project=here)
+                if pending:
+                    sid = pending[-1]["session_id"]
+                    sys.stderr.write(
+                        f"[reflect-session-close] pending in {scope}: {sid} "
+                        f"({str(pending[-1].get('ts', ''))[:10]}) — `--latest-digest {sid}`\n"
+                    )
             return 1
         print(json.dumps(digest, indent=2, default=str))
         return 0

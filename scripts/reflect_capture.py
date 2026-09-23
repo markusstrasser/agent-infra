@@ -454,6 +454,15 @@ def append_signals(session: str, project: str, signals: list[dict], ts: str) -> 
     return written
 
 
+def project_from_cwd(cwd: str | Path | None) -> str:
+    """The project a session belongs to: its cwd basename (the digest `project` field).
+
+    The one cwd → project mapping — reflect_session_close loads it to scope the nudge,
+    the bare `--latest-digest` and `--ack`, so both ends always agree.
+    """
+    return Path(cwd).name if cwd else "unknown"
+
+
 def main() -> int:
     try:
         raw = json.load(sys.stdin) if not sys.stdin.isatty() else {}
@@ -464,7 +473,7 @@ def main() -> int:
         transcript = payload.get("transcript_path") or ""
         session = (payload.get("session_id") or "unknown")[:36]
         cwd = payload.get("cwd") or ""  # coerce a null/missing cwd to ""
-        project = Path(cwd).name if cwd else "unknown"
+        project = project_from_cwd(cwd)
         ts = payload.get("timestamp") or _utc_now()
         if project not in TESTBED:
             return 0  # shadow scope: capture only on the test bed

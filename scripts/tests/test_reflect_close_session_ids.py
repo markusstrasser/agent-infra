@@ -36,6 +36,8 @@ def log(tmp_path, monkeypatch):
     monkeypatch.setattr(rsc, "DIGEST_LOG", path)
     monkeypatch.setattr(lf, "DIGEST_LOG", path)
     (tmp_path / "transcript.jsonl").write_text("{}\n", encoding="utf-8")
+    (tmp_path / "arc-agi").mkdir()
+    monkeypatch.chdir(tmp_path / "arc-agi")  # the closer runs inside the digests' project
     return path
 
 
