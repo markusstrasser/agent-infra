@@ -375,6 +375,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
+    { name = "httpx" },
     { name = "inspect-ai" },
     { name = "pydantic" },
 ]
@@ -387,6 +388,7 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "anthropic", specifier = ">=0.105.0" },
+    { name = "httpx", specifier = ">=0.28" },
     { name = "inspect-ai" },
     { name = "pydantic", specifier = ">=2" },
     { name = "pytest", marker = "extra == 'test'" },
