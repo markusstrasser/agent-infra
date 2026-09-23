@@ -154,3 +154,7 @@ agents always hold, times out, and aborts the job. The script's own header had r
 finding on 2026-06-10 and it kept running for six weeks. The prune now uses a 15 s timeout and
 is allowed to skip; the log prints a free-space delta so a future no-op is visible rather than
 silent.
+
+## Revisions
+
+- **2026-09-23** — pointer only: dotfiles history was rewritten to drop a committed API-key literal, so `0d97cb1` (Nightly GC row) is now `6ff14c5`. Full old→new map in improvement-log 2026-09-23 "DOTFILES-KEY-REWRITE".

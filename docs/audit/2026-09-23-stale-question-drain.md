@@ -877,3 +877,10 @@ predictions no longer reach the operator's queue (`b37183e`).
 **Scout accuracy.** 3 of 35 STILL-VALID verdicts were wrong in the same way: the scout checked
 whether the proposed mechanism existed, not whether the incident could still happen. The scout
 prompt now says so (agent-infra `questions_drain.py` step 4).
+
+## Operator answers (2026-09-23 12:20)
+
+- **intel-executive-tick:** "no" → REJECTED (steward file stamped; no scheduled autonomous intel session).
+- **S2 key literal in dotfiles:** "rewrite commit" → done; see improvement-log DOTFILES-KEY-REWRITE.
+- **Codex credits vs wait:** "wait" → the $0 intel subscription checks and the `--output-schema` retest run after the 2026-09-24 09:18 reset.
+- **Archive SSD / backups:** "later" → left with the operator.
