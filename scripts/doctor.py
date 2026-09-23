@@ -718,6 +718,32 @@ def check_metered_spend() -> list[Check]:
     return [c.ok(f"${spend:.2f} metered today ({calls} calls)")]
 
 
+def check_gemini_key_scope() -> list[Check]:
+    """Gemini is critique-only (operator 2026-07-14, reaffirmed 2026-09-23).
+
+    A fresh interactive shell must export only GEMINI_API_KEY_CRITIQUE_ONLY. The broad
+    names re-open direct google-genai spend; the sops store carries them and
+    ~/dotfiles/.zshrc unsets them after loading it, so this catches loader drift.
+    Reads names only, never values.
+    """
+    c = Check("gemini-key-scope", "global")
+    broad = ("GEMINI_API_KEY", "GOOGLE_API_KEY")
+    probe = "for v in " + " ".join(broad) + '; do [ -n "${(P)v}" ] && print $v; done; exit 0'
+    out = run(
+        [
+            "env", "-i", f"HOME={Path.home()}", f"USER={os.environ.get('USER', '')}",
+            "PATH=/usr/bin:/bin:/opt/homebrew/bin", "TERM=xterm", "zsh", "-i", "-c", probe,
+        ],
+        timeout=20,
+    )
+    if out is None:
+        return [c.ok("zsh probe unavailable — skipped")]
+    leaked = [word for word in out.split() if word in broad]
+    if leaked:
+        return [c.warn(f"fresh shells export {', '.join(leaked)}; Gemini is critique-only")]
+    return [c.ok("fresh shells export only the critique-scoped Gemini key")]
+
+
 def check_telemetry_freshness() -> list[Check]:
     """Detect silent hook failures by comparing transcript activity to receipt/log output."""
     checks = []
@@ -1192,6 +1218,7 @@ def run_all_checks(project_filter: str | None = None) -> list[Check]:
         all_checks.extend(check_telemetry_freshness())
         all_checks.extend(check_agentlogs_ingest_lag())
         all_checks.extend(check_metered_spend())
+        all_checks.extend(check_gemini_key_scope())
         all_checks.extend(check_test_health())
         all_checks.extend(check_orphaned_generators())
         all_checks.extend(check_orphaned_findings())
