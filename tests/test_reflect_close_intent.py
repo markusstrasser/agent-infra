@@ -27,15 +27,18 @@ def env(tmp_path, monkeypatch):
     return {"capture": capture, "queue": queue, "transcript": transcript}
 
 
-def test_main_enqueues_tier1_on_achieved_goal(env, monkeypatch):
+def test_main_enqueues_tier1_on_achieved_goal(env, monkeypatch, tmp_path):
     monkeypatch.setattr(rc, "TESTBED", {"agent-infra"})
+    # The project is the cwd basename; REPO_ROOT is "agent-<id>" inside a worktree.
+    project = tmp_path / "agent-infra"
+    project.mkdir()
     payload = {
         "session_id": "probe-session-001",
         "transcript_path": str(env["transcript"]),
-        "cwd": str(REPO_ROOT),
+        "cwd": str(project),
         "reason": "clear",
     }
-    sys.stdin = StringIO(json.dumps(payload))
+    monkeypatch.setattr(sys, "stdin", StringIO(json.dumps(payload)))
     rc.main()
     intent_path = env["queue"] / "probe-session-001.json"
     assert intent_path.exists()
