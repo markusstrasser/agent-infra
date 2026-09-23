@@ -764,6 +764,56 @@ def check_secret_env_scope() -> list[Check]:
     if problems:
         return [c.warn("; ".join(problems))]
     return [c.ok(f"{len(metered)} paid keys only as *_METERED; {len(dropped)} dropped names absent")]
+def check_mcp_venv_launch() -> list[Check]:
+    """MCP servers launched straight from a project venv need that venv complete.
+
+    Since 2026-09-23 the stdio servers start as <repo>/.venv/bin/<entry> instead of
+    `uv run --directory <repo>`, which re-synced at every session start and held the uv
+    cache lock. Nothing syncs these venvs at launch now, so a dependency added to a
+    lockfile without a `uv sync` would fail the server at import. `--inexact` ignores
+    extra packages (test deps), which don't matter for launching.
+    """
+    c = Check("mcp-venv-launch", "global")
+    commands: set[str] = set()
+    sources = [PROJECTS_DIR.glob("*/.mcp.json"), [Path.home() / ".claude.json"]]
+    for source in sources:
+        for cfg in source:
+            try:
+                servers = json.loads(cfg.read_text()).get("mcpServers", {})
+            except (OSError, json.JSONDecodeError):
+                continue
+            commands.update(s.get("command", "") for s in servers.values() if isinstance(s, dict))
+    codex = Path.home() / ".codex/config.toml"
+    if codex.exists():
+        import tomllib
+
+        try:
+            servers = tomllib.loads(codex.read_text()).get("mcp_servers", {})
+            commands.update(s.get("command", "") for s in servers.values() if isinstance(s, dict))
+        except tomllib.TOMLDecodeError:
+            pass
+    roots: dict[Path, list[str]] = {}
+    for command in commands:
+        if "/.venv/bin/" in command:
+            root = Path(command.split("/.venv/bin/")[0])
+            roots.setdefault(root, []).append(command)
+    if not roots:
+        return [c.ok("no MCP server launches from a project venv")]
+    problems = []
+    for root, cmds in sorted(roots.items()):
+        missing = [cmd for cmd in cmds if not os.access(cmd, os.X_OK)]
+        if missing:
+            problems.append(f"{root.name}: missing {', '.join(Path(m).name for m in missing)}")
+            continue
+        out = subprocess.run(
+            ["uv", "sync", "--check", "--inexact", "--directory", str(root)],
+            capture_output=True, text=True, timeout=60,
+        )
+        if out.returncode != 0:
+            problems.append(f"{root.name}: venv behind its lockfile (run `uv sync` there)")
+    if problems:
+        return [c.warn("; ".join(problems))]
+    return [c.ok(f"{len(roots)} MCP venvs complete for their lockfiles")]
 
 
 def check_telemetry_freshness() -> list[Check]:
@@ -1241,6 +1291,7 @@ def run_all_checks(project_filter: str | None = None) -> list[Check]:
         all_checks.extend(check_agentlogs_ingest_lag())
         all_checks.extend(check_metered_spend())
         all_checks.extend(check_secret_env_scope())
+        all_checks.extend(check_mcp_venv_launch())
         all_checks.extend(check_test_health())
         all_checks.extend(check_orphaned_generators())
         all_checks.extend(check_orphaned_findings())
