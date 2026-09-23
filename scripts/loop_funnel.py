@@ -107,6 +107,8 @@ def metrics() -> dict:
         "quarantine_pending": len(quarantine),
         "steward_proposals": steward,
         "rsi_close_pending": len(rsi),
+        # closes lost because the transcript expired first — the honest-denominator loss
+        "rsi_close_expired": len(rsc.expired_digests(log=DIGEST_LOG)),
         "close_queue_open": close_queue_open(),
         "fm_evidence_rows": fm_evidence,
         "disposition_queue": disposition,
@@ -123,7 +125,8 @@ def render(m: dict) -> str:
         f"(unclassified: **{m['unclassified']}**)",
         f"- quarantine pending: **{m['quarantine_pending']}** · "
         f"steward proposals: **{m['steward_proposals']}** · "
-        f"RSI close pending: **{m['rsi_close_pending']}**",
+        f"RSI close pending: **{m['rsi_close_pending']}** "
+        f"(expired unverifiable: {m.get('rsi_close_expired', 0)})",
         f"- disposition queue (human): **{m['disposition_queue']}** · "
         f"FM evidence rows: **{m['fm_evidence_rows']}**",
     ]

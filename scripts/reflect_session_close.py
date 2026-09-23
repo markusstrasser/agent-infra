@@ -8,6 +8,7 @@ or manually. No LLM — digest is structured facts for /rsi close skill.
 
 from __future__ import annotations
 
+import fcntl
 import json
 import sys
 from datetime import datetime, timedelta, timezone
@@ -16,6 +17,10 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+# The transcript-prune horizon: the weekly agentlogs-archive job runs
+# `archive_raw_logs.py --apply` at this default, moving raw transcripts older than it
+# off ~/.claude/projects. A digest past it has lost its /rsi close verify path.
+from archive_raw_logs import DEFAULT_KEEP_DAYS as TRANSCRIPT_HORIZON_DAYS  # noqa: E402
 from goal_state import (  # noqa: E402
     slice_transcript_to_episode,
     tier1_eligible,
@@ -32,6 +37,7 @@ CLOSE_QUEUE = Path.home() / ".claude" / "close-queue"
 DIGEST_LOG = Path.home() / ".claude" / "reflect-close-digest.jsonl"
 DIGEST_SCHEMA = "reflect.close-digest.v1"
 ACK_SCHEMA = "reflect.close-ack.v1"
+EXPIRED_REASON = "expired_unverifiable"
 # Shortest session-id prefix accepted: the SessionStart nudge used to print 8-char ids,
 # and closers paste those back into --latest-digest / --ack.
 MIN_ID_PREFIX = 8
@@ -271,13 +277,9 @@ class DigestLookupError(LookupError):
         self.candidates = candidates or []
 
 
-def _read_rows(log: Path | None = None) -> list[dict]:
-    """Every parseable row of the digest log (digest.v1 and close-ack.v1 interleaved)."""
-    path = DIGEST_LOG if log is None else log
-    if not path.exists():
-        return []
+def _parse_rows(text: str) -> list[dict]:
     rows: list[dict] = []
-    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+    for line in text.splitlines():
         try:
             row = json.loads(line)
         except (json.JSONDecodeError, ValueError):
@@ -285,6 +287,14 @@ def _read_rows(log: Path | None = None) -> list[dict]:
         if isinstance(row, dict):
             rows.append(row)
     return rows
+
+
+def _read_rows(log: Path | None = None) -> list[dict]:
+    """Every parseable row of the digest log (digest.v1 and close-ack.v1 interleaved)."""
+    path = DIGEST_LOG if log is None else log
+    if not path.exists():
+        return []
+    return _parse_rows(path.read_text(encoding="utf-8", errors="replace"))
 
 
 def _id_key(raw: object) -> str:
@@ -349,14 +359,39 @@ def resolve_session(key: str, rows: list[dict] | None = None) -> str:
     raise DigestLookupError(f"no close-digest for session {key!r}")
 
 
-def pending_digests(*, log: Path | None = None, project: str | None = None) -> list[dict]:
-    """THE pending-close definition, oldest first: each session's latest digest.v1 row
-    that no ack closes (by full id or prefix); `project` narrows it to one project.
+def _parse_ts(raw: object) -> datetime | None:
+    try:
+        ts = datetime.fromisoformat(str(raw or ""))
+    except ValueError:
+        return None
+    return ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)
 
-    Every surface loads this instead of re-stating it — the SessionStart nudge, the bare
-    `--latest-digest`, `--ack-stale` and the loop funnel (control-plane "RSI close pending").
+
+def verify_path(digest: dict, now: datetime | None = None) -> dict:
+    """Can /rsi close still verify this digest against its session transcript?
+
+    No once the transcript is gone from `transcript_path`, or once the digest is older
+    than the transcript-prune horizon — the archive job takes the transcript then, and
+    every surface uses the same clock whether or not that job has run yet.
     """
-    rows = _read_rows(log)
+    now = now or datetime.now(timezone.utc)
+    path = str(digest.get("transcript_path") or "")
+    exists = bool(path) and Path(path).is_file()
+    ts = _parse_ts(digest.get("ts"))
+    age = round((now - ts).total_seconds() / 86400, 1) if ts else None
+    past_horizon = age is not None and age > TRANSCRIPT_HORIZON_DAYS
+    why = "transcript gone" if not exists else ("past the transcript horizon" if past_horizon else "")
+    return {
+        "expired": bool(why),
+        "why": why,
+        "transcript_exists": exists,
+        "age_days": age,
+        "horizon_days": TRANSCRIPT_HORIZON_DAYS,
+    }
+
+
+def _scan(rows: list[dict], now: datetime | None = None) -> tuple[list[dict], list[tuple[dict, dict]]]:
+    """(pending, expired) over each session's latest un-acked digest, in log order."""
     closed = _closed_keys(rows)
     latest: dict[str, dict] = {}
     for row in rows:
@@ -367,11 +402,77 @@ def pending_digests(*, log: Path | None = None, project: str | None = None) -> l
             continue
         latest.pop(sid, None)  # re-insert: order follows each session's LATEST digest
         latest[sid] = row
-    return [
-        row
-        for sid, row in latest.items()
-        if not _is_closed(sid, closed) and (project is None or row.get("project") == project)
-    ]
+    pending: list[dict] = []
+    expired: list[tuple[dict, dict]] = []
+    for sid, row in latest.items():
+        if _is_closed(sid, closed):
+            continue
+        verdict = verify_path(row, now)
+        if verdict["expired"]:
+            expired.append((row, verdict))
+        else:
+            pending.append(row)
+    return pending, expired
+
+
+def _mark_expired(path: Path, now: datetime) -> int:
+    """Append one `expired_unverifiable` ack per digest whose verify path is gone.
+
+    Append-only: the digest row stays; the ack stops every nudge/listing and records why.
+    The log is re-read under an exclusive lock, so concurrent SessionStart sweeps cannot
+    write the same expiry twice.
+    """
+    with path.open("a+", encoding="utf-8") as fh:
+        fcntl.flock(fh, fcntl.LOCK_EX)
+        try:
+            fh.seek(0)
+            _, expired = _scan(_parse_rows(fh.read()), now)
+            stamp = now.isoformat(timespec="seconds")
+            for row, verdict in expired:
+                ack = {
+                    "schema": ACK_SCHEMA,
+                    "session_id": str(row["session_id"]),
+                    "rsi_closed": True,
+                    "reason": EXPIRED_REASON,
+                    "why": verdict["why"],
+                    "project": row.get("project"),
+                    "digest_ts": row.get("ts"),
+                    "transcript_path": row.get("transcript_path") or "",
+                    "transcript_exists": verdict["transcript_exists"],
+                    "age_days": verdict["age_days"],
+                    "horizon_days": verdict["horizon_days"],
+                    "ts": stamp,
+                }
+                fh.write(json.dumps(ack, ensure_ascii=False) + "\n")
+            fh.flush()
+        finally:
+            fcntl.flock(fh, fcntl.LOCK_UN)
+    return len(expired)
+
+
+def pending_digests(
+    *, log: Path | None = None, project: str | None = None, sweep: bool = True
+) -> list[dict]:
+    """THE pending-close definition, oldest first: each session's latest digest.v1 row
+    that no ack closes (by full id or prefix) and that is still verifiable; `project`
+    narrows it to one project.
+
+    Every surface loads this instead of re-stating it — the SessionStart nudge, the bare
+    `--latest-digest`, `--ack-stale` and the loop funnel (control-plane "RSI close pending").
+    Listing is where unverifiable digests expire: with `sweep` (default) each one gets an
+    `expired_unverifiable` ack appended; without it they are only left out (dry runs).
+    """
+    path = DIGEST_LOG if log is None else log
+    now = datetime.now(timezone.utc)
+    pending, expired = _scan(_read_rows(path), now)
+    if sweep and expired:
+        _mark_expired(path, now)
+    return [row for row in pending if project is None or row.get("project") == project]
+
+
+def expired_digests(*, log: Path | None = None) -> list[dict]:
+    """The `expired_unverifiable` ack rows — closes the loop lost to transcript expiry."""
+    return [row for row in _read_rows(log) if row.get("reason") == EXPIRED_REASON]
 
 
 def latest_digest(session_id: str | None = None, *, project: str | None = None) -> dict | None:
@@ -505,18 +606,14 @@ def ack_stale_digests(older_than_days: int, *, note: str, dry_run: bool = False)
     2026-07-06) nagged every SessionStart while no session ever ran /rsi close on them.
     The ack row carries ``reason: stale-unreviewed`` so the ledger never reads these as
     verified closes — a labeled screen, not a silent substitute (2026-09-02 queue freeze).
-    Returns the digests acked (or, with dry_run, the ones that would be).
+    Returns the digests acked (or, with dry_run, the ones that would be). Digests whose
+    verify path is already gone expire as `expired_unverifiable` first and are not listed.
     """
     cutoff = datetime.now(timezone.utc) - timedelta(days=older_than_days)
     stale: list[dict] = []
-    for row in pending_digests():
-        try:
-            ts = datetime.fromisoformat(str(row.get("ts", "")))
-        except ValueError:
-            continue
-        if ts.tzinfo is None:
-            ts = ts.replace(tzinfo=timezone.utc)
-        if ts >= cutoff:
+    for row in pending_digests(sweep=not dry_run):
+        ts = _parse_ts(row.get("ts"))
+        if ts is None or ts >= cutoff:
             continue
         stale.append(
             {"session_id": str(row["session_id"]), "project": row.get("project"), "digest_ts": row.get("ts")}
@@ -552,7 +649,8 @@ def pending_nudge(here: str | None = None) -> str | None:
     Cross-project digests are not SessionStart noise — drain via `/rsi close` or
     `just loop-funnel` when the operator chooses. The queue is still drained by
     whichever session runs `/rsi close`; this governs only the unprompted nudge.
-    Prints the FULL session id so the closer's `--ack` needs no prefix resolution.
+    Prints the FULL session id so the closer's `--ack` needs no prefix resolution, and the
+    date the digest stops being verifiable (it then expires instead of nagging).
     """
     if here is None:
         here = _current_project()
@@ -561,9 +659,15 @@ def pending_nudge(here: str | None = None) -> str | None:
     in_project = pending_digests(project=here)
     if not in_project:
         return None
-    session_id = str(in_project[-1].get("session_id", ""))  # latest in-project wins
+    digest = in_project[-1]  # latest in-project wins
+    session_id = str(digest.get("session_id", ""))
+    ts = _parse_ts(digest.get("ts"))
+    window = ""
+    if ts is not None:
+        until = (ts + timedelta(days=TRANSCRIPT_HORIZON_DAYS)).date().isoformat()
+        window = f" from {ts.date().isoformat()} (verifiable until {until})"
     return (
-        f"Prior {here} session {session_id} has an RSI close digest. "
+        f"Prior {here} session {session_id} has an RSI close digest{window}. "
         f"Run `/rsi close` to verify one claim and attach evidence."
     )
 
@@ -668,6 +772,14 @@ def main(argv: list[str] | None = None) -> int:
                     )
             return 1
         print(json.dumps(digest, indent=2, default=str))
+        verdict = verify_path(digest)
+        if verdict["expired"]:
+            # Only an explicit id reaches here: the bare lookup never returns one of these.
+            sys.stderr.write(
+                f"[STALE-DIGEST: {verdict['why']} — digest {verdict['age_days']}d old, "
+                f"transcript horizon {verdict['horizon_days']}d; verify path degraded to "
+                f"git/agentlogs]\n"
+            )
         return 0
     if args.nudge:
         nudge = pending_nudge()
