@@ -716,32 +716,54 @@ def check_metered_spend() -> list[Check]:
     if spend >= 10:
         return [c.warn(f"${spend:.2f} metered today ({calls} calls){who}")]
     return [c.ok(f"${spend:.2f} metered today ({calls} calls)")]
+def check_secret_env_scope() -> list[Check]:
+    """Paid LLM keys only as <NAME>_METERED; risky and unused keys out of the shell.
 
-
-def check_gemini_key_scope() -> list[Check]:
-    """Gemini is critique-only (operator 2026-07-14, reaffirmed 2026-09-23).
-
-    A fresh interactive shell must export only GEMINI_API_KEY_CRITIQUE_ONLY. The broad
-    names re-open direct google-genai spend; the sops store carries them and
-    ~/dotfiles/.zshrc unsets them after loading it, so this catches loader drift.
-    Reads names only, never values.
+    The one definition is ~/dotfiles/scripts/secret-env-policy.sh, sourced by
+    ~/dotfiles/.zshrc right after the sops store loads (2026-09-23; it absorbed the
+    2026-07-14 Gemini critique-only unset). SDKs read the standard names on their own,
+    so a leak re-opens silent API spend. Probes a fresh interactive shell and the
+    ~/.env names that dotenv loaders walk up to. Reads names only, never values.
     """
-    c = Check("gemini-key-scope", "global")
-    broad = ("GEMINI_API_KEY", "GOOGLE_API_KEY")
-    probe = "for v in " + " ".join(broad) + '; do [ -n "${(P)v}" ] && print $v; done; exit 0'
-    out = run(
-        [
-            "env", "-i", f"HOME={Path.home()}", f"USER={os.environ.get('USER', '')}",
-            "PATH=/usr/bin:/bin:/opt/homebrew/bin", "TERM=xterm", "zsh", "-i", "-c", probe,
-        ],
-        timeout=20,
+    c = Check("secret-env-scope", "global")
+    policy = Path.home() / "dotfiles/scripts/secret-env-policy.sh"
+    if not policy.exists():
+        return [c.warn(f"{policy} missing; every stored key reaches every shell")]
+    base = [
+        "env", "-i", f"HOME={Path.home()}", f"USER={os.environ.get('USER', '')}",
+        "PATH=/usr/bin:/bin:/opt/homebrew/bin", "TERM=xterm", "zsh",
+    ]
+    names = run(
+        base + ["-c", f'source "{policy}"; print -r -- $SECRET_METERED_KEYS; '
+                      "print -r -- $SECRET_DROPPED_KEYS"],
+        timeout=10,
     )
+    if not names or len(names.splitlines()) != 2:
+        return [c.warn("could not read the key lists from secret-env-policy.sh")]
+    metered_line, dropped_line = names.splitlines()
+    metered, dropped = metered_line.split(), dropped_line.split()
+    watched = metered + dropped
+    probe = "for v in " + " ".join(watched) + '; do [ -n "${(P)v}" ] && print $v; done; exit 0'
+    out = run(base + ["-i", "-c", probe], timeout=20)
     if out is None:
         return [c.ok("zsh probe unavailable — skipped")]
-    leaked = [word for word in out.split() if word in broad]
+    problems = []
+    leaked = [word for word in out.split() if word in watched]
     if leaked:
-        return [c.warn(f"fresh shells export {', '.join(leaked)}; Gemini is critique-only")]
-    return [c.ok("fresh shells export only the critique-scoped Gemini key")]
+        problems.append(f"fresh shells export {', '.join(leaked)}")
+    dotenv = Path.home() / ".env"
+    if dotenv.exists():
+        in_file = {
+            line.removeprefix("export ").split("=", 1)[0].strip()
+            for line in dotenv.read_text().splitlines()
+            if "=" in line and not line.lstrip().startswith("#")
+        }
+        standard = sorted(in_file & set(metered))
+        if standard:
+            problems.append(f"~/.env still names {', '.join(standard)} (dotenv walkers load it)")
+    if problems:
+        return [c.warn("; ".join(problems))]
+    return [c.ok(f"{len(metered)} paid keys only as *_METERED; {len(dropped)} dropped names absent")]
 
 
 def check_telemetry_freshness() -> list[Check]:
@@ -1218,7 +1240,7 @@ def run_all_checks(project_filter: str | None = None) -> list[Check]:
         all_checks.extend(check_telemetry_freshness())
         all_checks.extend(check_agentlogs_ingest_lag())
         all_checks.extend(check_metered_spend())
-        all_checks.extend(check_gemini_key_scope())
+        all_checks.extend(check_secret_env_scope())
         all_checks.extend(check_test_health())
         all_checks.extend(check_orphaned_generators())
         all_checks.extend(check_orphaned_findings())
