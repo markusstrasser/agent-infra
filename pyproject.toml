@@ -12,7 +12,7 @@ dependencies = [
     "google-genai>=2.8.0",
     "inspect-ai>=0.3.0",
     "llmx",
-    "openai>=2.26.0,<3",
+    "openai>=3.19.0",
     "parallel-web>=0.4.0",
 ]
 
