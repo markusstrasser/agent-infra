@@ -153,6 +153,16 @@ def check_settings_json(path: Path, scope: str) -> list[Check]:
 
                 # Find the script file — may be the command itself or an argument to bash/python3
                 script_token = next((p for p in parts if p.endswith((".sh", ".py"))), None)
+                # `python3 x.py` / `bash x.sh` / `uv run python3 x.py` never need the
+                # executable bit — only a script run as the command itself does.
+                runner = (
+                    [p for p in parts[: parts.index(script_token)] if "=" not in p]
+                    if script_token else []
+                )
+                interpreted = any(
+                    os.path.basename(p) in {"python", "python3", "bash", "sh", "zsh", "node"}
+                    for p in runner
+                )
                 if script_token:
                     script_token = bind_inline(script_token)
                 if script_token:
@@ -165,7 +175,7 @@ def check_settings_json(path: Path, scope: str) -> list[Check]:
                     hc = Check(f"hook:{event}:{script.name}", scope)
                     if not script.exists():
                         checks.append(hc.fail(f"Script missing: {script}"))
-                    elif not os.access(script, os.X_OK):
+                    elif not interpreted and not os.access(script, os.X_OK):
                         checks.append(hc.fail(f"Not executable: {script}"))
                     else:
                         checks.append(hc.ok())
