@@ -21,13 +21,14 @@ Robustness (the HOWs the cross-model critique confirmed):
   - envelope:      the Question dataclass renders uniformly across feeders (#15)
   - dedup:         by stable id (source,ref) + cross-feeder prompt-normalized (#20)
 
-The clash-feeder (category: governance, from `~/.claude/clash-shadow.jsonl`) is a THIRD
-feeder GATED on shadow precision (ADR 2026-06-16-governance-clash-detection). The seam
-exists (include_clash=, reads promoted=true rows ONLY) but is dormant+inert until the gate
-opens — nothing is promoted yet, so include_clash=True is a verified no-op today.
+DUE predictions are AGENT work (operator 2026-09-23: only non-software decisions reach
+the human). They populate `agent_verdicts`, which `questions_drain` works through and the
+human section never renders; pulse still lists them under "Predictions due". The gated
+clash feeder was removed 2026-09-23 when clash detection was cut per its pre-registered
+rule (2 CLASH verdicts in 10 weeks).
 
 Envelope placement: kept HERE, not lifted to scripts/common/, on purpose. The proven-common
-bar is ≥2 *real* consumers; today there is 1 (this view) + 1 dormant seam (clash). Lift to
+bar is ≥2 *real* consumers; today there is 1 (this view). Lift to
 scripts/common/question_envelope.py the moment a 2nd independent consumer needs the contract
 (no speculative extraction — .claude/rules/vetoed-decisions.md).
 """
@@ -53,7 +54,6 @@ STEWARD_DIR = Path.home() / ".claude" / "steward-proposals"
 # to the top of its category — never auto-hidden (append-only; the genomics
 # 2026-04-16 proposals had sat invisible for 2 months).
 STALE_DAYS = 30
-CLASH_LOG = Path.home() / ".claude" / "clash-shadow.jsonl"
 # HUMAN.md feeder (plan e3eceeaf-ai-python-pattern-integration): per-repo escalation
 # outboxes are a READ-ONLY feeder — wakeup-cadence.md always said so; the code now agrees.
 # Depth ≤2 by design; lowercase human.md variants are out of scope (unverified class).
@@ -67,14 +67,14 @@ HUMAN_CONSUMED_CUTOFF = "2026-07-19"
 CAT_ORDER = ("governance", "goal", "tool", "hook")
 CAT_LABEL = {"governance": "Governance", "goal": "Goals", "tool": "Tools", "hook": "Hooks"}
 SOURCE_LABEL = {"decisions-pending": "decision", "steward-proposals": "steward",
-                "predictions": "prediction", "clash": "clash", "human-md": "human"}
+                "predictions": "prediction", "human-md": "human"}
 
 
 # ── The envelope (the VIEW's lingua franca) ──────────────────────────────────
 @dataclass(frozen=True)
 class Question:
     id: str        # stable hash over (source, ref) — idempotent across runs (#20)
-    source: str    # decisions-pending | steward-proposals | clash
+    source: str    # decisions-pending | steward-proposals | predictions | human-md
     category: str  # goal | tool | hook | governance (#15)
     prompt: str    # the actual question to the human
     created: str   # ISO date (YYYY-MM-DD) from filename / field / mtime
@@ -93,6 +93,9 @@ class ViewResult:
     # `questions` on purpose: pulse's questions_count / JSON `count` mean OPERATOR
     # questions only (critique fold-in #2). Advisory signal: "agent claimed", not verified.
     awaiting_agent: list[Question] = field(default_factory=list)
+    # DUE prediction verdicts — agent work, never counted or rendered as operator
+    # questions; questions_drain processes them (operator 2026-09-23).
+    agent_verdicts: list[Question] = field(default_factory=list)
 
 
 # ── small pure helpers (testable in isolation) ───────────────────────────────
@@ -299,10 +302,9 @@ def _collect_dir(d: Path, parser, *, skip: set[str], feeder: str, result: ViewRe
 
 
 def _collect_predictions(result: ViewResult) -> None:
-    """DUE pre-registered predictions (predictions.py) — each is a verdict the human owes
-    (confirmed/refuted/partial). Imported, NOT re-derived: predictions.due_predictions()
-    owns the DUE rule (single-source). The surfacing moved here from drift-sentinel so all
-    human-gated verdicts converge in this one VIEW."""
+    """DUE pre-registered predictions (predictions.py) — each is a verdict an AGENT owes
+    (confirmed/refuted/partial); they go to `agent_verdicts`, not `questions`.
+    Imported, NOT re-derived: predictions.due_predictions() owns the DUE rule."""
     try:
         import predictions  # scripts/ is on path (conftest / uv run / act_drain insert)
         due = predictions.due_predictions()
@@ -314,7 +316,7 @@ def _collect_predictions(result: ViewResult) -> None:
         if not pid:
             continue
         change = p.get("change") or _truncate(p.get("prediction", ""), 80) or pid
-        result.questions.append(Question(
+        result.agent_verdicts.append(Question(
             id=make_id("predictions", pid),
             source="predictions",
             category="governance",
@@ -322,37 +324,6 @@ def _collect_predictions(result: ViewResult) -> None:
             created=p.get("check_date", ""),
             ref=f"predictions.jsonl#{pid}",
             detail=_truncate(f"predict: {p.get('prediction', '')}", 130),
-        ))
-
-
-def _collect_clash(result: ViewResult) -> None:
-    """GATED feeder — promoted clash-shadow rows become governance questions. Dormant:
-    reads ONLY rows with promoted=true, and nothing is promoted until `just clash-detect
-    --summary` shows precision holds (ADR 2026-06-16-governance-clash-detection). Inert today."""
-    if not CLASH_LOG.exists():
-        return
-    try:
-        lines = CLASH_LOG.read_text(encoding="utf-8", errors="replace").splitlines()
-    except OSError as e:
-        result.degraded.append(f"[DEGRADED: clash-shadow unreadable — {type(e).__name__}]")
-        return
-    for ln in lines:
-        try:
-            row = json.loads(ln)
-        except (json.JSONDecodeError, ValueError):
-            continue
-        if not row.get("promoted"):
-            continue  # THE GATE — only human-promoted clashes surface as questions
-        item = row.get("item") or row.get("clash_with") or "a governance principle"
-        ts = str(row.get("ts", ""))
-        result.questions.append(Question(
-            id=make_id("clash", ts + str(row.get("message", ""))[:40]),
-            source="clash",
-            category="governance",
-            prompt=_truncate(f"Your request clashes with: {item} — override (retire it) or reconsider?", 200),
-            created=ts[:10],
-            ref=_short(str(CLASH_LOG)),
-            detail=f"msg: {_truncate(str(row.get('message', '')), 90)}",
         ))
 
 
@@ -439,9 +410,8 @@ def _collect_human_md(result: ViewResult, *, root: Path | None = None) -> None:
 
 def _dedup(questions: list[Question]) -> list[Question]:
     """Dedup by stable id, then by normalized prompt across feeders. More-structured
-    sources win (decisions-pending > steward > clash)."""
-    rank = {"decisions-pending": 0, "steward-proposals": 1, "predictions": 2, "clash": 3,
-            "human-md": 4}
+    sources win (decisions-pending > steward > predictions > human-md)."""
+    rank = {"decisions-pending": 0, "steward-proposals": 1, "predictions": 2, "human-md": 3}
     seen_id: set[str] = set()
     seen_prompt: set[str] = set()
     out: list[Question] = []
@@ -458,7 +428,7 @@ def _dedup(questions: list[Question]) -> list[Question]:
     return out
 
 
-def collect_questions(repo: str | Path = REPO, *, include_clash: bool = False) -> ViewResult:
+def collect_questions(repo: str | Path = REPO) -> ViewResult:
     result = ViewResult()
     _collect_dir(
         Path(repo) / "decisions-pending", _parse_decision,
@@ -470,8 +440,6 @@ def collect_questions(repo: str | Path = REPO, *, include_clash: bool = False) -
     )
     _collect_predictions(result)
     _collect_human_md(result)
-    if include_clash:
-        _collect_clash(result)
     result.questions = _collapse_superseded(_dedup(result.questions))
     return result
 
@@ -553,13 +521,11 @@ def main() -> int:
     ap.add_argument("--repo", default=str(REPO))
     ap.add_argument("--json", action="store_true", help="structured form (the machine lane)")
     ap.add_argument("--output", help="write section to file (atomic temp+rename)")
-    ap.add_argument("--include-clash", action="store_true",
-                    help="GATED: include promoted clash-shadow rows (dormant until shadow precision proven)")
     ap.add_argument("--stale", action="store_true",
                     help=f"only items unactioned >{STALE_DAYS}d (the questions-drain work-list)")
     args = ap.parse_args()
 
-    result = collect_questions(args.repo, include_clash=args.include_clash)
+    result = collect_questions(args.repo)
     if args.stale:
         result.questions = [q for q in result.questions if is_stale(q)]
     if args.json:
@@ -572,6 +538,7 @@ def main() -> int:
             "count": len(result.questions),
             "awaiting_agent": [asdict(q) for q in result.awaiting_agent],
             "awaiting_count": len(result.awaiting_agent),
+            "agent_verdicts": [asdict(q) for q in result.agent_verdicts],
         }, indent=2))
         return 0
 

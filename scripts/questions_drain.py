@@ -64,8 +64,9 @@ RECOMMENDED: keep | resolve-moot | resolve-superseded — one clause why
 
 
 def _stale_items(repo: Path) -> list[questions_view.Question]:
+    """Stale operator questions plus every DUE prediction verdict (agent work, any age)."""
     result = questions_view.collect_questions(repo)
-    return [q for q in result.questions if questions_view.is_stale(q)]
+    return [q for q in result.questions if questions_view.is_stale(q)] + result.agent_verdicts
 
 
 def _dispatch_one(

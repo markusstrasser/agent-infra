@@ -2,7 +2,7 @@
 
 Covers the 5 robustness HOWs the cross-model critique confirmed (ADR
 2026-06-16-agent-question-convergence): envelope id stability, parser-robustness
-(skip+count), fail-loud feeder errors, dedup, and the dormant-inert clash seam.
+(skip+count), fail-loud feeder errors, dedup, and the agent lane for due predictions.
 """
 
 import sys
@@ -17,11 +17,10 @@ import questions_view as qv  # noqa: E402
 
 @pytest.fixture(autouse=True)
 def _isolate_ambient_feeders(monkeypatch, tmp_path):
-    """Hermetic by default: don't let the real predictions.jsonl / clash-shadow.jsonl leak
+    """Hermetic by default: don't let the real predictions.jsonl leak
     into count assertions. Tests that exercise those feeders override these explicitly."""
     import predictions
     monkeypatch.setattr(predictions, "LEDGER", tmp_path / "_no_predictions.jsonl")
-    monkeypatch.setattr(qv, "CLASH_LOG", tmp_path / "_no_clash.jsonl")
     monkeypatch.setattr(qv, "HUMAN_MD_ROOT", tmp_path / "_no_projects")
     monkeypatch.setattr(qv, "STEWARD_DIR", tmp_path / "_no_steward")
 
@@ -132,36 +131,6 @@ def test_dedup_cross_feeder_structured_wins():
     assert len(out) == 1 and out[0].source == "decisions-pending"  # structured source wins
 
 
-# ── clash seam: dormant + inert today, but works when promoted=true (#gate) ──
-def test_clash_seam_inert_without_promotion(tmp_path, monkeypatch):
-    log = tmp_path / "clash-shadow.jsonl"
-    log.write_text('{"ts":"2026-06-16T00:00:00Z","item":"some veto","message":"do X","promoted":false}\n')
-    monkeypatch.setattr(qv, "CLASH_LOG", log)
-    monkeypatch.setattr(qv, "STEWARD_DIR", tmp_path / "no-steward")
-    result = qv.collect_questions(tmp_path / "no-decisions", include_clash=True)
-    assert result.questions == []  # nothing promoted → inert
-
-
-def test_clash_seam_fires_when_promoted(tmp_path, monkeypatch):
-    log = tmp_path / "clash-shadow.jsonl"
-    log.write_text('{"ts":"2026-06-16T00:00:00Z","item":"PyMC veto","message":"add PyMC","promoted":true}\n')
-    monkeypatch.setattr(qv, "CLASH_LOG", log)
-    monkeypatch.setattr(qv, "STEWARD_DIR", tmp_path / "no-steward")
-    result = qv.collect_questions(tmp_path / "no-decisions", include_clash=True)
-    assert len(result.questions) == 1
-    q = result.questions[0]
-    assert q.source == "clash" and q.category == "governance" and "PyMC veto" in q.prompt
-
-
-def test_clash_off_by_default(tmp_path, monkeypatch):
-    log = tmp_path / "clash-shadow.jsonl"
-    log.write_text('{"ts":"2026-06-16T00:00:00Z","item":"v","message":"m","promoted":true}\n')
-    monkeypatch.setattr(qv, "CLASH_LOG", log)
-    monkeypatch.setattr(qv, "STEWARD_DIR", tmp_path / "no-steward")
-    result = qv.collect_questions(tmp_path / "no-decisions")  # include_clash defaults False
-    assert result.questions == []
-
-
 # ── render: grouping + empty contract ────────────────────────────────────────
 def test_render_groups_and_header(tmp_path, monkeypatch):
     dp = tmp_path / "decisions-pending"
@@ -178,7 +147,7 @@ def test_render_empty_is_none():
     assert qv.render_section(qv.ViewResult()) is None
 
 
-# ── predictions feeder: DUE predictions converge into the VIEW (single-sourced) ──
+# ── predictions feeder: DUE predictions are agent work (agent_verdicts lane) ──
 def test_predictions_feeder_due_only(tmp_path, monkeypatch):
     import json as _json
 
@@ -194,7 +163,8 @@ def test_predictions_feeder_due_only(tmp_path, monkeypatch):
     monkeypatch.setattr(predictions, "LEDGER", ledger)
     monkeypatch.setattr(qv, "STEWARD_DIR", tmp_path / "no-steward")
     result = qv.collect_questions(tmp_path / "no-decisions")
-    preds = [q for q in result.questions if q.source == "predictions"]
+    assert not [q for q in result.questions if q.source == "predictions"]  # agent work, not operator
+    preds = result.agent_verdicts
     assert len(preds) == 1  # only the DUE (past) one; the future one is not due
     assert "past change" in preds[0].prompt and preds[0].category == "governance"
 
@@ -213,7 +183,7 @@ def test_predictions_resolved_excluded(tmp_path, monkeypatch):
     monkeypatch.setattr(predictions, "LEDGER", ledger)
     monkeypatch.setattr(qv, "STEWARD_DIR", tmp_path / "no-steward")
     result = qv.collect_questions(tmp_path / "no-decisions")
-    assert not [q for q in result.questions if q.source == "predictions"]  # resolved → not DUE
+    assert not result.agent_verdicts  # resolved → not DUE
 
 
 # ── stale predicate + drain hint (plan 17d2a35c-middle-manager-harvests) ────
@@ -354,3 +324,23 @@ def test_human_md_absent_root_silent(tmp_path, monkeypatch):
     monkeypatch.setattr(qv, "HUMAN_MD_ROOT", tmp_path / "nowhere")
     result = qv.collect_questions(tmp_path)
     assert result.degraded == [] and result.questions == []
+
+
+def test_agent_verdicts_never_render_as_operator_questions():
+    """Operator 2026-09-23: only non-software decisions reach the human section."""
+    verdict = qv.Question(id="p1", source="predictions", category="governance",
+                          prompt="Resolve prediction: X — confirmed or refuted?",
+                          created="2020-01-01", ref="predictions.jsonl#p1")
+    assert qv.render_section(qv.ViewResult(agent_verdicts=[verdict])) is None
+
+
+def test_drain_work_list_includes_due_predictions(monkeypatch, tmp_path):
+    import questions_drain as qd
+    verdict = qv.Question(id="p1", source="predictions", category="governance",
+                          prompt="Resolve prediction: X", created="2026-09-20",
+                          ref="predictions.jsonl#p1")
+    fresh_op = qv.Question(id="s1", source="steward-proposals", category="hook",
+                           prompt="fresh", created="2099-01-01", ref="s.md")
+    monkeypatch.setattr(qd.questions_view, "collect_questions",
+                        lambda repo: qv.ViewResult(questions=[fresh_op], agent_verdicts=[verdict]))
+    assert qd._stale_items(tmp_path) == [verdict]  # due verdict at any age; fresh operator item not stale
