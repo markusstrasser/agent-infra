@@ -298,9 +298,11 @@ def compute_mcp_delta(repo: str, repo_dir: Path) -> tuple[dict[str, dict], list[
             if sid in overrides:
                 should_emit = True
             else:
+                # Print the raw specs: the compared ones have ${VAR} expanded, and
+                # printing those put a live Exa key into a transcript (2026-09-23).
                 drift.append(
                     f"{sid}: .mcp.json differs from ~/.codex global "
-                    f"(project={_sig_for_compare(spec)} global={_sig_for_compare(glob[sid])}) — not overriding"
+                    f"(project={_sig(spec)} global={_sig(glob[sid])}) — not overriding"
                 )
         if should_emit:
             missing = missing_required_env(spec)

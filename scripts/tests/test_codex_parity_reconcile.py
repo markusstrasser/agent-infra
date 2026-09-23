@@ -44,3 +44,19 @@ def test_changed_delta_rewrites_whole_file(tmp_path: Path) -> None:
     assert "brave-search" not in text
 
     assert cps.reconcile_mcp_config(cfg, {"duckdb": STDIO}, check=True) == ("in sync", False)
+
+
+def test_divergence_note_never_prints_expanded_secrets(tmp_path: Path, monkeypatch) -> None:
+    """2026-09-23: the note printed the ${VAR}-expanded URL, i.e. a live Exa key."""
+    monkeypatch.setenv("EXA_API_KEY", "sentinel-live-key")
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    project_url = "https://mcp.exa.ai/mcp?exaApiKey=${EXA_API_KEY}&tools=a"
+    (repo / ".mcp.json").write_text(
+        '{"mcpServers": {"exa": {"type": "http", "url": "' + project_url + '"}}}'
+    )
+    monkeypatch.setattr(cps, "load_global_mcp", lambda: {"exa": {"url": "https://mcp.exa.ai/mcp?tools=a"}})
+    _, drift = cps.compute_mcp_delta("repo", repo)
+    assert drift, "the specs differ, so a divergence note is expected"
+    assert not any("sentinel-live-key" in note for note in drift)
+    assert any("${EXA_API_KEY}" in note for note in drift)
