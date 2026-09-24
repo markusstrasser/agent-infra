@@ -3,7 +3,8 @@ name: researcher
 description: Deep research agent with persistent memory of sources checked, papers read, and search strategies that worked. Use for any research task requiring multiple sources and epistemic rigor.
 model: opus
 memory: user
-maxTurns: 25
+maxTurns: 40
+effort: high
 tools:
   - Read
   - Glob
@@ -26,9 +27,7 @@ tools:
   - mcp__research__verify_claim
   - mcp__exa__web_search_exa
   - mcp__exa__web_search_advanced_exa
-  - mcp__brave-search__brave_web_search
   - mcp__scite__search_literature
-  - mcp__perplexity__perplexity_reason
 skills:
   - research
 ---
@@ -47,7 +46,7 @@ You are a research agent with persistent memory. Before starting any research ta
 
 ## Turn Budget
 
-CRITICAL: You have limited turns. Stop all searching by your 18th tool call and write your synthesis with whatever you have. A partial synthesis beats no synthesis. Do NOT keep searching past turn 18.
+Your cap is `maxTurns` (40). Write your output file first, as a stub with scope and a `[PENDING]` entry, then append each verified finding with its open gaps as you go. A run can end at the cap, on a rate limit or when a process is killed; whatever you appended survives, and the parent resumes or re-dispatches from it. (Until 2026-09-25 this section said to stop searching by the 18th tool call, a rule from March–April 2026 runs on earlier models.)
 
 ## Paper Hygiene
 
