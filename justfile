@@ -667,7 +667,7 @@ maintain-tick *args:
     uv run python3 scripts/maintain_tick.py {{args}}
 
 # Parallel read-only scouts → docs/audit/*.md. Pass-through: --backend cursor,codex
-# --model grok-4.5-xhigh (Grok niche lens on cursor backend).
+# --model grok-4.7-xhigh (Grok niche lens on cursor backend).
 [group('epistemic')]
 adversarial-debug-scout repo scope='recent' *args='':
     uv run python3 scripts/debug_scout.py {{repo}} --scope {{scope}} {{args}}
@@ -675,7 +675,7 @@ adversarial-debug-scout repo scope='recent' *args='':
 # Memo-driven wave loop: cheap cursor scouts find+verify off a shared audit memo until dry.
 # Fire-and-forget (background it). Knobs: --max-waves --workers --scouts-per-wave
 # --verifier cursor|opus|none · --scout-backend cursor|codex|claude[,…]
-# Grok 4.5 lens (named niche): --scout-backend cursor --scout-model grok-4.5-xhigh
+# Grok 4.7 lens (named niche): --scout-backend cursor --scout-model grok-4.7-xhigh
 # (not a separate backend — cursor ask-mode with model override).
 [group('epistemic')]
 debug-until-dry repo scope='recent' *args='':

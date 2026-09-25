@@ -28,7 +28,7 @@ Usage:
   debug_until_dry.py /path/to/repo --scout-backend cursor,codex   # mixed wave (lens diversity)
   debug_until_dry.py /path/to/repo --scout-backend cursor --scout-model grok-4.7-high  # Grok niche
   debug_until_dry.py /path/to/repo --verifier opus --dry-stop 2
-  debug_until_dry.py /path/to/repo --verifier codex --verifier-model gpt-5.6-sol
+  debug_until_dry.py /path/to/repo --verifier codex --verifier-model gpt-6-sol
   debug_until_dry.py /path/to/repo --dry-run        # trace the loop, no token spend
 """
 

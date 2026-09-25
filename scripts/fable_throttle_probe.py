@@ -43,8 +43,8 @@ import argparse, json, random, re, subprocess, sys, time
 from datetime import datetime, timezone
 from pathlib import Path
 
-FABLE = "claude-fable-5"
-REFERENCE = "claude-opus-4-8"  # never throttled — controls intrinsic task difficulty
+FABLE = "claude-fable-5-1"
+REFERENCE = "claude-opus-5-5"  # never throttled — controls intrinsic task difficulty
 MIN_EFFECT = 0.10              # pre-registered minimum detectable throttle effect
 LOG = Path(__file__).resolve().parent.parent / "artifacts" / "fable_throttle_probe.jsonl"
 
