@@ -18,8 +18,9 @@ def _candidates(db: sqlite3.Connection) -> list[tuple[str, str, int]]:
     rows = db.execute(
         "SELECT e.event_id, e.text, s.session_pk "
         "FROM events e JOIN runs r USING(run_id) JOIN sessions s USING(session_pk) "
-        "WHERE s.vendor='codex' AND e.kind='user_message' "
-        "AND e.role='user' AND e.vendor_kind='message' AND e.text IS NOT NULL"
+        "WHERE e.kind='user_message' AND e.role='user' AND e.text IS NOT NULL "
+        "AND ((s.vendor='codex' AND e.vendor_kind='message') "
+        "OR (s.vendor='cursor' AND e.vendor_kind='user'))"
     )
     return [
         (str(row[0]), str(row[1]), int(row[2]))

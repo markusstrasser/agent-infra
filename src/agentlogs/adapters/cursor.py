@@ -4,6 +4,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from ..authorship import is_injected_user_text
 from .common import (
     DiscoveredSource,
     EventRow,
@@ -104,7 +105,7 @@ def parse_source(source: DiscoveredSource) -> ParsedSource:
                             seq=len(bundle.events) + 1,
                             ts=None,
                             kind="user_message",
-                            vendor_kind="user",
+                            vendor_kind="meta_injected" if is_injected_user_text(text) else "user",
                             role="user",
                             text=text,
                             payload=obj,

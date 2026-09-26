@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 
-# Codex emits these harness envelopes with role="user" even though the operator
-# did not author them. This is a correctness boundary for taste/prior-context
+# Codex and Cursor emit these harness envelopes with role="user" even though the
+# operator did not author them. This is a correctness boundary for taste/prior-context
 # mining, so adapters and exporters load one definition rather than restating it.
+# Measured 2026-09-26 over research-project rollouts (June-September): subagent
+# notifications (782), automation heartbeats (481), goal continuations (31), skill
+# bodies (20), in-app browser state (13), hook prompts (7), interrupt notices (4).
 INJECTED_USER_PREFIXES = (
     "# AGENTS.md instructions for ",
     "<codex_delegation>",
@@ -17,6 +20,16 @@ INJECTED_USER_PREFIXES = (
     "<plugins_instructions>",
     "<environment_context>",
     "<recommended_plugins>",
+    "<subagent_notification>",
+    "<heartbeat>",
+    "<codex_internal_context",
+    "<skill>",
+    "<in-app-browser-context",
+    "<hook_prompt",
+    "<turn_aborted>",
+    # Cursor background-task completion and subagent roster
+    "Briefly inform the user about the task result",
+    "<available_subagent_types>",
 )
 
 
