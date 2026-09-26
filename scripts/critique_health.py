@@ -46,6 +46,8 @@ def _norm(s: str) -> str:
 
 def _family(model: str) -> str:
     m = model.lower()
+    if "gemini" in m and "3.8" in m:
+        return "gemini-3.8-flash"
     if "gemini" in m and "3.5" in m:
         return "gemini-3.5-flash"
     if "gemini" in m and "3.1-pro" in m:
@@ -54,6 +56,8 @@ def _family(model: str) -> str:
         return "gemini-3-flash"
     if "gemini" in m:
         return "gemini-other"
+    if "gpt-6" in m:
+        return "gpt-6"
     if "gpt-5.6" in m:
         return "gpt-5.6"
     if "gpt" in m:
