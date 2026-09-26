@@ -90,17 +90,21 @@ def is_operator_authored(obj: dict) -> bool:
          (task-notification, peer, auto-continuation → not operator);
       3. headless dispatch → not operator: entrypoint "sdk-*" (`claude -p`) or
          promptSource "sdk"/"system" — the dispatcher wrote that prompt;
-      4. unstamped frames (NON_OPERATOR_PREFIXES) → not operator.
+      4. harness frames (NON_OPERATOR_PREFIXES) → not operator, stamped or not:
+         Claude Code stamps local-command stdout echoes ("Goal set: …",
+         "Compacted …") origin.kind == "human" (measured 2026-09-26, arc-agi
+         c0549792 and 3 more sessions).
     """
     texts = [t for t in user_texts(obj) if isinstance(t, str) and t.strip()]
     if not texts:
         return False
     origin = obj.get("origin")
     if isinstance(origin, dict) and origin.get("kind"):
-        return origin["kind"] == "human"
-    if str(obj.get("entrypoint") or "").startswith("sdk"):
+        if origin["kind"] != "human":
+            return False
+    elif str(obj.get("entrypoint") or "").startswith("sdk"):
         return False
-    if obj.get("promptSource") in ("sdk", "system"):
+    elif obj.get("promptSource") in ("sdk", "system"):
         return False
     head = " ".join(texts).lstrip()
     return not (head.startswith(NON_OPERATOR_PREFIXES) or "<task-notification>" in head[:200])

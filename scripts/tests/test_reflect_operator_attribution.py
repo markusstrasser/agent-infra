@@ -115,6 +115,13 @@ class TestIsOperatorAuthored:
         assert not pred(_user('<teammate-message teammate_id="x">hi</teammate-message>'))
         assert not pred(_user("<local-command-caveat>Caveat: local commands</local-command-caveat>"))
 
+    def test_human_stamped_harness_frame_is_not_operator(self):
+        # Claude Code stamps local-command stdout echoes origin.kind == "human".
+        pred = self._pred()
+        assert not pred(_user(
+            "<local-command-stdout>Goal set: @GOAL.md</local-command-stdout>", **OPERATOR_STAMP
+        ))
+
     def test_legacy_unstamped_operator_text_still_counts(self):
         pred = self._pred()
         assert pred(_user("#f you skipped the bridge step"))
