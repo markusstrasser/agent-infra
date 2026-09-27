@@ -70,17 +70,25 @@ def extract_title(path: Path) -> str:
 
 
 def parse_research_index(path: Path) -> dict[str, dict]:
-    """Parse existing research index table into {filename: {topic, consult_before}}."""
+    """Parse existing research index table into {filename: {topic, consult_before}}.
+
+    A memo can hold two rows: a hand-written one and the TODO row this generator
+    added. The curated row wins, so a regeneration never drops its description.
+    """
     entries = {}
     if not path.exists():
         return entries
     for line in path.read_text().splitlines():
         m = re.match(r'^\|\s*`([^`]+\.md)`\s*\|\s*(.*?)\s*\|\s*(.*?)\s*\|$', line)
         if m:
-            entries[m.group(1)] = {
+            entry = {
                 "topic": m.group(2).strip(),
                 "consult_before": m.group(3).strip(),
             }
+            prior = entries.get(m.group(1))
+            if prior and prior["consult_before"] != "TODO" and entry["consult_before"] == "TODO":
+                continue
+            entries[m.group(1)] = entry
     return entries
 
 
