@@ -610,7 +610,9 @@ def check_janitor_receipts() -> list[Check]:
     return checks
 
 
-def check_agentlogs_archive_recency() -> list[Check]:
+def check_agentlogs_archive_recency(
+    root: Path = Path("/Volumes/2TBPNY/agentlogs-archive"),
+) -> list[Check]:
     """The weekly keep-everything archive (agentlogs-*.db.zst on 2TBPNY) went stale.
 
     Retention safety depends on archive cadence (weekly) < prune retention (30d);
@@ -618,10 +620,11 @@ def check_agentlogs_archive_recency() -> list[Check]:
     unrecoverable. Warn at >14d (two missed weeks), fail at >24d (approaching the
     30d prune window). Skips cleanly when the volume isn't mounted."""
     c = Check("agentlogs-archive-recency", "global")
-    root = Path("/Volumes/2TBPNY/agentlogs-archive")
     if not root.is_dir():
         return [c.warn("2TBPNY not mounted — archive recency unverifiable (plug in the SSD)")]
-    snaps = sorted(root.glob("agentlogs-*.db.zst"))
+    # Only the weekly run's dated names: one-off copies (agentlogs-vacuumed-…,
+    # agentlogs-legacy-…) sort after digits and read as the newest snapshot.
+    snaps = sorted(root.glob("agentlogs-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].db.zst"))
     if not snaps:
         return [c.fail(f"no agentlogs-*.db.zst snapshots in {root}")]
     age_days = (time.time() - snaps[-1].stat().st_mtime) / 86400
