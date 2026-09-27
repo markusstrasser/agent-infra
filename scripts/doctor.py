@@ -686,6 +686,40 @@ def check_agentlogs_ingest_lag() -> list[Check]:
     return [c.ok(msg)]
 
 
+def check_agentlogs_session_roles(db_path: Path | None = None) -> list[Check]:
+    """Do new Claude, Codex and Cursor sessions still get a session_role?
+
+    The adapters read each vendor's own origin stamp (Claude entrypoint, Codex
+    session_meta source, the Cursor CLI chat store). If a vendor renames a stamp, new
+    sessions land NULL (undetermined) and every operator-filtered consumer silently
+    drops them. The proxy this replaced was wrong both ways for months (agent-infra
+    db09487). Window: 3 days back to 6 hours ago; older NULLs are transcripts past
+    retention, and a fresh session can be NULL until its parent transcript lands."""
+    c = Check("agentlogs-session-roles", "global")
+    db_path = db_path or CLAUDE_DIR / "agentlogs.db"
+    if not db_path.exists():
+        return [c.warn("agentlogs.db absent — nothing to index yet")]
+    now = datetime.now(timezone.utc)
+    window = ((now - timedelta(days=3)).strftime("%Y-%m-%dT%H:%M:%S"),
+              (now - timedelta(hours=6)).strftime("%Y-%m-%dT%H:%M:%S"))
+    try:
+        con = open_db_ro(db_path)
+        rows = con.execute(
+            "SELECT vendor, COUNT(*), SUM(session_role IS NULL) FROM sessions "
+            "WHERE vendor IN ('claude', 'codex', 'cursor') AND start_ts >= ? AND start_ts < ? "
+            "GROUP BY vendor",
+            window,
+        ).fetchall()
+    except Exception as exc:  # noqa: BLE001 — health check must not crash doctor
+        return [c.warn(f"unreadable: {str(exc)[:80]}")]
+    missing = [(vendor, int(null), int(n)) for vendor, n, null in rows if null]
+    if not missing:
+        return [c.ok(f"{sum(int(n) for _, n, _ in rows)} sessions (3d) all have a role")]
+    detail = ", ".join(f"{vendor} {null}/{n}" for vendor, null, n in missing)
+    return [c.warn(f"sessions without a session_role: {detail} — did a vendor change its "
+                   "origin stamp? see session_role() in src/agentlogs/adapters/")]
+
+
 def check_metered_spend() -> list[Check]:
     """Surface today's genuinely-billed (transport==api) llmx spend across ALL surfaces.
 
@@ -1299,6 +1333,7 @@ def run_all_checks(project_filter: str | None = None) -> list[Check]:
         all_checks.extend(check_stale_agents())
         all_checks.extend(check_telemetry_freshness())
         all_checks.extend(check_agentlogs_ingest_lag())
+        all_checks.extend(check_agentlogs_session_roles())
         all_checks.extend(check_metered_spend())
         all_checks.extend(check_secret_env_scope())
         all_checks.extend(check_mcp_venv_launch())
