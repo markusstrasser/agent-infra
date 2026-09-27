@@ -162,3 +162,8 @@ Call time summed to 2.9 hours across parallel lanes. Per 1,000 output tokens, Op
 - the §6 rebuild line, which now also needs `second/compare.py agg` and `machine_prompts.py scan` before `build_reference.py`.
 
 Rejected: resampling Luna as the recall check (the baseline shows it finds almost nothing new) and a new signature from single-session frames.
+
+### 2026-09-27 (evening): the origin gap fixed at the source
+
+- **Root cause fixed.** The operator approved the proposal, and agentlogs now records each session's origin as `session_role` (agent-infra `db09487`). The Cursor gap was one case of a wider one. `is_subagent = 0` passed about 2,500 scripted Claude, Codex and Cursor sessions as the operator's, and flagged his 65 sessions that used the Agent tool as subagents. Separately, the Claude adapter stored 1,216 of 2,100 harness lines in his sessions as his turns (`e840e0c`).
+- **No change to this memo's numbers.** The pipeline read Claude and Codex from raw transcripts with the shared operator predicate, whose logic moved but did not change. It also filtered Cursor script text itself. `operator_prompts_export` now takes Cursor rows by role, so `machine_prompts.py` is a cross-check rather than the only filter.
