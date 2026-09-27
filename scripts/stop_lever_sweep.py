@@ -116,10 +116,23 @@ def checklist(cwd: Path, *, project: str = "") -> str:
     else:
         lines.append("  (unavailable / timeout)")
 
+    # The operator's usual thought steps, next in this project's rotation. --peek: this
+    # checklist also runs in shadow mode, and recording draws the model never saw would
+    # rotate them away unconsidered; the agent logs what it acts on.
+    deck = _run(["operator-deck", "next", "--peek", "--n", "2", "--project", project], cwd=cwd)
+    lines.append("")
+    lines.append("Operator's usual thought steps (next in this project's rotation):")
+    steps = [ln for ln in deck.splitlines() if re.match(r"^(\d+\.|   (When|Do):)", ln)]
+    if steps:
+        lines.extend(f"  {ln.strip()}" for ln in steps)
+    else:
+        lines.append("  (operator-deck unavailable)")
+
     lines.append("")
     lines.append(
         "Before stopping: list 1–3 reversible probes you have NOT run this session "
-        "(experiments, transcript reads, parallel portfolio items). If none, say why."
+        "(experiments, transcript reads, parallel portfolio items), or do the thought "
+        "step above whose When holds and `operator-deck log` it. If none, say why."
     )
     return "\n".join(lines)
 
