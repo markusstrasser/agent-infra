@@ -132,7 +132,7 @@ def observe(
           FROM sessions s
           JOIN runs r ON r.session_pk = s.session_pk
          WHERE s.start_ts >= datetime('now', ?)
-           AND s.is_subagent = 0
+           AND s.session_role = 'operator'
            AND s.project_slug = ?
          GROUP BY s.session_pk
         """,

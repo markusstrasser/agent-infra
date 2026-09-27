@@ -222,7 +222,7 @@ def recent_sessions(
         SELECT
             session_pk, session_uuid, vendor, project_slug,
             start_ts, duration_min, model,
-            CASE WHEN is_subagent = 1 THEN 'subagent' ELSE 'operator' END AS role,
+            COALESCE(session_role, 'undetermined') AS role,
             first_message
         FROM sessions
         WHERE 1=1
@@ -234,10 +234,11 @@ def recent_sessions(
     if project:
         sql += " AND project_slug = ?"
         params.append(project)
-    if role == "operator":
-        sql += " AND is_subagent = 0"
-    elif role == "subagent":
-        sql += " AND is_subagent = 1"
+    if role == "undetermined":
+        sql += " AND session_role IS NULL"
+    elif role:
+        sql += " AND session_role = ?"
+        params.append(role)
     sql += " ORDER BY COALESCE(start_ts, indexed_at) DESC LIMIT ?"
     params.append(limit)
     return list(db.execute(sql, params))

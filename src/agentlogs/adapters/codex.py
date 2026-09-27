@@ -154,6 +154,7 @@ def parse_source(source: DiscoveredSource) -> ParsedSource:
         vendor_session_id=session_id,
         project_root=project_root,
         project_slug=project_slug,
+        role=session_role(source_payload, originator),
     )
     bundle.sessions.append(session)
     mcp_servers = sorted({row.mcp_server for row in tool_calls.values() if row.mcp_server})
@@ -489,12 +490,30 @@ def _tool_name(value: object) -> str:
     return str(value)
 
 
+def session_role(source: object, originator: str | None) -> str | None:
+    """sessions.session_role from the rollout's session_meta (source, originator).
+
+    Codex stamps source "cli" (TUI) or "vscode" (IDE/desktop) for a person, "exec"
+    (`codex exec`) or "mcp" (driven as an MCP server) for a program, and a
+    {"subagent": ...} object for a thread it spawned. originator "codex_exec" marks
+    exec runs that predate the source field.
+    """
+    transport = _source_transport(source)
+    if transport and transport.startswith("subagent"):
+        return "subagent"
+    if transport in ("exec", "mcp") or originator == "codex_exec":
+        return "dispatch"
+    if transport in ("cli", "vscode"):
+        return "operator"
+    return None
+
+
 def _source_transport(value: object) -> str | None:
     if isinstance(value, str):
         return value
     if not isinstance(value, dict):
         return None
-    thread_spawn = value.get("subagent", {}).get("thread_spawn")
+    thread_spawn = _thread_spawn(value)
     if isinstance(thread_spawn, dict):
         return "subagent.thread_spawn"
     if value.get("type"):
@@ -503,10 +522,16 @@ def _source_transport(value: object) -> str | None:
     return ".".join(keys) if keys else None
 
 
+def _thread_spawn(source: dict) -> object:
+    # a unit subagent kind serializes as a bare string ({"subagent": "review"})
+    sub = source.get("subagent")
+    return sub.get("thread_spawn") if isinstance(sub, dict) else None
+
+
 def _parent_run_id(value: object) -> str | None:
     if not isinstance(value, dict):
         return None
-    thread_spawn = value.get("subagent", {}).get("thread_spawn")
+    thread_spawn = _thread_spawn(value)
     if not isinstance(thread_spawn, dict):
         return None
     parent_thread_id = thread_spawn.get("parent_thread_id")

@@ -13,7 +13,8 @@ Raw sources, not agentlogs.db: the DB lacks Claude's origin/entrypoint stamps
   Claude  ~/.claude/projects/-Users-alien-Projects-<p>*/*.jsonl  + SSD archive
   Codex   ~/.codex/sessions/**/rollout-*.jsonl                  + SSD archive
           (interactive originators only; codex_exec dispatches dropped)
-  Cursor  agentlogs.db (cursor-agent <user_query> rows)
+  Cursor  agentlogs.db (<user_query> rows of IDE sessions; session_role
+          drops scripted `cursor-agent -p` runs)
 
 Authorship uses the shared predicates: scripts/common/transcript_text
 .is_operator_authored for Claude, agentlogs.authorship.is_injected_user_text
@@ -272,7 +273,7 @@ def scan_cursor(project: str, col: Collector, stats: Counter) -> None:
         """
         SELECT s.session_uuid, e.ts, e.kind, e.text FROM events e
         JOIN runs r ON r.run_id = e.run_id JOIN sessions s ON s.session_pk = r.session_pk
-        WHERE s.vendor = 'cursor' AND s.project_slug = ? AND s.is_subagent = 0
+        WHERE s.vendor = 'cursor' AND s.project_slug = ? AND s.session_role = 'operator'
           AND e.kind IN ('user_message', 'assistant_message') AND e.text IS NOT NULL
         ORDER BY s.session_uuid, r.run_id, e.seq
         """,

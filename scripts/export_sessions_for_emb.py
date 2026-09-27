@@ -20,7 +20,8 @@ def main():
     ap.add_argument("--db", default=DB)
     ap.add_argument("--limit", type=int, default=0, help="0 = all matching sessions")
     ap.add_argument("--operator-only", action="store_true", default=True,
-                    help="is_subagent=0 (default; operator sessions = real supervision signal)")
+                    help="session_role='operator', main runs only (default; operator "
+                         "sessions = real supervision signal)")
     ap.add_argument("--include-subagents", dest="operator_only", action="store_false")
     ap.add_argument("--vendor", default=None, help="filter to one vendor (default: all)")
     ap.add_argument("--min-lines", type=int, default=40)
@@ -32,7 +33,10 @@ def main():
     where = ["session_uuid IS NOT NULL", "transcript_lines >= ?"]
     params = [a.min_lines]
     if a.operator_only:
-        where.append("is_subagent = 0")
+        where.append("session_role = 'operator'")
+    # a Claude subagent transcript shares its parent's session row; skip its run
+    main_runs = (" AND NOT EXISTS (SELECT 1 FROM run_edges re WHERE re.dst_run_id = r.run_id "
+                 "AND re.edge_type = 'spawned_by')") if a.operator_only else ""
     if a.vendor:
         where.append("vendor = ?"); params.append(a.vendor)
     sql = f"SELECT session_pk, session_uuid, vendor, start_ts, transcript_lines FROM sessions WHERE {' AND '.join(where)} ORDER BY start_ts DESC"
@@ -47,8 +51,8 @@ def main():
                 "SELECT e.role, e.kind, e.text FROM events e JOIN runs r ON e.run_id = r.run_id "
                 "WHERE r.session_pk = ? AND e.text IS NOT NULL AND e.text != '' "
                 # harness-injected re-quotes (labeled at ingest by the claude adapter)
-                "AND (e.vendor_kind IS NULL OR e.vendor_kind NOT IN ('compact_summary','meta_injected')) "
-                "ORDER BY r.run_id, e.seq",
+                "AND (e.vendor_kind IS NULL OR e.vendor_kind NOT IN ('compact_summary','meta_injected'))"
+                + main_runs + " ORDER BY r.run_id, e.seq",
                 (s["session_pk"],)).fetchall()
             parts = []
             for r in rows:

@@ -420,11 +420,10 @@ def _ensure_session_pk(db: sqlite3.Connection, sr) -> int:
             db.execute(
                 "UPDATE sessions SET project_root=COALESCE(?, project_root), "
                 "project_slug=COALESCE(?, project_slug), session_uuid=COALESCE(session_uuid, ?), "
-                # sticky-true: a session known to be a subagent stays one across re-imports
-                "is_subagent = MAX(is_subagent, ?) "
+                # a source with no origin evidence (role None) keeps the stored role
+                "session_role=COALESCE(?, session_role) "
                 "WHERE session_pk=?",
-                (sr.project_root, sr.project_slug, sr.vendor_session_id,
-                 1 if getattr(sr, "is_subagent", False) else 0, row[0]),
+                (sr.project_root, sr.project_slug, sr.vendor_session_id, sr.role, row[0]),
             )
             return int(row[0])
     if sr.synthetic_session_key:
@@ -444,13 +443,12 @@ def _ensure_session_pk(db: sqlite3.Connection, sr) -> int:
     cursor = db.execute(
         """
         INSERT INTO sessions (vendor, client, vendor_session_id, synthetic_session_key,
-                              session_uuid, project_root, project_slug, is_subagent)
+                              session_uuid, project_root, project_slug, session_role)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (sr.vendor, _db_text(sr.client), _db_text(sr.vendor_session_id),
          sr.synthetic_session_key, _db_text(session_uuid),
-         _db_text(sr.project_root), _db_text(sr.project_slug),
-         1 if getattr(sr, "is_subagent", False) else 0),
+         _db_text(sr.project_root), _db_text(sr.project_slug), sr.role),
     )
     return int(cursor.lastrowid)  # type: ignore[arg-type]
 

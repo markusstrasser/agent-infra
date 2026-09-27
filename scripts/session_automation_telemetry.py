@@ -22,12 +22,21 @@ DB = Path.home() / ".claude" / "agentlogs.db"
 
 
 def classify_row(row: dict) -> str:
+    """Bucket one session. sessions.session_role (the vendor's own origin stamp) decides
+    operator vs automation; the text heuristics only name the kind of dispatch. Before
+    the role existed, "operator" meant not-a-subagent and at least 5 minutes, which
+    counted long `claude -p` ticks and `codex exec` runs as the operator's."""
+    role = row.get("session_role")
+    if role == "operator":
+        return "operator"
+    if role == "subagent":
+        return "subagent"
+    if role is None:
+        return "undetermined"
     fm = (row.get("first_message") or "").lower()
     slug = (row.get("project_slug") or "").lower()
     dur = float(row.get("duration_min") or 0)
     vendor = (row.get("vendor") or "").lower()
-    if int(row.get("is_subagent") or 0):
-        return "subagent"
     if "review an ai coding agent" in fm:
         return "stop_hook"
     if "steer-mining" in slug:
@@ -36,20 +45,16 @@ def classify_row(row: dict) -> str:
         return "codex_bootstrap"
     if "llmx-cursor" in slug or "cache-llmx-cursor" in slug:
         return "transport_probe"
-    if vendor == "cursor" and dur < 1:
-        if any(k in fm for k in ("code reviewer", "premise scout", "/debug", "bug hunt", "audit")):
-            return "cursor_scout"
-        return "cursor_ephemeral"
-    if dur >= 5:
-        return "operator"
-    return "harness_other"
+    if vendor == "cursor" and any(k in fm for k in ("code reviewer", "premise scout", "/debug", "bug hunt", "audit")):
+        return "cursor_scout"
+    return "dispatch"
 
 
 def fetch_sessions(db: Path, days: int, project: str | None) -> list[dict]:
     con = sqlite3.connect(db)
     con.row_factory = sqlite3.Row
     q = """
-        SELECT vendor, project_slug, duration_min, is_subagent, first_message
+        SELECT vendor, project_slug, duration_min, session_role, first_message
         FROM sessions WHERE start_ts >= datetime('now', ?)
     """
     params: list = [f"-{days} days"]
@@ -67,12 +72,16 @@ def summarize(rows: list[dict]) -> dict:
         b = classify_row(row)
         buckets[b] = buckets.get(b, 0) + 1
     total = len(rows)
-    auto = total - buckets.get("operator", 0)
+    undetermined = buckets.get("undetermined", 0)
+    known = total - undetermined
+    auto = known - buckets.get("operator", 0)
     return {
         "total": total,
         "automation": auto,
         "operator": buckets.get("operator", 0),
-        "automation_pct": round(100 * auto / total, 1) if total else 0,
+        "undetermined": undetermined,
+        # share of sessions with a known origin; undetermined ones are reported, not guessed
+        "automation_pct": round(100 * auto / known, 1) if known else 0,
         "buckets": dict(sorted(buckets.items(), key=lambda x: -x[1])),
     }
 
@@ -82,7 +91,8 @@ def render(summary: dict, days: int, project: str | None) -> str:
     lines = [
         f"## Session automation telemetry ({days}d, {scope})",
         f"- total: **{summary['total']}** · automation: **{summary['automation']}** "
-        f"({summary['automation_pct']}%) · operator (≥5m): **{summary['operator']}**",
+        f"({summary['automation_pct']}%) · operator: **{summary['operator']}** · "
+        f"undetermined: **{summary['undetermined']}**",
         "", "| bucket | n |", "|--------|---|",
     ]
     for k, n in summary["buckets"].items():

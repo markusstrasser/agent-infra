@@ -30,7 +30,7 @@ def _seed_db(path: Path) -> None:
           session_pk INTEGER PRIMARY KEY,
           vendor TEXT, client TEXT, project_slug TEXT,
           start_ts TEXT, duration_min REAL, model TEXT,
-          is_subagent INTEGER DEFAULT 0
+          session_role TEXT
         );
         CREATE TABLE runs (
           run_id TEXT PRIMARY KEY,
@@ -48,8 +48,17 @@ def _seed_db(path: Path) -> None:
     # claude session with tokens
     con.execute(
         "INSERT INTO sessions VALUES (1,'claude','cc','agent-infra',"
-        "?,10.0,'claude-opus-4-8',0)",
+        "?,10.0,'claude-opus-4-8','operator')",
         (_TS_CLAUDE,),
+    )
+    # a `claude -p` dispatch in the same window is not an operator session
+    con.execute(
+        "INSERT INTO sessions VALUES (3,'claude','cc','agent-infra',"
+        "?,30.0,'claude-opus-4-8','dispatch')",
+        (_TS_CLAUDE,),
+    )
+    con.execute(
+        "INSERT INTO runs VALUES ('r3',3,'claude','cc',90000,900,0,0)"
     )
     con.execute(
         "INSERT INTO runs VALUES ('r1',1,'claude','cc',10000,500,100,0)"
@@ -59,7 +68,7 @@ def _seed_db(path: Path) -> None:
     # cursor session without tokens
     con.execute(
         "INSERT INTO sessions VALUES (2,'cursor','cursor','agent-infra',"
-        "?,5.0,'composer-2.5',0)",
+        "?,5.0,'composer-2.5','operator')",
         (_TS_CURSOR,),
     )
     con.execute(

@@ -72,6 +72,7 @@ def parse_source(source: DiscoveredSource) -> ParsedSource:
     version: str | None = None
     started_at: str | None = None
     ended_at: str | None = None
+    entrypoints: set[str] = set()
 
     with path.open() as handle:
         byte_start = 0
@@ -105,6 +106,8 @@ def parse_source(source: DiscoveredSource) -> ParsedSource:
             branch = obj.get("gitBranch") or branch
             version = obj.get("version") or version
             base_url = obj.get("baseUrl") or base_url
+            if isinstance(obj.get("entrypoint"), str) and obj["entrypoint"]:
+                entrypoints.add(obj["entrypoint"])
 
             record_type = obj.get("type")
             if record_type == "assistant":
@@ -121,7 +124,7 @@ def parse_source(source: DiscoveredSource) -> ParsedSource:
         vendor_session_id=session_vendor_id,
         project_root=project_root,
         project_slug=project_slug,
-        is_subagent=is_subagent,
+        role=session_role(path, session_vendor_id, entrypoints),
     )
     bundle.sessions.append(session)
     bundle.runs.append(
@@ -173,11 +176,63 @@ def parse_source(source: DiscoveredSource) -> ParsedSource:
                 confidence=0.75,
             )
         )
+    elif not is_subagent:
+        # The indexer drops an edge whose other end is not indexed yet, so a subagent
+        # transcript imported before its parent lost its edge (1 of 815, 2026-09-27).
+        # Emitting it from the parent's side too makes the edge order-independent.
+        for child in sorted((path.parent / path.stem / "subagents").glob("agent-*.jsonl")):
+            bundle.run_edges.append(
+                RunEdgeRow(
+                    src_run_id=run_id,
+                    dst_run_id=f"claude:{child.stem}",
+                    edge_type="spawned_by",
+                    inference_method="subagent_path",
+                    confidence=0.75,
+                )
+            )
 
     bundle.tool_calls.extend(tool_calls.values())
     for index, event in enumerate(bundle.events, 1):
         event.seq = index
     return bundle
+
+
+def session_role(path: Path, session_vendor_id: str, entrypoints: set[str]) -> str | None:
+    """sessions.session_role for one transcript, from Claude Code's own stamps.
+
+    A transcript under <session>/subagents/ shares its parent's session row (see
+    _default_session_id), so it has no say: None keeps the parent's role, and its run
+    carries the spawned_by edge. A legacy top-level agent-*.jsonl is its own subagent
+    session. Otherwise the entrypoint stamp on every line decides: `claude -p` and the
+    Agent SDK write "sdk-*", an interactive client writes "cli" (or an IDE/desktop
+    value). A session with any interactive line is the operator's.
+    """
+    if "subagents" in path.parts or path.stem.startswith("agent-"):
+        return "subagent" if session_vendor_id == path.stem else None
+    if not entrypoints:
+        return None
+    return "dispatch" if all(e.startswith("sdk") for e in entrypoints) else "operator"
+
+
+def load_entrypoints(path: Path) -> set[str]:
+    """Entrypoint stamps of a transcript, for backfilling roles without a re-import.
+
+    Stops at the first interactive stamp: it already makes the session the operator's.
+    """
+    found: set[str] = set()
+    with path.open(encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            if '"entrypoint"' not in line:
+                continue
+            try:
+                value = json.loads(line).get("entrypoint")
+            except json.JSONDecodeError:
+                continue
+            if isinstance(value, str) and value:
+                found.add(value)
+                if not value.startswith("sdk"):
+                    break
+    return found
 
 
 def _record_key(obj: dict, line_no: int) -> str:

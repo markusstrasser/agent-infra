@@ -124,6 +124,7 @@ def parse_source(source: DiscoveredSource) -> ParsedSource:
         vendor_session_id=session_id,
         project_root=project_root,
         project_slug=project_slug,
+        role=session_role(path, session_id),
     )
     bundle.sessions.append(session)
 
@@ -164,6 +165,21 @@ def parse_source(source: DiscoveredSource) -> ParsedSource:
     for index, event in enumerate(bundle.events, 1):
         event.seq = index
     return bundle
+
+
+def session_role(path: Path, session_id: str) -> str:
+    """sessions.session_role for a transcript at <cursor>/projects/<key>/agent-transcripts/.
+
+    Both the IDE and the CLI write these transcripts, so the transcript alone cannot
+    tell them apart. The CLI also keeps a chat store per agent at
+    <cursor>/chats/<workspace-hash>/<agent-id>/; the IDE keeps none. Every CLI store on
+    this machine is a scripted `cursor-agent -p` run (588 of 588 with a transcript on
+    2026-09-27: named "New Agent", run-everything mode, a script's brief), so a store
+    means dispatch. Revisit if the operator starts using the interactive CLI.
+    """
+    if len(path.parents) > 4 and any((path.parents[4] / "chats").glob(f"*/{session_id}")):
+        return "dispatch"
+    return "operator"
 
 
 def _parse_assistant(

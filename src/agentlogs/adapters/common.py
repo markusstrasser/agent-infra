@@ -34,10 +34,12 @@ class SessionRow:
     synthetic_session_key: str | None = None
     project_root: str | None = None
     project_slug: str | None = None
-    # True iff this session is a subagent/sidechain dispatch (Task/Agent tool spawn),
-    # NOT an operator (top-level interactive) session. Derived per-adapter from the
-    # raw transcript marker (claude: agent-*.jsonl / subagents/ path, == isSidechain).
-    is_subagent: bool = False
+    # Who started the session, from the vendor's own origin stamp (migration 011):
+    # "operator" (a person typed the first prompt), "dispatch" (a program did:
+    # claude -p, codex exec, cursor-agent -p), "subagent" (an agent spawned it).
+    # None = no evidence; on an existing session it leaves the stored role alone, so
+    # a Claude subagent transcript that shares its parent's session id cannot flip it.
+    role: str | None = None
 
     @property
     def lookup_key(self) -> tuple[str, str, str]:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -10,12 +11,22 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 import agentlogs
-from agentlogs.migrations import ExplicitProvenanceRepairRequired
+from agentlogs.migrations import (
+    ExplicitProvenanceRepairRequired,
+    _migration_files,
+    _read_migration,
+    _split_sql,
+)
 from agentlogs.provenance_repair import apply_repair, open_unmigrated, plan_repair
 
 
 def _legacy_fixture(path: Path) -> None:
-    db = agentlogs.connect(path)
+    # Build from the v10 schema, not the head: later migrations must run on reopen.
+    db = sqlite3.connect(str(path), isolation_level=None)
+    for version, filename in _migration_files():
+        if version <= 10:
+            for stmt in _split_sql(_read_migration(filename)):
+                db.execute(stmt)
     db.execute("PRAGMA foreign_keys=OFF")
     for name in (
         "idx_tool_calls_start_record_ref",
@@ -115,7 +126,7 @@ def test_repair_canonicalizes_and_remaps_every_pointer(tmp_path: Path) -> None:
 
     # Normal migrated connections work after the explicit repair.
     reopened = agentlogs.connect(path)
-    assert agentlogs.current_version(reopened) == 10
+    assert agentlogs.current_version(reopened) == 11
     reopened.close()
 
 

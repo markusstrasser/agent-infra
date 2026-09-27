@@ -89,9 +89,10 @@ def _make_parser() -> argparse.ArgumentParser:
     s_recent = sub.add_parser("recent", help="List recent sessions")
     s_recent.add_argument("--vendor")
     s_recent.add_argument("--project")
-    s_recent.add_argument("--role", choices=["operator", "subagent"],
-                          help="filter by session role (operator = top-level interactive; "
-                               "subagent = Task/Agent tool dispatch)")
+    s_recent.add_argument("--role", choices=["operator", "dispatch", "subagent", "undetermined"],
+                          help="filter by who started the session (operator = a person; "
+                               "dispatch = a program: claude -p, codex exec, cursor-agent -p; "
+                               "subagent = an agent's spawn; undetermined = no origin evidence)")
     s_recent.add_argument("-n", "--limit", type=int, default=20)
     s_recent.add_argument("--format", choices=["table", "json"], default="table")
 
@@ -118,6 +119,15 @@ def _make_parser() -> argparse.ArgumentParser:
         help="Label harness-injected user-role envelopes (dry-run by default)",
     )
     s_authorship.add_argument("--yes", dest="apply", action="store_true")
+
+    s_roles = sub.add_parser(
+        "session-roles",
+        help="Fill undetermined session roles from origin stamps (dry-run by default)",
+    )
+    s_roles.add_argument("--yes", dest="apply", action="store_true")
+    s_roles.add_argument("--archive-root", type=Path,
+                         help="raw-transcript archive holding claude/<project>/<id>.jsonl copies "
+                              "of transcripts gone from ~/.claude/projects")
 
     # git-import
     s_git = sub.add_parser("git-import",
@@ -709,6 +719,27 @@ def cmd_authorship_reindex(args) -> int:
         return 3
 
 
+def cmd_session_roles(args) -> int:
+    from . import session_roles as sr
+    from .gateway import IndexerLockBusy, write_gateway
+
+    try:
+        with write_gateway(_resolve_db_path(args)) as db:
+            fill = sr.apply_roles if args.apply else sr.plan_roles
+            plan = fill(db, args.archive_root)
+            tag = "filled" if args.apply else "dry-run"
+            for (vendor, role), n in sorted(plan.roles.items()):
+                print(f"[{tag}] {vendor:<7} {role:<9} {n:>6,}")
+            for (vendor, why), n in sorted(plan.undetermined.items()):
+                print(f"[{tag}] {vendor:<7} {'NULL':<9} {n:>6,}  {why}")
+            if not args.apply:
+                print("  re-run with --yes to write")
+            return 0
+    except IndexerLockBusy:
+        print("another agentlogs writer is running; NOT filled (exit 3)", file=sys.stderr)
+        return 3
+
+
 def cmd_trim(args) -> int:
     from . import trim as tr
     from .gateway import IndexerLockBusy, write_gateway
@@ -802,6 +833,7 @@ _COMMANDS = {
     "index": cmd_index,
     "repair-provenance": cmd_repair_provenance,
     "authorship-reindex": cmd_authorship_reindex,
+    "session-roles": cmd_session_roles,
     "prune": cmd_prune,
     "compact": cmd_compact,
     "trim": cmd_trim,

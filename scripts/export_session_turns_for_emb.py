@@ -43,7 +43,7 @@ def iter_turn_records(
     where = ["s.session_uuid IS NOT NULL", "s.transcript_lines >= ?"]
     params: list[object] = [min_lines]
     if operator_only:
-        where.append("s.is_subagent = 0")
+        where.append("s.session_role = 'operator'")
     if vendor:
         where.append("s.vendor = ?")
         params.append(vendor)
@@ -61,13 +61,20 @@ def iter_turn_records(
         sql += " LIMIT ?"
         params.append(limit)
 
+    # A Claude subagent transcript shares its parent's session row; its run (the dst of
+    # a spawned_by edge) is an agent's work, not an operator turn.
+    main_runs = (
+        " AND NOT EXISTS (SELECT 1 FROM run_edges re"
+        " WHERE re.dst_run_id = r.run_id AND re.edge_type = 'spawned_by')"
+        if operator_only else ""
+    )
     for session in con.execute(sql, params):
         events = con.execute(
-            """
+            f"""
             SELECT e.event_id, e.seq, e.role, e.vendor_kind, e.text
             FROM events e
             JOIN runs r ON r.run_id = e.run_id
-            WHERE r.session_pk = ? AND e.text IS NOT NULL AND e.text != ''
+            WHERE r.session_pk = ? AND e.text IS NOT NULL AND e.text != ''{main_runs}
             ORDER BY r.run_id, e.seq
             """,
             (session["session_pk"],),
@@ -126,7 +133,8 @@ def main() -> int:
     parser.add_argument("--min-lines", type=int, default=40)
     parser.add_argument("--vendor")
     parser.add_argument("--project")
-    parser.add_argument("--include-subagents", action="store_true")
+    parser.add_argument("--include-subagents", action="store_true",
+                        help="every session role and run (default: operator sessions, main runs)")
     args = parser.parse_args()
 
     con = sqlite3.connect(f"file:{args.db}?mode=ro", uri=True)

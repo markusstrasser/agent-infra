@@ -165,6 +165,9 @@ def parse_source(source: DiscoveredSource) -> ParsedSource:
         vendor_session_id=session_id,
         project_root=project_root,
         project_slug=project_slug,
+        # Kimi stamps subagent threads but not headless runs: a main session's
+        # origin is unknown, so it stays NULL rather than counting as the operator's.
+        role="subagent" if is_subagent else None,
     )
     bundle.sessions.append(session)
 

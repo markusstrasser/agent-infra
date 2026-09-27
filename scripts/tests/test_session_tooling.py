@@ -30,7 +30,8 @@ Hello world this is a test
 class TestSessionTelemetry(unittest.TestCase):
     def test_session_classify_stop_hook(self):
         self.assertEqual(
-            classify_row({"first_message": "review an AI coding agent", "duration_min": 0.3, "is_subagent": 0}),
+            classify_row({"first_message": "review an AI coding agent", "duration_min": 0.3,
+                          "session_role": "dispatch"}),
             "stop_hook",
         )
 

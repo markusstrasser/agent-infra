@@ -73,8 +73,8 @@ def test_cli_search_json_formats_slots_dataclasses(tmp_path, capsys) -> None:
     db.execute(
         """
         INSERT INTO sessions
-          (session_pk, vendor, client, session_uuid, project_slug, is_subagent)
-        VALUES (1, 'claude', 'claude-code', 's-json', 'genomics', 0)
+          (session_pk, vendor, client, session_uuid, project_slug, session_role)
+        VALUES (1, 'claude', 'claude-code', 's-json', 'genomics', 'operator')
         """
     )
     db.execute(
@@ -109,8 +109,8 @@ def test_search_treats_paths_and_hyphens_as_literals(tmp_path) -> None:
     db.execute(
         """
         INSERT INTO sessions
-          (session_pk, vendor, client, session_uuid, project_slug, is_subagent)
-        VALUES (1, 'claude', 'claude-code', 's-1', 'genomics', 0)
+          (session_pk, vendor, client, session_uuid, project_slug, session_role)
+        VALUES (1, 'claude', 'claude-code', 's-1', 'genomics', 'operator')
         """
     )
     db.execute(
@@ -151,47 +151,65 @@ def test_cli_query_list(tmp_path, capsys):
     assert "tool_failure_rate_by_tool" in out
 
 
-def test_session_role_derivation_and_filter(tmp_path):
-    """is_subagent is derived from the claude subagent path marker, persisted on the
-    session, and exposed by recent_sessions(role=...) — migration 008."""
-    import json
-    from agentlogs import search as se
+def test_session_role_from_claude_stamps(tmp_path):
+    """session_role comes from Claude Code's own stamps (migration 011). An interactive
+    session stays the operator's when it spawns subagents: the transcript under
+    <session>/subagents/ shares the parent's session row, and before 011 its sticky
+    subagent flag flipped the parent (65 of 65 such sessions, 2026-09-27). `claude -p`
+    is a dispatch; a legacy top-level agent-*.jsonl is its own subagent session."""
+    import os
 
-    projects = tmp_path / "projects" / "-proj"
-    sub_dir = projects / "subagents"
+    projects = tmp_path / "projects" / "-Users-x-Projects-proj"
+    op_id = "11111111-1111-1111-1111-111111111111"
+    tick_id = "44444444-4444-4444-4444-444444444444"
+    sub_dir = projects / op_id / "subagents"
     sub_dir.mkdir(parents=True)
 
-    def _line(role, text, ts):
+    def _line(role, text, ts, entrypoint):
         return json.dumps({
             "type": role, "timestamp": ts, "cwd": "/proj", "gitBranch": "main",
-            "isSidechain": role == "user", "uuid": f"{role}-{ts}",
+            "entrypoint": entrypoint, "uuid": f"{role}-{ts}",
             "message": {"role": role, "content": [{"type": "text", "text": text}]},
         }) + "\n"
 
-    # Operator (top-level) transcript.
-    op = projects / "11111111-1111-1111-1111-111111111111.jsonl"
-    op.write_text(_line("user", "operator turn", "2026-06-16T10:00:00Z")
-                  + _line("assistant", "ok", "2026-06-16T10:00:01Z"))
-    # Subagent transcript (subagents/ dir + agent- stem => is_subagent).
+    op = projects / f"{op_id}.jsonl"
+    op.write_text(_line("user", "operator turn", "2026-06-16T10:00:00Z", "cli")
+                  + _line("assistant", "ok", "2026-06-16T10:00:01Z", "cli"))
     sa = sub_dir / "agent-22222222222222222.jsonl"
-    sa.write_text(_line("user", "subagent turn", "2026-06-16T10:05:00Z")
-                  + _line("assistant", "done", "2026-06-16T10:05:01Z"))
+    sa.write_text(_line("user", "subagent brief", "2026-06-16T10:05:00Z", "cli")
+                  + _line("assistant", "done", "2026-06-16T10:05:01Z", "cli"))
+    legacy = projects / "agent-33333333333333333.jsonl"
+    legacy.write_text(_line("user", "legacy brief", "2026-06-16T09:00:00Z", "cli"))
+    tick = projects / f"{tick_id}.jsonl"
+    tick.write_text(_line("user", "Watch tick: read loop/WATCH.md", "2026-06-16T11:00:00Z", "sdk-cli")
+                    + _line("assistant", "verdict ok", "2026-06-16T11:00:05Z", "sdk-cli"))
+    # the indexer goes newest-first: make the subagent transcript land before its parent
+    os.utime(op, (1_000_000, 1_000_000))
+    os.utime(sa, (2_000_000, 2_000_000))
 
     db = agentlogs.connect(tmp_path / "roles.db")
-    ix.index_vendor(db, "claude", source_paths=[op, sa])
+    ix.index_vendor(db, "claude", source_paths=[op, sa, legacy, tick])
 
-    roles = {
-        r["vendor_session_id"]: r["is_subagent"]
-        for r in db.execute("SELECT vendor_session_id, is_subagent FROM sessions WHERE vendor='claude'")
-    }
-    assert any(v == 1 for v in roles.values()), "subagent session not flagged"
-    assert any(v == 0 for v in roles.values()), "operator session mis-flagged"
+    def roles():
+        return dict(db.execute("SELECT vendor_session_id, session_role FROM sessions WHERE vendor='claude'"))
 
-    op_rows = se.recent_sessions(db, role="operator")
-    sa_rows = se.recent_sessions(db, role="subagent")
-    assert all(r["role"] == "operator" for r in op_rows)
-    assert all(r["role"] == "subagent" for r in sa_rows)
-    assert len(op_rows) >= 1 and len(sa_rows) >= 1
+    expected = {op_id: "operator", tick_id: "dispatch", "agent-33333333333333333": "subagent"}
+    assert roles() == expected
+    edge = db.execute(
+        "SELECT src_run_id FROM run_edges WHERE dst_run_id = 'claude:agent-22222222222222222' "
+        "AND edge_type = 'spawned_by'"
+    ).fetchone()
+    assert edge and edge[0] == f"claude:{op_id}"
+
+    # the subagent transcript grows and is re-imported after its parent: still operator
+    with sa.open("a") as fh:
+        fh.write(_line("assistant", "one more finding", "2026-06-16T10:06:00Z", "cli"))
+    ix.index_vendor(db, "claude", source_paths=[sa])
+    assert roles() == expected
+
+    assert [r["role"] for r in se.recent_sessions(db, role="operator")] == ["operator"]
+    assert [r["role"] for r in se.recent_sessions(db, role="dispatch")] == ["dispatch"]
+    assert [r["role"] for r in se.recent_sessions(db, role="subagent")] == ["subagent"]
     db.close()
 
 
