@@ -16,27 +16,30 @@ Stdlib-only on purpose: blindspot_miner runs inside emb's venv.
 
 is_operator_authored() is the stricter question an instrument asks before it
 attributes text to the OPERATOR (corrections, rescues, operator_dx). It is not
-part of the vendored/drift-pinned pair above.
+part of the vendored/drift-pinned pair above; its rule is
+src/agentlogs/authorship.py, loaded by path only when it is called.
 """
 
 from __future__ import annotations
 
-# User-role frames Claude Code writes WITHOUT a harness flag (isMeta /
-# isCompactSummary) and without an origin stamp. Measured 2026-09-23 over 489
-# transcripts: peer/teammate relays (395 lines), interrupt markers (70),
-# local-command stdout (60). Transcripts older than the stamps carry none of
-# them, so this screen is also the legacy path.
-NON_OPERATOR_PREFIXES = (
-    "Another Claude session sent a message",  # peer / teammate relay wrapper
-    "<teammate-message",
-    "<cross-session-message",
-    "<agent-message",
-    "<local-command-",  # -stdout / -stderr / -caveat
-    "[Request interrupted by user",
-    "<task-notification>",
-    "<system-reminder>",
-    "[SYSTEM NOTIFICATION",
-)
+import importlib.util
+from functools import lru_cache
+from pathlib import Path
+
+# The operator-authorship rule lives in agentlogs, where the Claude adapter labels
+# events with it. Loaded by path (it is stdlib-only with no package imports), so
+# this module keeps working in any venv and never reads a stale installed copy.
+_AUTHORSHIP = Path(__file__).resolve().parents[2] / "src" / "agentlogs" / "authorship.py"
+
+
+@lru_cache(maxsize=1)
+def _authorship():
+    spec = importlib.util.spec_from_file_location("agentlogs_authorship", _AUTHORSHIP)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"agentlogs authorship rule not found at {_AUTHORSHIP}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def is_harness_injected(obj: dict) -> bool:
@@ -84,27 +87,12 @@ def user_texts(obj: dict) -> list[str]:
 def is_operator_authored(obj: dict) -> bool:
     """True only when the operator typed this user-role transcript line.
 
-    Evidence, strongest first:
-      1. harness flags (isMeta / isCompactSummary) → not operator (via user_texts);
-      2. Claude Code's own stamp decides when present: origin.kind == "human"
-         (task-notification, peer, auto-continuation → not operator);
-      3. headless dispatch → not operator: entrypoint "sdk-*" (`claude -p`) or
-         promptSource "sdk"/"system" — the dispatcher wrote that prompt;
-      4. harness frames (NON_OPERATOR_PREFIXES) → not operator, stamped or not:
-         Claude Code stamps local-command stdout echoes ("Goal set: …",
-         "Compacted …") origin.kind == "human" (measured 2026-09-26, arc-agi
-         c0549792 and 3 more sessions).
+    Harness flags (isMeta / isCompactSummary) screen first, via user_texts; the
+    rest is agentlogs.authorship.claude_line_author: the origin stamp, then
+    dispatch stamps (entrypoint sdk-*, promptSource sdk/system), then harness
+    frames such as task notifications, peer relays and local-command echoes.
     """
     texts = [t for t in user_texts(obj) if isinstance(t, str) and t.strip()]
     if not texts:
         return False
-    origin = obj.get("origin")
-    if isinstance(origin, dict) and origin.get("kind"):
-        if origin["kind"] != "human":
-            return False
-    elif str(obj.get("entrypoint") or "").startswith("sdk"):
-        return False
-    elif obj.get("promptSource") in ("sdk", "system"):
-        return False
-    head = " ".join(texts).lstrip()
-    return not (head.startswith(NON_OPERATOR_PREFIXES) or "<task-notification>" in head[:200])
+    return _authorship().claude_line_author(obj, " ".join(texts)) == "operator"

@@ -45,3 +45,27 @@ def test_harness_injected_user_lines_labeled(tmp_path: Path) -> None:
     assert kinds["This sessi"] == "compact_summary"
     assert kinds["skill expa"] == "meta_injected"
     assert kinds["a genuine "] == "user"
+
+
+def test_unflagged_harness_frames_labeled(tmp_path: Path) -> None:
+    """Task notifications, peer relays and local-command echoes carry no isMeta flag;
+    Claude Code's origin stamp or the frame itself marks them (2026-09-27)."""
+    p = tmp_path / "aaaaaaaa-bbbb-cccc-dddd-eeeeffff0000.jsonl"
+    p.write_text(
+        "\n".join(
+            [
+                _line("2 background agents were stopped by the user",
+                      origin={"kind": "task-notification"}),
+                _line("Another Claude session sent a message: rebase done"),
+                _line("<local-command-stdout>Goal set</local-command-stdout>", origin={"kind": "human"}),
+                _line("why is the backfill slow?", origin={"kind": "human"}, entrypoint="cli"),
+                _line("Watch tick: read loop/WATCH.md", entrypoint="sdk-cli"),
+            ]
+        )
+    )
+    bundle = claude_adapter.parse_source(
+        DiscoveredSource(vendor="claude", source_kind="transcript_jsonl", path=p)
+    )
+    kinds = [e.vendor_kind for e in bundle.events if e.kind == "user_message"]
+    # the dispatch-stamped line stays "user": its session is session_role 'dispatch'
+    assert kinds == ["meta_injected", "meta_injected", "meta_injected", "user", "user"]

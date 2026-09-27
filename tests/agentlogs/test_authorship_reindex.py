@@ -99,3 +99,33 @@ def test_backfill_labels_cursor_envelope(tmp_path: Path) -> None:
         "SELECT event_id, vendor_kind FROM events ORDER BY seq"
     ).fetchall()) == {"meta": "meta_injected", "operator": "user"}
     db.close()
+
+
+def test_backfill_labels_claude_frames_by_text(tmp_path: Path) -> None:
+    # 2026-09-27: 1,210 of 2,100 user text lines in operator Claude sessions were
+    # these frames, stored as vendor_kind 'user' and exported as operator turns.
+    db = agentlogs.connect(tmp_path / "cl.db")
+    db.execute(
+        "INSERT INTO sessions (session_pk, vendor, client, vendor_session_id, session_uuid) "
+        "VALUES (1, 'claude', 'claude-code', 's1', 'claude:s1')"
+    )
+    db.execute(
+        "INSERT INTO runs (run_id, session_pk, vendor, client, started_at) "
+        "VALUES ('r1', 1, 'claude', 'claude-code', '2026-09-22T00:00:00Z')"
+    )
+    db.executemany(
+        "INSERT INTO events (event_id, run_id, seq, kind, vendor_kind, role, text) "
+        "VALUES (?, 'r1', ?, 'user_message', 'user', 'user', ?)",
+        (
+            ("task", 1, "<task-notification> <task-id>b1</task-id> <status>completed</status>"),
+            ("peer", 2, "Another Claude session sent a message: rebase done"),
+            ("echo", 3, "<local-command-stdout>Set model to Fable 5</local-command-stdout>"),
+            ("operator", 4, "Why does the backfill leave 719 rows NULL?"),
+        ),
+    )
+    assert ar.plan_reindex(db) == ar.AuthorshipPlan(rows=3, sessions=1)
+    ar.apply_reindex(db)
+    assert dict(db.execute("SELECT event_id, vendor_kind FROM events ORDER BY seq").fetchall()) == {
+        "task": "meta_injected", "peer": "meta_injected", "echo": "meta_injected", "operator": "user",
+    }
+    db.close()

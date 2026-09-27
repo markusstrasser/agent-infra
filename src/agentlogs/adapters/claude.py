@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from ..authorship import claude_line_author
 from .common import (
     DiscoveredSource,
     EventRow,
@@ -457,9 +458,12 @@ def _parse_user_record(
         # compaction summaries and meta expansions re-quote old user text
         # (#f tags, corrections) and must not be mined as fresh signal.
         # Ledger discipline: label, never drop — the store stays forensic.
+        # Unflagged harness frames (task notifications, peer relays, local-command
+        # echoes) are labeled too. A dispatch-stamped line stays "user": its whole
+        # session carries session_role 'dispatch', and first_message keeps its brief.
         if obj.get("isCompactSummary"):
             vendor_kind = "compact_summary"
-        elif obj.get("isMeta"):
+        elif obj.get("isMeta") or claude_line_author(obj, text) == "harness":
             vendor_kind = "meta_injected"
         else:
             vendor_kind = "user"
