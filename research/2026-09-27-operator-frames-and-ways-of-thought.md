@@ -5,6 +5,8 @@ status: complete
 tags: [steering, taste, operator-model, frames, research-skills, luna, autonomy]
 ---
 
+> **Revised later on 2026-09-27:** a second model re-read all 25 batches. The reference now has 42 signatures in nine families, and the counts below are the first pass's. See [Revisions](#revisions).
+
 **Verdict:** A second mining pass read 5,547 of the operator's prompts across ten areas. It covered the six research projects from the [steering-moves pass](2026-09-26-operator-steering-moves.md), plus agent infrastructure, biomedical pipelines, publishing and design, and private decisions. It looked for *how he thinks*: lenses, mental models, analogies, values, aesthetics, ambition, stances, decision rules and meta-thinking. GPT-6 Luna extracted 567 frames; 545 (96%) trace to a verified quote of his. They reduce to 31 signature frames in eight families, plus question forms, home fields, ways of thought, session arcs and tensions. The result lives at `~/Projects/skills/references/operator-frames.md`, linked as a menu from /research, follow-up-moves and the research-ops generate step.
 
 Thirteen of the signatures name the lens behind a move the steering pass already catalogued. The other eighteen are new:
@@ -82,7 +84,7 @@ Wall time was about 13 minutes for extraction (six parallel calls) and about 10 
 - **History window.** Claude transcripts cover about 30 days and Codex covers June to September 2026. The older archive on the external SSD is an encrypted volume that was locked during this run, so older prompts are missing.
 - **Skew toward heavy projects.** Agent benchmarks produced 180 of the 567 frames and investing 120, so those projects' stances are over-represented among single-area signatures.
 - **Said, not decided.** The frames are what he wrote to agents. They are not observed decisions, and prompts under-represent what he does without asking.
-- **One extraction model.** No second model re-extracted the frames. Quote verification guards against fabrication, not against a skewed selection. The parent's reading of about 420 frames is the only check on selection.
+- **One extraction model.** No second model re-extracted the frames. Quote verification guards against fabrication, not against a skewed selection. The parent's reading of about 420 frames is the only check on selection. *(Superseded: see Revisions. Luna alone missed a model-specific share of his frames.)*
 - **No held-out validation.** Nothing here shows that loading the frames makes agents act more like him. The phase-2 rating is the nearest test, and it covers the moves catalog, not this file.
 
 ## 6. Artifacts and reproduction
@@ -97,3 +99,66 @@ Wall time was about 13 minutes for extraction (six parallel calls) and about 10 
   - `leak_check_frames.py`, the privacy gate;
   - `luna_tokens_frames.py`, the cost tally.
 - Rebuild: `uv run python3 verify_frames.py && uv run python3 build_reference.py && uv run python3 leak_check_frames.py operator-frames.md`, then copy `operator-frames.md` to `~/Projects/skills/references/`.
+
+## Revisions
+
+### 2026-09-27 (later): two-model recall probe, script text excluded, operator deck
+
+**Why.** The operator's objection to the first pass was "if you found 18 new ones … you didn't look enough first time". The first pass never measured how much it missed (§5, one extraction model), and 237 verified frames sat outside every signature without a stated reason.
+
+**Every frame accounted for.** A Luna pass placed the 237 remainder frames (159 fit an existing signature, 56 a move, 9 generic, 7 narrow, 4 opinion, 2 new). `build_reference.py` now fails unless every verified frame is in a signature or carries a disposition.
+
+**Recall probe.** A second model re-read all 25 batches with the same extraction prompt:
+- Opus 5.5 read the 8 batches heaviest in private, product and pipeline material.
+- GPT-6 Astra read the 17 research and investing batches.
+
+A third model judged each second-model frame against Luna's frames for the batch and against the 31 signatures and 57 moves (Astra judged Opus, Opus judged Astra). All 952 second-model frames passed quote verification.
+
+| Extractor | Batches | Frames | Same as a Luna frame | Covered by the deck | New | Generic, narrow or opinion |
+|---|---|---|---|---|---|---|
+| Opus 5.5 | 8 | 344 | 150 | 104 | 66 (19%) | 24 |
+| Astra | 17 | 608 | 275 | 207 | 68 (11%) | 58 |
+
+- **By area,** the new-frame rate was highest in private decisions (43/162, 27%) and publishing and design (9/42, 21%). Biomedical pipelines (14%), agent benchmarks (13%) and investing (12%) followed, with fiscal and crime economics at 8%. It was lowest in agent infrastructure (1/23), general research (1/11), compression (0/21) and psychometrics (0/17).
+- **Re-found frames:** the second models found 379 of Luna's 545 frames again (70%).
+- **Same-model baseline:** on personal-02, a second Luna sample under the same judge found 1 new frame of 29 (3%). Opus found 23 of 67 (34%). The first pass's gap was the model, not sampling. Opus also extracts about 2.4 times as many frames per batch. Future mining passes should use a second model, not a second sample.
+
+**What changed in the reference.** 31 signatures became 42 in nine families; the design family is now "Making things: design, products and writing". Of the 134 new frames, 98 now support signatures, 34 carry a stated disposition, and 2 were script text.
+- Eleven signatures are new: waiting is a position (give the estimate); build the general substrate and derive the uses; creation is search (make it to see it); depth from control and grammar (strip the grind); better questions and cleaner structure as deliverables; run agents as a staffed organization; instructions as code to search and test; plan on the capability curve; compare against the best; and, in a new family on institutions and counterparties, rules compose (value hides in eligibility) and spend a counterparty's attention well.
+- Twenty-two signatures were extended, each claim widened to cover its new members.
+- A new signature needed at least 2 sessions. Two candidates missed that bar: a single-session immigration lens (credit only the margin over the cheapest route to a benefit) and a review stance whose only quotes were script text. The thinnest signature kept is "creation is search" at 2 messages in 2 sessions; its *Seen in* line says so.
+
+**Script text excluded.** Checking one frame that spanned 49 sessions showed that the raw export counts scripted Cursor runs as his prompts: QC worker briefs, revalidation scouts, review dispatches and inlined slash-command bodies. The Cursor CLI keeps a chat store per run and the IDE does not, and all 588 CLI stores with a transcript were scripted.
+- **Scale:** 145 of the 5,547 records (2.6%) are script text: 141 from CLI runs and 4 IDE task-completion notices.
+- **Now enforced:** evidence counts skip them, and the builder refuses a signature member grounded only in script text.
+- **Impact:** 1 Luna frame, 6 probe frames and none of the 57 moves. One flagged move turned out to be his own answer inside a question-UI envelope, so that envelope class stays counted as his.
+- **Root cause:** agentlogs has no origin field for Cursor. It is proposed as CURSOR-CLI-ORIGIN-UNLABELED in `improvement-log.md` (a shared schema, so propose first).
+
+**Transport defect.** One Opus extraction returned rc=0 with the model's reply to a user-level Stop hook in place of its frames. llmx chat calls to the Claude CLI now disable hooks and refuse a turn injected after the answer (llmx `72866bc`). The re-run returned 47 frames.
+
+**Operator deck.** `operator-deck` (skills `51fb379`) serves both lists as one deck of 99 steps (57 moves, 42 frames), rotated per project through an append-only ledger. At a checkpoint an agent draws the next steps, does the one whose trigger holds, and logs it. It is wired into research-ops step 3, /research, the idle-stop lever sweep (agent-infra `8afbc7e`, peek only because that hook runs in shadow mode) and the autonomous-tick portfolio rule. This answers the operator's request that agents prompt themselves from his usual thought steps instead of waiting for him every few hours.
+
+**Cost.** 54 subscription calls ($0 cash) from `~/.claude/llmx-usage.jsonl`. Input for Claude CLI calls is not logged beyond cache reads. Claude's output count includes its reasoning.
+
+| Phase | Model | Calls | Input tok | Output tok | Of which reasoning |
+|---|---|---|---|---|---|
+| Extract | Opus 5.5 | 9 | not logged (225K cache reads) | 266,915 | 164,279 |
+| Extract | Astra | 17 | 1,696,813 | 167,722 | 73,500 |
+| Judge | Opus 5.5 | 17 | not logged (157K cache reads) | 77,495 | 41,663 |
+| Judge | Astra | 9 | 215,058 | 31,135 | 14,918 |
+| Disposition and baseline | Luna | 2 | 167,920 | 20,660 | 6,810 |
+
+Call time summed to 2.9 hours across parallel lanes. Per 1,000 output tokens, Opus yielded 0.25 new frames and Astra 0.40. The two saw different batches under different judges, so this is not a model comparison.
+
+**Limitations of the probe.**
+- **Two things vary at once:** the extractor and the judge both change with the batch type. Part of the difference between the private and research sides may be judge strictness.
+- **One baseline:** the same-model check covers one batch.
+- **Seen-in counts:** they now pool both extractors' frames.
+- **Held-out test:** none yet. The phase-2 rating (still unrated) covers the moves catalog, not this file.
+
+**Superseded above:**
+- the Verdict and §1 counts (31 signatures in eight families; "every signature has at least 6 sessions");
+- §5 "One extraction model";
+- the §6 rebuild line, which now also needs `second/compare.py agg` and `machine_prompts.py scan` before `build_reference.py`.
+
+Rejected: resampling Luna as the recall check (the baseline shows it finds almost nothing new) and a new signature from single-session frames.
