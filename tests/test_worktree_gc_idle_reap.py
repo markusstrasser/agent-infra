@@ -286,3 +286,33 @@ def test_receipt_motor_names_the_receipt_even_when_nothing_is_left(
     receipt = janitor_receipt.load_receipt("worktree_reap")
     assert receipt and receipt["success"] and receipt["principal_metric"] == int(with_lane)
     assert janitor_receipt.load_receipt("worktree_gc") is None
+
+
+def test_cwd_scan_sees_a_process_named_like_a_version(tmp_path: Path) -> None:
+    """Claude Code's native binary runs as its version string (lsof `c2.1.283`).
+
+    A copied /bin/sleep is SIGKILLed by macOS, so a tiny binary is compiled under a
+    version-shaped name instead.
+    """
+    import shutil
+
+    cc = shutil.which("cc")
+    if cc is None:
+        pytest.skip("no C compiler to build a version-named process")
+    src = tmp_path / "idle.c"
+    src.write_text("#include <unistd.h>\nint main(void){sleep(30);return 0;}\n")
+    exe = tmp_path / "2.1.999"
+    subprocess.run([cc, "-o", str(exe), str(src)], check=True, capture_output=True)
+    lane = (tmp_path / "lane").resolve()
+    lane.mkdir()
+    child = subprocess.Popen([str(exe)], cwd=lane)
+    try:
+        deadline = time.time() + 10
+        pids: list[int] = []
+        while child.pid not in pids and time.time() < deadline:
+            pids = worktree_gc.holders_for(lane, worktree_gc.live_cwd_holders())
+            time.sleep(0.1)
+        assert child.pid in pids
+    finally:
+        child.kill()
+        child.wait()

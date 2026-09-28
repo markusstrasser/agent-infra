@@ -184,6 +184,11 @@ def live_cwd_holders() -> dict[str, list[int]]:
     instead of substring-matching a human-formatted table. The PID is what lets a caller
     ask *what* is holding a directory rather than only *how many*.
 
+    Every process counts, whatever its name. Until 2026-09-28 the scan kept only
+    `python3`/`bash`/`git`/`node`/`codex`, and Claude Code's native binary runs as its
+    version string (lsof `c2.1.283`), so a claude session sitting in a worktree never read
+    as HELD. The unfiltered scan is ~1.5k lines in <0.1 s.
+
     Returns {} when lsof is unavailable. That is the dangerous direction, so an empty
     result means "unknown", never "nothing is running" — see the caller.
     """
@@ -191,31 +196,14 @@ def live_cwd_holders() -> dict[str, list[int]]:
     started = time.monotonic()
     try:
         result = subprocess.run(
-            [
-                LSOF,
-                "-a",
-                "-d",
-                "cwd",
-                "-F",
-                "pn",
-                "-c",
-                "python3",
-                "-c",
-                "bash",
-                "-c",
-                "git",
-                "-c",
-                "node",
-                "-c",
-                "codex",
-            ],
+            [LSOF, "-a", "-d", "cwd", "-F", "pn"],
             capture_output=True,
             text=True,
             timeout=60,
             check=False,
         )
     except subprocess.TimeoutExpired:
-        LAST_SCAN_DIAG = f"lsof timed out after 60s (a sleeping/unreachable mount stalls stat())"
+        LAST_SCAN_DIAG = "lsof timed out after 60s (a sleeping/unreachable mount stalls stat())"
         return {}
     except (OSError, subprocess.SubprocessError) as exc:
         LAST_SCAN_DIAG = f"lsof could not run: {exc!r}"
