@@ -3,8 +3,8 @@
 Real temp repos + `git worktree add`/`lock`, the same fixture shape as
 test_worktree_gc_archive.py. Idleness is set with os.utime on the tree and its git-dir
 index/HEAD, which is the clock idle_age_days reads. The intra-day reaper runs
-`apply --unmerged-idle-hours 3 --strip-idle-venvs-days 0.05 --no-size`; main() is driven
-with exactly those flags.
+`apply --unmerged-idle-hours 3 --strip-idle-caches-min 30 --prune-pytest-hours 2 --no-size`;
+main() is driven with exactly those flags.
 """
 
 from __future__ import annotations
@@ -30,7 +30,10 @@ from worktree_gc import (
 )
 
 HOUR = 3600.0
-REAP_FLAGS = ("--unmerged-idle-hours", "3", "--strip-idle-venvs-days", "0.05", "--no-size")
+REAP_FLAGS = (
+    "--unmerged-idle-hours", "3", "--strip-idle-caches-min", "30", "--prune-pytest-hours", "2",
+    "--no-size",
+)
 
 
 def _git(*args: str, cwd: Path) -> str:
@@ -53,11 +56,18 @@ def repo(tmp_path: Path) -> Path:
     return r
 
 
+@pytest.fixture(autouse=True)
+def _no_real_temp_roots_or_lsof(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fence: no test may prune the real pytest-of-<user> or read the real txt-mapping scan."""
+    monkeypatch.setattr(worktree_gc, "pytest_temp_roots", list)
+    monkeypatch.setattr(worktree_gc, "live_mapped_holders", lambda: {"/nowhere": [1]})
+
+
 def _age_tree(wt: Path, hours: float) -> None:
     stamp = time.time() - hours * HOUR
     gd = Path(_git("rev-parse", "--absolute-git-dir", cwd=wt).strip())
     targets = [p for p in wt.rglob("*") if ".git" not in p.parts]
-    targets += [gd / "index", gd / "HEAD"]
+    targets += [wt, gd / "index", gd / "HEAD"]
     for p in targets:
         if p.is_symlink() or p.exists():
             os.utime(p, (stamp, stamp), follow_symlinks=False)
@@ -204,7 +214,10 @@ def test_live_lock_keeps_the_tree_under_every_flag(
         "--force-all",
         *REAP_FLAGS,
     )
-    assert wt.exists() and (wt / ".venv").exists()
+    # The lock keeps the tree, never its derived caches: Claude Code locks every agent tree
+    # with the parent session's pid, so a live lock cannot tell a working lane from a done one.
+    assert wt.exists() and (wt / "h.txt").exists()
+    assert not (wt / ".venv").exists()
 
 
 def test_dead_pid_lock_is_released_and_the_tree_reaped(

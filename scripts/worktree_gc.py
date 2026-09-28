@@ -29,6 +29,12 @@ apply --unmerged-idle-hours N: also remove branched unmerged trees with no edits
   idle >= N hours (branch kept; audit marks would-reap-idle)
 apply --force-stale: also stale (ahead==0) with dirty trees (discards wt edits)
 apply --force-all: everything except --keep, held, and live-locked trees (dangerous)
+apply --strip-idle-caches-min N: also delete the derived caches (.venv, .uv-cache,
+  .claude/cache/index-trees) of any tree with no process inside and nothing touched for N
+  minutes; a live lock keeps the tree, never its caches (audit marks would-strip)
+apply --prune-pytest-hours N: also delete pytest-of-<user> basetemp dirs untouched for N
+  hours whose pytest has exited (audit marks would-prune-pytest)
+prune: only those two steps; never removes a worktree (the low-disk guard's mode)
 
 Evidence: standing #g metafix — worktree leak is harness hygiene, not telos.
 """
@@ -36,12 +42,14 @@ Evidence: standing #g metafix — worktree leak is harness hygiene, not telos.
 from __future__ import annotations
 
 import argparse
+import getpass
 import os
 import re
 import shutil
 import stat
 import subprocess
 import sys
+import tempfile
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -212,9 +220,14 @@ def live_cwd_holders() -> dict[str, list[int]]:
         f"lsof rc={result.returncode} in {time.monotonic() - started:.1f}s, "
         f"{len(result.stdout.splitlines())} output lines, stderr={result.stderr.strip()[:200]!r}"
     )
+    return _parse_lsof_fields(result.stdout)
+
+
+def _parse_lsof_fields(stdout: str) -> dict[str, list[int]]:
+    """`lsof -F pn` field output (`p<pid>` then its `n<path>` lines) → {path: [pids]}."""
     holders: dict[str, list[int]] = {}
     pid: int | None = None
-    for line in result.stdout.splitlines():
+    for line in stdout.splitlines():
         if line.startswith("p"):
             try:
                 pid = int(line[1:])
@@ -223,6 +236,28 @@ def live_cwd_holders() -> dict[str, list[int]]:
         elif line.startswith("n") and pid is not None:
             holders.setdefault(line[1:], []).append(pid)
     return holders
+
+
+def live_mapped_holders() -> dict[str, list[int]]:
+    """Map every file a process has mapped as text (its binary, dylibs, extension modules).
+
+    A python run from a lane's `.venv` with its cwd elsewhere (`uv run --project <tree>`, a
+    bgrun job started from a scratchpad) is invisible to the cwd scan, but every compiled
+    module it imported stays mapped from `.venv/lib/.../site-packages`. One lsof call, ~0.4 s
+    for ~15k lines on 2026-09-29. This process maps its own interpreter, so {} means the scan
+    failed and callers must read it as "unknown", exactly like the cwd scan.
+    """
+    try:
+        result = subprocess.run(
+            [LSOF, "-a", "-d", "txt", "-F", "pn"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    return _parse_lsof_fields(result.stdout)
 
 
 def daemon_pids(pids: set[int]) -> set[int]:
@@ -269,11 +304,19 @@ def liveness_known(holders: dict[str, list[int]]) -> bool:
 
 
 def holders_for(path: Path, holders: dict[str, list[int]]) -> list[int]:
-    """PIDs working inside ``path``, including nested subdirectories."""
-    needle = str(path)
+    """PIDs working inside ``path``, including nested subdirectories.
+
+    lsof reports kernel paths, so `/var/folders/…/T` (a lane's $TMPDIR) comes back as
+    `/private/var/folders/…/T`; the resolved spelling is matched as well as the given one.
+    """
+    needles = {str(path)}
+    try:
+        needles.add(str(path.resolve()))
+    except OSError:
+        pass
     out: list[int] = []
     for cwd, pids in holders.items():
-        if cwd == needle or cwd.startswith(needle + "/"):
+        if any(cwd == needle or cwd.startswith(needle + "/") for needle in needles):
             out.extend(pids)
     return out
 
@@ -698,6 +741,46 @@ def should_remove(
     return False
 
 
+def make_writable(root: Path) -> None:
+    """Give the owner rwx on ``root`` and every directory below it, never through a symlink.
+
+    Deleting an entry needs write and search permission on its PARENT directory, not on the
+    entry; listing a directory needs read. Trees materialized read-only on purpose
+    (`.claude/cache/source-epochs/`, pre-commit's `.claude/cache/index-trees/`, pytest
+    fixtures that chmod a-w) otherwise stop `git worktree remove`, `shutil.rmtree` and a
+    plain `rm -rf` partway; on 2026-09-29 pytest's own cleanup had left 4.2 GB of
+    `garbage-*` basetemp dirs it could not delete. Each directory is fixed before it is
+    listed, so even a mode-000 directory is entered.
+    """
+
+    def fix(path: str) -> None:
+        try:
+            st = os.lstat(path)
+            if stat.S_ISDIR(st.st_mode) and st.st_mode & stat.S_IRWXU != stat.S_IRWXU:
+                os.chmod(path, stat.S_IMODE(st.st_mode) | stat.S_IRWXU)
+        except OSError:
+            pass
+
+    if root.is_symlink() or not root.is_dir():
+        return
+    fix(str(root))
+    for dirpath, dirnames, _files in os.walk(root):  # top-down: children fixed before entry
+        for name in dirnames:
+            fix(os.path.join(dirpath, name))
+
+
+def delete_tree(path: Path) -> bool:
+    """Delete ``path`` and everything below it, read-only subtrees included. True iff gone.
+
+    A symlink is never followed or deleted: the caller named a real directory.
+    """
+    if path.is_symlink():
+        return False
+    make_writable(path)
+    shutil.rmtree(path, ignore_errors=True)
+    return not path.exists()
+
+
 def remove_worktree(repo: Path, wt: Path, force: bool = True) -> None:
     """Remove a worktree, surviving read-only caches and never half-removing.
 
@@ -717,12 +800,7 @@ def remove_worktree(repo: Path, wt: Path, force: bool = True) -> None:
     read-only on purpose. Make the tree writable first so the delete can finish;
     then, if git still failed, finish the job rather than leaving a half-state.
     """
-    for path in wt.rglob("*"):
-        try:
-            if not path.is_symlink():
-                path.chmod(path.stat().st_mode | stat.S_IWUSR)
-        except OSError:
-            pass
+    make_writable(wt)
     cmd = ["git", "worktree", "remove", *(["--force"] if force else []), str(wt)]
     try:
         run(cmd, cwd=repo, check=True)
@@ -758,7 +836,12 @@ def remove_worktree(repo: Path, wt: Path, force: bool = True) -> None:
 # ---------------------------------------------------------------------------
 ARCHIVE_ROOT = Path.home() / ".local" / "share" / "worktree-archives"
 CACHE_DIRS: tuple[str, ...] = (".venv", ".uv-cache", "node_modules")
-STRIP_DIRS: tuple[str, ...] = (".venv", ".uv-cache")
+# Rederivable, git-ignored caches a lane builds inside its own tree: `uv run` from the tree
+# root syncs a ~735 MB .venv, and the genomics pre-commit materializes the staged index
+# read-only under .claude/cache/index-trees (~430 MB). Across 27 lane trees these, plus 7 GB
+# of pytest basetemps, took the data volume to 334 MB free on 2026-09-29 06:05, the second
+# ENOSPC in two days.
+STRIP_DIRS: tuple[str, ...] = (".venv", ".uv-cache", ".claude/cache/index-trees")
 
 
 def _mtime(path: Path) -> float | None:
@@ -775,6 +858,14 @@ def idle_age_days(wt: Path, now: float | None = None) -> float:
     commit while someone edits it all day.
     """
     now = time.time() if now is None else now
+    stamps = activity_stamps(wt)
+    if not stamps:
+        return 0.0  # unknown → treat as fresh (the safe direction)
+    return max(0.0, (now - max(stamps)) / 86400.0)
+
+
+def activity_stamps(wt: Path) -> list[float]:
+    """mtimes of every dirty path and of the git-dir index/HEAD: the tree's own work clock."""
     # -uall: a collapsed `dir/` entry carries the directory's mtime, which editing a file
     # inside it never bumps; list every untracked file so each edit counts as activity.
     st = run(
@@ -802,9 +893,7 @@ def idle_age_days(wt: Path, now: float | None = None) -> float:
             m = _mtime(gdir / name)
             if m is not None:
                 stamps.append(m)
-    if not stamps:
-        return 0.0  # unknown → treat as fresh (the safe direction)
-    return max(0.0, (now - max(stamps)) / 86400.0)
+    return stamps
 
 
 def _under_cache(rel: str) -> bool:
@@ -936,44 +1025,107 @@ def archive_worktree(
     return res
 
 
-def _real_dir(path: Path) -> bool:
-    return not path.is_symlink() and path.is_dir()
+def _real_subdir(wt: Path, rel: str) -> Path | None:
+    """``wt/rel`` if it is a real directory reached without crossing a symlink, else None.
+
+    Every component is checked, not only the leaf: a `.claude` symlinked to main's checkout
+    would otherwise walk the strip into main's own caches.
+    """
+    path = wt
+    for part in Path(rel).parts:
+        path = path / part
+        if path.is_symlink():
+            return None
+    return path if path.is_dir() else None
 
 
 def strip_candidates(wt: Path) -> list[Path]:
-    """Real `.venv` / `.uv-cache` dirs; a symlink is never followed or deleted."""
-    return [wt / d for d in STRIP_DIRS if _real_dir(wt / d)]
+    """``wt``'s real, git-ignored, untracked STRIP_DIRS; a symlink is never followed or deleted.
+
+    A directory that git tracks anything under, or does not ignore, holds somebody's content
+    rather than a derived cache, so it stays. If git cannot answer, nothing is a candidate.
+    """
+    found = [p for rel in STRIP_DIRS if (p := _real_subdir(wt, rel)) is not None]
+    if not found:
+        return []
+    rels = [p.relative_to(wt).as_posix() for p in found]
+    tracked = run(["git", "ls-files", "-z", "--", *rels], cwd=wt)
+    # STRIP_DIRS are plain constants, so line output is exact (-z needs --stdin).
+    ignored = run(["git", "check-ignore", *rels], cwd=wt)
+    if tracked.returncode != 0 or ignored.returncode not in (0, 1):
+        return []
+    tracked_paths = [t for t in tracked.stdout.split("\0") if t]
+    ignored_rels = {i.rstrip("/") for i in ignored.stdout.splitlines() if i}
+    return [
+        p
+        for p, rel in zip(found, rels)
+        if rel in ignored_rels
+        and not any(t == rel or t.startswith(rel + "/") for t in tracked_paths)
+    ]
 
 
-def strip_idle_caches(wt: Path) -> dict[str, str]:
+def strip_idle_caches(wt: Path, planned: list[Path] | None = None) -> dict[str, str]:
+    """Delete ``wt``'s caches (only ``planned`` ones, when given) → {relative path: size}.
+
+    Candidates are re-derived here rather than trusted from the plan, so a cache that became
+    a symlink or gained tracked content since the audit stays.
+    """
     sizes: dict[str, str] = {}
     for p in strip_candidates(wt):
-        sizes[p.name] = _du(p)
-        if p.is_symlink():  # re-check immediately before deleting
+        if planned is not None and p not in planned:
             continue
-        for sub in p.rglob("*"):
-            try:
-                if not sub.is_symlink():
-                    sub.chmod(sub.stat().st_mode | stat.S_IWUSR)
-            except OSError:
-                pass
-        shutil.rmtree(p, ignore_errors=True)
+        size = _du(p)
+        if delete_tree(p):
+            sizes[p.relative_to(wt).as_posix()] = size
+        else:
+            print(f"FAIL strip {p}: still on disk", file=sys.stderr)
     return sizes
 
 
-def plan_idle_actions(
+def cache_activity_stamps(cache: Path, depth: int = 3) -> list[float]:
+    """mtimes of ``cache``, its top-level files, and every directory up to ``depth`` below.
+
+    A directory's mtime moves whenever an entry is added, removed or renamed in it, so this
+    sees `uv sync` installing into `.venv/lib/python3.x/site-packages` (depth 3) and
+    pre-commit materializing a new tree under `index-trees` without statting every file.
+    """
+    stamps: list[float] = []
+    level: list[Path] = [cache]
+    for depth_now in range(depth + 1):
+        below: list[Path] = []
+        for directory in level:
+            m = _mtime(directory)
+            if m is not None:
+                stamps.append(m)
+            if depth_now == depth:
+                continue
+            try:
+                with os.scandir(directory) as entries:
+                    for entry in entries:
+                        try:
+                            if entry.is_dir(follow_symlinks=False):
+                                below.append(Path(entry.path))
+                            elif depth_now == 0:
+                                stamps.append(entry.stat(follow_symlinks=False).st_mtime)
+                        except OSError:
+                            continue
+            except OSError:
+                continue
+        level = below
+    return stamps
+
+
+def plan_idle_archive(
     rows: list[WorktreeRow],
     archive_days: float | None,
-    strip_days: float | None,
     keep: set[str],
     exclude: list[WorktreeRow],
     now: float | None = None,
-) -> tuple[list[WorktreeRow], list[WorktreeRow]]:
-    """(rows to archive+remove, rows to strip). Empty when both options are off."""
-    if archive_days is None and strip_days is None:
-        return [], []
+) -> list[WorktreeRow]:
+    """Stale-dirty/skip-dirty trees idle >= ``archive_days``: archived, then removed."""
+    if archive_days is None:
+        return []
     archive: list[WorktreeRow] = []
-    strip: list[WorktreeRow] = []
     for row in rows:
         if row.held or row.daemon_held or row.lock_live:
             continue
@@ -981,17 +1133,176 @@ def plan_idle_actions(
             continue
         if row in exclude or not row.path.exists():
             continue
-        idle = idle_age_days(row.path, now)
         if (
-            archive_days is not None
-            and row.classify() in ("stale-dirty", "skip-dirty")
-            and idle >= archive_days
+            row.classify() in ("stale-dirty", "skip-dirty")
+            and idle_age_days(row.path, now) >= archive_days
         ):
             archive.append(row)
+    return archive
+
+
+def plan_cache_strip(
+    rows: list[WorktreeRow],
+    idle_min: float | None,
+    keep: set[str],
+    exclude: list[WorktreeRow],
+    mapped: dict[str, list[int]],
+    now: float | None = None,
+) -> list[tuple[WorktreeRow, list[Path]]]:
+    """(tree, caches) to strip: no process inside and nothing touched for ``idle_min`` minutes.
+
+    Idle means all of: no process has its cwd in the tree (HELD/DAEMON); no process maps a
+    file inside the cache (``mapped``: a `.venv` python started from elsewhere); and no
+    mtime newer than ``idle_min`` among the tree's dirty paths, git index/HEAD, root
+    directory and the cache's own directories. Dirty trees qualify, because only ignored,
+    untracked cache directories are deleted, never a tracked or unignored file.
+
+    A live `git worktree lock` does NOT protect caches. Claude Code locks every agent tree
+    with the PARENT session's pid, so the lock reads live for as long as the lead runs: on
+    2026-09-29 all 19 genomics agent trees carried one 28 h-old pid, and the 72-minute
+    .venv strip, which skipped locked trees, logged `stripped 0` while 11 of them held a
+    .venv or index-trees and the volume filled. The lock still keeps the tree; its caches
+    are rederivable (the next `uv run` re-syncs from the shared uv cache, and pre-commit
+    re-materializes its index tree).
+    """
+    if idle_min is None:
+        return []
+    now = time.time() if now is None else now
+    out: list[tuple[WorktreeRow, list[Path]]] = []
+    for row in rows:
+        if row.held or row.daemon_held:
             continue
-        if strip_days is not None and idle >= strip_days and strip_candidates(row.path):
-            strip.append(row)
-    return archive, strip
+        if any(k in str(row.path) for k in keep):
+            continue
+        if row in exclude or not row.path.exists():
+            continue
+        caches = [c for c in strip_candidates(row.path) if not holders_for(c, mapped)]
+        if not caches:
+            continue
+        stamps = activity_stamps(row.path)
+        root = _mtime(row.path)
+        if root is not None:
+            stamps.append(root)
+        for cache in caches:
+            stamps.extend(cache_activity_stamps(cache))
+        if stamps and (now - max(stamps)) / 60.0 >= idle_min:
+            out.append((row, caches))
+    return out
+
+
+# pytest roots each session at `pytest-of-<user>/pytest-<N>` and rotates old sessions out by
+# renaming them `garbage-<uuid>` and deleting that; one read-only directory inside makes the
+# delete fail, and the garbage dir then stays forever. 7 GB of basetemps (4.2 GB of them
+# `garbage-*`) sat in $TMPDIR when the volume filled on 2026-09-29.
+_PYTEST_ENTRY = re.compile(r"pytest-\d+|garbage-[0-9a-f-]+")
+
+
+def pytest_temp_roots() -> list[Path]:
+    """Every `pytest-of-<user>` directory a lane's pytest can have written.
+
+    pytest roots basetemp at `tempfile.gettempdir()`: $TMPDIR (/var/folders/…/T) in a login
+    shell, /tmp where TMPDIR is unset. A launchd job need not inherit TMPDIR, so the per-user
+    temp dir is also asked of `getconf` rather than taken from the environment.
+    """
+    bases = [Path(tempfile.gettempdir()), Path("/private/tmp")]
+    try:
+        out = subprocess.run(
+            ["getconf", "DARWIN_USER_TEMP_DIR"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        if out.returncode == 0 and out.stdout.strip():
+            bases.append(Path(out.stdout.strip()))
+    except (OSError, subprocess.SubprocessError):
+        pass
+    roots: list[Path] = []
+    seen: set[Path] = set()
+    for base in bases:
+        root = base / f"pytest-of-{getpass.getuser()}"
+        try:
+            if root.is_symlink() or not root.is_dir():
+                continue
+            resolved = root.resolve()
+        except OSError:
+            continue
+        if resolved not in seen:
+            seen.add(resolved)
+            roots.append(root)
+    return roots
+
+
+def _pytest_lock_live(entry: Path, now: float, max_age_h: float) -> bool:
+    """True while the pytest that owns ``entry`` (or pytest's own cleanup of it) still runs.
+
+    pytest writes its pid into `<dir>/.lock` and removes the file at exit; a killed run leaves
+    it naming a dead pid. A lock without a usable pid counts as live until the lock file is
+    itself older than the age cutoff; an unreadable one always does.
+    """
+    lock = entry / ".lock"
+    try:
+        text = lock.read_text(errors="ignore").strip()
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return True
+    pid = int(text) if text.isdigit() else 0
+    if pid <= 0:
+        m = _mtime(lock)
+        return m is None or (now - m) / 3600.0 < max_age_h
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except (OSError, OverflowError):
+        return True  # EPERM: the process exists under another uid
+    return True
+
+
+def plan_pytest_prune(
+    roots: list[Path],
+    max_age_h: float | None,
+    holders: dict[str, list[int]],
+    now: float | None = None,
+) -> list[tuple[Path, float]]:
+    """(dir, hours idle) for pytest basetemp dirs untouched for ``max_age_h`` whose run exited.
+
+    Age is the newest mtime among the dir and its immediate entries. A `garbage-*` dir needs
+    no age: pytest renames a numbered dir to garbage only once it has judged it dead, and
+    every later pytest exit renames it again (new uuid, fresh mtime) and fails the same
+    delete, so its mtime never ages; on 2026-09-29 all 11 garbage dirs were re-stamped
+    within the same second, twice in half an hour. A live `.lock` pid or a process cwd
+    inside keeps any dir.
+    """
+    if max_age_h is None:
+        return []
+    now = time.time() if now is None else now
+    out: list[tuple[Path, float]] = []
+    for root in roots:
+        try:
+            entries = sorted(root.iterdir())
+        except OSError:
+            continue
+        for entry in entries:
+            try:
+                if entry.is_symlink() or not entry.is_dir():  # `pytest-current` is a symlink
+                    continue
+            except OSError:
+                continue
+            if not _PYTEST_ENTRY.fullmatch(entry.name):
+                continue
+            if holders_for(entry, holders) or _pytest_lock_live(entry, now, max_age_h):
+                continue
+            stamps = [m for m in [_mtime(entry)] if m is not None]
+            try:
+                stamps += [m for child in entry.iterdir() if (m := _mtime(child)) is not None]
+            except OSError:
+                pass
+            age_h = (now - max(stamps)) / 3600.0 if stamps else 0.0
+            if entry.name.startswith("garbage-") or age_h >= max_age_h:
+                out.append((entry, age_h))
+    return out
 
 
 def plan_idle_unmerged(
@@ -1032,7 +1343,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    ap.add_argument("mode", nargs="?", default="audit", choices=("audit", "apply"))
+    ap.add_argument("mode", nargs="?", default="audit", choices=("audit", "apply", "prune"))
     ap.add_argument(
         "--repo",
         action="append",
@@ -1083,12 +1394,21 @@ def main() -> int:
         "stale-dirty/skip-dirty trees idle >= N days; audit marks would-archive",
     )
     ap.add_argument(
-        "--strip-idle-venvs-days",
+        "--strip-idle-caches-min",
         type=float,
         default=None,
         metavar="N",
-        help="delete real .venv/.uv-cache dirs (never symlinks) in any non-held "
-        "tree idle >= N days; audit marks would-strip",
+        help="delete real, git-ignored .venv/.uv-cache/.claude/cache/index-trees dirs "
+        "(never symlinks, never tracked files) of any tree with no process inside and "
+        "nothing touched for N minutes, live-locked trees included; audit marks would-strip",
+    )
+    ap.add_argument(
+        "--prune-pytest-hours",
+        type=float,
+        default=None,
+        metavar="N",
+        help="delete pytest-of-<user> basetemp dirs (pytest-N, garbage-*) untouched for "
+        "N hours with no live .lock pid and no process inside; audit marks would-prune-pytest",
     )
     ap.add_argument(
         "--unmerged-idle-hours",
@@ -1105,6 +1425,9 @@ def main() -> int:
         "never overwrite a failed nightly's receipt",
     )
     args = ap.parse_args()
+    pruning = args.mode == "prune"
+    if pruning and args.strip_idle_caches_min is None and args.prune_pytest_hours is None:
+        ap.error("prune needs --strip-idle-caches-min and/or --prune-pytest-hours")
 
     with_size = not (args.no_size or args.check)
     # --check defaults to all-projects so the hub surfaces stranded work in every repo.
@@ -1160,24 +1483,57 @@ def main() -> int:
         return 0
 
     keep = set(args.keep)
-    to_remove = [
-        r
-        for r in all_rows
-        if should_remove(
-            r, args.include_unmerged, args.force_stale, args.force_all, keep
+    # prune touches derived caches only, so every tree-removal plan stays empty in that mode.
+    to_remove = (
+        []
+        if pruning
+        else [
+            r
+            for r in all_rows
+            if should_remove(
+                r, args.include_unmerged, args.force_stale, args.force_all, keep
+            )
+        ]
+    )
+    idle_rows = (
+        []
+        if pruning
+        else plan_idle_unmerged(all_rows, args.unmerged_idle_hours, keep, exclude=to_remove)
+    )
+    archive_rows = (
+        []
+        if pruning
+        else plan_idle_archive(
+            all_rows, args.archive_stale_days, keep, exclude=to_remove + idle_rows
         )
-    ]
-
-    idle_rows = plan_idle_unmerged(all_rows, args.unmerged_idle_hours, keep, exclude=to_remove)
-    archive_rows, strip_rows = plan_idle_actions(
-        all_rows,
-        args.archive_stale_days,
-        args.strip_idle_venvs_days,
-        keep,
-        exclude=to_remove + idle_rows,
+    )
+    # A tree that goes takes its caches with it, so only surviving trees are stripped.
+    strip_plan: list[tuple[WorktreeRow, list[Path]]] = []
+    mapping_known = True
+    if args.strip_idle_caches_min is not None:
+        mapped = live_mapped_holders()
+        mapping_known = bool(mapped)
+        if mapping_known:
+            strip_plan = plan_cache_strip(
+                all_rows,
+                args.strip_idle_caches_min,
+                keep,
+                exclude=to_remove + idle_rows + archive_rows,
+                mapped=mapped,
+            )
+        else:
+            print(
+                "[DEGRADED] mapped-file scan unknown — lsof -d txt reported nothing; "
+                "every cache strip is refused until the scan works",
+                file=sys.stderr,
+            )
+    pytest_plan = (
+        plan_pytest_prune(pytest_temp_roots(), args.prune_pytest_hours, cwd_holders)
+        if args.prune_pytest_hours is not None
+        else []
     )
 
-    for row in all_rows:
+    for row in [] if pruning else all_rows:
         cls = row.classify()
         mark = "→" if row in to_remove else " "
         br = row.branch or "(detached)"
@@ -1211,7 +1567,7 @@ def main() -> int:
 
     # Stranded trees are invisible to `git worktree list`, so they are found by scanning
     # the temp roots directly rather than by asking any repo what it owns.
-    stranded = find_stranded(cwd_holders, with_size=with_size)
+    stranded = [] if pruning else find_stranded(cwd_holders, with_size=with_size)
     if stranded:
         print(
             "\nSTRANDED — registration gone, files remain (invisible to `git worktree list`):"
@@ -1230,11 +1586,11 @@ def main() -> int:
                 f"{'→' if s.reclaimable else ' '} {owner:15} {s.size:>6}  {s.path}  ({why})"
             )
 
-    if not all_rows and not stranded:
+    if not all_rows and not stranded and not pruning:
         print("(no extra worktrees)")
         # apply still runs to the receipt: a reaper that emptied every repo is a success,
         # and skipping the receipt would read as a dead motor after 36 h.
-        if args.mode == "audit":
+        if args.mode == "audit" and not pytest_plan:
             return 0
 
     if args.mode == "audit":
@@ -1246,9 +1602,14 @@ def main() -> int:
             )
         for row in archive_rows:
             print(f"would-archive {row.path} ({row.classify()}, {row.repo})")
-        for row in strip_rows:
-            sizes = " ".join(f"{p.name}={_du(p)}" for p in strip_candidates(row.path))
+        for row, caches in strip_plan:
+            sizes = " ".join(
+                f"{c.relative_to(row.path).as_posix()}={_du(c) if with_size else '?'}"
+                for c in caches
+            )
             print(f"would-strip {row.path} {sizes}")
+        for path, age_h in pytest_plan:
+            print(f"would-prune-pytest {path} (idle {age_h:.1f}h)")
         n_safe = sum(1 for r in all_rows if r.safe)
         n_dup = sum(1 for r in all_rows if r.classify() == "DUP")
         n_unmerged = sum(1 for r in all_rows if r.classify() == "unmerged")
@@ -1346,14 +1707,20 @@ def main() -> int:
         archived += 1
 
     stripped = 0
-    for row in strip_rows:
-        sizes = strip_idle_caches(row.path)
+    for row, caches in strip_plan:
+        sizes = strip_idle_caches(row.path, caches)
         if sizes:
-            print(
-                f"STRIPPED {row.path} "
-                + " ".join(f"{k}={sizes.get(k, '-')}" for k in STRIP_DIRS)
-            )
+            print(f"STRIPPED {row.path} " + " ".join(f"{k}={v}" for k, v in sizes.items()))
             stripped += 1
+
+    pruned_pytest = 0
+    for path, age_h in pytest_plan:
+        size = _du(path) if with_size else "?"
+        if delete_tree(path):
+            print(f"PRUNED-PYTEST {path} ({size}, idle {age_h:.1f}h)")
+            pruned_pytest += 1
+        else:
+            print(f"FAIL pytest temp {path}: still on disk", file=sys.stderr)
 
     # Stranded trees are no longer worktrees, so `git worktree remove` cannot touch them —
     # the directory is inert and the reclaim is a plain delete. Gated on the same evidence
@@ -1362,17 +1729,7 @@ def main() -> int:
     for s in stranded:
         if not s.reclaimable:
             continue
-        try:
-            shutil.rmtree(s.path, ignore_errors=False)
-        except OSError:
-            for p in s.path.rglob("*"):
-                try:
-                    if not p.is_symlink():
-                        p.chmod(p.stat().st_mode | stat.S_IWUSR)
-                except OSError:
-                    pass
-            shutil.rmtree(s.path, ignore_errors=True)
-        if s.path.exists():
+        if not delete_tree(s.path):
             print(f"FAIL stranded {s.path}: still on disk", file=sys.stderr)
             continue
         print(f"reclaimed stranded {s.path} ({s.size})")
@@ -1380,39 +1737,45 @@ def main() -> int:
 
     # A registration whose directory is already gone is the mirror image of a stranded
     # tree, and it is what makes `worktree list` report paths that do not exist.
-    for repo in repos:
+    for repo in [] if pruning else repos:
         run(["git", "worktree", "prune"], cwd=repo)
 
-    print(
-        f"\nremoved {removed}/{len(to_remove)} worktrees; reclaimed {reclaimed} stranded"
-        + (
-            f"; reaped idle-unmerged {reaped_idle}/{len(idle_rows)} (branches kept)"
-            if args.unmerged_idle_hours is not None
-            else ""
-        )
-        + (
-            f"; archived {archived}/{len(archive_rows)} (under {ARCHIVE_ROOT}); "
-            f"stripped {stripped}"
-            if args.archive_stale_days is not None
-            or args.strip_idle_venvs_days is not None
-            else ""
-        )
+    parts = (
+        []
+        if pruning
+        else [f"removed {removed}/{len(to_remove)} worktrees", f"reclaimed {reclaimed} stranded"]
     )
-    # Janitor effect-receipt (observe 2026-08-11 B3): principal = trees removed+reclaimed
+    if args.unmerged_idle_hours is not None and not pruning:
+        parts.append(f"reaped idle-unmerged {reaped_idle}/{len(idle_rows)} (branches kept)")
+    if args.archive_stale_days is not None and not pruning:
+        parts.append(f"archived {archived}/{len(archive_rows)} (under {ARCHIVE_ROOT})")
+    if args.strip_idle_caches_min is not None:
+        parts.append(f"stripped {stripped}/{len(strip_plan)} trees' caches")
+    if args.prune_pytest_hours is not None:
+        parts.append(f"pruned {pruned_pytest}/{len(pytest_plan)} pytest temp dirs")
+    print("\n" + "; ".join(parts))
+    # Janitor effect-receipt (observe 2026-08-11 B3): principal = trees removed+reclaimed;
+    # in prune mode, trees stripped + pytest dirs pruned.
     try:
         from janitor_receipt import write_receipt
 
         write_receipt(
             args.receipt_motor,
-            principal_metric=removed + reclaimed + archived + reaped_idle,
+            principal_metric=(
+                stripped + pruned_pytest
+                if pruning
+                else removed + reclaimed + archived + reaped_idle
+            ),
+            error_class=None if mapping_known else "mapped_scan_unknown",
             detail=(
                 f"removed={removed} reclaimed_stranded={reclaimed} reaped_idle={reaped_idle} "
-                f"archived={archived} stripped={stripped} archive_root={ARCHIVE_ROOT}"
+                f"archived={archived} stripped={stripped} pruned_pytest={pruned_pytest} "
+                f"archive_root={ARCHIVE_ROOT}"
             ),
         )
     except Exception as e:  # never fail the GC over a receipt write
         print(f"janitor_receipt write skipped: {e}", file=sys.stderr)
-    return 0
+    return 0 if mapping_known else 2
 
 
 if __name__ == "__main__":

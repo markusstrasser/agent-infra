@@ -21,13 +21,15 @@ from worktree_gc import (
     WorktreeRow,
     archive_worktree,
     audit_repo,
-    plan_idle_actions,
+    plan_cache_strip,
+    plan_idle_archive,
     remove_worktree,
     should_remove,
     strip_idle_caches,
 )
 
 DAY = 86400.0
+NO_MAPPED = {"/nowhere": [1]}
 
 
 def _git(*args: str, cwd: Path) -> str:
@@ -51,11 +53,18 @@ def repo(tmp_path: Path) -> Path:
     return r
 
 
+@pytest.fixture(autouse=True)
+def _no_real_temp_roots_or_lsof(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fence: no test may prune the real pytest-of-<user> or read the real txt-mapping scan."""
+    monkeypatch.setattr(worktree_gc, "pytest_temp_roots", list)
+    monkeypatch.setattr(worktree_gc, "live_mapped_holders", lambda: {"/nowhere": [1]})
+
+
 def _age_tree(wt: Path, days: float) -> None:
     stamp = time.time() - days * DAY
     gd = Path(_git("rev-parse", "--absolute-git-dir", cwd=wt).strip())
     targets = [p for p in wt.rglob("*") if ".git" not in p.parts]
-    targets += [gd / "index", gd / "HEAD"]
+    targets += [wt, gd / "index", gd / "HEAD"]
     for p in targets:
         if p.is_symlink() or p.exists():
             os.utime(p, (stamp, stamp), follow_symlinks=False)
@@ -93,8 +102,7 @@ def test_idle_stale_dirty_is_archived_removed_pinned_and_restorable(
     wt = _dirty_tree(repo, "lane-idle", days=8)
     row = _row(repo, wt)
     assert row.classify() == "stale-dirty"
-    archive, strip = plan_idle_actions([row], 7, None, set(), exclude=[])
-    assert archive == [row] and strip == []
+    assert plan_idle_archive([row], 7, set(), exclude=[]) == [row]
     # After planning: `git diff` refreshes the index, which (correctly) resets idle.
     want_diff = _git("diff", "--no-ext-diff", "--binary", "HEAD", cwd=wt)
     want_untracked = (wt / "notes" / "new file.md").read_bytes()
@@ -134,8 +142,7 @@ def test_ref_collision_gets_suffix(repo: Path, tmp_path: Path) -> None:
 def test_recently_touched_tree_is_untouched(repo: Path) -> None:
     wt = _dirty_tree(repo, "lane-fresh", days=1)
     row = _row(repo, wt)
-    archive, strip = plan_idle_actions([row], 7, None, set(), exclude=[])
-    assert archive == [] and strip == []
+    assert plan_idle_archive([row], 7, set(), exclude=[]) == []
     assert wt.exists()
 
 
@@ -143,9 +150,11 @@ def test_held_tree_is_never_planned(repo: Path) -> None:
     wt = _dirty_tree(repo, "lane-held", days=30)
     row = _row(repo, wt)
     row.held = 1  # what main() sets from the lsof cwd scan
-    assert plan_idle_actions([row], 7, 1, set(), exclude=[]) == ([], [])
+    assert plan_idle_archive([row], 7, set(), exclude=[]) == []
+    assert plan_cache_strip([row], 1, set(), exclude=[], mapped=NO_MAPPED) == []
     row.held, row.daemon_held = 0, 1
-    assert plan_idle_actions([row], 7, 1, set(), exclude=[]) == ([], [])
+    assert plan_idle_archive([row], 7, set(), exclude=[]) == []
+    assert plan_cache_strip([row], 1, set(), exclude=[], mapped=NO_MAPPED) == []
 
 
 def test_failed_self_check_holds_and_keeps_tree(
@@ -203,8 +212,8 @@ def test_strip_idle_venv_keeps_symlinked_cache_and_tree(repo: Path, tmp_path: Pa
     row = _row(repo, wt)
     assert row.classify() in ("unmerged", "skip-dirty")
 
-    archive, strip = plan_idle_actions([row], None, 1, set(), exclude=[])
-    assert archive == [] and strip == [row]
+    assert plan_idle_archive([row], None, set(), exclude=[]) == []
+    assert plan_cache_strip([row], 60, set(), exclude=[], mapped=NO_MAPPED) == [(row, [wt / ".venv"])]
     sizes = strip_idle_caches(wt)
     assert set(sizes) == {".venv"}
     assert not (wt / ".venv").exists()
@@ -215,7 +224,8 @@ def test_strip_idle_venv_keeps_symlinked_cache_and_tree(repo: Path, tmp_path: Pa
 def test_no_flags_plans_nothing_and_removal_policy_unchanged(repo: Path) -> None:
     wt = _dirty_tree(repo, "lane-noflag", days=30)
     row = _row(repo, wt)
-    assert plan_idle_actions([row], None, None, set(), exclude=[]) == ([], [])
+    assert plan_idle_archive([row], None, set(), exclude=[]) == []
+    assert plan_cache_strip([row], None, set(), exclude=[], mapped=NO_MAPPED) == []
     assert not should_remove(row, False, False, False, set())
     assert should_remove(row, False, True, False, set())  # --force-stale as before
 
