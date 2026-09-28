@@ -30,7 +30,13 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 RECEIPT_DIR = Path(os.environ.get("JANITOR_RECEIPT_DIR", Path.home() / ".cache" / "reclaim"))
-DEFAULT_MOTORS = ("worktree_gc", "uv_cache_prune", "reclaim_rotate", "agentlogs_archive")
+DEFAULT_MOTORS = (
+    "worktree_gc",
+    "worktree_reap",
+    "uv_cache_prune",
+    "reclaim_rotate",
+    "agentlogs_archive",
+)
 DEFAULT_MAX_AGE_HOURS = 36
 
 

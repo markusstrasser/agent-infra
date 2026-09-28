@@ -263,3 +263,26 @@ def test_lock_staleness_needs_a_named_dead_pid(repo: Path) -> None:
     wt = _lane(repo, "lane-quoted")
     _git("worktree", "lock", "--reason", f"two\nlines (pid {dead})", str(wt), cwd=repo)
     assert _row(repo, wt).lock_stale
+
+
+@pytest.mark.parametrize("with_lane", [True, False])
+def test_receipt_motor_names_the_receipt_even_when_nothing_is_left(
+    repo: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    with_lane: bool,
+) -> None:
+    import janitor_receipt
+
+    monkeypatch.setattr(janitor_receipt, "RECEIPT_DIR", tmp_path / "receipts")
+    if with_lane:
+        _age_tree(_lane(repo, "lane-receipt"), 10)
+    monkeypatch.setattr(worktree_gc, "live_cwd_holders", lambda: {"/nowhere": [1]})
+    monkeypatch.setattr(worktree_gc, "find_stranded", lambda *a, **k: [])
+    argv = ["apply", "--repo", str(repo), "--receipt-motor", "worktree_reap", *REAP_FLAGS]
+    monkeypatch.setattr(sys, "argv", ["worktree_gc.py", *argv])
+    assert worktree_gc.main() == 0
+    receipt = janitor_receipt.load_receipt("worktree_reap")
+    assert receipt and receipt["success"] and receipt["principal_metric"] == int(with_lane)
+    assert janitor_receipt.load_receipt("worktree_gc") is None

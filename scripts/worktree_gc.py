@@ -1110,6 +1110,12 @@ def main() -> int:
         help="remove branched unmerged trees with no edits, no holder and no live lock "
         "once idle >= N hours (branch kept); audit marks would-reap-idle",
     )
+    ap.add_argument(
+        "--receipt-motor",
+        default="worktree_gc",
+        help="janitor receipt name; a second schedule writes its own so its successes "
+        "never overwrite a failed nightly's receipt",
+    )
     args = ap.parse_args()
 
     with_size = not (args.no_size or args.check)
@@ -1238,7 +1244,10 @@ def main() -> int:
 
     if not all_rows and not stranded:
         print("(no extra worktrees)")
-        return 0
+        # apply still runs to the receipt: a reaper that emptied every repo is a success,
+        # and skipping the receipt would read as a dead motor after 36 h.
+        if args.mode == "audit":
+            return 0
 
     if args.mode == "audit":
         for row in idle_rows:
@@ -1406,7 +1415,7 @@ def main() -> int:
         from janitor_receipt import write_receipt
 
         write_receipt(
-            "worktree_gc",
+            args.receipt_motor,
             principal_metric=removed + reclaimed + archived + reaped_idle,
             detail=(
                 f"removed={removed} reclaimed_stranded={reclaimed} reaped_idle={reaped_idle} "

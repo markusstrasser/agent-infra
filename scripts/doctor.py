@@ -586,8 +586,8 @@ def check_janitor_receipts() -> list[Check]:
     except ImportError:
         return [Check("janitor:receipts", "global").warn("janitor_receipt import failed")]
 
-    # Motors that reclaim-rotate-cron / worktree_gc actually write after this ship
-    wired = ("worktree_gc", "uv_cache_prune", "reclaim_rotate")
+    # Motors that reclaim-rotate-cron / worktree-reap-cron / worktree_gc actually write
+    wired = ("worktree_gc", "worktree_reap", "uv_cache_prune", "reclaim_rotate")
     rows = stale_motors(wired, max_age_hours=DEFAULT_MAX_AGE_HOURS)
     for r in rows:
         c = Check(f"janitor:{r['motor']}", "global")
