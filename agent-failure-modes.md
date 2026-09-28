@@ -883,3 +883,23 @@ receipt races). Evidence: `genomics/.claude/cache/propagation-20260913/bgrun-dia
 and `bgrun-final-manifest.json`. The native proof establishes survival across the observed
 tool-return cleanup boundary; it does not establish reboot persistence or the tool's
 internal signal.
+
+### FM: Per-call artifacts attributed by recency under parallel launch
+<!--
+FM-ID: recency-attribution-parallel-launch
+signature: per-call telemetry takes "the newest file since launch" (rollout, log, output); parallel calls read each other's files, or a still-running call's partial file as nulls
+target_surface: llmx cli_backends._latest_codex_rollout_usage (session id from stderr); any harness that attributes artifacts by mtime
+status: active
+evidence_count: 1
+-->
+2026-09-29, immigration-research: parallel `llmx chat` codex calls in the reviewer
+calibration lane logged usage lines that cited other calls' rollouts, some with null
+tokens, because llmx took the newest rollout created after launch. Repair: attribute by
+identity. `codex exec` prints `session id: <uuid>` and names its rollout by it; without an
+id, usage stays unknown unless exactly one rollout is new. Regression:
+`llmx/tests/test_usage_accounting.py::TestCodexRolloutUsage` (parallel, ambiguous,
+changed-parent and missing-id cases), llmx 57d3025. **Contract: attribute per-call
+artifacts by an identity the tool emits, never by recency; when identity is missing and
+candidates are ambiguous, record unknown with a note.** Found in the same session: an
+OpenAI no-credit 429 exited 3 (retryable) because llmx read a body the SDK had already
+unwrapped; fixed in llmx bf2ed44 with `tests/test_openai_rate_limit.py`.
