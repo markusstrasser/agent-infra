@@ -16,14 +16,19 @@ Safety classes (audit):
   unmerged       — ahead>0: GENUINE unique commits on branch; NEVER removed by default
   stale-dirty    — ahead==0 but uncommitted edits; needs --force-stale
   skip-dirty     — ahead>0 AND uncommitted edits; never removed without --force-all
+  LOCKED         — `git worktree lock`ed by a live session; never removed by any flag.
+                   A lock naming a `pid <N>` that no longer exists prints `stale-lock`
+                   and is released (`git worktree unlock`) right before a removal.
 
 Audit also prints last-commit age (currency signal — branches weeks behind = cruft).
 
 apply (default): SAFE only — stale merged trees, clean
 apply --include-unmerged: also remove unmerged worktrees with NO local edits
   (branch + commits are preserved; only the directory/venv goes)
+apply --unmerged-idle-hours N: also remove branched unmerged trees with no edits once
+  idle >= N hours (branch kept; audit marks would-reap-idle)
 apply --force-stale: also stale (ahead==0) with dirty trees (discards wt edits)
-apply --force-all: everything except --keep (dangerous)
+apply --force-all: everything except --keep, held, and live-locked trees (dangerous)
 
 Evidence: standing #g metafix — worktree leak is harness hygiene, not telos.
 """
@@ -31,6 +36,8 @@ Evidence: standing #g metafix — worktree leak is harness hygiene, not telos.
 from __future__ import annotations
 
 import argparse
+import os
+import re
 import shutil
 import stat
 import subprocess
@@ -76,11 +83,24 @@ class WorktreeRow:
     # apply reaped two such worktrees (`ahead=0 dirty=0 SAFE`) out from under three live
     # codex processes each; the `??` lines were the only evidence and they were filtered out.
     untracked_work: int = 0
+    # `git worktree lock` reason: None = unlocked, "" = locked without a reason.
+    lock: str | None = None
+    # The lock names a `pid <N>` that no longer exists (session ended, reboot).
+    lock_stale: bool = False
 
     @property
     def dirty(self) -> int:
         """Edits that can contain work: tracked modifications plus untracked files."""
         return self.tracked_dirty + self.untracked_work
+
+    @property
+    def lock_live(self) -> bool:
+        """Claude Code locks agent and `--worktree` session trees while they run.
+
+        An agent between tool calls holds no cwd inside its tree, so for those lanes the
+        lock is the liveness evidence lsof cannot give.
+        """
+        return self.lock is not None and not self.lock_stale
 
     @property
     def stale(self) -> bool:
@@ -96,7 +116,7 @@ class WorktreeRow:
         watchers and remat lanes poll on a timer and write nothing between polls, so a
         clean tree with an old mtime is exactly what a *working* agent looks like.
         """
-        if self.held or self.daemon_held:
+        if self.held or self.daemon_held or self.lock_live:
             return False
         if self.dirty:
             return False
@@ -124,6 +144,8 @@ class WorktreeRow:
         # exact PID to kill. Reaping it is a deliberate, separate act.
         if self.daemon_held:
             return "DAEMON"
+        if self.lock_live:
+            return "LOCKED"
         if self.dup and not self.dirty:
             return "DUP"
         if self.safe:
@@ -288,26 +310,86 @@ def repo_roots(explicit: list[str] | None, all_projects: bool) -> list[Path]:
     return [r for r in roots if is_main_checkout(r)]
 
 
-def parse_worktrees(repo: Path) -> list[tuple[Path, str | None]]:
+def parse_worktrees(repo: Path) -> list[tuple[Path, str | None, str | None]]:
+    """(path, branch, lock reason) per linked worktree; lock None = unlocked, "" = no reason."""
     out = run(["git", "worktree", "list", "--porcelain"], cwd=repo)
     if out.returncode != 0:
         return []
-    rows: list[tuple[Path, str | None]] = []
+    rows: list[tuple[Path, str | None, str | None]] = []
     wt: Path | None = None
     branch: str | None = None
+    lock: str | None = None
     for line in out.stdout.splitlines():
         if line.startswith("worktree "):
             if wt is not None:
-                rows.append((wt, branch))
+                rows.append((wt, branch, lock))
             wt = Path(line.split(" ", 1)[1])
             branch = None
+            lock = None
         elif line.startswith("branch "):
             branch = line.split(" ", 1)[1].replace("refs/heads/", "")
         elif line == "detached":
             branch = None
+        elif line == "locked" or line.startswith("locked "):
+            lock = line[len("locked ") :]
+            # git C-quotes a reason carrying special characters; the pid survives either way.
+            if len(lock) > 1 and lock.startswith('"') and lock.endswith('"'):
+                lock = lock[1:-1]
     if wt is not None:
-        rows.append((wt, branch))
-    return [(p, b) for p, b in rows if p.resolve() != repo.resolve()]
+        rows.append((wt, branch, lock))
+    return [(p, b, lk) for p, b, lk in rows if p.resolve() != repo.resolve()]
+
+
+# Claude Code's lock reason is `claude agent|session <name> (pid <N> start <date>)`, and the
+# lock outlives a session that dies (crash, reboot). 2.1.283 treats a dead-pid lock as stale
+# and re-takes it when it resumes that tree; a tree nobody resumes stays pinned.
+_LOCK_PID = re.compile(r"\bpid (\d{1,10})\b")
+
+
+def lock_is_stale(reason: str | None) -> bool:
+    """True only when the lock names a `pid <N>` and no process with that pid exists.
+
+    A reason without a pid may be a human's `git worktree lock --reason`, so it stays live.
+    A reused pid also reads live; both errors keep the tree, never remove it.
+    """
+    match = _LOCK_PID.search(reason or "")
+    if match is None:
+        return False
+    pid = int(match.group(1))
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return True
+    except (OSError, OverflowError):
+        return False  # EPERM: the process exists under another uid
+    return False
+
+
+def current_lock(repo: Path, wt: Path) -> str | None:
+    for path, _branch, lock in parse_worktrees(repo):
+        if path == wt:
+            return lock
+    return None
+
+
+def release_stale_lock(row: WorktreeRow) -> str | None:
+    """Unlock ``row`` if its lock names a dead pid. Returns why removal must skip, or None.
+
+    Re-reads the lock rather than trusting the audit: Claude Code re-locks a tree when it
+    resumes an agent there, which can happen between the scan and the removal.
+    """
+    lock = current_lock(row.repo_root, row.path)
+    if lock is None:
+        return None
+    if not lock_is_stale(lock):
+        return f"locked by a live session ({lock or 'no reason given'})"
+    out = run(["git", "worktree", "unlock", str(row.path)], cwd=row.repo_root)
+    if out.returncode != 0:
+        return f"stale lock could not be released: {out.stderr.strip()[:160]}"
+    print(f"unlocked {row.path} (stale lock: {lock})")
+    return None
 
 
 # Roots that hold worktrees no repo may still admit to owning. `/private/tmp` is where
@@ -529,7 +611,7 @@ def all_patches_on_main(repo: Path, branch: str) -> bool:
 def audit_repo(repo: Path, with_size: bool = True) -> list[WorktreeRow]:
     name = repo.name
     rows: list[WorktreeRow] = []
-    for wt, branch in parse_worktrees(repo):
+    for wt, branch, lock in parse_worktrees(repo):
         if any(s in str(wt) for s in SKIP_PATH_SUBSTR):
             continue
         if not wt.exists():
@@ -580,6 +662,8 @@ def audit_repo(repo: Path, with_size: bool = True) -> list[WorktreeRow]:
                 ancestor=ancestor,
                 age=age,
                 dup=dup,
+                lock=lock,
+                lock_stale=lock_is_stale(lock),
             )
         )
     return rows
@@ -611,6 +695,10 @@ def should_remove(
     # first, then the row reclassifies to SAFE on the next run and reaps normally.
     if row.daemon_held:
         return False
+    # A live lock is Claude Code's own "an agent runs here" and outranks every force flag,
+    # exactly like HELD. A stale lock (dead pid) falls through and is released at removal.
+    if row.lock_live:
+        return False
     if force_all:
         return True
     if row.safe:
@@ -622,8 +710,12 @@ def should_remove(
     return False
 
 
-def remove_worktree(repo: Path, wt: Path) -> None:
+def remove_worktree(repo: Path, wt: Path, force: bool = True) -> None:
     """Remove a worktree, surviving read-only caches and never half-removing.
+
+    ``force=False`` lets git re-check cleanliness at the moment of deletion: it refuses a
+    tree with tracked edits or untracked files (ignored caches like .venv do not count) or
+    a lock, and raises CalledProcessError with the tree intact.
 
     `git worktree remove --force` unregisters FIRST and deletes files second, so a
     permission error partway through leaves the worst possible state: the admin dir
@@ -643,8 +735,9 @@ def remove_worktree(repo: Path, wt: Path) -> None:
                 path.chmod(path.stat().st_mode | stat.S_IWUSR)
         except OSError:
             pass
+    cmd = ["git", "worktree", "remove", *(["--force"] if force else []), str(wt)]
     try:
-        run(["git", "worktree", "remove", "--force", str(wt)], cwd=repo, check=True)
+        run(cmd, cwd=repo, check=True)
     except subprocess.CalledProcessError:
         # Half-removed is not a state to leave behind. If git already unregistered
         # it, the directory is now inert and only wastes disk; delete it and prune.
@@ -894,7 +987,9 @@ def plan_idle_actions(
     archive: list[WorktreeRow] = []
     strip: list[WorktreeRow] = []
     for row in rows:
-        if row.held or row.daemon_held or any(k in str(row.path) for k in keep):
+        if row.held or row.daemon_held or row.lock_live:
+            continue
+        if any(k in str(row.path) for k in keep):
             continue
         if row in exclude or not row.path.exists():
             continue
@@ -909,6 +1004,39 @@ def plan_idle_actions(
         if strip_days is not None and idle >= strip_days and strip_candidates(row.path):
             strip.append(row)
     return archive, strip
+
+
+def plan_idle_unmerged(
+    rows: list[WorktreeRow],
+    idle_hours: float | None,
+    keep: set[str],
+    exclude: list[WorktreeRow],
+    now: float | None = None,
+) -> list[WorktreeRow]:
+    """Branched, ahead>0, edit-free trees idle >= ``idle_hours``: their directories go.
+
+    Lanes landed onto main by format-patch replay get new hashes, so their branches stay
+    `ahead>0` forever and only --include-unmerged (no idle gate) could remove them; on
+    2026-09-28 about 20 such trees plus per-lane .venvs filled 24 GB in seven hours. The
+    branch keeps every commit. Detached trees are never eligible: nothing else names their
+    commits. A live agent is clean between commits, so the idle clock, HELD, and a live
+    lock all gate it, and apply removes without --force so git re-checks cleanliness.
+    """
+    if idle_hours is None:
+        return []
+    out: list[WorktreeRow] = []
+    for row in rows:
+        if not row.unmerged_clean:
+            continue
+        if row.held or row.daemon_held or row.lock_live:
+            continue
+        if any(k in str(row.path) for k in keep):
+            continue
+        if row in exclude or not row.path.exists():
+            continue
+        if idle_age_days(row.path, now) * 24 >= idle_hours:
+            out.append(row)
+    return out
 
 
 
@@ -974,6 +1102,14 @@ def main() -> int:
         help="delete real .venv/.uv-cache dirs (never symlinks) in any non-held "
         "tree idle >= N days; audit marks would-strip",
     )
+    ap.add_argument(
+        "--unmerged-idle-hours",
+        type=float,
+        default=None,
+        metavar="N",
+        help="remove branched unmerged trees with no edits, no holder and no live lock "
+        "once idle >= N hours (branch kept); audit marks would-reap-idle",
+    )
     args = ap.parse_args()
 
     with_size = not (args.no_size or args.check)
@@ -1038,12 +1174,13 @@ def main() -> int:
         )
     ]
 
+    idle_rows = plan_idle_unmerged(all_rows, args.unmerged_idle_hours, keep, exclude=to_remove)
     archive_rows, strip_rows = plan_idle_actions(
         all_rows,
         args.archive_stale_days,
         args.strip_idle_venvs_days,
         keep,
-        exclude=to_remove,
+        exclude=to_remove + idle_rows,
     )
 
     for row in all_rows:
@@ -1067,8 +1204,12 @@ def main() -> int:
             extra = f"  ← only a detached poller holds this cwd (kill {pids})"
             if row.ahead > 0 or row.dirty:
                 extra += " — but it has commits/edits, verify before reclaiming"
+        elif row.lock_live:
+            extra = f"  ← locked by a live session: {row.lock or '(no reason given)'}"
         elif row.branch and row.ahead > 0:
             extra = f"  commits: {commit_preview(row.repo_root, row.branch)}"
+        if row.lock_stale:
+            extra += f"  stale-lock ({row.lock})"
         print(
             f"{mark} {row.repo:15} {br:42} ahead={row.ahead:>3} "
             f"dirty={row.dirty:>3} {cls:9} {row.age:>14} {row.size:>6}  {row.path}{extra}"
@@ -1100,6 +1241,12 @@ def main() -> int:
         return 0
 
     if args.mode == "audit":
+        for row in idle_rows:
+            idle_h = idle_age_days(row.path) * 24
+            print(
+                f"would-reap-idle {row.path} ({row.classify()}, {row.repo}, idle {idle_h:.1f}h; "
+                f"branch {row.branch} keeps {row.ahead} commit(s))"
+            )
         for row in archive_rows:
             print(f"would-archive {row.path} ({row.classify()}, {row.repo})")
         for row in strip_rows:
@@ -1117,6 +1264,18 @@ def main() -> int:
             print(
                 f"  {n_unmerged} GENUINE unmerged+clean — LAND these; --include-unmerged drops dir but keeps branch"
             )
+        n_locked = sum(1 for r in all_rows if r.lock_live)
+        n_stale_lock = sum(1 for r in all_rows if r.lock_stale)
+        if n_locked or n_stale_lock:
+            print(
+                f"  {n_locked} LOCKED by a live session (never removed); "
+                f"{n_stale_lock} stale-lock (released right before a removal)"
+            )
+        if idle_rows:
+            print(
+                f"  {len(idle_rows)} would-reap-idle "
+                f"(--unmerged-idle-hours {args.unmerged_idle_hours:g}; branches kept)"
+            )
         print("Run: just worktree-gc apply --all-projects")
         return 0
 
@@ -1130,6 +1289,10 @@ def main() -> int:
         if row.path in seen:
             continue
         seen.add(row.path)
+        blocked = release_stale_lock(row)
+        if blocked:
+            print(f"SKIP {row.path}: {blocked}")
+            continue
         try:
             remove_worktree(row.repo_root, row.path)
             print(f"removed {row.path}")
@@ -1140,8 +1303,32 @@ def main() -> int:
         except subprocess.CalledProcessError as e:
             print(f"FAIL {row.path}: {e.stderr or e}", file=sys.stderr)
 
+    # Idle unmerged trees: the branch keeps the commits, so only the directory goes. No
+    # --force: if a lane wrote anything since the scan, git refuses and the tree stays.
+    reaped_idle = 0
+    for row in idle_rows:
+        if row.path in seen:
+            continue
+        seen.add(row.path)
+        blocked = release_stale_lock(row)
+        if blocked:
+            print(f"SKIP {row.path}: {blocked}")
+            continue
+        try:
+            remove_worktree(row.repo_root, row.path, force=False)
+        except (subprocess.CalledProcessError, RuntimeError) as e:
+            why = (e.stderr or "").strip() if isinstance(e, subprocess.CalledProcessError) else e
+            print(f"SKIP {row.path}: git refused a clean removal ({why})", file=sys.stderr)
+            continue
+        print(f"REAPED-IDLE {row.path} (branch {row.branch} keeps {row.ahead} commit(s))")
+        reaped_idle += 1
+
     archived = 0
     for row in archive_rows:
+        blocked = release_stale_lock(row)
+        if blocked:
+            print(f"HOLD {row.path}: {blocked}")
+            continue
         try:
             res = archive_worktree(row)
         except (subprocess.CalledProcessError, OSError) as e:
@@ -1202,6 +1389,11 @@ def main() -> int:
     print(
         f"\nremoved {removed}/{len(to_remove)} worktrees; reclaimed {reclaimed} stranded"
         + (
+            f"; reaped idle-unmerged {reaped_idle}/{len(idle_rows)} (branches kept)"
+            if args.unmerged_idle_hours is not None
+            else ""
+        )
+        + (
             f"; archived {archived}/{len(archive_rows)} (under {ARCHIVE_ROOT}); "
             f"stripped {stripped}"
             if args.archive_stale_days is not None
@@ -1215,9 +1407,9 @@ def main() -> int:
 
         write_receipt(
             "worktree_gc",
-            principal_metric=removed + reclaimed + archived,
+            principal_metric=removed + reclaimed + archived + reaped_idle,
             detail=(
-                f"removed={removed} reclaimed_stranded={reclaimed} "
+                f"removed={removed} reclaimed_stranded={reclaimed} reaped_idle={reaped_idle} "
                 f"archived={archived} stripped={stripped} archive_root={ARCHIVE_ROOT}"
             ),
         )
