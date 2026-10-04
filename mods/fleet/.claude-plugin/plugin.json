@@ -1,0 +1,1 @@
+{ "name": "fleet", "version": "0.1.0", "description": "One pane for this session's subagents, background tasks, bgrun jobs and live lanes", "types": "./types/index.d.ts" }

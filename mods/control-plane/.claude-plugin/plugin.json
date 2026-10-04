@@ -1,0 +1,1 @@
+{ "name": "control-plane", "version": "0.1.0", "description": "agent-infra control plane as a band above the prompt, with an answerable questions pane", "types": "./types/index.d.ts" }

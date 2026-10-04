@@ -1,0 +1,1 @@
+{ "name": "ablation", "version": "0.1.0", "description": "Per-session harness ablation: drop named instruction files in a hashed treatment arm and record the arm" }

@@ -1,0 +1,3 @@
+# Engine-written on load (types + tsconfig); regenerate, never commit.
+*/.claude-plugin/types/
+*/tsconfig.json

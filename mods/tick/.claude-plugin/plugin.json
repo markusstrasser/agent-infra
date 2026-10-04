@@ -1,0 +1,1 @@
+{ "name": "tick", "version": "0.1.0", "description": "In-process wakeups and recurring prompts: /tick and a wake tool, no routine quota", "types": "./types/index.d.ts" }

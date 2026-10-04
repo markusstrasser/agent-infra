@@ -1,0 +1,1 @@
+{ "name": "drift-fork", "version": "0.1.0", "description": "Every N turns, fork one cached side question: is the session drifting? Toast on drift, tokens logged", "types": "./types/index.d.ts" }
