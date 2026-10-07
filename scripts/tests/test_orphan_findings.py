@@ -135,3 +135,14 @@ def test_memo_with_only_nonactionable_verdicts_never_flags(tmp_path, monkeypatch
     monkeypatch.setattr(mod, "LOG", log)
     rep = mod.scan(all_memos=True)
     assert rep["flagged_memos"] == []
+
+
+def test_bolded_done_and_watch_verdicts_are_not_actionable(tmp_path):
+    memo = tmp_path / "trending-scout-2099-01-01.md"
+    memo.write_text(
+        "### 1. GPT family GA\n| Verdict | **Already adopted** — no new wire. |\n"
+        "### 2. Some tool\n| Verdict | **Watch** — adopt if it ships. |\n"
+        "### 3. Real lever\n| Verdict | **Adopt** — wire it now. |\n"
+    )
+    by_title = {f["title"]: f["actionable"] for f in mod.extract_findings(memo)}
+    assert by_title == {"GPT family GA": False, "Some tool": False, "Real lever": True}

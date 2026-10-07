@@ -87,7 +87,8 @@ RESEARCH = REPO / "research"
 LOG = REPO / "improvement-log.md"
 
 ACTIONABLE = ("adopt", "act now", "extract", "evaluate")  # verdict substrings
-NONACTIONABLE = ("watch", "ignore", "fyi")
+# "already adopted" contains "adopt"; it is a done verdict, not an open one (2026-10-07).
+NONACTIONABLE = ("watch", "ignore", "fyi", "already")
 DATE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
 _STOP = set(
     "the a an and or of to in for on with new now via and/or claude code anthropic "
@@ -130,8 +131,9 @@ def extract_findings(memo: Path) -> list[dict]:
         if v and cur_title:
             verdict = v.group(1).strip()
             vl = verdict.lower()
+            lead = vl.lstrip("*_` ")  # verdicts are often bolded: "**Watch** — ..."
             actionable = any(a in vl for a in ACTIONABLE) and not any(
-                vl.startswith(n) for n in NONACTIONABLE
+                lead.startswith(n) for n in NONACTIONABLE
             )
             out.append(
                 {
