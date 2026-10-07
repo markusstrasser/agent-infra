@@ -50,6 +50,8 @@ DEFAULT_TASK = (
 # Cursor Composer is not in llmx PRICING; list-rate placeholder for estimates only.
 # Update when quoting externally — this is a relative-compare aid, not billing truth.
 COMPOSER_PRICING = ("composer-2.5", 1.25, 10.0)  # $/MTok in/out — [ESTIMATED]
+# Live probe model: Composer 2.5 retired 2026-10-07 (operator: outdated); priced by llmx.
+PROBE_CURSOR_MODEL = "grok-4.7-low"
 
 
 @dataclass
@@ -212,7 +214,7 @@ def probe_cursor(*, workspace: Path, prompt: str, timeout: int) -> dict:
         return {"backend": "cursor", "ok": False, "error": "cursor-agent/agent not on PATH"}
     cmd = [
         agent, "-p", "--mode", "ask", "--trust",
-        "--model", "composer-2.5",
+        "--model", PROBE_CURSOR_MODEL,
         "--workspace", str(workspace),
         "--output-format", "json",
         prompt,
@@ -225,23 +227,19 @@ def probe_cursor(*, workspace: Path, prompt: str, timeout: int) -> dict:
     in_tok = int(usage.get("inputTokens") or 0)
     out_tok = int(usage.get("outputTokens") or 0)
     cached = int(usage.get("cacheReadTokens") or 0)
-    usd = est_cost("composer-2.5", in_tok, out_tok)
-    if usd is None:
-        # composer not in PRICING — use placeholder
-        usd = (in_tok * COMPOSER_PRICING[1] + out_tok * COMPOSER_PRICING[2]) / 1_000_000
+    usd = est_cost(PROBE_CURSOR_MODEL, in_tok, out_tok)
     return {
         "backend": "cursor",
         "ok": r.returncode == 0 and not data.get("is_error"),
-        "model": "composer-2.5",
+        "model": PROBE_CURSOR_MODEL,
         "in_tok": in_tok,
         "out_tok": out_tok,
         "cached_tok": cached,
-        "est_usd": round(usd, 6),
+        "est_usd": round(usd, 6) if usd is not None else None,
         "latency_s": elapsed,
         "exit": r.returncode,
         "result_preview": (data.get("result") or "")[:200],
         "error": None if r.returncode == 0 else (r.stderr or data.get("result") or "")[:300],
-        "pricing_note": "composer $/MTok is ESTIMATED placeholder — relative compare only",
     }
 
 
