@@ -2,15 +2,16 @@
 """Continuous code review scout — dispatches code chunks to local CLI reviewers.
 
 Groups files by directory, keeps each batch under CLI context limits (~40KB),
-dispatches to cursor-agent (Composer 2.5, default), gemini, or codex via llmx,
+dispatches to codex (GPT-6 Astra low, default) or gemini via llmx,
 writes structured findings to artifacts/code-review/{project}/{date}.jsonl.
 
-Transport probe (no LLM call): `llmx chat --dry-run -m composer-2.5 -p cursor`.
+Transport probe (no LLM call): `llmx chat --dry-run --subscription -m gpt-6-astra`.
+Composer 2.5 retired 2026-10-07 (operator: outdated); the cursor provider is gone.
 See `decisions/2026-06-15-llmx-refactor-dispatch-layer.md` for subscription/API policy.
 
 Usage:
   code-review-scout.py <project_path> [--focus refactoring]
-  code-review-scout.py <project_path> --focus dead-code --provider cursor
+  code-review-scout.py <project_path> --focus dead-code --provider openai
   code-review-scout.py <project_path> --focus optimization --dry-run
   code-review-scout.py <project_path> --list-modules
   code-review-scout.py <project_path> --module tools/downloaders
@@ -119,12 +120,6 @@ FOCUS_PROMPTS = {
 }
 
 PROVIDERS = {
-    "cursor": {
-        "model_flag": "-p cursor -m composer-2.5",
-        # Local cursor-agent via llmx cursor transport (usage-metered Composer pool).
-        "extra": "--timeout 300",
-        "name": "composer",
-    },
     "google": {
         "model_flag": "-p google -m gemini-3.1-pro-preview",
         # Gemini routes to the paid API since 2026-05-31 (free gemini-cli retired).
@@ -132,8 +127,10 @@ PROVIDERS = {
         "name": "gemini",
     },
     "openai": {
-        "model_flag": "-p openai -m gpt-6-astra",
-        "extra": "--reasoning-effort medium --timeout 180",
+        # --subscription = codex-cli ($0); bare -p openai billed the metered API.
+        "model_flag": "--subscription -m gpt-6-astra",
+        # Astra low: operator-chosen scout tier when Composer retired (2026-10-07).
+        "extra": "--reasoning-effort low --timeout 180",
         "name": "gpt",
     },
 }
@@ -391,9 +388,9 @@ def main():
     parser.add_argument("--focus", default="refactoring", choices=list(FOCUS_PROMPTS.keys()))
     parser.add_argument(
         "--provider",
-        default="cursor",
+        default="openai",
         choices=list(PROVIDERS.keys()),
-        help="LLM provider (cursor=composer-2.5, google=gemini, openai=codex)",
+        help="LLM provider (openai=gpt-6-astra low, google=gemini)",
     )
     parser.add_argument(
         "--both",
@@ -403,7 +400,7 @@ def main():
     parser.add_argument(
         "--all-providers",
         action="store_true",
-        help="Dispatch to cursor+google+openai in parallel",
+        help="Dispatch to google+openai in parallel",
     )
     selection = parser.add_mutually_exclusive_group()
     selection.add_argument(

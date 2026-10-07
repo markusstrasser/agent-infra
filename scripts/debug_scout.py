@@ -7,7 +7,7 @@ Usage:
   debug_scout.py /path/to/repo --scope scripts/pipeline/
   debug_scout.py /path/to/repo --scope recent --max-scouts 4
   debug_scout.py /path/to/repo --backend codex --effort low
-  debug_scout.py /path/to/repo --backend cursor,codex   # round-robin (lens diversity)
+  debug_scout.py /path/to/repo --backend codex,claude   # round-robin (lens diversity)
   debug_scout.py /path/to/repo --backend cursor --model grok-4.7-high  # Grok niche lens
 """
 
@@ -197,8 +197,8 @@ def main() -> int:
     parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS)
     parser.add_argument(
         "--backend",
-        default="cursor",
-        help="cursor | codex | comma-list (round-robin across scouts, e.g. cursor,codex)",
+        default="codex",
+        help="codex | cursor (needs --model) | comma-list (round-robin, e.g. codex,cursor)",
     )
     parser.add_argument("--model", default="", help="override backend default model")
     parser.add_argument(

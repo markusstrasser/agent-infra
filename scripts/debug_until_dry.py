@@ -25,7 +25,7 @@ Usage:
   debug_until_dry.py /path/to/repo recent --max-waves 5 --workers 3 --scouts-per-wave 4
   debug_until_dry.py /path/to/repo --scout-backend codex --scout-effort low
   debug_until_dry.py /path/to/repo --scout-backend claude --scout-model sonnet
-  debug_until_dry.py /path/to/repo --scout-backend cursor,codex   # mixed wave (lens diversity)
+  debug_until_dry.py /path/to/repo --scout-backend codex,claude   # mixed wave (lens diversity)
   debug_until_dry.py /path/to/repo --scout-backend cursor --scout-model grok-4.7-high  # Grok niche
   debug_until_dry.py /path/to/repo --verifier opus --dry-stop 2
   debug_until_dry.py /path/to/repo --verifier codex --verifier-model gpt-6-sol
@@ -426,8 +426,8 @@ def main() -> int:
     ap.add_argument("--dry-stop", type=int, default=1, help="consecutive no-new-info waves → stop")
     ap.add_argument(
         "--scout-backend",
-        default="cursor",
-        help="cursor | codex | claude | comma-list (round-robin across scouts, e.g. cursor,codex)",
+        default="codex",
+        help="codex | cursor (needs --scout-model) | claude | comma-list (round-robin, e.g. codex,claude)",
     )
     ap.add_argument("--scout-model", default="", help="override backend default model")
     ap.add_argument(
@@ -439,7 +439,7 @@ def main() -> int:
     ap.add_argument(
         "--verifier",
         choices=["cursor", "codex", "claude", "opus", "none"],
-        default="cursor",
+        default="codex",
     )
     ap.add_argument("--verifier-model", default="", help="override verifier backend model")
     ap.add_argument("--verify-timeout", type=int, default=600, help="seconds per verify pass")

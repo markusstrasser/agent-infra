@@ -36,7 +36,7 @@ def run_review(project: str, focus: str, dry_run: bool = False) -> int:
     cmd = [
         "uv", "run", "python3", str(SCOUT), str(project_path),
         "--focus", focus,
-        "--provider", "cursor",
+        "--provider", "openai",
         "--workers", "2",
     ]
     if dry_run:

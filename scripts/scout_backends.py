@@ -7,8 +7,9 @@ agentic CLIs directly — not llmx chat (context-piping transport; right for
 code-review-scout's diff-as-context, wrong for repo-roaming scouts).
 
 Backends (read-only enforcement is structural, not prompt-trusted):
-  cursor — `agent` CLI ask mode (read-only by mode), composer-2.5 default;
-           override with --scout-model to an exact live Cursor slug, e.g.
+  cursor — `agent` CLI ask mode (read-only by mode). No default model: the
+           account default is Composer 2.5 (retired 2026-10-07), so pass
+           --scout-model with an exact live Cursor slug, e.g.
            grok-4.7-high (4.7 carries no cursor- prefix; cursor-grok-4.6-high
            still does). Bare grok-4.7 (no effort suffix) is Grok Build/xAI, not Cursor
   codex  — `codex exec -s read-only` (sandbox), config-default model (gpt-6-astra),
@@ -36,7 +37,9 @@ from pathlib import Path
 AGENT = Path.home() / ".local/bin/agent"
 
 # per-backend default model ("" = the CLI's own config default)
-DEFAULT_MODEL = {"cursor": "composer-2.5", "codex": "", "claude": "sonnet"}
+# cursor has none: an unpinned `agent` call serves the account default, Composer 2.5
+# (retired 2026-10-07), so _cursor_ask refuses without an explicit model.
+DEFAULT_MODEL = {"cursor": "", "codex": "", "claude": "sonnet"}
 # codex/claude scout-lane effort. Codex user-config default is xhigh (30+ min) —
 # a 600s scout needs a cheaper lane. Cursor's agent CLI has no effort knob.
 DEFAULT_EFFORT = "medium"
@@ -93,9 +96,15 @@ def _sub_env() -> dict[str, str]:
 def _cursor_ask(repo: Path, prompt: str, timeout: int, model: str) -> ScoutReply:
     if not AGENT.is_file():
         return ScoutReply(False, "agent CLI not found (~/.local/bin/agent)")
+    if not model:
+        return ScoutReply(
+            False,
+            "cursor scout needs an explicit model (e.g. grok-4.7-high); the account "
+            "default is Composer 2.5, retired 2026-10-07 — or use the codex backend",
+        )
     cmd = [
         str(AGENT), "-p", "--trust", "--mode", "ask",
-        "--model", model or DEFAULT_MODEL["cursor"],
+        "--model", model,
         "--workspace", str(repo), "--output-format", "json",
         prompt,
     ]  # fmt: skip
