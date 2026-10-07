@@ -1,7 +1,7 @@
 -- agentlogs migration 003 — drop the parked session_quality scorer.
 --
 -- The composite quality_score (0-1 from tool failures / backtracks /
--- reformulations) was built 2026-04-07 (agent-infra@ce4f331) alongside a
+-- reformulations) was built 2026-04-07 (agent-infra@e57ec3a) alongside a
 -- v_harness_correlation view, to score sessions and correlate quality against
 -- harness versions. It was deliberately parked pending a calibration backfill
 -- (see session-features.py compute_quality_score docstring) and never ran:

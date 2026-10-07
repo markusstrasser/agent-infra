@@ -8,7 +8,7 @@ extends: 2026-07-25-disk-pressure-live-fleet.md
 
 # Reclaim candidates — measured 2026-07-25 21:40 CEST
 
-State after the apply run that landed `e9ac16c` / `61afeec` / `a9614aa`:
+State after the apply run that landed `6d294e6` / `d8b4181` / `b4f89cc`:
 `/private/tmp` is **42 GB** (was 82 GB), **13 registered worktrees**, `worktree_gc audit`
 reports **0 auto-safe**. Everything left therefore needs per-item evidence — which is what
 this file is. It does not re-derive the leak diagnosis; that is
@@ -31,7 +31,7 @@ clones initially read as "stranded worktrees". They are not worktrees at all.
 
 | Path | Size | Why it is free |
 |---|---:|---|
-| `genomics-syn3sr-residuals-64655` | 1.1G | **Stranded husk.** `git status` → `fatal: not a git repository`; admin dir gone. Content vs `ship-main`: 2640 files changed, **1.48M deletions** — a half-finished `worktree remove` that aborted on the read-only source-epochs cache. The lane's commits live on `ship-main`. This is exactly the class `e9ac16c` now finishes. |
+| `genomics-syn3sr-residuals-64655` | 1.1G | **Stranded husk.** `git status` → `fatal: not a git repository`; admin dir gone. Content vs `ship-main`: 2640 files changed, **1.48M deletions** — a half-finished `worktree remove` that aborted on the read-only source-epochs cache. The lane's commits live on `ship-main`. This is exactly the class `6d294e6` now finishes. |
 | `MosaicForecast-upstream-class-audit` | 917M | Clone of `parklab/MosaicForecast`, clean, re-clonable |
 | `ensembl-vep-116` | 225M | Clone of `Ensembl/ensembl-vep`, clean, re-clonable |
 | `c4investigator.P79BVX` | 33M | Clone of `Hollenbach-lab/C4Investigator`, clean |
@@ -95,7 +95,7 @@ Tier 3 ~10.3 GB   dir only, branches survive  (6.4 GB of it = operator call)
 ## The one conditional
 
 `genomics-minimal-drive-019f78e3-v3` is held by a Cursor sandbox proxy, not by work — the same
-shape as the `modal_crash_loop_watcher` daemons that `61afeec` split out of HELD into DAEMON.
+shape as the `modal_crash_loop_watcher` daemons that `d8b4181` split out of HELD into DAEMON.
 Its content is entirely branch-backed. If that Cursor session is confirmed gone, kill **PID
 3906 by exact PID** (never a substring pattern — that has killed a healthy job here twice) and
 it becomes Tier 3.
@@ -133,7 +133,7 @@ Two vendor facts I had wrong earlier, both corrected by measurement:
 | Change | Where | Effect |
 |---|---|---|
 | `pretool-worktree-location-guard.py` | skills `50d979d` | Blocks `git worktree add` outside a managed dir. Wired into `pretool-bash-dispatch.py` (Claude) **and** `~/.codex/hooks.json` via the shim (Codex runs gates individually, not through the dispatcher). 16/16 selftest; verified firing on both paths. |
-| Stranded-tree discovery | agent-infra `b0d28c3` | `worktree_gc` scans `/private/tmp` + `~/.cursor/worktrees` (depth 2) instead of only asking repos what they own. 10 tests. |
+| Stranded-tree discovery | agent-infra `8002268` | `worktree_gc` scans `/private/tmp` + `~/.cursor/worktrees` (depth 2) instead of only asking repos what they own. 10 tests. |
 | Nightly GC | dotfiles `0d97cb1` | `com.dotfiles.reclaim-rotate` (04:10) now runs `worktree_gc apply --all-projects`. |
 | Cursor rule | `~/.cursor/rules/worktree-location.mdc` | Cursor doesn't run our hooks; a rule is the only lever. |
 

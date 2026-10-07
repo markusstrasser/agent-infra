@@ -31,8 +31,8 @@ No new adopt-grade infra from the external scan. The highest-leverage external i
 | **Context-budget canary** in drift-sentinel | `context-budget.py --check` daily; genomics OVER flag now caught autonomously | RSI convert: blindspot class → detector |
 | **agentlogs `v_run_kind`** (migration 006) | Subagent vs main-thread split queryable; fixes silent load overcount | Architecture: externalized recoverable state |
 | **Codebase map hierarchical** | 89–98% context reduction across 5 repos (session b211880d) | Consume-before-act on context |
-| **risky-diff-review FP fix** | `94cc042` — path-based doc edits no longer fire; refuse iatrogenic enforce-gate | Probe-before-enforce discipline |
-| **blindspot-miner count fix** | `1110563` — count flag lines only | Measurement hygiene |
+| **risky-diff-review FP fix** | `c06a843` — path-based doc edits no longer fire; refuse iatrogenic enforce-gate | Probe-before-enforce discipline |
+| **blindspot-miner count fix** | `64b3b3f` — count flag lines only | Measurement hygiene |
 | **test-health regression fix** | schema tests v5→v6 (this session) | Error-correction loop self-monitor |
 
 **Forks reconverged:** commit-gateway `/decide` arc closed Jun 14 (per observe delta digest). No dangling architectural forks in agent-infra.

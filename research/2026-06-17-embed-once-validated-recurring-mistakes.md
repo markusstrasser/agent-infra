@@ -3,7 +3,7 @@
 **Date:** 2026-06-17
 **Status:** architecture validated; findings actionable.
 **Context:** the "derive everything from sessions" thread (2026-06-16/17). Foundation fixed
-(`agentlogs` merge `e4eac54`), then the question: how to extract without re-paying per angle.
+(`agentlogs` merge `e3e9567`), then the question: how to extract without re-paying per angle.
 
 ## 1. Embed-once decoupling — VALIDATED (not asserted)
 

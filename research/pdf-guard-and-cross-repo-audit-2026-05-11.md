@@ -23,7 +23,7 @@ out_of_scope:
 | Repo | SHA | Subject |
 |---|---|---|
 | skills        | `2ea6435` | `[hooks] Add pre-commit-no-large-binaries — reject PDFs and large blobs` |
-| agent-infra   | `fe56621` | `[infra] Add install-hooks recipe — wire skills pre-commit no-large-binaries` |
+| agent-infra   | `42fb0ff` | `[infra] Add install-hooks recipe — wire skills pre-commit no-large-binaries` |
 | research-mcp  | `92a98d9` | `[infra] Add install-hooks.sh — wire skills pre-commit no-large-binaries` |
 | phenome       | `dc6e235` | `[infra] Add no-large-binaries to pre-commit chain — block PDFs in git` |
 

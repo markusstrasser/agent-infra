@@ -198,7 +198,7 @@ emits **flat text only** — zero headings/tables/reading-order, whereas
 pymupdf4llm recovers 9–32 headings + up to 108 table rows/paper. It is not a
 structured-markdown competitor to mineru/pymupdf4llm; it's a fast text-recall +
 Apache-licensed + office-doc + scan-preflight tool. Registered as opt-in
-`--parser liteparse`, NOT a default (corpus 223e64b). The survey's tool picks
+`--parser liteparse`, NOT a default (corpus 3d385f1). The survey's tool picks
 (mineru for papers, pymupdf4llm for other PDFs) are unchanged.
 
 <!-- knowledge-index

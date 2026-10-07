@@ -28,15 +28,15 @@ Sources: card digest `~/Projects/skills/model-guide/references/opus-5-5-system-c
 
 | Front | Before → after | Commit / check |
 |---|---|---|
-| Claude Code | 2.1.280 installed; vendor sweep captured | agent-infra `f57dcb1` |
-| anthropic SDK + inspect-ai | 0.107.1 → 1.8.0 and 0.3.205 → 0.3.266 (inspect needs anthropic ≥1.0 since 0.3.260; httpx2) | agent-infra `11efc13`; 827 tests, claim_bench 221, smoke, offline MockTransport check |
-| claude-agent-sdk, fastmcp, openai | 0.2.157, 3.4.7, 2.54.0 | `be7a067`, `3d1922f`, `90ee8e0` |
-| exa-py, google-genai, modal | 2.22.2, 2.25.0, 1.5.5 | `3e4dcaf` |
+| Claude Code | 2.1.280 installed; vendor sweep captured | agent-infra `7b608cd` |
+| anthropic SDK + inspect-ai | 0.107.1 → 1.8.0 and 0.3.205 → 0.3.266 (inspect needs anthropic ≥1.0 since 0.3.260; httpx2) | agent-infra `5d416c5`; 827 tests, claim_bench 221, smoke, offline MockTransport check |
+| claude-agent-sdk, fastmcp, openai | 0.2.157, 3.4.7, 2.54.0 | `f9d64d0`, `f9f1e39`, `13d4e3b` |
+| exa-py, google-genai, modal | 2.22.2, 2.25.0, 1.5.5 | `569312d` |
 | llmx | claude-opus-5-5 registered; Claude defaults → 5.5; Sonnet 5 priced $2/$10 | llmx `1c7d195`, `80641cd` |
 | uv | 0.11.16 → 0.12.17; the one behaviour change that could reach hooks (`uv run <script.py>` discovers the script's project) does not apply: every shared surface runs `uv run [--no-project] python3 <script>` | `uv self update` |
 | Codex CLI | 0.153.4 → 0.155.1; hook compat 539 pass, MCP smoke pass, `.codex/` mirrors in sync | npm global |
 | Skill mirror | 5 links removed from `~/.agents/skills` for skills switched off in `skillOverrides` | `sync_agent_skills.py` |
-| Test suite | 3 failed / 17 errors from the 09-02 prune → 825 passed | agent-infra `b518fa4` |
+| Test suite | 3 failed / 17 errors from the 09-02 prune → 825 passed | agent-infra `18aeaad` |
 
 ## 3. Harness changes
 
@@ -45,9 +45,9 @@ Sources: card digest `~/Projects/skills/model-guide/references/opus-5-5-system-c
 | Bash dispatcher blocks recursive cloud deletes (`gsutil rm -r`, `gcloud storage rm --recursive`, `aws s3 rm --recursive`, bucket deletes) and `history -c`, including one level inside `bash -c`/`xargs` | Card §6.3.1 hallucinated destructive commands; `modal volume rm` excluded (17 legitimate genomics uses in 30 days) | skills `a3c5362` |
 | Universal dispatcher flags quotes attributed to the user in Agent prompts and SendMessage bodies when no user message in the session contains them; advisory plus trigger log | Card §6.3.1 fabricated authorization; backtest 736 real dispatches, 5 with quotes, 0 flagged | skills `058a813` |
 | Dispatch guards recognize Opus 5.5 (subscription allowlist; the concurrency advisory missed Opus 5 and 5.5) | Stale patterns; arc-agi twin definition is gone | skills `97a8aa2` |
-| agentlogs indexes narration stored in thinking blocks as `assistant_update` (parser `2026-09-22.1`) | 2,508 notes in 30 days (Opus 5.5: 134 vs 66 text blocks) were unsearchable | agent-infra `c3bdc83` |
-| Cost meter prices `claude-opus-5-5[1m]` exactly | It matched `claude-opus-5` by prefix: 25% high | agent-infra `fb072fa` |
-| SDK callers parse by block type; canary passes temperature via `extra_body` | SDK 1.x; thinking-first replies | agent-infra `11efc13`, skills `5194a77` |
+| agentlogs indexes narration stored in thinking blocks as `assistant_update` (parser `2026-09-22.1`) | 2,508 notes in 30 days (Opus 5.5: 134 vs 66 text blocks) were unsearchable | agent-infra `cf03607` |
+| Cost meter prices `claude-opus-5-5[1m]` exactly | It matched `claude-opus-5` by prefix: 25% high | agent-infra `ef8b279` |
+| SDK callers parse by block type; canary passes temperature via `extra_body` | SDK 1.x; thinking-first replies | agent-infra `5d416c5`, skills `5194a77` |
 | Commit guard blocks `git commit -- <paths>` when a listed path has staged and unstaged changes; a git error (exit 128) no longer counts | A sweep worker committed a peer's WIP twice this way (§5) | skills `f10ce69`, `4b16bb5` |
 | Cat guard checks only a `$(cat …)` the shell would execute, via a shared lexer (`live_mask`); one token filter for its three callers | Three false blocks in this session: text in `<<'EOF'` bodies and an escaped `\$(` | skills `a8e2812` |
 | New subagent death class: the Opus 5.5 AUP stop | Lane E | ~/.claude `6c016db` |
@@ -78,7 +78,7 @@ Mapping: Opus 4.x/5 → `claude-opus-5-5`, or the `opus` alias where the caller 
 | personal, anim-workbench, evo, observer | `ba390477`, `bf05842`, `5f1322c`, `7745667` | psg critique table and essay-pilot judge; outer-loop `claude --model opus`, heretic lane, pulse review; overview script; style-eval default | syntax, build and JSON checks (no suites) |
 | evals | `67a1107` | 28 files: the shared judge block in 9 configs and the template, evalcore examples, eval scripts | evalcore self-tests + 38 pytest |
 | genomics | `c8e899e1c` | verifier_policy: Anthropic biology lane → `claude-opus-5` (rule F), Gemini → 3.8-flash; six GPT defaults; cost tables gained rows and kept history | 5,327 pass |
-| agent-infra | `f05d524` | claim_bench judge defaults, behavioral replay, debug_until_dry, repo-summary aliases, clash_detect | 827 + 221 |
+| agent-infra | `4f9521c` | claim_bench judge defaults, behavioral replay, debug_until_dry, repo-summary aliases, clash_detect | 827 + 221 |
 | immigration-research | none | ~500 hits, all provenance strings in dated results | — |
 
 Kept, by rule: registries, pricing and capability tables; dated records and memos; model docs, including the vendored claude-api examples and model-guide; pattern matchers; test fixtures; the biology and cyber lanes pinned to exact older IDs; completed experiment arms (evals bake-off candidates, the `frontier_verify_edge` stale-floor arm). One more pin sat outside any repo: `session-phases/03-env-export.sh` had exported `CLAUDE_CODE_SUBAGENT_MODEL=claude-sonnet-4-6` to every shell since before Sonnet 4.6 retired (2026-07-07), pinning subagents of every Bash-launched `claude`. The export is removed (untracked file).

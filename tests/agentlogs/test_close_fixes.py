@@ -165,7 +165,7 @@ def test_scaled_source_timeout_scales_with_file_size(tmp_path: Path) -> None:
   os.truncate(huge, 200 * 1024 * 1024)
   assert ix._scaled_source_timeout_s(small, 180.0) == 180.0
   # linear region: 120 + 80*12 = 1080. The original assertion expected the 1200
-  # cap at 80MB and was born red in 377b28c — 80MB never reaches the cap.
+  # cap at 80MB and was born red in c5b5d2c — 80MB never reaches the cap.
   assert ix._scaled_source_timeout_s(big, 180.0) == 1080.0
   assert ix._scaled_source_timeout_s(huge, 180.0) == 1200.0  # cap region
 

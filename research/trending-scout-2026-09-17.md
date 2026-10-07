@@ -169,11 +169,11 @@ Routing gotchas worth keeping: `code.claude.com/docs/en/changelog` only renders 
 | `--permission-prompts none` | llmx `cli_backends.py` claude -p base cmd; agent-infra `justfile` goal-run episodes | llmx tests -k claude/backend/dispatch 47 passed |
 | Dead `TaskCreated` hook unwired | `~/.claude/settings.json` (`7b83683`); script deleted | `just hooks-smoke` 198 pass / 0 fail |
 | `notify_when_idle` rule | `~/.claude/rules/wakeup-cadence.md` | — |
-| claude-agent-sdk 0.1.55 → 0.2.154, floor `>=0.2.140` | agent-infra (`38fd464`) | `mcp_contract_smoke` 5 tools intact |
+| claude-agent-sdk 0.1.55 → 0.2.154, floor `>=0.2.140` | agent-infra (`8b762fe`) | `mcp_contract_smoke` 5 tools intact |
 | Codex planning tool: explicit `[tools] update_plan.enabled = false` | `~/.codex/config.toml` (untracked) | — |
-| `.agents/prepare` steal | skills `bin/lane` `run_worktree_prepare` (`2a9b110`); agent-infra `.claude/prepare` = `uv sync --frozen` (`5c91e13`) | `tests/test_lane.sh` PASS (two stale expectations from 046438e/fad4418 fixed on the way) |
+| `.agents/prepare` steal | skills `bin/lane` `run_worktree_prepare` (`2a9b110`); agent-infra `.claude/prepare` = `uv sync --frozen` (`a2ba9c7`) | `tests/test_lane.sh` PASS (two stale expectations from 046438e/fad4418 fixed on the way) |
 | Codex parity mirror regenerated (intel hooks.json, gitignored) | — | parity gate in sync |
-| `arc-agi` dropped from `MIRRORED_REPOS` (`be9d0c8`) | `scripts/common/project_registry.py` | hook compat 546 pass; **`~/Projects/arc-agi` is gone with no recorded removal — operator to confirm** |
+| `arc-agi` dropped from `MIRRORED_REPOS` (`aaee25b`) | `scripts/common/project_registry.py` | hook compat 546 pass; **`~/Projects/arc-agi` is gone with no recorded removal — operator to confirm** |
 
 Already present before this pass: `fresh-eyes-review.md` carried `omitClaudeMd: true`.
 

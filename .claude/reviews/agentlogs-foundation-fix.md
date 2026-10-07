@@ -18,7 +18,7 @@ won't get is_subagent=1 at index time (they'd still be caught by the run_edges b
 path if re-derived). Merge the worktree to activate.
 
 ============================================================================
-## TASK 1 — Codex "94 errors/7d" — FIXED (commit 5c4afa2)
+## TASK 1 — Codex "94 errors/7d" — FIXED (commit 4d272c6)
 ============================================================================
 ROOT CAUSE (not a parse bug): all 94 codex errors were error_class='OrphanedRun',
 sources_failed=0. OrphanedRun is written by reap_orphaned_runs() when a prior run hit the
@@ -40,7 +40,7 @@ parse_errors_7d=1 (one real FileNotFoundError 06-11). The scary "94" is now corr
 labelled crash-recovery noise.
 
 ============================================================================
-## TASK 2 — Gemini/Kimi drift — FIXED (docs, commit c81f435)
+## TASK 2 — Gemini/Kimi drift — FIXED (docs, commit cb448b6)
 ============================================================================
 DETERMINATION: WIRED + FUNCTIONAL, not aspirational, not broken code. Both adapters
 (gemini.py, kimi.py) exist, are registered, run every cycle, and parse correctly in
@@ -63,7 +63,7 @@ NO CODE CHANGE — the pipeline is correct. (Did NOT --force-reimport the old da
 >21d old and would just be re-pruned next night; pure churn.)
 
 ============================================================================
-## TASK 3 — Cursor headless coverage — REAL BUG FOUND + FIXED (commit d465296)
+## TASK 3 — Cursor headless coverage — REAL BUG FOUND + FIXED (commit 9fe8bab)
 ============================================================================
 COVERAGE: all cursor sessions are client=cursor-agent (the HEADLESS CLI). The probe/
 tmp/var-folders project dirs ARE the CI/script Composer dispatches — headless IS captured
@@ -88,7 +88,7 @@ VERIFIED LIVE: cursor 347 -> 466 sources over 3 manual cycles (40 new/cycle; ski
 + claude's backlog will drain over subsequent launchd cycles ONCE MERGED to main.
 
 ============================================================================
-## TASK 4 — Operator vs subagent — DERIVABLE + IMPLEMENTED (commit 204e5ba)
+## TASK 4 — Operator vs subagent — DERIVABLE + IMPLEMENTED (commit 0367cbf)
 ============================================================================
 DERIVABLE: YES, cleanly, from two existing markers:
   1. claude: run_configs.metadata_json.is_subagent (adapter sets it from the raw path:
@@ -125,7 +125,7 @@ population. (Optional future: the OrphanedRun frequency itself could be reduced 
 each vendor its own SIGALRM-safe finalize, but it's now correctly labelled and benign.)
 
 ## COMMITS
-- 5c4afa2  [agentlogs] Split indexer health errors — OrphanedRun is crash-recovery
-- c81f435  [docs] Correct agentlogs vendor coverage — 5 adapters wired, 3 with live data
-- d465296  [agentlogs] Fix limit-sources starvation — apply limit to imports, newest-first
-- 204e5ba  [agentlogs] Add session is_subagent — operator vs subagent split
+- 4d272c6  [agentlogs] Split indexer health errors — OrphanedRun is crash-recovery
+- cb448b6  [docs] Correct agentlogs vendor coverage — 5 adapters wired, 3 with live data
+- 9fe8bab  [agentlogs] Fix limit-sources starvation — apply limit to imports, newest-first
+- 0367cbf  [agentlogs] Add session is_subagent — operator vs subagent split

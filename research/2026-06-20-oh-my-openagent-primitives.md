@@ -131,7 +131,7 @@ Code's actual hook surface (the laziness it warns against). Grounding probes ove
   not context-loss-in-transit. The failure #3 targets has not been observed.
 - **#9 empty-task → REDUNDANT.** `posttool-subagent-output-check.sh` already covers it (stronger:
   file exist/empty/PENDING-stub).
-- **#1 edit-error-recovery → BUILT & SHIPPED** (`1ffd6dd`). The only survivor; incident-backed
+- **#1 edit-error-recovery → BUILT & SHIPPED** (`4f2e840`). The only survivor; incident-backed
   (Edit 7.1% error rate, 1651/23d, tail to 47/run; worst runs = documented bad sessions).
   agent-infra-local; matched strings verified from real transcripts.
 

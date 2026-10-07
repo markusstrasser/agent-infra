@@ -78,7 +78,7 @@ NOT *faster* — this is a closure, not a speedup, so it can't be sized in a fac
 
 ## The actuation residue — ranked, with named consumers
 
-1. **Auto-resolver for predictions** [SHIPPED 79a090e — `predictions.py auto-resolve`,
+1. **Auto-resolver for predictions** [SHIPPED b645273 — `predictions.py auto-resolve`,
    wired into the daily `register_implementations` pass; refutes DUE predictions whose
    bare agent-infra SHA is unreachable from HEAD; 6 tests; `resolution_rate` now an
    instrumented KPI (0/26 today). Scope narrowed from the original plan: only the

@@ -3,8 +3,8 @@
 
 Catches the integration-regression class that has actually bitten this repo —
 a tool dropped/renamed, an input schema corrupted, or a read-only/write
-annotation flipped on a claude_agent_sdk bump (cf. commits b08c67e / a9fc9dd /
-6cfa894 / d499c9e, all MCP-wiring fixes). This server is wired into multiple
+annotation flipped on a claude_agent_sdk bump (cf. commits 55aaa15 / 9462e00 /
+aacf05d / 2eed9b5, all MCP-wiring fixes). This server is wired into multiple
 projects, so a silent contract break has wide
 blast radius. This runs deterministically: no LLM, no API keys, no network,
 sub-second. Wired into `just smoke`.

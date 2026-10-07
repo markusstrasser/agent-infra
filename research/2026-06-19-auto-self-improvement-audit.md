@@ -68,7 +68,7 @@ Probes run before writing this memo. First-pass claims corrected where falsified
 | `reclaim-rotate`, `codebase-map-refresh`, etc. | various | orient: 14 jobs live | background hygiene |
 | Session-end auto-checkpoint | SessionEnd hook | 13 WIP commits | persistence only, not integration |
 | Prior-context hook | UserPromptSubmit | shipped earlier | reduces rediscovery (residual = existing_infra) |
-| Earn-its-keep registration trigger | wired Jun 18 | commits `ac208d4`, `1834656` | **verify layer** — not yet predict-then-falsify |
+| Earn-its-keep registration trigger | wired Jun 18 | commits `d6dc139`, `1143c92` | **verify layer** — not yet predict-then-falsify |
 
 **Autonomous commit share:** 2/52 (vendor-sync + trending-scout follow-up). **~4%.**
 
@@ -135,7 +135,7 @@ Items 1–2 should have shipped via maintain-tick without human. Item 3 correctl
 
 ## Case studies (simulated auto-path vs actual)
 
-### 1. RSI SoTA synthesis (`17ae0ef`, Jun 19)
+### 1. RSI SoTA synthesis (`64852da`, Jun 19)
 
 **Actual:** Human pasted steer table → "what to integrate?" → 4 research dispatches → ranked steal table.
 
@@ -143,7 +143,7 @@ Items 1–2 should have shipped via maintain-tick without human. Item 3 correctl
 
 **Simulation:** `orphan_findings.py` shows scout memos ARE harvested — the gap is **cross-axis synthesis**, not memo orphaning.
 
-### 2. Behavioral eval feasibility (`3995598`, Jun 19)
+### 2. Behavioral eval feasibility (`3560d9e`, Jun 19)
 
 **Actual:** Triggered inside integration session → 29 cases, harness-induced over-ask proven.
 
@@ -151,7 +151,7 @@ Items 1–2 should have shipped via maintain-tick without human. Item 3 correctl
 
 **Simulation (2d blindspot):** 41 over_caution flags — threshold would have fired. Probe is autonomous; **first testground build stays operator-go** (caution floor is taste/principal).
 
-### 3. Hermes forensics (`7182390`, Jun 19)
+### 3. Hermes forensics (`f60ad06`, Jun 19)
 
 **Actual:** vendor-sweep flagged Jun 19 06:00 → human integration session deep-read same day.
 

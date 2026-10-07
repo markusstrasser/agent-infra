@@ -34,7 +34,7 @@ to `transport == "api" or endswith("-api")` to also catch `agent-api` (research)
 
 ## Shas per repo
 - llmx: `6a10f68` (guard + wiring), `158626d` (tests)
-- agent-infra: `05a56b5` (pricing single-source + drift-test), `db06fe3` (spend-alarm launchd + architecture.mmd), decision-promotion + this memo (final commit)
+- agent-infra: `feb763b` (pricing single-source + drift-test), `b72d211` (spend-alarm launchd + architecture.mmd), decision-promotion + this memo (final commit)
 - skills: `c2845fb` (cost-guard cap reconcile)
 
 ## Test evidence

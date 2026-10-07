@@ -37,11 +37,11 @@ concluded "pattern-extract, our primer rejects hosted runtimes."
 
 | Item | Status | Artifact |
 |---|---|---|
-| F1 typed trace IR | ✅ BUILT (`1c6b480`) | `scripts/session_trace.py --format ir` — derived view, inferred edges; 7 tests |
-| F2 memory provenance | ✅ BUILT (`e9e76f2`) | `scripts/memory_provenance_check.py` + `.claude/rules/memory-provenance-schema.md`; 6 tests; live run found 27 real drift warnings / 48 files |
-| F3 predict-then-falsify gate | ✅ BUILT (`9b1e8f5`) | `scripts/mechanism_record.py` + `mechanism-records/` + `.claude/rules/predict-then-falsify-gate.md`; 6 tests; validated end-to-end on live agentlogs |
-| L1 act-drain anti-accretion | ⬜ UNBLOCKED, next | (earlier "blocked by peer" was a misattribution — no peer; the `.sh`→`.py`/pulse migration is now committed `d4c553a`. `act_drain.py` is a pulse phase; L1 = ADD/MODIFY/DELETE lifecycle gated by F3.) |
-| L2 over-ask telemetry grader | 🟡 SLICE BUILT (`670a025`) | `scripts/over_ask_telemetry_grader.py` — faithful act/ask via tool-call telemetry over F1 IR; 5 tests; validated on real sessions. First consumer of F1. |
+| F1 typed trace IR | ✅ BUILT (`f3699fe`) | `scripts/session_trace.py --format ir` — derived view, inferred edges; 7 tests |
+| F2 memory provenance | ✅ BUILT (`fdd8a1a`) | `scripts/memory_provenance_check.py` + `.claude/rules/memory-provenance-schema.md`; 6 tests; live run found 27 real drift warnings / 48 files |
+| F3 predict-then-falsify gate | ✅ BUILT (`fd9666e`) | `scripts/mechanism_record.py` + `mechanism-records/` + `.claude/rules/predict-then-falsify-gate.md`; 6 tests; validated end-to-end on live agentlogs |
+| L1 act-drain anti-accretion | ⬜ UNBLOCKED, next | (earlier "blocked by peer" was a misattribution — no peer; the `.sh`→`.py`/pulse migration is now committed `55fee10`. `act_drain.py` is a pulse phase; L1 = ADD/MODIFY/DELETE lifecycle gated by F3.) |
+| L2 over-ask telemetry grader | 🟡 SLICE BUILT (`5b6ea02`) | `scripts/over_ask_telemetry_grader.py` — faithful act/ask via tool-call telemetry over F1 IR; 5 tests; validated on real sessions. First consumer of F1. |
 | L3 ask-gate eval | ⬜ operator-go | grader is the instrument; threshold/caution-floor/promotion operator-owned |
 
 **L2 scope flip (VOI):** prior-art probe (`2026-06-19-behavioral-eval-feasibility.md`)
@@ -194,7 +194,7 @@ mechanisms as patterns, prove each on our traces via F3/L2, never cite paper num
 ## Provenance note (2026-06-20 peer-collision incident)
 The 38 extraction files + this plan were initially left UNTRACKED and a concurrent peer session ran
 `git clean -fdx`, deleting all untracked + gitignored work (extractions, PDFs, txt) and committing a
-tree (a4d38fa) without the papers dir. This plan was reconstructed from context and committed
+tree (308b4e0) without the papers dir. This plan was reconstructed from context and committed
 immediately. The extractions are regenerable: `research/papers-2026-06-20/run_extractions.sh` over the
 38 IDs in `_status.tsv`. **Lesson: commit generated provenance immediately in a shared checkout, or
 worktree-isolate — gitignore does NOT protect against `git clean -fdx`.**

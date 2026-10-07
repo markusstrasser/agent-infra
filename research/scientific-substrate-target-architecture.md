@@ -177,7 +177,7 @@ Phase 0 measurement stays running until migration complete. After cutover, the s
 Per "no cruft, no wrappers" directive:
 
 ### From agent-infra
-- `cross_attestation_lookup` tool in `agent_infra_mcp.py` (commits `2fa2ce2`, `52678af`). Replaced by `corpus_lookup` returning annotations.
+- `cross_attestation_lookup` tool in `agent_infra_mcp.py` (commits `104ba53`, `b0a576f`). Replaced by `corpus_lookup` returning annotations.
 - `papers_lookup` and `papers_graph_query` MOVE to corpus-mcp (renamed). Removed from agent-infra-mcp.
 - `agent_infra_mcp.py` returns to single-tool `search` (markdown sections only).
 

@@ -149,7 +149,7 @@ Declared: `duckdb>=1.0`, `jsonschema>=4.20`; extras: `pymupdf>=4.0`, `pymupdf4ll
 
 ## Correction / resolution (2026-06-08)
 
-All three repos are now on **google-genai 2.8** (agent-infra `6e526d2`, research-mcp `e27ea6b`).
+All three repos are now on **google-genai 2.8** (agent-infra `f991a5a`, research-mcp `e27ea6b`).
 
 The research-mcp bump was initially **skipped** by the dep-bump pass: the grep gate found
 `client.aio.interactions` in `deep_research.py` and, reading "breaking: Interactions API",

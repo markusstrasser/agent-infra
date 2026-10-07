@@ -7,7 +7,7 @@ Correction propagation now handled by `scripts/propagate-correction.py`.
 
 > **Update 2026-05-29:** Both pointers above are now superseded. The
 > knowledge-index generator hook was unwired and `propagate-correction.py`
-> retired with the dormant correction-sweep pipeline (agent-infra@d239543).
+> retired with the dormant correction-sweep pipeline (agent-infra@27f4148).
 > Correction tracing is now `just propagate` / `just scan-corrections`. The
 > substrate-MCP retirement itself still stands.
 

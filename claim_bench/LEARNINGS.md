@@ -102,7 +102,7 @@ The inspect_ai abstraction is the right shape. **Nothing in the architecture nee
 
 ## 2026-04-11 — Phase 1 plan-close review and fixes (commit follows)
 
-Ran `/review close` after the Phase 1 commit `90cb7d8`. 33 unit tests added, cross-model adversarial review dispatched (Gemini 3.1 Pro + GPT-5.4) against an explicit commit-range packet. 19 findings total, 0 cross-model agreements, 2 caught by self-audit before models dispatched, 8 applied, 7 deferred with reasons.
+Ran `/review close` after the Phase 1 commit `5a4842f`. 33 unit tests added, cross-model adversarial review dispatched (Gemini 3.1 Pro + GPT-5.4) against an explicit commit-range packet. 19 findings total, 0 cross-model agreements, 2 caught by self-audit before models dispatched, 8 applied, 7 deferred with reasons.
 
 ### Bugs caught by the caught-red-handed loop (regression tests added for each)
 
@@ -246,8 +246,8 @@ The 0.708 verdict_enum mean is now an honest signal of gpt-4o-mini's actual clai
 
 ### What shipped
 
-- **Phase 3** — atomic-claim P/R/F1 scorer (`atomic_claim.py`, FIRE-Bench pattern). Decomposes model explanation + gold evidence into atomic claims via cross-family Gemini Flash, matches in one call, computes P/R/F1. 34 unit tests. Agent-infra commit `07e998a`.
-- **Phase 4** — independence + adequacy cards (`cards.py` + CLI). Derives trustworthiness and statistical adequacy signals from EvalLog. Computes the joint_success rollup (the headline). Decision grade based on n_cases + consistency. 26 unit tests. Agent-infra commit `24aa9a7`.
+- **Phase 3** — atomic-claim P/R/F1 scorer (`atomic_claim.py`, FIRE-Bench pattern). Decomposes model explanation + gold evidence into atomic claims via cross-family Gemini Flash, matches in one call, computes P/R/F1. 34 unit tests. Agent-infra commit `933f961`.
+- **Phase 4** — independence + adequacy cards (`cards.py` + CLI). Derives trustworthiness and statistical adequacy signals from EvalLog. Computes the joint_success rollup (the headline). Decision grade based on n_cases + consistency. 26 unit tests. Agent-infra commit `6e277d6`.
 - **Phase 5 SHELL** — genomics domain adapter scaffold at `genomics/scripts/claim_bench_genomics/`. Translation layer (18 unit tests) is shippable. Corpus loader works on empty corpus. Sourcing function stubs (from_clinvar_reclassification, from_bio_verify_incident, from_giab_validated_call, from_acmg_sf_update, from_cpic_supersession) raise NotImplementedError with full implementation plans in docstrings. Promotion gate stub documents the semantic but does not yet write to `config/surface_promotion_registry.json`. **Committed under misnamed commit `84d63fbb [pipeline] Add packaging to rexpert — satisfy scoring deps` because another parallel session used `git add -A` and swept in my staged files.** The work is there, the message is wrong; history is messy but functional. Documented here for future grep.
 
 ### Architectural decisions locked in this batch
@@ -342,10 +342,10 @@ The standard Phase 2 plan-close workflow dispatches Gemini 3.1 Pro + GPT-5.4 adv
 
 1. **Self-audit already found the actionable bug** (F1). Additional model reviewers rarely catch subtle "returns 1.0 inflates mean" bugs — they'd focus on surface patterns.
 2. **166 + 3 = 169 unit tests** cover every pure-logic function in process_metrics.py, atomic_claim.py, cards.py, task.py, scorer.py, and translation.py. Every parse-failure path has a regression test. Integration testing via `inspect eval` covers the full solver chain + scorer list.
-3. **Phase 1's plan-close already ran cross-model** (commit `dc68510`). That run dispatched Gemini + GPT-5.4 against the Phase 1 surface and found 6 bugs, all of which were fixed before this session started. The same review pattern applied to Phase 2-4 code would produce diminishing returns given the narrower surface area.
+3. **Phase 1's plan-close already ran cross-model** (commit `e60eaca`). That run dispatched Gemini + GPT-5.4 against the Phase 1 surface and found 6 bugs, all of which were fixed before this session started. The same review pattern applied to Phase 2-4 code would produce diminishing returns given the narrower surface area.
 4. **Cost-benefit:** A full cross-model dispatch is ~$3-5 and 5-10 minutes. The bug rate per dollar drops sharply after the first pass on a codebase. The money is better spent on the Phase 5 corpus curation (real human-grade gold cases) than another pass over Phase 2-4 code.
 
-If a future session wants to verify this decision, run `/review model` on the commit range `9f93faf..24aa9a7` with `--axes standard --effort high`. Any findings that surface should be added here.
+If a future session wants to verify this decision, run `/review model` on the commit range `d29f4ef..6e277d6` with `--axes standard --effort high`. Any findings that surface should be added here.
 
 ### What's deferred to Phase 5.5 and beyond
 

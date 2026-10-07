@@ -315,7 +315,7 @@ Repos to update:
 
 | Phase | What | Maintenance | Risk | Status |
 |-------|------|-------------|------|--------|
-| **0a** | Fix substrate import | None | None | **DONE** (meta@c691819) |
+| **0a** | Fix substrate import | None | None | **DONE** (meta@9a7618a) |
 | **0b** | Upgrade tournament-mcp | None | Low | **DONE** (tournament-mcp@6d0df1d) |
 | **5** | Pin FastMCP versions | None (config) | None | **DONE** (all 5 repos) |
 | **1** | Organize biomedical-mcp with mount() | Low | Medium (tool renaming) | **DONE** (biomedical-mcp@1f7489b) — 7 domains, namespace prefixes |

@@ -104,6 +104,6 @@ No peer files. uv.lock NOT staged — its dirty change is a PEER'S (adds a `pyya
 lockfile.
 
 ## COMMIT
-`aa49e4b` [gov] Port lifecycle graph to agentlogs-native v_lifecycle_neighbors — Phase C
+`10bd5aa` [gov] Port lifecycle graph to agentlogs-native v_lifecycle_neighbors — Phase C
 (7 files, 540 insertions / 475 deletions; Session-ID auto-appended; Evidence trailer present).
 

@@ -82,7 +82,7 @@ def classify(header: str, status_tail: str) -> tuple[str, str]:
     if BEHAVIORAL.search(header):
         return "[obs]", ""  # behavioral calibration ledger, terminal (wins over MOOT)
     if MOOT.search(header):
-        return "[~]", " retired — orchestrator + its churn eradicated 2026-06-07 (agent-infra@df9afe0); subject no longer exists"
+        return "[~]", " retired — orchestrator + its churn eradicated 2026-06-07 (agent-infra@4af1b6a); subject no longer exists"
     if tail.startswith("monitoring") or tail.startswith("noted"):
         return "[obs]", ""  # monitoring/noted = logged, not a todo
     return "[ ]", ""  # unknown -> conservative, keep open

@@ -26,7 +26,7 @@
 Arena ranks **models/components** by routing comparable tasks across a population and estimating per-component treatment effects (Bradley-Terry + reweighting). This needs *component variation across many independent sessions/voters* — a marketplace property. We are a single operator with ~4,586 single-stream sessions and no counterfactual same-task assignment. There is **no single-stream analog** of the causal leaderboard, and model *selection* is already owned by `model-guide` + `evals/cross_lab_review`. [INFERENCE from claim 1]
 
 ### The composite leaderboard output is already vetoed
-Arena's deliverable is a composite score per model. We built that twice (`compute_quality_score`/`enrich_sessions_db`, @ce4f331); it never ran (0/3850 scored); migration 003 dropped the table. `session-features.py` enforces the veto in a code comment: *"RAW advisory features only — never reduced to a composite quality_score."* Porting Arena's leaderboard = re-deriving a vetoed decision. (`vetoed-decisions.md`, scored-regression-gate entry.)
+Arena's deliverable is a composite score per model. We built that twice (`compute_quality_score`/`enrich_sessions_db`, @e57ec3a); it never ran (0/3850 scored); migration 003 dropped the table. `session-features.py` enforces the veto in a code comment: *"RAW advisory features only — never reduced to a composite quality_score."* Porting Arena's leaderboard = re-deriving a vetoed decision. (`vetoed-decisions.md`, scored-regression-gate entry.)
 
 ### Three of the five signals are already covered; two are not
 | Arena signal | Our status |

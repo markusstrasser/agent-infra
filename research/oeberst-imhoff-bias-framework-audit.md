@@ -106,9 +106,9 @@ Ran `/review model` on the initial plan (`.model-review/2026-04-11-bias-tooling-
 
 1. **Original Tier 1.1 (outcome-bias check in `commit-check-parse.py`) was construct-invalid.** Cross-model agreement: commit messages are pre-hoc authorial documentation; FAE and outcome bias are post-hoc reasoning errors. The regex would detect short commit style, not bias. GPT-5.4 quantified plausible PPV at 8–45%. Rejected before implementation.
 
-2. **Original Tier 1.2 (`/consider-opposite` as standalone skill) had a skill-recursion failure.** Invocation depended on the agent noticing it should consider the opposite — the exact meta-cognition the skill was supposed to supply. Converted to required `## Counterevidence sought` section in `decisions/.template.md` (committed e23bd1c) — a deterministic caller (the template) replaces the self-referential vibes.
+2. **Original Tier 1.2 (`/consider-opposite` as standalone skill) had a skill-recursion failure.** Invocation depended on the agent noticing it should consider the opposite — the exact meta-cognition the skill was supposed to supply. Converted to required `## Counterevidence sought` section in `decisions/.template.md` (committed bad50a6) — a deterministic caller (the template) replaces the self-referential vibes.
 
-3. **Correct surface for belief-6 is Stop/retro/session-analyst, not commit-message parsing.** Both reviewers agreed. Plan rewritten to: (a) session-analyst taxonomy labels (commit 097553e), (b) `FM25: Belief-6 Attribution Errors` added to `agent-failure-modes.md` (e5a53d3), (c) `stop-unsupported-completion.sh` shadow-mode hook at the Stop surface (skills@c0b3f71 + meta settings bc51cb5).
+3. **Correct surface for belief-6 is Stop/retro/session-analyst, not commit-message parsing.** Both reviewers agreed. Plan rewritten to: (a) session-analyst taxonomy labels (commit 69d8ffb), (b) `FM25: Belief-6 Attribution Errors` added to `agent-failure-modes.md` (9df7205), (c) `stop-unsupported-completion.sh` shadow-mode hook at the Stop surface (skills@c0b3f71 + meta settings e060d5f).
 
 4. **Tier 1 didn't touch primary failure modes.** My initial framing optimized for "where coverage is thinnest" (belief 6) when the right objective is "where marginal hook dollars reduce measured recurring failures" (belief 3 territory, despite already being the strongest-covered). Framing error on my part — the Stop-surface hook is closer to the 11.8% premature-termination recurrence than any commit hook would have been.
 
@@ -118,15 +118,15 @@ Ran `/review model` on the initial plan (`.model-review/2026-04-11-bias-tooling-
 
 7. **Deferred: cross-model drift verifier on governance-file edits.** Both reviewers endorsed this, but my `improvement-log.md` grep for "agent edited CLAUDE.md/GOALS.md in ways that drifted from intent" found zero incidents. Rule 1 (does this already exist / has this problem occurred) says: no incident history → hypothetical → don't build. Added to `ideas.md` as a watch item — build if ≥2 sessions of confirmed governance drift recur.
 
-8. **Multi-agent commit hygiene failure.** During execution, commit `bc51cb5` swept up an unrelated `meta → agent-infra` path rename from another active agent-infra session's uncommitted working tree. Amended with disclosure. Lesson: `git diff --staged` before committing when `pgrep -c claude >= 2`, not just `git status`.
+8. **Multi-agent commit hygiene failure.** During execution, commit `e060d5f` swept up an unrelated `meta → agent-infra` path rename from another active agent-infra session's uncommitted working tree. Amended with disclosure. Lesson: `git diff --staged` before committing when `pgrep -c claude >= 2`, not just `git status`.
 
 Execution artifacts:
-- `e23bd1c` decisions template counterevidence section (wording fixed in `3bdc82e`)
-- `097553e` session-analyst belief-6 detection labels (citation fixed in `de4dbfc`)
-- `e5a53d3` agent-failure-modes FM25 (scope clarified in `3bdc82e`)
-- `bc51cb5` meta settings.json Stop chain wiring (bundled rename disclosed, not split)
-- `2d66999` first revisions round
-- `53bbd99` deferred governance-drift verifier + 14-day review watch item (updated in `3bdc82e`)
+- `bad50a6` decisions template counterevidence section (wording fixed in `798be16`)
+- `69d8ffb` session-analyst belief-6 detection labels (citation fixed in `fe6aa63`)
+- `9df7205` agent-failure-modes FM25 (scope clarified in `798be16`)
+- `e060d5f` meta settings.json Stop chain wiring (bundled rename disclosed, not split)
+- `da8a848` first revisions round
+- `18342de` deferred governance-drift verifier + 14-day review watch item (updated in `798be16`)
 - `~/Projects/skills/hooks@e3b89c0` shadow hook (post plan-close fix; initial buggy commit c0b3f71)
 - `~/Projects/skills/hooks@4525d2c` 12-case pytest harness
 
@@ -142,13 +142,13 @@ Second cross-model review pass, this time on the implementation as committed. 19
 
 4. **Documentation-implementation gap:** header comment claimed "without recent tool-trace evidence" but the implementation is lexical-only over `last_msg`. Header rewritten with explicit `LEXICAL-ONLY` banner. Hook scope narrowed in documentation to cover only `UNSUPPORTED_OUTCOME_CLAIM` (manifestation 1 of FM25).
 
-5. **Wrong constitution citation.** I cited "Principle 6" for the "≥2 sessions" recurrence rule. Principle 6 is phase-state artifacts; the recurrence rule lives in the "Self-Improvement Governance" section. Fixed in session-analyst.md at `de4dbfc`. Commit messages for e5a53d3 and 53bbd99 retain the miscitation because splitting/rewriting history would conflict with another active session's work.
+5. **Wrong constitution citation.** I cited "Principle 6" for the "≥2 sessions" recurrence rule. Principle 6 is phase-state artifacts; the recurrence rule lives in the "Self-Improvement Governance" section. Fixed in session-analyst.md at `fe6aa63`. Commit messages for 9df7205 and 18342de retain the miscitation because splitting/rewriting history would conflict with another active session's work.
 
 6. **Template wording was temporally post-hoc.** Original `## Counterevidence sought` said "what would falsify the chosen option" — implying the decision was already made. Fixed to "the *leading candidate* option" with explicit "fill before writing the Decision section" instruction. Pre-decision by construction.
 
 7. **Promotion criterion ignored recall entirely.** Original criterion was ≥60% precision + <10% trigger rate — but a narrow detector can hit that while missing most real cases. Added ≥50% recall floor (sampled from skipped sessions), zero-error-log requirement, and raised trigger rate headroom to 15% since lowering `success_hits` threshold will raise base rate.
 
-**Explicit disagreement with reviewers:** both models prescribed splitting `bc51cb5` via interactive rebase to isolate the swept-up rename. I kept the bundled commit. Rationale: (a) local-only, never pushed; (b) the rename hunk is the correct state — reverting would restore broken `meta/` paths; (c) rebasing would conflict with another active agent-infra session that still has uncommitted rename work across many files. The disclosure in the commit message documents the taint; history surgery would cost more than the tainted audit trail saves. Noted as accepted-disclosure/rejected-surgery.
+**Explicit disagreement with reviewers:** both models prescribed splitting `e060d5f` via interactive rebase to isolate the swept-up rename. I kept the bundled commit. Rationale: (a) local-only, never pushed; (b) the rename hunk is the correct state — reverting would restore broken `meta/` paths; (c) rebasing would conflict with another active agent-infra session that still has uncommitted rename work across many files. The disclosure in the commit message documents the taint; history surgery would cost more than the tainted audit trail saves. Noted as accepted-disclosure/rejected-surgery.
 
 **Deferred findings (not fixed this pass, recorded for later):**
 - Tool-only stop flows where the final assistant message is empty — hook currently skips these because lexical scope is `last_msg` only. Would need transcript tool-output fallback. Defer until shadow data shows how many real cases this branch would catch. (Finding 16)
@@ -156,8 +156,8 @@ Second cross-model review pass, this time on the implementation as committed. 19
 Fix commit artifacts:
 - `~/Projects/skills/hooks@e3b89c0` predicate/pattern/error-logging fixes
 - `~/Projects/skills/hooks@4525d2c` 12-case pytest harness (7/12 would fail against HEAD~1)
-- `de4dbfc` session-analyst citation
-- `3bdc82e` FM25 scope table + template wording + ideas.md recall floor
+- `fe6aa63` session-analyst citation
+- `798be16` FM25 scope table + template wording + ideas.md recall floor
 
 <!-- knowledge-index
 generated: 2026-04-11T19:47:16Z

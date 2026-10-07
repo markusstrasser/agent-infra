@@ -132,6 +132,6 @@ Candidates from current always-loaded / path-scoped rules (all currently **instr
 
 ## Outcome (2026-06-07, executed)
 All three items from this analysis shipped in-session (see `decisions/2026-06-07-state-externalization-lens.md` §Implementation):
-1. Constitution Principle 1 evidence addition — applied with Markus's approval (agent-infra@4275b7a).
+1. Constitution Principle 1 evidence addition — applied with Markus's approval (agent-infra@bebe11f).
 2. Inventory-before-dispatch externalization — built + wired as a PreToolUse:Agent advisory hook (`skills/hooks/pretool-inventory-dispatch.py`, skills@a6a63b3, ~/.claude@c1ac097). git-log v1; agentlogs FTS deferred to measured v2.
 3. State-externalization diagnostic lens — recorded as a standing rule-authoring review question.

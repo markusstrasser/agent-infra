@@ -34,7 +34,7 @@ it kills a *different* hook (`reception-payload-llm`), also fixed here.
 ### 2. clash-detect shadow — SAME root cause, one layer upstream
 - The gemini-flash `clash-detect` launchd job is **ALIVE** (loaded, exit 0) — it just has no
   input. Its input comes from `userprompt-clash-capture.py` (a UserPromptSubmit hook), which
-  read `env.get("user_message")` (line 58) → captured nothing since deploy (d355ee8, 2026-06-16,
+  read `env.get("user_message")` (line 58) → captured nothing since deploy (36dc86c, 2026-06-16,
   right at the rename). `clash-capture.jsonl` never got a row → 0 CLASH verdicts, forever.
 - Fixing the capture hook's field read unblocks the whole pipeline. Verified: a `.prompt`
   directive envelope now appends a capture row.

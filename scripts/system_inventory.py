@@ -248,7 +248,7 @@ def collect_orphan_scripts() -> list[dict]:
     gov-report). A deleted wrapper makes the job fail `exit 127` at every fire,
     silently, until a human happens to read `launchctl list`. This is the
     LEADING check: it fires the moment the script is gone, before the next
-    scheduled fire. Caught 4 orphans from the d4c553a consolidation (2026-06-24)
+    scheduled fire. Caught 4 orphans from the 55fee10 consolidation (2026-06-24)
     only after they'd leaked daily failures — this closes that gap."""
     orphans: list[dict] = []
     for job in collect_launchd_jobs():

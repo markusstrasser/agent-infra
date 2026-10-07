@@ -6,9 +6,9 @@ All three doctor health flags FIXED. `doctor.py` now: 405 pass, 22 warn, **0 fai
 ## 1. test-health:agent-infra — FIXED (peer 14:00 commits; sentinel refreshed)
 Doctor flag "regressed 4→5" read the stale 03:30 test-health.jsonl tick. The 5 failures
 were already root-caused + fixed by the maintain-tick loop at ~14:00 today:
-`bfa00b6` (timeout-scaler test born red at 80MB), `7c7c5f7` (maintainability dates
-hardcoded, aged out of days=120), `9f3ee1b` (approval-tiers manifest missing 2 guards);
-logged in `8c9f7d9`. Live suite is green — nothing left to fix at the root.
+`491e0a3` (timeout-scaler test born red at 80MB), `38518e0` (maintainability dates
+hardcoded, aged out of days=120), `69ed9a4` (approval-tiers manifest missing 2 guards);
+logged in `302d568`. Live suite is green — nothing left to fix at the root.
 My action: refreshed the sentinel (`test_health.py --repo agent-infra`) so doctor reads current state.
 Verify: `uv run python3 -m pytest tests/ scripts/tests/ -m "not slow"` → 595 passed, 0 failed.
 

@@ -46,7 +46,7 @@ RECOMMENDED: resolve-moot — the proposed race-safe stamping is implemented and
 VERDICT: MOOT
 EVIDENCE: dc4434f; `skills/critique/scripts/model-review.py:1447-1465` expands preset aliases, including mixed forms.
 EVIDENCE: bf6731f54; `genomics/justfile:174-177` adds read-only `commit-mine-check`.
-EVIDENCE: 6f4d02a; `agent-infra/scripts/refresh_codebase_map_on_commit.py:36-42` catches failed staged reads and emits one-line diagnostics.
+EVIDENCE: bf5dc28; `agent-infra/scripts/refresh_codebase_map_on_commit.py:36-42` catches failed staged reads and emits one-line diagnostics.
 RECOMMENDED: resolve-moot — all three proposed fixes are implemented.
 
 ## eval_run_packager — reproducible eval-run wrapper
@@ -166,7 +166,7 @@ RECOMMENDED: resolve-superseded — the original gap is closed by a stronger rec
 
 VERDICT: MOOT
 EVIDENCE: skills@f5bf0ad; hooks/stop-uncommitted-warn.sh:260 reads the automation ledger and excludes its paths from session attribution.
-EVIDENCE: agent-infra@ae529d5; scripts/common/automation_ledger.py:29 and scripts/fm.py:51 implement writer registration; the live ledger exists.
+EVIDENCE: agent-infra@0048b55; scripts/common/automation_ledger.py:29 and scripts/fm.py:51 implement writer registration; the live ledger exists.
 RECOMMENDED: resolve-moot — the proposed provenance mechanism is fully implemented.
 
 ## Orchestrator run-state reads → volume `read_file(current.json)`, never mirror-listdir
@@ -221,8 +221,8 @@ RECOMMENDED: keep — the typo remains silently destructive and unguarded.
 - scout: ok=True wall=77s tok(in/out/reason)=188117/1088/439
 
 VERDICT: MOOT
-EVIDENCE: b7314f2 implemented age and `git cherry` duplicate detection in `scripts/worktree_gc.py:505`.
-6c48e3b wired proactive `--check` surfacing into `scripts/pulse_tick.py:62`; current LAND/INSPECT/REAP output remains at `scripts/worktree_gc.py:746`.
+EVIDENCE: 03cb3a4 implemented age and `git cherry` duplicate detection in `scripts/worktree_gc.py:505`.
+9980ec4 wired proactive `--check` surfacing into `scripts/pulse_tick.py:62`; current LAND/INSPECT/REAP output remains at `scripts/worktree_gc.py:746`.
 RECOMMENDED: resolve-moot — the proposed currency check and proactive surfacing are implemented and still active.
 
 ## audit consolidation must re-check findings vs HEAD + dedup
@@ -230,7 +230,7 @@ RECOMMENDED: resolve-moot — the proposed currency check and proactive surfacin
 - scout: ok=True wall=90s tok(in/out/reason)=327855/1702/636
 
 VERDICT: SUPERSEDED
-EVIDENCE: df7a369 implemented deterministic HEAD re-check; 2150d18 later retired `audit_findings_consolidation.py` and its tests with the file-bus pipeline.
+EVIDENCE: bbe4841 implemented deterministic HEAD re-check; 18f4876 later retired `audit_findings_consolidation.py` and its tests with the file-bus pipeline.
 EVIDENCE: scripts/debug_until_dry.py:70 and :354 retain claim-hash dedup; :312 and :550 independently re-check current code through the active verifier lane.
 RECOMMENDED: resolve-superseded — the criticized consolidator no longer exists and its live replacement covers dedup plus current-tree adjudication.
 
@@ -655,8 +655,8 @@ RECOMMENDED: resolve-moot — the requested guard is implemented and active.
 - scout: ok=True wall=83s tok(in/out/reason)=188794/1275/373
 
 VERDICT: MOOT
-EVIDENCE: e7385d7 implemented the reflex; `scripts/reflect_capture.py:130-170` detects operator interventions.
-EVIDENCE: `scripts/reflect_session_close.py:108-168` emits the structured fields; `skills/rsi/SKILL.md:90-106` requires action or explicit noop. 5de4a52 subsequently hardened false-positive handling.
+EVIDENCE: 69dd28a implemented the reflex; `scripts/reflect_capture.py:130-170` detects operator interventions.
+EVIDENCE: `scripts/reflect_session_close.py:108-168` emits the structured fields; `skills/rsi/SKILL.md:90-106` requires action or explicit noop. 2079b7f subsequently hardened false-positive handling.
 RECOMMENDED: resolve-moot — the proposed capture, digest, and closeout behavior is live.
 
 ## Contested-file stop-hook: cache adjudications by content hash
@@ -738,7 +738,7 @@ RECOMMENDED: keep — the false-attribution path remains open.
 - scout: ok=True wall=113s tok(in/out/reason)=336831/1743/568
 
 VERDICT: STILL-VALID
-EVIDENCE: 091e40a fixed prefix matching only for `--latest-digest`; `scripts/reflect_session_close.py:358-367` still writes the raw prefix while `:454-463` compares acknowledgments to full IDs.
+EVIDENCE: dd1d7f6 fixed prefix matching only for `--latest-digest`; `scripts/reflect_session_close.py:358-367` still writes the raw prefix while `:454-463` compares acknowledgments to full IDs.
 EVIDENCE: `scripts/reflect_capture.py:162-167` still excludes only task/system notifications, not `<teammate-message>` or `<local-command-*>`.
 RECOMMENDED: keep — both `--ack` prefix handling and operator-DX false-positive filtering remain defective.
 
@@ -802,7 +802,7 @@ RECOMMENDED: keep — cross-driver subscription concurrency remains unenforced.
 - scout: ok=True wall=92s tok(in/out/reason)=234107/2067/855
 
 VERDICT: MOOT
-EVIDENCE: fcbb6f9 (2026-06-16) already implemented the cockpit statusline before this proposal.
+EVIDENCE: 9812213 (2026-06-16) already implemented the cockpit statusline before this proposal.
 EVIDENCE: ~/.claude/settings.json:355-360 wires ScheduleWakeup to posttool-loop-tracker.sh; scripts/claude-statusline.sh:107-110,176-185 renders loop countdown, crons, subagents, and background tasks.
 RECOMMENDED: resolve-moot — the requested ambient loop-state display is already live.
 
@@ -812,7 +812,7 @@ RECOMMENDED: resolve-moot — the requested ambient loop-state display is alread
 
 VERDICT: STILL-VALID
 EVIDENCE: scripts/reflect_session_close.py:275-305 — bare lookup still selects the latest unacked digest across all projects.
-EVIDENCE: 091e40a — later fix addressed prefix matching but explicitly recorded the fallback returning a genomics digest from arc-agi.
+EVIDENCE: dd1d7f6 — later fix addressed prefix matching but explicitly recorded the fallback returning a genomics digest from arc-agi.
 EVIDENCE: ~/Projects/skills/rsi/SKILL.md:28-37 — current workflow still invokes the empty-argument fallback.
 RECOMMENDED: keep — the cross-project fallback remains live and unsafe.
 
@@ -841,7 +841,7 @@ RECOMMENDED: keep — per-session files are still needed to eliminate multi-sess
 - scout: ok=True wall=86s tok(in/out/reason)=297876/1795/770
 
 VERDICT: SUPERSEDED
-EVIDENCE: 091e40a fixed the actual failure: `--latest-digest` now resolves the nudge’s 8-character session prefix (`scripts/reflect_session_close.py:297-304`).
+EVIDENCE: dd1d7f6 fixed the actual failure: `--latest-digest` now resolves the nudge’s 8-character session prefix (`scripts/reflect_session_close.py:297-304`).
 EVIDENCE: `pending_nudge` already selects a digest row matching the current project and prints that row’s session ID (`scripts/reflect_session_close.py:456-471`).
 RECOMMENDED: resolve-superseded — the apparent misattribution was a short-ID lookup failure, now fixed.
 
@@ -869,9 +869,9 @@ RECOMMENDED: keep — the stale-price failure mode still has no live detector.
 - scout: ok=True wall=134s tok(in/out/reason)=447002/2637/835
 
 VERDICT: SUPERSEDED
-EVIDENCE: 7148799 executed the triage: six proposals resolved and the still-valid hook-state item retained individually (`docs/audit/2026-07-04-stale-question-drain.md:10-29`).
+EVIDENCE: 0d20cd0 executed the triage: six proposals resolved and the still-valid hook-state item retained individually (`docs/audit/2026-07-04-stale-question-drain.md:10-29`).
 EVIDENCE: 56c24f7 fixed the prioritized reception-hook transport; `skills/hooks/posttool-reception-payload-llm.sh:15-18` confirms subscription-first operation.
-EVIDENCE: 38d9fa5 added verdict application to the current per-item drain (`scripts/questions_drain.py:146-184`), superseding this static omnibus queue.
+EVIDENCE: 666fe39 added verdict application to the current per-item drain (`scripts/questions_drain.py:146-184`), superseding this static omnibus queue.
 RECOMMENDED: resolve-superseded — current per-proposal records and the drain workflow now own unresolved items.
 
 ## Proposal: Hook verification state — stateless revalidation (architectural)
@@ -885,7 +885,7 @@ EVIDENCE: genomics/.claude/hooks/posttool-session-verify-log.sh:51-56 still crea
 RECOMMENDED: keep — stateless inline revalidation remains unimplemented for guarded stops.
 
 ## Resolve prediction: **Usage telemetry — subscription blind spot closed (`llmx@7e2d993`)** — light critique (cursor repo-grounded + gpt-5.5) REPLACED the tiktoken plan: `claude -p --output-format json…
-- ref: `predictions.jsonl#impl-4980db9d-aba2767d` · created 2026-07-18 (46d)
+- ref: `predictions.jsonl#impl-29cb7101-aba2767d` · created 2026-07-18 (46d)
 - scout: ok=True wall=121s tok(in/out/reason)=349336/1827/675
 
 VERDICT: MOOT
@@ -893,17 +893,17 @@ EVIDENCE: `llmx@7e2d993` implemented the change; `llmx/cli_backends.py:954` stil
 EVIDENCE: `tests/test_usage_accounting.py:100` covers current parsing; post-2026-07-18 history contains no telemetry removal or replacement.
 RECOMMENDED: resolve-moot — the blind spot remains closed and the implementation still earns its place
 
-## Resolve prediction: **Pulse liveness contracts — scoped, NOT universal (`bf68c3a`)** — both critiques killed the "universal registry": a uniform constancy test alarms-on-green for healthy-constant me…
-- ref: `predictions.jsonl#impl-4980db9d-03ab1531` · created 2026-07-18 (46d)
+## Resolve prediction: **Pulse liveness contracts — scoped, NOT universal (`68bbc6c`)** — both critiques killed the "universal registry": a uniform constancy test alarms-on-green for healthy-constant me…
+- ref: `predictions.jsonl#impl-29cb7101-03ab1531` · created 2026-07-18 (46d)
 - scout: ok=True wall=119s tok(in/out/reason)=333924/1923/913
 
 VERDICT: STILL-VALID
 EVIDENCE: scripts/pulse.py:111 declares scoped per-metric contracts; lines 136–140 retain all three should-vary supervision instruments.
-EVIDENCE: scripts/pulse_tick.py:124–130 still runs the canary and fails the tick on alarm; post-cutoff commits 99a48af/cac62c3 did not supersede it.
+EVIDENCE: scripts/pulse_tick.py:124–130 still runs the canary and fails the tick on alarm; post-cutoff commits 80d5cc9/ba83aea did not supersede it.
 RECOMMENDED: keep — the constant/non-null dead-producer failure remains uniquely covered and actively wired.
 
 ## Resolve prediction: **llmx usage surfacing** — DONE (`llmx@62ce643`). Verify-before-build paid off: `usage_log.py` + `scripts/usage_summary.py` already recorded + rolled up usage; it just wasn't reac…
-- ref: `predictions.jsonl#impl-275e3582-47014afe` · created 2026-07-18 (46d)
+- ref: `predictions.jsonl#impl-1d02b366-47014afe` · created 2026-07-18 (46d)
 - scout: ok=True wall=115s tok(in/out/reason)=335031/1294/392
 
 VERDICT: MOOT
@@ -912,43 +912,43 @@ EVIDENCE: Live `llmx usage --by model --days 7` successfully rolled up 76 calls 
 RECOMMENDED: resolve-moot — the implemented usage surface remains live and functional.
 
 ## Resolve prediction: **PPV/reflect-eval counted STALE firings against the current predicate (windowing bug)** — FIXED: added per-rule `since` (predicate-last-changed date) to `config/reflect-omission-…
-- ref: `predictions.jsonl#impl-3894d7b4-cbf2123a` · created 2026-07-18 (46d)
+- ref: `predictions.jsonl#impl-0bd13e90-cbf2123a` · created 2026-07-18 (46d)
 - scout: ok=True wall=250s tok(in/out/reason)=146889/1175/561
 
 VERDICT: MOOT
-EVIDENCE: 3894d7b implemented per-rule `since`; scripts/reflect_eval.py:46-81 loads it and excludes stale firings.
+EVIDENCE: 0bd13e9 implemented per-rule `since`; scripts/reflect_eval.py:46-81 loads it and excludes stale firings.
 EVIDENCE: config/reflect-omission-rules.json:2-52 defines `since` for every rule; no targeted-path commits since 2026-07-18.
 RECOMMENDED: resolve-moot — the windowing bug remains fixed in current code.
 
 ## Resolve prediction: **Closure metric repointed (`supervision-kpi.py`)** — `hooks_shown`/`air` read a `progress/hook_progress/Stop` signal present 7× across all transcripts instead of `attachment/hook…
-- ref: `predictions.jsonl#impl-e75d3b7c-5f38d971` · created 2026-07-18 (46d)
+- ref: `predictions.jsonl#impl-e6bb8836-5f38d971` · created 2026-07-18 (46d)
 - scout: ok=True wall=112s tok(in/out/reason)=387926/2258/902
 
 VERDICT: MOOT
-EVIDENCE: 5563996 implemented `attachment/hook_success`; current `scripts/supervision_session.py:165-180` retains and deduplicates it.
+EVIDENCE: c6b40a5 implemented `attachment/hook_success`; current `scripts/supervision_session.py:165-180` retains and deduplicates it.
 EVIDENCE: `artifacts/observe/2026-08-01-0759/supervision/supervision-report.json:44-47` reports 1,274 hooks, confirming the metric remained live after 2026-07-18.
 RECOMMENDED: resolve-moot — the dead-metric problem remains fixed and the prediction has passed.
 
 ## Resolve prediction: **`over_caution` graduated shadow→enforce (soft nudge)** — `stop-smart-judge.sh` vector #3 ("ends by asking permission for an obvious, reversible, already-authorized action") had…
-- ref: `predictions.jsonl#impl-e75d3b7c-2aec2f7a` · created 2026-07-18 (46d)
+- ref: `predictions.jsonl#impl-e6bb8836-2aec2f7a` · created 2026-07-18 (46d)
 - scout: ok=True wall=88s tok(in/out/reason)=257937/1828/556
 
 VERDICT: SUPERSEDED
-EVIDENCE: 3273bb3 closed the ablation; decisions/2026-07-25-over-caution-ablation-closed.md:26-33 found enforcement bought nothing and retained only shadow scoring.
+EVIDENCE: 80f166e closed the ablation; decisions/2026-07-25-over-caution-ablation-closed.md:26-33 found enforcement bought nothing and retained only shadow scoring.
 EVIDENCE: ~/.claude/settings.json:9-10 currently enforces only `verify_before_claim`, excluding `over_caution`.
 RECOMMENDED: resolve-superseded — the measured ablation explicitly reversed the predicted graduation.
 
 ## Resolve prediction: **Un-archive `/code-review` skill** — moved from `skills/_archive/` to `skills/code-review/`; scout scripts live in `agent-infra/scripts/` (not dead `meta/` paths). Default provid…
-- ref: `predictions.jsonl#impl-72c1f394-81814792` · created 2026-07-18 (46d)
+- ref: `predictions.jsonl#impl-c87c9966-81814792` · created 2026-07-18 (46d)
 - scout: ok=True wall=151s tok(in/out/reason)=531053/2875/1162
 
 VERDICT: MOOT
 EVIDENCE: `~/Projects/skills/code-review/SKILL.md:17-23` is live and points to `agent-infra/scripts/`, exactly the proposed un-archived state.
-EVIDENCE: Post-cutoff commits `e824c3f`, `347f983`, `82c6be4`, and `f2ae59b` actively hardened the scout and tests.
+EVIDENCE: Post-cutoff commits `f27d799`, `f7472bf`, `f2da07d`, and `f66f5b9` actively hardened the scout and tests.
 RECOMMENDED: resolve-moot — the change remains implemented and maintained.
 
 ## Resolve prediction: **Skills wired to Composer CLI** — `/critique` (composer default on diff-closeout + close axes), `/sweep` (`--composer` Phase 3), `/observe` (Step 2b precision pass), `/verify-bef…
-- ref: `predictions.jsonl#impl-72c1f394-8b334daa` · created 2026-07-18 (46d)
+- ref: `predictions.jsonl#impl-c87c9966-8b334daa` · created 2026-07-18 (46d)
 - scout: ok=True wall=103s tok(in/out/reason)=252663/1825/854
 
 VERDICT: SUPERSEDED
@@ -958,7 +958,7 @@ EVIDENCE: skills/observe/SKILL.md:246 and verify-before/SKILL.md:117 retain narr
 RECOMMENDED: resolve-superseded — the original multi-skill topology no longer exists.
 
 ## Resolve prediction: **Critique axis overlap + cost tooling (2026-06-14)** — `standard` axes (`arch`,`gaps`,`correctness`,`contracts`) now all carry full-review mandate (structure+bugs); lenses differ…
-- ref: `predictions.jsonl#impl-72c1f394-8ed4792d` · created 2026-07-18 (46d)
+- ref: `predictions.jsonl#impl-c87c9966-8ed4792d` · created 2026-07-18 (46d)
 - scout: ok=True wall=137s tok(in/out/reason)=591342/2657/1188
 
 VERDICT: STILL-VALID
@@ -967,7 +967,7 @@ EVIDENCE: `agent-infra/scripts/critique_cost.py:51-115` remains wired at `justfi
 RECOMMENDED: keep — both the differentiated overlap and live cost rollup still earn their place.
 
 ## Resolve prediction: **Review dispatch consolidation (phase 1)** — closeout partition in `critique/SKILL.md`; `review_targets` in plan-close manifest; skill-usage-watch launchd killed; `critique_effic…
-- ref: `predictions.jsonl#impl-72c1f394-8d875561` · created 2026-07-18 (46d)
+- ref: `predictions.jsonl#impl-c87c9966-8d875561` · created 2026-07-18 (46d)
 - scout: ok=True wall=185s tok(in/out/reason)=1003745/5245/2488
 
 VERDICT: STILL-VALID
@@ -976,7 +976,7 @@ EVIDENCE: `skills/critique/SKILL.md:405-425` still partitions diff→code-review
 RECOMMENDED: keep — the machine-enforced partition still prevents duplicate closeout review.
 
 ## Resolve prediction: **Critique full-update Phase A0** — cross2/cross4/lens2/lens4 presets; AXIS_CELLS; review_gate preset triage; ROUTING_VERDICT scaffold. CLI default stays `standard`. — confirmed o…
-- ref: `predictions.jsonl#impl-72c1f394-8709f3f1` · created 2026-07-18 (46d)
+- ref: `predictions.jsonl#impl-c87c9966-8709f3f1` · created 2026-07-18 (46d)
 - scout: ok=True wall=117s tok(in/out/reason)=368618/2230/893
 
 VERDICT: STILL-VALID
@@ -985,7 +985,7 @@ EVIDENCE: `evals/critique_replay/ROUTING_VERDICT.md:3` remains PENDING; no commi
 RECOMMENDED: keep — the full-grid verdict and resulting default-preset decision remain unresolved.
 
 ## Resolve prediction: **VOI-sequenced review ADR** — `decisions/2026-06-15-voi-sequenced-review.md`; Composer scout before adjudication. — confirmed or refuted?
-- ref: `predictions.jsonl#impl-72c1f394-68e4b7c1` · created 2026-07-18 (46d)
+- ref: `predictions.jsonl#impl-c87c9966-68e4b7c1` · created 2026-07-18 (46d)
 - scout: ok=True wall=137s tok(in/out/reason)=754514/3263/1053
 
 VERDICT: STILL-VALID
@@ -993,7 +993,7 @@ EVIDENCE: `skills/critique/scripts/model-review.py:3637-3668` still runs the rep
 RECOMMENDED: keep — the VOI sequence remains implemented and active.
 
 ## Resolve prediction: **Critique P0+P1 hardening** — outcome_link `linked_anchor`/`linked_file` tiers; rank → `escalation-recommendation.json`; cross-talk `cross_talk_degraded`; contradiction meaningfu…
-- ref: `predictions.jsonl#impl-72c1f394-70205129` · created 2026-07-18 (46d)
+- ref: `predictions.jsonl#impl-c87c9966-70205129` · created 2026-07-18 (46d)
 - scout: ok=True wall=105s tok(in/out/reason)=345173/2555/1262
 
 VERDICT: STILL-VALID
@@ -1002,7 +1002,7 @@ EVIDENCE: Since 2026-07-18, only `skills@f0ba41a` touched these paths, changing 
 RECOMMENDED: keep — the mechanisms remain live and unsuperseded, so the earn-its-place prediction still needs resolution.
 
 ## Resolve prediction: **Global review routing sync** — `~/.claude/CLAUDE.md` partitioned review pointers; `plan-review-gate.md` triage/VOI/closeout partition; `dependency-manifest.json` tombstoned orch…
-- ref: `predictions.jsonl#impl-72c1f394-3389a5cc` · created 2026-07-18 (46d)
+- ref: `predictions.jsonl#impl-c87c9966-3389a5cc` · created 2026-07-18 (46d)
 - scout: ok=True wall=160s tok(in/out/reason)=713747/4081/2072
 
 VERDICT: MOOT
@@ -1011,35 +1011,35 @@ EVIDENCE: ac3ecb7 refreshed VOI→triage→adjudication→closeout (`~/.claude/r
 RECOMMENDED: resolve-moot — the positive prediction is now revalidated by the current implementation.
 
 ## Resolve prediction: **`supervision_taxonomy.py` — single-source correction taxonomy + direction vector.** The objective ("declining supervision") was a weighted SCALAR (`sli`) that summed opposite-si…
-- ref: `predictions.jsonl#impl-ee04335f-c4f51912` · created 2026-07-18 (46d)
+- ref: `predictions.jsonl#impl-12aa85af-c4f51912` · created 2026-07-18 (46d)
 - scout: ok=True wall=91s tok(in/out/reason)=255366/1779/884
 
 VERDICT: MOOT
-EVIDENCE: 21cd73e (2026-07-21) refined the taxonomy after the check date and passed 33 tests.
+EVIDENCE: 3c4c52f (2026-07-21) refined the taxonomy after the check date and passed 33 tests.
 EVIDENCE: scripts/supervision_taxonomy.py:58-74 still defines the direction vector; scripts/supervision_session.py:301-354 emits it in live reports.
 EVIDENCE: scripts/tests/test_supervision_taxonomy.py:95-102 enforces all consumers use this single source.
 RECOMMENDED: resolve-moot — the implementation demonstrably still earns its place.
 
 ## Resolve prediction: **Claude Code 2.1.1xx native-feature adoption** — closed 2026-06-12 same-day; per-item dispositions: (a) `disallowedTools` REJECTED — analysis skills already use the strictly-stro…
-- ref: `predictions.jsonl#impl-22aee86f-c92928d3` · created 2026-07-18 (46d)
+- ref: `predictions.jsonl#impl-7be8c538-c92928d3` · created 2026-07-18 (46d)
 - scout: ok=True wall=101s tok(in/out/reason)=250616/2236/1023
 
 VERDICT: MOOT
 EVIDENCE: improvement-log.md:163 records all native-feature dispositions as closed; no unresolved adoption remains.
-EVIDENCE: skills@4dec39a retired the deferred `sweep`/`upgrade` targets; agent-infra@a431d8e now enforces the 8K skills budget via `scripts/skills_budget.py`.
+EVIDENCE: skills@4dec39a retired the deferred `sweep`/`upgrade` targets; agent-infra@b4d066c now enforces the 8K skills budget via `scripts/skills_budget.py`.
 RECOMMENDED: resolve-moot — the work was completed or rejected, and later architecture removed its only deferred targets.
 
 ## Resolve prediction: [2026-06-08] rule:checkable-claims-carry-probes — checkable "breaking/blocked" verdicts must carry their probe; downstream re-runs before acting on a skip. blast_radius=local, ver…
-- ref: `predictions.jsonl#impl-bbb7525c-0433398c` · created 2026-07-18 (46d)
+- ref: `predictions.jsonl#impl-8048cb85-0433398c` · created 2026-07-18 (46d)
 - scout: ok=True wall=124s tok(in/out/reason)=217913/1469/527
 
 VERDICT: STILL-VALID
-EVIDENCE: 0e671af documents a post-2026-07-18 recurrence: an unprobed correction blocked a correct retirement for six weeks (decisions/2026-07-25-agent-infra-mcp-zero-consumption.md:76).
+EVIDENCE: c40739e documents a post-2026-07-18 recurrence: an unprobed correction blocked a correct retirement for six weeks (decisions/2026-07-25-agent-infra-mcp-zero-consumption.md:76).
 EVIDENCE: The local rule remains current and directly requires inline probes plus downstream re-runs before “skip/blocked” actions (.claude/rules/checkable-claims-carry-probes.md:15).
 RECOMMENDED: keep — a recent real incident confirms the rule still prevents consequential false blockers.
 
 ## Resolve prediction: **Gated 5 git-only Bash hooks behind `if: "Bash(git*)"` in `~/.claude/settings.json`** — `git-noext-inject`, `git-add-all-guard`, `no-background-commit`, `multiagent-commit-guard`…
-- ref: `predictions.jsonl#impl-71823900-f6ee76b3` · created 2026-07-19 (45d)
+- ref: `predictions.jsonl#impl-f60ad06d-f6ee76b3` · created 2026-07-19 (45d)
 - scout: ok=True wall=157s tok(in/out/reason)=509734/2806/1198
 
 VERDICT: SUPERSEDED
@@ -1048,17 +1048,17 @@ EVIDENCE: `hooks/pretool-bash-dispatch.py:2176-2253` retains the git guards inte
 RECOMMENDED: resolve-superseded — the original native per-hook gating scaffold was replaced by a consolidated, subsequently hardened dispatcher.
 
 ## Resolve prediction: **Codex 0.141 PostToolUse code-mode gating — VERIFIED, no shim change needed** — 0.141 "blocking PostToolUse hooks now correctly reject code-mode tool calls" is strictly ADDITIVE…
-- ref: `predictions.jsonl#impl-3ead94aa-d3387cd8` · created 2026-07-19 (45d)
+- ref: `predictions.jsonl#impl-dd9a58bc-d3387cd8` · created 2026-07-19 (45d)
 - scout: ok=True wall=151s tok(in/out/reason)=473168/1784/480
 
 VERDICT: MOOT
 EVIDENCE: scripts/codex_hook_shim.py:43-54,283-297 still handles PostToolUse and preserves exit-2 blocking.
 EVIDENCE: ~/.codex/log/hook_shim_invocations.jsonl records 1,132 recent PostToolUse fires, including 2026-09-02.
-EVIDENCE: No shim implementation commits since 2026-07-19; 66922ec retained parity-sync wiring.
+EVIDENCE: No shim implementation commits since 2026-07-19; 1ca85f2 retained parity-sync wiring.
 RECOMMENDED: resolve-moot — the prediction is confirmed and requires no further change.
 
 ## Resolve prediction: **CC 2.1.183 native destructive-git block — no conflict, keep our guards** — native block is PreToolUse-equivalent and auto-mode-only; our `pretool-destructive-git-ref.sh` / `git-…
-- ref: `predictions.jsonl#impl-3ead94aa-59767fbc` · created 2026-07-19 (45d)
+- ref: `predictions.jsonl#impl-dd9a58bc-59767fbc` · created 2026-07-19 (45d)
 - scout: ok=True wall=138s tok(in/out/reason)=339487/1595/566
 
 VERDICT: STILL-VALID
@@ -1067,20 +1067,20 @@ EVIDENCE: `pretool-destructive-git-ref.sh:19-30` creates recovery snapshots beyo
 RECOMMENDED: keep — current guards provide all-mode enforcement and recovery behavior the native auto-mode block does not.
 
 ## Resolve prediction: [2026-06-25] **The funnel ledger already existed — premise of the BACKSTOP GAP entry was stale.** VOI probe: `~/.claude/llmx-usage.jsonl` is appended by llmx for *every* call rega…
-- ref: `predictions.jsonl#impl-27ff16ee-7c02e68c` · created 2026-07-25 (39d)
+- ref: `predictions.jsonl#impl-c29c599e-7c02e68c` · created 2026-07-25 (39d)
 - scout: ok=True wall=133s tok(in/out/reason)=406957/2654/1320
 
 VERDICT: MOOT
-EVIDENCE: 27ff16e implemented the missing ledger consumer; scripts/usage-check.py:116-163 and scripts/doctor.py:679-716 remain wired.
-EVIDENCE: abf39bd records hard-block resolution; llmx@6a10f68 enforces the $25 cap at dispatch. Post-cutoff f92c7d7 maintained pricing parity.
+EVIDENCE: c29c599 implemented the missing ledger consumer; scripts/usage-check.py:116-163 and scripts/doctor.py:679-716 remain wired.
+EVIDENCE: 6129421 records hard-block resolution; llmx@6a10f68 enforces the $25 cap at dispatch. Post-cutoff 66efad2 maintained pricing parity.
 RECOMMENDED: resolve-moot — both observability and enforcement are implemented.
 
 ## Resolve prediction: [2026-06-24] HARNESS-EVAL FLAKY STEP: `system_inventory.py --check` — **fixed 2026-06-28**: `_normalize_volatile_inventory()` strips live launchctl lines from `--render --check` c…
-- ref: `predictions.jsonl#impl-93797a17-d4334ee9` · created 2026-07-28 (36d)
+- ref: `predictions.jsonl#impl-22f9ba52-d4334ee9` · created 2026-07-28 (36d)
 - scout: ok=True wall=105s tok(in/out/reason)=216367/1853/606
 
 VERDICT: MOOT
-EVIDENCE: 93797a1 implemented the fix; scripts/system_inventory.py:452-475 still normalizes volatile launchctl state.
+EVIDENCE: 22f9ba5 implemented the fix; scripts/system_inventory.py:452-475 still normalizes volatile launchctl state.
 EVIDENCE: justfile:221-232 invokes `--render --check`; scripts/tests/test_system_inventory.py:26-29 retains regression coverage.
 RECOMMENDED: resolve-moot — the flaky check was fixed and the fix remains wired and tested.
 
@@ -1167,18 +1167,18 @@ RECOMMENDED: resolve-superseded — broader standing authorization and newer mod
   - SUPERSEDED → `/Users/alien/.claude/steward-proposals/2026-07-29-rsi-nudge-session-misattribution.md`
   - SUPERSEDED → `/Users/alien/.claude/steward-proposals/TRIAGE-2026-06-16.md`
   - MOOT → `/Users/alien/Projects/agent-infra/decisions-pending/2026-07-15-genomics-export-ship-path.md`
-  - MANUAL (ref missing on disk) `predictions.jsonl#impl-4980db9d-aba2767d` — Resolve prediction: **Usage telemetry — subscription blind spot closed (`llmx@7e
-  - MANUAL (ref missing on disk) `predictions.jsonl#impl-275e3582-47014afe` — Resolve prediction: **llmx usage surfacing** — DONE (`llmx@62ce643`). Verify-bef
-  - MANUAL (ref missing on disk) `predictions.jsonl#impl-3894d7b4-cbf2123a` — Resolve prediction: **PPV/reflect-eval counted STALE firings against the current
-  - MANUAL (ref missing on disk) `predictions.jsonl#impl-e75d3b7c-5f38d971` — Resolve prediction: **Closure metric repointed (`supervision-kpi.py`)** — `hooks
-  - MANUAL (ref missing on disk) `predictions.jsonl#impl-e75d3b7c-2aec2f7a` — Resolve prediction: **`over_caution` graduated shadow→enforce (soft nudge)** — `
-  - MANUAL (ref missing on disk) `predictions.jsonl#impl-72c1f394-81814792` — Resolve prediction: **Un-archive `/code-review` skill** — moved from `skills/_ar
-  - MANUAL (ref missing on disk) `predictions.jsonl#impl-72c1f394-8b334daa` — Resolve prediction: **Skills wired to Composer CLI** — `/critique` (composer def
-  - MANUAL (ref missing on disk) `predictions.jsonl#impl-72c1f394-3389a5cc` — Resolve prediction: **Global review routing sync** — `~/.claude/CLAUDE.md` parti
-  - MANUAL (ref missing on disk) `predictions.jsonl#impl-ee04335f-c4f51912` — Resolve prediction: **`supervision_taxonomy.py` — single-source correction taxon
-  - MANUAL (ref missing on disk) `predictions.jsonl#impl-22aee86f-c92928d3` — Resolve prediction: **Claude Code 2.1.1xx native-feature adoption** — closed 202
-  - MANUAL (ref missing on disk) `predictions.jsonl#impl-71823900-f6ee76b3` — Resolve prediction: **Gated 5 git-only Bash hooks behind `if: "Bash(git*)"` in `
-  - MANUAL (ref missing on disk) `predictions.jsonl#impl-3ead94aa-d3387cd8` — Resolve prediction: **Codex 0.141 PostToolUse code-mode gating — VERIFIED, no sh
-  - MANUAL (ref missing on disk) `predictions.jsonl#impl-27ff16ee-7c02e68c` — Resolve prediction: [2026-06-25] **The funnel ledger already existed — premise o
-  - MANUAL (ref missing on disk) `predictions.jsonl#impl-93797a17-d4334ee9` — Resolve prediction: [2026-06-24] HARNESS-EVAL FLAKY STEP: `system_inventory.py -
+  - MANUAL (ref missing on disk) `predictions.jsonl#impl-29cb7101-aba2767d` — Resolve prediction: **Usage telemetry — subscription blind spot closed (`llmx@7e
+  - MANUAL (ref missing on disk) `predictions.jsonl#impl-1d02b366-47014afe` — Resolve prediction: **llmx usage surfacing** — DONE (`llmx@62ce643`). Verify-bef
+  - MANUAL (ref missing on disk) `predictions.jsonl#impl-0bd13e90-cbf2123a` — Resolve prediction: **PPV/reflect-eval counted STALE firings against the current
+  - MANUAL (ref missing on disk) `predictions.jsonl#impl-e6bb8836-5f38d971` — Resolve prediction: **Closure metric repointed (`supervision-kpi.py`)** — `hooks
+  - MANUAL (ref missing on disk) `predictions.jsonl#impl-e6bb8836-2aec2f7a` — Resolve prediction: **`over_caution` graduated shadow→enforce (soft nudge)** — `
+  - MANUAL (ref missing on disk) `predictions.jsonl#impl-c87c9966-81814792` — Resolve prediction: **Un-archive `/code-review` skill** — moved from `skills/_ar
+  - MANUAL (ref missing on disk) `predictions.jsonl#impl-c87c9966-8b334daa` — Resolve prediction: **Skills wired to Composer CLI** — `/critique` (composer def
+  - MANUAL (ref missing on disk) `predictions.jsonl#impl-c87c9966-3389a5cc` — Resolve prediction: **Global review routing sync** — `~/.claude/CLAUDE.md` parti
+  - MANUAL (ref missing on disk) `predictions.jsonl#impl-12aa85af-c4f51912` — Resolve prediction: **`supervision_taxonomy.py` — single-source correction taxon
+  - MANUAL (ref missing on disk) `predictions.jsonl#impl-7be8c538-c92928d3` — Resolve prediction: **Claude Code 2.1.1xx native-feature adoption** — closed 202
+  - MANUAL (ref missing on disk) `predictions.jsonl#impl-f60ad06d-f6ee76b3` — Resolve prediction: **Gated 5 git-only Bash hooks behind `if: "Bash(git*)"` in `
+  - MANUAL (ref missing on disk) `predictions.jsonl#impl-dd9a58bc-d3387cd8` — Resolve prediction: **Codex 0.141 PostToolUse code-mode gating — VERIFIED, no sh
+  - MANUAL (ref missing on disk) `predictions.jsonl#impl-c29c599e-7c02e68c` — Resolve prediction: [2026-06-25] **The funnel ledger already existed — premise o
+  - MANUAL (ref missing on disk) `predictions.jsonl#impl-22f9ba52-d4334ee9` — Resolve prediction: [2026-06-24] HARNESS-EVAL FLAKY STEP: `system_inventory.py -
   - MANUAL (ref missing on disk) `/Users/alien/Projects/arc-agi/HUMAN.md:1227` — 2026-07-12 21:10 — Standing fable-wave charter proposal (RSI close #2; removes t

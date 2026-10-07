@@ -162,7 +162,7 @@ class ClaimVerdict:
 - **Domain divergence:** intel uses `predicates` like `core_thesis_for`, `scenario_probability`, `contradicts` — totally different vocabulary from phenome/genomics, but **same predicate+slots+identity shape**.
 - **In flight:** Workstream A (NBIS earnings 2026-05-13), Workstream B (systemic-infra Phases 0–3 of 6, "DO ALL OF IT"), Workstream C (Phase 8 of thesis-graph-v2 rebuild). Three blocking user decisions parked.
 - **Substrate Phase 4 status:** `claims_for_source` / `verdicts_for_claim` wire-shape exists in `theses_mcp.py:391-507`; `record_verdict` is disabled (write path not yet implemented).
-- **Source attribution gap:** Phase 6 (intel entity citation extraction) shipped 2026-05-15 (agent-infra commit `a3f55ea`) — was the "missing source attribution" flagged in archaeology.
+- **Source attribution gap:** Phase 6 (intel entity citation extraction) shipped 2026-05-15 (agent-infra commit `1cf4c8e`) — was the "missing source attribution" flagged in archaeology.
 
 ### 2.2 phenome — biomedical claim store + cert-stack
 
@@ -188,7 +188,7 @@ class ClaimVerdict:
 - **Five citation verifiers:** quantitative claims, citation IDs, PGx consistency, protocol claims, variant claims. Continuous ingestion from Crossref, PubMed, ClinVar, CPIC, KEGG, OnSIDES, genomics-bridge.
 - **Genomics bridge integration:** consumes `~/Projects/markus-genotype/results/` artifacts via `BridgeSnapshotCertificate` (Plan 04).
 - **In flight:** Substrate Phases 3–4 mostly shipped; schema-v4 test cleanup; checkpoint touches `.claude/rules/codebase-map.md` updates.
-- **Phase 6 (2026-05-14, commit `ec01964`):** `primary_sources` table (28 rows) deprecated; references migrated to `canonical_source_id` in `assertion_evidence`.
+- **Phase 6 (2026-05-14, commit `e87dc26`):** `primary_sources` table (28 rows) deprecated; references migrated to `canonical_source_id` in `assertion_evidence`.
 
 ### 2.3 genomics — bitemporal claim governance + Direction E
 
@@ -204,7 +204,7 @@ class ClaimVerdict:
 
 ### 2.4 agent-infra — the spine
 
-- **Canonical store at `~/Projects/corpus/`** (226 sources, 395 annotations as of 2026-05-15). Renamed from `papers/` in Phase 0.5 (commit `498a411`) to generalize beyond papers (databases, tools, repo sources).
+- **Canonical store at `~/Projects/corpus/`** (226 sources, 395 annotations as of 2026-05-15). Renamed from `papers/` in Phase 0.5 (commit `5e6e26c`) to generalize beyond papers (databases, tools, repo sources).
 - **`corpus-core` library** (workspace package, `scripts/corpus/packages/corpus-core/`):
   - `annotate()` is **SOLE writer** to `annotations.jsonl`. Schema-validated, idempotent content-addressed `annotation_id`, atomic POSIX `O_APPEND`.
   - `store.py` — `get`, `paper_path`, `derive_paper_id`, `iter_papers`, `register_revision`, `compute_parsed_sha`
@@ -367,7 +367,7 @@ The eight-primitive kernel from the TL;DR is the **conceptual** kernel — not t
 ## Section 5 — What's in flight (knowledge-infra slice)
 
 ### Substrate Phase 7 (in progress, 2026-05-15)
-- Agent-infra commit `a3f55ea` partial: observability + docs
+- Agent-infra commit `1cf4c8e` partial: observability + docs
 - OpenTelemetry spans on corpus operations
 - LaunchD recipes for audit/maintain
 - Metadata backfill

@@ -94,7 +94,7 @@ date: 2026-03-21
 
 ## Revisions
 
-- **2026-03-23:** Added Claims 11-13 from HyperAgents (DGM-H, arXiv:2603.19461, Zhang et al.). DGM-H extends DGM with metacognitive self-modification — the meta-agent can modify itself, not just the task agent. Key new evidence: (1) meta-improvements transfer across domains (paper review + robotics → math grading), (2) persistent memory and performance tracking emerge autonomously as domain-general improvements, (3) self-improvements compound across runs. Revised Claim 4 downward — verifiability constraint applies to task-level improvements but NOT to meta-level improvements (memory, tracking), which transfer without domain-specific evaluation. Implemented: signal schema, failed-experiment archival, measurement→gap-selection wiring (see meta commits 7baa273, ebd5b70, c0e99d1, b7290b0).
+- **2026-03-23:** Added Claims 11-13 from HyperAgents (DGM-H, arXiv:2603.19461, Zhang et al.). DGM-H extends DGM with metacognitive self-modification — the meta-agent can modify itself, not just the task agent. Key new evidence: (1) meta-improvements transfer across domains (paper review + robotics → math grading), (2) persistent memory and performance tracking emerge autonomously as domain-general improvements, (3) self-improvements compound across runs. Revised Claim 4 downward — verifiability constraint applies to task-level improvements but NOT to meta-level improvements (memory, tracking), which transfer without domain-specific evaluation. Implemented: signal schema, failed-experiment archival, measurement→gap-selection wiring (see meta commits c81213f, 816d9df, c0e99d1, b7290b0).
 
 ### Session Anti-Pattern Audit (from parallel analysis)
 Analyzed 35 research sessions across intel/selve. Dominant patterns:

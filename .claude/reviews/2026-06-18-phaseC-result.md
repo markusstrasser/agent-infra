@@ -72,7 +72,7 @@ scripts/tests/test_lifecycle_graph.py
 PASS — EXACTLY the 3 paths staged; no peer files, no auto-refreshed codebase-map.
 
 ## Commit
-SHA `98208e5` — `[gov] Add just graph <id> lifecycle neighborhood view — Phase C`.
+SHA `079c25d` — `[gov] Add just graph <id> lifecycle neighborhood view — Phase C`.
 Multi-agent safety hook required `--only <files>` (17 concurrent claude procs); re-ran with
 `git commit --only <3 paths>`. `git show --stat HEAD`: 3 files changed, 477 insertions, only
 mine. Session-ID trailer auto-appended by the prepare-commit-msg git hook.

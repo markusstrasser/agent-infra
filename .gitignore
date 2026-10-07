@@ -117,3 +117,13 @@ research/papers/
 
 # decrypted personal Raycast export — never commit (purged from history 2026-10-07)
 data/raycast/
+
+# personal health/finance files — local only, purged from history 2026-10-07
+benchmarks/comparison-report.md
+benchmarks/ebf3-research-prompt.md
+benchmarks/output-academic.md
+benchmarks/output-combined.md
+benchmarks/output-websearch.md
+research/compiled/cyp2d6-metabolism.md
+research/storage-dossier/personal-publishing.md
+artifacts/session-retro/2026-03-26-selve.md

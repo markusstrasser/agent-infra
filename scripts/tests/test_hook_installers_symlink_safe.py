@@ -5,7 +5,7 @@ Regression test for the 2026-06-19 clobber: `just install-hooks` did
 `printf ... > .git/hooks/pre-commit` while pre-commit was a SYMLINK into the
 skills repo, so the redirect followed the link and overwrote
 skills/hooks/pre-commit-guards.sh with a 4-line stub -> blocked ALL commits
-repo-wide. Fixed in 545434c by `rm -f .git/hooks/pre-commit` before the write.
+repo-wide. Fixed in c4b8df5 by `rm -f .git/hooks/pre-commit` before the write.
 
 This is P0 of .claude/plans/c2417c3c-worktree-isolation-adoption.md. Worktrees
 share the common .git (hooks included), so the shared-.git/hooks clobber class
@@ -92,7 +92,7 @@ def test_hook_writes_are_symlink_safe() -> None:
             if not (_rmf(name).search(txt) or _lnsf(name).search(txt)):
                 offenders.append(
                     f"{label}: writes `> .git/hooks/{name}` without a preceding "
-                    f"`rm -f` / `ln -sf` (write-through-symlink risk; see 545434c)"
+                    f"`rm -f` / `ln -sf` (write-through-symlink risk; see c4b8df5)"
                 )
     assert not offenders, "hook installer can clobber a symlinked hook:\n  " + "\n  ".join(offenders)
 
@@ -109,5 +109,5 @@ def test_live_pre_commit_is_real_and_chains_guard() -> None:
     )
     body = hook.read_text(encoding="utf-8", errors="ignore")
     assert "pre-commit-guards.sh" in body, (
-        f"{hook} does not chain the guard dispatcher — possible clobbered stub (see 545434c)"
+        f"{hook} does not chain the guard dispatcher — possible clobbered stub (see c4b8df5)"
     )

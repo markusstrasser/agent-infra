@@ -140,7 +140,7 @@ prior: research/trending-scout-2026-05-19.md
 | Agent SDK (py) | 0.2.82 | 0.2.96 | incremental; notes before 0.2.87 unverifiable |
 | Agent SDK (ts) | — | 0.3.172 | 0.3.162 breaking (Grep/Glob opt-in on native builds). NB: `@anthropic-ai/sdk` 0.104.1 is the raw API client — separate versioning; vendor-versions.py conflates them |
 | Codex CLI | 0.131 | 0.139.0 | profiles v2 (.134, verified no local impact), MCP OAuth + readOnlyHint concurrency + schema preservation (.134/.139), multi-agent v2 + remote-control grants (.137), /app desktop handoff (.138) |
-| google-genai | 2.4.0 | 2.8.0 | already audited (commits 6e526d2, 2b52b1c); 2.8 adds Agent-Platform MCP in async generate_content |
+| google-genai | 2.4.0 | 2.8.0 | already audited (commits f991a5a, 09bb468); 2.8 adds Agent-Platform MCP in async generate_content |
 | google-adk | 1.34/2.0 | 2.2.0 | 2.0 GA at I/O 05-19; 2.2 silent default-model change (finding 8) |
 
 **Model lifecycle:** `gemini-2.0-flash`(-lite) shut down 2026-06-01; image `-preview` models die 2026-06-25. **Verified benign locally:** only hits are an llmx alias that *remaps* the dead ID to `gemini-3-flash-preview` (llmx/providers.py:283) and a fake-metadata string in a claim_bench test. Gemini 3.5 Flash GA'd at I/O (05-19) — already our default cosigner since 2026-05-24; exact pricing/context window still unpublished in official sources (do not assume 3.1 parity).

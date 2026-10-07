@@ -450,7 +450,7 @@ def check_launchd_script_integrity() -> list[Check]:
     (lagging: the job must fire and fail first). A consolidation that deletes a
     wrapper .sh but leaves the plist loaded makes the job fail `exit 127` daily,
     silently, until someone reads `launchctl list`. system_inventory owns the
-    truth; this is doctor's daily reader (the d4c553a consolidation leaked 4
+    truth; this is doctor's daily reader (the 55fee10 consolidation leaked 4
     such orphans for days before a SWEEP caught them — 2026-06-24)."""
     try:
         from system_inventory import collect_orphan_scripts
@@ -696,7 +696,7 @@ def check_agentlogs_session_roles(db_path: Path | None = None) -> list[Check]:
     session_meta source, the Cursor CLI chat store). If a vendor renames a stamp, new
     sessions land NULL (undetermined) and every operator-filtered consumer silently
     drops them. The proxy this replaced was wrong both ways for months (agent-infra
-    e0f95fc). Window: 3 days back to 6 hours ago; older NULLs are transcripts past
+    8decc46). Window: 3 days back to 6 hours ago; older NULLs are transcripts past
     retention, and a fresh session can be NULL until its parent transcript lands."""
     c = Check("agentlogs-session-roles", "global")
     db_path = db_path or CLAUDE_DIR / "agentlogs.db"

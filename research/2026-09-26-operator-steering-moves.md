@@ -104,7 +104,7 @@ What the test cannot say is whether the catalog's extra moves are ones he would 
   - The coverage grades show the gap is firing time, not missing text. A new skill would be one more thing that must be invoked, which is the failure the grades found.
   - /research is where research reports are produced, and the research-ops generate lane is where new angles are consumed.
   - The eval set the strength of the wiring.
-- **Classifier fixes** (4aa25ee, cbea570): Claude Code stamps local-command stdout echoes as human, so they passed the operator predicate. Nine Codex and Cursor harness envelopes also passed as operator text in every taste and prior-context miner. The live DB relabel moved 150 rows in 65 sessions.
+- **Classifier fixes** (25f5f7c, 4b3f96a): Claude Code stamps local-command stdout echoes as human, so they passed the operator predicate. Nine Codex and Cursor harness envelopes also passed as operator text in every taste and prior-context miner. The live DB relabel moved 150 rows in 65 sessions.
 - **Exporter**: `scripts/operator_prompts_export.py` exports operator prompts with the agent turns around them, per project, from raw Claude/Codex transcripts plus the SSD archive and Cursor rows. It is the primitive for any later taste or steering mining.
 - **Eval**: evals `steering_anticipation` (prereg 31c67f6, harness aad783a, fix 2be02b2, results 02b6c0f; DECISIONS row `steering-anticipation`).
 

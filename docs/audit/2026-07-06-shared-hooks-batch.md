@@ -8,9 +8,9 @@ specific-path staged (never `-A`), each with an `Evidence:` trailer. The unrelat
 | # | Item | Status |
 |---|------|--------|
 | 1 | userprompt-clock | SHIPPED — skills `57d72e2`, reg `.claude c3cfa1a` |
-| 2 | askuserquestion-autonomous-warn | SHIPPED — skills `4ad1cc7`, manifest `ai 5fc2cbd`, reg `.claude 9166800` |
-| 3 | unstarted-goal-detection | SHIPPED — skills `3a2fd5b`, goal-night `ai c61684a` |
-| 4 | codex-exec-stdin + bg-relative-path (merged) | SHIPPED — skills `bc6f557`, manifest `ai 1fac276`, reg `.claude ccd6610` |
+| 2 | askuserquestion-autonomous-warn | SHIPPED — skills `4ad1cc7`, manifest `ai f219ee0`, reg `.claude 9166800` |
+| 3 | unstarted-goal-detection | SHIPPED — skills `3a2fd5b`, goal-night `ai f324780` |
+| 4 | codex-exec-stdin + bg-relative-path (merged) | SHIPPED — skills `bc6f557`, manifest `ai 5b3a1e5`, reg `.claude ccd6610` |
 | 5 | live-peer-work-visibility | SHIPPED — skills `1d52f5d` |
 | 6 | researcher-pathological-empty-stop-gate | SHIPPED as SHADOW — skills `da792bc` |
 | 7 | stop-hook-suppress-resurfaced-unattributable | ALREADY-DONE — `_fresh_unattributable` (`d1907d3`/`52db803`) |

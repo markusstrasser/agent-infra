@@ -40,8 +40,8 @@ in `implemented/`. Only `2026-06-15-llm-hooks-dead-metered-api` overlapped this 
 | 2026-06-20-qc-mirror-freshness-gate | genomics ef96fca0d + c7e584888 (gate attestation on mirror currency). |
 | 2026-06-20-stop-hook-writer-provenance-attribution | `scripts/common/automation_ledger.py` + `stop-uncommitted-warn.sh:231` + `test_stop_hook_automation_attribution.py`. |
 | 2026-06-20-volume-readfile-not-mirror-listdir | genomics 310da524a + 77fb68ffc (ledger reads off un-throttled GetFile); manifest validation in `operator_views.py:283`. |
-| 2026-06-21-worktree-hygiene-surfacing | agent-infra b7314f2 + 6c48e3b; file carries DISPOSITION 2026-06-21 (global hook correctly declined for local pulse home). |
-| 2026-06-22-audit-head-recheck-dedup | agent-infra df7a369 — `head_recheck()` in `audit_findings_consolidation.py` + test. |
+| 2026-06-21-worktree-hygiene-surfacing | agent-infra 03cb3a4 + 9980ec4; file carries DISPOSITION 2026-06-21 (global hook correctly declined for local pulse home). |
+| 2026-06-22-audit-head-recheck-dedup | agent-infra bbe4841 — `head_recheck()` in `audit_findings_consolidation.py` + test. |
 | 2026-06-22-reachability-into-remediation | genomics ea4a61b5 — `just owncode-classify <sample> --diffs`. |
 | 2026-06-23-reference-data-integrity-gate | Core slice shipped: no-swallow lint `lint_refdata_staging.py` (037ba35f3) + fail-loud extraction (f2c6badab). Residual volume pre-dispatch gate optional, genomics winding down. |
 | 2026-06-20-handoff-consolidation | hutter@5a1f914 (checkpoint.md → bounded live state, 3770→47 lines). |

@@ -3,7 +3,7 @@
 Resolved 6 DUE predictions in `predictions.jsonl`. Append-only: each verdict is a new
 `kind:"resolution"` row (via `scripts/predictions.py resolve`), never an edit of the prediction.
 
-HEAD at resolution: `4020598`. Ledger had **0 resolution rows** before this run (the loop had
+HEAD at resolution: `7d6fd28`. Ledger had **0 resolution rows** before this run (the loop had
 never closed autonomously — see prediction #5).
 
 | # | id | verdict |
@@ -102,9 +102,9 @@ contamination stops).
 
 **Measured:**
 - All post-deploy `[wip] Auto-checkpoint` commits are single-author (Markus Strasser) and
-  **topically coherent single-session file sets** — e.g. `addc326` (review+git_import.py+its
-  test), `16a6584` (decision+template+lifecycle json), `622840c` (CLAUDE.md+one memo),
-  `d29d462` (three research scripts in one dir). No cross-session sweep of unrelated files.
+  **topically coherent single-session file sets** — e.g. `c2c8666` (review+git_import.py+its
+  test), `9507280` (decision+template+lifecycle json), `2c903a2` (CLAUDE.md+one memo),
+  `0685edd` (three research scripts in one dir). No cross-session sweep of unrelated files.
 - `[wip] Auto-checkpoint` commits **ceased entirely after 2026-06-20** — none in the rest of the
   2-week window (to 06-28) nor since (to 07-06). Consistent with fail-closed suppressing sweeps
   when peers are present.
@@ -145,7 +145,7 @@ extend the window.
 `~/.claude/clash-capture.jsonl`, `~/.claude/clash-shadow.jsonl`, `~/.claude/clash-capture.cursor`.
 `just clash-detect --summary` → "no shadow data yet". **0 captured directives, 0 shadow verdicts,
 0 CLASH** (need ≥5). The `clash-detect` launchd job exists (`llm=required`, idle/ok) but has
-captured nothing since deploy (d355ee8, 2026-06-16).
+captured nothing since deploy (36dc86c, 2026-06-16).
 
 Per the prediction's own <5-CLASH rule and the task's UNRESOLVABLE-YET guidance → resolved
 **partial**; registered a follow-up prediction extending the window.

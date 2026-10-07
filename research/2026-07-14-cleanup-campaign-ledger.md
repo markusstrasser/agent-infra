@@ -41,15 +41,15 @@ SQLite VACUUM, not blind deletion." Disk free at start: 16 GiB (96% used).
   in `tests/agentlogs/test_prune.py`), VACUUM now gated on freelist fraction, `LowPriorityIO:
   false` added to the `agentlogs-archive` plist (job had been running ~10x slower under
   launchd's default background I/O QoS), timestamped phase markers added to the archive log.
-- Retired reclaim's competing nightly agentlogs prune (commit `9705f5f`) — it always deleted 0
+- Retired reclaim's competing nightly agentlogs prune (commit `6f84293`) — it always deleted 0
   rows and had died mid-VACUUM the previous night on a full disk; `reclaim-rotate` is now a
   warn-only stub, its cron keeps only `uv cache prune`. Fixed a stale `reclaim rotate` hint
-  (`709672d`).
+  (`996ec00`).
 - doctor.py updated to fail-loud on the two silent-death modes that caused this incident:
-  spawn-failed launchd jobs and a stale snapshot series (`d6a8aa1`).
+  spawn-failed launchd jobs and a stale snapshot series (`e2ba44e`).
 - Filed (not fixed here) a backlog item for ingest-side DB bloat: codex `message` events storing
   2.6 GB of duplicated whole-context text, `payload_json` 1.8 GB — explicitly deferred "until
-  steady state hurts" (commit `cbe6e59`). **This got picked up the same day** in session
+  steady state hurts" (commit `1c70aad`). **This got picked up the same day** in session
   `90f13c6f` below.
 - Secondary ask ("what else can we optimize on this laptop?"): ran `reclaim`'s existing
   read-only survey; cleared CloudKit cache (5.3 GB) + 6,992 Python build-cache dirs + diagnostic

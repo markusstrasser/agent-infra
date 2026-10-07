@@ -65,7 +65,7 @@ uv run python3 experiments/claim-bench-rsi/eval.py --locked
 
 This eval uses the 30 authored/imported cases plus parser and source-extraction
 probes. On 2026-06-06 it exposed a real parser failure: markdown output
-`**not verifiable** ...` was parsed as `not`. Commit `d3110e0` fixed that in
+`**not verifiable** ...` was parsed as `not`. Commit `aed776a` fixed that in
 `scorer.py`, moving the locked RSI score from `0.975000` to `1.000000`.
 
 ## Status

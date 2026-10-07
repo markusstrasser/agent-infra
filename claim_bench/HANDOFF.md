@@ -33,9 +33,9 @@ Skip `benchmarking-science-2026.md` unless you hit a meta-validity question in P
 ## You are here (state at 2026-04-11)
 
 **Phase 0 DONE.** Commits in agent-infra:
-- `01eed63` — prior-art research memo
-- `fe4d561` — relocated Apr 10 paper scan from genomics
-- `6bc4be0` — Phase 0 probe scaffold + 2 cases
+- `f975aaf` — prior-art research memo
+- `1dca1d0` — relocated Apr 10 paper scan from genomics
+- `5648b6e` — Phase 0 probe scaffold + 2 cases
 
 **Phase 0 probe ran successfully:**
 ```
