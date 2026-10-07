@@ -79,6 +79,8 @@ OCCASIONAL_MANUAL = {
     # 0-invocations/90d proxy flags it as orphan, but deleting it strands the consumers:
     # this is the producer-of-consumed-static-output false-positive class, not dead infra.
     "session-features.py",
+    # on-demand export primitive for steering/taste mining (2026-09-26/27 research memos)
+    "operator_prompts_export.py",
 }
 
 # Pure library / helper modules and the inventory generators themselves — not
@@ -87,7 +89,8 @@ SKIP_FILES = {
     "__init__.py", "config.py", "orphan_check.py",
 }
 SKIP_SUFFIXES = ("_helpers.py",)
-SKIP_PREFIXES = ("_",)
+# test_*.py are pytest modules, not generators (test_debug_until_dry_verifier.py was flagged).
+SKIP_PREFIXES = ("_", "test_")
 
 
 def _read(path: Path) -> str:
@@ -166,6 +169,31 @@ def invocation_counts(days: int) -> dict[str, str]:
 
 
 # ── per-script signal computation ─────────────────────────────────────────────
+def sibling_texts() -> dict[Path, str]:
+    """Every readable file in scripts/, extensionless wrappers included."""
+    out: dict[Path, str] = {}
+    for f in SCRIPTS.iterdir():
+        if f.is_file() and f.suffix not in (".pyc", ".json", ".jsonl", ".db"):
+            out[f] = _read(f)
+    return out
+
+
+def sibling_wired(path: Path, siblings: dict[Path, str]) -> list[str]:
+    """Siblings that name this file as a path or quoted filename.
+
+    Catches what the relation graph misses: `Path(__file__).with_name("x.py")` +
+    importlib (claims-reader.py) and extensionless shell wrappers that exec
+    "$AGENT_INFRA/scripts/x.py" (prior-context-index). A bare stem in a comment
+    does not match, so prose mentions stay unconsumed.
+    """
+    name = path.name
+    needles = (f"/{name}", f'"{name}"', f"'{name}'")
+    return sorted(
+        other.name for other, text in siblings.items()
+        if other != path and any(n in text for n in needles)
+    )
+
+
 def is_generator(path: Path) -> bool:
     name = path.name
     if name in SKIP_FILES or name in SKIP_SUFFIXES:
@@ -206,6 +234,7 @@ def check_script(
     consumers: dict[str, str],
     graph: CodeRelationGraph,
     inv_blob: str,
+    siblings: dict[Path, str] | None = None,
 ) -> dict:
     name = path.name
     rel = path.relative_to(REPO).as_posix()
@@ -217,7 +246,7 @@ def check_script(
     )
     wired = bool(wired_paths) or any(
         alias in external_wiring for alias in (name, name.rsplit(".", 1)[0])
-    )
+    ) or bool(sibling_wired(path, siblings or {}))
     imported = bool(_incoming_paths(graph, rel, {"calls", "imports"}))
 
     ref_areas = [area for area, blob in consumers.items()
@@ -257,6 +286,7 @@ def scan(days: int = 90, with_invocations: bool = False) -> dict:
     # orphan-check` / doctor instant. Opt in with --with-invocations for the rescue pass.
     inv_blob = invocation_counts(days).get("__blob__", "") if with_invocations else ""
 
+    siblings = sibling_texts()
     results: list[dict] = []
     for f in sorted(SCRIPTS.glob("*.py")) + sorted(SCRIPTS.glob("*.sh")):
         if not is_generator(f):
@@ -267,6 +297,7 @@ def scan(days: int = 90, with_invocations: bool = False) -> dict:
             consumers=consumers,
             graph=graph,
             inv_blob=inv_blob,
+            siblings=siblings,
         ))
 
     flagged = [r for r in results if r["flagged"]]
