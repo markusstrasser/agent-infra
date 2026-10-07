@@ -44,7 +44,7 @@ Since 07-09: **Claude Code 2.1.205 → 2.1.220**, **Codex CLI 0.143 → ~0.144�
 ### 2. Claude Opus 5 as primary Claude
 | Field | Content |
 |---|---|
-| Source | agent-infra commits e339d4d / research/2026-07-24-claude-opus-5-release.md |
+| Source | agent-infra commits c77dcc8 / research/2026-07-24-claude-opus-5-release.md |
 | What | Opus 5 replaces 4.8 as default Claude; Fable stays metered opt-in |
 | Why relevant | Already in model-guide + llmx routes |
 | Verdict | **Already adopted** |

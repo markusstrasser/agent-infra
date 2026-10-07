@@ -258,7 +258,7 @@ Reading the proposal and checking the codebase and git history since 2026-07-12.
 
 
 VERDICT: STILL-VALID  
-EVIDENCE: `scripts/reflect_capture.py:153-168` still classifies any non-notification `role=user` text as operator input (no headless/`claude -p` or driver-tick filter). `scripts/common/transcript_text.py:21-28` only drops `isCompactSummary`/`isMeta`, not dispatch prompts. Since 2026-07-12, targeted git history on those paths is test-only (`1262825`), not this fix.  
+EVIDENCE: `scripts/reflect_capture.py:153-168` still classifies any non-notification `role=user` text as operator input (no headless/`claude -p` or driver-tick filter). `scripts/common/transcript_text.py:21-28` only drops `isCompactSummary`/`isMeta`, not dispatch prompts. Since 2026-07-12, targeted git history on those paths is test-only (`b518fa4`), not this fix.  
 RECOMMENDED: keep — headless-dispatch prompts can still false-trigger `operator_dx` / `operator_added_value` on SessionEnd close.
 
 ## reflect_session_close.py — two defects found during 2026-07-15 arc-agi close
@@ -266,7 +266,7 @@ RECOMMENDED: keep — headless-dispatch prompts can still false-trigger `operato
 - scout: ok=True wall=71s tok(in/out/reason)=28946/2025/0
 
 VERDICT: STILL-VALID
-EVIDENCE: 601a967 added prefix match only in `latest_digest()` (`reflect_session_close.py:299-301`); `ack_digest()` still logs `session_id` verbatim (`:358-362`) so `_closed_sessions()` exact-set won’t clear nudges for 8-char `--ack`. `extract_operator_dx_interventions()` (`reflect_capture.py:166-167`) still skips only task-notification/system-reminder, not `<teammate-message` / `<local-command-` (pattern exists in `supervision_session.py:411-414`, not wired here).
+EVIDENCE: 091e40a added prefix match only in `latest_digest()` (`reflect_session_close.py:299-301`); `ack_digest()` still logs `session_id` verbatim (`:358-362`) so `_closed_sessions()` exact-set won’t clear nudges for 8-char `--ack`. `extract_operator_dx_interventions()` (`reflect_capture.py:166-167`) still skips only task-notification/system-reminder, not `<teammate-message` / `<local-command-` (pattern exists in `supervision_session.py:411-414`, not wired here).
 RECOMMENDED: keep — half of defect #1 shipped; prefix `--ack` + operator_dx teammate/local-command FPs are still open in agent-infra.
 
 ## Subagent sessions auto-commit UNGRADED work — protocol inversion
@@ -307,7 +307,7 @@ RECOMMENDED: keep — cross-driver subscription over-subscription still converts
 VERDICT: STILL-VALID
 EVIDENCE: `scripts/reflect_session_close.py:303-304` — `latest_digest()` with no session still picks the latest global un-acked digest (`elif sid not in closed: found = row`), with no `project` filter.
 EVIDENCE: `scripts/reflect_session_close.py:537-538` — CLI `--latest-digest ""` still calls that path; `pending_nudge` is cwd-scoped (`:464`) but lookup is not.
-EVIDENCE: `601a967` — prefix-match only; commit message still notes empty-arg fallback returned a genomics digest from arc-agi (not project-filtered).
+EVIDENCE: `091e40a` — prefix-match only; commit message still notes empty-arg fallback returned a genomics digest from arc-agi (not project-filtered).
 RECOMMENDED: keep — the proposed cwd-scoped fallback (~5 lines) is still unimplemented; only prefix matching was added.
 
 ## pretool guard — block pathspec commits naming CONTESTED files
@@ -363,7 +363,7 @@ RECOMMENDED: keep — repo-independent gap remains; only soft discipline in `~/.
 
 Reading the proposal and checking the codebase for current behavior.
 VERDICT: STILL-VALID
-EVIDENCE: `scripts/reflect_session_close.py:537-542` — `--latest-digest` still emits raw JSON with no `transcript_path` existence check or warning. `scripts/reflect_session_close.py:468-471` — `--nudge` still says “verify one claim” with no degraded-path flag. `b8f2622` added `--ack-stale` (bulk `stale-unreviewed` acks); no `[STALE-DIGEST]` anywhere in agent-infra.
+EVIDENCE: `scripts/reflect_session_close.py:537-542` — `--latest-digest` still emits raw JSON with no `transcript_path` existence check or warning. `scripts/reflect_session_close.py:468-471` — `--nudge` still says “verify one claim” with no degraded-path flag. `70b5575` added `--ack-stale` (bulk `stale-unreviewed` acks); no `[STALE-DIGEST]` anywhere in agent-infra.
 RECOMMENDED: keep — transcript loss can still make /rsi Step 2 unverifiable for pending digests; only the backlog screen was addressed, not nudge/close-time visibility.
 
 ## Proposal: migrate iq-sex-differences analysis scripts into git (kill the SPOF)
@@ -383,7 +383,7 @@ RECOMMENDED: resolve-moot — the SSD SPOF migration and doc/path sweep from the
 
 Reading the proposal and checking the current implementation against git history since 2026-08-18.
 VERDICT: STILL-VALID  
-EVIDENCE: `b8f2622` added manual `--ack-stale` (`reason=stale-unreviewed`); no `transcript_pruned`, no auto-ack when `transcript_path` is missing (`scripts/reflect_session_close.py:441-471`, `:381-430`). `~/.claude/skills/rsi/SKILL.md:28-31` still passes `current-session-id` to `--latest-digest`, so a prior-session nudge can miss the pending digest despite `latest_digest()` un-acked fallback (`:275-305`).  
+EVIDENCE: `70b5575` added manual `--ack-stale` (`reason=stale-unreviewed`); no `transcript_pruned`, no auto-ack when `transcript_path` is missing (`scripts/reflect_session_close.py:441-471`, `:381-430`). `~/.claude/skills/rsi/SKILL.md:28-31` still passes `current-session-id` to `--latest-digest`, so a prior-session nudge can miss the pending digest despite `latest_digest()` un-acked fallback (`:275-305`).  
 RECOMMENDED: keep — prune-horizon coupling and nudge evidence-grade hints from the proposal are still unimplemented; bulk `--ack-stale` only screened the 2026-09-02 queue.
 
 ## bgrun watcher pairing nudge
@@ -406,8 +406,8 @@ RECOMMENDED: resolve-moot — the proposed nudge is live and tested (`test_hook_
 
 VERDICT: STILL-VALID  
 EVIDENCE: `scripts/reflect_session_close.py:441-472` — `pending_nudge` still nudges on any un-acked `invoke_skill` digest with no `transcript_path`/git check; `_closed_sessions()`/`pending_nudge` use exact `session_id` only (`:260-272`, `:462`), so prefix `--ack` rows still fail to suppress.  
-EVIDENCE: No `expired_unverifiable` anywhere; b8f2622 added manual `--ack-stale` with `reason: stale-unreviewed` (`:381-430`), not SessionStart auto-expire on missing transcript.  
-EVIDENCE: 601a967 prefix-matched `--latest-digest` only (`:297-301`); `ack_digest` still appends the raw arg (`:358-367`).  
+EVIDENCE: No `expired_unverifiable` anywhere; 70b5575 added manual `--ack-stale` with `reason: stale-unreviewed` (`:381-430`), not SessionStart auto-expire on missing transcript.  
+EVIDENCE: 091e40a prefix-matched `--latest-digest` only (`:297-301`); `ack_digest` still appends the raw arg (`:358-367`).  
 RECOMMENDED: keep — `--ack-stale` was a one-off queue freeze, not the proposed nudge-time `expired_unverifiable` path or ack ID normalization.
 
 ## Proposal: Hook verification state — stateless revalidation (architectural)
@@ -442,7 +442,7 @@ Tracing the prediction entry and checking the codebase since 2026-07-18.
 
 VERDICT: MOOT
 EVIDENCE: `bf68c3a` (2026-06-16) shipped scoped per-metric contracts; `scripts/pulse.py:111-140` still declares `should-vary`/`floor` on three supervision instruments only (no universal registry).
-EVIDENCE: `scripts/pulse_tick.py:124-130` runs `pulse.py canary` on every tick; post-2026-07-18 commits `99a48af`/`2bc0c95` extended attention/observe wiring, did not revert contracts.
+EVIDENCE: `scripts/pulse_tick.py:124-130` runs `pulse.py canary` on every tick; post-2026-07-18 commits `99a48af`/`cac62c3` extended attention/observe wiring, did not revert contracts.
 RECOMMENDED: resolve-moot — the design gap (scoped vs universal liveness) was implemented pre-check_date; only ledger closure remains, not new work.
 
 ## Resolve prediction: **llmx usage surfacing** — DONE (`llmx@62ce643`). Verify-before-build paid off: `usage_log.py` + `scripts/usage_summary.py` already recorded + rolled up usage; it just wasn't reac…
@@ -484,7 +484,7 @@ RECOMMENDED: resolve-moot — dead `hook_progress`-only metric was fixed before 
 
 Tracing the prediction entry and current implementation of `over_caution` / `stop-smart-judge.sh`.
 VERDICT: SUPERSEDED
-EVIDENCE: `e888a08` + `decisions/2026-07-25-over-caution-ablation-closed.md:26-33` — 14d ablation closed with both bands PASS; enforcement latency bought no timidity reduction, policy is keep `over_caution` out of enforce (shadow scoring only).
+EVIDENCE: `3273bb3` + `decisions/2026-07-25-over-caution-ablation-closed.md:26-33` — 14d ablation closed with both bands PASS; enforcement latency bought no timidity reduction, policy is keep `over_caution` out of enforce (shadow scoring only).
 EVIDENCE: `~/.claude/settings.json:10-11` — `SMART_JUDGE_ENFORCE_VECTORS` is only `verify_before_claim`; `skills/hooks/stop-smart-judge.sh:45` default matches (vector #3 still classified, not enforced).
 EVIDENCE: `predictions.jsonl` line 12 still open; no post-2026-07-25 commit re-adds `over_caution` to enforce (`improvement-log.md` explicitly “do not re-open enforce”).
 RECOMMENDED: resolve-superseded — the 2026-07-25 ablation decision reversed the graduated enforce the prediction was meant to validate at check_date.
@@ -506,7 +506,7 @@ RECOMMENDED: resolve-moot — un-archive and script-path fix are already in plac
 
 Locating the prediction entry and checking whether Composer CLI wiring for those skills is still outstanding.
 VERDICT: MOOT  
-EVIDENCE: `improvement-log.md:136` marks **[x] Skills wired to Composer CLI** (2026-06-14); `skills/shared/llm_dispatch.py:210-257` still defines `composer_review` / `composer_screen` / `premise_scout`. `skills` `4dec39a`/`agent-infra` `2bc0c95` removed `/sweep` and `/improve` — only stale names in the prediction text; closeout Composer lives in `code-review/SKILL.md:19` + `critique/lenses/plan-close-review.md:44`, not a critique `composer` close axis (`critique/scripts/review_gate.py:556`).  
+EVIDENCE: `improvement-log.md:136` marks **[x] Skills wired to Composer CLI** (2026-06-14); `skills/shared/llm_dispatch.py:210-257` still defines `composer_review` / `composer_screen` / `premise_scout`. `skills` `4dec39a`/`agent-infra` `cac62c3` removed `/sweep` and `/improve` — only stale names in the prediction text; closeout Composer lives in `code-review/SKILL.md:19` + `critique/lenses/plan-close-review.md:44`, not a critique `composer` close axis (`critique/scripts/review_gate.py:556`).  
 RECOMMENDED: resolve-moot — work shipped and still used; close the prediction with an earn-its-keep yes, noting retired skills and the closeout routing split.
 
 ## Resolve prediction: **Critique axis overlap + cost tooling (2026-06-14)** — `standard` axes (`arch`,`gaps`,`correctness`,`contracts`) now all carry full-review mandate (structure+bugs); lenses differ…
@@ -599,7 +599,7 @@ RECOMMENDED: resolve-moot — the sign-error and single-source gap were fixed be
 Locating and reading the prediction item, then checking the codebase state since 2026-07-18.
 VERDICT: MOOT
 EVIDENCE: improvement-log.md:163 — all 2.1.1xx dispositions marked closed 2026-06-12; commit 22aee86f deleted probe-cr and only added context-budget-principles.md §7 (measure-only).
-EVIDENCE: skills@4dec39a + agent-infra@2bc0c95 (2026-09-02) folded sweep/upgrade into /observe — the only deferred fork targets from that closure are gone; ongoing CC natives live in research/claude-code-native-features-deferred.md (improvement-log.md:3862).
+EVIDENCE: skills@4dec39a + agent-infra@cac62c3 (2026-09-02) folded sweep/upgrade into /observe — the only deferred fork targets from that closure are gone; ongoing CC natives live in research/claude-code-native-features-deferred.md (improvement-log.md:3862).
 RECOMMENDED: resolve-moot — the adoption task finished before check_date; close the prediction with a confirmed earn-its-keep note for §7/skills_budget.py, not new adoption work.
 
 ## Resolve prediction: [2026-06-08] rule:checkable-claims-carry-probes — checkable "breaking/blocked" verdicts must carry their probe; downstream re-runs before acting on a skip. blast_radius=local, ver…
@@ -610,7 +610,7 @@ Locating the prediction entry and tracing the checkable-claims-carry-probes rule
 
 
 VERDICT: STILL-VALID
-EVIDENCE: `predictions.jsonl` has no `resolution` for `impl-bbb7525c-0433398c`; `scripts/predictions.py list` still marks it DUE (check_date 2026-07-18). `10e2142` / `decisions/2026-07-25-agent-infra-mcp-zero-consumption.md:76-80` records a post-check_date unprobed “correction” that blocked a correct retirement for six weeks and points at `.claude/rules/checkable-claims-carry-probes.md:15-22` (rule unchanged since `bbb7525c`, `verifier: null`).
+EVIDENCE: `predictions.jsonl` has no `resolution` for `impl-bbb7525c-0433398c`; `scripts/predictions.py list` still marks it DUE (check_date 2026-07-18). `0e671af` / `decisions/2026-07-25-agent-infra-mcp-zero-consumption.md:76-80` records a post-check_date unprobed “correction” that blocked a correct retirement for six weeks and points at `.claude/rules/checkable-claims-carry-probes.md:15-22` (rule unchanged since `bbb7525c`, `verifier: null`).
 RECOMMENDED: keep — the failure mode recurred after the check_date and nothing automated or superseded the rule; close the prediction with a manual earn-its-keep `confirmed`, not retire.
 
 ## Resolve prediction: **Gated 5 git-only Bash hooks behind `if: "Bash(git*)"` in `~/.claude/settings.json`** — `git-noext-inject`, `git-add-all-guard`, `no-background-commit`, `multiagent-commit-guard`…
@@ -635,7 +635,7 @@ Locating the prediction entry and tracing what it targets in the codebase.
 
 VERDICT: MOOT
 EVIDENCE: `scripts/codex_hook_shim.py:43-54,283-288` — PostToolUse in `JSON_STDOUT_EVENTS`, exit-2 reason lifted to stderr; no commits to this file since 2026-07-19.
-EVIDENCE: `scripts/codex_parity_sync.py:350-360` — `shim_wrap()` still routes every generated `.codex/hooks.json` command through the shim (64e6c92 only pruned MCP mirrors).
+EVIDENCE: `scripts/codex_parity_sync.py:350-360` — `shim_wrap()` still routes every generated `.codex/hooks.json` command through the shim (66922ec only pruned MCP mirrors).
 EVIDENCE: `~/.codex/log/hook_shim_invocations.jsonl` — Stop/PostToolUse fires on 2026-09-23 under `codex-cli 0.156.1`; Jun-19 “additive, no shim change” claim still holds.
 RECOMMENDED: resolve-moot — 0.141 code-mode PostToolUse gating is native Codex coverage; the shim remains required for Claude→Codex output contract, not for that gap.
 
@@ -656,7 +656,7 @@ RECOMMENDED: resolve-moot — conflict check is closed, guards kept and active; 
 
 Locating and reading the prediction entry, then checking the codebase state since 2026-07-25.
 VERDICT: MOOT
-EVIDENCE: 27ff16e shipped `usage-check.py --metered-today` + `doctor.check_metered_spend()` (decisions/2026-06-25-metered-spend-funnel-enforcement.md). Still wired at `scripts/doctor.py:679-718` → `usage-check.py --metered-today`; post-2026-07-25 ea79fa9/f8bdcdc only refactored costing/PRICING sync, not a replacement path.
+EVIDENCE: 27ff16e shipped `usage-check.py --metered-today` + `doctor.check_metered_spend()` (decisions/2026-06-25-metered-spend-funnel-enforcement.md). Still wired at `scripts/doctor.py:679-718` → `usage-check.py --metered-today`; post-2026-07-25 66ed1ad/f92c7d7 only refactored costing/PRICING sync, not a replacement path.
 RECOMMENDED: resolve-moot — observability gap the entry named was implemented at ship; the open BACKSTOP *enforcement* fork is a separate `improvement-log.md:4085` / decisions-pending item, not this prediction.
 
 ## Resolve prediction: [2026-06-24] HARNESS-EVAL FLAKY STEP: `system_inventory.py --check` — **fixed 2026-06-28**: `_normalize_volatile_inventory()` strips live launchctl lines from `--render --check` c…
@@ -668,7 +668,7 @@ Locating the prediction entry and checking whether the harness-eval flake fix st
 
 VERDICT: MOOT
 EVIDENCE: `improvement-log.md:4081` marks the flake fixed; `scripts/system_inventory.py:452-475` still normalizes launchctl/timestamp volatility for `--render --check`.
-EVIDENCE: `justfile:231` + `scripts/tests/test_system_inventory.py:26-29` keep harness-eval on `--render --check` with regression coverage; post-2026-07-28 edits (e.g. `a2f4616`) retired file-bus inventory only, not this path.
+EVIDENCE: `justfile:231` + `scripts/tests/test_system_inventory.py:26-29` keep harness-eval on `--render --check` with regression coverage; post-2026-07-28 edits (e.g. `2150d18`) retired file-bus inventory only, not this path.
 RECOMMENDED: resolve-moot — harness-eval instability is fixed and still guarded; only the open `predictions.jsonl#impl-93797a17-d4334ee9` earn-its-keep row needs closing.
 
 ## Resolve prediction: **Upgrade `stop-stance-flip-shadow.sh` from lexical markers to a Haiku semantic predicate** — Claude Code supports `type: prompt` hooks (Haiku, ~$0.001) but ONLY on tool events (P…
@@ -677,7 +677,7 @@ RECOMMENDED: resolve-moot — harness-eval instability is fixed and still guarde
 
 Tracing the prediction entry and comparing it to the current hook implementation.
 VERDICT: MOOT  
-EVIDENCE: cc7c3ac added in-hook Haiku `haiku_hit`/`haiku_verdict` beside unchanged lexical predicate (file at that rev: `.claude/hooks/stop-stance-flip-shadow.sh` header L32–41). improvement-log.md:159 marked [x] on 2026-07-04 drain (4781bd35). 5ab18ed (2026-09-02) deleted the hook and dropped it from `.claude/settings.json`; path absent on disk today.  
+EVIDENCE: cc7c3ac added in-hook Haiku `haiku_hit`/`haiku_verdict` beside unchanged lexical predicate (file at that rev: `.claude/hooks/stop-stance-flip-shadow.sh` header L32–41). improvement-log.md:159 marked [x] on 2026-07-04 drain (4781bd35). 21f59b3 (2026-09-02) deleted the hook and dropped it from `.claude/settings.json`; path absent on disk today.  
 RECOMMENDED: resolve-moot — the named upgrade shipped before check_date; the instrument was later retired, so no open work remains on this proposal.
 
 ## Resolve prediction: **Mine `anthropics/defending-code-reference-harness`** (pushed 2026-06-02): packaged find→grade→judge→novelty→dedup→patch pipeline with executable oracle (ASAN PoC) + fresh-contai…
@@ -717,7 +717,7 @@ RECOMMENDED: resolve-moot — substantive re-check already recorded; nothing sin
 
 Tracing the prediction entry and checking whether the issue still exists in the codebase.
 VERDICT: MOOT
-EVIDENCE: improvement-log.md:4096–4097 marks all three consumers fixed ([x], skills@837f4d2, agent-infra@c0c2f22, fd3209a); live code matches — `skills/observe/scripts/extract_user_tags.py:47–79` (`_message_texts` + `isCompactSummary`/`isMeta`), `scripts/reflect_capture.py:96`, `scripts/blindspot_miner.py:55` via `scripts/common/transcript_text.py`. Since 2026-08-04 only `4dec39a` (improve→observe path move) and `1262825` (test repair); no reversion of the buggy `msg.get("content", msg.get("message"))` pattern.
+EVIDENCE: improvement-log.md:4096–4097 marks all three consumers fixed ([x], skills@837f4d2, agent-infra@c0c2f22, fd3209a); live code matches — `skills/observe/scripts/extract_user_tags.py:47–79` (`_message_texts` + `isCompactSummary`/`isMeta`), `scripts/reflect_capture.py:96`, `scripts/blindspot_miner.py:55` via `scripts/common/transcript_text.py`. Since 2026-08-04 only `4dec39a` (improve→observe path move) and `b518fa4` (test repair); no reversion of the buggy `msg.get("content", msg.get("message"))` pattern.
 RECOMMENDED: resolve-moot — the silent false-zero / harness-requote defects are already shipped; the open bit is only the overdue gov-shrink prediction on whether pins still earn their keep, not unfixed work.
 
 ## Resolve prediction: [2026-07-05] **The class is now a schema property, not a per-miner discipline.** Claude adapter labels `vendor_kind = compact_summary|meta_injected` on user_message events (label-…
@@ -750,7 +750,7 @@ Investigating the prediction entry and the current `test_agent_maintainability` 
 
 
 VERDICT: MOOT  
-EVIDENCE: `7c7c5f7` switched `tests/test_agent_maintainability.py` to `now()`-relative dates (no `2026-02` literals). `a541e25` deleted `scripts/agent_maintainability.py`; `1262825` removed the test (commit message: script retired). Repo has no `test_agent_maintainability` / `agent_maintainability` paths today.  
+EVIDENCE: `7c7c5f7` switched `tests/test_agent_maintainability.py` to `now()`-relative dates (no `2026-02` literals). `8ebe0c2` deleted `scripts/agent_maintainability.py`; `b518fa4` removed the test (commit message: script retired). Repo has no `test_agent_maintainability` / `agent_maintainability` paths today.  
 RECOMMENDED: resolve-moot — original time-bomb was fixed, then the whole maintainability test surface was retired so the gated earn-its-keep check has no live target.
 
 ## Resolve prediction: **test_close_fixes timeout-scaler born-red** (`bfa00b6`): asserted the 1200 cap at 80MB but `120+80*12=1080`; now pins linear region AND cap via sparse-truncated files. — confirme…
@@ -761,7 +761,7 @@ Tracing the prediction entry and verifying the current implementation.
 
 
 VERDICT: MOOT  
-EVIDENCE: `bfa00b6` (2026-07-06) fixed `tests/agentlogs/test_close_fixes.py` — lines 156–170 use `os.truncate` sparse 80MB/200MB files and assert 1080.0 vs 1200.0 per `src/agentlogs/index.py:70-72` (`120 + size_mb*12`, cap 1200). `improvement-log.md` marks the finding `[x]`; no post–2026-08-05 change to that test (only unrelated `b411d86` on `index.py`).  
+EVIDENCE: `bfa00b6` (2026-07-06) fixed `tests/agentlogs/test_close_fixes.py` — lines 156–170 use `os.truncate` sparse 80MB/200MB files and assert 1080.0 vs 1200.0 per `src/agentlogs/index.py:70-72` (`120 + size_mb*12`, cap 1200). `improvement-log.md` marks the finding `[x]`; no post–2026-08-05 change to that test (only unrelated `bddec7b` on `index.py`).  
 RECOMMENDED: resolve-moot — the born-red wrong-1200-at-80MB defect was shipped before `check_date`; only the stale `predictions.jsonl` earn-its-keep row remains.
 
 ## Resolve prediction: **approval-tiers manifest coverage** (`9f3ee1b`): `pretool-noext-nongit-guard.sh` + `pretool-timeout-modal-guard.sh` shipped in skills without manifest entries → `test_approval_ti…
@@ -855,8 +855,8 @@ need me (non software, non CS stuff)". Scout verdicts were inputs, not decisions
 not apply, plus the 4 STILL-VALID ones, were resolved by the orchestrator. Landed-and-live rows
 became `partial` because none measured the predicted effect (a false `confirmed` is the worse
 error). `over_caution` graduated enforce became `refuted` (reversed 2026-07-25). Clash shadow
-precision became `refuted`, which is a CUT under its own pre-registered rule (`0391997`). Due
-predictions no longer reach the operator's queue (`b37183e`).
+precision became `refuted`, which is a CUT under its own pre-registered rule (`9ce3ac7`). Due
+predictions no longer reach the operator's queue (`4636478`).
 
 **Steward proposals, beyond the 11 the sweep resolved:**
 
@@ -871,7 +871,7 @@ predictions no longer reach the operator's queue (`b37183e`).
 | history-mutation guard + no-amend | DONE | With a live peer in the checkout, `reset --hard` and every `--amend` block, and non-pathspec reset/rebase block unless this session wrote every dropped commit (skills `0e58336`, `834a60e`, `a0b027f`). The 07-10 amend was of the session's OWN checkpoint, so HEAD ownership cannot excuse an amend. The 07-16 peer was a Codex session, which the peer detector could not see until `8a48ead`. Hook-process commits now stamp their own Session-ID (`0b83fdf`) |
 | rg-replace guard | DONE | Advisory on glued `-r<letters>` (skills `648fe4a`); 89 real fires in a 30-day replay |
 | zero-hit-grep nudge | REJECTED | PostToolUse never fires for a Bash call that exits non-zero (probe), so the designed trigger is unobservable; the incident's load-bearing fix landed in arc-agi |
-| reflect-capture headless exclusion, reflect-close prefix/teammate FP, digest-fallback scope, digest expiry cluster (3) | DONE | One operator-authorship predicate on Claude Code's own `origin`/`entrypoint` stamps (agent-infra `4272831`); prefix ids everywhere (`d322d64`); project-scoped fallback (`d357137`); expiry at the 14-day transcript horizon or on a missing transcript (`644772c`); `/rsi` doc (skills `7d44b37`). 36 new tests, each group failing on its pre-fix commit |
+| reflect-capture headless exclusion, reflect-close prefix/teammate FP, digest-fallback scope, digest expiry cluster (3) | DONE | One operator-authorship predicate on Claude Code's own `origin`/`entrypoint` stamps (agent-infra `9825987`); prefix ids everywhere (`18d7fd6`); project-scoped fallback (`3bc24fe`); expiry at the 14-day transcript horizon or on a missing transcript (`5c4167f`); `/rsi` doc (skills `7d44b37`). 36 new tests, each group failing on its pre-fix commit |
 | evalcore-transport-preflight | DONE | `run_eval` pre-flight aborts a dead arm before the sweep (evals `407b49e`, `eaf6e5e`, `b758d93`); verify-edge raised `CandidateError` instead of scoring "ERROR:" replies (`aa4c34b`). The live copy is in evals: substrate's copy had no importers and was deleted (`a3ee573`), and the `/eval` skill pointed at it (skills `73dc7b6`) |
 
 **Scout accuracy.** 3 of 35 STILL-VALID verdicts were wrong in the same way: the scout checked

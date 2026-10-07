@@ -696,7 +696,7 @@ def check_agentlogs_session_roles(db_path: Path | None = None) -> list[Check]:
     session_meta source, the Cursor CLI chat store). If a vendor renames a stamp, new
     sessions land NULL (undetermined) and every operator-filtered consumer silently
     drops them. The proxy this replaced was wrong both ways for months (agent-infra
-    db09487). Window: 3 days back to 6 hours ago; older NULLs are transcripts past
+    e0f95fc). Window: 3 days back to 6 hours ago; older NULLs are transcripts past
     retention, and a fresh session can be NULL until its parent transcript lands."""
     c = Check("agentlogs-session-roles", "global")
     db_path = db_path or CLAUDE_DIR / "agentlogs.db"

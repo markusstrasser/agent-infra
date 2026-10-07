@@ -143,9 +143,9 @@ Applied commits (all on main):
 
 | Repository | Commit | Change |
 |---|---|---|
-| agent-infra | `241128d` | Astra dispatcher/scout defaults (existing peer change, verified) |
-| agent-infra | `1dba7ba` | Current research skill preload |
-| agent-infra | `ea79fa9` | Shared llmx cost authority, reports and degraded-accounting consumers |
+| agent-infra | `9628568` | Astra dispatcher/scout defaults (existing peer change, verified) |
+| agent-infra | `e89252d` | Current research skill preload |
+| agent-infra | `66ed1ad` | Shared llmx cost authority, reports and degraded-accounting consumers |
 | llmx | `c236ae0` | Astra registry/defaults and base rates (existing peer change, verified) |
 | llmx | `45202c2` | Canonical model registry export and CLI-availability reporting |
 | llmx | `c277468` | Astra request/usage contracts, conservative cost reports and regressions |
