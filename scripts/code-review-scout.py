@@ -133,6 +133,12 @@ PROVIDERS = {
         "extra": "--reasoning-effort low --timeout 180",
         "name": "gpt",
     },
+    "sol": {
+        # Fallback when Astra's Codex plan limit binds (llmx exit 6); not in --both/--all-providers.
+        "model_flag": "--subscription -m gpt-6-sol",
+        "extra": "--reasoning-effort high --timeout 300",
+        "name": "sol",
+    },
 }
 
 
@@ -390,7 +396,7 @@ def main():
         "--provider",
         default="openai",
         choices=list(PROVIDERS.keys()),
-        help="LLM provider (openai=gpt-6-astra low, google=gemini)",
+        help="LLM provider (openai=gpt-6-astra low, sol=gpt-6-sol high fallback, google=gemini)",
     )
     parser.add_argument(
         "--both",
@@ -524,7 +530,7 @@ def main():
 
     # Determine providers to use
     if args.all_providers:
-        providers = list(PROVIDERS.values())
+        providers = [PROVIDERS[k] for k in ("google", "openai")]
     elif args.both:
         providers = [PROVIDERS["google"], PROVIDERS["openai"]]
     else:
