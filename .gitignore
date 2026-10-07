@@ -114,3 +114,6 @@ maintenance-actions.jsonl
 research/papers/
 
 .claude/goal-*
+
+# decrypted personal Raycast export — never commit (purged from history 2026-10-07)
+data/raycast/
