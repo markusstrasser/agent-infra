@@ -135,7 +135,7 @@ PROVIDERS = {
     },
     "sol": {
         # Fallback when Astra's Codex plan limit binds (llmx exit 6); not in --both/--all-providers.
-        "model_flag": "--subscription -m gpt-6-sol",
+        "model_flag": "--subscription -m gpt-6.1-sol",
         "extra": "--reasoning-effort high --timeout 300",
         "name": "sol",
     },
@@ -396,7 +396,7 @@ def main():
         "--provider",
         default="openai",
         choices=list(PROVIDERS.keys()),
-        help="LLM provider (openai=gpt-6-astra low, sol=gpt-6-sol high fallback, google=gemini)",
+        help="LLM provider (openai=gpt-6-astra low, sol=gpt-6.1-sol high fallback, google=gemini)",
     )
     parser.add_argument(
         "--both",
