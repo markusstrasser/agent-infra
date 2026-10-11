@@ -903,3 +903,23 @@ artifacts by an identity the tool emits, never by recency; when identity is miss
 candidates are ambiguous, record unknown with a note.** Found in the same session: an
 OpenAI no-credit 429 exited 3 (retryable) because llmx read a body the SDK had already
 unwrapped; fixed in llmx bf2ed44 with `tests/test_openai_rate_limit.py`.
+
+### FM: Artifact publication under storage exhaustion
+<!--
+FM-ID: artifact-output-storage-exhaustion
+signature: ENOSPC prevents provenance/review preparation or a direct write can replace a retained artifact with a partial file
+target_surface: output-volume preflight and staged artifact publication; heli/bath/tools/output_guard.py
+status: active
+evidence_count: 1
+-->
+2026-10-11, heli bathroom studies: the Data volume reached 100% and review-packet
+creation plus a uv dependency operation failed with ENOSPC. Recover space from
+known rederivable caches and owned QA files, then verify a new-file write; do not
+treat the missing packet as a model failure. Retained finish-study image/gallery
+and PDF builders now check destination-volume capacity, stage sibling files and
+publish only completed output. PDF validation runs before replacement. Regression:
+`heli/bath/tools/check_output_guard.py` simulates low capacity and a mid-write
+ENOSPC, checks preservation of the prior artifact and temporary cleanup, then
+checks successful publication. A preflight is an estimate; write failures still
+propagate and preserve the last valid output. Source: heli chat
+`01a11e81-5658-74c0-98df-cb7229db8a51`, 2026-10-11.
