@@ -9,7 +9,8 @@ venvs and recordings.
 This removes worktree *directories* only. Branches survive unless --prune-branches.
 
 Safety classes (audit):
-  SAFE           — ahead==0 (already on main), clean working tree
+  SAFE           — already on main, clean working tree, idle >= --safe-idle-min
+  SAFE-fresh     — otherwise SAFE but the work clock is fresh or unknown; kept
   DUP            — ahead>0 but every patch already on main (cherry-picked/rebased,
                    then stranded); clean. Reap with --include-unmerged; the branch
                    is pure cruft, prunable with --prune-branches.
@@ -22,7 +23,7 @@ Safety classes (audit):
 
 Audit also prints last-commit age (currency signal — branches weeks behind = cruft).
 
-apply (default): SAFE only — stale merged trees, clean
+apply (default): SAFE only — clean merged trees idle >= --safe-idle-min (default 60)
 apply --include-unmerged: also remove unmerged worktrees with NO local edits
   (branch + commits are preserved; only the directory/venv goes)
 apply --unmerged-idle-hours N: also remove branched unmerged trees with no edits once
@@ -43,6 +44,7 @@ from __future__ import annotations
 
 import argparse
 import getpass
+import math
 import os
 import re
 import shutil
@@ -95,6 +97,8 @@ class WorktreeRow:
     lock: str | None = None
     # The lock names a `pid <N>` that no longer exists (session ended, reboot).
     lock_stale: bool = False
+    idle_days: float = 0.0  # audited work clock; unknown counts as fresh
+    safe_idle_min: float = 60.0
 
     @property
     def dirty(self) -> int:
@@ -115,8 +119,8 @@ class WorktreeRow:
         return self.ahead == 0
 
     @property
-    def safe(self) -> bool:
-        """Stale on main, no local edits, and no process working in it.
+    def clean_on_main(self) -> bool:
+        """On main, no local edits, and no process working in it.
 
         The liveness term is not decoration. Until 2026-07-25 this property was git
         state + age only, and on that day it called SIX worktrees SAFE — the default
@@ -131,6 +135,11 @@ class WorktreeRow:
         if self.branch is None:
             return self.ancestor
         return self.ahead == 0
+
+    @property
+    def safe(self) -> bool:
+        """Clean on main and idle long enough to survive pauses between tool calls."""
+        return self.clean_on_main and self.idle_days * 1440 >= self.safe_idle_min
 
     @property
     def unmerged_clean(self) -> bool:
@@ -156,8 +165,8 @@ class WorktreeRow:
             return "LOCKED"
         if self.dup and not self.dirty:
             return "DUP"
-        if self.safe:
-            return "SAFE"
+        if self.clean_on_main:
+            return "SAFE" if self.safe else "SAFE-fresh"
         if self.unmerged_clean:
             return "unmerged"
         if self.stale and self.dirty:
@@ -211,7 +220,9 @@ def live_cwd_holders() -> dict[str, list[int]]:
             check=False,
         )
     except subprocess.TimeoutExpired:
-        LAST_SCAN_DIAG = "lsof timed out after 60s (a sleeping/unreachable mount stalls stat())"
+        LAST_SCAN_DIAG = (
+            "lsof timed out after 60s (a sleeping/unreachable mount stalls stat())"
+        )
         return {}
     except (OSError, subprocess.SubprocessError) as exc:
         LAST_SCAN_DIAG = f"lsof could not run: {exc!r}"
@@ -639,7 +650,9 @@ def all_patches_on_main(repo: Path, branch: str) -> bool:
     return False
 
 
-def audit_repo(repo: Path, with_size: bool = True) -> list[WorktreeRow]:
+def audit_repo(
+    repo: Path, with_size: bool = True, safe_idle_min: float = 60.0
+) -> list[WorktreeRow]:
     name = repo.name
     rows: list[WorktreeRow] = []
     for wt, branch, lock in parse_worktrees(repo):
@@ -695,6 +708,8 @@ def audit_repo(repo: Path, with_size: bool = True) -> list[WorktreeRow]:
                 dup=dup,
                 lock=lock,
                 lock_stale=lock_is_stale(lock),
+                idle_days=idle_age_days(wt),
+                safe_idle_min=safe_idle_min,
             )
         )
     return rows
@@ -736,9 +751,7 @@ def should_remove(
         return True
     if include_unmerged and row.unmerged_clean:
         return True
-    if force_stale and row.stale:
-        return True
-    return False
+    return bool(force_stale and row.stale)
 
 
 def make_writable(root: Path) -> None:
@@ -764,7 +777,9 @@ def make_writable(root: Path) -> None:
     if root.is_symlink() or not root.is_dir():
         return
     fix(str(root))
-    for dirpath, dirnames, _files in os.walk(root):  # top-down: children fixed before entry
+    for dirpath, dirnames, _files in os.walk(
+        root
+    ):  # top-down: children fixed before entry
         for name in dirnames:
             fix(os.path.join(dirpath, name))
 
@@ -824,6 +839,7 @@ def remove_worktree(repo: Path, wt: Path, force: bool = True) -> None:
     if wt.exists():
         raise RuntimeError(f"{wt} still on disk after removal")
     run(["git", "worktree", "prune"], cwd=repo)
+
 
 # ---------------------------------------------------------------------------
 # Archive-then-reap for stale dirty trees, and cache stripping for idle ones.
@@ -976,9 +992,7 @@ def archive_worktree(
     dest = _fresh_dir(root / row.repo / day / name)
     head = run(["git", "rev-parse", "HEAD"], cwd=wt).stdout.strip()
     (dest / "head.txt").write_text(head + "\n")
-    status = run(
-        ["git", "--no-optional-locks", "status", "--porcelain"], cwd=wt
-    ).stdout
+    status = run(["git", "--no-optional-locks", "status", "--porcelain"], cwd=wt).stdout
     (dest / "status.txt").write_text(status)
     patch = dest / "tracked.patch"
     _write_patch(wt, patch)
@@ -1106,7 +1120,9 @@ def cache_activity_stamps(cache: Path, depth: int = 3) -> list[float]:
                             if entry.is_dir(follow_symlinks=False):
                                 below.append(Path(entry.path))
                             elif depth_now == 0:
-                                stamps.append(entry.stat(follow_symlinks=False).st_mtime)
+                                stamps.append(
+                                    entry.stat(follow_symlinks=False).st_mtime
+                                )
                         except OSError:
                             continue
             except OSError:
@@ -1286,7 +1302,9 @@ def plan_pytest_prune(
             continue
         for entry in entries:
             try:
-                if entry.is_symlink() or not entry.is_dir():  # `pytest-current` is a symlink
+                if (
+                    entry.is_symlink() or not entry.is_dir()
+                ):  # `pytest-current` is a symlink
                     continue
             except OSError:
                 continue
@@ -1296,7 +1314,9 @@ def plan_pytest_prune(
                 continue
             stamps = [m for m in [_mtime(entry)] if m is not None]
             try:
-                stamps += [m for child in entry.iterdir() if (m := _mtime(child)) is not None]
+                stamps += [
+                    m for child in entry.iterdir() if (m := _mtime(child)) is not None
+                ]
             except OSError:
                 pass
             age_h = (now - max(stamps)) / 3600.0 if stamps else 0.0
@@ -1338,12 +1358,13 @@ def plan_idle_unmerged(
     return out
 
 
-
 def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    ap.add_argument("mode", nargs="?", default="audit", choices=("audit", "apply", "prune"))
+    ap.add_argument(
+        "mode", nargs="?", default="audit", choices=("audit", "apply", "prune")
+    )
     ap.add_argument(
         "--repo",
         action="append",
@@ -1386,6 +1407,14 @@ def main() -> int:
     )
     ap.add_argument("--no-size", action="store_true", help="skip du -sh (faster audit)")
     ap.add_argument(
+        "--safe-idle-min",
+        type=float,
+        default=60.0,
+        metavar="N",
+        help="default SAFE removal requires the work clock to be idle >= N minutes "
+        "(default 60); fresh or unknown clocks are kept as SAFE-fresh",
+    )
+    ap.add_argument(
         "--archive-stale-days",
         type=float,
         default=None,
@@ -1425,8 +1454,14 @@ def main() -> int:
         "never overwrite a failed nightly's receipt",
     )
     args = ap.parse_args()
+    if not math.isfinite(args.safe_idle_min) or args.safe_idle_min <= 0:
+        ap.error("--safe-idle-min must be a positive finite number")
     pruning = args.mode == "prune"
-    if pruning and args.strip_idle_caches_min is None and args.prune_pytest_hours is None:
+    if (
+        pruning
+        and args.strip_idle_caches_min is None
+        and args.prune_pytest_hours is None
+    ):
         ap.error("prune needs --strip-idle-caches-min and/or --prune-pytest-hours")
 
     with_size = not (args.no_size or args.check)
@@ -1436,7 +1471,9 @@ def main() -> int:
     for repo in repos:
         if not (repo / ".git").exists():
             continue
-        all_rows.extend(audit_repo(repo, with_size=with_size))
+        all_rows.extend(
+            audit_repo(repo, with_size=with_size, safe_idle_min=args.safe_idle_min)
+        )
 
     # Liveness last, in one lsof call for every row, so it also gates --check. The
     # daemon split needs one further batched `ps` over only the PIDs lsof actually
@@ -1498,7 +1535,9 @@ def main() -> int:
     idle_rows = (
         []
         if pruning
-        else plan_idle_unmerged(all_rows, args.unmerged_idle_hours, keep, exclude=to_remove)
+        else plan_idle_unmerged(
+            all_rows, args.unmerged_idle_hours, keep, exclude=to_remove
+        )
     )
     archive_rows = (
         []
@@ -1556,6 +1595,11 @@ def main() -> int:
                 extra += " — but it has commits/edits, verify before reclaiming"
         elif row.lock_live:
             extra = f"  ← locked by a live session: {row.lock or '(no reason given)'}"
+        elif cls == "SAFE-fresh":
+            extra = (
+                f"  ← idle {row.idle_days * 1440:.1f}m < "
+                f"--safe-idle-min {row.safe_idle_min:g} (unknown clock counts as fresh)"
+            )
         elif row.branch and row.ahead > 0:
             extra = f"  commits: {commit_preview(row.repo_root, row.branch)}"
         if row.lock_stale:
@@ -1611,9 +1655,13 @@ def main() -> int:
         for path, age_h in pytest_plan:
             print(f"would-prune-pytest {path} (idle {age_h:.1f}h)")
         n_safe = sum(1 for r in all_rows if r.safe)
+        n_fresh = sum(1 for r in all_rows if r.classify() == "SAFE-fresh")
         n_dup = sum(1 for r in all_rows if r.classify() == "DUP")
         n_unmerged = sum(1 for r in all_rows if r.classify() == "unmerged")
-        print(f"\n{len(all_rows)} worktrees; {n_safe} stale+clean (default apply)")
+        print(
+            f"\n{len(all_rows)} worktrees; {n_safe} SAFE (default apply); "
+            f"{n_fresh} SAFE-fresh (kept by --safe-idle-min {args.safe_idle_min:g})"
+        )
         if n_dup:
             print(
                 f"  {n_dup} DUP (patches already on main) — reap: --include-unmerged --prune-branches"
@@ -1675,10 +1723,18 @@ def main() -> int:
         try:
             remove_worktree(row.repo_root, row.path, force=False)
         except (subprocess.CalledProcessError, RuntimeError) as e:
-            why = (e.stderr or "").strip() if isinstance(e, subprocess.CalledProcessError) else e
-            print(f"SKIP {row.path}: git refused a clean removal ({why})", file=sys.stderr)
+            why = (
+                (e.stderr or "").strip()
+                if isinstance(e, subprocess.CalledProcessError)
+                else e
+            )
+            print(
+                f"SKIP {row.path}: git refused a clean removal ({why})", file=sys.stderr
+            )
             continue
-        print(f"REAPED-IDLE {row.path} (branch {row.branch} keeps {row.ahead} commit(s))")
+        print(
+            f"REAPED-IDLE {row.path} (branch {row.branch} keeps {row.ahead} commit(s))"
+        )
         reaped_idle += 1
 
     archived = 0
@@ -1698,7 +1754,10 @@ def main() -> int:
         try:
             remove_worktree(row.repo_root, row.path)
         except (subprocess.CalledProcessError, RuntimeError) as e:
-            print(f"FAIL {row.path}: archived at {res.dir} but removal failed: {e}", file=sys.stderr)
+            print(
+                f"FAIL {row.path}: archived at {res.dir} but removal failed: {e}",
+                file=sys.stderr,
+            )
             continue
         print(
             f"ARCHIVED {row.path} -> {res.dir} (patch={res.patch_bytes}B "
@@ -1710,7 +1769,9 @@ def main() -> int:
     for row, caches in strip_plan:
         sizes = strip_idle_caches(row.path, caches)
         if sizes:
-            print(f"STRIPPED {row.path} " + " ".join(f"{k}={v}" for k, v in sizes.items()))
+            print(
+                f"STRIPPED {row.path} " + " ".join(f"{k}={v}" for k, v in sizes.items())
+            )
             stripped += 1
 
     pruned_pytest = 0
@@ -1743,10 +1804,15 @@ def main() -> int:
     parts = (
         []
         if pruning
-        else [f"removed {removed}/{len(to_remove)} worktrees", f"reclaimed {reclaimed} stranded"]
+        else [
+            f"removed {removed}/{len(to_remove)} worktrees",
+            f"reclaimed {reclaimed} stranded",
+        ]
     )
     if args.unmerged_idle_hours is not None and not pruning:
-        parts.append(f"reaped idle-unmerged {reaped_idle}/{len(idle_rows)} (branches kept)")
+        parts.append(
+            f"reaped idle-unmerged {reaped_idle}/{len(idle_rows)} (branches kept)"
+        )
     if args.archive_stale_days is not None and not pruning:
         parts.append(f"archived {archived}/{len(archive_rows)} (under {ARCHIVE_ROOT})")
     if args.strip_idle_caches_min is not None:
@@ -1773,7 +1839,7 @@ def main() -> int:
                 f"archive_root={ARCHIVE_ROOT}"
             ),
         )
-    except Exception as e:  # never fail the GC over a receipt write
+    except Exception as e:  # noqa: BLE001 — receipt writes must never fail the GC
         print(f"janitor_receipt write skipped: {e}", file=sys.stderr)
     return 0 if mapping_known else 2
 

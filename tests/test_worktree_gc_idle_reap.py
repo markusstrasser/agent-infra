@@ -31,7 +31,12 @@ from worktree_gc import (
 
 HOUR = 3600.0
 REAP_FLAGS = (
-    "--unmerged-idle-hours", "3", "--strip-idle-caches-min", "30", "--prune-pytest-hours", "2",
+    "--unmerged-idle-hours",
+    "3",
+    "--strip-idle-caches-min",
+    "30",
+    "--prune-pytest-hours",
+    "2",
     "--no-size",
 )
 
@@ -99,7 +104,9 @@ def _dead_pid() -> int:
     return child.pid
 
 
-def _main(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], *argv: str) -> str:
+def _main(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], *argv: str
+) -> str:
     monkeypatch.setattr(worktree_gc, "live_cwd_holders", lambda: {"/nowhere": [1]})
     monkeypatch.setattr(worktree_gc, "find_stranded", lambda *a, **k: [])
     monkeypatch.setattr(sys, "argv", ["worktree_gc.py", *argv])
@@ -129,6 +136,72 @@ def test_idle_clean_unmerged_tree_is_reaped_and_its_branch_kept(
     assert not wt.exists()
     assert _git("rev-parse", "--verify", "lane/lane-idle", cwd=repo).strip() == tip
     assert str(wt) not in _git("worktree", "list", cwd=repo)
+
+
+@pytest.mark.parametrize("hours, removed", [(0, False), (2, True)])
+def test_detached_clean_tree_needs_safe_idle_floor_with_cron_flags(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    hours: float,
+    removed: bool,
+) -> None:
+    wt = repo.parent / "wts" / "landing"
+    _git("worktree", "add", "-q", "--detach", str(wt), "main", cwd=repo)
+    _age_tree(wt, hours)
+    row = _row(repo, wt)
+    assert row.classify() == ("SAFE" if removed else "SAFE-fresh")
+    audit = _main(monkeypatch, capsys, "audit", "--repo", str(repo), *REAP_FLAGS)
+    assert row.classify() in audit
+    out = _main(monkeypatch, capsys, "apply", "--repo", str(repo), *REAP_FLAGS)
+    assert wt.exists() is not removed
+    assert (f"removed {wt}" in out) is removed
+    assert (str(wt) in _git("worktree", "list", cwd=repo)) is not removed
+
+
+@pytest.mark.parametrize("minutes, removed", [(30, True), (180, False)])
+def test_safe_idle_floor_is_configurable(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    minutes: int,
+    removed: bool,
+) -> None:
+    wt = repo.parent / "wts" / "landing"
+    _git("worktree", "add", "-q", "--detach", str(wt), "main", cwd=repo)
+    _age_tree(wt, 2)
+    _main(
+        monkeypatch,
+        capsys,
+        "apply",
+        "--repo",
+        str(repo),
+        "--safe-idle-min",
+        str(minutes),
+        *REAP_FLAGS,
+    )
+    assert wt.exists() is not removed
+
+
+def test_unknown_safe_clock_is_kept(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    wt = repo.parent / "wts" / "landing"
+    _git("worktree", "add", "-q", "--detach", str(wt), "main", cwd=repo)
+    _age_tree(wt, 2)
+    monkeypatch.setattr(worktree_gc, "activity_stamps", lambda _wt: [])
+    assert _row(repo, wt).classify() == "SAFE-fresh"
+    out = _main(monkeypatch, capsys, "apply", "--repo", str(repo), *REAP_FLAGS)
+    assert wt.exists() and f"removed {wt}" not in out
+
+
+def test_force_all_still_removes_a_fresh_safe_tree(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    wt = repo.parent / "wts" / "landing"
+    _git("worktree", "add", "-q", "--detach", str(wt), "main", cwd=repo)
+    _main(monkeypatch, capsys, "apply", "--repo", str(repo), "--force-all", *REAP_FLAGS)
+    assert not wt.exists()
 
 
 def test_tree_idle_less_than_the_threshold_is_kept(
@@ -195,7 +268,9 @@ def test_live_lock_keeps_the_tree_under_every_flag(
     repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     wt = _lane(repo, "lane-live")
-    reason = f"claude agent agent-live (pid {os.getpid()} start Mon Sep 28 04:00:00 2026)"
+    reason = (
+        f"claude agent agent-live (pid {os.getpid()} start Mon Sep 28 04:00:00 2026)"
+    )
     _git("worktree", "lock", "--reason", reason, str(wt), cwd=repo)
     _age_tree(wt, 10)
     row = _row(repo, wt)
@@ -243,7 +318,15 @@ def test_dead_pid_lock_no_longer_pins_a_merged_tree(
 ) -> None:
     wt = repo.parent / "wts" / "lane-merged"
     _git("worktree", "add", "-q", "-b", "lane/merged", str(wt), "main", cwd=repo)
-    _git("worktree", "lock", "--reason", f"claude session s (pid {_dead_pid()})", str(wt), cwd=repo)
+    _git(
+        "worktree",
+        "lock",
+        "--reason",
+        f"claude session s (pid {_dead_pid()})",
+        str(wt),
+        cwd=repo,
+    )
+    _age_tree(wt, 2)
     row = _row(repo, wt)
     assert row.classify() == "SAFE" and row.lock_stale
     out = _main(monkeypatch, capsys, "apply", "--repo", str(repo), "--no-size")
@@ -258,7 +341,9 @@ def test_lock_without_a_pid_is_live(
     reason: str | None,
 ) -> None:
     wt = _lane(repo, "lane-human")
-    _git("worktree", "lock", *(["--reason", reason] if reason else []), str(wt), cwd=repo)
+    _git(
+        "worktree", "lock", *(["--reason", reason] if reason else []), str(wt), cwd=repo
+    )
     _age_tree(wt, 10)
     row = _row(repo, wt)
     assert row.lock == (reason or "") and row.lock_live
@@ -293,11 +378,20 @@ def test_receipt_motor_names_the_receipt_even_when_nothing_is_left(
         _age_tree(_lane(repo, "lane-receipt"), 10)
     monkeypatch.setattr(worktree_gc, "live_cwd_holders", lambda: {"/nowhere": [1]})
     monkeypatch.setattr(worktree_gc, "find_stranded", lambda *a, **k: [])
-    argv = ["apply", "--repo", str(repo), "--receipt-motor", "worktree_reap", *REAP_FLAGS]
+    argv = [
+        "apply",
+        "--repo",
+        str(repo),
+        "--receipt-motor",
+        "worktree_reap",
+        *REAP_FLAGS,
+    ]
     monkeypatch.setattr(sys, "argv", ["worktree_gc.py", *argv])
     assert worktree_gc.main() == 0
     receipt = janitor_receipt.load_receipt("worktree_reap")
-    assert receipt and receipt["success"] and receipt["principal_metric"] == int(with_lane)
+    assert (
+        receipt and receipt["success"] and receipt["principal_metric"] == int(with_lane)
+    )
     assert janitor_receipt.load_receipt("worktree_gc") is None
 
 
