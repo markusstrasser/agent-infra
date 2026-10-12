@@ -115,7 +115,7 @@ def _main(
     return capsys.readouterr().out
 
 
-def test_idle_clean_unmerged_tree_is_reaped_and_its_branch_kept(
+def test_idle_clean_unique_tree_is_kept_with_current_cron_flags(
     repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     wt = _lane(repo, "lane-idle")
@@ -126,16 +126,38 @@ def test_idle_clean_unmerged_tree_is_reaped_and_its_branch_kept(
     assert plan_idle_unmerged([row], 3, set(), exclude=[]) == [row]
 
     audit = _main(monkeypatch, capsys, "audit", "--repo", str(repo), *REAP_FLAGS)
-    assert f"would-reap-idle {wt}" in audit
-    # The reaped row is kept out of the strip plan: its .venv goes with the directory.
-    assert f"would-strip {wt}" not in audit
+    assert f"would-reap-idle {wt}" not in audit
+    assert f"would-strip {wt}" in audit
     assert wt.exists()
 
     out = _main(monkeypatch, capsys, "apply", "--repo", str(repo), *REAP_FLAGS)
-    assert f"REAPED-IDLE {wt}" in out and "STRIPPED" not in out
-    assert not wt.exists()
+    assert f"REAPED-IDLE {wt}" not in out and "STRIPPED" in out
+    assert wt.exists() and (wt / "h.txt").exists()
     assert _git("rev-parse", "--verify", "lane/lane-idle", cwd=repo).strip() == tip
-    assert str(wt) not in _git("worktree", "list", cwd=repo)
+    assert str(wt) in _git("worktree", "list", cwd=repo)
+
+
+def test_patch_duplicates_cannot_hide_unlanded_merge_work(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    wt = _lane(repo, "merge-work")
+    lane_commit = _git("rev-parse", "HEAD", cwd=wt).strip()
+    _git("switch", "-qc", "side", "main", cwd=repo)
+    (repo / "side.txt").write_text("side\n")
+    _git("add", "side.txt", cwd=repo)
+    _git("commit", "-qm", "side change", cwd=repo)
+    side_commit = _git("rev-parse", "HEAD", cwd=repo).strip()
+    _git("switch", "-q", "main", cwd=repo)
+    _git("merge", "--no-ff", "-qm", "merge side", "side", cwd=wt)
+    (wt / "merge-only.txt").write_text("unlanded resolution\n")
+    _git("add", "merge-only.txt", cwd=wt)
+    _git("commit", "--amend", "--no-edit", "-q", cwd=wt)
+    _git("cherry-pick", lane_commit, side_commit, cwd=repo)
+    _age_tree(wt, 10)
+    assert not worktree_gc.all_patches_on_main(repo, "lane/merge-work")
+    assert _row(repo, wt).classify() == "unmerged"
+    _main(monkeypatch, capsys, "apply", "--repo", str(repo), *REAP_FLAGS)
+    assert (wt / "merge-only.txt").read_text() == "unlanded resolution\n"
 
 
 @pytest.mark.parametrize("hours, removed", [(0, False), (2, True)])
@@ -295,7 +317,7 @@ def test_live_lock_keeps_the_tree_under_every_flag(
     assert not (wt / ".venv").exists()
 
 
-def test_dead_pid_lock_is_released_and_the_tree_reaped(
+def test_dead_pid_lock_does_not_authorize_age_reaping_unique_work(
     repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     wt = _lane(repo, "lane-dead")
@@ -306,10 +328,10 @@ def test_dead_pid_lock_is_released_and_the_tree_reaped(
     row = _row(repo, wt)
     assert row.lock_stale and not row.lock_live and row.classify() == "unmerged"
     audit = _main(monkeypatch, capsys, "audit", "--repo", str(repo), *REAP_FLAGS)
-    assert "stale-lock" in audit and f"would-reap-idle {wt}" in audit
+    assert "stale-lock" in audit and f"would-reap-idle {wt}" not in audit
     out = _main(monkeypatch, capsys, "apply", "--repo", str(repo), *REAP_FLAGS)
-    assert f"unlocked {wt}" in out and f"REAPED-IDLE {wt}" in out
-    assert not wt.exists()
+    assert f"unlocked {wt}" not in out and f"REAPED-IDLE {wt}" not in out
+    assert wt.exists()
     assert _git("rev-parse", "--verify", "lane/lane-dead", cwd=repo).strip()
 
 
@@ -389,9 +411,7 @@ def test_receipt_motor_names_the_receipt_even_when_nothing_is_left(
     monkeypatch.setattr(sys, "argv", ["worktree_gc.py", *argv])
     assert worktree_gc.main() == 0
     receipt = janitor_receipt.load_receipt("worktree_reap")
-    assert (
-        receipt and receipt["success"] and receipt["principal_metric"] == int(with_lane)
-    )
+    assert receipt and receipt["success"] and receipt["principal_metric"] == 0
     assert janitor_receipt.load_receipt("worktree_gc") is None
 
 

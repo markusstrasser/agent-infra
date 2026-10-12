@@ -17,7 +17,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from worktree_gc import _repo_from_admin, find_stranded  # noqa: E402
+import worktree_gc
+from worktree_gc import _repo_from_admin, find_stranded
 
 
 def _git(*args: str, cwd: Path) -> None:
@@ -92,6 +93,39 @@ def test_real_modification_blocks_reclaim(repo: Path, tmp_path: Path) -> None:
     rows = find_stranded({}, roots=(root,), with_size=False)
     assert rows[0].tracked_dirty == 1
     assert not rows[0].reclaimable
+
+
+def test_untracked_stranded_work_is_counted(repo: Path, tmp_path: Path) -> None:
+    root = tmp_path / "tmproot"
+    root.mkdir()
+    wt = root / "lane-report"
+    _strand(repo, wt)
+    (wt / "result.md").write_text("unlanded report\n")
+    index = repo / ".git/index"
+    before = (index.read_bytes(), index.stat().st_mtime_ns)
+    row = find_stranded({}, roots=(root,), with_size=False)[0]
+    assert row.tracked_dirty == 1 and not row.reclaimable
+    assert before == (index.read_bytes(), index.stat().st_mtime_ns)
+
+
+def test_default_apply_keeps_stranded_tree_without_original_head(
+    repo: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "tmproot"
+    root.mkdir()
+    wt = root / "lane-unknown-head"
+    _strand(repo, wt)
+    rows = find_stranded({}, roots=(root,), with_size=False)
+    monkeypatch.setattr(worktree_gc, "find_stranded", lambda *a, **kw: rows)
+    monkeypatch.setattr(worktree_gc, "live_cwd_holders", lambda: {"/nowhere": [1]})
+    monkeypatch.setitem(sys.modules, "janitor_receipt", None)
+    monkeypatch.setattr(
+        sys, "argv", ["worktree_gc.py", "apply", "--repo", str(repo), "--no-size"]
+    )
+    assert worktree_gc.main() == 0
+    assert (wt / "f.txt").read_text() == "one\n"
 
 
 def test_live_holder_blocks_reclaim(repo: Path, tmp_path: Path) -> None:

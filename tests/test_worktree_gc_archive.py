@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import tarfile
 import time
 from pathlib import Path
 
@@ -119,7 +120,9 @@ def test_idle_stale_dirty_is_archived_removed_pinned_and_restorable(
     restore = repo.parent / "restored"
     _git("worktree", "add", "-q", "--detach", str(restore), head, cwd=repo)
     _git("apply", str(res.dir / "tracked.patch"), cwd=restore)
-    subprocess.run(["tar", "-xzf", str(res.dir / "untracked.tgz"), "-C", str(restore)], check=True)
+    subprocess.run(
+        ["tar", "-xzf", str(res.dir / "untracked.tgz"), "-C", str(restore)], check=True
+    )
     assert _git("diff", "--no-ext-diff", "--binary", "HEAD", cwd=restore) == want_diff
     assert (restore / "notes" / "new file.md").read_bytes() == want_untracked
     assert "tracked.patch" in (res.dir / "RESTORE.md").read_text()
@@ -186,16 +189,18 @@ def test_hold_line_printed_on_failed_self_check(
     monkeypatch.setattr(
         sys,
         "argv",
-        ["worktree_gc.py", "apply", "--repo", str(repo), "--archive-stale-days", "7"],
+        ["worktree_gc.py", "archive", "--path", str(wt)],
     )
     monkeypatch.setitem(sys.modules, "janitor_receipt", None)  # no real receipt
-    assert worktree_gc.main() == 0
-    out = capsys.readouterr().out
-    assert f"HOLD {wt}: archive self-check failed (" in out
+    assert worktree_gc.main() == 2
+    out = capsys.readouterr().err
+    assert f"HOLD {wt}: archive self-check failed:" in out
     assert wt.exists()
 
 
-def test_strip_idle_venv_keeps_symlinked_cache_and_tree(repo: Path, tmp_path: Path) -> None:
+def test_strip_idle_venv_keeps_symlinked_cache_and_tree(
+    repo: Path, tmp_path: Path
+) -> None:
     wt = repo.parent / "wts" / "lane-unmerged"
     _git("worktree", "add", "-q", "-b", "feat", str(wt), "main", cwd=repo)
     (wt / "h.txt").write_text("h\n")
@@ -213,7 +218,9 @@ def test_strip_idle_venv_keeps_symlinked_cache_and_tree(repo: Path, tmp_path: Pa
     assert row.classify() in ("unmerged", "skip-dirty")
 
     assert plan_idle_archive([row], None, set(), exclude=[]) == []
-    assert plan_cache_strip([row], 60, set(), exclude=[], mapped=NO_MAPPED) == [(row, [wt / ".venv"])]
+    assert plan_cache_strip([row], 60, set(), exclude=[], mapped=NO_MAPPED) == [
+        (row, [wt / ".venv"])
+    ]
     sizes = strip_idle_caches(wt)
     assert set(sizes) == {".venv"}
     assert not (wt / ".venv").exists()
@@ -230,7 +237,9 @@ def test_no_flags_plans_nothing_and_removal_policy_unchanged(repo: Path) -> None
     assert should_remove(row, False, True, False, set())  # --force-stale as before
 
 
-def test_trees_sharing_a_leaf_name_never_share_an_archive(repo: Path, tmp_path: Path) -> None:
+def test_trees_sharing_a_leaf_name_never_share_an_archive(
+    repo: Path, tmp_path: Path
+) -> None:
     # Codex lanes all end in `<lane>/<repo>`: keyed by the leaf alone, the second archive of a
     # day overwrote the first after the first tree was already gone.
     first = _dirty_tree(repo, f"lane-a/{repo.name}", days=8)
@@ -240,7 +249,10 @@ def test_trees_sharing_a_leaf_name_never_share_an_archive(repo: Path, tmp_path: 
     one = _run_archive(_row(repo, first), root)
     two = _run_archive(_row(repo, second), root)
     assert one.ok and two.ok
-    assert (one.dir.name, two.dir.name) == (f"lane-a--{repo.name}", f"lane-b--{repo.name}")
+    assert (one.dir.name, two.dir.name) == (
+        f"lane-a--{repo.name}",
+        f"lane-b--{repo.name}",
+    )
     assert b"TWO edited" in (one.dir / "tracked.patch").read_bytes()
     assert b"second lane edit" in (two.dir / "tracked.patch").read_bytes()
     # Same name on the same day (a tree re-created and archived again) gets a suffix.
@@ -251,5 +263,55 @@ def test_trees_sharing_a_leaf_name_never_share_an_archive(repo: Path, tmp_path: 
 def test_editing_inside_an_untracked_dir_counts_as_activity(repo: Path) -> None:
     wt = _dirty_tree(repo, "lane-busy", days=8)
     assert worktree_gc.idle_age_days(wt) >= 7.9
-    (wt / "notes" / "new file.md").write_text("edited just now\n")  # dir mtime unchanged
+    (wt / "notes" / "new file.md").write_text(
+        "edited just now\n"
+    )  # dir mtime unchanged
     assert worktree_gc.idle_age_days(wt) < 0.01
+
+
+def test_archive_preserves_small_cache_reports_excluding_large_files_and_symlinks(
+    repo: Path,
+    tmp_path: Path,
+) -> None:
+    wt = _dirty_tree(repo, "cache-report", days=8)
+    _git("config", "core.excludesFile", "/dev/null", cwd=repo)
+    with (wt / ".gitignore").open("a") as ignore:
+        ignore.write(".claude/cache/\n")
+    cache = wt / ".claude/cache"
+    (cache / "x").mkdir(parents=True)
+    (cache / "x/result.md").write_text("lane result\n")
+    (cache / "empty.md").touch()
+    with (cache / "large.bin").open("wb") as large:
+        large.truncate(21 * 1024 * 1024)
+    (cache / "index-trees").mkdir()
+    (cache / "index-trees/excluded.md").write_text("derived")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "secret").write_text("outside")
+    (cache / "linked-dir").symlink_to(outside)
+    (cache / "linked-file").symlink_to(outside / "secret")
+    res = _run_archive(_row(repo, wt), tmp_path / "arch")
+    assert res.ok and not wt.exists()
+    assert res.ignored_cache_files == 2 and res.ignored_cache_bytes == 12
+    with tarfile.open(res.dir / "ignored-cache.tgz") as archive:
+        assert set(archive.getnames()) == {
+            ".claude/cache/x/result.md",
+            ".claude/cache/empty.md",
+        }
+        assert (
+            archive.extractfile(".claude/cache/x/result.md").read() == b"lane result\n"
+        )
+    assert "ignored-cache.tgz" in (res.dir / "RESTORE.md").read_text()
+    assert (outside / "secret").read_text() == "outside"
+
+
+def test_symlinked_cache_parent_is_not_archived(repo: Path, tmp_path: Path) -> None:
+    wt = _dirty_tree(repo, "cache-link", days=8)
+    outside = tmp_path / "outside"
+    (outside / "cache").mkdir(parents=True)
+    (outside / "cache/result.md").write_text("external")
+    (wt / ".claude").symlink_to(outside)
+    res = archive_worktree(_row(repo, wt), root=tmp_path / "arch")
+    assert res.ok and res.ignored_cache_files == 0
+    with tarfile.open(res.dir / "ignored-cache.tgz") as archive:
+        assert archive.getnames() == []

@@ -17,7 +17,7 @@ Safety classes (audit):
   unmerged       — ahead>0: GENUINE unique commits on branch; NEVER removed by default
   stale-dirty    — ahead==0 but uncommitted edits; needs --force-stale
   skip-dirty     — ahead>0 AND uncommitted edits; never removed without --force-all
-  LOCKED         — `git worktree lock`ed by a live session; never removed by any flag.
+  LOCKED         — `git worktree lock`ed; pid-less locks are never auto-released.
                    A lock naming a `pid <N>` that no longer exists prints `stale-lock`
                    and is released (`git worktree unlock`) right before a removal.
 
@@ -25,9 +25,12 @@ Audit also prints last-commit age (currency signal — branches weeks behind = c
 
 apply (default): SAFE only — clean merged trees idle >= --safe-idle-min (default 60)
 apply --include-unmerged: also remove unmerged worktrees with NO local edits
-  (branch + commits are preserved; only the directory/venv goes)
-apply --unmerged-idle-hours N: also remove branched unmerged trees with no edits once
-  idle >= N hours (branch kept; audit marks would-reap-idle)
+  (HEAD pinned, branch kept when present; only the directory/venv goes)
+apply --unmerged-idle-hours N: remove only patch-duplicate branched trees idle >= N
+  hours; unique commits are suggestion-only
+audit/suggest --lock-max-age-hours N: label old pid-less locks aged-lock, read-only
+suggest [--json]: size-ranked reclaim suggestions, never changes anything
+archive --path TREE: explicitly archive, pin HEAD and remove this one tree
 apply --force-stale: also stale (ahead==0) with dirty trees (discards wt edits)
 apply --force-all: everything except --keep, held, and live-locked trees (dangerous)
 apply --strip-idle-caches-min N: also delete the derived caches (.venv, .uv-cache,
@@ -43,14 +46,18 @@ Evidence: standing #g metafix — worktree leak is harness hygiene, not telos.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import getpass
+import json
 import math
 import os
 import re
+import shlex
 import shutil
 import stat
 import subprocess
 import sys
+import tarfile
 import tempfile
 import time
 from collections.abc import Iterator
@@ -143,7 +150,7 @@ class WorktreeRow:
 
     @property
     def unmerged_clean(self) -> bool:
-        return self.ahead > 0 and self.dirty == 0 and self.branch is not None
+        return self.ahead > 0 and self.dirty == 0
 
     def classify(self) -> str:
         # DUP: commits exist (ahead>0) but their patches are already on main
@@ -416,8 +423,31 @@ def current_lock(repo: Path, wt: Path) -> str | None:
     return None
 
 
+def lock_age_hours(row: WorktreeRow, now: float | None = None) -> float | None:
+    admin = run(["git", "rev-parse", "--absolute-git-dir"], cwd=row.path, check=True)
+    stamp = _mtime(Path(admin.stdout.strip()) / "locked")
+    if stamp is None:
+        return None
+    return max(0.0, ((time.time() if now is None else now) - stamp) / 3600)
+
+
+def lock_is_aged(
+    row: WorktreeRow,
+    max_age_hours: float | None,
+    reason: str | None,
+    now: float | None = None,
+) -> bool:
+    """Only pid-less locks with a known old lock-file clock are age eligible."""
+    if max_age_hours is None or reason is None or _LOCK_PID.search(reason):
+        return False
+    if row.held or row.daemon_held:
+        return False
+    age = lock_age_hours(row, now)
+    return age is not None and age > max_age_hours
+
+
 def release_stale_lock(row: WorktreeRow) -> str | None:
-    """Unlock ``row`` if its lock names a dead pid. Returns why removal must skip, or None.
+    """Release only a dead-pid lock; return a hold reason, else None.
 
     Re-reads the lock rather than trusting the audit: Claude Code re-locks a tree when it
     resumes an agent there, which can happen between the scan and the removal.
@@ -426,12 +456,22 @@ def release_stale_lock(row: WorktreeRow) -> str | None:
     if lock is None:
         return None
     if not lock_is_stale(lock):
-        return f"locked by a live session ({lock or 'no reason given'})"
+        return f"locked ({lock or 'no reason given'})"
     out = run(["git", "worktree", "unlock", str(row.path)], cwd=row.repo_root)
     if out.returncode != 0:
         return f"stale lock could not be released: {out.stderr.strip()[:160]}"
     print(f"unlocked {row.path} (stale lock: {lock})")
     return None
+
+
+def removal_hold(row: WorktreeRow) -> str | None:
+    """Refresh cwd and lock vetoes immediately before a registered-tree removal."""
+    holders = live_cwd_holders()
+    if not liveness_known(holders):
+        return "[DEGRADED] liveness unknown at removal"
+    if holders_for(row.path, holders):
+        return "live process inside at removal"
+    return release_stale_lock(row)
 
 
 # Roots that hold worktrees no repo may still admit to owning. `/private/tmp` is where
@@ -573,11 +613,12 @@ def find_stranded(
             out = run(
                 [
                     "git",
+                    "--no-optional-locks",
                     f"--git-dir={repo / '.git'}",
                     f"--work-tree={entry}",
                     "status",
                     "--porcelain",
-                    "--untracked-files=no",
+                    "--untracked-files=all",
                 ]
             )
             # Count only edits that can CONTAIN work. A half-removed tree is missing most
@@ -590,7 +631,8 @@ def find_stranded(
                 sum(
                     1
                     for ln in out.stdout.splitlines()
-                    if len(ln) >= 2 and set(ln[:2]) & {"M", "A", "R", "C", "U"}
+                    if ln.startswith("??")
+                    or (len(ln) >= 2 and set(ln[:2]) & {"M", "A", "R", "C", "U"})
                 )
                 if out.returncode == 0
                 else -1
@@ -608,9 +650,13 @@ def find_stranded(
 
 
 def ahead_of_main(repo: Path, branch: str) -> int:
-    r = run(["git", "rev-list", "--count", f"main..{branch}"], cwd=repo)
+    try:
+        base = default_branch(repo)
+    except RuntimeError:
+        return -1
+    r = run(["git", "rev-list", "--count", f"{base}..{branch}"], cwd=repo)
     if r.returncode != 0:
-        r = run(["git", "rev-list", "--count", f"master..{branch}"], cwd=repo)
+        return -1
     try:
         return int(r.stdout.strip() or "0")
     except ValueError:
@@ -618,11 +664,13 @@ def ahead_of_main(repo: Path, branch: str) -> int:
 
 
 def is_ancestor(repo: Path, sha: str) -> bool:
-    for base in ("main", "master"):
-        r = run(["git", "merge-base", "--is-ancestor", sha, base], cwd=repo)
-        if r.returncode == 0:
-            return True
-    return False
+    try:
+        base = default_branch(repo)
+    except RuntimeError:
+        return False  # Unknown upstream must preserve a pin before any removal.
+    return (
+        run(["git", "merge-base", "--is-ancestor", sha, base], cwd=repo).returncode == 0
+    )
 
 
 def last_commit_rel(repo: Path, ref: str) -> str:
@@ -639,15 +687,20 @@ def all_patches_on_main(repo: Path, branch: str) -> bool:
     least one line) => the branch is a pure duplicate, safe to reap even though
     `ahead>0`. This is the cherry-picked/rebased-then-stranded case.
     """
-    for base in ("main", "master"):
-        r = run(["git", "cherry", base, branch], cwd=repo)
-        if r.returncode != 0:
-            continue
-        lines = [ln for ln in r.stdout.splitlines() if ln.strip()]
-        if not lines:
-            return False
-        return all(ln.startswith("-") for ln in lines)
-    return False
+    try:
+        base = default_branch(repo)
+    except RuntimeError:
+        return False
+    r = run(["git", "cherry", base, branch], cwd=repo)
+    if r.returncode != 0:
+        return False
+    commits = run(["git", "rev-list", f"{base}..{branch}"], cwd=repo)
+    if commits.returncode != 0:
+        return False
+    ahead = set(commits.stdout.splitlines())
+    equivalent = {ln.split()[1] for ln in r.stdout.splitlines() if ln.startswith("- ")}
+    # git cherry omits merges. An omitted commit may hold conflict-resolution work.
+    return bool(ahead) and ahead <= equivalent
 
 
 def audit_repo(
@@ -668,7 +721,9 @@ def audit_repo(
             continue
         # --no-optional-locks: a plain `git status` rewrites the index stat cache,
         # which would reset the idle clock (index mtime) on every nightly audit.
-        st = run(["git", "--no-optional-locks", "status", "--porcelain"], cwd=wt)
+        st = run(
+            ["git", "--no-optional-locks", "status", "--porcelain"], cwd=wt, check=True
+        )
         tracked_dirty = sum(
             1 for ln in st.stdout.splitlines() if not ln.startswith("??")
         )
@@ -691,7 +746,7 @@ def audit_repo(
         else:
             sha = run(["git", "rev-parse", "HEAD"], cwd=wt).stdout.strip()
             ancestor = is_ancestor(repo, sha)
-            ahead = 0 if ancestor else -1
+            ahead = ahead_of_main(repo, sha) if sha else -1
             age = last_commit_rel(repo, sha) if sha else "?"
         rows.append(
             WorktreeRow(
@@ -716,7 +771,11 @@ def audit_repo(
 
 
 def commit_preview(repo: Path, branch: str, n: int = 2) -> str:
-    r = run(["git", "log", "--oneline", f"-{n}", f"main..{branch}"], cwd=repo)
+    try:
+        base = default_branch(repo)
+    except RuntimeError:
+        return "? (default branch unknown)"
+    r = run(["git", "log", "--oneline", f"-{n}", f"{base}..{branch}"], cwd=repo)
     lines = [ln.strip() for ln in r.stdout.splitlines() if ln.strip()]
     return " | ".join(lines) if lines else ""
 
@@ -811,15 +870,36 @@ def remove_worktree(repo: Path, wt: Path, force: bool = True) -> None:
     worktrees, and the run reported them as failures while they were in fact
     already unregistered.
 
-    The trigger is `.claude/cache/source-epochs/`, which materializes trees
-    read-only on purpose. Make the tree writable first so the delete can finish;
-    then, if git still failed, finish the job rather than leaving a half-state.
+    Pin unique HEADs before git can unregister them. Permission failures get one
+    directory-only chmod/retry, then half-removal recovery. Regular files may be
+    hardlinked outside the tree, so changing their mode would escape the boundary.
     """
-    make_writable(wt)
+    if wt.is_symlink():
+        raise RuntimeError(f"refusing to remove symlinked worktree {wt}")
+    head = run(["git", "rev-parse", "HEAD"], cwd=wt, check=True).stdout.strip()
+    if not is_ancestor(repo, head):
+        ref = _pin_ref(repo, wt.name, time.strftime("%Y%m%d"), head)
+        print(f"pinned {wt} HEAD={head} at {ref}")
     cmd = ["git", "worktree", "remove", *(["--force"] if force else []), str(wt)]
     try:
         run(cmd, cwd=repo, check=True)
-    except subprocess.CalledProcessError:
+    except subprocess.CalledProcessError as first:
+        if "permission denied" in (first.stderr or "").lower() and wt.exists():
+            print(
+                f"RETRY {wt}: permission denied; owner-writable directories, retry once"
+            )
+            # Unlink needs parent permissions, never a regular file's write bit.
+            make_writable(wt)
+            try:
+                run(cmd, cwd=repo, check=True)
+            except subprocess.CalledProcessError:
+                if wt.exists() and (wt / ".git").exists():
+                    admin = _admin_dir_of(wt)
+                    if not admin or Path(admin).exists():
+                        raise
+            else:
+                if not wt.exists():
+                    return
         # Half-removed is not a state to leave behind. If git already unregistered
         # it, the directory is now inert and only wastes disk; delete it and prune.
         if wt.exists() and not (wt / ".git").exists():
@@ -848,7 +928,8 @@ def remove_worktree(repo: Path, wt: Path, force: bool = True) -> None:
 # stale-dirty/skip-dirty and removed 0: lanes landed onto main by per-file patch
 # keep their uncommitted diff forever, and --force-stale discards it. Archiving
 # the diff + untracked files (with HEAD pinned under refs/wt-archive/) makes the
-# removal reversible, so idle age alone can gate it. Both options default OFF.
+# removal restorable. The 2026-10-12 ruling supersedes age-based archiving:
+# only explicit archive --path may remove unlanded work; age is a suggestion.
 # ---------------------------------------------------------------------------
 ARCHIVE_ROOT = Path.home() / ".local" / "share" / "worktree-archives"
 CACHE_DIRS: tuple[str, ...] = (".venv", ".uv-cache", "node_modules")
@@ -974,6 +1055,60 @@ class ArchiveResult:
     patch_bytes: int = 0
     untracked: int = 0
     ref: str = ""
+    ignored_cache_files: int = 0
+    ignored_cache_bytes: int = 0
+
+
+def _archive_ignored_cache(wt: Path, dest: Path) -> tuple[int, int]:
+    """Save small regular cache files; exclude index trees and all symlinks."""
+    cache = _real_subdir(wt, ".claude/cache")
+    count = total = 0
+    with tarfile.open(dest, "w:gz") as archive:
+        if cache is None:
+            return count, total
+
+        def walk_error(error: OSError) -> None:
+            raise error  # An unreadable report must hold the tree, never disappear.
+
+        for directory, dirs, files in os.walk(cache, onerror=walk_error):
+            dirs[:] = [
+                d
+                for d in dirs
+                if not (Path(directory) / d).is_symlink()
+                and not (Path(directory) == cache and d == "index-trees")
+            ]
+            for name in sorted(files):
+                path = Path(directory) / name
+                st = path.lstat()
+                if not stat.S_ISREG(st.st_mode) or st.st_size > 20 * 1024 * 1024:
+                    continue
+                with os.fdopen(
+                    os.open(path, os.O_RDONLY | os.O_NOFOLLOW), "rb"
+                ) as source:
+                    st = os.fstat(source.fileno())
+                    if not stat.S_ISREG(st.st_mode) or st.st_size > 20 * 1024 * 1024:
+                        continue
+                    info = tarfile.TarInfo(path.relative_to(wt).as_posix())
+                    info.size, info.mode, info.mtime = (
+                        st.st_size,
+                        stat.S_IMODE(st.st_mode),
+                        st.st_mtime,
+                    )
+                    archive.addfile(info, source)
+                    count += 1
+                    total += st.st_size
+    # Read every member through gzip's checksum, including empty archives.
+    with tarfile.open(dest, "r:gz") as archive:
+        members = archive.getmembers()
+        if len(members) != count or sum(m.size for m in members) != total:
+            raise OSError("ignored-cache archive failed its entry/size self-check")
+        for member in members:
+            source = archive.extractfile(member)
+            assert source is not None
+            with source:
+                while source.read(1024 * 1024):
+                    pass
+    return count, total
 
 
 def archive_worktree(
@@ -981,8 +1116,8 @@ def archive_worktree(
 ) -> ArchiveResult:
     """Write a restorable archive of ``row`` and self-check it. Never removes.
 
-    Ignored files outside the cache dirs are not archived: the same contract as the SAFE
-    path, whose removal deletes them too.
+    Also preserve small regular .claude/cache files, excluding index-trees and symlinks.
+    Other ignored files retain the SAFE removal contract.
     """
     now = time.time() if now is None else now
     root = ARCHIVE_ROOT if root is None else root
@@ -1010,15 +1145,23 @@ def archive_worktree(
             capture_output=True,
             check=True,
         )
+    ignored_tgz = dest / "ignored-cache.tgz"
+    ignored_count, ignored_bytes = _archive_ignored_cache(wt, ignored_tgz)
     (dest / "RESTORE.md").write_text(
         f"# Restore {wt}\n\nArchived {day} from repo `{row.repo_root}`.\n\n```sh\n"
         f"git -C {row.repo_root} worktree add --detach {wt} {head}\n"
         f"git -C {wt} apply {patch}\n"
         + (f"tar -xzf {tgz} -C {wt}\n" if files else "")
+        + f"tar -xzf {ignored_tgz} -C {wt}\n"
         + "```\n"
     )
     res = ArchiveResult(
-        dir=dest, ok=False, patch_bytes=patch.stat().st_size, untracked=len(files)
+        dir=dest,
+        ok=False,
+        patch_bytes=patch.stat().st_size,
+        untracked=len(files),
+        ignored_cache_files=ignored_count,
+        ignored_cache_bytes=ignored_bytes,
     )
     if res.patch_bytes:
         chk = run(["git", "apply", "--check", "-R", str(patch)], cwd=wt)
@@ -1345,7 +1488,7 @@ def plan_idle_unmerged(
         return []
     out: list[WorktreeRow] = []
     for row in rows:
-        if not row.unmerged_clean:
+        if not row.unmerged_clean or row.branch is None:
             continue
         if row.held or row.daemon_held or row.lock_live:
             continue
@@ -1358,12 +1501,258 @@ def plan_idle_unmerged(
     return out
 
 
+def plan_aged_locks(
+    rows: list[WorktreeRow],
+    max_age_hours: float | None,
+    keep: set[str],
+) -> list[WorktreeRow]:
+    return [
+        row
+        for row in rows
+        if not any(k in str(row.path) for k in keep)
+        and lock_is_aged(row, max_age_hours, row.lock)
+    ]
+
+
+def default_branch(repo: Path) -> str:
+    """Use the remote's declared default, then the local main/master convention."""
+    remote = run(
+        ["git", "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"], cwd=repo
+    )
+    if remote.returncode == 0:
+        ref = remote.stdout.strip()
+        local = "refs/heads/" + ref.removeprefix("refs/remotes/origin/")
+        if (
+            run(["git", "show-ref", "--verify", "--quiet", local], cwd=repo).returncode
+            == 0
+        ):
+            return local  # Landed local work may be ahead of the last remote fetch.
+        return ref
+    for branch in ("main", "master"):
+        if (
+            run(
+                ["git", "show-ref", "--verify", "--quiet", f"refs/heads/{branch}"],
+                cwd=repo,
+            ).returncode
+            == 0
+        ):
+            return branch
+    raise RuntimeError(f"cannot identify default branch in {repo}")
+
+
+def commit_evidence(row: WorktreeRow) -> dict[str, object]:
+    """Subjects are review hints; only git cherry establishes patch equivalence."""
+    base = default_branch(row.repo_root)
+    head = run(["git", "rev-parse", "HEAD"], cwd=row.path, check=True).stdout.strip()
+    commit_lines = run(
+        ["git", "log", "--format=%H%x00%s", f"{base}..{head}"],
+        cwd=row.repo_root,
+        check=True,
+    ).stdout.splitlines()
+    commits = {
+        sha: subject
+        for line in commit_lines
+        for sha, _, subject in [line.partition("\0")]
+    }
+    cherry = run(["git", "cherry", base, head], cwd=row.repo_root, check=True)
+    equivalent = {
+        line.split()[1] for line in cherry.stdout.splitlines() if line.startswith("- ")
+    }
+    subjects = set(
+        run(
+            ["git", "log", "--format=%s", base], cwd=row.repo_root, check=True
+        ).stdout.splitlines()
+    )
+    no_subject = unmatched = 0
+    for sha, subject in commits.items():
+        if subject not in subjects:
+            no_subject += 1
+            unmatched += sha not in equivalent
+    return {
+        "default_branch": base,
+        "commits_not_on_default": len(commits),
+        "patch_unique_commits": len(set(commits) - equivalent),
+        "no_same_subject_commits": no_subject,
+        "unmatched_commits": unmatched,
+    }
+
+
+def suggest(
+    rows: list[WorktreeRow],
+    lock_max_age_hours: float | None,
+    keep: set[str],
+    liveness: bool,
+    as_json: bool,
+) -> int:
+    """Read-only inventory; return before every mutation/receipt/planning path."""
+    candidates: list[dict[str, object]] = []
+    excluded: list[dict[str, object]] = []
+    for row in rows:
+        reasons = []
+        try:
+            evidence = commit_evidence(row)
+            row.ahead = evidence["commits_not_on_default"]
+            row.ancestor = row.ahead == 0
+            row.dup = row.ahead > 0 and evidence["patch_unique_commits"] == 0
+        except (RuntimeError, OSError, subprocess.CalledProcessError) as error:
+            reasons.append(f"commit evidence unknown: {error}")
+            evidence = {
+                key: None
+                for key in (
+                    "default_branch",
+                    "commits_not_on_default",
+                    "patch_unique_commits",
+                    "no_same_subject_commits",
+                    "unmatched_commits",
+                )
+            }
+        cls = (
+            "aged-lock"
+            if lock_is_aged(row, lock_max_age_hours, row.lock) and liveness
+            else row.classify()
+        )
+        if not liveness:
+            reasons.append("liveness unknown")
+        if row.held or row.daemon_held:
+            reasons.append("live process inside")
+        if row.lock_live and cls != "aged-lock":
+            reasons.append(
+                "live-pid lock"
+                if _LOCK_PID.search(row.lock or "")
+                else "pid-less lock below age threshold or unknown age"
+            )
+        if any(k in str(row.path) for k in keep):
+            reasons.append("keep match")
+        if cls == "SAFE-fresh":
+            reasons.append("fresh or unknown idle clock")
+        size = run(["du", "-sk", str(row.path)])
+        fields = size.stdout.split()
+        size_bytes = (
+            int(fields[0]) * 1024
+            if size.returncode == 0 and fields and fields[0].isdigit()
+            else None
+        )
+        if size_bytes is None:
+            reasons.append("size unknown")
+        untracked = run(
+            ["git", "ls-files", "--others", "--exclude-standard", "-z"],
+            cwd=row.path,
+            check=True,
+        )
+        untracked_count = len([p for p in untracked.stdout.split("\0") if p])
+        record: dict[str, object] = {
+            "path": str(row.path),
+            "repo": str(row.repo_root),
+            "class": cls,
+            "size_bytes": size_bytes,
+            "idle_hours": row.idle_days * 24,
+            "dirty_count": row.tracked_dirty + untracked_count,
+            "tracked_dirty_count": row.tracked_dirty,
+            "untracked_count": untracked_count,
+            "lock_reason": row.lock,
+            "lock_age_hours": lock_age_hours(row) if row.lock is not None else None,
+            "archive_command": shlex.join(
+                [
+                    sys.executable,
+                    str(Path(__file__).resolve()),
+                    "archive",
+                    "--path",
+                    str(row.path),
+                ]
+            ),
+        }
+        record.update(evidence)
+        record.update(candidate=not reasons, not_candidate_reasons=reasons)
+        (excluded if reasons else candidates).append(record)
+    for records in (candidates, excluded):
+        records.sort(
+            key=lambda r: r["size_bytes"] if r["size_bytes"] is not None else -1,
+            reverse=True,
+        )
+    if as_json:
+        print(
+            json.dumps(
+                {
+                    "candidates": candidates,
+                    "not_candidates": excluded,
+                    "liveness_known": liveness,
+                }
+            )
+        )
+    else:
+        for record in candidates + excluded:
+            print(
+                f"{'CANDIDATE' if record['candidate'] else 'NOT-CANDIDATE'} {record['path']} [{record['class']}] size={record['size_bytes']}B idle={record['idle_hours']:.1f}h ahead={record['commits_not_on_default']} no-same-subject={record['no_same_subject_commits']} patch-unique={record['patch_unique_commits']} dirty={record['dirty_count']} untracked={record['untracked_count']}"
+            )
+            if record["lock_reason"] is not None:
+                print(
+                    f"  lock age={record['lock_age_hours']}h reason={record['lock_reason']}"
+                )
+            if record["not_candidate_reasons"]:
+                print(f"  held: {'; '.join(record['not_candidate_reasons'])}")
+            print(f"  {record['archive_command']}")
+    return 0 if liveness else 2
+
+
+def explicit_archive(path: Path) -> int:
+    """Archive one human-selected tree. Age never authorizes unlocking a lock."""
+    try:
+        if path.is_symlink():
+            raise RuntimeError("refusing symlinked worktree")
+        path = path.resolve(strict=True)
+        listing = run(["git", "worktree", "list", "--porcelain"], cwd=path, check=True)
+        root = Path(listing.stdout.splitlines()[0].removeprefix("worktree "))
+        row = next(
+            (r for r in audit_repo(root, with_size=False) if r.path.resolve() == path),
+            None,
+        )
+        if row is None:
+            raise RuntimeError("--path must be a registered secondary worktree")
+        holders = live_cwd_holders()
+        if not liveness_known(holders) or holders_for(path, holders):
+            raise RuntimeError("liveness unknown or live process inside")
+        reason = current_lock(root, path)
+        if (
+            reason is not None
+            and _LOCK_PID.search(reason)
+            and not lock_is_stale(reason)
+        ):
+            raise RuntimeError("live-pid lock")
+        res = archive_worktree(row)
+        if not res.ok:
+            raise RuntimeError(f"archive self-check failed: {res.reason}")
+        print(
+            f"ARCHIVED {path} -> {res.dir} (patch={res.patch_bytes}B untracked={res.untracked} ignored-cache={res.ignored_cache_files} ignored-cache-bytes={res.ignored_cache_bytes}B) pinned={res.ref}"
+        )
+        blocked = removal_hold(row)
+        if blocked:
+            print(
+                f"HOLD {path}: {blocked}; archive complete, tree kept. Unlocking a pid-less lock requires a separate explicit decision."
+            )
+            return 2
+        remove_worktree(root, path)
+        print(f"removed {path}")
+        return 0
+    except (RuntimeError, OSError, subprocess.CalledProcessError) as error:
+        print(f"HOLD {path}: {error}", file=sys.stderr)
+        return 2
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     ap.add_argument(
-        "mode", nargs="?", default="audit", choices=("audit", "apply", "prune")
+        "mode",
+        nargs="?",
+        default="audit",
+        choices=("audit", "apply", "prune", "suggest", "archive"),
+    )
+    ap.add_argument(
+        "--json", action="store_true", help="machine-readable suggest output"
+    )
+    ap.add_argument(
+        "--path", help="one registered worktree to explicitly archive and remove"
     )
     ap.add_argument(
         "--repo",
@@ -1376,7 +1765,7 @@ def main() -> int:
     ap.add_argument(
         "--include-unmerged",
         action="store_true",
-        help="remove unmerged worktrees with no local edits (branch kept)",
+        help="remove unmerged worktrees with no local edits (HEAD pinned; branch kept when present)",
     )
     ap.add_argument(
         "--force-stale",
@@ -1419,8 +1808,14 @@ def main() -> int:
         type=float,
         default=None,
         metavar="N",
-        help="archive (patch + untracked tgz + pinned HEAD ref) then remove "
-        "stale-dirty/skip-dirty trees idle >= N days; audit marks would-archive",
+        help="audit only: suggest archiving dirty trees idle >= N days; apply never age-archives unlanded work; use archive --path explicitly",
+    )
+    ap.add_argument(
+        "--lock-max-age-hours",
+        type=float,
+        default=None,
+        metavar="N",
+        help="audit/suggest only: mark pid-less locks older than N hours as aged-lock; never unlock or remove",
     )
     ap.add_argument(
         "--strip-idle-caches-min",
@@ -1444,8 +1839,7 @@ def main() -> int:
         type=float,
         default=None,
         metavar="N",
-        help="remove branched unmerged trees with no edits, no holder and no live lock "
-        "once idle >= N hours (branch kept); audit marks would-reap-idle",
+        help="remove only clean patch-duplicate branched trees idle >= N hours; unique commits are suggestion-only",
     )
     ap.add_argument(
         "--receipt-motor",
@@ -1454,8 +1848,22 @@ def main() -> int:
         "never overwrite a failed nightly's receipt",
     )
     args = ap.parse_args()
+    if args.json and args.mode != "suggest":
+        ap.error("--json is only supported by suggest")
+    if args.mode == "archive":
+        if not args.path or args.repo or args.all_projects or args.check:
+            ap.error("archive requires --path TREE, without scan flags")
+        return explicit_archive(Path(args.path).expanduser())
+    if args.path:
+        ap.error("--path is only supported by archive")
+    if args.mode == "suggest" and args.check:
+        ap.error("suggest cannot be combined with --check")
     if not math.isfinite(args.safe_idle_min) or args.safe_idle_min <= 0:
         ap.error("--safe-idle-min must be a positive finite number")
+    if args.lock_max_age_hours is not None and (
+        not math.isfinite(args.lock_max_age_hours) or args.lock_max_age_hours <= 0
+    ):
+        ap.error("--lock-max-age-hours must be a positive finite number")
     pruning = args.mode == "prune"
     if (
         pruning
@@ -1471,9 +1879,19 @@ def main() -> int:
     for repo in repos:
         if not (repo / ".git").exists():
             continue
-        all_rows.extend(
-            audit_repo(repo, with_size=with_size, safe_idle_min=args.safe_idle_min)
-        )
+        # Missing registrations are diagnostics, never stray text in hook JSON.
+        with (
+            contextlib.redirect_stdout(sys.stderr)
+            if args.mode == "suggest"
+            else contextlib.nullcontext()
+        ):
+            all_rows.extend(
+                audit_repo(
+                    repo,
+                    with_size=with_size and args.mode != "suggest",
+                    safe_idle_min=args.safe_idle_min,
+                )
+            )
 
     # Liveness last, in one lsof call for every row, so it also gates --check. The
     # daemon split needs one further batched `ps` over only the PIDs lsof actually
@@ -1495,6 +1913,15 @@ def main() -> int:
         row.daemon_pids = tuple(sorted(pid for pid in pids if pid in daemons))
         row.daemon_held = len(row.daemon_pids)
         row.held = len(pids) - row.daemon_held
+
+    if args.mode == "suggest":
+        return suggest(
+            all_rows,
+            args.lock_max_age_hours,
+            set(args.keep),
+            liveness_known(cwd_holders),
+            args.json,
+        )
 
     if args.check:
         # 3 buckets, all carrying unmerged COMMITS (so never a fresh active checkout):
@@ -1520,6 +1947,11 @@ def main() -> int:
         return 0
 
     keep = set(args.keep)
+    aged_rows = (
+        plan_aged_locks(all_rows, args.lock_max_age_hours, keep)
+        if not pruning and liveness_known(cwd_holders)
+        else []
+    )
     # prune touches derived caches only, so every tree-removal plan stays empty in that mode.
     to_remove = (
         []
@@ -1536,12 +1968,15 @@ def main() -> int:
         []
         if pruning
         else plan_idle_unmerged(
-            all_rows, args.unmerged_idle_hours, keep, exclude=to_remove
+            [r for r in all_rows if r.dup],
+            args.unmerged_idle_hours,
+            keep,
+            exclude=to_remove,
         )
     )
     archive_rows = (
         []
-        if pruning
+        if pruning or args.mode == "apply"
         else plan_idle_archive(
             all_rows, args.archive_stale_days, keep, exclude=to_remove + idle_rows
         )
@@ -1594,7 +2029,9 @@ def main() -> int:
             if row.ahead > 0 or row.dirty:
                 extra += " — but it has commits/edits, verify before reclaiming"
         elif row.lock_live:
-            extra = f"  ← locked by a live session: {row.lock or '(no reason given)'}"
+            extra = f"  ← locked: {row.lock or '(no reason given)'}"
+            if row in aged_rows:
+                extra += f" (aged-lock, age {lock_age_hours(row):.1f}h)"
         elif cls == "SAFE-fresh":
             extra = (
                 f"  ← idle {row.idle_days * 1440:.1f}m < "
@@ -1624,7 +2061,7 @@ def main() -> int:
             elif s.tracked_dirty < 0:
                 why = "owning repo unrecoverable — inspect by hand"
             else:
-                why = "reclaimable"
+                why = "suggestion only: original HEAD unavailable"
             owner = s.repo_root.name if s.repo_root else "?"
             print(
                 f"{'→' if s.reclaimable else ' '} {owner:15} {s.size:>6}  {s.path}  ({why})"
@@ -1645,7 +2082,13 @@ def main() -> int:
                 f"branch {row.branch} keeps {row.ahead} commit(s))"
             )
         for row in archive_rows:
-            print(f"would-archive {row.path} ({row.classify()}, {row.repo})")
+            print(
+                f"suggest-archive {row.path} ({row.classify()}, {row.repo}; explicit archive --path required)"
+            )
+        for row in aged_rows:
+            print(
+                f"aged-lock {row.path} (age {lock_age_hours(row):.1f}h; reason={row.lock or '(no reason given)'}; suggestion only)"
+            )
         for row, caches in strip_plan:
             sizes = " ".join(
                 f"{c.relative_to(row.path).as_posix()}={_du(c) if with_size else '?'}"
@@ -1674,7 +2117,7 @@ def main() -> int:
         n_stale_lock = sum(1 for r in all_rows if r.lock_stale)
         if n_locked or n_stale_lock:
             print(
-                f"  {n_locked} LOCKED by a live session (never removed); "
+                f"  {n_locked} LOCKED ({len(aged_rows)} aged-lock; all kept); "
                 f"{n_stale_lock} stale-lock (released right before a removal)"
             )
         if idle_rows:
@@ -1695,32 +2138,50 @@ def main() -> int:
         if row.path in seen:
             continue
         seen.add(row.path)
-        blocked = release_stale_lock(row)
+        blocked = removal_hold(row)
         if blocked:
             print(f"SKIP {row.path}: {blocked}")
             continue
         try:
-            remove_worktree(row.repo_root, row.path)
+            if not (args.include_unmerged or args.force_stale or args.force_all):
+                head = run(
+                    ["git", "rev-parse", "HEAD"], cwd=row.path, check=True
+                ).stdout.strip()
+                if not is_ancestor(row.repo_root, head):
+                    print(
+                        f"SKIP {row.path}: HEAD now has unlanded commits; use suggest"
+                    )
+                    continue
+            remove_worktree(
+                row.repo_root, row.path, force=args.force_stale or args.force_all
+            )
             print(f"removed {row.path}")
             removed += 1
             if args.prune_branches and row.branch and (row.stale or row.dup):
                 run(["git", "branch", "-D", row.branch], cwd=row.repo_root)
                 print(f"  branch -D {row.branch}")
-        except subprocess.CalledProcessError as e:
-            print(f"FAIL {row.path}: {e.stderr or e}", file=sys.stderr)
+        except (subprocess.CalledProcessError, RuntimeError, OSError) as e:
+            print(
+                f"FAIL {row.path}: {getattr(e, 'stderr', None) or e}", file=sys.stderr
+            )
 
-    # Idle unmerged trees: the branch keeps the commits, so only the directory goes. No
-    # --force: if a lane wrote anything since the scan, git refuses and the tree stays.
+    # Only DUP trees may be age-reaped. Refresh patch evidence; --force is never used.
     reaped_idle = 0
     for row in idle_rows:
         if row.path in seen:
             continue
         seen.add(row.path)
-        blocked = release_stale_lock(row)
+        blocked = removal_hold(row)
         if blocked:
             print(f"SKIP {row.path}: {blocked}")
             continue
         try:
+            head = run(
+                ["git", "rev-parse", "HEAD"], cwd=row.path, check=True
+            ).stdout.strip()
+            if not all_patches_on_main(row.repo_root, head):
+                print(f"SKIP {row.path}: HEAD now has unlanded commits; use suggest")
+                continue
             remove_worktree(row.repo_root, row.path, force=False)
         except (subprocess.CalledProcessError, RuntimeError) as e:
             why = (
@@ -1738,32 +2199,6 @@ def main() -> int:
         reaped_idle += 1
 
     archived = 0
-    for row in archive_rows:
-        blocked = release_stale_lock(row)
-        if blocked:
-            print(f"HOLD {row.path}: {blocked}")
-            continue
-        try:
-            res = archive_worktree(row)
-        except (subprocess.CalledProcessError, OSError) as e:
-            print(f"HOLD {row.path}: archive self-check failed (archive error: {e})")
-            continue
-        if not res.ok:
-            print(f"HOLD {row.path}: archive self-check failed ({res.reason})")
-            continue
-        try:
-            remove_worktree(row.repo_root, row.path)
-        except (subprocess.CalledProcessError, RuntimeError) as e:
-            print(
-                f"FAIL {row.path}: archived at {res.dir} but removal failed: {e}",
-                file=sys.stderr,
-            )
-            continue
-        print(
-            f"ARCHIVED {row.path} -> {res.dir} (patch={res.patch_bytes}B "
-            f"untracked={res.untracked}) pinned={res.ref}"
-        )
-        archived += 1
 
     stripped = 0
     for row, caches in strip_plan:
@@ -1783,18 +2218,13 @@ def main() -> int:
         else:
             print(f"FAIL pytest temp {path}: still on disk", file=sys.stderr)
 
-    # Stranded trees are no longer worktrees, so `git worktree remove` cannot touch them —
-    # the directory is inert and the reclaim is a plain delete. Gated on the same evidence
-    # the registered rows use: no live holder, no tracked edits, owning repo recovered.
+    # Lost administration means lost original HEAD; a clean comparison with the owner's
+    # current HEAD cannot prove these leftovers have no unlanded work. Suggest only.
     reclaimed = 0
     for s in stranded:
         if not s.reclaimable:
             continue
-        if not delete_tree(s.path):
-            print(f"FAIL stranded {s.path}: still on disk", file=sys.stderr)
-            continue
-        print(f"reclaimed stranded {s.path} ({s.size})")
-        reclaimed += 1
+        print(f"SUGGEST stranded {s.path} ({s.size}): kept; original HEAD unavailable")
 
     # A registration whose directory is already gone is the mirror image of a stranded
     # tree, and it is what makes `worktree list` report paths that do not exist.
