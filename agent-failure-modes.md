@@ -923,3 +923,22 @@ ENOSPC, checks preservation of the prior artifact and temporary cleanup, then
 checks successful publication. A preflight is an estimate; write failures still
 propagate and preserve the last valid output. Source: heli chat
 `01a11e81-5658-74c0-98df-cb7229db8a51`, 2026-10-11.
+
+### FM: Review attaches an arbitrary report chosen by mtime
+<!--
+FM-ID: lane-review-report-by-mtime
+signature: lane review reviewer says the brief and lane result were unavailable; attached report belongs to another lane
+target_surface: ~/Projects/skills/bin/lane cmd_review / lane_report
+status: fixed
+evidence_count: 4
+-->
+2026-10-12, genomics: all four Sol reviews (offspring-label, pvs1-exon,
+r-regulatory, r-repairs) received an unrelated identity-v2/ancestry report.
+Root cause: `newest_audit_report` took the newest-mtime `docs/audit/**/*-report.md`
+in the worktree, and a fresh checkout gives every tracked file an arbitrary mtime;
+the brief and the git-ignored `.claude/cache/<name>-result.md` were never attached,
+and `llmx chat` sees only `-f` files. Fix skills d0180c5: `--report`, then the lane
+cache result, then a report/result in the lane's own `git status` diff; brief
+attached; `# no lane report found` plus a prompt sentence when none. Regression:
+`tests/test_lane.sh` cases "review attaches the lane's cache result …",
+"… a report the lane added in its own diff", "… with no report fails loud".
