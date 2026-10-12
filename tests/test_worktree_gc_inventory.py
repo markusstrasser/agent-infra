@@ -1,0 +1,596 @@
+"""The removal inventory: unique content must be landed, durable, or held."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import shutil
+import subprocess
+import tarfile
+from pathlib import Path
+
+import pytest
+import worktree_gc
+from test_worktree_gc_landed import age, git, lane, row, run
+from test_worktree_gc_landed import repo as repo_fixture
+
+
+@pytest.fixture
+def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    return repo_fixture.__wrapped__(tmp_path, monkeypatch)
+
+
+def unique_commit(wt: Path) -> str:
+    tree = git(wt, "rev-parse", "HEAD^{tree}")
+    return git(wt, "commit-tree", tree, "-p", "HEAD", "-m", "unique snapshot")
+
+
+@pytest.mark.parametrize("namespace", ["worktree", "bisect", "rewritten"])
+@pytest.mark.parametrize("kind", ["unique-commit", "blob"])
+def test_local_ref_unique_objects_hold_all_routes(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, namespace: str, kind: str
+) -> None:
+    wt = lane(repo)
+    candidate = row(repo, wt)
+    ref = f"refs/{namespace}/snapshot"
+    oid = (
+        unique_commit(wt)
+        if kind == "unique-commit"
+        else git(wt, "rev-parse", "HEAD:file")
+    )
+    git(wt, "update-ref", ref, oid)
+    age(wt)
+    assert row(repo, wt).classify() == "HOLD"
+    assert not worktree_gc.dirty_work_on_default(repo, wt)
+    assert worktree_gc.removal_hold(candidate)
+    result = worktree_gc.archive_worktree(candidate)
+    assert not result.ok and ref in result.reason
+    with pytest.raises(RuntimeError):
+        worktree_gc.remove_worktree(repo, wt)
+    assert run(monkeypatch, repo, "apply", "--archive-landed-idle-hours", "24") == 0
+    assert wt.exists() and git(wt, "rev-parse", ref) == oid
+
+
+@pytest.mark.parametrize("namespace", ["worktree", "bisect", "rewritten"])
+def test_landed_local_ref_is_bound_in_manifest_and_archived(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, namespace: str
+) -> None:
+    wt = lane(repo)
+    ref = f"refs/{namespace}/snapshot"
+    sha = git(repo, "rev-parse", "main")
+    git(wt, "update-ref", ref, sha)
+    age(wt)
+    candidate = row(repo, wt)
+    assert candidate.classify() == "landed", candidate.hold_reason
+    assert run(monkeypatch, repo, "apply", "--archive-landed-idle-hours", "24") == 0
+    assert not wt.exists()
+    dest = next(worktree_gc.ARCHIVE_ROOT.glob("**/head.txt")).parent
+    manifest = json.loads((dest / "content-manifest.json").read_text())
+    assert manifest[".git/local-refs"]["refs"][ref] == sha
+
+
+def test_staged_then_overwritten_blob_holds_automatic_removal(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    wt = lane(repo)
+    head_bytes = (wt / "file").read_bytes()
+    (wt / "file").write_text("unique staged version A\n")
+    git(wt, "add", "file")
+    (wt / "file").write_bytes(head_bytes)
+    age(wt)
+    assert not worktree_gc.dirty_work_on_default(repo, wt)
+    assert run(monkeypatch, repo, "apply", "--archive-landed-idle-hours", "24") == 0
+    assert wt.exists() and git(wt, "show", ":file") == "unique staged version A"
+
+
+def test_explicit_archive_index_blobs_restore_after_prune(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    wt = lane(repo, untracked=False)
+    working = (wt / "file").read_bytes()
+    (wt / "file").write_text("unique staged version A\n")
+    git(wt, "add", "file")
+    oid = git(wt, "rev-parse", ":file")
+    (wt / "file").write_bytes(working)
+    assert worktree_gc.explicit_archive(wt) == 0
+    dest = next(worktree_gc.ARCHIVE_ROOT.glob("**/head.txt")).parent
+    git(repo, "reflog", "expire", "--expire=now", "--expire-unreachable=now", "--all")
+    git(repo, "gc", "--prune=now")
+    assert git(repo, "cat-file", "blob", oid) == "unique staged version A"
+    index_ref = (dest / "index-ref.txt").read_text().strip()
+    assert index_ref.startswith("refs/wt-archive/")
+    assert git(repo, "show", f"{index_ref}:file") == "unique staged version A"
+    restore = repo.parent / "restored-index"
+    git(
+        repo,
+        "worktree",
+        "add",
+        "--detach",
+        str(restore),
+        (dest / "head.txt").read_text().strip(),
+    )
+    git(restore, "apply", str(dest / "tracked.patch"))
+    shutil.copyfile(
+        dest / "git-index",
+        Path(git(restore, "rev-parse", "--absolute-git-dir")) / "index",
+    )
+    assert git(restore, "show", ":file") == "unique staged version A"
+    assert (restore / "file").read_bytes() == working
+
+
+@pytest.mark.parametrize("side", ["old", "new"])
+def test_unique_per_worktree_reflog_object_holds(repo: Path, side: str) -> None:
+    wt = lane(repo)
+    admin = Path(git(wt, "rev-parse", "--absolute-git-dir"))
+    head, unique = git(wt, "rev-parse", "HEAD"), unique_commit(wt)
+    old, new = (unique, head) if side == "old" else (head, unique)
+    with (admin / "logs/HEAD").open("a") as log:
+        log.write(f"{old} {new} test <t@t.t> 1 +0000\tunique lost history\n")
+    assert row(repo, wt).classify() == "HOLD"
+    assert not worktree_gc.archive_worktree(row(repo, wt)).ok
+
+
+@pytest.mark.parametrize(
+    "state",
+    [
+        "config.worktree",
+        "info/sparse-checkout",
+        "ORIG_HEAD",
+        "FETCH_HEAD",
+        "AUTO_MERGE",
+        "REBASE_HEAD",
+        "MERGE_RR",
+        "COMMIT_EDITMSG",
+        "unknown-state",
+        "sharedindex.unique",
+        "objects/unique",
+        "index.lock",
+    ],
+)
+def test_uncovered_admin_state_holds_all_routes(repo: Path, state: str) -> None:
+    wt = lane(repo)
+    candidate = row(repo, wt)
+    path = Path(git(wt, "rev-parse", "--absolute-git-dir")) / state
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("unique administrative state\n")
+    assert row(repo, wt).classify() == "HOLD"
+    assert worktree_gc.removal_hold(candidate)
+    assert not worktree_gc.archive_worktree(candidate).ok
+    with pytest.raises(RuntimeError):
+        worktree_gc.remove_worktree(repo, wt)
+
+
+@pytest.mark.parametrize(
+    "state", ["stash", "notes", "lfs", "lfs-storage", "replace", "grafts"]
+)
+def test_shared_state_without_worktree_provenance_holds(repo: Path, state: str) -> None:
+    wt = lane(repo)
+    if state == "stash":
+        (wt / "file").write_text("unique stash\n")
+        git(wt, "stash", "push", "-m", "from this worktree")
+    elif state == "notes":
+        git(wt, "notes", "add", "-m", "unique notes", "HEAD")
+    elif state == "lfs":
+        path = repo / ".git/lfs/objects/unique"
+        path.parent.mkdir(parents=True)
+        path.write_bytes(b"unique LFS bytes")
+    elif state == "lfs-storage":
+        git(wt, "config", "lfs.storage", str(repo.parent / "external-lfs"))
+    elif state == "replace":
+        git(wt, "replace", "HEAD", unique_commit(wt))
+    else:
+        (repo / ".git/info/grafts").write_text(git(wt, "rev-parse", "HEAD") + "\n")
+    assert row(repo, wt).classify() == "HOLD"
+    assert not worktree_gc.archive_worktree(row(repo, wt)).ok
+
+
+@pytest.mark.parametrize("location", ["nested", ".venv/nested"])
+def test_nested_repository_is_held_even_in_ignored_cache(
+    repo: Path, location: str
+) -> None:
+    wt = lane(repo)
+    nested = wt / location
+    nested.mkdir(parents=True)
+    git(nested, "init", "-q")
+    assert row(repo, wt).classify() == "HOLD"
+    assert not worktree_gc.archive_worktree(row(repo, wt)).ok
+
+
+def test_archive_preserves_all_ignored_content_and_reflog_bytes(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    wt = lane(repo)
+    for rel in (".venv/unique", ".claude/cache/index-trees/unique", "scratch/unique"):
+        path = wt / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"unique ignored bytes")
+    (wt / "scratch/empty").mkdir()
+    (wt / "scratch/link").symlink_to("unique")
+    admin = Path(git(wt, "rev-parse", "--absolute-git-dir"))
+    log = (admin / "logs/HEAD").read_bytes()
+    assert worktree_gc.explicit_archive(wt) == 0
+    assert not wt.exists()
+    dest = next(worktree_gc.ARCHIVE_ROOT.glob("**/head.txt")).parent
+    with tarfile.open(dest / "ignored.tgz") as archive:
+        assert archive.extractfile(".venv/unique").read() == b"unique ignored bytes"
+        assert archive.extractfile("scratch/unique").read() == b"unique ignored bytes"
+        assert archive.getmember("scratch/empty").isdir()
+        assert archive.getmember("scratch/link").linkname == "unique"
+    with tarfile.open(dest / "git-state.tgz") as archive:
+        assert archive.extractfile(".git/logs/HEAD").read() == log
+
+
+@pytest.mark.parametrize("land_descendant", [True, False])
+def test_file_to_directory_replacement_checks_descendants(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, land_descendant: bool
+) -> None:
+    wt = lane(repo)
+    for root in (wt, repo):
+        (root / "file").unlink()
+        (root / "file").mkdir()
+        (root / "file/child").write_text("replacement\n")
+        git(root, "add", "file")
+    git(repo, "commit", "-qm", "file becomes directory")
+    if not land_descendant:
+        (wt / "file/extra").write_text("unique descendant\n")
+    age(wt)
+    assert worktree_gc.dirty_work_on_default(repo, wt) is land_descendant
+    assert run(monkeypatch, repo, "apply", "--archive-landed-idle-hours", "24") == 0
+    assert wt.exists() is not land_descendant
+
+
+@pytest.mark.parametrize("branched", [True, False])
+def test_resolved_head_movement_after_last_proof_aborts(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, branched: bool
+) -> None:
+    wt = lane(repo)
+    if branched:
+        git(wt, "switch", "-q", "-c", "lane-branch")
+    age(wt)
+    original = worktree_gc.remove_worktree
+    moved = git(repo, "rev-parse", "main")
+
+    def move_then_remove(
+        root: Path, path: Path, *args: object, **kwargs: object
+    ) -> None:
+        # Move to an ancestor of default, so even conservative ancestry guards
+        # cannot replace the exact-SHA comparison. Files and index stay untouched.
+        log = Path(git(path, "rev-parse", "--absolute-git-dir")) / "logs/HEAD"
+        raw_log = log.read_bytes()
+        git(path, "update-ref", "HEAD", moved)
+        # Symbolic HEAD's literal bytes, index and logs provide no SHA evidence.
+        log.write_bytes(raw_log)
+        original(root, path, *args, **kwargs)
+
+    monkeypatch.setattr(worktree_gc, "remove_worktree", move_then_remove)
+    assert run(monkeypatch, repo, "apply", "--archive-landed-idle-hours", "24") == 0
+    assert wt.exists() and git(wt, "rev-parse", "HEAD") == moved
+    dest = next(worktree_gc.ARCHIVE_ROOT.glob("**/head.txt")).parent
+    manifest = json.loads((dest / "content-manifest.json").read_text())
+    head = manifest[".git/resolved-HEAD"]
+    assert head["head_sha"] != moved
+    assert head["symbolic_ref"] == ("refs/heads/lane-branch" if branched else None)
+    assert head["branch_sha"] == (head["head_sha"] if branched else None)
+
+
+def test_unmerged_index_is_held_by_explicit_archive(repo: Path) -> None:
+    wt = lane(repo)
+    head_blob = git(wt, "rev-parse", "HEAD:file")
+    git(wt, "update-index", "--force-remove", "file")
+    subprocess.run(
+        ["git", "update-index", "--index-info"],
+        cwd=wt,
+        input=f"100644 {head_blob} 1\tfile\n".encode(),
+        check=True,
+    )
+    assert not worktree_gc.archive_worktree(row(repo, wt)).ok
+    assert wt.exists()
+
+
+def test_default_apply_holds_unique_ignored_cache(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    wt = repo.parent / "clean-with-cache"
+    git(repo, "worktree", "add", "--detach", str(wt), "main")
+    (wt / ".venv").mkdir()
+    (wt / ".venv/unique").write_bytes(b"unique ignored bytes")
+    age(wt)
+    assert row(repo, wt).classify() != "SAFE"
+    assert run(monkeypatch, repo, "apply") == 0
+    assert (wt / ".venv/unique").read_bytes() == b"unique ignored bytes"
+    with pytest.raises(RuntimeError, match="unarchived"):
+        worktree_gc.remove_worktree(repo, wt, force=False)
+
+
+def test_missing_checkout_admin_is_never_blanket_pruned(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    missing = repo.parent / "missing"
+    git(repo, "worktree", "add", "--detach", str(missing), "main")
+    oid = unique_commit(missing)
+    git(missing, "update-ref", "refs/worktree/snapshot", oid)
+    admin = Path(git(missing, "rev-parse", "--absolute-git-dir"))
+    shutil.rmtree(missing)
+    wt = lane(repo)
+    assert run(monkeypatch, repo, "apply", "--archive-landed-idle-hours", "24") == 0
+    assert not wt.exists() and admin.exists()
+    assert (admin / "refs/worktree/snapshot").read_text().strip() == oid
+
+
+@pytest.mark.parametrize(
+    "state", ["intent-to-add", "split-index", "alternates", "lfs-index", "fifo"]
+)
+def test_unrestorable_object_state_holds(repo: Path, state: str) -> None:
+    wt = lane(repo)
+    if state == "intent-to-add":
+        (wt / "new").write_text("unique new\n")
+        git(wt, "add", "-N", "new")
+    elif state == "split-index":
+        git(wt, "update-index", "--split-index")
+    elif state == "alternates":
+        (repo / ".git/objects/info/alternates").write_text(
+            str(repo.parent / "borrowed") + "\n"
+        )
+    elif state == "lfs-index":
+        working = (wt / "file").read_bytes()
+        (wt / "file").write_text(
+            "version https://git-lfs.github.com/spec/v1\noid sha256:"
+            + "1" * 64
+            + "\nsize 1\n"
+        )
+        git(wt, "add", "file")
+        (wt / "file").write_bytes(working)
+    else:
+        import os
+
+        os.mkfifo(wt / "special")
+    result = worktree_gc.archive_worktree(row(repo, wt))
+    assert not result.ok and wt.exists(), result.reason
+
+
+def test_shared_ref_objects_survive_landed_removal(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    wt = lane(repo)
+    oid = unique_commit(wt)
+    git(wt, "update-ref", "refs/custom/snapshot", oid)
+    age(wt)
+    assert run(monkeypatch, repo, "apply", "--archive-landed-idle-hours", "24") == 0
+    assert not wt.exists()
+    git(repo, "gc", "--prune=now")
+    assert git(repo, "rev-parse", "refs/custom/snapshot") == oid
+    assert git(repo, "cat-file", "-t", oid) == "commit"
+
+
+def test_git_storage_override_holds_without_using_redirected_evidence(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    wt = lane(repo)
+    candidate = row(repo, wt)
+    monkeypatch.setenv("GIT_OBJECT_DIRECTORY", str(wt / ".venv/objects"))
+    result = worktree_gc.archive_worktree(candidate)
+    assert not result.ok and "storage override" in result.reason
+    assert wt.exists()
+
+
+@pytest.mark.parametrize(
+    "state", ["objects-symlink", "promisor", "admin-symlink", "marker-symlink"]
+)
+def test_unknown_storage_and_admin_links_hold(repo: Path, state: str) -> None:
+    wt = lane(repo)
+    candidate = row(repo, wt)
+    if state == "objects-symlink":
+        (repo / ".git/objects/linked").symlink_to(wt / "binary")
+    elif state == "promisor":
+        (repo / ".git/objects/pack/unknown.promisor").write_bytes(b"")
+    elif state == "admin-symlink":
+        admin = Path(git(wt, "rev-parse", "--absolute-git-dir"))
+        other = admin.with_name(admin.name + "-moved")
+        admin.rename(other)
+        admin.symlink_to(other, target_is_directory=True)
+    else:
+        marker = wt / ".git"
+        other = wt / "git-marker"
+        marker.rename(other)
+        marker.symlink_to(other.name)
+    result = worktree_gc.archive_worktree(candidate)
+    assert not result.ok and wt.exists()
+
+
+def test_clean_removal_binds_the_exact_proven_head(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    wt = repo.parent / "clean-head-race"
+    git(repo, "worktree", "add", "--detach", str(wt), "main")
+    age(wt)
+    original = worktree_gc.remove_worktree
+    moved = unique_commit(wt)
+
+    def move_then_remove(
+        root: Path, path: Path, *args: object, **kwargs: object
+    ) -> None:
+        git(path, "update-ref", "HEAD", moved)
+        original(root, path, *args, **kwargs)
+
+    monkeypatch.setattr(worktree_gc, "remove_worktree", move_then_remove)
+    assert run(monkeypatch, repo, "apply") == 0
+    assert wt.exists() and git(wt, "rev-parse", "HEAD") == moved
+    assert not git(repo, "for-each-ref", "refs/wt-archive")
+
+
+def test_branch_prune_holds_shared_reflog_and_moved_sha(repo: Path) -> None:
+    git(repo, "branch", "branch-to-keep")
+    original = git(repo, "rev-parse", "branch-to-keep")
+    worktree_gc._prune_branch(repo, "branch-to-keep", original)
+    assert git(repo, "rev-parse", "branch-to-keep") == original
+    log = repo / ".git/logs/refs/heads/branch-to-keep"
+    log.unlink()
+    moved = unique_commit(repo)
+    git(repo, "config", "core.logAllRefUpdates", "false")
+    git(repo, "update-ref", "refs/heads/branch-to-keep", moved)
+    worktree_gc._prune_branch(repo, "branch-to-keep", original)
+    assert git(repo, "rev-parse", "branch-to-keep") == moved
+
+
+@pytest.mark.parametrize("name", ["gitdir", "commondir"])
+def test_extra_structural_admin_content_holds(repo: Path, name: str) -> None:
+    wt = lane(repo)
+    candidate = row(repo, wt)
+    path = Path(git(wt, "rev-parse", "--absolute-git-dir")) / name
+    path.write_bytes(path.read_bytes() + b"unique non-linkage content\n")
+    result = worktree_gc.archive_worktree(candidate)
+    assert not result.ok and wt.exists()
+
+
+def test_resolve_undo_index_blobs_hold_both_routes(repo: Path) -> None:
+    wt = lane(repo)
+    original = git(wt, "rev-parse", ":file")
+    oids = []
+    for data in (b"unique conflict side A\n", b"unique conflict side B\n"):
+        result = subprocess.run(
+            ["git", "hash-object", "-w", "--stdin"],
+            cwd=wt,
+            input=data,
+            capture_output=True,
+            check=True,
+        )
+        oids.append(result.stdout.decode().strip())
+    records = f"0 {'0' * 40}\tfile\n" + "".join(
+        f"100644 {oid} {stage}\tfile\n"
+        for stage, oid in enumerate([original, *oids], 1)
+    )
+    subprocess.run(
+        ["git", "update-index", "--index-info"],
+        cwd=wt,
+        input=records.encode(),
+        check=True,
+    )
+    git(wt, "add", "file")
+    assert all(oid in git(wt, "ls-files", "--resolve-undo") for oid in oids)
+    assert row(repo, wt).classify() == "HOLD"
+    result = worktree_gc.archive_worktree(row(repo, wt))
+    assert not result.ok and "index extension" in result.reason
+
+
+@pytest.mark.parametrize("state", ["unknown-extension", "version4"])
+def test_uninventoried_index_layout_holds(repo: Path, state: str) -> None:
+    wt = lane(repo)
+    candidate = row(repo, wt)
+    if state == "version4":
+        git(wt, "update-index", "--index-version=4")
+    else:
+        path = Path(git(wt, "rev-parse", "--absolute-git-dir")) / "index"
+        raw = (
+            path.read_bytes()[:-20]
+            + b"XTRA"
+            + (40).to_bytes(4, "big")
+            + unique_commit(wt).encode()
+        )
+        path.write_bytes(raw + hashlib.sha1(raw).digest())
+    result = worktree_gc.archive_worktree(candidate)
+    assert not result.ok and (
+        "index extension" in result.reason or "index version" in result.reason
+    )
+
+
+def test_noncommit_detached_head_holds_unique_tag_metadata(repo: Path) -> None:
+    wt = lane(repo)
+    candidate = row(repo, wt)
+    git(wt, "tag", "-a", "temporary-tag", "-m", "unique tag metadata", "HEAD")
+    tag = git(wt, "rev-parse", "refs/tags/temporary-tag")
+    git(wt, "update-ref", "-d", "refs/tags/temporary-tag")
+    (Path(git(wt, "rev-parse", "--absolute-git-dir")) / "HEAD").write_text(tag + "\n")
+    result = worktree_gc.archive_worktree(candidate)
+    assert not result.ok and wt.exists()
+
+
+def test_cached_tree_unique_objects_cannot_hide_outside_index(repo: Path) -> None:
+    wt = lane(repo)
+    candidate = row(repo, wt)
+    index = Path(git(wt, "rev-parse", "--absolute-git-dir")) / "index"
+    raw = index.read_bytes()[:-20]
+    # Invalidated TREE has no root OID. Replace it by a syntactically valid
+    # positive cache pointing at a different tree, while retaining stage entries.
+    tree = git(repo, "rev-parse", "main^{tree}")
+    index_tree = git(wt, "write-tree")
+    raw = index.read_bytes()[:-20]
+    raw = raw.replace(bytes.fromhex(index_tree), bytes.fromhex(tree))
+    assert tree != index_tree
+    index.write_bytes(raw + hashlib.sha1(raw).digest())
+    result = worktree_gc.archive_worktree(candidate)
+    assert not result.ok and "TREE cache" in result.reason
+
+
+def test_unknown_admin_added_after_guard_is_held_by_manifest(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    wt = lane(repo)
+    candidate = row(repo, wt)
+    admin = Path(git(wt, "rev-parse", "--absolute-git-dir"))
+    original = worktree_gc._worktree_state_hold
+
+    def add_after_guard(path: Path) -> str | None:
+        result = original(path)
+        (admin / "future-state").write_bytes(b"unique future state")
+        return result
+
+    monkeypatch.setattr(worktree_gc, "_worktree_state_hold", add_after_guard)
+    with pytest.raises(RuntimeError, match="administrative state"):
+        worktree_gc.archive_worktree(candidate)
+    assert (admin / "future-state").read_bytes() == b"unique future state"
+
+
+def test_saved_index_envelope_cannot_depend_on_live_guard(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    wt = lane(repo)
+    candidate = row(repo, wt)
+    path = Path(git(wt, "rev-parse", "--absolute-git-dir")) / "index"
+    original_bytes = path.read_bytes()
+    data = original_bytes[:-20] + b"XTRA" + (4).to_bytes(4, "big") + b"root"
+    unsupported = data + hashlib.sha1(data).digest()
+    original = worktree_gc._worktree_state_hold
+
+    def masked_guard(tree: Path) -> str | None:
+        path.write_bytes(original_bytes)
+        result = original(tree)
+        path.write_bytes(unsupported)
+        return result
+
+    monkeypatch.setattr(worktree_gc, "_worktree_state_hold", masked_guard)
+    result = worktree_gc.archive_worktree(candidate)
+    assert not result.ok and "captured index" in result.reason
+    assert wt.exists()
+
+
+def test_archive_ref_creation_never_overwrites_peer_root(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    head = git(repo, "rev-parse", "HEAD")
+    peer = unique_commit(repo)
+    original = worktree_gc.run
+    collided = []
+
+    def race(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        if cmd[:2] == ["git", "update-ref"] and len(cmd) == 5 and not collided:
+            git(repo, "update-ref", cmd[2], peer)
+            collided.append(cmd[2])
+        return original(cmd, **kwargs)
+
+    monkeypatch.setattr(worktree_gc, "run", race)
+    ref = worktree_gc._pin_ref(repo, "peer-race", "20261012", head)
+    assert ref != collided[0]
+    assert git(repo, "rev-parse", collided[0]) == peer
+    assert git(repo, "rev-parse", ref) == head
+
+
+def test_reflog_tag_object_is_not_silently_peeled(repo: Path) -> None:
+    wt = lane(repo)
+    git(wt, "tag", "-a", "temporary", "-m", "unique tag", "HEAD")
+    tag = git(wt, "rev-parse", "refs/tags/temporary")
+    git(wt, "update-ref", "-d", "refs/tags/temporary")
+    log = Path(git(wt, "rev-parse", "--absolute-git-dir")) / "logs/HEAD"
+    head = git(wt, "rev-parse", "HEAD")
+    with log.open("a") as out:
+        out.write(f"{tag} {head} test <t@t.t> 1 +0000\tunique tag history\n")
+    assert row(repo, wt).classify() == "HOLD"

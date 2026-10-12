@@ -142,9 +142,9 @@ def test_candidate_classes_sizes_counts_and_commands(repo, monkeypatch, capsys):
     expected = {
         "safe": "SAFE",
         "duplicate": "DUP",
-        "unmerged": "unmerged",
-        "stale-dirty": "stale-dirty",
-        "skip-dirty": "skip-dirty",
+        "unmerged": "skip-dirty",  # ignored bytes are work until archived
+        "stale-dirty": "HOLD",  # exact working bytes never reached default
+        "skip-dirty": "HOLD",  # its ORIG_HEAD is a unique, unlanded commit
         "aged-lock": "aged-lock",
     }
     assert {key: record["class"] for key, record in records.items()} == expected
@@ -167,7 +167,7 @@ def test_candidate_classes_sizes_counts_and_commands(repo, monkeypatch, capsys):
     }
     for record in records.values():
         assert record.keys() >= required
-        assert record["candidate"] is True
+        assert record["candidate"] is (Path(record["path"]).name != "skip-dirty")
         assert record["size_bytes"] > 0
         assert record["idle_hours"] >= 71
         assert shlex.split(record["archive_command"])[-3:] == [

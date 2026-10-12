@@ -62,10 +62,13 @@ def repo(tmp_path: Path) -> Path:
 
 
 @pytest.fixture(autouse=True)
-def _no_real_temp_roots_or_lsof(monkeypatch: pytest.MonkeyPatch) -> None:
+def _no_real_temp_roots_or_lsof(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """Fence: no test may prune the real pytest-of-<user> or read the real txt-mapping scan."""
     monkeypatch.setattr(worktree_gc, "pytest_temp_roots", list)
     monkeypatch.setattr(worktree_gc, "live_mapped_holders", lambda: {"/nowhere": [1]})
+    monkeypatch.setattr(worktree_gc, "ARCHIVE_ROOT", tmp_path / "archive")
 
 
 def _age_tree(wt: Path, hours: float) -> None:
@@ -78,15 +81,16 @@ def _age_tree(wt: Path, hours: float) -> None:
             os.utime(p, (stamp, stamp), follow_symlinks=False)
 
 
-def _lane(repo: Path, name: str) -> Path:
-    """A branched lane with one commit main lacks and an ignored per-lane .venv."""
+def _lane(repo: Path, name: str, *, cache: bool = False) -> Path:
+    """A branched lane with one commit main lacks; optional ignored content is work."""
     wt = repo.parent / "wts" / name
     _git("worktree", "add", "-q", "-b", f"lane/{name}", str(wt), "main", cwd=repo)
     (wt / "h.txt").write_text(f"{name}\n")
     _git("add", "h.txt", cwd=wt)
     _git("commit", "-qm", f"lane {name}", cwd=wt)
-    (wt / ".venv" / "lib").mkdir(parents=True)
-    (wt / ".venv" / "lib" / "x.py").write_text("x")
+    if cache:
+        (wt / ".venv" / "lib").mkdir(parents=True)
+        (wt / ".venv" / "lib" / "x.py").write_text("x")
     return wt
 
 
@@ -118,12 +122,12 @@ def _main(
 def test_idle_clean_unique_tree_is_kept_with_current_cron_flags(
     repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    wt = _lane(repo, "lane-idle")
+    wt = _lane(repo, "lane-idle", cache=True)
     tip = _git("rev-parse", "lane/lane-idle", cwd=repo).strip()
     _age_tree(wt, 4)
     row = _row(repo, wt)
-    assert row.classify() == "unmerged" and row.unmerged_clean
-    assert plan_idle_unmerged([row], 3, set(), exclude=[]) == [row]
+    assert row.classify() == "skip-dirty" and not row.unmerged_clean
+    assert plan_idle_unmerged([row], 3, set(), exclude=[]) == []
 
     audit = _main(monkeypatch, capsys, "audit", "--repo", str(repo), *REAP_FLAGS)
     assert f"would-reap-idle {wt}" not in audit
@@ -155,7 +159,9 @@ def test_patch_duplicates_cannot_hide_unlanded_merge_work(
     _git("cherry-pick", lane_commit, side_commit, cwd=repo)
     _age_tree(wt, 10)
     assert not worktree_gc.all_patches_on_main(repo, "lane/merge-work")
-    assert _row(repo, wt).classify() == "unmerged"
+    candidate = _row(repo, wt)
+    assert candidate.classify() == "HOLD"
+    assert candidate.hold_reason
     _main(monkeypatch, capsys, "apply", "--repo", str(repo), *REAP_FLAGS)
     assert (wt / "merge-only.txt").read_text() == "unlanded resolution\n"
 
@@ -289,7 +295,7 @@ def test_git_refuses_the_clean_removal_when_a_lane_writes_after_the_scan(
 def test_live_lock_keeps_the_tree_under_every_flag(
     repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    wt = _lane(repo, "lane-live")
+    wt = _lane(repo, "lane-live", cache=True)
     reason = (
         f"claude agent agent-live (pid {os.getpid()} start Mon Sep 28 04:00:00 2026)"
     )
@@ -351,8 +357,13 @@ def test_dead_pid_lock_no_longer_pins_a_merged_tree(
     _age_tree(wt, 2)
     row = _row(repo, wt)
     assert row.classify() == "SAFE" and row.lock_stale
+    payload = (
+        Path(_git("rev-parse", "--absolute-git-dir", cwd=wt).strip()) / "locked"
+    ).read_bytes()
     out = _main(monkeypatch, capsys, "apply", "--repo", str(repo), "--no-size")
     assert f"removed {wt}" in out and not wt.exists()
+    saved = list(worktree_gc.ARCHIVE_ROOT.glob("*/locks/*/locked"))
+    assert len(saved) == 1 and saved[0].read_bytes() == payload
 
 
 @pytest.mark.parametrize("reason", [None, "operator: keep for the bisect"])

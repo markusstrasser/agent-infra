@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -49,7 +50,9 @@ def fence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[None]:
     worktree_gc.make_writable(tmp_path)
 
 
-def lane(repo: Path, *, unique: bool = False, dirty: bool = False) -> Path:
+def lane(
+    repo: Path, *, unique: bool = False, dirty: bool = False, cache: bool = True
+) -> Path:
     wt = repo.parent / "lane"
     git(repo, "worktree", "add", "-q", "--detach", str(wt), "main")
     if unique:
@@ -58,9 +61,10 @@ def lane(repo: Path, *, unique: bool = False, dirty: bool = False) -> Path:
         git(wt, "commit", "-qm", "unique")
     if dirty:
         (wt / "file").write_text("uncommitted work\n")
-    cache = wt / ".claude/cache"
-    cache.mkdir(parents=True)
-    (cache / "result.md").write_text("lane report\n")
+    if cache:
+        cache_path = wt / ".claude/cache"
+        cache_path.mkdir(parents=True)
+        (cache_path / "result.md").write_text("lane report\n")
     stamp = time.time() - 10 * 86400
     admin = Path(git(wt, "rev-parse", "--absolute-git-dir"))
     for path in [*wt.rglob("*"), wt, admin / "index", admin / "HEAD"]:
@@ -247,7 +251,7 @@ def test_detached_unique_head_is_pinned_before_removal(
     monkeypatch: pytest.MonkeyPatch,
     flag: str,
 ) -> None:
-    wt = lane(repo, unique=True)
+    wt = lane(repo, unique=True, cache=False)
     tip = git(wt, "rev-parse", "HEAD")
     assert main(monkeypatch, repo, "apply", flag) == 0
     assert not wt.exists()
@@ -285,7 +289,7 @@ def test_idle_branched_unique_head_needs_explicit_archive(
     )
 
 
-def test_read_only_directory_retries_without_chmod_outside(
+def test_read_only_directory_retry_holds_without_chmod_outside(
     repo: Path,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -302,15 +306,23 @@ def test_read_only_directory_retries_without_chmod_outside(
     (wt / "symlink").symlink_to(external)
     (sealed / "hardlinked-data").hardlink_to(external / "data")
     sealed.chmod(0o555)
-    worktree_gc.remove_worktree(repo, wt)
-    assert not wt.exists()
+    archive = worktree_gc.archive_worktree(
+        next(r for r in worktree_gc.audit_repo(repo, with_size=False) if r.path == wt)
+    )
+    assert archive.ok, archive.reason
+    manifest = json.loads((archive.dir / "content-manifest.json").read_text())
+    # Git can unregister before a permission failure. A bound archive must HOLD
+    # remaining files rather than widening recovery into a blind recursive delete.
+    with pytest.raises((RuntimeError, subprocess.CalledProcessError)):
+        worktree_gc.remove_worktree(repo, wt, manifest=manifest)
+    assert wt.exists() and (archive.dir / "ignored.tgz").is_file()
     assert f"RETRY {wt}" in capsys.readouterr().out
     assert external.stat().st_mode & 0o777 == 0o555
     assert (external / "data").stat().st_mode & 0o777 == 0o444
 
 
 def test_master_does_not_substitute_for_main_reachability(repo: Path) -> None:
-    wt = lane(repo, unique=True)
+    wt = lane(repo, unique=True, cache=False)
     tip = git(wt, "rev-parse", "HEAD")
     git(repo, "branch", "master", tip)
     assert not worktree_gc.is_ancestor(repo, tip)
@@ -456,7 +468,7 @@ def test_explicit_archive_pins_and_preserves_reports_before_removal(
     remove = worktree_gc.remove_worktree
     removals: list[Path] = []
 
-    def verify_then_remove(root: Path, path: Path) -> None:
+    def verify_then_remove(root: Path, path: Path, **kwargs: object) -> None:
         assert tip in git(
             root, "for-each-ref", "--format=%(objectname)", "refs/wt-archive"
         )
@@ -464,7 +476,7 @@ def test_explicit_archive_pins_and_preserves_reports_before_removal(
         assert len(saved) == 1
         assert (saved[0].parent / "RESTORE.md").exists()
         removals.append(path)
-        remove(root, path)
+        remove(root, path, **kwargs)
 
     monkeypatch.setattr(worktree_gc, "remove_worktree", verify_then_remove)
     assert archive(monkeypatch, wt) == (2 if locked else 0)
@@ -517,7 +529,12 @@ def test_explicit_archive_refuses_non_secondary_paths(
 def test_default_apply_behavior_is_unchanged(
     repo: Path, monkeypatch: pytest.MonkeyPatch, kind: str
 ) -> None:
-    wt = lane(repo, unique=kind in ("unique", "duplicate"), dirty=kind == "tracked")
+    wt = lane(
+        repo,
+        unique=kind in ("unique", "duplicate"),
+        dirty=kind == "tracked",
+        cache=False,
+    )
     if kind == "fresh-safe":
         admin = Path(git(wt, "rev-parse", "--absolute-git-dir"))
         (admin / "HEAD").touch()

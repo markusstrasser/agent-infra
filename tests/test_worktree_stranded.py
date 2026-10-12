@@ -232,7 +232,7 @@ def test_untracked_files_in_a_registered_worktree_are_work(
     row = rows[0]
     assert row.untracked_work == 1 and row.tracked_dirty == 0
     assert not row.safe
-    assert row.classify() == "stale-dirty"
+    assert row.classify() == "HOLD"
 
 
 def test_empty_liveness_scan_is_unknown_not_idle() -> None:

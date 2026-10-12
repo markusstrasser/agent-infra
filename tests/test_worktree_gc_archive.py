@@ -6,6 +6,7 @@ Real temp repos + `git worktree add`; idleness is set with os.utime so the idle 
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -93,7 +94,8 @@ def _row(repo: Path, wt: Path) -> WorktreeRow:
 def _run_archive(row: WorktreeRow, root: Path) -> worktree_gc.ArchiveResult:
     res = archive_worktree(row, root=root)
     if res.ok:
-        remove_worktree(row.repo_root, row.path)
+        manifest = json.loads((res.dir / "content-manifest.json").read_text())
+        remove_worktree(row.repo_root, row.path, manifest=manifest)
     return res
 
 
@@ -102,7 +104,7 @@ def test_idle_stale_dirty_is_archived_removed_pinned_and_restorable(
 ) -> None:
     wt = _dirty_tree(repo, "lane-idle", days=8)
     row = _row(repo, wt)
-    assert row.classify() == "stale-dirty"
+    assert row.classify() == "HOLD"
     assert plan_idle_archive([row], 7, set(), exclude=[]) == [row]
     # After planning: `git diff` refreshes the index, which (correctly) resets idle.
     want_diff = _git("diff", "--no-ext-diff", "--binary", "HEAD", cwd=wt)

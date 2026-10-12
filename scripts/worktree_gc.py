@@ -14,6 +14,9 @@ Safety classes (audit):
   DUP            — ahead>0 but every patch already on main (cherry-picked/rebased,
                    then stranded); clean. Reap with --include-unmerged; the branch
                    is pure cruft, prunable with --prune-branches.
+  landed         — dirty, but all commits, tracked changes and untracked bytes are
+                   durable at their paths on the default branch (tip or history);
+                   opt-in archive only
   unmerged       — ahead>0: GENUINE unique commits on branch; NEVER removed by default
   stale-dirty    — ahead==0 but uncommitted edits; needs --force-stale
   skip-dirty     — ahead>0 AND uncommitted edits; never removed without --force-all
@@ -28,6 +31,8 @@ apply --include-unmerged: also remove unmerged worktrees with NO local edits
   (HEAD pinned, branch kept when present; only the directory/venv goes)
 apply --unmerged-idle-hours N: remove only patch-duplicate branched trees idle >= N
   hours; unique commits are suggestion-only
+apply --archive-landed-idle-hours N: archive and remove landed dirty trees idle >= N
+  hours, after repeating landing/liveness checks and a settled archive-manifest check
 audit/suggest --lock-max-age-hours N: label old pid-less locks aged-lock, read-only
 suggest [--json]: size-ranked reclaim suggestions, never changes anything
 archive --path TREE: explicitly archive, pin HEAD and remove this one tree
@@ -41,6 +46,70 @@ apply --prune-pytest-hours N: also delete pytest-of-<user> basetemp dirs untouch
 prune: only those two steps; never removes a worktree (the low-disk guard's mode)
 
 Evidence: standing #g metafix — worktree leak is harness hygiene, not telos.
+
+Linked-worktree content inventory (landed removal and explicit archive):
+  Tracked working files    PROVEN-LANDED by exact mode/blob; PRESERVED by HEAD+patch.
+  Untracked working files  PROVEN-LANDED by exact mode/blob; PRESERVED by untracked.tgz.
+  Ignored working files    Non-cache work HOLD automatically; archive PRESERVED in
+                           ignored.tgz, including large files, symlinks, empty dirs,
+                           venvs/index-trees. Cache names are never a content proof.
+  Index entries/blobs      PROVEN-LANDED individually; staged-then-overwritten HOLD
+                           if either entry is unproven. Archive write-tree on a COPY of saved index,
+                           check every entry, commit-tree parent HEAD, pin separately
+                           at refs/wt-archive/*-index-* (index-ref.txt). Raw git-index
+                           preserves flags. Unmerged/intent-to-add/split index HOLD.
+  Index extensions         HOLD resolve-undo, unknown extensions and unsupported v4;
+                           only TREE (checked via exact write-tree), EOIE/IEOT offsets
+                           are accepted. No extension may hide unpinned object roots.
+  HEAD literal/symref/SHA  Proof captures all three; final manifest and removal bind
+                           exact values. Archive HEAD pinned at refs/wt-archive/*.
+  Checked-out branch/SHA  Same exact binding; shared branch survives (optional branch
+                           pruning HOLDs shared logs/config; otherwise uses SHA-CAS).
+                           Symbolic chains HOLD.
+  refs/worktree/*          PROVEN-LANDED only for commit ancestors of default, else HOLD.
+  refs/bisect/*            Same (pending bisect state separately HOLD).
+  refs/rewritten/*         Same (pending rebase state separately HOLD).
+  Other local refs        HOLD; unknown storage/backend never silently omitted.
+  Per-worktree reflogs     Both old/new objects must be default ancestors or reachable
+                           from HEAD (PRESERVED by HEAD pin), else HOLD. Raw log/ref
+                           bytes PRESERVED in git-state.tgz for archive routes.
+  Stash entries            HOLD any shared stash ref/log: origin cannot be attributed.
+  Pending operations       HOLD rebase/merge/cherry-pick/revert/sequencer/bisect/
+                           autostash, including pseudorefs and lock files.
+  config.worktree          Regular file, Git-parsed without includes; only allowlisted
+                           agent.session-id keys accepted. Raw bytes archived; else HOLD.
+  codex-thread.json        Regular JSON object: exactly version=1 and UUID ownerThreadId;
+                           raw bytes archived. App ownership is suggestion-only: only
+                           explicit archive --path may remove the tree, even if landed.
+  Sparse-checkout          HOLD info/sparse-checkout or sparse configuration/index flags.
+  Submodules/gitlinks      HOLD initialized/populated; empty gitlinks must be unchanged.
+  Nested repositories      HOLD even inside ignored caches (child refs/objects unknown).
+  Notes                    HOLD refs/notes: no per-worktree attribution/restore contract.
+  LFS objects/pointers     HOLD storage/config/.lfsconfig/pointers; Git pins no LFS payload.
+  Other pseudorefs/admin   ORIG_HEAD must be a default ancestor; raw bytes archived.
+                           HOLD FETCH_HEAD/AUTO_MERGE/etc and unknown admin paths.
+  Rerere state             Empty MERGE_RR has no object roots; raw bytes archived.
+                           Nonempty MERGE_RR HOLD (resolution roots not inventoried).
+  Commit message draft     COMMIT_EDITMSG must equal HEAD's raw commit message;
+                           then PROVEN in HEAD's graph/raw bytes archived, else HOLD.
+  Object storage/proof     HOLD alternates/shallow/grafts/replace refs or filters: borrowed
+                           storage/rewritten ancestry/transformed blobs not proven.
+                           HOLD Git storage overrides, promisor stores, symlinked
+                           object storage or a common directory inside this checkout.
+  Missing checkout         HOLD registration; never blanket-prune another admin directory.
+  Structural admin files  commondir/gitdir are linkage, regenerated by worktree repair;
+                           locked uses existing veto; dead-pid lock bytes are saved
+                           under ARCHIVE_ROOT/<repo>/locks before authorized unlock.
+                           HEAD/index/logs/known local
+                           refs are the only accepted content-bearing admin paths.
+  Unsupported/unreadable   HOLD special files, symlinked admin state, unknown Git evidence.
+
+Shared ordinary refs/tags/remotes and their reflogs/config/objects remain in the
+common Git directory; removal never deletes them. Unreachable objects with no
+index/ref/reflog/operation root have Git's ordinary retention, not a worktree
+restoration promise. The separate explicitly requested cache-strip mode discards
+derived caches; it is not a landed proof or archive. Writes after the final
+manifest/identity read remain the documented deletion race.
 """
 
 from __future__ import annotations
@@ -48,6 +117,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import getpass
+import hashlib
 import json
 import math
 import os
@@ -60,8 +130,9 @@ import sys
 import tarfile
 import tempfile
 import time
+import uuid
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from config import PROJECT_ROOTS
@@ -106,6 +177,10 @@ class WorktreeRow:
     lock_stale: bool = False
     idle_days: float = 0.0  # audited work clock; unknown counts as fresh
     safe_idle_min: float = 60.0
+    landed: bool = False  # complete dirty work proven present on the default branch
+    hold_reason: str | None = None  # evidence outside the parent landing/archive proof
+    blocking_paths: tuple[str, ...] = ()  # exact same-path landing evidence missing
+    codex_owner_thread: str | None = None  # app liveness signal; removal is manual
 
     @property
     def dirty(self) -> int:
@@ -135,7 +210,7 @@ class WorktreeRow:
         watchers and remat lanes poll on a timer and write nothing between polls, so a
         clean tree with an old mtime is exactly what a *working* agent looks like.
         """
-        if self.held or self.daemon_held or self.lock_live:
+        if self.held or self.daemon_held or self.lock_live or self.hold_reason:
             return False
         if self.dirty:
             return False
@@ -150,7 +225,7 @@ class WorktreeRow:
 
     @property
     def unmerged_clean(self) -> bool:
-        return self.ahead > 0 and self.dirty == 0
+        return self.ahead > 0 and self.dirty == 0 and not self.hold_reason
 
     def classify(self) -> str:
         # DUP: commits exist (ahead>0) but their patches are already on main
@@ -170,6 +245,12 @@ class WorktreeRow:
             return "DAEMON"
         if self.lock_live:
             return "LOCKED"
+        if self.hold_reason:
+            return "HOLD"
+        if self.blocking_paths:
+            return "HOLD"
+        if self.dirty and self.landed:
+            return "landed"
         if self.dup and not self.dirty:
             return "DUP"
         if self.clean_on_main:
@@ -457,6 +538,25 @@ def release_stale_lock(row: WorktreeRow) -> str | None:
         return None
     if not lock_is_stale(lock):
         return f"locked ({lock or 'no reason given'})"
+    # A lock reason can include unique human text. Preserve its bytes before an
+    # otherwise-authorized stale unlock, including ordinary nonarchive removal.
+    try:
+        marker = _linked_admin(row.path) / "locked"
+        with os.fdopen(os.open(marker, os.O_RDONLY | os.O_NOFOLLOW), "rb") as source:
+            payload = source.read()
+        dest = _fresh_dir(ARCHIVE_ROOT / row.repo / "locks" / _archive_name(row))
+        saved = dest / "locked"
+        saved.write_bytes(payload)
+        with os.fdopen(os.open(marker, os.O_RDONLY | os.O_NOFOLLOW), "rb") as source:
+            unchanged = source.read() == payload
+        if (
+            saved.read_bytes() != payload
+            or not unchanged
+            or current_lock(row.repo_root, row.path) != lock
+        ):
+            return "stale lock changed while preserving its bytes"
+    except (RuntimeError, OSError) as error:
+        return f"stale lock could not be preserved: {error}"
     out = run(["git", "worktree", "unlock", str(row.path)], cwd=row.repo_root)
     if out.returncode != 0:
         return f"stale lock could not be released: {out.stderr.strip()[:160]}"
@@ -464,8 +564,13 @@ def release_stale_lock(row: WorktreeRow) -> str | None:
     return None
 
 
-def removal_hold(row: WorktreeRow) -> str | None:
+def removal_hold(row: WorktreeRow, *, operator_archive: bool = False) -> str | None:
     """Refresh cwd and lock vetoes immediately before a registered-tree removal."""
+    blocked = _worktree_state_hold(row.path)
+    if blocked:
+        return blocked
+    if not operator_archive and _codex_owner_thread(row.path):
+        return "codex-app-owned"
     holders = live_cwd_holders()
     if not liveness_known(holders):
         return "[DEGRADED] liveness unknown at removal"
@@ -679,7 +784,7 @@ def last_commit_rel(repo: Path, ref: str) -> str:
     return r.stdout.strip() or "?"
 
 
-def all_patches_on_main(repo: Path, branch: str) -> bool:
+def all_patches_on_main(repo: Path, branch: str, *, base: str | None = None) -> bool:
     """True if every commit on `branch` has an equivalent patch already on main.
 
     `git cherry main <branch>` prints '- <sha>' for commits whose patch is
@@ -688,7 +793,7 @@ def all_patches_on_main(repo: Path, branch: str) -> bool:
     `ahead>0`. This is the cherry-picked/rebased-then-stranded case.
     """
     try:
-        base = default_branch(repo)
+        base = default_branch(repo) if base is None else base
     except RuntimeError:
         return False
     r = run(["git", "cherry", base, branch], cwd=repo)
@@ -701,6 +806,824 @@ def all_patches_on_main(repo: Path, branch: str) -> bool:
     equivalent = {ln.split()[1] for ln in r.stdout.splitlines() if ln.startswith("- ")}
     # git cherry omits merges. An omitted commit may hold conflict-resolution work.
     return bool(ahead) and ahead <= equivalent
+
+
+DERIVED_CACHE_ALLOWLIST: tuple[str, ...] = (
+    ".claude/cache",
+    ".venv",
+    "__pycache__",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".mypy_cache",
+    "node_modules",
+    ".uv-cache",
+)
+
+
+def _under_derived_cache(rel: str) -> bool:
+    parts = Path(rel).parts
+    return any(
+        parts[i : i + len(Path(cache).parts)] == Path(cache).parts
+        for cache in DERIVED_CACHE_ALLOWLIST
+        for i in range(len(parts))
+    )
+
+
+def _hidden_work(wt: Path, *, exclude_archived_caches: bool = False) -> tuple[int, int]:
+    """Ignored bytes are work; only a verified archive may cover cache exclusions."""
+    flags = run(["git", "ls-files", "-v", "-z"], cwd=wt, check=True).stdout
+    flagged = sum(
+        bool(entry) and (entry[0].islower() or entry[0] == "S")
+        for entry in flags.split("\0")
+    )
+    ignored: set[str] = set()
+    for extra in ([], ["--directory"]):
+        paths = run(
+            [
+                "git",
+                "ls-files",
+                "--others",
+                "--ignored",
+                "--exclude-standard",
+                "-z",
+                *extra,
+            ],
+            cwd=wt,
+            check=True,
+        ).stdout.split("\0")
+        if extra:
+            # --directory may collapse an unignored container whose contents are
+            # all ignored (e.g. .claude/ containing only cache/). Confirm which
+            # directories themselves are ignored; the file enumeration is exact.
+            checked = subprocess.run(
+                ["git", "check-ignore", "--stdin", "-z"],
+                cwd=wt,
+                input="\0".join(p for p in paths if p).encode(),
+                capture_output=True,
+                check=False,
+            )
+            if checked.returncode not in (0, 1):
+                raise RuntimeError("ignored-directory evidence unknown")
+            paths = os.fsdecode(checked.stdout).split("\0")
+        ignored.update(
+            p
+            for p in paths
+            if p and not (exclude_archived_caches and _under_derived_cache(p))
+        )
+    return flagged, len(ignored)
+
+
+def _tree_entries(
+    wt: Path, ref: str, *, path: str | None = None
+) -> dict[str, tuple[str, str]]:
+    output = subprocess.run(
+        ["git", "ls-tree", "-r", "-z", ref]
+        + (["--", f":(literal){path}"] if path is not None else []),
+        cwd=wt,
+        capture_output=True,
+        check=True,
+    ).stdout
+    entries = {}
+    for entry in output.split(b"\0"):
+        if entry:
+            metadata, name = entry.split(b"\t", 1)
+            mode, _kind, blob = metadata.decode().split()
+            entries[os.fsdecode(name)] = (mode, blob)
+    return entries
+
+
+def _git_operation_hold(wt: Path) -> str | None:
+    """Pending Git operations own state/objects the ordinary archive cannot restore."""
+    try:
+        admin = _linked_admin(wt)
+        names = set(os.listdir(admin))
+        operations = {
+            "rebase-merge",
+            "rebase-apply",
+            "MERGE_HEAD",
+            "CHERRY_PICK_HEAD",
+            "REVERT_HEAD",
+            "sequencer",
+            "BISECT_LOG",
+        }
+        pending = names & operations
+        pending.update(name for name in names if "autostash" in name.lower())
+        refs = run(
+            ["git", "for-each-ref", "--format=%(refname)"], cwd=wt, check=True
+        ).stdout.splitlines()
+        pending.update(ref for ref in refs if "autostash" in ref.lower())
+        if pending:
+            return f"unfinished Git operation: {', '.join(sorted(pending))}"
+    except (OSError, subprocess.CalledProcessError) as error:
+        return f"[DEGRADED] Git operation state unknown: {error}"
+    return None
+
+
+def _submodule_hold(wt: Path) -> str | None:
+    """Parent Git cannot prove or archive bytes inside populated gitlinks."""
+    paths = {
+        rel for rel, (mode, _) in _tree_entries(wt, "HEAD").items() if mode == "160000"
+    }
+    output = run(["git", "ls-files", "--stage", "-z"], cwd=wt, check=True).stdout
+    for entry in output.split("\0"):
+        if entry:
+            metadata, rel = entry.split("\t", 1)
+            if metadata.split()[0] == "160000":
+                paths.add(rel)
+    for rel in sorted(paths):
+        child = wt / rel
+        marker = child / ".git"
+        if marker.exists() or marker.is_symlink():
+            return (
+                f"initialized submodule {rel!r}: child work is not proven or archived"
+            )
+        if child.is_dir():
+            with os.scandir(child) as entries:
+                if next(entries, None) is not None:
+                    return (
+                        f"populated uninitialized submodule {rel!r}: "
+                        "child work is not proven or archived"
+                    )
+    return None
+
+
+LOCAL_REF_PREFIXES = ("refs/worktree/", "refs/bisect/", "refs/rewritten/")
+ADMIN_FILES = (
+    "HEAD",
+    "index",
+    "ORIG_HEAD",
+    "MERGE_RR",
+    "COMMIT_EDITMSG",
+    "commondir",
+    "gitdir",
+    "locked",
+    "config.worktree",
+    "codex-thread.json",
+)
+ADMIN_DIRS = ("logs", "refs")
+ADMIN_NAMES = frozenset((*ADMIN_FILES, *ADMIN_DIRS))
+WORKTREE_CONFIG_KEYS = frozenset({"agent.session-id"})
+
+
+def _worktree_config_hold(path: Path, wt: Path) -> str | None:
+    # --file disables includes by default. In particular, include.path is itself
+    # rejected rather than allowing its target to influence this inventory.
+    result = subprocess.run(
+        ["git", "config", "--file", str(path), "--null", "--list"],
+        cwd=wt,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode:
+        return "unparsable worktree administrative configuration: config.worktree"
+    for entry in result.stdout.split(b"\0"):
+        if entry:
+            key = os.fsdecode(entry.split(b"\n", 1)[0])
+            if key not in WORKTREE_CONFIG_KEYS:
+                return f"unsupported config.worktree key: {key}"
+    return None
+
+
+def _codex_owner_thread(wt: Path) -> str | None:
+    """Return validated app ownership; malformed/present metadata never means absent."""
+    path = _linked_admin(wt) / "codex-thread.json"
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return None
+    if not stat.S_ISREG(info.st_mode):
+        raise ValueError("unsupported administrative type: codex-thread.json")
+
+    def unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        result: dict[str, object] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"duplicate codex-thread.json key: {key}")
+            result[key] = value
+        return result
+
+    try:
+        with os.fdopen(
+            os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), "rb"
+        ) as source:
+            if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
+                raise ValueError("codex-thread.json is no longer a regular file")
+            data = json.load(source, object_pairs_hook=unique_object)
+        if not isinstance(data, dict) or set(data) != {"version", "ownerThreadId"}:
+            raise ValueError("expected exactly version and ownerThreadId")
+        if type(data["version"]) is not int or data["version"] != 1:
+            raise ValueError("expected version 1")
+        owner = data["ownerThreadId"]
+        if not isinstance(owner, str):
+            raise TypeError("ownerThreadId must be a UUID string")
+        uuid.UUID(owner)
+        return owner
+    except (TypeError, ValueError, UnicodeError) as error:
+        raise ValueError(f"invalid codex-thread.json: {error}") from error
+
+
+def _head_identity(wt: Path) -> dict[str, object]:
+    """Bind the literal HEAD, its symbolic target, and both resolved object IDs."""
+    admin = _linked_admin(wt)
+    raw = (admin / "HEAD").read_bytes()
+    symbolic = run(["git", "symbolic-ref", "--quiet", "HEAD"], cwd=wt)
+    if symbolic.returncode not in (0, 1):
+        raise RuntimeError("HEAD symbolic-ref evidence unknown")
+    branch = symbolic.stdout.strip() if symbolic.returncode == 0 else None
+    head = run(
+        ["git", "rev-parse", "--verify", "HEAD^{commit}"], cwd=wt, check=True
+    ).stdout.strip()
+    branch_sha = None
+    if branch:
+        if raw != f"ref: {branch}\n".encode() or not branch.startswith("refs/heads/"):
+            raise RuntimeError("unsupported symbolic HEAD chain/target")
+        branch_sha = run(
+            ["git", "rev-parse", "--verify", branch], cwd=wt, check=True
+        ).stdout.strip()
+        if branch_sha != head:
+            raise RuntimeError("HEAD and checked-out branch moved during identity read")
+    elif raw != f"{head}\n".encode():
+        raise RuntimeError("unsupported noncanonical/noncommit detached HEAD")
+    if (admin / "HEAD").read_bytes() != raw:
+        raise RuntimeError("HEAD moved during identity read")
+    return {
+        "type": "git-head",
+        "literal": os.fsdecode(raw),
+        "symbolic_ref": branch,
+        "head_sha": head,
+        "branch_sha": branch_sha,
+    }
+
+
+def _default_identity(repo: Path) -> dict[str, object]:
+    ref = default_branch(repo)
+    sha = run(
+        ["git", "rev-parse", "--verify", f"{ref}^{{commit}}"], cwd=repo, check=True
+    ).stdout.strip()
+    return {"type": "git-default", "ref": ref, "sha": sha}
+
+
+def _walk_error(error: OSError) -> None:
+    raise error
+
+
+def _local_refs(wt: Path) -> dict[str, str]:
+    refs = run(
+        [
+            "git",
+            "for-each-ref",
+            "--format=%(refname) %(objectname)",
+            *LOCAL_REF_PREFIXES,
+        ],
+        cwd=wt,
+        check=True,
+    ).stdout
+    return dict(line.split(" ", 1) for line in refs.splitlines())
+
+
+def _index_state_hold(
+    wt: Path, admin: Path, oid_bytes: int, *, raw: bytes | None = None
+) -> str | None:
+    """Closed index envelope; native ls-files omits resolve-undo/extension roots.
+
+    Git's index-format specification defines v2/v3 entry alignment and extension
+    envelopes. Unknown/v4 layouts HOLD, not guessed offsets. TREE roots must also
+    survive the archive's exact native write-tree verification.
+    """
+    raw = (admin / "index").read_bytes() if raw is None else raw
+    limit = len(raw) - oid_bytes
+    if raw[:4] != b"DIRC" or limit < 12:
+        return "unreadable index format"
+    version, count = int.from_bytes(raw[4:8], "big"), int.from_bytes(raw[8:12], "big")
+    if version not in (2, 3):
+        return f"unsupported index version: {version}"
+    digest = hashlib.new("sha1" if oid_bytes == 20 else "sha256", raw[:limit]).digest()
+    if digest != raw[limit:]:
+        return "index checksum differs"
+    offset = 12
+    entries = {}
+    for _ in range(count):
+        start = offset
+        flags_at = start + 40 + oid_bytes
+        if flags_at + 2 > limit:
+            return "truncated index entry"
+        flags = int.from_bytes(raw[flags_at : flags_at + 2], "big")
+        if flags & 0x3000:
+            return "unmerged index has unpreserved stage roots"
+        offset = flags_at + 2
+        if flags & 0x4000:
+            if version != 3:
+                return "unsupported extended index flags"
+            offset += 2
+        end = raw.find(b"\0", offset, limit)
+        if end < 0:
+            return "unterminated index path"
+        mode = int.from_bytes(raw[start + 24 : start + 28], "big")
+        entries[os.fsdecode(raw[offset:end])] = (
+            f"{mode:o}",
+            raw[start + 40 : flags_at].hex(),
+        )
+        offset = start + ((end + 1 - start + 7) // 8) * 8
+    while offset < limit:
+        if offset + 8 > limit:
+            return "truncated index extension"
+        signature = raw[offset : offset + 4]
+        size = int.from_bytes(raw[offset + 4 : offset + 8], "big")
+        payload = raw[offset + 8 : offset + 8 + size]
+        offset += 8 + size
+        if offset > limit:
+            return "truncated index extension payload"
+        if signature not in (b"TREE", b"EOIE", b"IEOT"):
+            return f"unpreserved index extension: {signature!r}"
+        if signature == b"TREE":
+            cursor = 0
+
+            def check_tree(parent: str, tree_payload: bytes = payload) -> None:
+                nonlocal cursor
+                end_name = tree_payload.index(b"\0", cursor)
+                name = os.fsdecode(tree_payload[cursor:end_name])
+                prefix = f"{parent}{name}/" if name else parent
+                end_header = tree_payload.index(b"\n", end_name + 1)
+                count, children = map(
+                    int, tree_payload[end_name + 1 : end_header].split(b" ")
+                )
+                if count < -1 or children < 0:
+                    raise ValueError("invalid TREE cache counts")
+                cursor = end_header + 1
+                if count >= 0:
+                    oid = tree_payload[cursor : cursor + oid_bytes].hex()
+                    cursor += oid_bytes
+                    kind = run(
+                        ["git", "cat-file", "-t", oid], cwd=wt, check=True
+                    ).stdout.strip()
+                    expected = {
+                        rel.removeprefix(prefix): value
+                        for rel, value in entries.items()
+                        if rel.startswith(prefix)
+                    }
+                    if (
+                        kind != "tree"
+                        or count != len(expected)
+                        or _tree_entries(wt, oid) != expected
+                    ):
+                        raise ValueError("TREE cache does not match index entries")
+                for _ in range(children):
+                    check_tree(prefix)
+
+            check_tree("")
+            if cursor != len(payload):
+                return "TREE cache has unparsed bytes"
+    if offset != limit:
+        return "index entry/extension boundary unknown"
+    return None
+
+
+def _worktree_state_hold(wt: Path) -> str | None:
+    """Closed inventory: every unhandled admin/storage state holds all removal routes."""
+    try:
+        overrides = {
+            "GIT_DIR",
+            "GIT_WORK_TREE",
+            "GIT_INDEX_FILE",
+            "GIT_COMMON_DIR",
+            "GIT_OBJECT_DIRECTORY",
+            "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+            "GIT_NAMESPACE",
+            "GIT_SHALLOW_FILE",
+            "GIT_REPLACE_REF_BASE",
+        } & os.environ.keys()
+        if overrides:
+            return f"unsupported Git storage override: {', '.join(sorted(overrides))}"
+        blocked = _git_operation_hold(wt) or _submodule_hold(wt)
+        if blocked:
+            return blocked
+        admin = _linked_admin(wt)
+        common = Path(
+            run(
+                ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+                cwd=wt,
+                check=True,
+            ).stdout.strip()
+        )
+        if common.resolve().is_relative_to(wt.resolve()):
+            return "common Git storage lies inside the removed worktree"
+        for name, target in (("gitdir", wt / ".git"), ("commondir", common)):
+            data = (admin / name).read_bytes()
+            if len(data.splitlines()) != 1 or not data.endswith(b"\n"):
+                return f"uncovered structural administrative bytes: {name}"
+            link = Path(os.fsdecode(data[:-1]))
+            if not link.is_absolute():
+                link = admin / link
+            if link.resolve() != target.resolve():
+                return f"unexpected administrative linkage: {name}"
+        head = str(_head_identity(wt)["head_sha"])
+        base = run(
+            ["git", "rev-parse", "--verify", f"{default_branch(wt)}^{{commit}}"],
+            cwd=wt,
+            check=True,
+        ).stdout.strip()
+        allowed = ADMIN_NAMES
+        for path in admin.iterdir():
+            if path.is_symlink() or path.name not in allowed:
+                return f"uncovered worktree administrative state: {path.name}"
+            if path.name not in ADMIN_DIRS and not path.is_file():
+                return f"unsupported worktree administrative type: {path.name}"
+            if path.name == "config.worktree":
+                blocked = _worktree_config_hold(path, wt)
+                if blocked:
+                    return blocked
+            if path.name == "codex-thread.json":
+                _codex_owner_thread(wt)
+            if path.name == "MERGE_RR" and path.stat().st_size:
+                return "uncovered rerere resolution state: MERGE_RR"
+            if path.name == "COMMIT_EDITMSG":
+                commit = subprocess.run(
+                    ["git", "cat-file", "commit", head],
+                    cwd=wt,
+                    capture_output=True,
+                    check=True,
+                ).stdout
+                if path.read_bytes() != commit.split(b"\n\n", 1)[1]:
+                    return "unpreserved commit-message draft: COMMIT_EDITMSG"
+            if path.name == "ORIG_HEAD":
+                oid = path.read_text().strip()
+                if (
+                    not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", oid)
+                    or run(
+                        ["git", "merge-base", "--is-ancestor", oid, base], cwd=wt
+                    ).returncode
+                    != 0
+                ):
+                    return "unlanded or unreadable worktree-local ref: ORIG_HEAD"
+        # Cheap closed admin rejection precedes potentially many cached-tree
+        # queries; unknown metadata needs no expensive index proof.
+        blocked = _index_state_hold(wt, admin, len(head) // 2)
+        if blocked:
+            return blocked
+        reachable: dict[str, bool] = {head: True, base: True}
+        for root_name in ("refs", "logs"):
+            root = admin / root_name
+            if not root.exists():
+                continue
+            if not root.is_dir():
+                return f"unsupported worktree administrative type: {root_name}"
+            for directory, dirs, files in os.walk(
+                root, followlinks=False, onerror=_walk_error
+            ):
+                for name in dirs + files:
+                    path = Path(directory) / name
+                    rel = path.relative_to(admin).as_posix()
+                    ref = rel.removeprefix("logs/")
+                    containers = {
+                        "refs",
+                        "refs/worktree",
+                        "refs/bisect",
+                        "refs/rewritten",
+                    }
+                    if path.is_symlink() or (
+                        ref != "HEAD"
+                        and ref not in containers
+                        and not ref.startswith(LOCAL_REF_PREFIXES)
+                    ):
+                        return f"uncovered worktree administrative state: {rel}"
+                    if path.is_dir():
+                        continue
+                    if not path.is_file():
+                        return f"unsupported worktree administrative type: {rel}"
+                    if root_name == "logs":
+                        for line in path.read_bytes().splitlines():
+                            fields = line.split(b" ", 2)
+                            if len(fields) != 3:
+                                return f"unreadable worktree reflog: {rel}"
+                            for oid in fields[:2]:
+                                sha = oid.decode("ascii")
+                                if len(sha) != len(head) or not re.fullmatch(
+                                    r"[0-9a-f]+", sha
+                                ):
+                                    return f"invalid worktree reflog object: {rel}"
+                                if set(sha) == {"0"}:
+                                    continue
+                                # HEAD's reachable history is preserved by its pin;
+                                # abandoned commits/blobs have no durable root.
+                                if sha not in reachable:
+                                    kind = run(
+                                        ["git", "cat-file", "-t", sha],
+                                        cwd=wt,
+                                        check=True,
+                                    ).stdout.strip()
+                                    reachable[sha] = kind == "commit" and any(
+                                        run(
+                                            [
+                                                "git",
+                                                "merge-base",
+                                                "--is-ancestor",
+                                                sha,
+                                                tip,
+                                            ],
+                                            cwd=wt,
+                                        ).returncode
+                                        == 0
+                                        for tip in (base, head)
+                                    )
+                                if not reachable[sha]:
+                                    return f"unpreserved worktree reflog object: {rel} {sha}"
+        local = _local_refs(wt)
+        for ref, oid in local.items():
+            kind = run(
+                ["git", "cat-file", "-t", oid], cwd=wt, check=True
+            ).stdout.strip()
+            if (
+                kind != "commit"
+                or run(
+                    ["git", "merge-base", "--is-ancestor", oid, base], cwd=wt
+                ).returncode
+                != 0
+            ):
+                return f"unlanded worktree-local ref: {ref} {oid}"
+        # Catch invalid loose refs which for-each-ref may warn about and omit.
+        root = admin / "refs"
+        if root.exists():
+            for path in root.rglob("*"):
+                if path.is_file() and path.relative_to(admin).as_posix() not in local:
+                    return f"unreadable worktree-local ref: {path.relative_to(admin)}"
+        shared_refs = run(
+            [
+                "git",
+                "for-each-ref",
+                "--format=%(refname)",
+                "refs/stash",
+                "refs/notes",
+                "refs/replace",
+            ],
+            cwd=wt,
+            check=True,
+        ).stdout.splitlines()
+        if shared_refs or (common / "logs/refs/stash").exists():
+            return f"unattributed stash/notes or proof-altering refs: {', '.join(shared_refs) or 'stash reflog'}"
+        for rel in ("objects/info/alternates", "info/grafts", "shallow", "lfs"):
+            if (common / rel).exists() or (common / rel).is_symlink():
+                return f"unsupported shared object storage/proof: {rel}"
+        for directory, dirs, files in os.walk(
+            common / "objects", followlinks=False, onerror=_walk_error
+        ):
+            if Path(directory).is_symlink() or any(
+                (Path(directory) / name).is_symlink() for name in dirs + files
+            ):
+                return "symlinked Git object storage is not durably inventoried"
+            if any(name.endswith(".promisor") for name in files):
+                return "promisor object storage is not fully local"
+        config = run(
+            [
+                "git",
+                "config",
+                "--get-regexp",
+                r"^(lfs\.|filter\.|core\.sparsecheckout|extensions\.(refstorage|partialclone)|remote\..*\.promisor)",
+            ],
+            cwd=wt,
+        )
+        if config.returncode not in (0, 1):
+            return "[DEGRADED] storage/config evidence unknown"
+        # Merely installing the global LFS driver does not create LFS content.
+        # Storage settings/custom filters hold; pointers below hold independently
+        # in HEAD, index and working files (including overwritten staged pointers).
+        unsupported_config = [
+            line
+            for line in config.stdout.splitlines()
+            if not line.startswith("filter.lfs.")
+        ]
+        if unsupported_config or (wt / ".lfsconfig").exists():
+            return "unsupported LFS/filter/sparse/ref-storage configuration"
+        for args in (("--cached",), (head,)):
+            pointers = run(
+                [
+                    "git",
+                    "grep",
+                    "--quiet",
+                    "--fixed-strings",
+                    "-e",
+                    "version https://git-lfs.github.com/spec/v1",
+                    *args,
+                ],
+                cwd=wt,
+            )
+            if pointers.returncode == 0:
+                return "LFS pointer in HEAD/index has unpreserved payload"
+            if pointers.returncode != 1:
+                return "[DEGRADED] LFS pointer evidence unknown"
+        if run(
+            ["git", "rev-parse", "--shared-index-path"], cwd=wt, check=True
+        ).stdout.strip():
+            return "split index depends on unarchived sharedindex"
+        for directory, dirs, files in os.walk(
+            wt, followlinks=False, onerror=_walk_error
+        ):
+            if directory != str(wt) and ".git" in dirs + files:
+                return f"nested repository: {Path(directory).relative_to(wt)}"
+            for name in files:
+                path = Path(directory) / name
+                if not stat.S_ISREG(path.lstat().st_mode) and not path.is_symlink():
+                    return f"unsupported working-file type: {path.relative_to(wt)}"
+                if path.is_file() and not path.is_symlink():
+                    with path.open("rb") as source:
+                        if source.read(43).startswith(
+                            b"version https://git-lfs.github.com/spec/v1"
+                        ):
+                            return f"LFS pointer with unpreserved payload: {path.relative_to(wt)}"
+    except (
+        RuntimeError,
+        OSError,
+        ValueError,
+        UnicodeError,
+        subprocess.CalledProcessError,
+    ) as error:
+        return f"[DEGRADED] worktree inventory unknown: {error}"
+    return None
+
+
+def _working_entry(wt: Path, rel: str, object_format: str) -> tuple[str, str] | None:
+    path = wt / rel
+    try:
+        info = path.lstat()
+    except (FileNotFoundError, NotADirectoryError):
+        return None
+    if stat.S_ISDIR(info.st_mode):
+        # A former tracked file is absent; index/untracked loops prove descendants.
+        return None
+    if stat.S_ISLNK(info.st_mode):
+        mode, data = "120000", os.fsencode(os.readlink(path))
+    elif stat.S_ISREG(info.st_mode):
+        mode = "100755" if info.st_mode & stat.S_IXUSR else "100644"
+        data = path.read_bytes()
+    else:
+        raise ValueError(f"unsupported working-file type: {path}")
+    # Raw Git blob identity, without filters or one Git subprocess per file.
+    blob = hashlib.new(object_format, f"blob {len(data)}\0".encode() + data).hexdigest()
+    return mode, blob
+
+
+def _historical_path_entries(
+    repo: Path, start: str, default: str, rel: str
+) -> set[tuple[str, str] | None]:
+    """Exact entries at one literal path in the pinned default branch's history.
+
+    Full history includes side branches and merges; never follow renames to a
+    different path. None is a deletion, also valid when replaced by a directory.
+    """
+    commits = run(
+        [
+            "git",
+            "log",
+            "--full-history",
+            "--format=%H",
+            f"{start}..{default}",
+            "--",
+            f":(literal){rel}",
+        ],
+        cwd=repo,
+        check=True,
+    ).stdout.splitlines()
+    return {_tree_entries(repo, commit, path=rel).get(rel) for commit in commits}
+
+
+def dirty_work_on_default(
+    repo: Path,
+    wt: Path,
+    *,
+    expected_head: dict[str, object] | None = None,
+    blocking_paths: list[str] | None = None,
+) -> bool:
+    """Prove exact index AND working content for every locally changed path.
+
+    Accept the exact default tip entry, or the exact entry at the same path in
+    default history since the lane's merge-base. An unchanged HEAD entry is
+    already durable when HEAD is an ancestor; newly staged/index-only entries
+    must independently pass the same proof as working content.
+    Pin the default tree by SHA for one consistent proof. Disable optional index
+    refreshes: even a read-only diff must not reset the real worktree's idle clock.
+    Unknown evidence holds the tree, including missing or unreadable files.
+    """
+    try:
+        identity = _head_identity(wt)
+        default_identity = _default_identity(repo)
+        if expected_head is not None and identity != expected_head:
+            return False
+        if _worktree_state_hold(wt) or any(
+            _hidden_work(wt, exclude_archived_caches=True)
+        ):
+            return False
+        status = run(
+            [
+                "git",
+                "--no-optional-locks",
+                "status",
+                "--porcelain=v2",
+                "-z",
+                "--ignore-submodules=none",
+                "--untracked-files=all",
+            ],
+            cwd=wt,
+            check=True,
+        ).stdout
+        # Parent patches and ls-files omit untracked/modified content inside a
+        # submodule. Such work has neither a landing proof nor a restorable archive.
+        records = iter(status.split("\0"))
+        for entry in records:
+            if entry.startswith(("1 ", "2 ", "u ")):
+                # v2 -z type-2 records have TWO NUL-delimited paths. The source
+                # name is arbitrary data, even when it looks like a status record.
+                fields = entry.split(" ", {"1": 8, "2": 9, "u": 10}[entry[0]])
+                if len(fields) != {"1": 9, "2": 10, "u": 11}[entry[0]]:
+                    raise ValueError("malformed porcelain-v2 status record")
+                if entry.startswith("2 ") and not next(records, None):
+                    raise ValueError("rename status is missing its original path")
+                sub = fields[2]
+                if sub.startswith("S") and sub[1:] != "...":
+                    return False
+        base = str(default_identity["sha"])
+        head = str(identity["head_sha"])
+        if len(head) not in (40, 64):
+            raise ValueError("unknown Git object format")
+        object_format = "sha1" if len(head) == 40 else "sha256"
+        commits = run(
+            ["git", "rev-list", f"{base}..{head}"], cwd=repo, check=True
+        ).stdout
+        if commits and not all_patches_on_main(repo, head, base=base):
+            return False
+        baseline = _tree_entries(wt, head)
+        landed = _tree_entries(repo, base)
+        history: dict[str, set[tuple[str, str] | None]] = {}
+        start = None
+
+        def proven(rel: str, entry: tuple[str, str] | None) -> bool:
+            nonlocal start
+            if entry == landed.get(rel):
+                return True
+            # No new work in this entry; its exact HEAD tree is already reachable.
+            if not commits and entry == baseline.get(rel):
+                return True
+            if rel not in history:
+                if start is None:
+                    bases = run(
+                        ["git", "merge-base", "--all", head, base],
+                        cwd=repo,
+                        check=True,
+                    ).stdout.splitlines()
+                    if len(bases) != 1:
+                        raise ValueError("ambiguous lane/default merge-base")
+                    start = bases[0]
+                history[rel] = _historical_path_entries(repo, start, base, rel)
+            return entry in history[rel]
+
+        blocked: set[str] = set()
+        output = subprocess.run(
+            ["git", "ls-files", "--stage", "-z"],
+            cwd=wt,
+            capture_output=True,
+            check=True,
+        ).stdout
+        index = {}
+        for entry in output.split(b"\0"):
+            if not entry:
+                continue
+            metadata, name = entry.split(b"\t", 1)
+            mode, blob, stage = metadata.decode().split()
+            if stage != "0":
+                return False
+            index[os.fsdecode(name)] = (mode, blob)
+        for rel in baseline.keys() | index.keys():
+            original, staged = baseline.get(rel), index.get(rel)
+            # Dirty submodules were vetoed above. A changed gitlink has no raw
+            # working-file blob and must stay rather than borrowing a parent proof.
+            if any(e and e[0] == "160000" for e in (original, staged)):
+                if original != staged:
+                    return False
+                continue
+            working = _working_entry(wt, rel, object_format)
+            if (original != staged or original != working) and (
+                not proven(rel, staged) or not proven(rel, working)
+            ):
+                blocked.add(rel)
+        others = run(
+            ["git", "ls-files", "--others", "--exclude-standard", "-z"],
+            cwd=wt,
+            check=True,
+        ).stdout.split("\0")
+        for rel in others:
+            if not rel or _under_derived_cache(rel):
+                continue
+            working = _working_entry(wt, rel, object_format)
+            if working is None or not proven(rel, working):
+                blocked.add(rel)
+        if blocking_paths is not None:
+            blocking_paths.extend(sorted(blocked))
+        return (
+            not blocked
+            and _head_identity(wt) == identity
+            and _default_identity(repo) == default_identity
+        )
+    except (RuntimeError, OSError, ValueError, subprocess.CalledProcessError) as error:
+        print(f"[DEGRADED] landed evidence unknown for {wt}: {error}", file=sys.stderr)
+        return False
 
 
 def audit_repo(
@@ -716,13 +1639,23 @@ def audit_repo(
             # session dir was deleted out from under git). No cwd exists to run
             # anything in — subprocess with a missing cwd raises FileNotFoundError,
             # which killed the whole nightly GC 10 nights running (2026-08). The
-            # `git worktree prune` at the end of apply clears the registration.
-            print(f"  (prunable: {wt} — registered, directory gone)")
+            # Admin state may own unique objects; automatic prune is forbidden.
+            print(
+                f"  (HOLD prunable registration: {wt} — directory gone; admin state unproven)"
+            )
             continue
         # --no-optional-locks: a plain `git status` rewrites the index stat cache,
         # which would reset the idle clock (index mtime) on every nightly audit.
         st = run(
-            ["git", "--no-optional-locks", "status", "--porcelain"], cwd=wt, check=True
+            [
+                "git",
+                "--no-optional-locks",
+                "status",
+                "--porcelain",
+                "--ignore-submodules=none",
+            ],
+            cwd=wt,
+            check=True,
         )
         tracked_dirty = sum(
             1 for ln in st.stdout.splitlines() if not ln.startswith("??")
@@ -730,6 +1663,15 @@ def audit_repo(
         # Porcelain already omits ignored paths (.venv, caches), so every `??` line is a
         # real file somebody put here on purpose.
         untracked_work = sum(1 for ln in st.stdout.splitlines() if ln.startswith("??"))
+        flagged, ignored = _hidden_work(wt)
+        hold_reason = _worktree_state_hold(wt)
+        try:
+            codex_owner_thread = _codex_owner_thread(wt)
+        except (OSError, ValueError) as error:
+            codex_owner_thread = None
+            hold_reason = hold_reason or f"unreadable codex-thread.json: {error}"
+        tracked_dirty += flagged
+        untracked_work += ignored
         # `du` is the slow part; skip it on the cheap --check path (size irrelevant to the flag).
         size = (
             run(["du", "-sh", str(wt)]).stdout.split()[0]
@@ -748,6 +1690,14 @@ def audit_repo(
             ancestor = is_ancestor(repo, sha)
             ahead = ahead_of_main(repo, sha) if sha else -1
             age = last_commit_rel(repo, sha) if sha else "?"
+            if ahead > 0:
+                dup = all_patches_on_main(repo, sha)
+        blocking_paths: list[str] = []
+        landed = (
+            not hold_reason
+            and bool(tracked_dirty or untracked_work)
+            and dirty_work_on_default(repo, wt, blocking_paths=blocking_paths)
+        )
         rows.append(
             WorktreeRow(
                 repo=name,
@@ -765,6 +1715,10 @@ def audit_repo(
                 lock_stale=lock_is_stale(lock),
                 idle_days=idle_age_days(wt),
                 safe_idle_min=safe_idle_min,
+                hold_reason=hold_reason,
+                landed=landed,
+                blocking_paths=tuple(blocking_paths),
+                codex_owner_thread=codex_owner_thread,
             )
         )
     return rows
@@ -802,7 +1756,7 @@ def should_remove(
         return False
     # A live lock is Claude Code's own "an agent runs here" and outranks every force flag,
     # exactly like HELD. A stale lock (dead pid) falls through and is released at removal.
-    if row.lock_live:
+    if row.lock_live or row.hold_reason or row.codex_owner_thread:
         return False
     if force_all:
         return True
@@ -855,7 +1809,15 @@ def delete_tree(path: Path) -> bool:
     return not path.exists()
 
 
-def remove_worktree(repo: Path, wt: Path, force: bool = True) -> None:
+def remove_worktree(
+    repo: Path,
+    wt: Path,
+    force: bool = True,
+    *,
+    manifest: dict[str, dict[str, object]] | None = None,
+    expected_head: dict[str, object] | None = None,
+    operator_archive: bool = False,
+) -> None:
     """Remove a worktree, surviving read-only caches and never half-removing.
 
     ``force=False`` lets git re-check cleanliness at the moment of deletion: it refuses a
@@ -876,13 +1838,62 @@ def remove_worktree(repo: Path, wt: Path, force: bool = True) -> None:
     """
     if wt.is_symlink():
         raise RuntimeError(f"refusing to remove symlinked worktree {wt}")
-    head = run(["git", "rev-parse", "HEAD"], cwd=wt, check=True).stdout.strip()
+    blocked = _worktree_state_hold(wt)
+    if blocked:
+        raise RuntimeError(blocked)
+    if not operator_archive and _codex_owner_thread(wt):
+        raise RuntimeError("codex-app-owned")
+    if manifest is None and any(_hidden_work(wt)):
+        raise RuntimeError("unarchived ignored bytes or index flags: HOLD")
+    identity = _head_identity(wt)
+    if expected_head is not None and identity != expected_head:
+        raise RuntimeError("HEAD/branch differs from the proven removal identity")
+    if manifest is not None and identity != manifest.get(".git/resolved-HEAD"):
+        raise RuntimeError("HEAD/branch differs from the proven archive identity")
+    head = str(identity["head_sha"])
     if not is_ancestor(repo, head):
         ref = _pin_ref(repo, wt.name, time.strftime("%Y%m%d"), head)
         print(f"pinned {wt} HEAD={head} at {ref}")
     cmd = ["git", "worktree", "remove", *(["--force"] if force else []), str(wt)]
-    try:
+
+    def checked_remove() -> None:
+        blocked = _worktree_state_hold(wt)
+        if blocked:
+            raise RuntimeError(blocked)
+        if not operator_archive and _codex_owner_thread(wt):
+            raise RuntimeError("codex-app-owned")
+        if manifest is None and any(_hidden_work(wt)):
+            raise RuntimeError("unarchived ignored bytes or index flags: HOLD")
+        if (
+            manifest is None
+            and force
+            and run(
+                [
+                    "git",
+                    "--no-optional-locks",
+                    "status",
+                    "--porcelain",
+                    "--ignore-submodules=none",
+                    "--untracked-files=all",
+                ],
+                cwd=wt,
+                check=True,
+            ).stdout
+        ):
+            raise RuntimeError("unarchived working/index bytes: HOLD")
+        # Never pin a newly resolved HEAD in place of the SHA proven above.
+        if manifest is not None and _content_manifest(wt) != manifest:
+            raise RuntimeError("quarantined content manifest differs from archive")
+        if _head_identity(wt) != identity:
+            raise RuntimeError("HEAD/branch moved before removal")
+        if manifest is not None and _default_identity(wt) != manifest.get(
+            ".git/default-branch"
+        ):
+            raise RuntimeError("default branch moved before removal")
         run(cmd, cwd=repo, check=True)
+
+    try:
+        checked_remove()
     except subprocess.CalledProcessError as first:
         if "permission denied" in (first.stderr or "").lower() and wt.exists():
             print(
@@ -890,18 +1901,26 @@ def remove_worktree(repo: Path, wt: Path, force: bool = True) -> None:
             )
             # Unlink needs parent permissions, never a regular file's write bit.
             make_writable(wt)
-            try:
-                run(cmd, cwd=repo, check=True)
-            except subprocess.CalledProcessError:
-                if wt.exists() and (wt / ".git").exists():
-                    admin = _admin_dir_of(wt)
-                    if not admin or Path(admin).exists():
-                        raise
-            else:
-                if not wt.exists():
-                    return
+            admin = _admin_dir_of(wt)
+            # Git may have already unregistered this checked tree. Retry only a
+            # still-registered tree; otherwise use the half-removal recovery below.
+            if (wt / ".git").exists() and (not admin or (wt / admin).exists()):
+                try:
+                    checked_remove()
+                except subprocess.CalledProcessError:
+                    if wt.exists() and (wt / ".git").exists():
+                        admin = _admin_dir_of(wt)
+                        if not admin or (wt / admin).exists():
+                            raise
+                else:
+                    if not wt.exists():
+                        return
         # Half-removed is not a state to leave behind. If git already unregistered
         # it, the directory is now inert and only wastes disk; delete it and prune.
+        if manifest is not None:
+            # A failed guarded deletion may have partially removed the tree.
+            # Preserve the remainder; never widen the race with a blind rmtree.
+            raise
         if wt.exists() and not (wt / ".git").exists():
             shutil.rmtree(wt, ignore_errors=True)
         elif wt.exists():
@@ -915,10 +1934,8 @@ def remove_worktree(repo: Path, wt: Path, force: bool = True) -> None:
                 shutil.rmtree(wt, ignore_errors=True)
             else:
                 raise
-        run(["git", "worktree", "prune"], cwd=repo)
     if wt.exists():
         raise RuntimeError(f"{wt} still on disk after removal")
-    run(["git", "worktree", "prune"], cwd=repo)
 
 
 # ---------------------------------------------------------------------------
@@ -932,6 +1949,8 @@ def remove_worktree(repo: Path, wt: Path, force: bool = True) -> None:
 # only explicit archive --path may remove unlanded work; age is a suggestion.
 # ---------------------------------------------------------------------------
 ARCHIVE_ROOT = Path.home() / ".local" / "share" / "worktree-archives"
+QUARANTINE_SETTLE_SECONDS = 1.0
+MAX_ARCHIVED_CACHE_BYTES = 20 * 1024 * 1024
 CACHE_DIRS: tuple[str, ...] = (".venv", ".uv-cache", "node_modules")
 # Rederivable, git-ignored caches a lane builds inside its own tree: `uv run` from the tree
 # root syncs a ~735 MB .venv, and the genomics pre-commit materializes the staged index
@@ -966,7 +1985,15 @@ def activity_stamps(wt: Path) -> list[float]:
     # -uall: a collapsed `dir/` entry carries the directory's mtime, which editing a file
     # inside it never bumps; list every untracked file so each edit counts as activity.
     st = run(
-        ["git", "--no-optional-locks", "status", "--porcelain", "-z", "-uall"],
+        [
+            "git",
+            "--no-optional-locks",
+            "status",
+            "--porcelain",
+            "-z",
+            "-uall",
+            "--ignore-submodules=none",
+        ],
         cwd=wt,
     )
     stamps: list[float] = []
@@ -997,15 +2024,30 @@ def _under_cache(rel: str) -> bool:
     return any(part in CACHE_DIRS for part in Path(rel).parts)
 
 
-def _write_patch(wt: Path, dest: Path) -> None:
+def _tracked_patch(wt: Path, *, cached: bool = False) -> bytes:
     # --no-ext-diff: the operator's diff.external=difft writes non-patches otherwise.
-    out = subprocess.run(
-        ["git", "diff", "--no-ext-diff", "--binary", "HEAD"],
+    return subprocess.run(
+        [
+            "git",
+            "--no-optional-locks",
+            "-c",
+            "diff.autoRefreshIndex=false",
+            "diff",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--binary",
+            "--ignore-submodules=none",
+            *(["--cached"] if cached else []),
+            "HEAD",
+        ],
         cwd=wt,
         capture_output=True,
         check=True,
-    )
-    dest.write_bytes(out.stdout)
+    ).stdout
+
+
+def _write_patch(wt: Path, dest: Path) -> None:
+    dest.write_bytes(_tracked_patch(wt))
 
 
 def _archive_name(row: WorktreeRow) -> str:
@@ -1039,12 +2081,46 @@ def _pin_ref(repo: Path, name: str, day: str, head: str) -> str:
     ref, n = base, 1
     while True:
         cur = run(["git", "rev-parse", "--verify", "-q", ref], cwd=repo).stdout.strip()
-        if not cur or cur == head:
-            break
+        if cur == head:
+            return ref
+        if not cur:
+            created = run(["git", "update-ref", ref, head, "0" * len(head)], cwd=repo)
+            if created.returncode == 0:
+                return ref
+            if not run(
+                ["git", "rev-parse", "--verify", "-q", ref], cwd=repo
+            ).stdout.strip():
+                raise subprocess.CalledProcessError(
+                    created.returncode, created.args, created.stdout, created.stderr
+                )
         n += 1
         ref = f"{base}-{n}"
-    run(["git", "update-ref", ref, head], cwd=repo, check=True)
-    return ref
+
+
+def _prune_branch(repo: Path, branch: str, proven_sha: str) -> None:
+    """Never delete moved refs or common branch metadata outside this archive."""
+    ref = f"refs/heads/{branch}"
+    log = Path(
+        run(
+            ["git", "rev-parse", "--path-format=absolute", "--git-path", f"logs/{ref}"],
+            cwd=repo,
+            check=True,
+        ).stdout.strip()
+    )
+    config = run(
+        ["git", "config", "--get-regexp", rf"^branch\.{re.escape(branch)}\."], cwd=repo
+    )
+    if log.exists() or log.is_symlink() or config.returncode != 1:
+        print(f"HOLD branch {branch}: shared reflog/config not archived")
+        return
+    # Pin before dropping even an ancestor ref: default may change later. Native
+    # compare-and-delete refuses a concurrent branch movement atomically.
+    _pin_ref(repo, branch.replace("/", "-"), time.strftime("%Y%m%d"), proven_sha)
+    result = run(["git", "update-ref", "-d", ref, proven_sha], cwd=repo)
+    if result.returncode:
+        print(f"HOLD branch {branch}: ref moved or deletion failed")
+    else:
+        print(f"pruned branch {branch} at proven {proven_sha}")
 
 
 @dataclass
@@ -1055,8 +2131,314 @@ class ArchiveResult:
     patch_bytes: int = 0
     untracked: int = 0
     ref: str = ""
+    index_ref: str = ""
     ignored_cache_files: int = 0
     ignored_cache_bytes: int = 0
+
+
+def _linked_admin(wt: Path) -> Path:
+    if (wt / ".git").is_symlink():
+        raise RuntimeError("symlinked worktree Git marker")
+    admin = _admin_dir_of(wt)
+    if not admin:
+        raise RuntimeError("manifest requires a linked worktree's Git directory")
+    path = Path(admin) if Path(admin).is_absolute() else wt / admin
+    if path.is_symlink():
+        raise RuntimeError("symlinked worktree Git directory")
+    return path
+
+
+def _content_manifest(wt: Path) -> dict[str, dict[str, object]]:
+    """Hash every path, including ignored caches; never follow a symlink.
+
+    Directory-relative, no-follow opens prevent a swapped symlink from redirecting
+    traversal. In-flight changes and unsupported file types hold rather than omit
+    entries. mtimes are stability evidence during a scan, never content identity.
+    Logical .git/HEAD and .git/index entries cover the external Git state.
+    """
+    manifest: dict[str, dict[str, object]] = {}
+    head_identity = _head_identity(wt)
+    default_identity = _default_identity(wt)
+    local_refs = _local_refs(wt)
+
+    def identity(info: os.stat_result) -> tuple[int, ...]:
+        return (
+            info.st_dev,
+            info.st_ino,
+            info.st_mode,
+            info.st_size,
+            info.st_mtime_ns,
+            info.st_ctime_ns,
+        )
+
+    def file_entry(fd: int, name: str, path: str, info: os.stat_result) -> None:
+        if not stat.S_ISREG(info.st_mode):
+            raise RuntimeError(f"manifest expected regular file: {path}")
+        with os.fdopen(
+            os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd),
+            "rb",
+        ) as source:
+            if identity(info) != identity(os.fstat(source.fileno())):
+                raise RuntimeError(f"manifest file changed: {path}")
+            digest = hashlib.file_digest(source, "sha256").hexdigest()
+            if identity(info) != identity(os.fstat(source.fileno())):
+                raise RuntimeError(f"manifest file changed while hashing: {path}")
+        manifest[path] = {
+            "type": "file",
+            "mode": stat.S_IMODE(info.st_mode),
+            "size": info.st_size,
+            "sha256": digest,
+        }
+        if identity(info) != identity(os.stat(name, dir_fd=fd, follow_symlinks=False)):
+            raise RuntimeError(f"manifest path changed: {path}")
+
+    def walk(fd: int, rel: str) -> None:
+        before = os.fstat(fd)
+        manifest[rel] = {
+            "type": "directory",
+            "mode": stat.S_IMODE(before.st_mode),
+            "size": 0,
+            "sha256": None,
+        }
+        with os.scandir(fd) as entries:
+            names = sorted(entry.name for entry in entries)
+        for name in names:
+            path = f"{rel}/{name}" if rel != "." else name
+            info = os.stat(name, dir_fd=fd, follow_symlinks=False)
+            if stat.S_ISDIR(info.st_mode):
+                child = os.open(
+                    name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd
+                )
+                try:
+                    if identity(info) != identity(os.fstat(child)):
+                        raise RuntimeError(f"manifest directory changed: {path}")
+                    walk(child, path)
+                finally:
+                    os.close(child)
+            elif stat.S_ISREG(info.st_mode):
+                file_entry(fd, name, path, info)
+            elif stat.S_ISLNK(info.st_mode):
+                data = os.fsencode(os.readlink(name, dir_fd=fd))
+                manifest[path] = {
+                    "type": "symlink",
+                    "mode": stat.S_IMODE(info.st_mode),
+                    "size": len(data),
+                    "sha256": hashlib.sha256(data).hexdigest(),
+                }
+            else:
+                raise RuntimeError(f"manifest unsupported file type: {path}")
+            if identity(info) != identity(
+                os.stat(name, dir_fd=fd, follow_symlinks=False)
+            ):
+                raise RuntimeError(f"manifest path changed: {path}")
+        if identity(before) != identity(os.fstat(fd)):
+            raise RuntimeError(f"manifest directory changed while scanning: {rel}")
+
+    root_fd = os.open(wt, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        walk(root_fd, ".")
+    finally:
+        os.close(root_fd)
+    # .git is only a pointer. Bind the external staged state and HEAD too;
+    # quarantine repair's administrative gitdir file is deliberately excluded.
+    admin_fd = os.open(_linked_admin(wt), os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        admin_before = os.fstat(admin_fd)
+        names = set(os.listdir(admin_fd))
+        if names - ADMIN_NAMES:
+            raise RuntimeError(
+                f"uncovered administrative state during manifest: {sorted(names - ADMIN_NAMES)}"
+            )
+        manifest[".git/admin-names"] = {"type": "git-admin", "names": sorted(names)}
+        for name in ("HEAD", "index"):
+            info = os.stat(name, dir_fd=admin_fd, follow_symlinks=False)
+            file_entry(admin_fd, name, f".git/{name}", info)
+        for name in ADMIN_FILES:
+            if name in {"HEAD", "index", "gitdir"}:
+                continue
+            try:
+                info = os.stat(name, dir_fd=admin_fd, follow_symlinks=False)
+            except FileNotFoundError:
+                continue
+            file_entry(admin_fd, name, f".git/{name}", info)
+        for name in ("logs", "refs"):
+            try:
+                child = os.open(
+                    name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=admin_fd
+                )
+            except FileNotFoundError:
+                continue
+            try:
+                walk(child, f".git/{name}")
+            finally:
+                os.close(child)
+        if identity(admin_before) != identity(os.fstat(admin_fd)):
+            raise RuntimeError("administrative directory changed during manifest")
+    finally:
+        os.close(admin_fd)
+    if (
+        _head_identity(wt) != head_identity
+        or _local_refs(wt) != local_refs
+        or _default_identity(wt) != default_identity
+    ):
+        raise RuntimeError("HEAD/branch/local refs moved during manifest capture")
+    manifest[".git/resolved-HEAD"] = head_identity
+    manifest[".git/default-branch"] = default_identity
+    manifest[".git/local-refs"] = {"type": "git-refs", "refs": local_refs}
+    return manifest
+
+
+def _verify_archive_payloads(
+    archive_path: Path, manifest: dict[str, dict[str, object]], required: set[str]
+) -> None:
+    """Bind actual tar payloads to captured state, even if source bytes revert."""
+    have = set()
+    with tarfile.open(archive_path, "r:gz") as archive:
+        for member in archive:
+            have.add(member.name.rstrip("/"))
+            expected = manifest.get(member.name.rstrip("/"))
+            if expected is None:
+                raise RuntimeError(f"archive manifest has no entry: {member.name}")
+            if member.isdir():
+                kind, size, digest = "directory", 0, None
+            elif member.issym():
+                data = os.fsencode(member.linkname)
+                kind, size, digest = (
+                    "symlink",
+                    len(data),
+                    hashlib.sha256(data).hexdigest(),
+                )
+            elif member.isfile() or member.islnk():
+                source = archive.extractfile(member)
+                if source is None:
+                    raise RuntimeError(f"archive payload unreadable: {member.name}")
+                with source:
+                    digest = hashlib.file_digest(source, "sha256").hexdigest()
+                kind = "file"
+                size = (
+                    manifest.get(member.linkname, {}).get("size")
+                    if member.islnk()
+                    else member.size
+                )
+            else:
+                raise RuntimeError(f"unsupported archive member: {member.name}")
+            if expected != {
+                "type": kind,
+                "mode": member.mode,
+                "size": size,
+                "sha256": digest,
+            }:
+                raise RuntimeError(
+                    f"archive payload differs from manifest: {member.name}"
+                )
+    if have != required:
+        raise RuntimeError(
+            f"archive manifest coverage differs: missing={sorted(required - have)!r}, "
+            f"unexpected={sorted(have - required)!r}"
+        )
+
+
+def _verify_tracked_payload(
+    wt: Path, dest: Path, head: str, manifest: dict[str, dict[str, object]]
+) -> set[str]:
+    """Rebuild HEAD plus the saved patch without touching the source index/files.
+
+    Captured index paths also cover staged additions omitted from the patch.
+    Compare restored content, types and Git's executable bit to the captured
+    manifest, rather than accepting a merely reverse-applicable patch subset.
+    """
+    with tempfile.TemporaryDirectory(prefix="wt-archive-check-") as temporary:
+        root = Path(temporary)
+        index = root / "index"
+        shutil.copyfile(dest / "git-index", index)
+        env = {**os.environ, "GIT_INDEX_FILE": str(index)}
+
+        def git(*args: str) -> bytes:
+            return subprocess.run(
+                ["git", *args], cwd=wt, env=env, capture_output=True, check=True
+            ).stdout
+
+        captured = {
+            os.fsdecode(rel) for rel in git("ls-files", "-z").split(b"\0") if rel
+        }
+        baseline = _tree_entries(wt, head)
+        git("read-tree", head)
+        patch = dest / "tracked.patch"
+        if patch.stat().st_size:
+            git("apply", "--cached", str(patch))
+        restored = {
+            os.fsdecode(rel) for rel in git("ls-files", "-z").split(b"\0") if rel
+        }
+        checkout = root / "checkout"
+        checkout.mkdir()
+        git("checkout-index", "--all", f"--prefix={checkout}/")
+        for rel in baseline.keys() | captured | restored:
+            expected = manifest.get(rel)
+            if baseline.get(rel, (None,))[0] == "160000" and (
+                expected is None or expected["type"] == "directory"
+            ):
+                continue
+            path = checkout / rel
+            if rel not in restored:
+                if expected and expected["type"] != "directory":
+                    raise RuntimeError(
+                        f"tracked payload missing from manifest restore: {rel}"
+                    )
+                continue
+            info = path.lstat()
+            if stat.S_ISLNK(info.st_mode):
+                data = os.fsencode(os.readlink(path))
+                kind, size = "symlink", len(data)
+                digest = hashlib.sha256(data).hexdigest()
+            elif stat.S_ISREG(info.st_mode):
+                kind, size = "file", info.st_size
+                with path.open("rb") as source:
+                    digest = hashlib.file_digest(source, "sha256").hexdigest()
+            else:
+                raise RuntimeError(f"tracked restore has unsupported type: {rel}")
+            if (
+                expected is None
+                or (kind, size, digest)
+                != (expected["type"], expected["size"], expected["sha256"])
+                or (
+                    kind == "file"
+                    and bool(info.st_mode & stat.S_IXUSR)
+                    != bool(expected["mode"] & stat.S_IXUSR)
+                )
+            ):
+                raise RuntimeError(f"tracked payload differs from manifest: {rel}")
+        return restored
+
+
+def _required_untracked_payloads(
+    wt: Path, manifest: dict[str, dict[str, object]], restored: set[str]
+) -> set[str]:
+    """Required payloads come from captured content and proven Git restoration.
+
+    Query ignore rules for these manifest paths, never re-enumerate files on disk:
+    a transiently missing path must still require a matching archived payload.
+    """
+    candidates = {
+        rel
+        for rel, entry in manifest.items()
+        if entry["type"] != "directory"
+        and rel != ".git"
+        and not rel.startswith(".git/")
+        and rel not in restored
+        and not _under_cache(rel)
+    }
+    if not candidates:
+        return set()
+    ignored = subprocess.run(
+        ["git", "check-ignore", "--no-index", "--stdin", "-z"],
+        cwd=wt,
+        input=b"\0".join(os.fsencode(rel) for rel in sorted(candidates)) + b"\0",
+        capture_output=True,
+        check=False,
+    )
+    if ignored.returncode not in (0, 1):
+        raise RuntimeError("untracked archive coverage ignore evidence unknown")
+    return candidates - {os.fsdecode(rel) for rel in ignored.stdout.split(b"\0") if rel}
 
 
 def _archive_ignored_cache(wt: Path, dest: Path) -> tuple[int, int]:
@@ -1080,13 +2462,19 @@ def _archive_ignored_cache(wt: Path, dest: Path) -> tuple[int, int]:
             for name in sorted(files):
                 path = Path(directory) / name
                 st = path.lstat()
-                if not stat.S_ISREG(st.st_mode) or st.st_size > 20 * 1024 * 1024:
+                if (
+                    not stat.S_ISREG(st.st_mode)
+                    or st.st_size > MAX_ARCHIVED_CACHE_BYTES
+                ):
                     continue
                 with os.fdopen(
                     os.open(path, os.O_RDONLY | os.O_NOFOLLOW), "rb"
                 ) as source:
                     st = os.fstat(source.fileno())
-                    if not stat.S_ISREG(st.st_mode) or st.st_size > 20 * 1024 * 1024:
+                    if (
+                        not stat.S_ISREG(st.st_mode)
+                        or st.st_size > MAX_ARCHIVED_CACHE_BYTES
+                    ):
                         continue
                     info = tarfile.TarInfo(path.relative_to(wt).as_posix())
                     info.size, info.mode, info.mtime = (
@@ -1111,13 +2499,163 @@ def _archive_ignored_cache(wt: Path, dest: Path) -> tuple[int, int]:
     return count, total
 
 
+def _verify_git_state_roots(
+    wt: Path, dest: Path, manifest: dict[str, dict[str, object]], head: str
+) -> None:
+    """Validate object roots from verified archived bytes, never a later live view."""
+    base = str(manifest[".git/default-branch"]["sha"])
+    known = {head: "commit", base: "commit"}
+    landed: dict[str, bool] = {base: True}
+    reachable: dict[str, bool] = {head: True, base: True}
+    refs = manifest[".git/local-refs"]["refs"]
+
+    def check_oid(oid: str, *, default_only: bool) -> None:
+        if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", oid):
+            raise RuntimeError("invalid captured Git object ID")
+        if oid not in known:
+            known[oid] = run(
+                ["git", "cat-file", "-t", oid], cwd=wt, check=True
+            ).stdout.strip()
+        if known[oid] != "commit":
+            raise RuntimeError(f"noncommit captured Git root: {oid}")
+        cache, tips = (landed, (base,)) if default_only else (reachable, (base, head))
+        if oid not in cache:
+            cache[oid] = any(
+                run(["git", "merge-base", "--is-ancestor", oid, tip], cwd=wt).returncode
+                == 0
+                for tip in tips
+            )
+        if not cache[oid]:
+            raise RuntimeError(f"unpreserved captured Git root: {oid}")
+
+    with tarfile.open(dest / "git-state.tgz", "r:gz") as archive:
+        seen_refs = set()
+        for member in archive:
+            rel = member.name.removeprefix(".git/").rstrip("/")
+            if rel.startswith(("refs/", "logs/")):
+                ref_name = rel.removeprefix("logs/")
+                containers = {"refs", "refs/worktree", "refs/bisect", "refs/rewritten"}
+                if (
+                    ref_name != "HEAD"
+                    and ref_name not in containers
+                    and not ref_name.startswith(LOCAL_REF_PREFIXES)
+                ):
+                    raise RuntimeError(f"unhandled captured local ref namespace: {rel}")
+            if not member.isfile():
+                continue
+            source = archive.extractfile(member)
+            if source is None:
+                raise RuntimeError(f"captured Git state unreadable: {rel}")
+            with source:
+                data = source.read()
+            if rel.startswith("refs/"):
+                oid = refs.get(rel)
+                if oid is None or data != f"{oid}\n".encode():
+                    raise RuntimeError(f"captured ref bytes/resolved SHA differ: {rel}")
+                check_oid(oid, default_only=True)
+                seen_refs.add(rel)
+            elif rel == "ORIG_HEAD":
+                check_oid(data.decode().strip(), default_only=True)
+            elif rel.startswith("logs/"):
+                for line in data.splitlines():
+                    fields = line.split(b" ", 2)
+                    if len(fields) != 3:
+                        raise RuntimeError(f"malformed captured reflog: {rel}")
+                    for raw_oid in fields[:2]:
+                        oid = raw_oid.decode("ascii")
+                        if len(oid) == len(head) and set(oid) == {"0"}:
+                            continue
+                        check_oid(oid, default_only=False)
+            elif rel == "MERGE_RR" and data:
+                raise RuntimeError("nonempty captured rerere state")
+            elif rel == "COMMIT_EDITMSG":
+                commit = subprocess.run(
+                    ["git", "cat-file", "commit", head],
+                    cwd=wt,
+                    capture_output=True,
+                    check=True,
+                ).stdout
+                if data != commit.split(b"\n\n", 1)[1]:
+                    raise RuntimeError("unpreserved captured commit-message draft")
+        if seen_refs != set(refs):
+            raise RuntimeError("captured local refs lack complete raw coverage")
+
+
+def _archive_manifest_paths(wt: Path, dest: Path, paths: set[str]) -> None:
+    """No exclusions: cover every selected manifest entry without following links."""
+    admin = _linked_admin(wt)
+    with tarfile.open(dest, "w:gz", dereference=False) as archive:
+        for rel in sorted(paths):
+            source = (
+                admin / rel.removeprefix(".git/")
+                if rel.startswith(".git/")
+                else wt / rel
+            )
+            archive.add(source, arcname=rel, recursive=False)
+
+
+def _archive_index_tree(wt: Path, dest: Path, head: str, expected_sha256: str) -> str:
+    """write-tree the saved index, never the live one; prove no entry was omitted."""
+    with tempfile.TemporaryDirectory(prefix="wt-index-pin-") as temporary:
+        index = Path(temporary) / "index"
+        raw = (dest / "git-index").read_bytes()
+        if hashlib.sha256(raw).hexdigest() != expected_sha256:
+            raise RuntimeError("captured index payload differs from manifest")
+        blocked = _index_state_hold(wt, _linked_admin(wt), len(head) // 2, raw=raw)
+        if blocked:
+            raise RuntimeError(f"captured index: {blocked}")
+        index.write_bytes(raw)
+        env = {**os.environ, "GIT_INDEX_FILE": str(index)}
+
+        def git(*args: str) -> str:
+            return subprocess.run(
+                ["git", *args],
+                cwd=wt,
+                env=env,
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout
+
+        entries = {}
+        for entry in git("ls-files", "--stage", "-z").split("\0"):
+            if entry:
+                metadata, rel = entry.split("\t", 1)
+                mode, oid, stage = metadata.split()
+                if stage != "0":
+                    raise RuntimeError(
+                        "unmerged index cannot be archived by write-tree"
+                    )
+                entries[rel] = (mode, oid)
+        tree = git("write-tree").strip()
+        if _tree_entries(wt, tree) != entries:
+            raise RuntimeError(
+                "write-tree omits index entries (intent-to-add or unsupported index)"
+            )
+        env.update(
+            {
+                "GIT_AUTHOR_NAME": "worktree archive",
+                "GIT_AUTHOR_EMAIL": "archive@localhost",
+                "GIT_COMMITTER_NAME": "worktree archive",
+                "GIT_COMMITTER_EMAIL": "archive@localhost",
+            }
+        )
+        commit = git(
+            "commit-tree", tree, "-p", head, "-m", "Preserved worktree index"
+        ).strip()
+        if _tree_entries(wt, commit) != entries:
+            raise RuntimeError("index commit differs from captured index entries")
+        (dest / "index-tree.txt").write_text(tree + "\n")
+        (dest / "index-commit.txt").write_text(commit + "\n")
+        return commit
+
+
 def archive_worktree(
     row: WorktreeRow, now: float | None = None, root: Path | None = None
 ) -> ArchiveResult:
     """Write a restorable archive of ``row`` and self-check it. Never removes.
 
-    Also preserve small regular .claude/cache files, excluding index-trees and symlinks.
-    Other ignored files retain the SAFE removal contract.
+    Preserve all working bytes and rooted index objects; uncovered state HOLDs.
     """
     now = time.time() if now is None else now
     root = ARCHIVE_ROOT if root is None else root
@@ -1125,7 +2663,22 @@ def archive_worktree(
     day = time.strftime("%Y-%m-%d", time.localtime(now))
     name = _archive_name(row)
     dest = _fresh_dir(root / row.repo / day / name)
-    head = run(["git", "rev-parse", "HEAD"], cwd=wt).stdout.strip()
+    blocked = _worktree_state_hold(wt)
+    if blocked:
+        return ArchiveResult(dir=dest, ok=False, reason=blocked)
+    manifest = _content_manifest(wt)
+    (dest / "content-manifest.json").write_text(
+        json.dumps(manifest, sort_keys=True, indent=2) + "\n"
+    )
+    for state_name in ("HEAD", "index"):
+        with os.fdopen(
+            os.open(_linked_admin(wt) / state_name, os.O_RDONLY | os.O_NOFOLLOW), "rb"
+        ) as source:
+            data = source.read()
+        if hashlib.sha256(data).hexdigest() != manifest[f".git/{state_name}"]["sha256"]:
+            raise RuntimeError(f"Git {state_name} changed during archive")
+        (dest / f"git-{state_name}").write_bytes(data)
+    head = str(manifest[".git/resolved-HEAD"]["head_sha"])
     (dest / "head.txt").write_text(head + "\n")
     status = run(["git", "--no-optional-locks", "status", "--porcelain"], cwd=wt).stdout
     (dest / "status.txt").write_text(status)
@@ -1153,7 +2706,17 @@ def archive_worktree(
         f"git -C {wt} apply {patch}\n"
         + (f"tar -xzf {tgz} -C {wt}\n" if files else "")
         + f"tar -xzf {ignored_tgz} -C {wt}\n"
-        + "```\n"
+        + "```\n\n"
+        + "`content-manifest.json` inventories all content, including ignored caches; "
+        + "`ignored.tgz` also preserves every excluded ignored file/directory/link. Logical `.git/HEAD` "
+        + "and `.git/index` describe external worktree state saved as `git-HEAD` and "
+        + "`git-index`. The normal restore above recreates the working files.\n"
+        + f"Restore remaining files/modes with `tar -xzf {dest / 'ignored.tgz'} -C {wt}`. "
+        + "The index commit is pinned separately (see `index-ref.txt`), so its blobs "
+        + "survive pruning. Copy `git-index` into the restored worktree's Git index "
+        + "to restore staging without overwriting working files. `git-state.tgz` "
+        + "preserves raw HEAD/index/local refs/reflog bytes; restore into that new "
+        + "worktree's admin directory, never the common .git directory.\n"
     )
     res = ArchiveResult(
         dir=dest,
@@ -1168,16 +2731,77 @@ def archive_worktree(
         if chk.returncode != 0:
             res.reason = f"patch does not reverse-apply: {chk.stderr.strip()[:160]}"
             return res
-    if files:
-        listed = run(["tar", "-tzf", str(tgz)])
-        have = {ln.rstrip("/") for ln in listed.stdout.splitlines()}
-        missing = [f for f in files if f not in have]
-        if listed.returncode != 0 or missing:
-            res.reason = f"tarball missing {len(missing)} of {len(files)} entries"
-            return res
+    if _content_manifest(wt) != manifest:
+        res.reason = "content manifest changed during archive"
+        return res
+    try:
+        index_commit = _archive_index_tree(
+            wt, dest, head, str(manifest[".git/index"]["sha256"])
+        )
+        restored = _verify_tracked_payload(wt, dest, head, manifest)
+        required = _required_untracked_payloads(wt, manifest, restored)
+        if required and not tgz.is_file():
+            raise RuntimeError(
+                f"untracked archive coverage missing: {sorted(required)!r}"
+            )
+        if required or tgz.exists():
+            _verify_archive_payloads(tgz, manifest, required)
+        cache_members = {
+            rel
+            for rel, entry in manifest.items()
+            if rel.startswith(".claude/cache/")
+            and not rel.startswith(".claude/cache/index-trees/")
+            and entry["type"] == "file"
+            and entry["size"] <= MAX_ARCHIVED_CACHE_BYTES
+        }
+        _verify_archive_payloads(ignored_tgz, manifest, cache_members)
+        # Legacy small-cache/untracked artifacts remain readable. This supplemental
+        # payload closes ALL exclusions, and retains empty directories and modes.
+        remaining = {
+            rel
+            for rel, entry in manifest.items()
+            if rel != ".git"
+            and not rel.startswith(".git/")
+            and rel not in restored
+            and rel not in required
+        }
+        _archive_manifest_paths(wt, dest / "ignored.tgz", remaining)
+        _verify_archive_payloads(dest / "ignored.tgz", manifest, remaining)
+        git_state = {
+            rel
+            for rel, entry in manifest.items()
+            if rel.startswith(".git/")
+            and entry["type"] in {"file", "directory", "symlink"}
+        }
+        _archive_manifest_paths(wt, dest / "git-state.tgz", git_state)
+        _verify_archive_payloads(dest / "git-state.tgz", manifest, git_state)
+        _verify_git_state_roots(wt, dest, manifest, head)
+    except (
+        tarfile.TarError,
+        RuntimeError,
+        OSError,
+        ValueError,
+        subprocess.CalledProcessError,
+    ) as error:
+        res.reason = f"archive manifest verification failed: {error}"
+        return res
+    blocked = _worktree_state_hold(wt)
+    if blocked:
+        res.reason = blocked
+        return res
     res.ref = _pin_ref(
         row.repo_root, name, time.strftime("%Y%m%d", time.localtime(now)), head
     )
+    res.index_ref = _pin_ref(
+        row.repo_root,
+        name + "-index",
+        time.strftime("%Y%m%d", time.localtime(now)),
+        index_commit,
+    )
+    (dest / "index-ref.txt").write_text(res.index_ref + "\n")
+    if _content_manifest(wt) != manifest:
+        res.reason = "content manifest changed while pinning archive"
+        return res
     res.ok = True
     return res
 
@@ -1227,6 +2851,13 @@ def strip_idle_caches(wt: Path, planned: list[Path] | None = None) -> dict[str, 
     Candidates are re-derived here rather than trusted from the plan, so a cache that became
     a symlink or gained tracked content since the audit stays.
     """
+    try:
+        if _codex_owner_thread(wt):
+            print(f"SKIP {wt}: codex-app-owned")
+            return {}
+    except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as error:
+        print(f"HOLD {wt}: app ownership unknown: {error}", file=sys.stderr)
+        return {}
     sizes: dict[str, str] = {}
     for p in strip_candidates(wt):
         if planned is not None and p not in planned:
@@ -1281,7 +2912,7 @@ def plan_idle_archive(
     exclude: list[WorktreeRow],
     now: float | None = None,
 ) -> list[WorktreeRow]:
-    """Stale-dirty/skip-dirty trees idle >= ``archive_days``: archived, then removed."""
+    """Suggest idle dirty trees for explicit archive; age is never removal authority."""
     if archive_days is None:
         return []
     archive: list[WorktreeRow] = []
@@ -1294,8 +2925,8 @@ def plan_idle_archive(
             continue
         if (
             row.classify() in ("stale-dirty", "skip-dirty")
-            and idle_age_days(row.path, now) >= archive_days
-        ):
+            or (row.blocking_paths and not row.hold_reason)
+        ) and idle_age_days(row.path, now) >= archive_days:
             archive.append(row)
     return archive
 
@@ -1329,7 +2960,7 @@ def plan_cache_strip(
     now = time.time() if now is None else now
     out: list[tuple[WorktreeRow, list[Path]]] = []
     for row in rows:
-        if row.held or row.daemon_held:
+        if row.held or row.daemon_held or row.codex_owner_thread:
             continue
         if any(k in str(row.path) for k in keep):
             continue
@@ -1490,7 +3121,7 @@ def plan_idle_unmerged(
     for row in rows:
         if not row.unmerged_clean or row.branch is None:
             continue
-        if row.held or row.daemon_held or row.lock_live:
+        if row.held or row.daemon_held or row.lock_live or row.codex_owner_thread:
             continue
         if any(k in str(row.path) for k in keep):
             continue
@@ -1514,28 +3145,166 @@ def plan_aged_locks(
     ]
 
 
+def plan_landed_archive(
+    rows: list[WorktreeRow],
+    idle_hours: float | None,
+    keep: set[str],
+    exclude: list[WorktreeRow],
+) -> list[WorktreeRow]:
+    if idle_hours is None:
+        return []
+    return [
+        row
+        for row in rows
+        if row.classify() == "landed"
+        and not row.codex_owner_thread
+        and row not in exclude
+        and not any(k in str(row.path) for k in keep)
+        and row.path.exists()
+        and idle_age_days(row.path) * 24 >= idle_hours
+    ]
+
+
+def remove_landed_from_quarantine(
+    row: WorktreeRow, idle_hours: float, archive_dir: Path
+) -> bool:
+    """Rename first; only evidence collected at that name may authorize deletion.
+
+    Repair Git's registration to match the rename, restoring both on any failure.
+    This excludes opens through the original name, but Git exposes the quarantine
+    and existing descriptors remain writable. After settling, compare every path,
+    size and SHA-256 against the archive immediately before removal. This detects
+    intervening changes, not exclusion: writes after their final hash or during
+    deletion remain a residual race. No finite settle interval eliminates it.
+    """
+    original = row.path
+    quarantine: Path | None = None
+    moved = False
+    try:
+        if _codex_owner_thread(original):
+            raise RuntimeError("codex-app-owned")
+        manifest = json.loads((archive_dir / "content-manifest.json").read_text())
+        if not isinstance(manifest, dict) or "." not in manifest:
+            raise ValueError("invalid archive content manifest")
+        if original.is_symlink() or not original.is_dir():
+            raise RuntimeError("worktree is no longer a real directory")
+        quarantine = Path(
+            tempfile.mkdtemp(
+                prefix=f"gc-quarantine-{original.name}-", dir=original.parent
+            )
+        )
+        original.rename(quarantine)
+        moved = True
+        run(
+            ["git", "worktree", "repair", str(quarantine)],
+            cwd=row.repo_root,
+            check=True,
+        )
+        candidate = replace(row, path=quarantine)
+        default_ref = default_branch(row.repo_root)
+        default_sha = run(
+            ["git", "rev-parse", "--verify", f"{default_ref}^{{commit}}"],
+            cwd=row.repo_root,
+            check=True,
+        ).stdout.strip()
+        expected_head = manifest.get(".git/resolved-HEAD")
+        if not isinstance(expected_head, dict) or not dirty_work_on_default(
+            row.repo_root, quarantine, expected_head=expected_head
+        ):
+            raise RuntimeError("quarantined work no longer fully landed")
+
+        def check_removal_ready() -> None:
+            if idle_age_days(quarantine) * 24 < idle_hours:
+                raise RuntimeError("quarantined work clock now fresh")
+            blocked = removal_hold(candidate)
+            if blocked:
+                raise RuntimeError(blocked)
+            # A holder may have been reported before or after the rename.
+            for holders in (live_cwd_holders(), live_mapped_holders()):
+                if not liveness_known(holders):
+                    raise RuntimeError("quarantine holder evidence unknown")
+                if holders_for(original, holders) or holders_for(quarantine, holders):
+                    raise RuntimeError("live holder at original or quarantine path")
+            if original.exists() or original.is_symlink():
+                raise RuntimeError("original path was recreated during quarantine")
+
+        check_removal_ready()
+        time.sleep(QUARANTINE_SETTLE_SECONDS)
+        settled_ref = default_branch(row.repo_root)
+        settled_sha = run(
+            ["git", "rev-parse", "--verify", f"{settled_ref}^{{commit}}"],
+            cwd=row.repo_root,
+            check=True,
+        ).stdout.strip()
+        still_landed = dirty_work_on_default(
+            row.repo_root, quarantine, expected_head=expected_head
+        )
+        if (settled_ref, settled_sha) != (default_ref, default_sha):
+            raise RuntimeError("default branch moved during quarantine settling")
+        if not still_landed:
+            raise RuntimeError("settled quarantined work no longer fully landed")
+        verified_sha = run(
+            ["git", "rev-parse", "--verify", f"{settled_ref}^{{commit}}"],
+            cwd=row.repo_root,
+            check=True,
+        ).stdout.strip()
+        if verified_sha != settled_sha or default_branch(row.repo_root) != settled_ref:
+            raise RuntimeError("default branch moved during settled landing proof")
+        check_removal_ready()
+        remove_worktree(row.repo_root, quarantine, manifest=manifest)
+        return True
+    except (subprocess.CalledProcessError, RuntimeError, OSError, ValueError) as error:
+        recovery = ""
+        if moved and quarantine is not None and quarantine.exists():
+            try:
+                if original.exists() or original.is_symlink():
+                    raise RuntimeError(
+                        f"original path occupied; preserved at {quarantine}"
+                    )
+                quarantine.rename(original)
+                run(
+                    ["git", "worktree", "repair", str(original)],
+                    cwd=row.repo_root,
+                    check=True,
+                )
+            except (subprocess.CalledProcessError, RuntimeError, OSError) as rollback:
+                recovery = f"; rollback failed: {rollback}"
+        elif not moved and quarantine is not None:
+            try:
+                quarantine.rmdir()
+            except OSError as rollback:
+                recovery = f"; empty quarantine cleanup failed: {rollback}"
+        print(
+            f"[DEGRADED] HOLD {original}: quarantine removal failed: {error}{recovery}",
+            file=sys.stderr,
+        )
+        return False
+
+
 def default_branch(repo: Path) -> str:
     """Use the remote's declared default, then the local main/master convention."""
-    remote = run(
-        ["git", "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"], cwd=repo
+    # One native enumeration replaces multiple fork/exec queries in every safety
+    # scan. No evidence is cached across scans (refs may move at any boundary).
+    result = run(
+        [
+            "git",
+            "for-each-ref",
+            "--format=%(refname) %(symref)",
+            "refs/heads",
+            "refs/remotes/origin/HEAD",
+        ],
+        cwd=repo,
+        check=True,
     )
-    if remote.returncode == 0:
-        ref = remote.stdout.strip()
+    refs = dict(line.split(" ", 1) for line in result.stdout.splitlines())
+    ref = refs.get("refs/remotes/origin/HEAD")
+    if ref:
         local = "refs/heads/" + ref.removeprefix("refs/remotes/origin/")
-        if (
-            run(["git", "show-ref", "--verify", "--quiet", local], cwd=repo).returncode
-            == 0
-        ):
+        if local in refs:
             return local  # Landed local work may be ahead of the last remote fetch.
         return ref
     for branch in ("main", "master"):
-        if (
-            run(
-                ["git", "show-ref", "--verify", "--quiet", f"refs/heads/{branch}"],
-                cwd=repo,
-            ).returncode
-            == 0
-        ):
+        if f"refs/heads/{branch}" in refs:
             return branch
     raise RuntimeError(f"cannot identify default branch in {repo}")
 
@@ -1623,6 +3392,8 @@ def suggest(
             )
         if any(k in str(row.path) for k in keep):
             reasons.append("keep match")
+        if row.hold_reason:
+            reasons.append(row.hold_reason)
         if cls == "SAFE-fresh":
             reasons.append("fresh or unknown idle clock")
         size = run(["du", "-sk", str(row.path)])
@@ -1644,6 +3415,8 @@ def suggest(
             "path": str(row.path),
             "repo": str(row.repo_root),
             "class": cls,
+            "blocking_paths": list(row.blocking_paths),
+            "codex_owner_thread": row.codex_owner_thread,
             "size_bytes": size_bytes,
             "idle_hours": row.idle_days * 24,
             "dirty_count": row.tracked_dirty + untracked_count,
@@ -1688,8 +3461,12 @@ def suggest(
                 print(
                     f"  lock age={record['lock_age_hours']}h reason={record['lock_reason']}"
                 )
+            if record["codex_owner_thread"] is not None:
+                print(f"  codex-app-owned: owner thread {record['codex_owner_thread']}")
             if record["not_candidate_reasons"]:
                 print(f"  held: {'; '.join(record['not_candidate_reasons'])}")
+            if record["blocking_paths"]:
+                print(f"  unproven paths: {json.dumps(record['blocking_paths'])}")
             print(f"  {record['archive_command']}")
     return 0 if liveness else 2
 
@@ -1724,13 +3501,14 @@ def explicit_archive(path: Path) -> int:
         print(
             f"ARCHIVED {path} -> {res.dir} (patch={res.patch_bytes}B untracked={res.untracked} ignored-cache={res.ignored_cache_files} ignored-cache-bytes={res.ignored_cache_bytes}B) pinned={res.ref}"
         )
-        blocked = removal_hold(row)
+        blocked = removal_hold(row, operator_archive=True)
         if blocked:
             print(
                 f"HOLD {path}: {blocked}; archive complete, tree kept. Unlocking a pid-less lock requires a separate explicit decision."
             )
             return 2
-        remove_worktree(root, path)
+        manifest = json.loads((res.dir / "content-manifest.json").read_text())
+        remove_worktree(root, path, manifest=manifest, operator_archive=True)
         print(f"removed {path}")
         return 0
     except (RuntimeError, OSError, subprocess.CalledProcessError) as error:
@@ -1811,6 +3589,13 @@ def main() -> int:
         help="audit only: suggest archiving dirty trees idle >= N days; apply never age-archives unlanded work; use archive --path explicitly",
     )
     ap.add_argument(
+        "--archive-landed-idle-hours",
+        type=float,
+        default=None,
+        metavar="N",
+        help="archive and remove only dirty trees whose entire work is already on the default branch, idle >= N hours",
+    )
+    ap.add_argument(
         "--lock-max-age-hours",
         type=float,
         default=None,
@@ -1864,6 +3649,11 @@ def main() -> int:
         not math.isfinite(args.lock_max_age_hours) or args.lock_max_age_hours <= 0
     ):
         ap.error("--lock-max-age-hours must be a positive finite number")
+    if args.archive_landed_idle_hours is not None and (
+        not math.isfinite(args.archive_landed_idle_hours)
+        or args.archive_landed_idle_hours <= 0
+    ):
+        ap.error("--archive-landed-idle-hours must be a positive finite number")
     pruning = args.mode == "prune"
     if (
         pruning
@@ -1981,6 +3771,16 @@ def main() -> int:
             all_rows, args.archive_stale_days, keep, exclude=to_remove + idle_rows
         )
     )
+    landed_rows = (
+        []
+        if pruning
+        else plan_landed_archive(
+            all_rows,
+            args.archive_landed_idle_hours,
+            keep,
+            exclude=to_remove + idle_rows,
+        )
+    )
     # A tree that goes takes its caches with it, so only surviving trees are stripped.
     strip_plan: list[tuple[WorktreeRow, list[Path]]] = []
     mapping_known = True
@@ -1992,7 +3792,7 @@ def main() -> int:
                 all_rows,
                 args.strip_idle_caches_min,
                 keep,
-                exclude=to_remove + idle_rows + archive_rows,
+                exclude=to_remove + idle_rows + archive_rows + landed_rows,
                 mapped=mapped,
             )
         else:
@@ -2032,6 +3832,10 @@ def main() -> int:
             extra = f"  ← locked: {row.lock or '(no reason given)'}"
             if row in aged_rows:
                 extra += f" (aged-lock, age {lock_age_hours(row):.1f}h)"
+        elif row.hold_reason:
+            extra = f"  ← {row.hold_reason}"
+        elif row.blocking_paths:
+            extra = f"  ← unproven paths: {json.dumps(row.blocking_paths)}"
         elif cls == "SAFE-fresh":
             extra = (
                 f"  ← idle {row.idle_days * 1440:.1f}m < "
@@ -2041,6 +3845,8 @@ def main() -> int:
             extra = f"  commits: {commit_preview(row.repo_root, row.branch)}"
         if row.lock_stale:
             extra += f"  stale-lock ({row.lock})"
+        if row.codex_owner_thread:
+            extra += f"  codex-app-owned (owner thread {row.codex_owner_thread}; manual archive only)"
         print(
             f"{mark} {row.repo:15} {br:42} ahead={row.ahead:>3} "
             f"dirty={row.dirty:>3} {cls:9} {row.age:>14} {row.size:>6}  {row.path}{extra}"
@@ -2075,6 +3881,8 @@ def main() -> int:
             return 0
 
     if args.mode == "audit":
+        for row in landed_rows:
+            print(f"would-archive-landed {row.path} (idle {row.idle_days * 24:.1f}h)")
         for row in idle_rows:
             idle_h = idle_age_days(row.path) * 24
             print(
@@ -2143,23 +3951,24 @@ def main() -> int:
             print(f"SKIP {row.path}: {blocked}")
             continue
         try:
+            proven_head = _head_identity(row.path)
             if not (args.include_unmerged or args.force_stale or args.force_all):
-                head = run(
-                    ["git", "rev-parse", "HEAD"], cwd=row.path, check=True
-                ).stdout.strip()
+                head = str(proven_head["head_sha"])
                 if not is_ancestor(row.repo_root, head):
                     print(
                         f"SKIP {row.path}: HEAD now has unlanded commits; use suggest"
                     )
                     continue
             remove_worktree(
-                row.repo_root, row.path, force=args.force_stale or args.force_all
+                row.repo_root,
+                row.path,
+                force=args.force_stale or args.force_all,
+                expected_head=proven_head,
             )
             print(f"removed {row.path}")
             removed += 1
             if args.prune_branches and row.branch and (row.stale or row.dup):
-                run(["git", "branch", "-D", row.branch], cwd=row.repo_root)
-                print(f"  branch -D {row.branch}")
+                _prune_branch(row.repo_root, row.branch, str(proven_head["head_sha"]))
         except (subprocess.CalledProcessError, RuntimeError, OSError) as e:
             print(
                 f"FAIL {row.path}: {getattr(e, 'stderr', None) or e}", file=sys.stderr
@@ -2176,13 +3985,14 @@ def main() -> int:
             print(f"SKIP {row.path}: {blocked}")
             continue
         try:
-            head = run(
-                ["git", "rev-parse", "HEAD"], cwd=row.path, check=True
-            ).stdout.strip()
+            proven_head = _head_identity(row.path)
+            head = str(proven_head["head_sha"])
             if not all_patches_on_main(row.repo_root, head):
                 print(f"SKIP {row.path}: HEAD now has unlanded commits; use suggest")
                 continue
-            remove_worktree(row.repo_root, row.path, force=False)
+            remove_worktree(
+                row.repo_root, row.path, force=False, expected_head=proven_head
+            )
         except (subprocess.CalledProcessError, RuntimeError) as e:
             why = (
                 (e.stderr or "").strip()
@@ -2199,6 +4009,37 @@ def main() -> int:
         reaped_idle += 1
 
     archived = 0
+    for row in landed_rows:
+        if row.path in seen:
+            continue
+        seen.add(row.path)
+        try:
+            # Repeat before the archive and again at removal: planning is not authority.
+            if not dirty_work_on_default(row.repo_root, row.path):
+                print(f"HOLD {row.path}: work no longer fully landed")
+                continue
+            if idle_age_days(row.path) * 24 < args.archive_landed_idle_hours:
+                print(f"HOLD {row.path}: work clock now fresh")
+                continue
+            blocked = removal_hold(row)
+            if blocked:
+                print(f"HOLD {row.path}: {blocked}")
+                continue
+            res = archive_worktree(row)
+            if not res.ok:
+                print(
+                    f"HOLD {row.path}: archive self-check failed: {res.reason}",
+                    file=sys.stderr,
+                )
+                continue
+            if not remove_landed_from_quarantine(
+                row, args.archive_landed_idle_hours, res.dir
+            ):
+                continue
+            archived += 1
+            print(f"ARCHIVED-LANDED {row.path} -> {res.dir} (pin {res.ref})")
+        except (subprocess.CalledProcessError, RuntimeError, OSError) as error:
+            print(f"HOLD {row.path}: landed archive failed: {error}", file=sys.stderr)
 
     stripped = 0
     for row, caches in strip_plan:
@@ -2228,8 +4069,8 @@ def main() -> int:
 
     # A registration whose directory is already gone is the mirror image of a stranded
     # tree, and it is what makes `worktree list` report paths that do not exist.
-    for repo in [] if pruning else repos:
-        run(["git", "worktree", "prune"], cwd=repo)
+    # Missing-path registrations can still own unique index/ref/reflog objects.
+    # Successful remove unregisters its target; blanket prune has no safe proof.
 
     parts = (
         []
@@ -2244,7 +4085,11 @@ def main() -> int:
             f"reaped idle-unmerged {reaped_idle}/{len(idle_rows)} (branches kept)"
         )
     if args.archive_stale_days is not None and not pruning:
-        parts.append(f"archived {archived}/{len(archive_rows)} (under {ARCHIVE_ROOT})")
+        parts.append(f"archived 0/{len(archive_rows)} (under {ARCHIVE_ROOT})")
+    if args.archive_landed_idle_hours is not None and not pruning:
+        parts.append(
+            f"archived landed {archived}/{len(landed_rows)} (under {ARCHIVE_ROOT})"
+        )
     if args.strip_idle_caches_min is not None:
         parts.append(f"stripped {stripped}/{len(strip_plan)} trees' caches")
     if args.prune_pytest_hours is not None:
