@@ -12,7 +12,6 @@ PROJECTS=(
     "$HOME/Projects/personal"
     "$HOME/Projects/genomics"
     "$HOME/Projects/skills"
-    "$HOME/Projects/anki"
     "$HOME/Projects/sean"
 )
 
