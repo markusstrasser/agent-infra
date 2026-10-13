@@ -942,3 +942,23 @@ cache result, then a report/result in the lane's own `git status` diff; brief
 attached; `# no lane report found` plus a prompt sentence when none. Regression:
 `tests/test_lane.sh` cases "review attaches the lane's cache result …",
 "… a report the lane added in its own diff", "… with no report fails loud".
+
+### FM: Pathless `rg` blocks on a socket stdin
+<!--
+FM-ID: rg-socket-stdin-hang
+signature: `rg PATTERN [flags]` with no path never returns inside an agent Bash call; the rg process sits idle and later steps of a chain never run
+target_surface: ~/Projects/skills/bin/rg wrapper (symlinked at ~/.local/bin/rg); skills/tests/test_rg_wrapper.sh
+status: fixed
+evidence_count: 1
+-->
+2026-10-13, pitchtest: a chained command whose first step was `rg -n PAT --type py | grep …`
+hung for 7 minutes, and the cut and verification after it ran only once the rg process was
+killed. Root cause: some Claude Code Bash calls get a socket as stdin (`ls -l /dev/fd/0`
+shows `srw-rw-rw-`; other calls get /dev/null), and ripgrep, given no path, searches a
+readable stdin instead of the working directory. The socket never closes. Control in the
+same call: `timeout 5 rg PAT --type py` exits 124, with `.` 0, with `</dev/null` 0. Fix
+skills 7e02ade: `bin/rg` runs the real rg with stdin from /dev/null when stdin is a socket;
+pipes, files and terminals pass through. Regression: `skills/tests/test_rg_wrapper.sh`
+(socket stdin with no path, the real rg blocking as the control, a pipe, an explicit
+path). **Contract: a tool whose no-path default depends on what stdin is gets that
+default pinned in a wrapper, not left to memory.**
