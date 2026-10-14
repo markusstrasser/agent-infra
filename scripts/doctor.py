@@ -1219,6 +1219,70 @@ def check_uv_tool_editables() -> list[Check]:
     return checks
 
 
+def _normalize_dist(name: str) -> str:
+    import re
+
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def missing_declared_deps(pyproject: Path, installed: set[str]) -> list[str]:
+    """Names in pyproject [project].dependencies that are not among ``installed`` dists."""
+    import re
+    import tomllib
+
+    try:
+        deps = tomllib.loads(pyproject.read_text()).get("project", {}).get("dependencies", [])
+    except (OSError, tomllib.TOMLDecodeError):
+        return []
+    have = {_normalize_dist(n) for n in installed}
+    names = [re.split(r"[\s<>=!~;\[(@]", d.strip(), maxsplit=1)[0] for d in deps]
+    return sorted(n for n in names if n and _normalize_dist(n) not in have)
+
+
+def check_uv_tool_dep_drift() -> list[Check]:
+    """Editable uv tools must have every dependency their source pyproject declares.
+
+    `uv tool install --editable` resolves dependencies once. A dependency added to
+    the source later never reaches the tool env, so the CLI fails only on the code
+    path that imports it. 2026-10-14: research-mcp's `corpus` tool env lacked
+    `modal`, the default PDF parser's dependency, for three weeks.
+    """
+    import re
+
+    c = Check("uv-tool-deps", "global")
+    tools_dir = Path.home() / ".local" / "share" / "uv" / "tools"
+    if not tools_dir.is_dir():
+        return []
+    problems, checked = [], 0
+    for tool_dir in sorted(p for p in tools_dir.iterdir() if p.is_dir()):
+        receipt = tool_dir / "uv-receipt.toml"
+        python = tool_dir / "bin" / "python"
+        if not receipt.exists() or not python.exists():
+            continue
+        for src in re.findall(r'editable\s*=\s*"([^"]+)"', receipt.read_text()):
+            pyproject = Path(src) / "pyproject.toml"
+            if not pyproject.exists():
+                continue  # check_uv_tool_editables reports dead pointers
+            out = subprocess.run(
+                [str(python), "-c",
+                 "import importlib.metadata as m; print('\\n'.join(d.metadata['Name'] or '' for d in m.distributions()))"],
+                capture_output=True, text=True, timeout=30,
+            )
+            if out.returncode != 0:
+                problems.append(f"{tool_dir.name}: could not list installed packages")
+                continue
+            checked += 1
+            missing = missing_declared_deps(pyproject, set(out.stdout.split()))
+            if missing:
+                problems.append(
+                    f"{tool_dir.name} lacks {', '.join(missing)} "
+                    f"(uv tool install --force --editable {src})"
+                )
+    if problems:
+        return [c.warn("; ".join(problems))]
+    return [c.ok(f"{checked} editable tool envs have their declared dependencies")]
+
+
 def check_approval_tiers() -> list[Check]:
     """Validate config/approval-tiers.json ↔ hook files ↔ global PreToolUse wiring."""
     sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -1351,6 +1415,7 @@ def run_all_checks(project_filter: str | None = None) -> list[Check]:
         all_checks.extend(check_agentlogs_archive_recency())
         all_checks.extend(check_janitor_receipts())
         all_checks.extend(check_uv_tool_editables())
+        all_checks.extend(check_uv_tool_dep_drift())
         all_checks.extend(check_approval_tiers())
         all_checks.extend(check_critique_routing_verdict())
         all_checks.extend(check_cross_harness_shell_env())
