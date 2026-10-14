@@ -1,3 +1,9 @@
+---
+paths:
+  - "decisions/**"
+  - "research/**"
+---
+
 # Decision Journal Format
 
 <!-- Gov-ID: rule:decision-journal

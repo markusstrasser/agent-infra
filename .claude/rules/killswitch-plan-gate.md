@@ -1,3 +1,8 @@
+---
+paths:
+  - ".claude/plans/**"
+---
+
 # Kill-switch plan vertical slice (agent-infra local)
 
 <!-- Gov-ID: rule:killswitch-plan-gate
