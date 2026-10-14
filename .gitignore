@@ -41,6 +41,8 @@ __pycache__/
 **/.claude/current-session-id
 **/.claude/checkout-claim.json
 .claude/plans/
+# Temporary w3 GC lane handoff, review and audit/profile evidence
+.claude/cache/w3-gc-*
 downloads/
 .context/*.xml
 .claude/overviews/

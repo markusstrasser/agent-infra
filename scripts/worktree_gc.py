@@ -73,7 +73,8 @@ Linked-worktree content inventory (landed removal and explicit archive):
   Per-worktree reflogs     Both old/new objects must be default ancestors or reachable
                            from HEAD (PRESERVED by HEAD pin), else HOLD. Raw log/ref
                            bytes PRESERVED in git-state.tgz for archive routes.
-  Stash entries            HOLD any shared stash ref/log: origin cannot be attributed.
+  Stash entries            HOLD unless every valid entry names an exact branch currently
+                           checked out only in another live worktree of this repository.
   Pending operations       HOLD rebase/merge/cherry-pick/revert/sequencer/bisect/
                            autostash, including pseudorefs and lock files.
   config.worktree          Regular file, Git-parsed without includes; only allowlisted
@@ -84,7 +85,10 @@ Linked-worktree content inventory (landed removal and explicit archive):
   Sparse-checkout          HOLD info/sparse-checkout or sparse configuration/index flags.
   Submodules/gitlinks      HOLD initialized/populated; empty gitlinks must be unchanged.
   Nested repositories      HOLD even inside ignored caches (child refs/objects unknown).
-  Notes                    HOLD refs/notes: no per-worktree attribution/restore contract.
+  Notes                    Shared loose/packed refs/notes and their objects survive removal.
+  Shared ref storage       HOLD symlinked paths/parents under the common directory or
+                           candidate-contained refs/notes, packed-refs, refs/stash,
+                           and logs/refs (including all descendant refs/reflogs).
   LFS objects/pointers     HOLD storage/config/.lfsconfig/pointers; Git pins no LFS payload.
   Other pseudorefs/admin   ORIG_HEAD must be a default ancestor; raw bytes archived.
                            HOLD FETCH_HEAD/AUTO_MERGE/etc and unknown admin paths.
@@ -1178,6 +1182,146 @@ def _index_state_hold(
     return None
 
 
+def _live_peer_branches(wt: Path, common: Path) -> set[str]:
+    """Exact branch refs backed by a different, existing checkout of this repository."""
+    records = run(
+        ["git", "worktree", "list", "--porcelain", "-z"], cwd=wt, check=True
+    ).stdout
+    branches: set[str] = set()
+    for record in records.split("\0\0"):
+        if not record:
+            continue
+        fields = record.split("\0")
+        if not fields[0].startswith("worktree "):
+            raise RuntimeError("stash peer worktree inventory malformed")
+        refs = [
+            field.removeprefix("branch ")
+            for field in fields
+            if field.startswith("branch ")
+        ]
+        if not refs:
+            continue
+        if len(refs) != 1:
+            raise RuntimeError("stash peer branch inventory ambiguous")
+        peer = Path(fields[0].removeprefix("worktree "))
+        if peer.resolve() == wt.resolve() or not peer.is_dir():
+            continue
+        location = run(
+            [
+                "git",
+                "rev-parse",
+                "--path-format=absolute",
+                "--show-toplevel",
+                "--git-common-dir",
+            ],
+            cwd=peer,
+            check=True,
+        ).stdout.splitlines()
+        if len(location) != 2:
+            raise RuntimeError("stash peer repository location unknown")
+        if (
+            Path(location[0]).resolve() != peer.resolve()
+            or Path(location[1]).resolve() != common.resolve()
+        ):
+            continue
+        current = run(["git", "symbolic-ref", "--quiet", "HEAD"], cwd=peer)
+        if current.returncode not in (0, 1):
+            raise RuntimeError("stash peer HEAD evidence unknown")
+        if current.returncode == 0 and current.stdout.strip() == refs[0]:
+            branches.add(refs[0])
+    return branches
+
+
+def _ref_storage_hold(path: Path, common: Path, candidate: Path) -> str | None:
+    """Check the storage tree and its ancestors within the common directory."""
+
+    def storage_paths() -> Iterator[Path]:
+        for ancestor in (path, *path.parents):
+            if not ancestor.is_relative_to(common):
+                break
+            yield ancestor
+        if path.is_dir():
+            for directory, dirs, files in os.walk(
+                path, followlinks=False, onerror=_walk_error
+            ):
+                yield from (Path(directory) / name for name in dirs + files)
+
+    for storage in storage_paths():
+        if storage.is_symlink() or storage.resolve().is_relative_to(candidate):
+            return f"undurable shared ref storage: {path} via {storage}"
+    return None
+
+
+def _shared_refs_hold(wt: Path, common: Path, branch: str | None) -> str | None:
+    """External notes survive; proof-altering refs and stashes without live peers hold."""
+    candidate = wt.resolve()
+    for relative in ("refs/notes", "packed-refs", "refs/stash", "logs/refs"):
+        blocked = _ref_storage_hold(common / relative, common, candidate)
+        if blocked:
+            return blocked
+    output = run(
+        [
+            "git",
+            "for-each-ref",
+            "--format=%(refname) %(objectname)",
+            "refs/stash",
+            "refs/replace",
+        ],
+        cwd=wt,
+        check=True,
+    ).stdout
+    refs = dict(line.split(" ", 1) for line in output.splitlines())
+    replacements = [ref for ref in refs if ref.startswith("refs/replace/")]
+    if replacements:
+        return f"proof-altering refs: {', '.join(replacements)}"
+    tip = refs.pop("refs/stash", None)
+    if refs:
+        return f"unattributed stash/proof refs: {', '.join(refs)}"
+    log = common / "logs/refs/stash"
+    if tip is None and not log.exists():
+        return None
+    if tip is None or not log.is_file():
+        return "unattributed stash: missing ref or regular reflog"
+    raw = log.read_bytes()
+    if not raw or not raw.endswith(b"\n"):
+        return "unattributed stash: empty or unterminated reflog"
+    peers = _live_peer_branches(wt, common)
+    oid = rb"[0-9a-f]{%d}" % len(tip)
+    record_pattern = re.compile(
+        rb"(" + oid + rb") (" + oid + rb") "
+        rb"[^<>\x00-\x20](?:[^<>\x00-\x1f]*[^<>\x00-\x20])? "
+        rb"<[^<>\x00-\x20]+> [0-9]+ "
+        rb"[+-](?:[01][0-9]|2[0-3])[0-5][0-9]\t([^\x00\r\n]*)"
+    )
+    entries: list[tuple[str, str]] = []
+    for line in raw[:-1].split(b"\n"):
+        record = record_pattern.fullmatch(line)
+        if record is None:
+            return "unattributed stash: unreadable reflog entry"
+        old, new = (value.decode("ascii") for value in record.group(1, 2))
+        origin = re.fullmatch(rb"(?:WIP on|On) ([^\s:]+): .*", record[3])
+        if origin is None:
+            return "unattributed stash entry in refs/stash"
+        origin_ref = "refs/heads/" + os.fsdecode(origin[1])
+        if run(["git", "check-ref-format", origin_ref], cwd=wt).returncode != 0:
+            return "unattributed stash: invalid branch in reflog"
+        if origin_ref == branch:
+            return f"stash attributed to worktree branch: {origin_ref}"
+        if origin_ref not in peers:
+            return f"unattributed stash: no different live worktree for {origin_ref}"
+        entries.append((old, new))
+    # A missing entry or ref/log mismatch could hide this worktree's stash. Check
+    # both reflog roots; old-only objects have no branch-bearing entry to inspect.
+    known = {new for _, new in entries}
+    if (
+        entries[-1][1] != tip
+        or "0" * len(tip) in known
+        or any(old != "0" * len(tip) and old not in known for old, _ in entries)
+    ):
+        return "unattributed stash: inconsistent ref/reflog roots"
+    return None
+
+
 def _worktree_state_hold(wt: Path) -> str | None:
     """Closed inventory: every unhandled admin/storage state holds all removal routes."""
     try:
@@ -1216,7 +1360,12 @@ def _worktree_state_hold(wt: Path) -> str | None:
                 link = admin / link
             if link.resolve() != target.resolve():
                 return f"unexpected administrative linkage: {name}"
-        head = str(_head_identity(wt)["head_sha"])
+        identity = _head_identity(wt)
+        branch = identity["symbolic_ref"]
+        blocked = _shared_refs_hold(wt, common, str(branch) if branch else None)
+        if blocked:
+            return blocked
+        head = str(identity["head_sha"])
         base = run(
             ["git", "rev-parse", "--verify", f"{default_branch(wt)}^{{commit}}"],
             cwd=wt,
@@ -1346,20 +1495,6 @@ def _worktree_state_hold(wt: Path) -> str | None:
             for path in root.rglob("*"):
                 if path.is_file() and path.relative_to(admin).as_posix() not in local:
                     return f"unreadable worktree-local ref: {path.relative_to(admin)}"
-        shared_refs = run(
-            [
-                "git",
-                "for-each-ref",
-                "--format=%(refname)",
-                "refs/stash",
-                "refs/notes",
-                "refs/replace",
-            ],
-            cwd=wt,
-            check=True,
-        ).stdout.splitlines()
-        if shared_refs or (common / "logs/refs/stash").exists():
-            return f"unattributed stash/notes or proof-altering refs: {', '.join(shared_refs) or 'stash reflog'}"
         for rel in ("objects/info/alternates", "info/grafts", "shallow", "lfs"):
             if (common / rel).exists() or (common / rel).is_symlink():
                 return f"unsupported shared object storage/proof: {rel}"
@@ -1667,7 +1802,7 @@ def audit_repo(
         hold_reason = _worktree_state_hold(wt)
         try:
             codex_owner_thread = _codex_owner_thread(wt)
-        except (OSError, ValueError) as error:
+        except (RuntimeError, OSError, ValueError) as error:
             codex_owner_thread = None
             hold_reason = hold_reason or f"unreadable codex-thread.json: {error}"
         tracked_dirty += flagged

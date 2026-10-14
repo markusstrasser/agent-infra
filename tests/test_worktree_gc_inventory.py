@@ -160,16 +160,14 @@ def test_uncovered_admin_state_holds_all_routes(repo: Path, state: str) -> None:
         worktree_gc.remove_worktree(repo, wt)
 
 
-@pytest.mark.parametrize(
-    "state", ["stash", "notes", "lfs", "lfs-storage", "replace", "grafts"]
-)
+@pytest.mark.parametrize("state", ["stash", "lfs", "lfs-storage", "replace", "grafts"])
 def test_shared_state_without_worktree_provenance_holds(repo: Path, state: str) -> None:
     wt = lane(repo)
+    candidate = row(repo, wt)
+    assert candidate.classify() == "landed"
     if state == "stash":
         (wt / "file").write_text("unique stash\n")
         git(wt, "stash", "push", "-m", "from this worktree")
-    elif state == "notes":
-        git(wt, "notes", "add", "-m", "unique notes", "HEAD")
     elif state == "lfs":
         path = repo / ".git/lfs/objects/unique"
         path.parent.mkdir(parents=True)
@@ -181,7 +179,349 @@ def test_shared_state_without_worktree_provenance_holds(repo: Path, state: str) 
     else:
         (repo / ".git/info/grafts").write_text(git(wt, "rev-parse", "HEAD") + "\n")
     assert row(repo, wt).classify() == "HOLD"
+    if state == "replace":
+        assert "proof-altering refs: refs/replace/" in row(repo, wt).hold_reason
+        assert "proof-altering refs: refs/replace/" in worktree_gc.removal_hold(
+            candidate
+        )
     assert not worktree_gc.archive_worktree(row(repo, wt)).ok
+
+
+@pytest.mark.parametrize("dirty", [False, True])
+@pytest.mark.parametrize("packed", [False, True])
+def test_shared_notes_do_not_change_landed_or_safe_class(
+    repo: Path, dirty: bool, packed: bool
+) -> None:
+    if dirty:
+        wt = lane(repo)
+    else:
+        wt = repo.parent / "clean-lane"
+        git(repo, "worktree", "add", "-q", "--detach", str(wt), "main")
+        age(wt)
+    expected = "landed" if dirty else "SAFE"
+    assert row(repo, wt).classify() == expected
+    git(repo, "notes", "--ref=stage-currency", "add", "-m", "semantic ledger", "HEAD")
+    notes = git(repo, "rev-parse", "refs/notes/stage-currency")
+    if packed:
+        git(repo, "pack-refs", "--all")
+        assert not (repo / ".git/refs/notes/stage-currency").exists()
+    candidate = row(repo, wt)
+    assert candidate.classify() == expected, candidate.hold_reason
+    assert worktree_gc.removal_hold(candidate) is None
+    assert git(repo, "rev-parse", "refs/notes/stage-currency") == notes
+
+
+@pytest.mark.parametrize("component", ["unique", "notes", "refs"])
+@pytest.mark.parametrize("storage", ["candidate", "external"])
+def test_symlinked_notes_storage_holds_and_survives_removal(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, component: str, storage: str
+) -> None:
+    wt = lane(repo)
+    git(repo, "notes", "--ref=unique", "add", "-m", "unique ledger", "HEAD")
+    notes = git(repo, "rev-parse", "refs/notes/unique")
+    ref_path = repo / ".git/refs/notes/unique"
+    path = {
+        "unique": ref_path,
+        "notes": ref_path.parent,
+        "refs": ref_path.parent.parent,
+    }[component]
+    target = (wt / ".venv" if storage == "candidate" else repo.parent / "external") / (
+        "ref-target"
+    )
+    target.parent.mkdir()
+    path.rename(target)
+    path.symlink_to(target, target_is_directory=component != "unique")
+    assert git(repo, "notes", "--ref=unique", "show", "HEAD") == "unique ledger"
+    age(wt)
+    candidate = row(repo, wt)
+    assert candidate.classify() == "HOLD", candidate.hold_reason
+    assert "notes" in candidate.hold_reason
+    assert worktree_gc.removal_hold(candidate)
+    assert run(monkeypatch, repo, "apply", "--archive-landed-idle-hours", "24") == 0
+    assert wt.exists() and target.exists()
+    assert git(repo, "rev-parse", "refs/notes/unique") == notes
+    assert git(repo, "notes", "--ref=unique", "show", "HEAD") == "unique ledger"
+
+
+@pytest.mark.parametrize("storage", ["candidate", "external"])
+def test_symlinked_packed_notes_hold_and_survive_removal(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, storage: str
+) -> None:
+    annotated = git(repo, "rev-parse", "HEAD")
+    git(repo, "notes", "--ref=unique", "add", "-m", "packed ledger", annotated)
+    notes = git(repo, "rev-parse", "refs/notes/unique")
+    git(repo, "pack-refs", "--all")
+    packed = repo / ".git/packed-refs"
+    assert not (repo / ".git/refs/notes/unique").exists()
+    assert f"{notes} refs/notes/unique" in packed.read_text()
+    target = (repo if storage == "candidate" else repo.parent) / "packed-note-roots"
+    target.write_bytes(packed.read_bytes())
+    if storage == "candidate":
+        git(repo, "add", "packed-note-roots")
+        git(repo, "commit", "-qm", "track packed note storage")
+    wt = repo.parent / "clean-lane"
+    git(repo, "worktree", "add", "-q", "--detach", str(wt), "main")
+    age(wt)
+    before = row(repo, wt)
+    assert before.classify() == "SAFE", before.hold_reason
+    if storage == "candidate":
+        target = wt / target.name
+    packed.unlink()
+    packed.symlink_to(target)
+    assert git(wt, "status", "--porcelain") == ""
+    assert git(repo, "notes", "--ref=unique", "show", annotated) == "packed ledger"
+
+    candidate = row(repo, wt)
+    assert candidate.classify() == "HOLD", candidate.hold_reason
+    assert "packed-refs" in candidate.hold_reason
+    assert worktree_gc.removal_hold(before)
+    with pytest.raises(RuntimeError, match="undurable"):
+        worktree_gc.remove_worktree(repo, wt)
+    assert run(monkeypatch, repo, "apply") == 0
+    assert wt.exists() and target.exists()
+    assert not (repo / ".git/refs/notes/unique").exists()
+    assert git(repo, "rev-parse", "refs/notes/unique") == notes
+    assert git(repo, "notes", "--ref=unique", "show", annotated) == "packed ledger"
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "refs/stash",
+        "logs/refs/stash",
+        "logs/refs",
+        "logs",
+        "logs/refs/heads",
+        "logs/refs/heads/main",
+    ],
+)
+@pytest.mark.parametrize("storage", ["candidate", "external"])
+def test_symlinked_stash_storage_holds_and_survives_removal(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, relative: str, storage: str
+) -> None:
+    for message in ("older peer work", "latest peer work"):
+        (repo / "file").write_text(message + "\n")
+        git(repo, "stash", "push", "-m", message)
+    stashes = git(repo, "stash", "list", "--format=%H").splitlines()
+    assert len(stashes) == 2
+    log = repo / ".git/logs/refs/stash"
+    original_log = log.read_bytes()
+    path = repo / ".git" / relative
+    directory = path.is_dir()
+    target = (repo if storage == "candidate" else repo.parent) / "shared-ref-storage"
+    if directory:
+        shutil.copytree(path, target)
+    else:
+        shutil.copyfile(path, target)
+    if storage == "candidate":
+        git(repo, "add", "shared-ref-storage")
+        git(repo, "commit", "-qm", "track shared ref storage")
+    wt = repo.parent / "clean-lane"
+    git(repo, "worktree", "add", "-q", "--detach", str(wt), "main")
+    age(wt)
+    before = row(repo, wt)
+    assert before.classify() == "SAFE", before.hold_reason
+    if storage == "candidate":
+        target = wt / target.name
+    if directory:
+        shutil.rmtree(path)
+    else:
+        path.unlink()
+    path.symlink_to(target, target_is_directory=directory)
+    assert git(wt, "status", "--porcelain") == ""
+    assert log.read_bytes() == original_log
+    assert git(repo, "stash", "list", "--format=%H").splitlines() == stashes
+
+    candidate = row(repo, wt)
+    assert candidate.classify() == "HOLD", candidate.hold_reason
+    assert relative in candidate.hold_reason
+    assert worktree_gc.removal_hold(before)
+    with pytest.raises(RuntimeError, match="undurable"):
+        worktree_gc.remove_worktree(repo, wt)
+    assert run(monkeypatch, repo, "apply") == 0
+    assert wt.exists() and target.exists()
+    assert log.read_bytes() == original_log
+    assert git(repo, "stash", "list", "--format=%H").splitlines() == stashes
+    assert git(repo, "show", f"{stashes[-1]}:file") == "older peer work"
+    assert git(repo, "show", f"{stashes[0]}:file") == "latest peer work"
+
+
+@pytest.mark.parametrize("peer_checkout", ["main", "linked"])
+@pytest.mark.parametrize("stash_args", [(), ("-m", "peer checkpoint")])
+def test_stash_attributed_to_other_branch_does_not_hold(
+    repo: Path, stash_args: tuple[str, ...], peer_checkout: str
+) -> None:
+    wt = lane(repo)
+    # Exact branch attribution: "main" is a substring of this lane's branch.
+    git(wt, "switch", "-c", "main-topic")
+    expected = row(repo, wt).classify()
+    assert expected == "landed"
+    peer = repo
+    if peer_checkout == "linked":
+        peer = repo.parent / "peer"
+        git(repo, "worktree", "add", "-q", "-b", "peer", str(peer), "main")
+    (peer / "file").write_text("peer's unique stash\n")
+    git(peer, "stash", "push", *stash_args)
+    stash = git(repo, "rev-parse", "refs/stash")
+    candidate = row(repo, wt)
+    assert candidate.classify() == expected, candidate.hold_reason
+    assert worktree_gc.removal_hold(candidate) is None
+    assert git(repo, "rev-parse", "refs/stash") == stash
+
+
+@pytest.mark.parametrize("state", ["rename", "detach", "switch", "detached-stash"])
+def test_stash_without_current_peer_checkout_holds(repo: Path, state: str) -> None:
+    wt = repo.parent / "topic"
+    git(repo, "worktree", "add", "-q", "-b", "topic", str(wt), "main")
+    if state == "detached-stash":
+        git(wt, "switch", "--detach")
+    (wt / "file").write_text("candidate's unfinished work\n")
+    git(wt, "stash", "push")
+    stash = git(repo, "rev-parse", "refs/stash")
+    if state == "rename":
+        git(wt, "branch", "-m", "topic-renamed")
+    elif state == "detach":
+        git(wt, "switch", "--detach")
+    elif state == "switch":
+        git(wt, "switch", "-c", "other")
+    age(wt)
+    candidate = row(repo, wt)
+    assert candidate.classify() == "HOLD", candidate.hold_reason
+    assert "stash" in candidate.hold_reason
+    assert worktree_gc.removal_hold(candidate)
+    assert git(repo, "rev-parse", "refs/stash") == stash
+
+
+@pytest.mark.parametrize("peer_state", ["missing", "different-repository"])
+def test_stash_registered_without_live_peer_checkout_holds(
+    repo: Path, peer_state: str
+) -> None:
+    wt = lane(repo)
+    peer = repo.parent / "peer"
+    git(repo, "worktree", "add", "-q", "-b", "peer", str(peer), "main")
+    (peer / "file").write_text("peer's unique stash\n")
+    git(peer, "stash", "push", "-m", "peer checkpoint")
+    shutil.rmtree(peer)
+    if peer_state == "different-repository":
+        peer.mkdir()
+        git(peer, "init", "-q", "-b", "peer")
+        git(peer, "config", "user.email", "test@example.com")
+        git(peer, "config", "user.name", "test")
+        git(peer, "commit", "--allow-empty", "-qm", "unrelated repository")
+    candidate = row(repo, wt)
+    assert candidate.classify() == "HOLD", candidate.hold_reason
+    assert "stash" in candidate.hold_reason
+    assert worktree_gc.removal_hold(candidate)
+
+
+@pytest.mark.parametrize("own_stash_latest", [False, True])
+def test_stash_attributed_to_this_branch_holds_all_entries(
+    repo: Path, own_stash_latest: bool
+) -> None:
+    wt = lane(repo)
+    git(wt, "switch", "-c", "topic")
+
+    def own_stash() -> None:
+        git(wt, "stash", "push", "-m", "own checkpoint")
+
+    def peer_stash() -> None:
+        (repo / "file").write_text("peer's unique stash\n")
+        git(repo, "stash", "push", "-m", "peer checkpoint")
+
+    for stash in (
+        (peer_stash, own_stash) if own_stash_latest else (own_stash, peer_stash)
+    ):
+        stash()
+    candidate = row(repo, wt)
+    assert candidate.classify() == "HOLD"
+    assert "stash" in candidate.hold_reason
+    assert worktree_gc.removal_hold(candidate)
+    assert not worktree_gc.dirty_work_on_default(repo, wt)
+
+
+def test_unattributable_stash_holds(repo: Path) -> None:
+    wt = lane(repo)
+    stash = git(wt, "stash", "create")
+    git(repo, "stash", "store", "-m", "checkpoint without a branch", stash)
+    candidate = row(repo, wt)
+    assert candidate.classify() == "HOLD"
+    assert "unattributed stash" in candidate.hold_reason
+    assert worktree_gc.removal_hold(candidate)
+    assert not worktree_gc.dirty_work_on_default(repo, wt)
+
+
+@pytest.mark.parametrize(
+    "state",
+    ["missing-log", "orphan-log", "malformed-log", "tip-mismatch", "old-only-root"],
+)
+def test_incomplete_stash_attribution_holds(repo: Path, state: str) -> None:
+    wt = lane(repo)
+    (repo / "file").write_text("peer's unique stash\n")
+    git(repo, "stash", "push", "-m", "peer checkpoint")
+    log = repo / ".git/logs/refs/stash"
+    if state == "missing-log":
+        log.unlink()
+    elif state == "orphan-log":
+        # Keep the reflog evidence which update-ref -d would remove.
+        (repo / ".git/refs/stash").unlink()
+    elif state == "malformed-log":
+        log.write_bytes(b"unreadable stash reflog\n")
+    elif state == "tip-mismatch":
+        (repo / ".git/refs/stash").write_text(git(repo, "rev-parse", "HEAD") + "\n")
+    else:
+        _, rest = log.read_bytes().split(b" ", 1)
+        log.write_bytes(git(repo, "rev-parse", "HEAD").encode() + b" " + rest)
+    candidate = row(repo, wt)
+    assert candidate.classify() == "HOLD"
+    assert "unattributed stash" in candidate.hold_reason
+    assert worktree_gc.removal_hold(candidate)
+
+
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        ("old", b"BROKEN"),
+        ("new", b"BROKEN"),
+        ("committer", b"BROKEN"),
+        ("committer", b"test"),
+        ("committer", b"test <>"),
+        ("committer", b" <test@example.com>"),
+        ("timestamp", b"BROKEN"),
+        ("timezone", b"BROKEN"),
+        ("timezone", b"+2460"),
+        ("separator", b" "),
+    ],
+)
+def test_malformed_stash_reflog_holds(repo: Path, field: str, value: bytes) -> None:
+    wt = lane(repo)
+    (repo / "file").write_text("peer's unique stash\n")
+    git(repo, "stash", "push", "-m", "peer checkpoint")
+    log = repo / ".git/logs/refs/stash"
+    header, message = log.read_bytes().rstrip(b"\n").split(b"\t", 1)
+    old, new, identity = header.split(b" ", 2)
+    committer, timestamp, timezone = identity.rsplit(b" ", 2)
+    fields = {
+        "old": old,
+        "new": new,
+        "committer": committer,
+        "timestamp": timestamp,
+        "timezone": timezone,
+        "separator": b"\t",
+    }
+    fields[field] = value
+    log.write_bytes(
+        b" ".join(
+            fields[name]
+            for name in ("old", "new", "committer", "timestamp", "timezone")
+        )
+        + fields["separator"]
+        + message
+        + b"\n"
+    )
+    candidate = row(repo, wt)
+    assert candidate.classify() == "HOLD", candidate.hold_reason
+    assert "unattributed stash" in candidate.hold_reason
+    assert worktree_gc.removal_hold(candidate)
 
 
 @pytest.mark.parametrize("location", ["nested", ".venv/nested"])
@@ -348,18 +688,36 @@ def test_unrestorable_object_state_holds(repo: Path, state: str) -> None:
     assert not result.ok and wt.exists(), result.reason
 
 
+@pytest.mark.parametrize("ref", ["refs/custom/snapshot", "refs/notes/stage-currency"])
 def test_shared_ref_objects_survive_landed_removal(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
+    repo: Path, monkeypatch: pytest.MonkeyPatch, ref: str
 ) -> None:
     wt = lane(repo)
-    oid = unique_commit(wt)
-    git(wt, "update-ref", "refs/custom/snapshot", oid)
+    if ref.startswith("refs/notes/"):
+        git(
+            repo,
+            "notes",
+            "--ref=stage-currency",
+            "add",
+            "-m",
+            "semantic ledger",
+            "HEAD",
+        )
+        oid = git(repo, "rev-parse", ref)
+    else:
+        oid = unique_commit(wt)
+        git(wt, "update-ref", ref, oid)
     age(wt)
     assert run(monkeypatch, repo, "apply", "--archive-landed-idle-hours", "24") == 0
     assert not wt.exists()
     git(repo, "gc", "--prune=now")
-    assert git(repo, "rev-parse", "refs/custom/snapshot") == oid
+    assert git(repo, "rev-parse", ref) == oid
     assert git(repo, "cat-file", "-t", oid) == "commit"
+    if ref.startswith("refs/notes/"):
+        assert (
+            git(repo, "notes", "--ref=stage-currency", "show", "HEAD")
+            == "semantic ledger"
+        )
 
 
 def test_git_storage_override_holds_without_using_redirected_evidence(
