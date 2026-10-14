@@ -767,8 +767,8 @@ def check_secret_env_scope() -> list[Check]:
     """Paid LLM keys only as <NAME>_METERED; risky and unused keys out of the shell.
 
     The one definition is ~/dotfiles/scripts/secret-env-policy.sh, sourced by
-    ~/dotfiles/.zshrc right after the sops store loads (2026-09-23; it absorbed the
-    2026-07-14 Gemini critique-only unset). SDKs read the standard names on their own,
+    ~/dotfiles/.zshrc right after the sops store loads (2026-09-23; Gemini joined the
+    metered class 2026-10-14). SDKs read the standard names on their own,
     so a leak re-opens silent API spend. Probes a fresh interactive shell and the
     ~/.env names that dotenv loaders walk up to. Reads names only, never values.
     """

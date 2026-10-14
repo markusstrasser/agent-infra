@@ -296,12 +296,6 @@ Review the following code files. Focus: {focus_prompt}
     extra_parts = provider_cfg["extra"].split()
     cmd = ["llmx", "chat"] + model_parts + extra_parts + [prompt]
     review_env = os.environ.copy()
-    if provider_name == "gemini":
-        # llmx intentionally requires an explicit boundary flag for Gemini critique calls.
-        # Selecting the code-review scout's google provider is that deliberate critique intent;
-        # without forwarding it, the documented --both/--all-providers routes abort after the
-        # other reviewers finish and discard the whole review.
-        review_env["LLMX_GEMINI_OK"] = "1"
 
     for attempt in range(2):  # try once, retry once on rate limit
         try:

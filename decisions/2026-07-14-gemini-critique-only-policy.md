@@ -79,3 +79,15 @@ Operator directive (2026-07-14): "ONLY run gemini when an agent runs it for
 - ask_papers-class 1M-context work returns as a standing need → name a second
   allowed lane explicitly (same env, set by that engine) rather than restoring
   the global key.
+
+## Superseded 2026-10-14 (operator)
+
+Operator, 2026-10-14: "LLM pass use gemini key we have ... that's fine ... lets remove that
+gemini rules". Gemini is now an ordinary metered provider under the paid-key policy
+(`~/dotfiles/scripts/secret-env-policy.sh`): the key is exported only as
+`GEMINI_API_KEY_METERED`, so SDKs still cannot pick it up by accident, and llmx's daily spend
+cap still applies. Removed: llmx `enforce_gemini_policy` / `GeminiPolicyError` /
+`LLMX_GEMINI_OK` (llmx 2a6e46f), the /critique and code-review-scout env injection
+(skills b230c5c, agent-infra this commit), the CRITIQUE_ONLY shell name (dotfiles 82c91b4).
+Trigger: Marker's Gemini cleanup on Modal had been failing on every parse since about
+2026-10-01 (dead key in the Modal secret) while this policy said it should not run at all.
