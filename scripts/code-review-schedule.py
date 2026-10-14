@@ -20,7 +20,7 @@ SCOUT = ROOT / "scripts" / "code-review-scout.py"
 PROJECTS_ROOT = Path.home() / "Projects"
 
 PROJECTS = ["intel", "genomics", "agent-infra", "personal", "skills", "hutter"]
-FOCUSES = ["refactoring", "dead-code", "optimization", "patterns", "security"]
+FOCUSES = ["refactoring", "dead-code", "optimization", "patterns", "silent-failure", "security"]
 
 
 def todays_assignment() -> tuple[str, str]:

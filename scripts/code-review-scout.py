@@ -22,7 +22,8 @@ Focus areas (rotate these):
   refactoring    — simplification, duplication, clarity
   dead-code      — unused functions/imports/variables, unreachable code
   optimization   — performance, unnecessary allocations, O(n²) patterns
-  patterns       — inconsistent conventions, anti-patterns, error handling
+  patterns       — inconsistent conventions, anti-patterns
+  silent-failure — swallowed errors, unchecked returncodes, unmarked fallbacks
   security       — injection, path traversal, unsafe deserialization
 """
 
@@ -108,9 +109,32 @@ FOCUS_PROMPTS = {
         "repeated subprocess calls that could be batched. Ignore micro-optimizations."
     ),
     "patterns": (
-        "Find inconsistent patterns: same problem solved differently across files, error handling "
-        "gaps (bare except, swallowed errors), inconsistent return types, mixed conventions "
-        "(some files use X, others use Y for the same thing). Reference the specific inconsistency."
+        "Find inconsistent patterns: same problem solved differently across files, inconsistent "
+        "return types, mixed conventions (some files use X, others use Y for the same thing). "
+        "Reference the specific inconsistency. Swallowed errors belong to the silent-failure focus."
+    ),
+    # Lens ported from Anthropic's pr-review-toolkit silent-failure-hunter, retargeted from
+    # web apps (Sentry, user-facing messages) to research/agent infra, where the cost of a
+    # silent failure is a wrong number or a stage reported done that never ran.
+    "silent-failure": (
+        "Find silent failures: places where an error happens but the program continues as if it "
+        "succeeded. Flag: (1) except blocks that pass, only log, or return None/[]/{}/0/'' so the "
+        "caller cannot tell failure from an empty result; (2) bare `except:` or `except Exception` "
+        "around code that can fail in more than one way, naming which unrelated errors it would "
+        "hide; (3) subprocess calls whose returncode is unchecked (no check=True, no rc test), and "
+        "shell `|| true` or `2>/dev/null` on commands whose failure matters; (4) fallbacks that "
+        "substitute a different source, proxy, cached value or default without marking the "
+        "result as degraded; (5) retry loops that exhaust and then continue with no error "
+        "raised; (6) `.get(key, default)` or `or default` on fields whose absence means the "
+        "input is malformed; (7) functions that report success (exit 0, 'done', status=ok) on a "
+        "path where the work was skipped; (8) handlers that collapse different failures (missing "
+        "dependency, parse error, network error) into one None/False, so the caller reports the "
+        "wrong cause, e.g. 'could not download' when the download succeeded and a later step "
+        "failed. A logger.warning in library or server code is NOT visible to the caller and "
+        "does not excuse a swallow. Do not flag handlers that re-raise, return an error object "
+        "that keeps the original cause and that the caller checks, or degrade with a warning the "
+        "caller or user actually receives. For each finding name the hidden failure and what "
+        "the caller would wrongly believe."
     ),
     "security": (
         "Find security issues: command injection (unsanitized input in subprocess/os.system), "
