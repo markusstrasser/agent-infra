@@ -962,3 +962,23 @@ pipes, files and terminals pass through. Regression: `skills/tests/test_rg_wrapp
 (socket stdin with no path, the real rg blocking as the control, a pipe, an explicit
 path). **Contract: a tool whose no-path default depends on what stdin is gets that
 default pinned in a wrapper, not left to memory.**
+
+### FM: Liveness lock records a helper's pid and trusts pid existence
+<!--
+FM-ID: claim-lock-helper-pid-reuse
+signature: launch reports a live peer on a checkout no session has open, and `ps -p <lock pid>` shows an unrelated process; or the lock's pid is already dead right after launch
+target_surface: agent-infra scripts/checkout_claim.py (`claim --pid`, `proc_start`), scripts/claude-launch.sh
+status: fixed
+evidence_count: 1
+-->
+2026-10-14, immigration-research: `claude-launch.sh` offered a worktree for a "live peer" (pid
+65617) that was SafariLaunchAgent. Root cause: the claim CLI wrote `os.getpid()`, the pid of the
+Python helper, which exits once it has written the lock. Every lock was stale on arrival, so real
+peers were never detected, and liveness was `kill(pid, 0)`, so a recycled pid read as a peer. Fix
+agent-infra 6a75bdd2: `claim` requires `--pid` (the launcher passes `$$`, which exec hands to
+claude), the lock stores the process start time, and a holder is live only with a matching start;
+a failed claim prints at launch. Regression: `tests/test_checkout_claim.py` (reused pid,
+unfingerprinted lock, CLI pid, dead pid) and
+`tests/test_claude_launch.py::test_share_path_claims_the_pid_that_becomes_claude`; all five fail on
+the previous code. **Contract: a pid in a liveness record carries its start time and is written by
+the process it names, or by a parent that passes it explicitly.**
