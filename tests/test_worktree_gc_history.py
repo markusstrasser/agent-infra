@@ -12,8 +12,10 @@ from test_worktree_gc_landed import repo as repo_fixture
 
 
 @pytest.fixture
-def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    return repo_fixture.__wrapped__(tmp_path, monkeypatch)
+def repo(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
+) -> Path:
+    return repo_fixture.__wrapped__(tmp_path, monkeypatch, request)
 
 
 @pytest.mark.parametrize("staged", [False, True])

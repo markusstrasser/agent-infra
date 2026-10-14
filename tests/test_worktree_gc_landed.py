@@ -25,9 +25,7 @@ def git(repo: Path, *args: str) -> str:
     ).stdout.strip()
 
 
-@pytest.fixture
-def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    root = tmp_path / "repo"
+def _make_repo(root: Path) -> Path:
     root.mkdir()
     git(root, "init", "-q", "-b", "main")
     git(root, "config", "user.email", "test@example.com")
@@ -37,6 +35,33 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     (root / "binary").write_bytes(bytes(range(256)))
     git(root, "add", ".gitignore", "file", "binary")
     git(root, "commit", "-qm", "initial")
+    return root
+
+
+@pytest.fixture(scope="session")
+def _readonly_repo_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    return _make_repo(tmp_path_factory.mktemp("gc-readonly-repo") / "repo")
+
+
+_READ_ONLY_REPO_TESTS = frozenset(
+    {
+        "test_no_flag_and_read_only_modes_preserve_every_byte",
+        "test_opt_in_only_mutates_in_apply",
+        "test_invalid_idle_threshold_is_rejected",
+    }
+)
+
+
+@pytest.fixture
+def repo(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
+) -> Path:
+    root = tmp_path / "repo"
+    if request.node.originalname in _READ_ONLY_REPO_TESTS:
+        # Only initial history is shared; lane setup and all state stay per test.
+        shutil.copytree(request.getfixturevalue("_readonly_repo_template"), root)
+    else:
+        _make_repo(root)
     monkeypatch.setattr(worktree_gc, "ARCHIVE_ROOT", tmp_path / "archive")
     monkeypatch.setattr(worktree_gc, "find_stranded", lambda *a, **kw: [])
     monkeypatch.setattr(worktree_gc, "pytest_temp_roots", list)

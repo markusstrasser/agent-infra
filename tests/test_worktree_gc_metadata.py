@@ -19,8 +19,10 @@ THREAD = json.dumps({"version": 1, "ownerThreadId": OWNER}).encode()
 
 
 @pytest.fixture
-def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    return repo_fixture.__wrapped__(tmp_path, monkeypatch)
+def repo(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
+) -> Path:
+    return repo_fixture.__wrapped__(tmp_path, monkeypatch, request)
 
 
 def metadata(wt: Path, name: str, raw: bytes) -> Path:

@@ -135,7 +135,8 @@ import tarfile
 import tempfile
 import time
 import uuid
-from collections.abc import Iterator
+from bisect import bisect_left
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -1128,6 +1129,7 @@ def _index_state_hold(
             raw[start + 40 : flags_at].hex(),
         )
         offset = start + ((end + 1 - start + 7) // 8) * 8
+    cached_trees: list[tuple[str, int, str]] = []
     while offset < limit:
         if offset + 8 > limit:
             return "truncated index extension"
@@ -1155,22 +1157,11 @@ def _index_state_hold(
                     raise ValueError("invalid TREE cache counts")
                 cursor = end_header + 1
                 if count >= 0:
+                    if cursor + oid_bytes > len(tree_payload):
+                        raise ValueError("truncated TREE cache object id")
                     oid = tree_payload[cursor : cursor + oid_bytes].hex()
                     cursor += oid_bytes
-                    kind = run(
-                        ["git", "cat-file", "-t", oid], cwd=wt, check=True
-                    ).stdout.strip()
-                    expected = {
-                        rel.removeprefix(prefix): value
-                        for rel, value in entries.items()
-                        if rel.startswith(prefix)
-                    }
-                    if (
-                        kind != "tree"
-                        or count != len(expected)
-                        or _tree_entries(wt, oid) != expected
-                    ):
-                        raise ValueError("TREE cache does not match index entries")
+                    cached_trees.append((prefix, count, oid))
                 for _ in range(children):
                     check_tree(prefix)
 
@@ -1179,7 +1170,133 @@ def _index_state_hold(
                 return "TREE cache has unparsed bytes"
     if offset != limit:
         return "index entry/extension boundary unknown"
+    _check_index_tree_cache(wt, entries, cached_trees, oid_bytes)
     return None
+
+
+def _validate_native_tree_names(wt: Path, oids: list[str], oid_bytes: int) -> None:
+    """Reject ambiguous raw components in one batch, before sharing tree views."""
+    output = subprocess.run(
+        ["git", "cat-file", "--batch"],
+        cwd=wt,
+        input=("\n".join(oids) + "\n").encode("ascii"),
+        capture_output=True,
+        check=True,
+    ).stdout
+    cursor = 0
+    for oid in oids:
+        header_end = output.index(b"\n", cursor)
+        object_id, kind, size = output[cursor:header_end].split(b" ")
+        if object_id != oid.encode("ascii") or kind != b"tree":
+            raise ValueError("TREE cache does not match native tree objects")
+        length = int(size)
+        start = header_end + 1
+        end = start + length
+        if length < 0 or end >= len(output) or output[end : end + 1] != b"\n":
+            raise ValueError("TREE cache has truncated native tree evidence")
+        tree = output[start:end]
+        cursor = end + 1
+        offset = 0
+        while offset < len(tree):
+            mode_end = tree.index(b" ", offset)
+            mode = tree[offset:mode_end]
+            if not mode or any(byte not in b"01234567" for byte in mode):
+                raise ValueError("TREE cache has malformed native tree entry")
+            name_end = tree.index(b"\0", mode_end + 1)
+            name = tree[mode_end + 1 : name_end]
+            if not name or name in (b".", b"..") or b"/" in name or b"\0" in name:
+                raise ValueError(f"TREE cache has invalid native tree name: {name!r}")
+            offset = name_end + 1 + oid_bytes
+            if offset > len(tree):
+                raise ValueError("TREE cache has truncated native tree entry")
+    if cursor != len(output):
+        raise ValueError("TREE cache has unparsed native tree evidence")
+
+
+def _check_index_tree_cache(
+    wt: Path,
+    entries: dict[str, tuple[str, str]],
+    cached_trees: list[tuple[str, int, str]],
+    oid_bytes: int,
+) -> None:
+    """Prove every cached subtree against native evidence without repeated walks.
+
+    Recursive ls-tree includes directory OIDs, so descendants share one sorted
+    leaf listing after raw entry names are validated. Invalidated parents have
+    no OID; their valid children still get independent native listings.
+    Evidence is local to this index snapshot.
+    """
+    if not cached_trees:
+        return
+    oids = list(dict.fromkeys(oid for _, _, oid in cached_trees))
+    tree_oids = dict.fromkeys(oids)
+    listed_oids: set[str] = set()
+    listings = []
+    for oid in oids:
+        if oid not in listed_oids:
+            output = subprocess.run(
+                ["git", "ls-tree", "-r", "-t", "-z", oid],
+                cwd=wt,
+                capture_output=True,
+                check=True,
+            ).stdout
+            leaves: dict[str, tuple[str, str]] = {}
+            subtrees = [(oid, "")]
+            seen_paths: set[str] = set()
+            for record in output.split(b"\0"):
+                if not record:
+                    continue
+                metadata, name = record.split(b"\t", 1)
+                mode, kind, object_id = metadata.decode().split()
+                rel = os.fsdecode(name)
+                if rel in seen_paths:
+                    raise ValueError(
+                        f"TREE cache has duplicate native tree path: {rel!r}"
+                    )
+                seen_paths.add(rel)
+                if kind == "tree":
+                    subtrees.append((object_id, rel + "/"))
+                else:
+                    leaves[rel] = (mode, object_id)
+            native_paths = sorted(leaves)
+            for subtree_oid, _ in subtrees:
+                tree_oids[subtree_oid] = None
+                listed_oids.add(subtree_oid)
+            listings.append((native_paths, leaves, subtrees))
+
+    # A flattened path can hide a literal slash in any ancestor, including an
+    # uncached tree. Validate all listed tree objects before publishing views.
+    _validate_native_tree_names(wt, list(tree_oids), oid_bytes)
+    views: dict[str, tuple[list[str], dict[str, tuple[str, str]], str]] = {}
+    for native_paths, leaves, subtrees in listings:
+        for subtree_oid, native_prefix in subtrees:
+            views.setdefault(subtree_oid, (native_paths, leaves, native_prefix))
+
+    paths = sorted(entries)
+
+    def bounds(names: list[str], prefix: str) -> tuple[int, int]:
+        # Every nonempty prefix ends in '/'; '0' is its immediate successor.
+        return (
+            (bisect_left(names, prefix), bisect_left(names, prefix[:-1] + "0"))
+            if prefix
+            else (0, len(names))
+        )
+
+    for prefix, count, oid in cached_trees:
+        first, last = bounds(paths, prefix)
+        if count != last - first:
+            raise ValueError("TREE cache does not match index entries")
+        native_paths, leaves, native_prefix = views[oid]
+        native_first, native_last = bounds(native_paths, native_prefix)
+        if count != native_last - native_first:
+            raise ValueError("TREE cache does not match index entries")
+        for i in range(count):
+            path, native_path = paths[first + i], native_paths[native_first + i]
+            if (
+                path.removeprefix(prefix) != native_path.removeprefix(native_prefix)
+                or entries[path] != leaves[native_path]
+            ):
+                raise ValueError("TREE cache does not match index entries")
 
 
 def _live_peer_branches(wt: Path, common: Path) -> set[str]:
@@ -1762,7 +1879,11 @@ def dirty_work_on_default(
 
 
 def audit_repo(
-    repo: Path, with_size: bool = True, safe_idle_min: float = 60.0
+    repo: Path,
+    with_size: bool = True,
+    safe_idle_min: float = 60.0,
+    *,
+    on_row: Callable[[WorktreeRow], None] | None = None,
 ) -> list[WorktreeRow]:
     name = repo.name
     rows: list[WorktreeRow] = []
@@ -1776,7 +1897,8 @@ def audit_repo(
             # which killed the whole nightly GC 10 nights running (2026-08). The
             # Admin state may own unique objects; automatic prune is forbidden.
             print(
-                f"  (HOLD prunable registration: {wt} — directory gone; admin state unproven)"
+                f"  (HOLD prunable registration: {wt} — directory gone; admin state unproven)",
+                flush=True,
             )
             continue
         # --no-optional-locks: a plain `git status` rewrites the index stat cache,
@@ -1856,7 +1978,58 @@ def audit_repo(
                 codex_owner_thread=codex_owner_thread,
             )
         )
+        if on_row is not None:
+            on_row(rows[-1])
     return rows
+
+
+def print_audit_row(
+    row: WorktreeRow, *, remove: bool = False, aged_lock: bool = False
+) -> None:
+    cls = row.classify()
+    mark = "→" if remove else " "
+    br = row.branch or "(detached)"
+    extra = ""
+    if row.held:
+        extra = f"  ← {row.held} LIVE process(es) working here"
+    elif row.daemon_held:
+        # State the OBSERVATION, never the conclusion. "Only a poller holds this
+        # cwd" is what lsof proves; "nobody is working here" is an inference that
+        # was caught being false on 2026-07-25 — an actively-running 6-sample wave
+        # classified DAEMON because its shells ran from a scratchpad directory
+        # elsewhere, leaving only the poller in the worktree's own cwd. The row
+        # stayed out of every apply set on git state, so nothing was at risk, but
+        # the wording claimed more than the evidence.
+        # Print the exact PID: reclaiming needs a targeted kill, and a substring
+        # `pkill -f` on a shared box has already killed a healthy job here twice.
+        pids = " ".join(str(p) for p in row.daemon_pids)
+        extra = f"  ← only a detached poller holds this cwd (kill {pids})"
+        if row.ahead > 0 or row.dirty:
+            extra += " — but it has commits/edits, verify before reclaiming"
+    elif row.lock_live:
+        extra = f"  ← locked: {row.lock or '(no reason given)'}"
+        if aged_lock:
+            extra += f" (aged-lock, age {lock_age_hours(row):.1f}h)"
+    elif row.hold_reason:
+        extra = f"  ← {row.hold_reason}"
+    elif row.blocking_paths:
+        extra = f"  ← unproven paths: {json.dumps(row.blocking_paths)}"
+    elif cls == "SAFE-fresh":
+        extra = (
+            f"  ← idle {row.idle_days * 1440:.1f}m < "
+            f"--safe-idle-min {row.safe_idle_min:g} (unknown clock counts as fresh)"
+        )
+    elif row.branch and row.ahead > 0:
+        extra = f"  commits: {commit_preview(row.repo_root, row.branch)}"
+    if row.lock_stale:
+        extra += f"  stale-lock ({row.lock})"
+    if row.codex_owner_thread:
+        extra += f"  codex-app-owned (owner thread {row.codex_owner_thread}; manual archive only)"
+    print(
+        f"{mark} {row.repo:15} {br:42} ahead={row.ahead:>3} "
+        f"dirty={row.dirty:>3} {cls:9} {row.age:>14} {row.size:>6}  {row.path}{extra}",
+        flush=True,
+    )
 
 
 def commit_preview(repo: Path, branch: str, n: int = 2) -> str:
@@ -3800,6 +3973,50 @@ def main() -> int:
     with_size = not (args.no_size or args.check)
     # --check defaults to all-projects so the hub surfaces stranded work in every repo.
     repos = repo_roots(args.repo, args.all_projects or args.check)
+    keep = set(args.keep)
+    stream_audit = args.mode == "audit" and not args.check
+
+    def scan_liveness() -> dict[str, list[int]]:
+        holders = live_cwd_holders()
+        if not liveness_known(holders):
+            # Say WHY the scan is empty: the nightly apply has exited 2 here every
+            # night since 2026-08-27 with a bare message, so the receipt could not
+            # tell a timeout from a missing binary from a genuinely empty parse.
+            print(
+                "[DEGRADED] liveness unknown — lsof reported no cwd holders at all; "
+                f"every removal is refused until the scan works ({LAST_SCAN_DIAG})",
+                file=sys.stderr,
+            )
+        return holders
+
+    # Read-only audit rows need liveness before they can be printed. Mutating
+    # routes and hook checks still scan last, after all Git proofs finish.
+    cwd_holders = scan_liveness() if stream_audit else {}
+    daemons = (
+        daemon_pids({pid for pids in cwd_holders.values() for pid in pids})
+        if stream_audit
+        else set()
+    )
+
+    def set_liveness(row: WorktreeRow) -> None:
+        pids = holders_for(row.path, cwd_holders)
+        row.daemon_pids = tuple(sorted(pid for pid in pids if pid in daemons))
+        row.daemon_held = len(row.daemon_pids)
+        row.held = len(pids) - row.daemon_held
+
+    def emit_audit_row(row: WorktreeRow) -> None:
+        set_liveness(row)
+        print_audit_row(
+            row,
+            remove=should_remove(
+                row, args.include_unmerged, args.force_stale, args.force_all, keep
+            ),
+            aged_lock=bool(
+                liveness_known(cwd_holders)
+                and plan_aged_locks([row], args.lock_max_age_hours, keep)
+            ),
+        )
+
     all_rows: list[WorktreeRow] = []
     for repo in repos:
         if not (repo / ".git").exists():
@@ -3815,29 +4032,17 @@ def main() -> int:
                     repo,
                     with_size=with_size and args.mode != "suggest",
                     safe_idle_min=args.safe_idle_min,
+                    on_row=emit_audit_row if stream_audit else None,
                 )
             )
 
-    # Liveness last, in one lsof call for every row, so it also gates --check. The
-    # daemon split needs one further batched `ps` over only the PIDs lsof actually
-    # found, so the cost is two calls total regardless of worktree count.
-    cwd_holders = live_cwd_holders()
-    if not liveness_known(cwd_holders):
-        # Say WHY the scan is empty: the nightly apply has exited 2 here every
-        # night since 2026-08-27 with a bare message, so the receipt could not
-        # tell a timeout from a missing binary from a genuinely empty parse.
-        print(
-            "[DEGRADED] liveness unknown — lsof reported no cwd holders at all; "
-            f"every removal is refused until the scan works ({LAST_SCAN_DIAG})",
-            file=sys.stderr,
+    if not stream_audit:
+        cwd_holders = scan_liveness()
+        daemons = daemon_pids(
+            {pid for row in all_rows for pid in holders_for(row.path, cwd_holders)}
         )
-    per_row = {row.path: holders_for(row.path, cwd_holders) for row in all_rows}
-    daemons = daemon_pids({pid for pids in per_row.values() for pid in pids})
-    for row in all_rows:
-        pids = per_row[row.path]
-        row.daemon_pids = tuple(sorted(pid for pid in pids if pid in daemons))
-        row.daemon_held = len(row.daemon_pids)
-        row.held = len(pids) - row.daemon_held
+        for row in all_rows:
+            set_liveness(row)
 
     if args.mode == "suggest":
         return suggest(
@@ -3871,7 +4076,6 @@ def main() -> int:
             )
         return 0
 
-    keep = set(args.keep)
     aged_rows = (
         plan_aged_locks(all_rows, args.lock_max_age_hours, keep)
         if not pruning and liveness_known(cwd_holders)
@@ -3942,50 +4146,9 @@ def main() -> int:
         else []
     )
 
-    for row in [] if pruning else all_rows:
-        cls = row.classify()
-        mark = "→" if row in to_remove else " "
-        br = row.branch or "(detached)"
-        extra = ""
-        if row.held:
-            extra = f"  ← {row.held} LIVE process(es) working here"
-        elif row.daemon_held:
-            # State the OBSERVATION, never the conclusion. "Only a poller holds this
-            # cwd" is what lsof proves; "nobody is working here" is an inference that
-            # was caught being false on 2026-07-25 — an actively-running 6-sample wave
-            # classified DAEMON because its shells ran from a scratchpad directory
-            # elsewhere, leaving only the poller in the worktree's own cwd. The row
-            # stayed out of every apply set on git state, so nothing was at risk, but
-            # the wording claimed more than the evidence.
-            # Print the exact PID: reclaiming needs a targeted kill, and a substring
-            # `pkill -f` on a shared box has already killed a healthy job here twice.
-            pids = " ".join(str(p) for p in row.daemon_pids)
-            extra = f"  ← only a detached poller holds this cwd (kill {pids})"
-            if row.ahead > 0 or row.dirty:
-                extra += " — but it has commits/edits, verify before reclaiming"
-        elif row.lock_live:
-            extra = f"  ← locked: {row.lock or '(no reason given)'}"
-            if row in aged_rows:
-                extra += f" (aged-lock, age {lock_age_hours(row):.1f}h)"
-        elif row.hold_reason:
-            extra = f"  ← {row.hold_reason}"
-        elif row.blocking_paths:
-            extra = f"  ← unproven paths: {json.dumps(row.blocking_paths)}"
-        elif cls == "SAFE-fresh":
-            extra = (
-                f"  ← idle {row.idle_days * 1440:.1f}m < "
-                f"--safe-idle-min {row.safe_idle_min:g} (unknown clock counts as fresh)"
-            )
-        elif row.branch and row.ahead > 0:
-            extra = f"  commits: {commit_preview(row.repo_root, row.branch)}"
-        if row.lock_stale:
-            extra += f"  stale-lock ({row.lock})"
-        if row.codex_owner_thread:
-            extra += f"  codex-app-owned (owner thread {row.codex_owner_thread}; manual archive only)"
-        print(
-            f"{mark} {row.repo:15} {br:42} ahead={row.ahead:>3} "
-            f"dirty={row.dirty:>3} {cls:9} {row.age:>14} {row.size:>6}  {row.path}{extra}"
-        )
+    if not pruning and not stream_audit:
+        for row in all_rows:
+            print_audit_row(row, remove=row in to_remove, aged_lock=row in aged_rows)
 
     # Stranded trees are invisible to `git worktree list`, so they are found by scanning
     # the temp roots directly rather than by asking any repo what it owns.
