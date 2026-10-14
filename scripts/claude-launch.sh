@@ -67,8 +67,12 @@ if $PY "$CLAIM" -C "$CHECKOUT" peer --session "$SID" >/dev/null 2>&1; then
 fi
 
 # --- Share path (no peer, or you chose share): claim, then run ---
-# The lock is written with $$; `exec` preserves the pid, so the lock's pid becomes
-# the running claude's pid → later liveness checks on it are accurate. Skipped in
-# dry-run so smoke tests have no side effects.
-[ -n "$DRYRUN" ] || $PY "$CLAIM" -C "$CHECKOUT" claim --session "$SID" >/dev/null 2>&1 || true
+# The lock is written with $$ and its start time; `exec` keeps both, so the lock
+# names the running claude and a recycled pid reads as stale. (Until 2026-10-14
+# the helper recorded its own pid, which exited at once.) A failed claim is
+# reported, never fatal. Skipped in dry-run so smoke tests have no side effects.
+if [ -z "$DRYRUN" ]; then
+  $PY "$CLAIM" -C "$CHECKOUT" claim --session "$SID" --pid "$$" >/dev/null \
+    || say "claude-launch: checkout claim failed (rc=$?); peers will not see this session"
+fi
 do_exec "$@"

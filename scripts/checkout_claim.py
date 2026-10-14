@@ -8,10 +8,14 @@ checkout) with a precise per-checkout signal: *who holds THIS working tree, and 
 that process still alive?*
 
 Lock file (gitignored runtime state): <checkout>/.claude/checkout-claim.json
-    {"pid": int, "session_id": str, "started_at": iso8601, "host": str}
+    {"pid": int, "session_id": str, "started_at": iso8601, "host": str,
+     "proc_start": str}
 
 Design invariants (see ADR):
   - A lock whose pid is DEAD is STALE → reclaimable. Never a deadlock.
+  - A pid counts as the holder only while it has the start time recorded at claim
+    (`proc_start`). macOS recycles pids, so a bare existence probe takes whatever
+    process got the number next for a live peer (2026-10-14: SafariLaunchAgent).
   - Fail-open: a missing/corrupt lock means "no holder", never an error.
   - Per *physical checkout dir* — worktrees have separate working trees, hence
     separate locks (which is exactly what makes isolation work).
@@ -29,6 +33,8 @@ import argparse
 import json
 import os
 import socket
+import subprocess
+import sys
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -42,6 +48,7 @@ class Claim:
     session_id: str
     started_at: str
     host: str
+    proc_start: str = ""
 
 
 def _lock_path(checkout: Path) -> Path:
@@ -61,20 +68,48 @@ def _pid_alive(pid: int) -> bool:
     return True
 
 
+def _proc_start(pid: int) -> str:
+    """The process's start time as `ps` prints it; "" if no such process.
+
+    exec keeps it, so the launcher's value still matches once the launcher has
+    become claude; a recycled pid gives a different value.
+    """
+    if pid <= 0:
+        return ""
+    try:
+        r = subprocess.run(["ps", "-o", "lstart=", "-p", str(pid)], capture_output=True,
+                           text=True, timeout=5, env={**os.environ, "LC_ALL": "C"})
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return r.stdout.strip() if r.returncode == 0 else ""
+
+
+def _holder_alive(c: Claim) -> bool:
+    """True iff the claimed process still runs: the pid exists with the recorded start.
+
+    A lock without `proc_start` predates the check and recorded the claim helper's
+    own pid, which exits at once, so it cannot name a live holder.
+    """
+    if not c.proc_start or not _pid_alive(c.pid):
+        return False
+    return _proc_start(c.pid) == c.proc_start
+
+
 def read_claim(checkout: Path) -> Claim | None:
     """The claim as written, no liveness filter. None if absent/corrupt (fail-open)."""
     try:
         d = json.loads(_lock_path(checkout).read_text(encoding="utf-8"))
         return Claim(int(d["pid"]), str(d["session_id"]),
-                     str(d["started_at"]), str(d.get("host", "")))
+                     str(d["started_at"]), str(d.get("host", "")),
+                     str(d.get("proc_start", "")))
     except (OSError, ValueError, KeyError, TypeError):
         return None
 
 
 def live_holder(checkout: Path) -> Claim | None:
-    """The claim IFF its pid is alive. A stale (dead-pid) claim returns None."""
+    """The claim IFF its process is alive. A stale (dead or reused pid) claim returns None."""
     c = read_claim(checkout)
-    return c if (c is not None and _pid_alive(c.pid)) else None
+    return c if (c is not None and _holder_alive(c)) else None
 
 
 def peer_held(checkout: Path, my_session_id: str) -> Claim | None:
@@ -95,11 +130,13 @@ def claim(checkout: Path, session_id: str, *, pid: int | None = None,
     Caller decides isolation BEFORE claiming (check `peer_held` first); this just
     records ownership. `started_at` is injectable for deterministic tests.
     """
+    pid = pid if pid is not None else os.getpid()
     c = Claim(
-        pid=pid if pid is not None else os.getpid(),
+        pid=pid,
         session_id=session_id,
         started_at=started_at or datetime.now(timezone.utc).isoformat(timespec="seconds"),
         host=socket.gethostname(),
+        proc_start=_proc_start(pid),
     )
     p = _lock_path(checkout)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -134,6 +171,9 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("status", parents=[common], help="Show the current holder + liveness")
     sc = sub.add_parser("claim", parents=[common], help="Take the lock for a session")
     sc.add_argument("--session", required=True)
+    # Required: this CLI's own pid exits as soon as the claim is written.
+    sc.add_argument("--pid", type=int, required=True,
+                    help="Pid of the session process (the launcher's $$, which exec makes claude)")
     sr = sub.add_parser("release", parents=[common], help="Release the lock if owned")
     sr.add_argument("--session", required=True)
     sp = sub.add_parser("peer", parents=[common], help="Exit 0 if a LIVE peer holds it (else 1)")
@@ -143,7 +183,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "status":
         c = read_claim(checkout)
-        alive = bool(c and _pid_alive(c.pid))
+        alive = bool(c and _holder_alive(c))
         if args.json:
             print(json.dumps({"holder": asdict(c) if c else None, "alive": alive,
                               "checkout": str(checkout)}))
@@ -156,7 +196,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd == "claim":
-        c = claim(checkout, args.session)
+        if not _proc_start(args.pid):
+            print(f"checkout_claim: pid {args.pid} is not running; nothing claimed",
+                  file=sys.stderr)
+            return 3
+        c = claim(checkout, args.session, pid=args.pid)
         print(json.dumps(asdict(c)) if args.json else f"  ✓ claimed by {c.session_id[:8]} (pid {c.pid})")
         return 0
 

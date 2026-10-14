@@ -159,3 +159,22 @@ path-keyed infra (launchd WatchPaths, agentlogs `project_root`, `.mcp.json`) bec
 Evidence: live reads of both hooks (2026-06-16); peer commits `f12a1cd` (fail-closed), `4348399`
 (peer-warn loud + one-paste isolate), `74ee531` (log peer-warn fires); 5 concurrent peers + empty
 claim-lock observed this session.
+
+### 2026-10-14 — The lock never named a live session; false peers came from reused pids
+The launcher is adopted now (a shell alias), so "dormant — unadopted" above is stale. Two defects made
+the lock worse than none. `checkout_claim.py claim` recorded its own pid, the Python helper's, which
+exits once it has written the file, so every lock was stale on arrival and no real peer was ever
+detected. Liveness was a bare `kill(pid, 0)`, so once macOS recycled a helper's pid the next launch
+reported a live peer: on immigration-research it was SafariLaunchAgent (pid 65617), and the operator
+had to answer the worktree prompt for a session that did not exist.
+
+Fix: the CLI requires `--pid` and the launcher passes `$$`, which `exec` hands to claude; the lock
+records that process's start time, and a holder counts as live only while its pid has that start
+time. Locks without the fingerprint read as stale, and a failed claim prints at launch instead of
+being discarded. Regression: `tests/test_checkout_claim.py` (reused pid, unfingerprinted lock, CLI
+pid, dead pid) and `tests/test_claude_launch.py::test_share_path_claims_the_pid_that_becomes_claude`
+(a real launch on a pty with a fake claude); all five fail on the previous code.
+
+Evidence: this session's launch wrote `{"pid": 23065, "session_id": "launch-20012"}` while claude ran
+as pid 20012, and pid 23065 no longer existed; `ps -p 65617` showed SafariLaunchAgent, started six
+minutes before the check.

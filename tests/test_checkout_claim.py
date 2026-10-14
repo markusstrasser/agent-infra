@@ -53,6 +53,51 @@ def test_stale_claim_is_not_a_live_holder(tmp_path: Path) -> None:
     assert cc.peer_held(tmp_path, "sess-other") is None  # so it never blocks isolation
 
 
+def test_reused_pid_is_not_a_live_holder(tmp_path: Path) -> None:
+    # 2026-10-14: a launch reported a live peer whose pid macOS had given to
+    # SafariLaunchAgent. The pid exists, but its start time is not the claimed one.
+    cc.claim(tmp_path, "sess-A", pid=os.getpid())
+    lock = tmp_path / ".claude" / "checkout-claim.json"
+    d = json.loads(lock.read_text(encoding="utf-8"))
+    assert d["proc_start"]                               # fingerprint recorded
+    d["proc_start"] = "Thu Jan  1 00:00:00 1970"
+    lock.write_text(json.dumps(d), encoding="utf-8")
+    assert cc.live_holder(tmp_path) is None
+    assert cc.peer_held(tmp_path, "sess-B") is None
+
+
+def test_lock_without_fingerprint_is_stale(tmp_path: Path) -> None:
+    # Locks written before the fingerprint hold the claim helper's own pid.
+    lock = tmp_path / ".claude" / "checkout-claim.json"
+    lock.parent.mkdir(parents=True)
+    lock.write_text(json.dumps({"pid": os.getpid(), "session_id": "launch-65590",
+                                "started_at": "2026-10-13T15:07:24+00:00", "host": "h"}),
+                    encoding="utf-8")
+    assert cc.read_claim(tmp_path) is not None
+    assert cc.live_holder(tmp_path) is None
+
+
+def test_cli_claim_records_the_given_pid(tmp_path: Path) -> None:
+    holder = subprocess.Popen(["sleep", "30"])
+    try:
+        rc = cc.main(["-C", str(tmp_path), "claim", "--session", "s", "--pid", str(holder.pid)])
+        assert rc == 0
+        c = cc.read_claim(tmp_path)
+        assert c is not None and c.pid == holder.pid and c.proc_start
+        assert cc.peer_held(tmp_path, "other") is not None
+    finally:
+        holder.kill()
+        holder.wait()
+    assert cc.peer_held(tmp_path, "other") is None      # stale once the holder exits
+
+
+def test_cli_claim_refuses_a_dead_pid(tmp_path: Path, capsys) -> None:
+    rc = cc.main(["-C", str(tmp_path), "claim", "--session", "s", "--pid", str(_dead_pid())])
+    assert rc == 3
+    assert "not running" in capsys.readouterr().err
+    assert cc.read_claim(tmp_path) is None
+
+
 def test_release_is_owner_only(tmp_path: Path) -> None:
     cc.claim(tmp_path, "sess-A")
     assert cc.release(tmp_path, "sess-B") is False      # not the owner

@@ -9,6 +9,7 @@ test that the wrapper branches on it correctly.
 from __future__ import annotations
 
 import os
+import pty
 import subprocess
 import sys
 from pathlib import Path
@@ -58,3 +59,34 @@ def test_live_peer_triggers_prompt(tmp_path: Path) -> None:
     out = _run(tmp_path, session="me")
     assert "live peer" in out
     assert "would prompt" in out             # wrapper branches into the prompt path
+
+
+def test_share_path_claims_the_pid_that_becomes_claude(tmp_path: Path) -> None:
+    # Real (non-dry-run) launch on a pty with a fake claude on PATH. The lock must
+    # name the wrapper's $$, which exec hands to claude, not the claim helper's pid
+    # (2026-10-14: the helper's pid was recorded, and macOS later reused it).
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git_init(repo)
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    fake = bindir / "claude"
+    fake.write_text('#!/bin/bash\necho "$$" > "$FAKE_CLAUDE_PIDFILE"\n', encoding="utf-8")
+    fake.chmod(0o755)
+    pidfile = tmp_path / "claude.pid"
+    env = {k: v for k, v in os.environ.items() if k != "CLAUDE_LAUNCH_DRYRUN"}
+    env.update(PATH=f"{bindir}:{env['PATH']}", CLAUDE_SESSION_ID="me",
+               FAKE_CLAUDE_PIDFILE=str(pidfile))
+    master, slave = pty.openpty()             # [ -t 0 ] must hold, as at a terminal
+    try:
+        r = subprocess.run(["bash", str(WRAPPER)], cwd=str(repo), env=env, stdin=slave,
+                           capture_output=True, text=True, timeout=60)
+    finally:
+        os.close(slave)
+        os.close(master)
+    assert r.returncode == 0, r.stderr
+    assert "claim failed" not in r.stderr
+    c = cc.read_claim(repo)
+    assert c is not None and c.session_id == "me"
+    assert c.pid == int(pidfile.read_text(encoding="utf-8"))
+    assert c.proc_start
