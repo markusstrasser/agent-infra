@@ -2,7 +2,7 @@
 
 Exercised via CLAUDE_LAUNCH_DRYRUN=1 (prints the decision, never execs claude or
 prompts) + subprocess cwd= (no shell `cd`). Covers the four decision paths:
-headless passthrough, not-a-git-repo passthrough, no-peer share, live-peer prompt.
+headless passthrough, not-a-git-repo passthrough, no-peer share, live-peer notice.
 The peer-detection truth itself is unit-tested in test_checkout_claim.py; here we
 test that the wrapper branches on it correctly.
 """
@@ -49,16 +49,19 @@ def test_no_peer_share(tmp_path: Path) -> None:
     _git_init(tmp_path)                      # git repo, but no claim lock
     out = _run(tmp_path)
     assert "[dry-run] exec" in out
-    assert "would prompt" not in out         # nothing held it → straight to share
+    assert "live peer" not in out            # nothing held it → straight to share
 
 
-def test_live_peer_triggers_prompt(tmp_path: Path) -> None:
+def test_live_peer_gets_a_notice_and_shares(tmp_path: Path) -> None:
     _git_init(tmp_path)
     # A live peer (my own pid) under a DIFFERENT session holds the checkout.
     cc.claim(tmp_path, "peer-session", pid=os.getpid())
     out = _run(tmp_path, session="me")
     assert "live peer" in out
-    assert "would prompt" in out             # wrapper branches into the prompt path
+    assert "notice, share" in out            # no prompt: the session stays on main
+    assert "[dry-run] exec" in out
+    exec_line = next(line for line in out.splitlines() if line.startswith("[dry-run] exec"))
+    assert "--worktree" not in exec_line
 
 
 def test_share_path_claims_the_pid_that_becomes_claude(tmp_path: Path) -> None:
@@ -90,3 +93,37 @@ def test_share_path_claims_the_pid_that_becomes_claude(tmp_path: Path) -> None:
     assert c is not None and c.session_id == "me"
     assert c.pid == int(pidfile.read_text(encoding="utf-8"))
     assert c.proc_start
+
+
+def _launch_on_pty(repo: Path, bindir: Path, pidfile: Path) -> subprocess.CompletedProcess:
+    env = {k: v for k, v in os.environ.items() if k != "CLAUDE_LAUNCH_DRYRUN"}
+    env.update(PATH=f"{bindir}:{env['PATH']}", CLAUDE_SESSION_ID="me",
+               FAKE_CLAUDE_PIDFILE=str(pidfile))
+    master, slave = pty.openpty()             # [ -t 0 ] must hold, as at a terminal
+    try:
+        return subprocess.run(["bash", str(WRAPPER)], cwd=str(repo), env=env, stdin=slave,
+                              capture_output=True, text=True, timeout=60)
+    finally:
+        os.close(slave)
+        os.close(master)
+
+
+def test_sharing_with_a_live_peer_keeps_its_claim(tmp_path: Path) -> None:
+    # 2026-10-14: sharing became the default. The lock names one session, so a second
+    # session that claimed over a live peer would hide the peer once it exited.
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git_init(repo)
+    cc.claim(repo, "peer-session", pid=os.getpid())
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    fake = bindir / "claude"
+    fake.write_text('#!/bin/bash\necho "$$ $*" > "$FAKE_CLAUDE_PIDFILE"\n', encoding="utf-8")
+    fake.chmod(0o755)
+    pidfile = tmp_path / "claude.pid"
+    r = _launch_on_pty(repo, bindir, pidfile)
+    assert r.returncode == 0, r.stderr
+    assert "live peer" in r.stderr
+    assert "--worktree" not in pidfile.read_text(encoding="utf-8")   # claude ran on main
+    c = cc.read_claim(repo)
+    assert c is not None and c.session_id == "peer-session" and c.pid == os.getpid()

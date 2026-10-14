@@ -178,3 +178,29 @@ pid, dead pid) and `tests/test_claude_launch.py::test_share_path_claims_the_pid_
 Evidence: this session's launch wrote `{"pid": 23065, "session_id": "launch-20012"}` while claude ran
 as pid 20012, and pid 23065 no longer existed; `ps -p 65617` showed SafariLaunchAgent, started six
 minutes before the check.
+
+### 2026-10-14 (later) — Sharing is the default: a notice, not a prompt
+With detection fixed, the launch prompt appeared whenever a second session opened in a repo, and Enter
+moved that session into a worktree. The operator asked whether that was smart; earlier that day he had
+answered the prompt with "share" and asked for "all on main". Sharing is now the default. A live peer
+gets a one-line notice naming it, the session stays on main, and isolation is opt-in with
+`claude --worktree <name>`, which the launcher already passes through. A sharing session leaves a live
+peer's claim in place, because the lock names one session and overwriting it would hide that peer once
+the newcomer exits.
+
+- Until the morning's fix no real peer was ever detected, so for four months every session shared its
+  checkout in practice, under the hardened shared-checkout rules (explicit-path commits, hunk
+  isolation, no bare stash, the lsof peer warning). The 2026-06-19 isolate default never ran against a
+  real peer.
+- The 2026-06-16 (later) revision already judged hardened sharing "the pragmatic winner", and its
+  precondition for isolation by default, path-keyed infra (launchd WatchPaths, agentlogs
+  `project_root`, `.mcp.json`) that understands worktrees, still does not hold.
+- A worktree off main leaves a stale copy that later searches can mistake for current work;
+  immigration-research's CLAUDE.md requires removing one in the session that made it.
+
+Regression: `tests/test_claude_launch.py::test_live_peer_gets_a_notice_and_shares` and
+`::test_sharing_with_a_live_peer_keeps_its_claim` fail on the previous launcher and pass now.
+
+Evidence: operator, 2026-10-14: "Fix the worktree ... like all on main I guess?"; later, "The fix makes
+the worktree prompt appear whenever you open a second session in a repo, and pressing Enter moves that
+session off main. Is that smart? idk", and "Do whatever you think is most common sense and smartest".

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# claude-launch — Phase 3 of isolate-by-default
+# claude-launch — launch-time peer notice for shared checkouts
 # (decisions/2026-06-16-shared-checkout-isolation-by-default.md).
 #
-# At INTERACTIVE launch, detect a LIVE peer on this checkout (via checkout_claim.py)
-# and PROMPT: isolate in a worktree, or share. NOT a silent auto-wrapper — the
-# Revisions note in the ADR explains why (surprise context switch, headless breakage,
-# path-keyed-infra blindness). This asks; it never switches behind your back.
+# At INTERACTIVE launch, detect a LIVE peer on this checkout (via checkout_claim.py),
+# name it in one line, and share the checkout. It never prompts and never switches
+# into a worktree: isolation is opt-in with `claude --worktree <name>`. The ADR's
+# 2026-10-14 (later) revision explains why sharing is the default.
 #
 # Adopt via an ALIAS (never a PATH shadow — aliases are not seen inside scripts, so
 # the wrapper's `claude` always resolves to the REAL binary → recursion impossible):
@@ -47,31 +47,26 @@ CHECKOUT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 SID="${CLAUDE_SESSION_ID:-launch-$$}"
 
 # --- Precise peer detection (exit 0 ⇒ a LIVE peer holds THIS checkout) ---
+# A live peer gets a notice and this session shares main. Until 2026-10-14 Enter at a
+# prompt chose a worktree (operator decision 2026-06-19), but the lock never named a
+# live peer, so every session shared in practice; once detection worked, the prompt
+# stopped every second session in a repo (operator 2026-10-14: "all on main").
+PEER=""
 if $PY "$CLAIM" -C "$CHECKOUT" peer --session "$SID" >/dev/null 2>&1; then
-  say "⚠  live peer on $CHECKOUT:"
+  PEER=1
+  say "●  live peer on $CHECKOUT; sharing main (claude --worktree <name> isolates):"
   $PY "$CLAIM" -C "$CHECKOUT" status >&2 2>/dev/null || true
-  if [ -n "$DRYRUN" ]; then echo "[dry-run] live peer → would prompt; default [w]orktree (Enter), [s] to share"; exit 0; fi
-  printf "   [W] isolate in a worktree (default)   [s] share anyway  > " >&2
-  # Default-ISOLATE (operator decision 2026-06-19): Enter / empty / anything-but-share
-  # → worktree, so isolation is the path of least resistance. Only an explicit [s]
-  # shares. A read FAILURE (no tty) still defaults to SHARE — never auto-switch into a
-  # worktree without a real answer (ADR 2026-06-16: ask, do not switch silently).
-  read -r ans </dev/tty || ans="s"
-  case "$ans" in
-    s|S|share|SHARE) : ;;   # explicit share → fall through to the share path below
-    *)
-      wt="$(basename "$CHECKOUT")-wt$$"
-      say "   → claude --worktree $wt"
-      do_exec --worktree "$wt" "$@" ;;
-  esac
+  [ -z "$DRYRUN" ] || echo "[dry-run] live peer → notice, share"
 fi
 
-# --- Share path (no peer, or you chose share): claim, then run ---
+# --- Share path: claim the checkout unless a live peer holds it, then run ---
 # The lock is written with $$ and its start time; `exec` keeps both, so the lock
 # names the running claude and a recycled pid reads as stale. (Until 2026-10-14
-# the helper recorded its own pid, which exited at once.) A failed claim is
-# reported, never fatal. Skipped in dry-run so smoke tests have no side effects.
-if [ -z "$DRYRUN" ]; then
+# the helper recorded its own pid, which exited at once.) A live peer's claim is
+# left alone: the lock names one session, and overwriting it would hide that peer
+# once this session exits. A failed claim is reported, never fatal. Skipped in
+# dry-run so smoke tests have no side effects.
+if [ -z "$DRYRUN" ] && [ -z "$PEER" ]; then
   $PY "$CLAIM" -C "$CHECKOUT" claim --session "$SID" --pid "$$" >/dev/null \
     || say "claude-launch: checkout claim failed (rc=$?); peers will not see this session"
 fi
