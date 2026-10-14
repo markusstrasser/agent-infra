@@ -982,3 +982,26 @@ unfingerprinted lock, CLI pid, dead pid) and
 `tests/test_claude_launch.py::test_share_path_claims_the_pid_that_becomes_claude`; all five fail on
 the previous code. **Contract: a pid in a liveness record carries its start time and is written by
 the process it names, or by a parent that passes it explicitly.**
+
+### FM: One-shot reply parser treats every injected turn alike
+<!--
+FM-ID: cli-reply-injected-turn
+signature: `llmx chat` on a Claude subscription model returns rc 0 with a reply to a hook instead of the answer; or a long reply fails with an injected-turn refusal quoting "Output token limit hit. Resume directly"
+target_surface: llmx cli_backends._parse_claude_json (`allow_continuation`, `usage["output_limit_continuations"]`); llmx tests/test_claude_hook_isolation.py
+status: fixed
+evidence_count: 2
+-->
+2026-09-27: a subscription chat call ran the user's hooks; a Stop hook blocked, the model
+answered the hook, and llmx returned that reply (rc 0) as an extraction result. Fix llmx
+72866bc: chat and research-profile calls pass `disableAllHooks`, and the parser refuses a
+user-text turn injected after the answer. 2026-10-14, immigration-research critique: an Opus
+5.5 max-effort axis reached Claude Code's output cap after 41 minutes; the CLI injected its own
+"Output token limit hit. Resume directly" turn, the model finished, and the guard refused the
+whole reply, so the axis came back empty. Fix llmx 00cba8e: that recovery turn is accepted only
+after a message whose stop_reason is max_tokens (or unrecorded), the messages' text is joined,
+and `usage["output_limit_continuations"]` counts the joins; every other injected turn is still
+refused, and agent mode is unchanged. Regression: `tests/test_claude_hook_isolation.py`
+(`TestParserRefusesInjectedTurns`; `TestOutputLimitContinuation`: the join, a recovery after a
+finished message refused, a Stop hook after a recovery refused). **Contract: a guard on injected
+turns names each turn it accepts with the condition that makes it the harness's own, and refuses
+the rest loudly.**
