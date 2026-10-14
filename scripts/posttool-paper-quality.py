@@ -84,10 +84,20 @@ def _render_quality_context(payload: dict[str, Any]) -> str | None:
 
     if quality.get("retracted"):
         lines.append(f"- Retraction detail: {quality.get('retraction_detail', 'retracted')}")
+    rc = quality.get("retraction_check")
+    if quality.get("retracted") is None and rc != "complete":
+        lines.append(f"- Retraction status UNKNOWN ({rc or 'card predates retraction_check'}). "
+                     "Do not describe this paper as not retracted.")
+    for failure in quality.get("check_failures") or []:
+        lines.append(f"- Check failed: {failure}")
     if quality.get("is_candidate_gene"):
         lines.append("- Candidate-gene risk detected. Treat single-gene association claims as presumptively non-replicating unless clearly PGx/mechanistic.")
-    if quality.get("quality_status") == "unassessed":
-        lines.append("- Quality status is unassessed.")
+    if quality.get("feature_source") == "heuristic":
+        lines.append("- Study features (incl. any CANDIDATE_GENE veto) are keyword heuristics, not model-extracted.")
+    # quality_status lives on the tool result, not inside the card.
+    status = payload.get("quality_status")
+    if status in {"unassessed", "degraded", "failed"}:
+        lines.append(f"- Quality status is {status}.")
 
     lines.append("- If you write literature-direction or consensus claims from this paper, run `mcp__scite__search_literature` and append stance counts.")
     lines.append("- Before citing, prefer `mcp__research__get_paper` to inspect the persisted full card if the current output is truncated.")
