@@ -141,3 +141,5 @@ Scope: extract display/figure/explanation principles (not interactive-tool desig
 - The NYT "You Draw It" exemplar (P3) comes from training knowledge plus Hohman's description. The live piece was not re-checked.
 
 **Scite / literature-direction check:** not run. The mcp__scite tool is not available in this session. The literature-direction statements in the contested section (animation ≈ static when information-equivalent) rest on the two papers read, plus Hohman's summary that researchers debate the point. No stance counts are available.
+
+> **Full-text re-check 2026-10-14 (fetch outage):** [SOURCE: full text via research-mcp marker-modal, session scratchpad ftai/, 2026-10-14] [INFERENCE] The abstract-only / not-read items above that the parent memo uses (Kong 2018/2019, Xiong 2020, Borkin 2013, Kay 2016, Hofman 2020, Bateman 2010, Tversky 2002) were read in full; claims CONFIRMED, no corrections. Bateman's recall gap is ">12 days" in the paper.

@@ -60,3 +60,15 @@ Scope: abstract-level verification only. No full texts were read, and the fetch_
 ## Searches run
 
 S2 `search_papers`: McCaffrey; analogies near/far (empty result); serial order; Sio & Ormerod. EuropePMC: Mamede reflection; Lambe (503). Exa: McCaffrey plus additionalQueries (returned only McCaffrey); Chan 2011; Fu 2013 near/far; Mamede 2008; Dunbar in vivo; problem construction. OpenAlex API batches: 18 DOIs plus 17 title searches. Several title searches mismatched (Ward, Lombrozo, Graber, Davis, Paulus, Getzels) and were discarded. S2 API: 9 queries, 4 of which returned 429. `fetch_paper` for Barbot 2026 failed, so no full text was read. Scripts: `oa.py`, `s2.py`, and `q1/q2/q3.out` in this directory.
+
+## Full-text re-check (2026-10-14)
+
+[SOURCE: full text via research-mcp marker-modal, session scratchpad ftai/, 2026-10-14] [INFERENCE] Items 1, 3, 4, 6, 8, 11, 12, 13, 14, 15, 17, 19 re-read in full; CONFIRMED except:
+
+> **Correction 2026-10-14 (full-text re-check), item 3:** Reiter-Palmon 1997's restate-the-problem instruction "was not successful" (Discussion); originality tracked construction *ability* on some problem types. Reiter-Palmon & Murugavel 2018's originality effect was "marginal". The direction holds only weakly for the instructed intervention.
+
+> **Correction 2026-10-14 (full-text re-check), item 13:** Staal 2022's g=0.20 pools all workplace reasoning tools with no subgroup difference by type; it is not a guided-reflection estimate.
+
+> **Correction 2026-10-14 (full-text re-check), item 19:** Lombrozo 2007 Exps 2-3: simplicity still biases judgment when frequency information is given; only unambiguous probability information overrides it (Exp 4). "With base rates available, they dominate" is wrong.
+
+> Item 1: McCaffrey 2012 fetched in full, but the 67% figure was not re-located in the parsed text (NOT VERIFIED; the skill parks the technique). Item 6: confirmed, number of ideas unaffected.
