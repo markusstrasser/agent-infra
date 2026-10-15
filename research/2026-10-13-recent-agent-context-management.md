@@ -63,3 +63,14 @@ Excluded after checking: FOCUS 2609.37590 (GPT-4.1/Qwen3-8B, pre-frontier). Auto
 - Exa advanced, arXiv domain, window 2026-08-13..2026-10-13: (1) compaction vs fresh restart, frontier; (2) context management for long-running coding agents (summaries, memory files, handoffs, subagents); (3) carried or dropped reasoning traces; (4) persistent memory and handoff notes across sessions; (5) context rot over hours. Lab-domain Exa: (6) context engineering on anthropic/openai/deepmind/cognition/claude.com, which yielded the Anthropic "Maximizing the value of your Claude Code sessions" article (2026-08-14, guidance only, no measurements), Google Antigravity Teamwork (2026-08-31, anecdotal) and OpenAI community threads; (7) Codex `new_context`, which found community posts only.
 - arXiv export API for metadata and dates of 25 IDs. pdftotext full text for 12. The Asana page was 403 to both WebFetch and curl. search_papers was not used: the window is too recent for S2 and Exa covered arXiv.
 - Excluded as covered elsewhere: 2606.29718, 2610.07625, 2609.15309, and the seed 2610.07447.
+
+## Update 2026-10-15 — delta scan and actions taken
+
+No new arXiv work on compaction quality between 2026-10-08 and 2026-10-15 (Exa, arXiv domain; FlowState already excluded above). The new facts come from Claude Code itself (CHANGELOG, 2.1.300 binary strings):
+
+- **Idle compaction (2.1.299).** A conversation over 200K tokens that sits idle about 54 minutes is compacted before the one-hour cache expires. It reaches PreCompact hooks as `trigger:"auto"` (the hook schema enum is still manual/auto). It is tuned with `CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS` or turned off with `"idleCompaction": false`. With a 500K window, idle sessions now compact below the configured threshold.
+- **Per-model window (2.1.288).** `/autocompact` writes `modelSettings.<model>.autoCompactWindow`, which replaces the top-level key for that model.
+- **Hook outputs combine.** Several PreCompact hooks' stdout are joined with newlines into `newCustomInstructions`, so more than one hook can contribute summarizer instructions.
+- **Nested summaries (action b): answered, yes.** Each summary is written from a context that already contains the previous one, and consecutive summaries share only 4–32% of their 12-word sequences (6 sessions, one with 50 compactions). Details get re-paraphrased at every step instead of carried forward.
+
+Actions: (a) shipped as skills@75b3b83. Every session's summary now opens with a line saying it is lossy, lists the files to re-read, separates verified from unverified work, and carries the previous summary's open items forward word for word. skills@24e41e9 makes the wrap-up hook read the per-model window. skills@871d544 adds `observe/scripts/compaction_boundaries.py` with a pre-contract baseline: 237 boundaries over 7 days, carry-over median 0.099, re-read median 0.5. Re-run it after about a week of contract boundaries and compare the two arms.
