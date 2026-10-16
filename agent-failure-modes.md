@@ -1005,3 +1005,33 @@ refused, and agent mode is unchanged. Regression: `tests/test_claude_hook_isolat
 finished message refused, a Stop hook after a recovery refused). **Contract: a guard on injected
 turns names each turn it accepts with the condition that makes it the harness's own, and refuses
 the rest loudly.**
+
+### FM: iCloud provider Trash falls outside the home Trash recovery check
+<!--
+FM-ID: icloud-provider-trash-recovery-root
+signature: native trash refuses an iCloud Documents item with Cocoa 513, or the source disappears through Finder while the home Trash contains no matching recovery file
+target_surface: 2026-10-16 Documents cleanup verify_finder_cleanup.py / find_recoverable_copy; retained native CLI failure receipt
+status: fixed
+evidence_count: 1
+-->
+2026-10-16, personal Documents cleanup: `/usr/bin/trash` exited 5 with Cocoa 513
+and left the source intact. The same-time TCC AllFiles check was allowed; the
+specific lower-level denial remains unresolved. Finder's normal Command-Delete
+subsequently placed the same inode and complete bytes in
+`~/Library/Mobile Documents/.Trash`, the observed iCloud File Provider recovery
+root. A same-volume test and successful read/hash did not establish the CLI route
+or make `~/.Trash` the right recovery boundary. No permission changes, manual
+provider-internal moves or permanent-delete fallback were used.
+
+The completed operation's verifier checks the identified normal/provider roots,
+requires a unique original device/inode match, and hashes the whole recoverable
+file before reporting completion. All four ZIPs and 296 retained files passed;
+the failed CLI executor is retained as evidence, not a reusable successful route.
+Regression: `documents-cleanup/check_cleanup_guards.py` covers home Trash empty
+with a provider-only recovery item, missing/wrong/ambiguous recovery, unsafe
+symlinks, stale metadata, optimized Python refusal, and a simulated CLI 513 that
+preserves its source and cannot emit a completion event. The verifier defect is
+fixed for this operation; the OS CLI refusal is recorded without claiming an OS
+fix. Evidence and fixtures:
+`~/.codex/visualizations/2026/10/16/01a14360-5228-75e3-b543-6a5c8f0b6359/documents-cleanup/`
+(`events.jsonl`, `cleanup-safety-review.md`, `final-verification.json`).
