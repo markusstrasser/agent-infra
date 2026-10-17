@@ -34,8 +34,10 @@ Usage (as emitted by codex_parity_sync):
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -112,7 +114,7 @@ def _hook_env(event: str, payload: str, agent_pid: int, tty: str) -> dict[str, s
     if event == "PreToolUse" and payload.strip():
         try:
             data = json.loads(payload)
-            tool = data.get("tool_name")
+            tool = data.get("tool_name") if isinstance(data, dict) else None
             if isinstance(tool, str) and tool:
                 env["CLAUDE_TOOL_NAME"] = tool
         except json.JSONDecodeError:
@@ -226,6 +228,36 @@ def _normalize_stdout(stdout: str, event: str) -> str:
     return json.dumps(d) if changed else stdout
 
 
+def _pending_tool_metadata(payload: str) -> dict:
+    """Receipt-only metadata; never retain pending input values or raw payload."""
+    try:
+        data = json.loads(payload)
+    except (ValueError, TypeError):
+        return {"shape": "invalid_json"}
+    if not isinstance(data, dict):
+        return {"shape": "not_object"}
+    tool_name = data.get("tool_name")
+    tool_input = data.get("tool_input")
+    tool_id = data.get("tool_use_id")
+    safe_name = isinstance(tool_name, str) and re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", tool_name)
+    safe_keys = isinstance(tool_input, dict) and len(tool_input) <= 128 and all(
+        re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,63}", key) for key in tool_input
+    )
+    result = {"shape": "valid" if safe_name and safe_keys and isinstance(tool_id, str) and tool_id else "invalid_fields"}
+    if safe_name:
+        result["tool_name"] = tool_name
+    if safe_keys:
+        result["tool_input_keys"] = sorted(tool_input)
+    if isinstance(tool_id, str) and tool_id:
+        try:
+            encoded_id = tool_id.encode()
+        except UnicodeEncodeError:
+            result["shape"] = "invalid_fields"
+        else:
+            result["tool_use_id_sha256"] = hashlib.sha256(encoded_id).hexdigest()
+    return result
+
+
 def main(argv: list[str]) -> int:
     if len(argv) < 2:
         return 0
@@ -273,6 +305,8 @@ def main(argv: list[str]) -> int:
                         "cmd": command.split()[0] if command.split() else "",
                         "rc": rc,
                         "duration_ms": duration_ms,
+                        **({"pending_tool": _pending_tool_metadata(payload)}
+                           if event == "PreToolUse" else {}),
                     }
                 )
                 + "\n"

@@ -1,12 +1,79 @@
 """Tests for codex_hook_shim.py — Claude-dialect hook output -> Codex contract."""
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sys
 from pathlib import Path
 
 SHIM = Path(__file__).resolve().parents[1] / "codex_hook_shim.py"
+
+
+def test_pending_tool_receipt_is_correlated_without_values(tmp_path: Path) -> None:
+    sentinel = "FAKE_SENSITIVE_VALUE_never_log"
+    log = tmp_path / ".codex/log/hook_shim_invocations.jsonl"
+    log.parent.mkdir(parents=True)
+    payload = json.dumps({"tool_name": "Bash", "tool_use_id": sentinel,
+                          "tool_input": {"command": sentinel, "timeout_ms": 123}})
+    result = run_shim("exit 0", "PreToolUse", payload,
+                      extra_env={"HOME": str(tmp_path)})
+    receipt = json.loads(log.read_text())
+    assert receipt["pending_tool"] == {
+        "shape": "valid", "tool_name": "Bash",
+        "tool_input_keys": ["command", "timeout_ms"],
+        "tool_use_id_sha256": hashlib.sha256(sentinel.encode()).hexdigest(),
+    }
+    assert sentinel not in log.read_text() + result.stdout + result.stderr
+    assert result.returncode == 0
+
+
+def test_malformed_pending_tool_receipt_preserves_block(tmp_path: Path) -> None:
+    log = tmp_path / ".codex/log/hook_shim_invocations.jsonl"
+    log.parent.mkdir(parents=True)
+    for payload, shape in [("[]", "not_object"), ("null", "not_object"),
+                           ("not-json", "invalid_json"),
+                           ('{"tool_name":"Bash","tool_input":[]}', "invalid_fields")]:
+        result = run_shim("printf blocked >&2; exit 2", "PreToolUse", payload,
+                          extra_env={"HOME": str(tmp_path)})
+        receipt = json.loads(log.read_text().splitlines()[-1])
+        assert receipt["pending_tool"]["shape"] == shape
+        assert result.returncode == 2
+        assert result.stderr == "blocked"
+
+
+def test_pending_tool_metadata_does_not_affect_other_events(tmp_path: Path) -> None:
+    log = tmp_path / ".codex/log/hook_shim_invocations.jsonl"
+    log.parent.mkdir(parents=True)
+    result = run_shim("exit 0", "SessionStart", extra_env={"HOME": str(tmp_path)})
+    assert "pending_tool" not in json.loads(log.read_text())
+    assert result.returncode == 0
+
+
+def test_unencodable_tool_id_keeps_each_receipt_and_inner_contract(tmp_path: Path) -> None:
+    log = tmp_path / ".codex/log/hook_shim_invocations.jsonl"
+    log.parent.mkdir(parents=True)
+    for count, tool_id in enumerate(["\ud800", "\udfff"], start=1):
+        payload = json.dumps({"tool_name": "Bash", "tool_use_id": tool_id,
+                              "tool_input": {"command": "FAKE_SECRET_VALUE"}})
+        # A real child compares exact stdin without reflecting it to either stream.
+        import shlex
+        inner = (f"{shlex.quote(sys.executable)} -c " + shlex.quote(
+            "import sys; expected=" + repr(payload) +
+            "; assert sys.stdin.read()==expected; "
+            "print('safe output'); print('blocked',file=sys.stderr); sys.exit(2)"))
+        result = run_shim(inner, "PreToolUse", payload, extra_env={"HOME": str(tmp_path)})
+        assert result.returncode == 2
+        assert result.stderr == "blocked\n"
+        assert json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"] == "safe output"
+        lines = log.read_text().splitlines() if log.exists() else []
+        assert len(lines) == count
+        receipt = json.loads(lines[-1])
+        assert receipt["rc"] == 2 and receipt["event"] == "PreToolUse"
+        assert isinstance(receipt["duration_ms"], int)
+        assert receipt["pending_tool"] == {"shape": "invalid_fields", "tool_name": "Bash",
+                                           "tool_input_keys": ["command"]}
+        assert "FAKE_SECRET_VALUE" not in log.read_text() + result.stdout + result.stderr
 
 
 def run_shim(
