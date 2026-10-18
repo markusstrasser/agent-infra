@@ -331,6 +331,9 @@ Nothing to decide here.
 ## [ask 2026-09-19 13:40] Modal workspace is DISABLED
 Body.
 
+## [ask 2026-09-24 19:30] phewas carry-forward?
+superseded: 2026-09-24 22:05 — no answer needed
+
 ### 2. Decide: build the panel? — **SUPERSEDED by item A above (2026-06-25)**
 
 ## 2026-10-15 04:05 JST — morning decisions

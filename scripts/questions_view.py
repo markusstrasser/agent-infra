@@ -334,7 +334,7 @@ def _collect_predictions(result: ViewResult) -> None:
 #              `### date · ask · [open]`; arc-agi, hutter, evolver);
 #   untagged — no tag; status lives in the body (genomics, immigration-research):
 #              a line-anchored `[answered…` is the operator's answer, a line-anchored
-#              `consumed:` is the agent's receipt, and an untagged block with neither
+#              `consumed:` / `superseded:` is the agent's receipt, and an untagged block with neither
 #              is an ask only when its title or body says so (_HUMAN_ASK_*), else FYI.
 # A block is awaiting-agent when its last answer comes after its last receipt, so
 # multi-round blocks (answer, receipt, answer) re-open correctly. Fenced code is
@@ -349,7 +349,7 @@ _HUMAN_HEAD_RE = re.compile(
     re.I,
 )
 _HUMAN_ANSWER_RE = re.compile(r"^\s*(?:[-*]\s+)?\[answered\b", re.I)
-_HUMAN_CONSUMED_RE = re.compile(r"^\s*(?:[-*]\s+)?consumed:\s*\S", re.I)
+_HUMAN_CONSUMED_RE = re.compile(r"^\s*(?:[-*]\s+)?(?:consumed|superseded):\s*\S", re.I)
 _HUMAN_ASK_TITLE_RE = re.compile(r"\bask\b|\?|\bcalls?\b|\byours?\b|\bneeds? you", re.I)
 _HUMAN_RETIRED_TITLE_RE = re.compile(r"\bsuperseded\b|~~", re.I)
 _HUMAN_ASK_BODY_RE = re.compile(r"^\s*(?:[-*]\s+)?\**(?:ask|your calls?)\b", re.I)
