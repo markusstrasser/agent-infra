@@ -162,7 +162,9 @@ def test_uncovered_admin_state_holds_all_routes(repo: Path, state: str) -> None:
         worktree_gc.remove_worktree(repo, wt)
 
 
-@pytest.mark.parametrize("state", ["stash", "lfs", "lfs-storage", "replace", "grafts"])
+@pytest.mark.parametrize(
+    "state", ["stash", "lfs", "lfs-storage", "lfs-format", "replace", "grafts"]
+)
 def test_shared_state_without_worktree_provenance_holds(repo: Path, state: str) -> None:
     wt = lane(repo)
     candidate = row(repo, wt)
@@ -176,6 +178,8 @@ def test_shared_state_without_worktree_provenance_holds(repo: Path, state: str) 
         path.write_bytes(b"unique LFS bytes")
     elif state == "lfs-storage":
         git(wt, "config", "lfs.storage", str(repo.parent / "external-lfs"))
+    elif state == "lfs-format":
+        git(wt, "config", "lfs.repositoryformatversion", "1")
     elif state == "replace":
         git(wt, "replace", "HEAD", unique_commit(wt))
     else:
@@ -187,6 +191,138 @@ def test_shared_state_without_worktree_provenance_holds(repo: Path, state: str) 
             candidate
         )
     assert not worktree_gc.archive_worktree(row(repo, wt)).ok
+
+
+def test_codex_no_environment_marker_is_preserved_in_archive(repo: Path) -> None:
+    wt = lane(repo)
+    git(repo, "config", "extensions.worktreeConfig", "true")
+    git(wt, "config", "--worktree", "codex.localEnvironmentConfigPath", "__none__")
+    admin = Path(git(wt, "rev-parse", "--absolute-git-dir"))
+    config_bytes = (admin / "config.worktree").read_bytes()
+    candidate = row(repo, wt)
+    assert candidate.classify() == "landed", candidate.hold_reason
+    result = worktree_gc.archive_worktree(candidate)
+    assert result.ok, result.reason
+    with tarfile.open(result.dir / "git-state.tgz", "r:gz") as archive:
+        assert archive.extractfile(".git/config.worktree").read() == config_bytes
+
+
+@pytest.mark.parametrize("value", ["", "/tmp/environment.toml", "unknown"])
+def test_other_codex_environment_values_still_hold(repo: Path, value: str) -> None:
+    wt = lane(repo)
+    git(repo, "config", "extensions.worktreeConfig", "true")
+    git(wt, "config", "--worktree", "codex.localEnvironmentConfigPath", value)
+    candidate = row(repo, wt)
+    assert candidate.classify() == "HOLD"
+    assert not worktree_gc.archive_worktree(candidate).ok
+
+
+def test_shared_lfs_lock_metadata_survives_landed_removal(repo: Path) -> None:
+    wt = lane(repo)
+    git(repo, "config", "lfs.repositoryformatversion", "0")
+    (repo / ".git/lfs/objects/aa/bb").mkdir(parents=True)
+    marker = repo / ".git/lfs/cache/locks/refs/heads/main/verifiable"
+    marker.parent.mkdir(parents=True)
+    marker.write_bytes(b"false")
+    assert row(repo, wt).classify() == "landed"
+    assert worktree_gc.explicit_archive(wt) == 0
+    assert not wt.exists()
+    assert marker.read_bytes() == b"false"
+
+
+def test_shared_lfs_metadata_symlink_into_candidate_still_holds(repo: Path) -> None:
+    wt = lane(repo)
+    private = wt / "private-lfs"
+    private.mkdir()
+    (repo / ".git/lfs").symlink_to(private, target_is_directory=True)
+    candidate = row(repo, wt)
+    assert candidate.classify() == "HOLD"
+    assert not worktree_gc.archive_worktree(candidate).ok
+    assert private.exists()
+
+
+def test_explicit_archive_leaves_unreadable_peer_index_untouched(repo: Path) -> None:
+    wt = lane(repo)
+    peer = repo.parent / "unrelated-peer"
+    git(repo, "worktree", "add", "-q", "--detach", str(peer), "main")
+    peer_index = Path(git(peer, "rev-parse", "--absolute-git-dir")) / "index"
+    peer_index.write_bytes(b"unreadable peer index, preserve exactly")
+    assert worktree_gc.explicit_archive(wt) == 0
+    assert not wt.exists() and peer.exists()
+    assert peer_index.read_bytes() == b"unreadable peer index, preserve exactly"
+
+
+def test_empty_uv_sdist_marker_is_preserved_without_claiming_nested_git(
+    repo: Path,
+) -> None:
+    wt = lane(repo)
+    marker = wt / ".uv-cache/sdists-v9/.git"
+    marker.parent.mkdir(parents=True)
+    marker.write_bytes(b"")
+    result = worktree_gc.archive_worktree(row(repo, wt))
+    assert result.ok, result.reason
+    with tarfile.open(result.dir / "ignored.tgz", "r:gz") as archive:
+        assert archive.extractfile(".uv-cache/sdists-v9/.git").read() == b""
+
+
+def test_session_uuid_marker_requires_archive_and_is_preserved(repo: Path) -> None:
+    wt = lane(repo)
+    with (repo / ".git/info/exclude").open("a") as stream:
+        stream.write("\n.claude/current-session-id\n")
+    marker = wt / ".claude/current-session-id"
+    session_bytes = b"01a14089-94a2-76d3-b203-9389b01af78e\n"
+    marker.write_bytes(session_bytes)
+    assert row(repo, wt).classify() == "landed"
+    with pytest.raises(RuntimeError):
+        worktree_gc.remove_worktree(repo, wt)
+    assert marker.read_bytes() == session_bytes
+    assert worktree_gc.explicit_archive(wt) == 0
+    assert not wt.exists()
+    destination = next(worktree_gc.ARCHIVE_ROOT.glob("**/head.txt")).parent
+    with tarfile.open(destination / "ignored.tgz", "r:gz") as archive:
+        assert archive.extractfile(".claude/current-session-id").read() == session_bytes
+
+
+@pytest.mark.parametrize("kind", ["text", "directory", "symlink"])
+def test_session_marker_with_unknown_content_remains_unproven(
+    repo: Path, kind: str
+) -> None:
+    wt = lane(repo)
+    with (repo / ".git/info/exclude").open("a") as stream:
+        stream.write("\n.claude/current-session-id\n")
+    marker = wt / ".claude/current-session-id"
+    if kind == "directory":
+        marker.mkdir()
+        (marker / "new-source.py").write_text("unique work\n")
+    elif kind == "symlink":
+        target = repo.parent / "external-session"
+        target.write_text("01a14089-94a2-76d3-b203-9389b01af78e\n")
+        marker.symlink_to(target)
+    else:
+        marker.write_text("unique work, not a generated UUID\n")
+    assert not worktree_gc.dirty_work_on_default(repo, wt)
+    assert row(repo, wt).classify() != "landed"
+    assert marker.exists()
+
+
+@pytest.mark.parametrize("kind", ["nonempty", "directory", "symlink"])
+def test_uv_sdist_git_state_other_than_empty_regular_marker_holds(
+    repo: Path, kind: str
+) -> None:
+    wt = lane(repo)
+    marker = wt / ".uv-cache/sdists-v9/.git"
+    marker.parent.mkdir(parents=True)
+    if kind == "directory":
+        marker.mkdir()
+    elif kind == "symlink":
+        target = repo.parent / "external-marker"
+        target.write_bytes(b"")
+        marker.symlink_to(target)
+    else:
+        marker.write_bytes(b"gitdir: /tmp/external-repository\n")
+    candidate = row(repo, wt)
+    assert candidate.classify() == "HOLD"
+    assert not worktree_gc.archive_worktree(candidate).ok
 
 
 @pytest.mark.parametrize("dirty", [False, True])

@@ -53,6 +53,8 @@ Linked-worktree content inventory (landed removal and explicit archive):
   Ignored working files    Non-cache work HOLD automatically; archive PRESERVED in
                            ignored.tgz, including large files, symlinks, empty dirs,
                            venvs/index-trees. Cache names are never a content proof.
+                           The exact regular current-session-id UUID marker is
+                           archive-only metadata; other ignored content still HOLDs.
   Index entries/blobs      PROVEN-LANDED individually; staged-then-overwritten HOLD
                            if either entry is unproven. Archive write-tree on a COPY of saved index,
                            check every entry, commit-tree parent HEAD, pin separately
@@ -78,18 +80,23 @@ Linked-worktree content inventory (landed removal and explicit archive):
   Pending operations       HOLD rebase/merge/cherry-pick/revert/sequencer/bisect/
                            autostash, including pseudorefs and lock files.
   config.worktree          Regular file, Git-parsed without includes; only allowlisted
-                           agent.session-id keys accepted. Raw bytes archived; else HOLD.
+                           agent.session-id and Codex's exact __none__ environment
+                           marker accepted. Raw bytes archived; other values HOLD.
   codex-thread.json        Regular JSON object: exactly version=1 and UUID ownerThreadId;
                            raw bytes archived. App ownership is suggestion-only: only
                            explicit archive --path may remove the tree, even if landed.
   Sparse-checkout          HOLD info/sparse-checkout or sparse configuration/index flags.
   Submodules/gitlinks      HOLD initialized/populated; empty gitlinks must be unchanged.
   Nested repositories      HOLD even inside ignored caches (child refs/objects unknown).
+                           The exact empty regular .uv-cache/sdists-v9/.git marker
+                           carries no Git roots and is preserved as ordinary content.
   Notes                    Shared loose/packed refs/notes and their objects survive removal.
   Shared ref storage       HOLD symlinked paths/parents under the common directory or
                            candidate-contained refs/notes, packed-refs, refs/stash,
                            and logs/refs (including all descendant refs/reflogs).
   LFS objects/pointers     HOLD storage/config/.lfsconfig/pointers; Git pins no LFS payload.
+                           Shared lock metadata without any object payloads survives
+                           outside the checkout; candidate-contained/symlinked storage HOLDs.
   Other pseudorefs/admin   ORIG_HEAD must be a default ancestor; raw bytes archived.
                            HOLD FETCH_HEAD/AUTO_MERGE/etc and unknown admin paths.
   Rerere state             Empty MERGE_RR has no object roots; raw bytes archived.
@@ -834,6 +841,22 @@ def _under_derived_cache(rel: str) -> bool:
     )
 
 
+def _archived_session_marker(wt: Path, rel: str) -> bool:
+    """Recognize only the generated UUID file; every byte still needs an archive."""
+    if rel != ".claude/current-session-id":
+        return False
+    marker = wt / rel
+    metadata = marker.lstat()
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_size not in (36, 37):
+        return False
+    return bool(
+        re.fullmatch(
+            rb"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\n?",
+            marker.read_bytes(),
+        )
+    )
+
+
 def _hidden_work(wt: Path, *, exclude_archived_caches: bool = False) -> tuple[int, int]:
     """Ignored bytes are work; only a verified archive may cover cache exclusions."""
     flags = run(["git", "ls-files", "-v", "-z"], cwd=wt, check=True).stdout
@@ -873,7 +896,11 @@ def _hidden_work(wt: Path, *, exclude_archived_caches: bool = False) -> tuple[in
         ignored.update(
             p
             for p in paths
-            if p and not (exclude_archived_caches and _under_derived_cache(p))
+            if p
+            and not (
+                exclude_archived_caches
+                and (_under_derived_cache(p) or _archived_session_marker(wt, p))
+            )
         )
     return flagged, len(ignored)
 
@@ -983,7 +1010,14 @@ def _worktree_config_hold(path: Path, wt: Path) -> str | None:
         return "unparsable worktree administrative configuration: config.worktree"
     for entry in result.stdout.split(b"\0"):
         if entry:
-            key = os.fsdecode(entry.split(b"\n", 1)[0])
+            raw_key, separator, value = entry.partition(b"\n")
+            key = os.fsdecode(raw_key)
+            if (
+                key == "codex.localenvironmentconfigpath"
+                and separator
+                and value == b"__none__"
+            ):
+                continue
             if key not in WORKTREE_CONFIG_KEYS:
                 return f"unsupported config.worktree key: {key}"
     return None
@@ -1612,9 +1646,28 @@ def _worktree_state_hold(wt: Path) -> str | None:
             for path in root.rglob("*"):
                 if path.is_file() and path.relative_to(admin).as_posix() not in local:
                     return f"unreadable worktree-local ref: {path.relative_to(admin)}"
-        for rel in ("objects/info/alternates", "info/grafts", "shallow", "lfs"):
+        for rel in ("objects/info/alternates", "info/grafts", "shallow"):
             if (common / rel).exists() or (common / rel).is_symlink():
                 return f"unsupported shared object storage/proof: {rel}"
+        lfs = common / "lfs"
+        if lfs.exists() or lfs.is_symlink():
+            blocked = _ref_storage_hold(lfs, common, wt.resolve())
+            if blocked:
+                return blocked
+            objects = lfs / "objects"
+            if not lfs.is_dir() or (
+                objects.exists()
+                and (
+                    not objects.is_dir()
+                    or any(
+                        files
+                        for _directory, _dirs, files in os.walk(
+                            objects, onerror=_walk_error
+                        )
+                    )
+                )
+            ):
+                return "unsupported shared object storage/proof: lfs"
         for directory, dirs, files in os.walk(
             common / "objects", followlinks=False, onerror=_walk_error
         ):
@@ -1642,6 +1695,7 @@ def _worktree_state_hold(wt: Path) -> str | None:
             line
             for line in config.stdout.splitlines()
             if not line.startswith("filter.lfs.")
+            and line != "lfs.repositoryformatversion 0"
         ]
         if unsupported_config or (wt / ".lfsconfig").exists():
             return "unsupported LFS/filter/sparse/ref-storage configuration"
@@ -1670,7 +1724,14 @@ def _worktree_state_hold(wt: Path) -> str | None:
             wt, followlinks=False, onerror=_walk_error
         ):
             if directory != str(wt) and ".git" in dirs + files:
-                return f"nested repository: {Path(directory).relative_to(wt)}"
+                relative = Path(directory).relative_to(wt)
+                marker = (Path(directory) / ".git").lstat()
+                if not (
+                    relative.parts == (".uv-cache", "sdists-v9")
+                    and stat.S_ISREG(marker.st_mode)
+                    and marker.st_size == 0
+                ):
+                    return f"nested repository: {relative}"
             for name in files:
                 path = Path(directory) / name
                 if not stat.S_ISREG(path.lstat().st_mode) and not path.is_symlink():
@@ -1884,10 +1945,13 @@ def audit_repo(
     safe_idle_min: float = 60.0,
     *,
     on_row: Callable[[WorktreeRow], None] | None = None,
+    only_path: Path | None = None,
 ) -> list[WorktreeRow]:
     name = repo.name
     rows: list[WorktreeRow] = []
     for wt, branch, lock in parse_worktrees(repo):
+        if only_path is not None and wt.resolve() != only_path.resolve():
+            continue
         if any(s in str(wt) for s in SKIP_PATH_SUBSTR):
             continue
         if not wt.exists():
@@ -2999,13 +3063,9 @@ def archive_worktree(
     (dest / "untracked.list").write_text("".join(f + "\n" for f in files))
     tgz = dest / "untracked.tgz"
     if files:
-        subprocess.run(
-            ["tar", "-czf", str(tgz), "--null", "-T", "-"],
-            cwd=wt,
-            input="\0".join(files).encode(),
-            capture_output=True,
-            check=True,
-        )
+        # Match the manifest owner used for ignored/Git-state payloads. macOS tar
+        # invents AppleDouble members outside the file-byte manifest contract.
+        _archive_manifest_paths(wt, tgz, set(files))
     ignored_tgz = dest / "ignored-cache.tgz"
     ignored_count, ignored_bytes = _archive_ignored_cache(wt, ignored_tgz)
     (dest / "RESTORE.md").write_text(
@@ -3788,7 +3848,11 @@ def explicit_archive(path: Path) -> int:
         listing = run(["git", "worktree", "list", "--porcelain"], cwd=path, check=True)
         root = Path(listing.stdout.splitlines()[0].removeprefix("worktree "))
         row = next(
-            (r for r in audit_repo(root, with_size=False) if r.path.resolve() == path),
+            (
+                r
+                for r in audit_repo(root, with_size=False, only_path=path)
+                if r.path.resolve() == path
+            ),
             None,
         )
         if row is None:
