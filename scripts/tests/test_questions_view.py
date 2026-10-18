@@ -320,6 +320,49 @@ def test_human_md_bad_file_skipped_not_crash(tmp_path, monkeypatch):
     assert any("eval budget bump" in q.prompt for q in result.questions)  # peer survives
 
 
+UNTAGGED_STYLE = """# HUMAN.md — asks for the operator
+
+## 2026-10-15 10:55 — P2.1 donor-ship design: three calls
+Answer with `[answered: a | b]`.
+
+## 2026-10-15 12:10 — FYI: storage census landed
+Nothing to decide here.
+
+## [ask 2026-09-19 13:40] Modal workspace is DISABLED
+Body.
+
+### 2. Decide: build the panel? — **SUPERSEDED by item A above (2026-06-25)**
+
+## 2026-10-15 04:05 JST — morning decisions
+1. pick one
+[answered 10-16 10:49: "4 not yet."]
+consumed: 2026-10-16 04:05 — item 4 stays closed
+
+## 2026-10-15 07:24 JST — probe: two design calls
+[answered 10-16 10:49: "why?"]
+consumed: 2026-10-16 07:24-p15 — question, not a yes
+[answered 10-16 11:10: "API seems fine"]
+
+## 2026-10-16 02:58 — Disk at 15 GB free
+- **Ask (19:11):** retire the exports?
+  - consumed: 2026-10-16 19:47 — V45 retires them
+"""
+
+
+def test_human_md_untagged_grammar_reads_body_status(tmp_path, monkeypatch):
+    """genomics/immigration HUMAN.md carry no heading tag (2026-10-19: 0 rows parsed)."""
+    monkeypatch.setattr(qv, "HUMAN_MD_ROOT", _mk_projects(tmp_path, genomics=UNTAGGED_STYLE))
+    result = qv.collect_questions(tmp_path)
+    assert sorted(q.prompt for q in result.questions) == [
+        "2026-10-15 10:55 — P2.1 donor-ship design: three calls",  # template in backticks ≠ answer
+        "[ask 2026-09-19 13:40] Modal workspace is DISABLED",
+    ]
+    # answer after the last receipt re-opens the block for the agent; FYI never surfaces
+    assert [q.prompt for q in result.awaiting_agent] == [
+        "2026-10-15 07:24 JST — probe: two design calls",
+    ]
+
+
 def test_human_md_absent_root_silent(tmp_path, monkeypatch):
     monkeypatch.setattr(qv, "HUMAN_MD_ROOT", tmp_path / "nowhere")
     result = qv.collect_questions(tmp_path)

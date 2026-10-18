@@ -44,3 +44,17 @@ def test_answer_refuses_a_ref_that_is_not_an_open_ask(tmp_path: Path) -> None:
     answer(f, 3, "x", "2026-10-04")
     with pytest.raises(LookupError):
         answer(f, 3, "again", "2026-10-04")
+
+
+def test_answer_untagged_ask_appends_line_without_retagging(tmp_path: Path) -> None:
+    f = tmp_path / "repo" / "HUMAN.md"
+    f.parent.mkdir()
+    f.write_text("# H\n\n## 2026-10-15 10:55 — three calls\nBody.\n\n## 2026-10-15 12:10 — FYI only\nx\n")
+    with pytest.raises(LookupError):
+        answer(f, 6, "x", "2026-10-19")  # FYI block is not an ask
+    answer(f, 3, "take a", "2026-10-19")
+    text = f.read_text()
+    assert "## 2026-10-15 10:55 — three calls\nBody.\n\n[answered: take a — operator, questions pane 2026-10-19]\n\n## 2026-10-15 12:10" in text
+    result = _parse(f)
+    assert result.questions == []
+    assert [q.prompt for q in result.awaiting_agent] == ["2026-10-15 10:55 — three calls"]

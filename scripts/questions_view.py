@@ -328,20 +328,41 @@ def _collect_predictions(result: ViewResult) -> None:
 
 
 # ── HUMAN.md feeder (per-repo escalation outboxes — read-only) ───────────────
-# Grammar: a heading line `##`/`###` that carries an ISO date AND a trailing
-# [open] / [answered…] tag. Covers both live shapes (`## DATE — ask  [open]` and
-# `### date · ask · [open]`). Fenced code regions are stripped first — template
-# examples live in fences and must never count (the 5-vs-2 miscount, premise scout).
-# Sibling grammar: arc-agi/loop/human_lint.py (same #{2,3} + tag conventions);
-# cross-repo import isn't possible from the hub, so parity is held by fixtures
-# copied from the real formats (principle 9: vendored grammar behind drift tests).
+# Grammar: a block starts at a `##`/`###` heading that carries an ISO date and runs
+# to the next such heading. Two live shapes:
+#   tagged   — the heading ends in [open] / [answered…] (`## DATE — ask  [open]`,
+#              `### date · ask · [open]`; arc-agi, hutter, evolver);
+#   untagged — no tag; status lives in the body (genomics, immigration-research):
+#              a line-anchored `[answered…` is the operator's answer, a line-anchored
+#              `consumed:` is the agent's receipt, and an untagged block with neither
+#              is an ask only when its title or body says so (_HUMAN_ASK_*), else FYI.
+# A block is awaiting-agent when its last answer comes after its last receipt, so
+# multi-round blocks (answer, receipt, answer) re-open correctly. Fenced code is
+# stripped first — template examples live in fences and must never count (the
+# 5-vs-2 miscount, premise scout). Sibling grammar: arc-agi/loop/human_lint.py
+# (same #{2,3} + tag conventions); cross-repo import isn't possible from the hub, so
+# parity is held by fixtures copied from the real formats (principle 9: vendored
+# grammar behind drift tests). human_md_answer.py writes through _human_blocks.
 _HUMAN_HEAD_RE = re.compile(
     r"^(?P<hashes>#{2,3})\s+(?P<title>.*\d{4}-\d{2}-\d{2}.*?)\s*"
-    r"\[(?P<tag>open|answered\b[^\]]*)\]\s*$",
+    r"(?:\[(?P<tag>open|answered\b[^\]]*)\]\s*)?$",
     re.I,
 )
-_HUMAN_CONSUMED_RE = re.compile(r"^\s*consumed:\s*\S", re.I | re.M)
+_HUMAN_ANSWER_RE = re.compile(r"^\s*(?:[-*]\s+)?\[answered\b", re.I)
+_HUMAN_CONSUMED_RE = re.compile(r"^\s*(?:[-*]\s+)?consumed:\s*\S", re.I)
+_HUMAN_ASK_TITLE_RE = re.compile(r"\bask\b|\?|\bcalls?\b|\byours?\b|\bneeds? you", re.I)
+_HUMAN_RETIRED_TITLE_RE = re.compile(r"\bsuperseded\b|~~", re.I)
+_HUMAN_ASK_BODY_RE = re.compile(r"^\s*(?:[-*]\s+)?\**(?:ask|your calls?)\b", re.I)
 _HUMAN_DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+
+@dataclass(frozen=True)
+class HumanBlock:
+    head: int          # 0-based line index of the heading
+    end: int           # 0-based exclusive end (next block heading or EOF)
+    title: str
+    tag: str | None    # "open" / "answered…" on tagged headings, else None
+    status: str | None  # "open" | "awaiting" | "closed" | None (FYI, not an ask)
 
 
 def _strip_fences(text: str) -> str:
@@ -363,20 +384,49 @@ def _strip_fences(text: str) -> str:
     return "\n".join(out)
 
 
+def _human_block_status(title: str, tag: str | None, body: list[str]) -> str | None:
+    answers = [j for j, line in enumerate(body) if _HUMAN_ANSWER_RE.match(line)]
+    if tag and tag.startswith("answered"):
+        answers.insert(0, -1)  # the heading tag is the first answer
+    receipts = [j for j, line in enumerate(body) if _HUMAN_CONSUMED_RE.match(line)]
+    if answers:
+        return "awaiting" if not receipts or receipts[-1] < answers[-1] else "closed"
+    if receipts:
+        return "closed"
+    if tag == "open":
+        return "open"
+    if tag is None and not _HUMAN_RETIRED_TITLE_RE.search(title) and (
+        _HUMAN_ASK_TITLE_RE.search(title) or any(_HUMAN_ASK_BODY_RE.match(line) for line in body)
+    ):
+        return "open"
+    return None
+
+
+def _human_blocks(text: str) -> list[HumanBlock]:
+    """Every dated HUMAN.md block with its derived status (one grammar for reader + writer)."""
+    lines = _strip_fences(text).splitlines()
+    heads = [(i, m) for i, line in enumerate(lines) if (m := _HUMAN_HEAD_RE.match(line))]
+    blocks: list[HumanBlock] = []
+    for n, (i, m) in enumerate(heads):
+        end = heads[n + 1][0] if n + 1 < len(heads) else len(lines)
+        title = m.group("title").strip().strip("·—- ")
+        tag = (m.group("tag") or "").lower() or None
+        status = _human_block_status(title, tag, lines[i + 1 : end])
+        blocks.append(HumanBlock(head=i, end=end, title=title, tag=tag, status=status))
+    return blocks
+
+
 def _parse_human_md(path: Path, text: str, result: ViewResult) -> None:
     """Parse one HUMAN.md into open questions + answered-awaiting-agent rows."""
     repo = path.parent.name
     lines = _strip_fences(text).splitlines()
-    heads: list[tuple[int, re.Match[str]]] = [
-        (i, m) for i, line in enumerate(lines) if (m := _HUMAN_HEAD_RE.match(line))
-    ]
-    for n, (i, m) in enumerate(heads):
-        body_end = heads[n + 1][0] if n + 1 < len(heads) else len(lines)
-        body = "\n".join(lines[i + 1 : body_end])
-        title = m.group("title").strip().strip("·—- ")
-        date_m = _HUMAN_DATE_RE.search(title)
+    for block in _human_blocks(text):
+        if block.status not in ("open", "awaiting"):
+            continue
+        body = "\n".join(lines[block.head + 1 : block.end])
+        date_m = _HUMAN_DATE_RE.search(block.title)
         created = date_m.group(0) if date_m else ""
-        prompt = _truncate(title, 200)
+        prompt = _truncate(block.title, 200)
         cat = _field_value(body, "category") or ""
         q = Question(
             id=make_id("human-md", f"{path}:{created}:{_norm(prompt)[:60]}"),
@@ -384,13 +434,12 @@ def _parse_human_md(path: Path, text: str, result: ViewResult) -> None:
             category=cat if cat in CAT_ORDER else "goal",
             prompt=prompt,
             created=created,
-            ref=f"{path}:{i + 1}",
+            ref=f"{path}:{block.head + 1}",
             detail=f"repo={repo}",
         )
-        tag = m.group("tag").lower()
-        if tag == "open":
+        if block.status == "open":
             result.questions.append(q)
-        elif created >= HUMAN_CONSUMED_CUTOFF and not _HUMAN_CONSUMED_RE.search(body):
+        elif created >= HUMAN_CONSUMED_CUTOFF:
             result.awaiting_agent.append(q)
 
 
