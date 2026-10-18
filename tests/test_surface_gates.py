@@ -56,7 +56,7 @@ class DispatchLintTest(unittest.TestCase):
         data = {
             "artifact": "closeout",
             "layers": {
-                "diff": {"owner": "code-review", "run": True},
+                "diff": {"owner": "diff-review", "run": True},
                 "design": {"owner": "critique", "run": True, "axes": "standard,composer"},
             },
             "blockers": [],
@@ -68,7 +68,7 @@ class DispatchLintTest(unittest.TestCase):
         data = {
             "artifact": "closeout",
             "layers": {
-                "diff": {"owner": "code-review", "run": True},
+                "diff": {"owner": "diff-review", "run": True},
                 "design": {"owner": "critique", "run": True, "axes": "standard"},
             },
             "blockers": [],

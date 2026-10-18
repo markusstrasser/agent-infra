@@ -315,14 +315,14 @@ def validate_closeout_dispatch(data: dict[str, Any]) -> list[str]:
     diff = layers.get("diff") or {}
     design = layers.get("design") or {}
 
-    if diff.get("owner") != "code-review":
-        errors.append("layers.diff.owner must be code-review")
+    if diff.get("owner") != "diff-review":
+        errors.append("layers.diff.owner must be diff-review")
     if design.get("owner") != "critique":
         errors.append("layers.design.owner must be critique")
 
     axes = str(design.get("axes") or "")
     if "composer" in axes.replace(" ", "").split(","):
-        errors.append("layers.design.axes must not include composer on closeout (use /code-review)")
+        errors.append("layers.design.axes must not include composer on closeout (use /diff-review)")
 
     artifact = data.get("artifact")
     if artifact == "closeout" and diff.get("run") and design.get("run"):
