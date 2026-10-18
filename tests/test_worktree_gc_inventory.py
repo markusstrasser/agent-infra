@@ -94,6 +94,11 @@ def test_explicit_archive_index_blobs_restore_after_prune(
     git(wt, "add", "file")
     oid = git(wt, "rev-parse", ":file")
     (wt / "file").write_bytes(working)
+
+    def unexpected_landing_proof(*_args, **_kwargs):
+        pytest.fail("explicit preservation must not require a landing adjudication")
+
+    monkeypatch.setattr(worktree_gc, "dirty_work_on_default", unexpected_landing_proof)
     assert worktree_gc.explicit_archive(wt) == 0
     dest = next(worktree_gc.ARCHIVE_ROOT.glob("**/head.txt")).parent
     git(repo, "reflog", "expire", "--expire=now", "--expire-unreachable=now", "--all")

@@ -1946,7 +1946,9 @@ def audit_repo(
     *,
     on_row: Callable[[WorktreeRow], None] | None = None,
     only_path: Path | None = None,
+    check_landing: bool = True,
 ) -> list[WorktreeRow]:
+    """Inventory safety state; skipped landing checks never grant landed status."""
     name = repo.name
     rows: list[WorktreeRow] = []
     for wt, branch, lock in parse_worktrees(repo):
@@ -2015,7 +2017,8 @@ def audit_repo(
                 dup = all_patches_on_main(repo, sha)
         blocking_paths: list[str] = []
         landed = (
-            not hold_reason
+            check_landing
+            and not hold_reason
             and bool(tracked_dirty or untracked_work)
             and dirty_work_on_default(repo, wt, blocking_paths=blocking_paths)
         )
@@ -3850,7 +3853,9 @@ def explicit_archive(path: Path) -> int:
         row = next(
             (
                 r
-                for r in audit_repo(root, with_size=False, only_path=path)
+                for r in audit_repo(
+                    root, with_size=False, only_path=path, check_landing=False
+                )
                 if r.path.resolve() == path
             ),
             None,
