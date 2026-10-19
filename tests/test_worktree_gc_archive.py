@@ -317,3 +317,89 @@ def test_symlinked_cache_parent_is_not_archived(repo: Path, tmp_path: Path) -> N
     assert res.ok and res.ignored_cache_files == 0
     with tarfile.open(res.dir / "ignored-cache.tgz") as archive:
         assert archive.getnames() == []
+
+
+SOURCE_EPOCH = ".claude/cache/source-epochs/content/abc/tree"
+
+
+def _nested_repo(path: Path) -> None:
+    """A real self-contained repository with objects and refs, as source-epochs keep."""
+    (path / "scripts").mkdir(parents=True)
+    (path / "scripts/stage.py").write_text("print('materialized source')\n")
+    _git("init", "-q", cwd=path)
+    _git("config", "user.email", "t@t.t", cwd=path)
+    _git("config", "user.name", "t", cwd=path)
+    _git("add", ".", cwd=path)
+    _git("commit", "-qm", "epoch", cwd=path)
+
+
+def _read_only_dirs(root: Path) -> None:
+    for directory, _dirs, _files in os.walk(root, topdown=False):
+        os.chmod(directory, 0o555)
+
+
+def _epoch_tree(
+    repo: Path, name: str, *, ignored: bool = True, epoch: bool = True
+) -> Path:
+    wt = _dirty_tree(repo, name, days=8)
+    _git("config", "core.excludesFile", "/dev/null", cwd=repo)
+    if ignored:
+        with (wt / ".gitignore").open("a") as ignore:
+            ignore.write(".claude/cache/\n")
+    (wt / ".claude/cache/x").mkdir(parents=True)
+    (wt / ".claude/cache/x/result.md").write_text("lane result\n")
+    if epoch:
+        _nested_repo(wt / SOURCE_EPOCH)
+    return wt
+
+
+def test_ignored_source_epoch_nested_repo_archives_without_hold(
+    repo: Path, tmp_path: Path
+) -> None:
+    wt = _epoch_tree(repo, "source-epoch")
+    epochs = wt / ".claude/cache/source-epochs"
+    head = (wt / SOURCE_EPOCH / ".git/HEAD").read_bytes()
+    _read_only_dirs(epochs)  # genomics materializes epoch trees read-only
+    assert epochs in worktree_gc.strip_candidates(wt)
+    row = _row(repo, wt)
+    assert row.hold_reason is None
+    res = _run_archive(row, tmp_path / "arch")
+    assert res.ok, res.reason
+    assert not wt.exists()
+    # Like index-trees: no rebuildable tree in the small-cache payload, but the
+    # lossless ignored.tgz still carries every byte, nested Git state included.
+    with tarfile.open(res.dir / "ignored-cache.tgz") as archive:
+        assert set(archive.getnames()) == {".claude/cache/x/result.md"}
+    with tarfile.open(res.dir / "ignored.tgz") as archive:
+        assert archive.extractfile(f"{SOURCE_EPOCH}/.git/HEAD").read() == head
+        assert archive.getmember(SOURCE_EPOCH).mode == 0o555
+
+
+@pytest.mark.parametrize("epoch", [False, True], ids=["alone", "beside-epoch"])
+@pytest.mark.parametrize("nested", ["vendor/lib", ".claude/cache/vendor/lib"])
+def test_nested_repo_outside_strip_caches_still_holds(
+    repo: Path, tmp_path: Path, nested: str, epoch: bool
+) -> None:
+    wt = _epoch_tree(repo, "vendor-repo", epoch=epoch)
+    _nested_repo(wt / nested)
+    row = _row(repo, wt)
+    assert row.hold_reason == f"nested repository: {nested}"
+    res = archive_worktree(row, root=tmp_path / "arch")
+    assert not res.ok and res.reason == f"nested repository: {nested}"
+    assert (wt / nested / ".git").is_dir()
+
+
+@pytest.mark.parametrize("state", ["tracked", "unignored"])
+def test_source_epoch_that_is_tracked_or_unignored_still_holds(
+    repo: Path, tmp_path: Path, state: str
+) -> None:
+    wt = _epoch_tree(repo, f"epoch-{state}", ignored=state == "tracked")
+    if state == "tracked":
+        (wt / ".claude/cache/source-epochs/README").write_text("somebody's notes\n")
+        _git("add", "-f", ".claude/cache/source-epochs/README", cwd=wt)
+    assert wt / ".claude/cache/source-epochs" not in worktree_gc.strip_candidates(wt)
+    row = _row(repo, wt)
+    assert row.hold_reason == f"nested repository: {SOURCE_EPOCH}"
+    res = archive_worktree(row, root=tmp_path / "arch")
+    assert not res.ok and res.reason == f"nested repository: {SOURCE_EPOCH}"
+    assert (wt / SOURCE_EPOCH / ".git").is_dir()

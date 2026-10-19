@@ -39,8 +39,9 @@ archive --path TREE: explicitly archive, pin HEAD and remove this one tree
 apply --force-stale: also stale (ahead==0) with dirty trees (discards wt edits)
 apply --force-all: everything except --keep, held, and live-locked trees (dangerous)
 apply --strip-idle-caches-min N: also delete the derived caches (.venv, .uv-cache,
-  .claude/cache/index-trees) of any tree with no process inside and nothing touched for N
-  minutes; a live lock keeps the tree, never its caches (audit marks would-strip)
+  .claude/cache/index-trees, .claude/cache/source-epochs) of any tree with no process
+  inside and nothing touched for N minutes; a live lock keeps the tree, never its
+  caches (audit marks would-strip)
 apply --prune-pytest-hours N: also delete pytest-of-<user> basetemp dirs untouched for N
   hours whose pytest has exited (audit marks would-prune-pytest)
 prune: only those two steps; never removes a worktree (the low-disk guard's mode)
@@ -52,7 +53,8 @@ Linked-worktree content inventory (landed removal and explicit archive):
   Untracked working files  PROVEN-LANDED by exact mode/blob; PRESERVED by untracked.tgz.
   Ignored working files    Non-cache work HOLD automatically; archive PRESERVED in
                            ignored.tgz, including large files, symlinks, empty dirs,
-                           venvs/index-trees. Cache names are never a content proof.
+                           venvs/index-trees/source-epochs. Cache names are never a
+                           content proof.
                            The exact regular current-session-id UUID marker is
                            archive-only metadata; other ignored content still HOLDs.
   Index entries/blobs      PROVEN-LANDED individually; staged-then-overwritten HOLD
@@ -87,7 +89,11 @@ Linked-worktree content inventory (landed removal and explicit archive):
                            explicit archive --path may remove the tree, even if landed.
   Sparse-checkout          HOLD info/sparse-checkout or sparse configuration/index flags.
   Submodules/gitlinks      HOLD initialized/populated; empty gitlinks must be unchanged.
-  Nested repositories      HOLD even inside ignored caches (child refs/objects unknown).
+  Nested repositories      HOLD, ignored caches included (child refs/objects unknown),
+                           except inside a real, ignored, untracked strip-class
+                           .claude/cache tree (index-trees, source-epochs): rebuilt from
+                           Git tree OIDs and stripped wholesale; archive keeps the bytes.
+                           .venv/.uv-cache repositories still HOLD (editable checkouts).
                            The exact empty regular .uv-cache/sdists-v9/.git marker
                            carries no Git roots and is preserved as ordinary content.
   Notes                    Shared loose/packed refs/notes and their objects survive removal.
@@ -1720,6 +1726,16 @@ def _worktree_state_hold(wt: Path) -> str | None:
             ["git", "rev-parse", "--shared-index-path"], cwd=wt, check=True
         ).stdout.strip():
             return "split index depends on unarchived sharedindex"
+        # Materialized .claude/cache trees are rebuilt from Git tree OIDs and stripped
+        # wholesale, so a repository inside one (each genomics source-epoch tree) is
+        # cache content; archive keeps its bytes. A tracked or unignored cache is no
+        # candidate. .venv/.uv-cache repositories still HOLD: package managers put
+        # editable checkouts there (`pip install -e git+...` clones into .venv/src).
+        derived = [
+            cache
+            for cache in strip_candidates(wt)
+            if cache.relative_to(wt).as_posix() in _CACHE_STRIP_DIRS
+        ]
         for directory, dirs, files in os.walk(
             wt, followlinks=False, onerror=_walk_error
         ):
@@ -1730,7 +1746,7 @@ def _worktree_state_hold(wt: Path) -> str | None:
                     relative.parts == (".uv-cache", "sdists-v9")
                     and stat.S_ISREG(marker.st_mode)
                     and marker.st_size == 0
-                ):
+                ) and not any(Path(directory).is_relative_to(c) for c in derived):
                     return f"nested repository: {relative}"
             for name in files:
                 path = Path(directory) / name
@@ -2265,6 +2281,11 @@ def remove_worktree(
             ".git/default-branch"
         ):
             raise RuntimeError("default branch moved before removal")
+        # Read-only derived trees (source-epochs) stop `git worktree remove` partway,
+        # after Git unregistered the tree, and the manifest route then refuses to
+        # finish. Proof is complete here; only cache directories gain owner rwx.
+        for cache in strip_candidates(wt):
+            make_writable(cache)
         run(cmd, cwd=repo, check=True)
 
     try:
@@ -2331,8 +2352,21 @@ CACHE_DIRS: tuple[str, ...] = (".venv", ".uv-cache", "node_modules")
 # root syncs a ~735 MB .venv, and the genomics pre-commit materializes the staged index
 # read-only under .claude/cache/index-trees (~430 MB). Across 27 lane trees these, plus 7 GB
 # of pytest basetemps, took the data volume to 334 MB free on 2026-09-29 06:05, the second
-# ENOSPC in two days.
-STRIP_DIRS: tuple[str, ...] = (".venv", ".uv-cache", ".claude/cache/index-trees")
+# ENOSPC in two days. Genomics' .claude/cache/source-epochs holds read-only materialized
+# source trees (~200 MB each, every one a self-contained nested repository) rebuilt from
+# their Git tree OID; on 2026-10-19 their nested repositories blocked archive for 12
+# genomics trees.
+STRIP_DIRS: tuple[str, ...] = (
+    ".venv",
+    ".uv-cache",
+    ".claude/cache/index-trees",
+    ".claude/cache/source-epochs",
+)
+# Strip-class trees inside .claude/cache: the small-report ignored-cache.tgz skips them;
+# the lossless ignored.tgz still carries their bytes, like .venv's.
+_CACHE_STRIP_DIRS: tuple[str, ...] = tuple(
+    rel for rel in STRIP_DIRS if rel.startswith(".claude/cache/")
+)
 
 
 def _mtime(path: Path) -> float | None:
@@ -2817,7 +2851,7 @@ def _required_untracked_payloads(
 
 
 def _archive_ignored_cache(wt: Path, dest: Path) -> tuple[int, int]:
-    """Save small regular cache files; exclude index trees and all symlinks."""
+    """Save small regular cache files; exclude strip-class trees and all symlinks."""
     cache = _real_subdir(wt, ".claude/cache")
     count = total = 0
     with tarfile.open(dest, "w:gz") as archive:
@@ -2832,7 +2866,8 @@ def _archive_ignored_cache(wt: Path, dest: Path) -> tuple[int, int]:
                 d
                 for d in dirs
                 if not (Path(directory) / d).is_symlink()
-                and not (Path(directory) == cache and d == "index-trees")
+                and (Path(directory) / d).relative_to(wt).as_posix()
+                not in _CACHE_STRIP_DIRS
             ]
             for name in sorted(files):
                 path = Path(directory) / name
@@ -3121,7 +3156,7 @@ def archive_worktree(
             rel
             for rel, entry in manifest.items()
             if rel.startswith(".claude/cache/")
-            and not rel.startswith(".claude/cache/index-trees/")
+            and not any(rel.startswith(f"{strip}/") for strip in _CACHE_STRIP_DIRS)
             and entry["type"] == "file"
             and entry["size"] <= MAX_ARCHIVED_CACHE_BYTES
         }
@@ -3984,9 +4019,10 @@ def main() -> int:
         type=float,
         default=None,
         metavar="N",
-        help="delete real, git-ignored .venv/.uv-cache/.claude/cache/index-trees dirs "
-        "(never symlinks, never tracked files) of any tree with no process inside and "
-        "nothing touched for N minutes, live-locked trees included; audit marks would-strip",
+        help="delete real, git-ignored .venv, .uv-cache, .claude/cache/index-trees and "
+        ".claude/cache/source-epochs dirs (never symlinks, never tracked files) of any "
+        "tree with no process inside and nothing touched for N minutes, live-locked "
+        "trees included; audit marks would-strip",
     )
     ap.add_argument(
         "--prune-pytest-hours",
