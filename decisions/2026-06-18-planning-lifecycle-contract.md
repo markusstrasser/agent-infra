@@ -390,3 +390,6 @@ break?** A read-only history check (agentlogs + git across 5 repos + 334 plans; 
   instead of a new schema. The history check is the constitution's Pre-Build #1 + measure-before-enforce doing
   exactly their job: a cross-repo schema build collapsed to three small edits against infra that already exists.
   Current version = this entry, v0.4.4.
+
+### 2026-10-19 — genomics retires its planctl/conceptctl lifecycle
+- 2026-10-19: Retire the unextracted genomics planctl/conceptctl lifecycle; supersedes this ADR's genomics adoption/extraction proposal. See genomics/decisions/2026-10-19-retire-planctl-conceptctl.md. The independent plan-status.py engine remains unchanged.
