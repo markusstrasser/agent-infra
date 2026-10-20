@@ -1035,3 +1035,21 @@ fixed for this operation; the OS CLI refusal is recorded without claiming an OS
 fix. Evidence and fixtures:
 `~/.codex/visualizations/2026/10/16/01a14360-5228-75e3-b543-6a5c8f0b6359/documents-cleanup/`
 (`events.jsonl`, `cleanup-safety-review.md`, `final-verification.json`).
+
+### FM: Archive holds invite destruction of the evidence they protect
+<!--
+FM-ID: worktree-archive-unpinned-admin-evidence
+signature: worktree_gc archive HOLDs reflog-only commits, REUC, rerere or AUTO_MERGE; manual clearing drops their last roots
+target_surface: scripts/worktree_gc.py archive_worktree / _verify_evidence_pins; tests/test_worktree_gc_evidence.py
+status: fixed
+evidence_count: 1
+-->
+2026-10-20 incident reported in `brief-wtgc-evidence.md`: manual reflog expiry,
+resolve-undo removal, rerere clearing and AUTO_MERGE deletion bypassed archive
+holds; 59 orphan commit tips subsequently needed recovery. The archive now pins
+extra Git roots, snapshots rerere bytes and records its evidence refs. Removal
+rechecks captured coverage and the exact pins; failed pins name the object and
+keep the worktree. Regression: `tests/test_worktree_gc_evidence.py` exercises
+SHA-1/SHA-256 retention after reflog expiry and pruning, pin failures and changed
+refs/payloads. **Contract: an archive preserves held evidence before removal;
+clearing that evidence is never a substitute for a preservation proof.**

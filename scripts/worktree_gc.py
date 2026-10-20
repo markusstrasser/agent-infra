@@ -62,9 +62,9 @@ Linked-worktree content inventory (landed removal and explicit archive):
                            check every entry, commit-tree parent HEAD, pin separately
                            at refs/wt-archive/*-index-* (index-ref.txt). Raw git-index
                            preserves flags. Unmerged/intent-to-add/split index HOLD.
-  Index extensions         HOLD resolve-undo, unknown extensions and unsupported v4;
-                           only TREE (checked via exact write-tree), EOIE/IEOT offsets
-                           are accepted. No extension may hide unpinned object roots.
+  Index extensions         Classification HOLDs resolve-undo; archive pins its stage
+                           blobs in a separate commit tree (escaped path/stage). Unknown
+                           extensions/v4 HOLD; TREE/EOIE/IEOT remain checked.
   HEAD literal/symref/SHA  Proof captures all three; final manifest and removal bind
                            exact values. Archive HEAD pinned at refs/wt-archive/*.
   Checked-out branch/SHA  Same exact binding; shared branch survives (optional branch
@@ -75,8 +75,8 @@ Linked-worktree content inventory (landed removal and explicit archive):
   refs/rewritten/*         Same (pending rebase state separately HOLD).
   Other local refs        HOLD; unknown storage/backend never silently omitted.
   Per-worktree reflogs     Both old/new objects must be default ancestors or reachable
-                           from HEAD (PRESERVED by HEAD pin), else HOLD. Raw log/ref
-                           bytes PRESERVED in git-state.tgz for archive routes.
+                           from HEAD, else classification HOLDs. Archive pins every
+                           other commit; raw bytes PRESERVED in git-state.tgz.
   Stash entries            HOLD unless every valid entry names an exact branch currently
                            checked out only in another live worktree of this repository.
   Pending operations       HOLD rebase/merge/cherry-pick/revert/sequencer/bisect/
@@ -108,9 +108,12 @@ Linked-worktree content inventory (landed removal and explicit archive):
                            Classification keeps the default rule. Raw bytes archived.
                            Claude Code's CLAUDE_BASE (the tree's base commit) follows
                            the ORIG_HEAD rule.
-                           HOLD FETCH_HEAD/AUTO_MERGE/etc and unknown admin paths.
-  Rerere state             Empty MERGE_RR has no object roots; raw bytes archived.
-                           Nonempty MERGE_RR HOLD (resolution roots not inventoried).
+                           Archive pins AUTO_MERGE's tree; classification HOLDs it.
+                           FETCH_HEAD/etc and unknown admin paths still HOLD.
+  Rerere state             Nonempty MERGE_RR/local rr-cache HOLD classification;
+                           archive preserves local and common bytes in git-state.tgz.
+  Extra evidence pins      refs/wt-archive/<tree>-evidence/{reflog-N,reuc,auto-merge};
+                           evidence-manifest.json records each exact ref/OID/type.
   Commit message draft     COMMIT_EDITMSG must equal HEAD's raw commit message;
                            then PROVEN in HEAD's graph/raw bytes archived, else HOLD.
   Object storage/proof     HOLD alternates/shallow/grafts/replace refs or filters: borrowed
@@ -586,12 +589,28 @@ def release_stale_lock(row: WorktreeRow) -> str | None:
     return None
 
 
-def removal_hold(row: WorktreeRow, *, operator_archive: bool = False) -> str | None:
+def removal_hold(
+    row: WorktreeRow, *, operator_archive: bool = False, archive_dir: Path | None = None
+) -> str | None:
     """Refresh cwd and lock vetoes immediately before a registered-tree removal."""
     # Every caller removes only through remove_worktree, which pins HEAD first.
-    blocked = _worktree_state_hold(row.path, pins_head=True)
+    blocked = _worktree_state_hold(
+        row.path, pins_head=True, archives_evidence=archive_dir is not None
+    )
     if blocked:
         return blocked
+    if archive_dir is not None:
+        try:
+            _verify_evidence_pins(row.path, archive_dir)
+        except (
+            RuntimeError,
+            TypeError,
+            OSError,
+            ValueError,
+            tarfile.TarError,
+            subprocess.CalledProcessError,
+        ) as error:
+            return f"archive evidence verification failed: {error}"
     if not operator_archive and _codex_owner_thread(row.path):
         return "codex-app-owned"
     holders = live_cwd_holders()
@@ -1003,8 +1022,9 @@ ADMIN_FILES = (
     "config.worktree",
     "codex-thread.json",
     "CLAUDE_BASE",
+    "AUTO_MERGE",
 )
-ADMIN_DIRS = ("logs", "refs")
+ADMIN_DIRS = ("logs", "refs", "rr-cache")
 ADMIN_NAMES = frozenset((*ADMIN_FILES, *ADMIN_DIRS))
 WORKTREE_CONFIG_KEYS = frozenset({"agent.session-id"})
 
@@ -1133,7 +1153,12 @@ def _local_refs(wt: Path) -> dict[str, str]:
 
 
 def _index_state_hold(
-    wt: Path, admin: Path, oid_bytes: int, *, raw: bytes | None = None
+    wt: Path,
+    admin: Path,
+    oid_bytes: int,
+    *,
+    raw: bytes | None = None,
+    reuc_entries: dict[str, tuple[str, str]] | None = None,
 ) -> str | None:
     """Closed index envelope; native ls-files omits resolve-undo/extension roots.
 
@@ -1185,6 +1210,9 @@ def _index_state_hold(
         offset += 8 + size
         if offset > limit:
             return "truncated index extension payload"
+        if signature == b"REUC" and reuc_entries is not None:
+            _read_resolve_undo(payload, oid_bytes, reuc_entries)
+            continue
         if signature not in (b"TREE", b"EOIE", b"IEOT"):
             return f"unpreserved index extension: {signature!r}"
         if signature == b"TREE":
@@ -1218,6 +1246,44 @@ def _index_state_hold(
         return "index entry/extension boundary unknown"
     _check_index_tree_cache(wt, entries, cached_trees, oid_bytes)
     return None
+
+
+def _read_resolve_undo(
+    payload: bytes, oid_bytes: int, entries: dict[str, tuple[str, str]]
+) -> None:
+    """Decode every REUC stage, including paths omitted by the current index."""
+    cursor = 0
+    seen: set[str] = set()
+    while cursor < len(payload):
+        end = payload.index(b"\0", cursor)
+        path = os.fsdecode(payload[cursor:end])
+        if (
+            not path
+            or path in seen
+            or any(p in ("", ".", "..") for p in path.split("/"))
+        ):
+            raise ValueError(f"invalid or duplicate REUC path: {path!r}")
+        seen.add(path)
+        cursor = end + 1
+        modes = []
+        for _ in range(3):
+            end = payload.index(b"\0", cursor)
+            raw_mode = payload[cursor:end]
+            if raw_mode not in (b"0", b"100644", b"100755", b"120000"):
+                raise ValueError(f"unsupported REUC mode for {path!r}: {raw_mode!r}")
+            modes.append(raw_mode.decode("ascii"))
+            cursor = end + 1
+        for stage, mode in enumerate(modes, 1):
+            if mode == "0":
+                continue
+            if cursor + oid_bytes > len(payload):
+                raise ValueError(f"truncated REUC object for {path!r} stage {stage}")
+            oid = payload[cursor : cursor + oid_bytes].hex()
+            cursor += oid_bytes
+            key = f"{stage}/{path}"
+            if key in entries:
+                raise ValueError(f"duplicate REUC stage: {key!r}")
+            entries[key] = (mode, oid)
 
 
 def _validate_native_tree_names(wt: Path, oids: list[str], oid_bytes: int) -> None:
@@ -1485,7 +1551,9 @@ def _shared_refs_hold(wt: Path, common: Path, branch: str | None) -> str | None:
     return None
 
 
-def _worktree_state_hold(wt: Path, *, pins_head: bool = False) -> str | None:
+def _worktree_state_hold(
+    wt: Path, *, pins_head: bool = False, archives_evidence: bool = False
+) -> str | None:
     """Closed inventory: every unhandled admin/storage state holds all removal routes.
 
     ``pins_head`` is only for routes that pin this HEAD before removing anything
@@ -1552,7 +1620,21 @@ def _worktree_state_hold(wt: Path, *, pins_head: bool = False) -> str | None:
                     return blocked
             if path.name == "codex-thread.json":
                 _codex_owner_thread(wt)
-            if path.name == "MERGE_RR" and path.stat().st_size:
+            if path.name == "AUTO_MERGE" and not archives_evidence:
+                return "unpreserved worktree administrative state: AUTO_MERGE"
+            if path.name == "rr-cache":
+                if not path.is_dir():
+                    return "unsupported worktree administrative type: rr-cache"
+                blocked = _ref_storage_hold(path, admin, wt.resolve())
+                if blocked:
+                    return blocked
+                if not archives_evidence and any(path.iterdir()):
+                    return "uncovered rerere resolution state: rr-cache"
+            if (
+                path.name == "MERGE_RR"
+                and path.stat().st_size
+                and not archives_evidence
+            ):
                 return "uncovered rerere resolution state: MERGE_RR"
             if path.name == "COMMIT_EDITMSG":
                 commit = subprocess.run(
@@ -1579,7 +1661,15 @@ def _worktree_state_hold(wt: Path, *, pins_head: bool = False) -> str | None:
                     return f"unlanded or unreadable worktree-local ref: {path.name}"
         # Cheap closed admin rejection precedes potentially many cached-tree
         # queries; unknown metadata needs no expensive index proof.
-        blocked = _index_state_hold(wt, admin, len(head) // 2)
+        rerere = common / "rr-cache"
+        blocked = _ref_storage_hold(rerere, common, wt.resolve())
+        if blocked:
+            return blocked
+        if rerere.exists() and not rerere.is_dir():
+            return "unsupported shared rr-cache type"
+        blocked = _index_state_hold(
+            wt, admin, len(head) // 2, reuc_entries={} if archives_evidence else None
+        )
         if blocked:
             return blocked
         reachable: dict[str, bool] = {head: True, base: True}
@@ -1622,8 +1712,13 @@ def _worktree_state_hold(wt: Path, *, pins_head: bool = False) -> str | None:
                                 if len(sha) != len(head) or not re.fullmatch(
                                     r"[0-9a-f]+", sha
                                 ):
-                                    return f"invalid worktree reflog object: {rel}"
+                                    return (
+                                        f"invalid worktree reflog object: {rel} {sha!r}"
+                                    )
                                 if set(sha) == {"0"}:
+                                    continue
+                                if archives_evidence:
+                                    # Validate and pin from the captured bytes below.
                                     continue
                                 # HEAD's reachable history is preserved by its pin;
                                 # abandoned commits/blobs have no durable root.
@@ -2224,6 +2319,7 @@ def remove_worktree(
     manifest: dict[str, dict[str, object]] | None = None,
     expected_head: dict[str, object] | None = None,
     operator_archive: bool = False,
+    archive_dir: Path | None = None,
 ) -> None:
     """Remove a worktree, surviving read-only caches and never half-removing.
 
@@ -2245,9 +2341,15 @@ def remove_worktree(
     """
     if wt.is_symlink():
         raise RuntimeError(f"refusing to remove symlinked worktree {wt}")
-    blocked = _worktree_state_hold(wt, pins_head=True)
+    blocked = _worktree_state_hold(
+        wt, pins_head=True, archives_evidence=archive_dir is not None
+    )
     if blocked:
         raise RuntimeError(blocked)
+    if archive_dir is not None:
+        _verify_evidence_pins(wt, archive_dir)
+        if manifest is None:
+            raise RuntimeError("archive evidence requires its content manifest")
     if not operator_archive and _codex_owner_thread(wt):
         raise RuntimeError("codex-app-owned")
     if manifest is None and any(_hidden_work(wt)):
@@ -2264,9 +2366,13 @@ def remove_worktree(
     cmd = ["git", "worktree", "remove", *(["--force"] if force else []), str(wt)]
 
     def checked_remove() -> None:
-        blocked = _worktree_state_hold(wt, pins_head=True)
+        blocked = _worktree_state_hold(
+            wt, pins_head=True, archives_evidence=archive_dir is not None
+        )
         if blocked:
             raise RuntimeError(blocked)
+        if archive_dir is not None:
+            _verify_evidence_pins(wt, archive_dir)
         if not operator_archive and _codex_owner_thread(wt):
             raise RuntimeError("codex-app-owned")
         if manifest is None and any(_hidden_work(wt)):
@@ -2502,7 +2608,10 @@ def _fresh_dir(base: Path) -> Path:
 
 
 def _pin_ref(repo: Path, name: str, day: str, head: str) -> str:
-    base = f"refs/wt-archive/{name}-{day}"
+    return _pin_named_ref(repo, f"refs/wt-archive/{name}-{day}", head)
+
+
+def _pin_named_ref(repo: Path, base: str, head: str) -> str:
     ref, n = base, 1
     while True:
         cur = run(["git", "rev-parse", "--verify", "-q", ref], cwd=repo).stdout.strip()
@@ -2686,7 +2795,7 @@ def _content_manifest(wt: Path) -> dict[str, dict[str, object]]:
             except FileNotFoundError:
                 continue
             file_entry(admin_fd, name, f".git/{name}", info)
-        for name in ("logs", "refs"):
+        for name in ADMIN_DIRS:
             try:
                 child = os.open(
                     name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=admin_fd
@@ -2701,6 +2810,27 @@ def _content_manifest(wt: Path) -> dict[str, dict[str, object]]:
             raise RuntimeError("administrative directory changed during manifest")
     finally:
         os.close(admin_fd)
+    common = Path(
+        run(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            cwd=wt,
+            check=True,
+        ).stdout.strip()
+    )
+    blocked = _ref_storage_hold(common / "rr-cache", common, wt.resolve())
+    if blocked:
+        raise RuntimeError(blocked)
+    try:
+        rerere_fd = os.open(
+            common / "rr-cache", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        )
+    except FileNotFoundError:
+        pass
+    else:
+        try:
+            walk(rerere_fd, ".git/common-rr-cache")
+        finally:
+            os.close(rerere_fd)
     if (
         _head_identity(wt) != head_identity
         or _local_refs(wt) != local_refs
@@ -2927,21 +3057,23 @@ def _archive_ignored_cache(wt: Path, dest: Path) -> tuple[int, int]:
 
 def _verify_git_state_roots(
     wt: Path, dest: Path, manifest: dict[str, dict[str, object]], head: str
-) -> None:
+) -> dict[str, dict[str, str]]:
     """Validate object roots from verified archived bytes, never a later live view."""
     base = str(manifest[".git/default-branch"]["sha"])
     known = {head: "commit", base: "commit"}
     landed: dict[str, bool] = {base: True}
     reachable: dict[str, bool] = {head: True, base: True}
     refs = manifest[".git/local-refs"]["refs"]
+    evidence: dict[str, dict[str, str]] = {}
 
-    def check_oid(oid: str, *, default_only: bool) -> None:
+    def check_oid(oid: str, *, default_only: bool, reflog: bool = False) -> None:
         if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", oid):
-            raise RuntimeError("invalid captured Git object ID")
+            raise RuntimeError(
+                f"could not pin captured Git object {oid!r}: invalid object ID"
+            )
         if oid not in known:
-            known[oid] = run(
-                ["git", "cat-file", "-t", oid], cwd=wt, check=True
-            ).stdout.strip()
+            _check_evidence_object(wt, oid, "commit", "captured Git root")
+            known[oid] = "commit"
         if known[oid] != "commit":
             raise RuntimeError(f"noncommit captured Git root: {oid}")
         cache, tips = (landed, (base,)) if default_only else (reachable, (base, head))
@@ -2952,7 +3084,12 @@ def _verify_git_state_roots(
                 for tip in tips
             )
         if not cache[oid]:
-            raise RuntimeError(f"unpreserved captured Git root: {oid}")
+            if reflog:
+                if not any(entry["oid"] == oid for entry in evidence.values()):
+                    number = 1 + sum(key.startswith("reflog-") for key in evidence)
+                    evidence[f"reflog-{number}"] = {"oid": oid, "kind": "commit"}
+            else:
+                raise RuntimeError(f"unpreserved captured Git root: {oid}")
 
     with tarfile.open(dest / "git-state.tgz", "r:gz") as archive:
         seen_refs = set()
@@ -2992,9 +3129,11 @@ def _verify_git_state_roots(
                         oid = raw_oid.decode("ascii")
                         if len(oid) == len(head) and set(oid) == {"0"}:
                             continue
-                        check_oid(oid, default_only=False)
-            elif rel == "MERGE_RR" and data:
-                raise RuntimeError("nonempty captured rerere state")
+                        check_oid(oid, default_only=False, reflog=True)
+            elif rel == "AUTO_MERGE":
+                oid = data.decode("ascii").strip()
+                _check_evidence_object(wt, oid, "tree", "AUTO_MERGE")
+                evidence["auto-merge"] = {"oid": oid, "kind": "tree"}
             elif rel == "COMMIT_EDITMSG":
                 commit = subprocess.run(
                     ["git", "cat-file", "commit", head],
@@ -3006,29 +3145,195 @@ def _verify_git_state_roots(
                     raise RuntimeError("unpreserved captured commit-message draft")
         if seen_refs != set(refs):
             raise RuntimeError("captured local refs lack complete raw coverage")
+    return evidence
+
+
+def _check_evidence_object(wt: Path, oid: str, kind: str, source: str) -> None:
+    if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", oid):
+        raise RuntimeError(f"could not pin {source} object {oid!r}: invalid object ID")
+    result = run(["git", "cat-file", "-t", oid], cwd=wt)
+    if result.returncode or result.stdout.strip() != kind:
+        raise RuntimeError(
+            f"could not pin {source} object {oid}: missing or not {kind}"
+        )
+    if kind == "blob":
+        return
+    # Traverse trees too: a ref to a tree with missing descendants is insufficient.
+    result = run(["git", "rev-list", "--objects", "--missing=error", oid], cwd=wt)
+    if result.returncode:
+        raise RuntimeError(
+            f"could not pin {source} object {oid}: {result.stderr.strip()}"
+        )
+
+
+def _captured_reuc(
+    wt: Path, dest: Path, manifest: dict[str, dict[str, object]], head: str
+) -> dict[str, tuple[str, str]]:
+    raw = (dest / "git-index").read_bytes()
+    if hashlib.sha256(raw).hexdigest() != manifest[".git/index"]["sha256"]:
+        raise RuntimeError("captured index payload differs from manifest")
+    entries: dict[str, tuple[str, str]] = {}
+    blocked = _index_state_hold(
+        wt, _linked_admin(wt), len(head) // 2, raw=raw, reuc_entries=entries
+    )
+    if blocked:
+        raise RuntimeError(f"captured index: {blocked}")
+    return entries
+
+
+def _archive_reuc(wt: Path, entries: dict[str, tuple[str, str]]) -> str:
+    for path, (_, oid) in entries.items():
+        _check_evidence_object(wt, oid, "blob", f"REUC {path!r}")
+    with tempfile.TemporaryDirectory(prefix="wt-reuc-pin-") as temporary:
+        env = {
+            **os.environ,
+            "GIT_INDEX_FILE": str(Path(temporary) / "index"),
+            "GIT_AUTHOR_NAME": "worktree archive",
+            "GIT_AUTHOR_EMAIL": "archive@localhost",
+            "GIT_COMMITTER_NAME": "worktree archive",
+            "GIT_COMMITTER_EMAIL": "archive@localhost",
+        }
+
+        def git(*args: str, data: bytes | None = None) -> str:
+            return (
+                subprocess.run(
+                    ["git", *args],
+                    cwd=wt,
+                    env=env,
+                    input=data,
+                    capture_output=True,
+                    check=True,
+                )
+                .stdout.decode("ascii")
+                .strip()
+            )
+
+        tree_entries = _reuc_tree_entries(entries)
+        git("read-tree", "--empty")
+        git(
+            "update-index",
+            "-z",
+            "--index-info",
+            data=b"".join(
+                f"{mode} {oid}\t".encode("ascii") + os.fsencode(path) + b"\0"
+                for path, (mode, oid) in sorted(tree_entries.items())
+            ),
+        )
+        tree = git("write-tree")
+        commit = git(
+            "commit-tree", tree, "-m", "Preserved worktree resolve-undo stages"
+        )
+        if _tree_entries(wt, commit) != tree_entries:
+            raise RuntimeError("REUC commit differs from captured resolve-undo entries")
+        return commit
+
+
+def _reuc_tree_entries(
+    entries: dict[str, tuple[str, str]],
+) -> dict[str, tuple[str, str]]:
+    # REUC can contain both "file" and "file/child" from different resolutions.
+    # Prefix each original component so stage leaf names cannot collide with paths.
+    result = {}
+    for key, value in entries.items():
+        stage, path = key.split("/", 1)
+        result["/".join(f"p-{part}" for part in path.split("/")) + f"/{stage}"] = value
+    return result
+
+
+def _git_state_paths(manifest: dict[str, dict[str, object]]) -> set[str]:
+    return {
+        rel
+        for rel, entry in manifest.items()
+        if rel.startswith(".git/") and entry["type"] in {"file", "directory", "symlink"}
+    }
+
+
+def _verify_evidence_pins(wt: Path, dest: Path) -> None:
+    """Removal needs the captured bytes, their matching live view, and durable refs."""
+    manifest = json.loads((dest / "content-manifest.json").read_text())
+    if _content_manifest(wt) != manifest:
+        raise RuntimeError("content manifest differs from evidence archive")
+    _verify_archive_payloads(
+        dest / "git-state.tgz", manifest, _git_state_paths(manifest)
+    )
+    head = str(manifest[".git/resolved-HEAD"]["head_sha"])
+    expected = _verify_git_state_roots(wt, dest, manifest, head)
+    reuc = _captured_reuc(wt, dest, manifest, head)
+    pins = json.loads((dest / "evidence-manifest.json").read_text())
+    if not isinstance(pins, dict) or set(pins) != set(expected) | (
+        {"reuc"} if reuc else set()
+    ):
+        raise RuntimeError("evidence pin manifest coverage differs")
+    for key, entry in pins.items():
+        if not isinstance(entry, dict) or set(entry) != {"ref", "oid", "kind"}:
+            raise RuntimeError(f"invalid evidence pin entry: {key}")
+        ref, oid, kind = entry["ref"], entry["oid"], entry["kind"]
+        if not isinstance(oid, str) or not isinstance(kind, str):
+            raise TypeError(f"invalid evidence object: {key}")
+        if (
+            not isinstance(ref, str)
+            or not ref.startswith("refs/wt-archive/")
+            or "-evidence/" not in ref
+        ):
+            raise RuntimeError(f"invalid evidence ref: {ref!r}")
+        if key == "reuc":
+            if kind != "commit" or _tree_entries(wt, oid) != _reuc_tree_entries(reuc):
+                raise RuntimeError(f"REUC pin {oid} differs from captured entries")
+        elif {"oid": oid, "kind": kind} != expected[key]:
+            raise RuntimeError(f"evidence pin {key} differs from captured object")
+        actual = run(["git", "rev-parse", "--verify", "-q", ref], cwd=wt)
+        if actual.returncode or actual.stdout.strip() != oid:
+            raise RuntimeError(
+                f"could not pin {key} object {oid}: ref {ref} missing or moved"
+            )
+        _check_evidence_object(wt, oid, kind, key)
 
 
 def _archive_manifest_paths(wt: Path, dest: Path, paths: set[str]) -> None:
     """No exclusions: cover every selected manifest entry without following links."""
     admin = _linked_admin(wt)
+    common = (
+        Path(
+            run(
+                ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+                cwd=wt,
+                check=True,
+            ).stdout.strip()
+        )
+        if any(
+            rel == ".git/common-rr-cache" or rel.startswith(".git/common-rr-cache/")
+            for rel in paths
+        )
+        else None
+    )
     with tarfile.open(dest, "w:gz", dereference=False) as archive:
         for rel in sorted(paths):
             source = (
-                admin / rel.removeprefix(".git/")
+                common
+                / "rr-cache"
+                / rel.removeprefix(".git/common-rr-cache").lstrip("/")
+                if rel == ".git/common-rr-cache"
+                or rel.startswith(".git/common-rr-cache/")
+                else admin / rel.removeprefix(".git/")
                 if rel.startswith(".git/")
                 else wt / rel
             )
             archive.add(source, arcname=rel, recursive=False)
 
 
-def _archive_index_tree(wt: Path, dest: Path, head: str, expected_sha256: str) -> str:
+def _archive_index_tree(
+    wt: Path, dest: Path, head: str, expected_sha256: str
+) -> tuple[str, dict[str, tuple[str, str]]]:
     """write-tree the saved index, never the live one; prove no entry was omitted."""
     with tempfile.TemporaryDirectory(prefix="wt-index-pin-") as temporary:
         index = Path(temporary) / "index"
         raw = (dest / "git-index").read_bytes()
         if hashlib.sha256(raw).hexdigest() != expected_sha256:
             raise RuntimeError("captured index payload differs from manifest")
-        blocked = _index_state_hold(wt, _linked_admin(wt), len(head) // 2, raw=raw)
+        reuc: dict[str, tuple[str, str]] = {}
+        blocked = _index_state_hold(
+            wt, _linked_admin(wt), len(head) // 2, raw=raw, reuc_entries=reuc
+        )
         if blocked:
             raise RuntimeError(f"captured index: {blocked}")
         index.write_bytes(raw)
@@ -3074,7 +3379,7 @@ def _archive_index_tree(wt: Path, dest: Path, head: str, expected_sha256: str) -
             raise RuntimeError("index commit differs from captured index entries")
         (dest / "index-tree.txt").write_text(tree + "\n")
         (dest / "index-commit.txt").write_text(commit + "\n")
-        return commit
+        return commit, reuc
 
 
 def archive_worktree(
@@ -3090,7 +3395,7 @@ def archive_worktree(
     day = time.strftime("%Y-%m-%d", time.localtime(now))
     name = _archive_name(row)
     dest = _fresh_dir(root / row.repo / day / name)
-    blocked = _worktree_state_hold(wt, pins_head=True)
+    blocked = _worktree_state_hold(wt, pins_head=True, archives_evidence=True)
     if blocked:
         return ArchiveResult(dir=dest, ok=False, reason=blocked)
     manifest = _content_manifest(wt)
@@ -3139,7 +3444,16 @@ def archive_worktree(
         + "survive pruning. Copy `git-index` into the restored worktree's Git index "
         + "to restore staging without overwriting working files. `git-state.tgz` "
         + "preserves raw HEAD/index/local refs/reflog bytes; restore into that new "
-        + "worktree's admin directory, never the common .git directory.\n"
+        + "worktree's admin directory. The `.git/common-rr-cache/` members are a "
+        + "snapshot of the common Git directory's `rr-cache/`; restore those there "
+        + "only after checking for newer shared resolutions. Do not copy `gitdir` "
+        + "or `commondir` over the new worktree's linkage.\n"
+        + "`evidence-manifest.json` records additional durable refs for reflog-only "
+        + "commits, AUTO_MERGE's tree and a REUC commit. In its tree, prefix every "
+        + "original path component with `p-` and append `/1`, `/2` or `/3` for "
+        + "the stage (for example `dir/file` stage 2 is `p-dir/p-file/2`). This "
+        + "also preserves file/directory history collisions. Keep those refs while the archive is needed; "
+        + "the raw `git-index` restores REUC stages and modes.\n"
     )
     res = ArchiveResult(
         dir=dest,
@@ -3158,7 +3472,7 @@ def archive_worktree(
         res.reason = "content manifest changed during archive"
         return res
     try:
-        index_commit = _archive_index_tree(
+        index_commit, reuc = _archive_index_tree(
             wt, dest, head, str(manifest[".git/index"]["sha256"])
         )
         restored = _verify_tracked_payload(wt, dest, head, manifest)
@@ -3190,25 +3504,38 @@ def archive_worktree(
         }
         _archive_manifest_paths(wt, dest / "ignored.tgz", remaining)
         _verify_archive_payloads(dest / "ignored.tgz", manifest, remaining)
-        git_state = {
-            rel
-            for rel, entry in manifest.items()
-            if rel.startswith(".git/")
-            and entry["type"] in {"file", "directory", "symlink"}
-        }
+        git_state = _git_state_paths(manifest)
         _archive_manifest_paths(wt, dest / "git-state.tgz", git_state)
         _verify_archive_payloads(dest / "git-state.tgz", manifest, git_state)
-        _verify_git_state_roots(wt, dest, manifest, head)
+        evidence = _verify_git_state_roots(wt, dest, manifest, head)
+        if reuc:
+            evidence["reuc"] = {"oid": _archive_reuc(wt, reuc), "kind": "commit"}
+        pins: dict[str, dict[str, str]] = {}
+        evidence_path = dest / "evidence-manifest.json"
+        evidence_path.write_text("{}\n")
+        for key, entry in evidence.items():
+            oid = entry["oid"]
+            ref_name = f"refs/wt-archive/{name}-evidence/{key}"
+            try:
+                ref = _pin_named_ref(row.repo_root, ref_name, oid)
+            except subprocess.CalledProcessError as error:
+                raise RuntimeError(
+                    f"could not pin {key} object {oid} at {ref_name}: {error.stderr}"
+                ) from error
+            pins[key] = {**entry, "ref": ref}
+            evidence_path.write_text(json.dumps(pins, sort_keys=True, indent=2) + "\n")
+        _verify_evidence_pins(wt, dest)
     except (
         tarfile.TarError,
         RuntimeError,
+        TypeError,
         OSError,
         ValueError,
         subprocess.CalledProcessError,
     ) as error:
         res.reason = f"archive manifest verification failed: {error}"
         return res
-    blocked = _worktree_state_hold(wt, pins_head=True)
+    blocked = _worktree_state_hold(wt, pins_head=True, archives_evidence=True)
     if blocked:
         res.reason = blocked
         return res
@@ -3930,17 +4257,19 @@ def explicit_archive(path: Path) -> int:
         print(
             f"ARCHIVED {path} -> {res.dir} (patch={res.patch_bytes}B untracked={res.untracked} ignored-cache={res.ignored_cache_files} ignored-cache-bytes={res.ignored_cache_bytes}B) pinned={res.ref}"
         )
-        blocked = removal_hold(row, operator_archive=True)
+        blocked = removal_hold(row, operator_archive=True, archive_dir=res.dir)
         if blocked:
             print(
                 f"HOLD {path}: {blocked}; archive complete, tree kept. Unlocking a pid-less lock requires a separate explicit decision."
             )
             return 2
         manifest = json.loads((res.dir / "content-manifest.json").read_text())
-        remove_worktree(root, path, manifest=manifest, operator_archive=True)
+        remove_worktree(
+            root, path, manifest=manifest, operator_archive=True, archive_dir=res.dir
+        )
         print(f"removed {path}")
         return 0
-    except (RuntimeError, OSError, subprocess.CalledProcessError) as error:
+    except (RuntimeError, TypeError, OSError, subprocess.CalledProcessError) as error:
         print(f"HOLD {path}: {error}", file=sys.stderr)
         return 2
 

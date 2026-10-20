@@ -126,7 +126,9 @@ def test_explicit_archive_index_blobs_restore_after_prune(
 
 
 @pytest.mark.parametrize("side", ["old", "new"])
-def test_unique_per_worktree_reflog_object_holds(repo: Path, side: str) -> None:
+def test_unique_per_worktree_reflog_object_holds_classification_but_archives(
+    repo: Path, side: str
+) -> None:
     wt = lane(repo)
     admin = Path(git(wt, "rev-parse", "--absolute-git-dir"))
     head, unique = git(wt, "rev-parse", "HEAD"), unique_commit(wt)
@@ -134,7 +136,11 @@ def test_unique_per_worktree_reflog_object_holds(repo: Path, side: str) -> None:
     with (admin / "logs/HEAD").open("a") as log:
         log.write(f"{old} {new} test <t@t.t> 1 +0000\tunique lost history\n")
     assert row(repo, wt).classify() == "HOLD"
-    assert not worktree_gc.archive_worktree(row(repo, wt)).ok
+    result = worktree_gc.archive_worktree(row(repo, wt))
+    assert result.ok, result.reason
+    pins = json.loads((result.dir / "evidence-manifest.json").read_text())
+    assert pins["reflog-1"]["oid"] == unique
+    assert git(repo, "rev-parse", pins["reflog-1"]["ref"]) == unique
 
 
 @pytest.mark.parametrize(
@@ -146,7 +152,6 @@ def test_unique_per_worktree_reflog_object_holds(repo: Path, side: str) -> None:
         "FETCH_HEAD",
         "AUTO_MERGE",
         "REBASE_HEAD",
-        "MERGE_RR",
         "COMMIT_EDITMSG",
         "unknown-state",
         "sharedindex.unique",
@@ -943,7 +948,7 @@ def test_extra_structural_admin_content_holds(repo: Path, name: str) -> None:
     assert not result.ok and wt.exists()
 
 
-def test_resolve_undo_index_blobs_hold_both_routes(repo: Path) -> None:
+def test_resolve_undo_index_blobs_hold_classification_but_archive(repo: Path) -> None:
     wt = lane(repo)
     original = git(wt, "rev-parse", ":file")
     oids = []
@@ -970,7 +975,11 @@ def test_resolve_undo_index_blobs_hold_both_routes(repo: Path) -> None:
     assert all(oid in git(wt, "ls-files", "--resolve-undo") for oid in oids)
     assert row(repo, wt).classify() == "HOLD"
     result = worktree_gc.archive_worktree(row(repo, wt))
-    assert not result.ok and "index extension" in result.reason
+    assert result.ok, result.reason
+    pins = json.loads((result.dir / "evidence-manifest.json").read_text())
+    reuc_ref = pins["reuc"]["ref"]
+    assert git(repo, "rev-parse", f"{reuc_ref}:p-file/2") == oids[0]
+    assert git(repo, "rev-parse", f"{reuc_ref}:p-file/3") == oids[1]
 
 
 @pytest.mark.parametrize("state", ["unknown-extension", "version4"])
