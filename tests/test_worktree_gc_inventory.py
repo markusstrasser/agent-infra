@@ -1030,8 +1030,8 @@ def test_unknown_admin_added_after_guard_is_held_by_manifest(
     admin = Path(git(wt, "rev-parse", "--absolute-git-dir"))
     original = worktree_gc._worktree_state_hold
 
-    def add_after_guard(path: Path) -> str | None:
-        result = original(path)
+    def add_after_guard(path: Path, **kwargs: bool) -> str | None:
+        result = original(path, **kwargs)
         (admin / "future-state").write_bytes(b"unique future state")
         return result
 
@@ -1052,9 +1052,9 @@ def test_saved_index_envelope_cannot_depend_on_live_guard(
     unsupported = data + hashlib.sha1(data).digest()
     original = worktree_gc._worktree_state_hold
 
-    def masked_guard(tree: Path) -> str | None:
+    def masked_guard(tree: Path, **kwargs: bool) -> str | None:
         path.write_bytes(original_bytes)
-        result = original(tree)
+        result = original(tree, **kwargs)
         path.write_bytes(unsupported)
         return result
 

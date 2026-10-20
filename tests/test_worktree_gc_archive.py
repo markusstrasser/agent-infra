@@ -403,3 +403,147 @@ def test_source_epoch_that_is_tracked_or_unignored_still_holds(
     res = archive_worktree(row, root=tmp_path / "arch")
     assert not res.ok and res.reason == f"nested repository: {SOURCE_EPOCH}"
     assert (wt / SOURCE_EPOCH / ".git").is_dir()
+
+
+ORIG_HOLD = "unlanded or unreadable worktree-local ref: ORIG_HEAD"
+
+
+def _is_ancestor(repo: Path, oid: str, tip: str) -> bool:
+    return (
+        subprocess.run(
+            ["git", "merge-base", "--is-ancestor", oid, tip],
+            cwd=repo,
+            capture_output=True,
+            check=False,
+        ).returncode
+        == 0
+    )
+
+
+def _orig_head_lane(repo: Path, name: str, unique: int) -> tuple[Path, list[str]]:
+    """Detached tree on unique scratch commits only its HEAD keeps, edit landed."""
+    _git("switch", "-qc", "scratch", cwd=repo)
+    shas = []
+    for n in range(unique):
+        (repo / f"scratch{n}.txt").write_text(f"candidate scratch {n}\n")
+        _git("add", f"scratch{n}.txt", cwd=repo)
+        _git("commit", "-qm", f"scratch {n}", cwd=repo)
+        shas.append(_git("rev-parse", "HEAD", cwd=repo).strip())
+    _git("switch", "-q", "main", cwd=repo)
+    _git("branch", "-qD", "scratch", cwd=repo)
+    wt = repo.parent / "wts" / name
+    _git("worktree", "add", "-q", "--detach", str(wt), shas[-1], cwd=repo)
+    (repo / "f.txt").write_text("one\nTWO landed\n")
+    _git("commit", "-qam", "land the lane edit", cwd=repo)
+    (wt / "f.txt").write_text("one\nTWO landed\n")
+    assert (wt / "f.txt").read_text() == _git("show", "main:f.txt", cwd=repo)
+    return wt, shas
+
+
+def _set_orig_head(wt: Path, oid: str) -> None:
+    # Written as Git's files backend stores it; update-ref could add a reflog.
+    admin = Path(_git("rev-parse", "--absolute-git-dir", cwd=wt).strip())
+    (admin / "ORIG_HEAD").write_text(oid + "\n")
+
+
+def _cli_archive(monkeypatch: pytest.MonkeyPatch, root: Path, wt: Path) -> int:
+    monkeypatch.setattr(worktree_gc, "ARCHIVE_ROOT", root)
+    monkeypatch.setattr(worktree_gc, "live_cwd_holders", lambda: {"/nowhere": [1]})
+    monkeypatch.setattr(worktree_gc, "find_stranded", lambda *a, **k: [])
+    monkeypatch.setattr(sys, "argv", ["worktree_gc.py", "archive", "--path", str(wt)])
+    monkeypatch.setitem(sys.modules, "janitor_receipt", None)  # no real receipt
+    return worktree_gc.main()
+
+
+@pytest.mark.parametrize("behind", [0, 1], ids=["orig-is-head", "orig-below-head"])
+def test_orig_head_reachable_from_pinned_head_archives_and_removes(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, behind: int
+) -> None:
+    wt, shas = _orig_head_lane(repo, f"lane-orig-{behind}", unique=2)
+    head, orig = shas[-1], shas[-1 - behind]
+    _set_orig_head(wt, orig)
+    assert not _is_ancestor(repo, orig, "main")
+    # Classification keeps the default-ancestor rule; suggest/apply are unchanged.
+    row = _row(repo, wt)
+    assert (row.hold_reason, row.classify()) == (ORIG_HOLD, "HOLD")
+    assert _cli_archive(monkeypatch, tmp_path / "arch", wt) == 0
+    assert not wt.exists()
+    dest = next((tmp_path / "arch").glob("**/head.txt")).parent
+    with tarfile.open(dest / "git-state.tgz") as packed:
+        assert packed.extractfile(".git/ORIG_HEAD").read() == f"{orig}\n".encode()
+    pins = dict(
+        line.split()
+        for line in _git(
+            "for-each-ref",
+            "--format=%(objectname) %(refname)",
+            "refs/wt-archive",
+            cwd=repo,
+        ).splitlines()
+    )
+    # The removed tree's admin state was ORIG_HEAD's last root besides HEAD's pin.
+    _git(
+        "reflog",
+        "expire",
+        "--expire=now",
+        "--expire-unreachable=now",
+        "--all",
+        cwd=repo,
+    )
+    _git("gc", "-q", "--prune=now", cwd=repo)
+    assert _git("cat-file", "-t", orig, cwd=repo).strip() == "commit"
+    assert _is_ancestor(repo, orig, pins[head])
+
+
+def _assert_orig_head_holds(
+    repo: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    wt: Path,
+) -> None:
+    assert _cli_archive(monkeypatch, tmp_path / "arch", wt) == 2
+    assert (
+        f"HOLD {wt}: archive self-check failed: {ORIG_HOLD}" in capsys.readouterr().err
+    )
+    with pytest.raises(RuntimeError, match=ORIG_HOLD):
+        remove_worktree(repo, wt)
+    assert wt.exists() and (wt / "f.txt").read_text() == "one\nTWO landed\n"
+    assert not _git("for-each-ref", "refs/wt-archive", cwd=repo).strip()
+
+
+def test_orig_head_reachable_from_neither_default_nor_head_holds(
+    repo: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    wt, shas = _orig_head_lane(repo, "lane-orig-foreign", unique=1)
+    _git("switch", "-qc", "elsewhere", cwd=repo)
+    (repo / "elsewhere.txt").write_text("unrelated unique work\n")
+    _git("add", "elsewhere.txt", cwd=repo)
+    _git("commit", "-qm", "unrelated", cwd=repo)
+    foreign = _git("rev-parse", "HEAD", cwd=repo).strip()
+    _git("switch", "-q", "main", cwd=repo)
+    _git("branch", "-qD", "elsewhere", cwd=repo)
+    _set_orig_head(wt, foreign)
+    assert not _is_ancestor(repo, foreign, "main")
+    assert not _is_ancestor(repo, foreign, shas[-1])
+    _assert_orig_head_holds(repo, tmp_path, monkeypatch, capsys, wt)
+
+
+@pytest.mark.parametrize("content", ["garbage", "missing", "blob"])
+def test_unreadable_orig_head_holds(
+    repo: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    content: str,
+) -> None:
+    wt, shas = _orig_head_lane(repo, f"lane-orig-{content}", unique=1)
+    oid = {
+        "garbage": "not an object id",
+        "missing": "0123456789abcdef0123456789abcdef01234567",
+        "blob": _git("rev-parse", f"{shas[-1]}:scratch0.txt", cwd=repo).strip(),
+    }[content]
+    _set_orig_head(wt, oid)
+    _assert_orig_head_holds(repo, tmp_path, monkeypatch, capsys, wt)

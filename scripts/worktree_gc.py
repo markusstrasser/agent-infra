@@ -103,7 +103,9 @@ Linked-worktree content inventory (landed removal and explicit archive):
   LFS objects/pointers     HOLD storage/config/.lfsconfig/pointers; Git pins no LFS payload.
                            Shared lock metadata without any object payloads survives
                            outside the checkout; candidate-contained/symlinked storage HOLDs.
-  Other pseudorefs/admin   ORIG_HEAD must be a default ancestor; raw bytes archived.
+  Other pseudorefs/admin   ORIG_HEAD must be a default ancestor; archive/removal routes,
+                           which pin HEAD first, also accept a HEAD ancestor.
+                           Classification keeps the default rule. Raw bytes archived.
                            HOLD FETCH_HEAD/AUTO_MERGE/etc and unknown admin paths.
   Rerere state             Empty MERGE_RR has no object roots; raw bytes archived.
                            Nonempty MERGE_RR HOLD (resolution roots not inventoried).
@@ -584,7 +586,8 @@ def release_stale_lock(row: WorktreeRow) -> str | None:
 
 def removal_hold(row: WorktreeRow, *, operator_archive: bool = False) -> str | None:
     """Refresh cwd and lock vetoes immediately before a registered-tree removal."""
-    blocked = _worktree_state_hold(row.path)
+    # Every caller removes only through remove_worktree, which pins HEAD first.
+    blocked = _worktree_state_hold(row.path, pins_head=True)
     if blocked:
         return blocked
     if not operator_archive and _codex_owner_thread(row.path):
@@ -1479,8 +1482,14 @@ def _shared_refs_hold(wt: Path, common: Path, branch: str | None) -> str | None:
     return None
 
 
-def _worktree_state_hold(wt: Path) -> str | None:
-    """Closed inventory: every unhandled admin/storage state holds all removal routes."""
+def _worktree_state_hold(wt: Path, *, pins_head: bool = False) -> str | None:
+    """Closed inventory: every unhandled admin/storage state holds all removal routes.
+
+    ``pins_head`` is only for routes that pin this HEAD before removing anything
+    (``archive_worktree``, ``remove_worktree`` and its ``removal_hold`` veto): an
+    ORIG_HEAD that HEAD reaches survives through that pin. Classification keeps
+    the default-ancestor rule, so suggest candidates and automatic classes hold.
+    """
     try:
         overrides = {
             "GIT_DIR",
@@ -1552,13 +1561,16 @@ def _worktree_state_hold(wt: Path) -> str | None:
                 if path.read_bytes() != commit.split(b"\n\n", 1)[1]:
                     return "unpreserved commit-message draft: COMMIT_EDITMSG"
             if path.name == "ORIG_HEAD":
+                # An old HEAD value, like a reflog entry; `git worktree add`
+                # writes ORIG_HEAD == HEAD. Missing/noncommit objects fail here.
                 oid = path.read_text().strip()
-                if (
-                    not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", oid)
-                    or run(
-                        ["git", "merge-base", "--is-ancestor", oid, base], cwd=wt
+                tips = (base, head) if pins_head else (base,)
+                if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", oid) or not any(
+                    run(
+                        ["git", "merge-base", "--is-ancestor", oid, tip], cwd=wt
                     ).returncode
-                    != 0
+                    == 0
+                    for tip in tips
                 ):
                     return "unlanded or unreadable worktree-local ref: ORIG_HEAD"
         # Cheap closed admin rejection precedes potentially many cached-tree
@@ -2229,7 +2241,7 @@ def remove_worktree(
     """
     if wt.is_symlink():
         raise RuntimeError(f"refusing to remove symlinked worktree {wt}")
-    blocked = _worktree_state_hold(wt)
+    blocked = _worktree_state_hold(wt, pins_head=True)
     if blocked:
         raise RuntimeError(blocked)
     if not operator_archive and _codex_owner_thread(wt):
@@ -2248,7 +2260,7 @@ def remove_worktree(
     cmd = ["git", "worktree", "remove", *(["--force"] if force else []), str(wt)]
 
     def checked_remove() -> None:
-        blocked = _worktree_state_hold(wt)
+        blocked = _worktree_state_hold(wt, pins_head=True)
         if blocked:
             raise RuntimeError(blocked)
         if not operator_archive and _codex_owner_thread(wt):
@@ -2965,7 +2977,8 @@ def _verify_git_state_roots(
                 check_oid(oid, default_only=True)
                 seen_refs.add(rel)
             elif rel == "ORIG_HEAD":
-                check_oid(data.decode().strip(), default_only=True)
+                # The caller pins this exact HEAD next, so HEAD's history survives.
+                check_oid(data.decode().strip(), default_only=False)
             elif rel.startswith("logs/"):
                 for line in data.splitlines():
                     fields = line.split(b" ", 2)
@@ -3073,7 +3086,7 @@ def archive_worktree(
     day = time.strftime("%Y-%m-%d", time.localtime(now))
     name = _archive_name(row)
     dest = _fresh_dir(root / row.repo / day / name)
-    blocked = _worktree_state_hold(wt)
+    blocked = _worktree_state_hold(wt, pins_head=True)
     if blocked:
         return ArchiveResult(dir=dest, ok=False, reason=blocked)
     manifest = _content_manifest(wt)
@@ -3191,7 +3204,7 @@ def archive_worktree(
     ) as error:
         res.reason = f"archive manifest verification failed: {error}"
         return res
-    blocked = _worktree_state_hold(wt)
+    blocked = _worktree_state_hold(wt, pins_head=True)
     if blocked:
         res.reason = blocked
         return res
