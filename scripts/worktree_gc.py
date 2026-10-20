@@ -106,6 +106,8 @@ Linked-worktree content inventory (landed removal and explicit archive):
   Other pseudorefs/admin   ORIG_HEAD must be a default ancestor; archive/removal routes,
                            which pin HEAD first, also accept a HEAD ancestor.
                            Classification keeps the default rule. Raw bytes archived.
+                           Claude Code's CLAUDE_BASE (the tree's base commit) follows
+                           the ORIG_HEAD rule.
                            HOLD FETCH_HEAD/AUTO_MERGE/etc and unknown admin paths.
   Rerere state             Empty MERGE_RR has no object roots; raw bytes archived.
                            Nonempty MERGE_RR HOLD (resolution roots not inventoried).
@@ -1000,6 +1002,7 @@ ADMIN_FILES = (
     "locked",
     "config.worktree",
     "codex-thread.json",
+    "CLAUDE_BASE",
 )
 ADMIN_DIRS = ("logs", "refs")
 ADMIN_NAMES = frozenset((*ADMIN_FILES, *ADMIN_DIRS))
@@ -1560,9 +1563,10 @@ def _worktree_state_hold(wt: Path, *, pins_head: bool = False) -> str | None:
                 ).stdout
                 if path.read_bytes() != commit.split(b"\n\n", 1)[1]:
                     return "unpreserved commit-message draft: COMMIT_EDITMSG"
-            if path.name == "ORIG_HEAD":
+            if path.name in ("ORIG_HEAD", "CLAUDE_BASE"):
                 # An old HEAD value, like a reflog entry; `git worktree add`
-                # writes ORIG_HEAD == HEAD. Missing/noncommit objects fail here.
+                # writes ORIG_HEAD == HEAD. Claude Code's CLAUDE_BASE names the
+                # commit its tree was cut from. Missing/noncommit objects fail here.
                 oid = path.read_text().strip()
                 tips = (base, head) if pins_head else (base,)
                 if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", oid) or not any(
@@ -1572,7 +1576,7 @@ def _worktree_state_hold(wt: Path, *, pins_head: bool = False) -> str | None:
                     == 0
                     for tip in tips
                 ):
-                    return "unlanded or unreadable worktree-local ref: ORIG_HEAD"
+                    return f"unlanded or unreadable worktree-local ref: {path.name}"
         # Cheap closed admin rejection precedes potentially many cached-tree
         # queries; unknown metadata needs no expensive index proof.
         blocked = _index_state_hold(wt, admin, len(head) // 2)
@@ -2976,7 +2980,7 @@ def _verify_git_state_roots(
                     raise RuntimeError(f"captured ref bytes/resolved SHA differ: {rel}")
                 check_oid(oid, default_only=True)
                 seen_refs.add(rel)
-            elif rel == "ORIG_HEAD":
+            elif rel in ("ORIG_HEAD", "CLAUDE_BASE"):
                 # The caller pins this exact HEAD next, so HEAD's history survives.
                 check_oid(data.decode().strip(), default_only=False)
             elif rel.startswith("logs/"):

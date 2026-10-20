@@ -531,6 +531,40 @@ def test_orig_head_reachable_from_neither_default_nor_head_holds(
     _assert_orig_head_holds(repo, tmp_path, monkeypatch, capsys, wt)
 
 
+def _set_claude_base(wt: Path, oid: str) -> None:
+    # Claude Code writes the bare object ID with no newline.
+    admin = Path(_git("rev-parse", "--absolute-git-dir", cwd=wt).strip())
+    (admin / "CLAUDE_BASE").write_text(oid)
+
+
+def test_claude_base_naming_the_tree_base_archives_raw_bytes(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    wt, shas = _orig_head_lane(repo, "lane-claude-base", unique=1)
+    base = _git("rev-parse", f"{shas[0]}^", cwd=repo).strip()
+    _set_claude_base(wt, base)
+    assert _cli_archive(monkeypatch, tmp_path / "arch", wt) == 0
+    assert not wt.exists()
+    dest = next((tmp_path / "arch").glob("**/head.txt")).parent
+    with tarfile.open(dest / "git-state.tgz") as packed:
+        assert packed.extractfile(".git/CLAUDE_BASE").read() == base.encode()
+
+
+def test_unreadable_claude_base_holds(
+    repo: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    wt, _shas = _orig_head_lane(repo, "lane-claude-base-bad", unique=1)
+    _set_claude_base(wt, "not an object id")
+    assert _cli_archive(monkeypatch, tmp_path / "arch", wt) == 2
+    hold = "unlanded or unreadable worktree-local ref: CLAUDE_BASE"
+    assert f"HOLD {wt}: archive self-check failed: {hold}" in capsys.readouterr().err
+    assert wt.exists() and (wt / "f.txt").read_text() == "one\nTWO landed\n"
+    assert not _git("for-each-ref", "refs/wt-archive", cwd=repo).strip()
+
+
 @pytest.mark.parametrize("content", ["garbage", "missing", "blob"])
 def test_unreadable_orig_head_holds(
     repo: Path,
