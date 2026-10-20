@@ -38,9 +38,14 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
+
+# The invocation log grew to 1.6 GB between 2026-08-20 and 2026-10-20 with no
+# rotation. Past this size it is renamed aside and zstd-compressed (~30x), never deleted.
+INVOCATION_LOG_ROTATE_BYTES = 256 * 1024 * 1024
 
 # Events whose stdout Codex parses as JSON.
 JSON_STDOUT_EVENTS = {
@@ -258,6 +263,23 @@ def _pending_tool_metadata(payload: str) -> dict:
     return result
 
 
+def _rotate_invocation_log(log_path: str) -> None:
+    try:
+        if os.path.getsize(log_path) < INVOCATION_LOG_ROTATE_BYTES:
+            return
+        # Per-process name: concurrent hooks never overwrite each other's rotation.
+        rotated = log_path.removesuffix(".jsonl") + f"-until-{time.strftime('%Y-%m-%d')}-{os.getpid()}.jsonl"
+        os.rename(log_path, rotated)
+    except OSError:
+        return
+    zstd = shutil.which("zstd") or next(
+        (p for p in ("/opt/homebrew/bin/zstd", "/usr/local/bin/zstd") if os.path.exists(p)), None)
+    if zstd:  # --rm drops the plain copy only after a successful compress
+        subprocess.Popen([zstd, "-q", "-19", "--rm", rotated], stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         start_new_session=True)
+
+
 def main(argv: list[str]) -> int:
     if len(argv) < 2:
         return 0
@@ -296,6 +318,7 @@ def main(argv: list[str]) -> int:
     # a one-line grep instead of a debugging session). Fail open.
     try:
         log_path = os.path.expanduser("~/.codex/log/hook_shim_invocations.jsonl")
+        _rotate_invocation_log(log_path)
         with open(log_path, "a") as f:
             f.write(
                 json.dumps(

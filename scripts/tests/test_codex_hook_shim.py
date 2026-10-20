@@ -50,6 +50,17 @@ def test_pending_tool_metadata_does_not_affect_other_events(tmp_path: Path) -> N
     assert result.returncode == 0
 
 
+def test_oversized_invocation_log_is_rotated_not_lost(tmp_path: Path) -> None:
+    log = tmp_path / ".codex/log/hook_shim_invocations.jsonl"
+    log.parent.mkdir(parents=True)
+    with log.open("wb") as f:  # sparse: past the threshold without using disk
+        f.truncate(256 * 1024 * 1024)
+    result = run_shim("exit 0", "SessionStart", extra_env={"HOME": str(tmp_path)})
+    assert result.returncode == 0
+    assert len(log.read_text().splitlines()) == 1
+    assert list(log.parent.glob("hook_shim_invocations-until-*.jsonl*"))
+
+
 def test_unencodable_tool_id_keeps_each_receipt_and_inner_contract(tmp_path: Path) -> None:
     log = tmp_path / ".codex/log/hook_shim_invocations.jsonl"
     log.parent.mkdir(parents=True)
