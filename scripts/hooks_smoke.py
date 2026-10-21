@@ -147,21 +147,26 @@ def relative_script(command: str) -> str | None:
         tokens = list(lexer)
     except ValueError:
         return None
-    at_start = True
+    at_start, launched = True, False
     prev = ""
     for tok in tokens:
         if prev == "cd" and tok.startswith(("/", "~", "$")):
             return None  # later relative paths resolve against an anchored cwd
         prev = tok
         if tok and set(tok) <= set(";&|()"):
-            at_start = True
+            at_start, launched = True, False
             continue
         if not at_start:
             continue
-        if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tok) or tok.startswith("-") or tok in LAUNCHERS or tok == "run":
+        base = tok.rsplit("/", 1)[-1]
+        if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tok) or tok.startswith("-") or base in LAUNCHERS or tok == "run":
+            launched = launched or base in LAUNCHERS
             continue
         at_start = False
-        if "/" in tok and not tok.startswith(("/", "~", "$")):
+        if tok.startswith(("/", "~", "$")):
+            continue
+        # An interpreter's script argument is a file even without a slash (`python3 hook.py`).
+        if "/" in tok or (launched and re.search(r"\.(?:py|sh|js|ts|mjs)$", tok)):
             return tok
     return None
 

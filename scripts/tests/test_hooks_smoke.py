@@ -114,6 +114,10 @@ def test_relative_script_lint():
     assert relative_script("cd /Users/x/repo && python3 scripts/x.py") is None
     assert relative_script("BLOCK_MSG='regenerate via scripts/.' ~/hooks/x.sh") is None
     assert relative_script("jq -r .x | grep foo/bar") is None
+    assert relative_script("/usr/bin/env python3 scripts/x.py") == "scripts/x.py"
+    assert relative_script("python3 hook.py") == "hook.py"
+    assert relative_script("bash hook.sh --flag") == "hook.sh"
+    assert relative_script("python3 /abs/hook.py") is None
 
 
 def test_interpreter_check_flags_old_python(monkeypatch):
