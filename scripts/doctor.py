@@ -30,6 +30,10 @@ GLOBAL_SETTINGS = CLAUDE_DIR / "settings.json"
 GLOBAL_CLAUDE_MD = CLAUDE_DIR / "CLAUDE.md"
 MEMORY_WARN_LINES = 180
 MEMORY_MAX_LINES = 200
+# Claude Code reads MEMORY.md up to 200 lines and 25,000 bytes; its memory hook warns past
+# 70% of the byte limit ("approaching the 24.4KB read limit", 2026-10-22).
+MEMORY_WARN_BYTES = 17_500
+MEMORY_MAX_BYTES = 25_000
 
 
 class Check:
@@ -265,13 +269,15 @@ def check_memory_health() -> list[Check]:
         # Extract project name from path
         proj_name = proj_dir.name.split("-")[-1] if "-" in proj_dir.name else proj_dir.name
         c = Check(f"memory:{proj_name}", "global")
-        lines = memory_md.read_text().count("\n")
-        if lines > MEMORY_MAX_LINES:
-            checks.append(c.fail(f"{lines} lines (max {MEMORY_MAX_LINES}, will be truncated)"))
-        elif lines > MEMORY_WARN_LINES:
-            checks.append(c.warn(f"{lines} lines (warn at {MEMORY_WARN_LINES})"))
+        text = memory_md.read_bytes()
+        lines = text.count(b"\n")
+        size = f"{lines} lines, {len(text):,} bytes"
+        if lines > MEMORY_MAX_LINES or len(text) > MEMORY_MAX_BYTES:
+            checks.append(c.fail(f"{size} (max {MEMORY_MAX_LINES} lines / {MEMORY_MAX_BYTES:,} bytes, will be truncated)"))
+        elif lines > MEMORY_WARN_LINES or len(text) > MEMORY_WARN_BYTES:
+            checks.append(c.warn(f"{size} (warn at {MEMORY_WARN_LINES} lines / {MEMORY_WARN_BYTES:,} bytes)"))
         else:
-            checks.append(c.ok(f"{lines} lines"))
+            checks.append(c.ok(size))
 
     return checks
 
