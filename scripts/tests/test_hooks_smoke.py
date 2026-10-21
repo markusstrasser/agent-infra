@@ -74,3 +74,55 @@ def test_intentional_block_not_failed(tmp_path):
     results, rc = run_smoke(write_settings(tmp_path, str(hook)))
     assert rc == 0
     assert results[0]["status"] == "intentional_block"
+
+
+def test_updated_input_bad_keys_detected(tmp_path):
+    """CC 2.1.300 denies invalid updatedInput: an invented key or a dropped required key fails."""
+    out = {"hookSpecificOutput": {"hookEventName": "PreToolUse", "updatedInput": {"cmd": "ls"}}}
+    hook = tmp_path / "mut.sh"
+    hook.write_text(f"#!/usr/bin/env bash\ncat >/dev/null\necho '{json.dumps(out)}'\n")
+    hook.chmod(0o755)
+    settings = tmp_path / "settings.json"
+    settings.write_text(json.dumps({"hooks": {"PreToolUse": [
+        {"matcher": "Bash", "hooks": [{"type": "command", "command": str(hook)}]}]}}))
+    results, rc = run_smoke(settings)
+    bad = [r for r in results if r["command"] == str(hook) and r["status"] == "fail"]
+    assert rc == 1 and bad
+    assert "unknown Bash keys ['cmd']" in bad[0]["problem"]
+    assert "drops required Bash keys ['command']" in bad[0]["problem"]
+
+
+def test_check_updated_input_accepts_valid_rewrite():
+    from hooks_smoke import check_updated_input
+
+    ok = json.dumps({"hookSpecificOutput": {"updatedInput": {"command": "ls", "timeout": 5}}})
+    assert check_updated_input("Bash", ok) == (True, None)
+    assert check_updated_input("Bash", "plain advisory") == (False, None)
+
+
+def test_relative_script_lint():
+    from hooks_smoke import relative_script
+
+    # The two F10 commands as they stood on 2026-10-21.
+    assert relative_script(
+        "TOOL_NAME=\"$( jq -r '.tool_name // empty' )\" bash .claude/hooks/bio-constants-gate.sh"
+    ) == ".claude/hooks/bio-constants-gate.sh"
+    assert relative_script(".claude/hooks/knowledge/ruff-format.sh") == ".claude/hooks/knowledge/ruff-format.sh"
+    assert relative_script("uv run python3 scripts/x.py") == "scripts/x.py"
+    assert relative_script('bash "$CLAUDE_PROJECT_DIR"/.claude/hooks/x.sh') is None
+    assert relative_script("~/Projects/skills/hooks/x.sh") is None
+    assert relative_script("cd /Users/x/repo && python3 scripts/x.py") is None
+    assert relative_script("BLOCK_MSG='regenerate via scripts/.' ~/hooks/x.sh") is None
+    assert relative_script("jq -r .x | grep foo/bar") is None
+
+
+def test_interpreter_check_flags_old_python(monkeypatch):
+    import hooks_smoke
+
+    class Proc:
+        returncode, stdout, stderr = 0, "3.9\n", ""
+
+    monkeypatch.setattr(hooks_smoke.subprocess, "run", lambda *a, **k: Proc())
+    assert hooks_smoke.interpreter_check().status == "fail"
+    Proc.stdout = "3.14\n"
+    assert hooks_smoke.interpreter_check().status == "pass"

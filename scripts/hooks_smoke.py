@@ -17,6 +17,12 @@ hide in production:
 - unexpected non-zero exits (anything but 0, or 2 with a block-ish message)
   on benign smoke input
 - timeouts
+- PreToolUse `updatedInput` rewrites with unknown or missing tool-input keys
+  (CC 2.1.300 drops unknown keys and denies invalid input), driven by
+  REWRITE_CASES so every mutator actually rewrites at least once
+- a hook-env `python3` older than 3.10 on a clean PATH
+- hook commands whose script path is cwd-relative (dead from any subdirectory
+  or worktree); linted across every ~/Projects/*/.claude/settings*.json
 
 Evidence: 2026-06-11 — the Stop auto-commit hook was dead for weeks from a
 SyntaxError swallowed by its fail-open trap; three Stop advisories were dead
@@ -31,6 +37,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -44,6 +51,7 @@ from codex_hook_compat import (  # noqa: E402
     BLOCK_RE,
     HookRef,
     load_hooks,
+    matcher_tools,
     select_tool_name,
     smoke_payload,
 )
@@ -60,6 +68,34 @@ DEATH_RE = re.compile(
     r"|ImportError|command not found|/bin/sh: .*: not found",
 )
 
+# (required, allowed) tool-input keys. CC 2.1.300 validates updatedInput: unknown
+# keys are dropped and invalid input denies the call, so a mutator that drops a
+# required key or invents one breaks every call it rewrites.
+TOOL_INPUT_KEYS: dict[str, tuple[set[str], set[str]]] = {
+    "Bash": ({"command"}, {"command", "timeout", "description", "run_in_background", "dangerouslyDisableSandbox"}),
+    "Agent": (
+        {"description", "prompt"},
+        {"description", "prompt", "subagent_type", "model", "isolation", "name", "mode", "team_name", "effort"},
+    ),
+}
+
+# Inputs that make each known mutator rewrite (positive control: a case that no
+# hook rewrites fails, so a mutator that silently stops firing is caught too).
+REWRITE_CASES: list[tuple[str, str, dict[str, Any]]] = [
+    ("git-noext", "Bash", {"command": "git diff HEAD", "description": "smoke"}),
+    ("pyunbuffered", "Bash", {"command": "uv run python3 x.py > x.log 2>&1", "run_in_background": True}),
+    ("uv-python", "Bash", {"command": "python3 -c 'print(1)'", "timeout": 60000}),
+    ("bare-modal", "Bash", {"command": "modal app list"}),
+    ("subagent-model", "Agent", {"description": "smoke", "prompt": "Reply OK.", "subagent_type": "general-purpose"}),
+]
+
+# Hooks run under the CC process PATH; this is its brew-first core. 2026-10-13:
+# the python@3.14 upgrade left no unversioned /opt/homebrew/bin/python3, so every
+# `python3` hook silently ran Apple's 3.9.6 (TypeError in live-batch-edit-guard).
+CLEAN_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+MIN_HOOK_PYTHON = (3, 10)
+LAUNCHERS = {"bash", "sh", "zsh", "python", "python3", "node", "uv", "uvx", "exec", "env"}
+
 
 @dataclass
 class SmokeResult:
@@ -72,6 +108,93 @@ class SmokeResult:
     problem: str | None = None
     stdout: str = ""
     stderr: str = ""
+    rewrote: bool = False
+
+
+def check_updated_input(tool_name: str, stdout: str) -> tuple[bool, str | None]:
+    """(rewrote, problem) for a PreToolUse stdout carrying updatedInput."""
+    try:
+        parsed = json.loads(stdout)
+    except json.JSONDecodeError:
+        return False, None
+    hso = parsed.get("hookSpecificOutput") if isinstance(parsed, dict) else None
+    if not isinstance(hso, dict) or "updatedInput" not in hso:
+        return False, None
+    updated = hso["updatedInput"]
+    if not isinstance(updated, dict):
+        return True, "updatedInput is not an object"
+    if tool_name not in TOOL_INPUT_KEYS:
+        return True, None
+    required, allowed = TOOL_INPUT_KEYS[tool_name]
+    problems = []
+    if extra := sorted(set(updated) - allowed):
+        problems.append(f"unknown {tool_name} keys {extra}")
+    if missing := sorted(required - set(updated)):
+        problems.append(f"drops required {tool_name} keys {missing}")
+    return True, ("updatedInput " + "; ".join(problems)) if problems else None
+
+
+def relative_script(command: str) -> str | None:
+    """First cwd-relative script token in a hook command, else None.
+
+    Walks each shell segment past VAR=value prefixes and launchers (bash, uv run
+    python3, ...) to the token that names the script. Bare names are PATH lookups;
+    absolute, ~ and $VAR-anchored paths are fine.
+    """
+    try:
+        lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
+        lexer.whitespace_split = True
+        tokens = list(lexer)
+    except ValueError:
+        return None
+    at_start = True
+    prev = ""
+    for tok in tokens:
+        if prev == "cd" and tok.startswith(("/", "~", "$")):
+            return None  # later relative paths resolve against an anchored cwd
+        prev = tok
+        if tok and set(tok) <= set(";&|()"):
+            at_start = True
+            continue
+        if not at_start:
+            continue
+        if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tok) or tok.startswith("-") or tok in LAUNCHERS or tok == "run":
+            continue
+        at_start = False
+        if "/" in tok and not tok.startswith(("/", "~", "$")):
+            return tok
+    return None
+
+
+def lint_relative_paths(files: list[Path]) -> list[SmokeResult]:
+    out = []
+    for path in files:
+        try:
+            refs = load_hooks(path)
+        except (OSError, json.JSONDecodeError):
+            continue
+        for ref in refs:
+            if tok := relative_script(ref.command):
+                out.append(SmokeResult(
+                    ref.source, ref.event, ref.matcher, ref.command, 0, "fail",
+                    f"cwd-relative hook script {tok!r}: dead from subdirectories/worktrees — anchor it with \"$CLAUDE_PROJECT_DIR\"/",
+                ))
+    return out
+
+
+def interpreter_check() -> SmokeResult:
+    probe = "import sys; print('%d.%d' % sys.version_info[:2])"
+    proc = subprocess.run(["/usr/bin/env", "-i", f"PATH={CLEAN_PATH}", "python3", "-c", probe],
+                          capture_output=True, text=True, timeout=10, check=False)
+    found = proc.stdout.strip()
+    ok = proc.returncode == 0 and tuple(int(x) for x in found.split(".")) >= MIN_HOOK_PYTHON
+    return SmokeResult(
+        "(hook env)", "(interpreter)", "<all>", f"PATH={CLEAN_PATH} python3", proc.returncode,
+        "pass" if ok else "fail",
+        None if ok else f"hook-env python3 is {found or 'missing'}; need >= {'.'.join(map(str, MIN_HOOK_PYTHON))} "
+        "(check `brew link` / /opt/homebrew/bin/python3)",
+        stdout=found, stderr=proc.stderr.strip()[:300],
+    )
 
 
 def hook_root(source: str, tmp: Path) -> Path:
@@ -131,6 +254,11 @@ def seed_tmp_repo(tmp: Path) -> None:
     # live run added 4 event:null rows to the real compact-log.jsonl.
     home = tmp / "home"
     (home / ".claude").mkdir(parents=True)
+    # Hooks that resolve tools under ~/.local/bin (bare-modal-guard) must see the real ones.
+    real_bin = HOME / ".local" / "bin"
+    if real_bin.is_dir():
+        (home / ".local").mkdir()
+        (home / ".local" / "bin").symlink_to(real_bin)
     (tmp / "smoke.md").write_text("hooks smoke\n")
     # Minimal plausible transcript for hooks that read transcript_path.
     lines = [
@@ -151,13 +279,16 @@ def seed_tmp_repo(tmp: Path) -> None:
     )
 
 
-def run_hook(hook: HookRef, tmp: Path, timeout: float, async_hooks: set[tuple[str, str]]) -> SmokeResult:
+def run_hook(
+    hook: HookRef, tmp: Path, timeout: float, async_hooks: set[tuple[str, str]],
+    payload: dict[str, Any] | None = None,
+) -> SmokeResult:
     # payload cwd stays at the sandbox repo so mutating hooks (auto-commit,
     # checkpoint writers) act on the throwaway clone; CLAUDE_PROJECT_DIR and
     # the shell cwd are the real project root so $CLAUDE_PROJECT_DIR/...
     # hook scripts resolve as in production.
     root = hook_root(hook.source, tmp)
-    payload = claude_payload(hook.event, hook, tmp)
+    payload = payload or claude_payload(hook.event, hook, tmp)
     payload_text = json.dumps(payload)
     # HOME is sandboxed below, so pre-expand `~/` AND `$HOME/` to the real home —
     # in production these resolve against the user's home, and the sandbox must not
@@ -215,6 +346,11 @@ def run_hook(hook: HookRef, tmp: Path, timeout: float, async_hooks: set[tuple[st
                 status, problem = "fail", "JSON stdout is not an object"
         except json.JSONDecodeError:
             status, problem = "fail", "stdout starts with '{' but is not valid JSON"
+    rewrote = False
+    if hook.event == "PreToolUse":
+        rewrote, input_problem = check_updated_input(payload.get("tool_name", ""), stdout)
+        if input_problem:
+            status, problem = "fail", input_problem
 
     if returncode == 0:
         pass
@@ -228,8 +364,40 @@ def run_hook(hook: HookRef, tmp: Path, timeout: float, async_hooks: set[tuple[st
 
     return SmokeResult(
         hook.source, hook.event, hook.matcher, hook.command,
-        returncode, status, problem, stdout.strip()[:500], stderr.strip()[:500],
+        returncode, status, problem, stdout.strip()[:500], stderr.strip()[:500], rewrote,
     )
+
+
+def case_payload(tool_name: str, tool_input: dict[str, Any], tmp: Path) -> dict[str, Any]:
+    return {
+        "hook_event_name": "PreToolUse", "session_id": SESSION_ID, "tool_name": tool_name,
+        "tool_input": tool_input, "cwd": str(tmp), "transcript_path": str(tmp / "transcript.jsonl"),
+    }
+
+
+def run_rewrite_cases(
+    hooks: list[HookRef], tmp: Path, timeout: float, async_hooks: set[tuple[str, str]], jobs: int,
+    require_rewrites: bool,
+) -> list[SmokeResult]:
+    """Drive every PreToolUse hook with each REWRITE_CASE; with require_rewrites
+    (the full production set), fail cases nobody rewrites."""
+    pre = [h for h in hooks if h.event == "PreToolUse"]
+    work = [
+        (name, h, case_payload(tool, tool_input, tmp))
+        for name, tool, tool_input in REWRITE_CASES
+        for h in pre
+        if tool in matcher_tools(h.matcher)
+    ]
+    with ThreadPoolExecutor(max_workers=jobs) as pool:
+        ran = list(pool.map(lambda w: (w[0], run_hook(w[1], tmp, timeout, async_hooks, w[2])), work))
+    results = [r for _, r in ran]
+    for name, tool, tool_input in REWRITE_CASES if require_rewrites else []:
+        if not any(r.rewrote for n, r in ran if n == name):
+            results.append(SmokeResult(
+                "(rewrite cases)", "PreToolUse", tool, json.dumps(tool_input), 0, "fail",
+                f"positive control {name!r}: no registered hook rewrote this input",
+            ))
+    return results
 
 
 def collect(
@@ -241,9 +409,10 @@ def collect(
     if not project_only and GLOBAL_SETTINGS.exists():
         files.append(GLOBAL_SETTINGS)
     for repo in repos:
-        p = HOME / "Projects" / repo / ".claude" / "settings.json"
-        if p.exists():
-            files.append(p)
+        for name in ("settings.json", "settings.local.json"):
+            p = HOME / "Projects" / repo / ".claude" / name
+            if p.exists():
+                files.append(p)
     refs: list[HookRef] = []
     async_hooks: set[tuple[str, str]] = set()
     for path in files:
@@ -318,6 +487,13 @@ def main(argv: list[str] | None = None) -> int:
         before = {r: porcelain(r) for r in real_roots}
         with ThreadPoolExecutor(max_workers=args.jobs) as pool:
             results = list(pool.map(lambda h: run_hook(h, tmp, args.timeout, async_hooks), hooks))
+        full_set = not (args.settings_file or args.repo or args.project_only or args.event)
+        results.extend(run_rewrite_cases(hooks, tmp, args.timeout, async_hooks, args.jobs, full_set))
+        results.append(interpreter_check())
+        lint_files = [args.settings_file] if args.settings_file else [
+            GLOBAL_SETTINGS, *sorted((HOME / "Projects").glob("*/.claude/settings*.json"))
+        ]
+        results.extend(lint_relative_paths([p for p in lint_files if p.exists()]))
         for r in real_roots:
             # Only NEW paths (in after, not before) are smoke-caused; pre-existing
             # dirty/untracked files are in both and must not be flagged (else the guard
