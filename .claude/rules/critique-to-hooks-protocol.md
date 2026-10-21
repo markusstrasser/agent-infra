@@ -8,7 +8,7 @@ paths:
 # Critique-to-Hooks Protocol
 
 <!-- Gov-ID: rule:critique-to-hooks-protocol
-goal: turn per-session corrections into hooks in the same session, not deferred memory notes
+goal: turn recurring corrections into hooks in the same session, not deferred memory notes
 verifier: null
 blast_radius: local
 -->
@@ -26,8 +26,11 @@ After fixing a correction or critique finding in-session, run this 5-step check:
    was scoped to artifacts; the sweep obligation is identical for behavior.)
 3. **Hookability check** — ask: "Could a pre-tool or stop hook have caught this
    CLASS of failure before it happened?" (yes/no + one sentence why)
-4. **If yes → build the hook in this session.** Don't defer to "a future
-   improvement." The cost is near-zero; the compound benefit starts immediately.
+4. **If yes and the class has recurred in 2+ sessions, or the failure is
+   irreversible → build the hook in this session.** A first occurrence of a
+   reversible failure gets one `[obs]` line instead (constitution Self-Improvement
+   Governance: 2+ sessions). Building cost is near-zero; every advisory hook taxes
+   every later call, so recurrence is the bar.
 5. **If no → document why not** — one `[obs]` line in `improvement-log.md`
    naming the class and why it resists hookification.
 

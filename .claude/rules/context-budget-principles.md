@@ -1,6 +1,13 @@
 ---
 title: Context Budget Principles
 date: 2026-04-05
+paths:
+  - ".claude/**"
+  - "**/CLAUDE.md"
+  - "**/AGENTS.md"
+  - "memory/**"
+  - "docs/context-budget-baselines.md"
+  - "scripts/context-budget.py"
 ---
 
 # Context Budget Principles

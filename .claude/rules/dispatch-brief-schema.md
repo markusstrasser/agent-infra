@@ -1,3 +1,11 @@
+---
+paths:
+  - "justfile"
+  - "scripts/gather_context.py"
+  - "scripts/critique*.py"
+  - ".model-review/**"
+---
+
 # Dispatch Brief-Schema (tool-protocol contract)
 
 The shared output contract for the `just`-fronted dispatch verbs (`gather`,
