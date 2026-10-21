@@ -91,11 +91,15 @@ _AUTHORSHIP = Path(__file__).resolve().parents[2] / "src" / "agentlogs" / "autho
 
 
 def _is_harness_frame(prompt: str) -> bool:
+    """Fails open (False) if authorship.py cannot load: an advisory must not crash prompts."""
     import importlib.util
-    spec = importlib.util.spec_from_file_location("agentlogs_authorship", _AUTHORSHIP)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module.is_claude_harness_text(prompt)
+    try:
+        spec = importlib.util.spec_from_file_location("agentlogs_authorship", _AUTHORSHIP)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module.is_claude_harness_text(prompt)
+    except Exception:
+        return False
 
 
 def _is_bare_continuation(prompt: str) -> bool:
@@ -136,7 +140,7 @@ def main() -> None:
                   ".prompt nor .user_message — CC UserPromptSubmit contract drifted",
                   file=sys.stderr)
         return
-    if _is_harness_frame(prompt) or not _is_bare_continuation(prompt):
+    if not _is_bare_continuation(prompt) or _is_harness_frame(prompt):
         return
 
     msg = (
