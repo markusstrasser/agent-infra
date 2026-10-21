@@ -63,6 +63,43 @@ def is_claude_harness_text(text: str | None) -> bool:
     return head.startswith(INJECTED_USER_PREFIXES) or "<task-notification>" in head[:200]
 
 
+def queued_command(obj: dict) -> dict | None:
+    """The queued_command attachment of one Claude Code record, else None.
+
+    A prompt typed while a turn runs is stored as {"type": "attachment",
+    "attachment": {"type": "queued_command", "prompt": ..., "origin": {...},
+    "commandMode": "prompt" | "task-notification"}} and usually never appears as a
+    type=user line (measured 2026-10-21: 487 of 494 in 32 operator sessions).
+    Task notifications are queued the same way with origin.kind "task-notification".
+    """
+    if obj.get("type") != "attachment":
+        return None
+    att = obj.get("attachment")
+    if isinstance(att, dict) and att.get("type") == "queued_command":
+        return att
+    return None
+
+
+def queued_command_text(att: dict) -> str:
+    prompt = att.get("prompt")
+    if isinstance(prompt, str):
+        return prompt
+    if isinstance(prompt, list):
+        return "\n".join(b.get("text", "") for b in prompt if isinstance(b, dict) and b.get("type") == "text")
+    return ""
+
+
+def is_human_queued_command(obj: dict) -> bool:
+    """A queued_command whose stamp says a human typed it (origin.kind "human",
+    commandMode "prompt"); the text may still be a relay frame — see claude_line_author."""
+    att = queued_command(obj)
+    if att is None:
+        return False
+    origin = att.get("origin")
+    kind = origin.get("kind") if isinstance(origin, dict) else None
+    return kind in (None, "human") and att.get("commandMode", "prompt") == "prompt"
+
+
 def claude_line_author(obj: dict, text: str) -> str:
     """Who wrote one Claude Code user line: "operator", "harness" or "dispatch".
 
@@ -75,8 +112,13 @@ def claude_line_author(obj: dict, text: str) -> str:
       3. a harness frame is the harness, stamped or not: Claude Code stamps
          local-command stdout echoes ("Goal set: …", "Compacted …") origin.kind
          "human" (measured 2026-09-26, arc-agi c0549792 and 3 more sessions).
+    A queued_command attachment is judged by its own stamp (attachment.origin,
+    commandMode); a non-"prompt" commandMode is the harness.
     """
-    origin = obj.get("origin")
+    att = queued_command(obj)
+    if att is not None and att.get("commandMode", "prompt") != "prompt":
+        return "harness"
+    origin = (att if att is not None else obj).get("origin")
     if isinstance(origin, dict) and origin.get("kind"):
         if origin["kind"] != "human":
             return "harness"

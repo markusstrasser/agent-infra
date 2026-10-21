@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from ..authorship import claude_line_author
+from ..authorship import claude_line_author, is_human_queued_command, queued_command, queued_command_text
 from .common import (
     DiscoveredSource,
     EventRow,
@@ -74,6 +74,8 @@ def parse_source(source: DiscoveredSource) -> ParsedSource:
     started_at: str | None = None
     ended_at: str | None = None
     entrypoints: set[str] = set()
+    # queued prompt text -> (its event, line_no), to label a later type=user echo
+    queued: dict[str, tuple[EventRow, int]] = {}
 
     with path.open() as handle:
         byte_start = 0
@@ -114,7 +116,16 @@ def parse_source(source: DiscoveredSource) -> ParsedSource:
             if record_type == "assistant":
                 model_resolved = _parse_assistant_record(bundle, obj, raw_key, run_id, tool_calls) or model_resolved
             elif record_type == "user":
+                before = len(bundle.events)
                 _parse_user_record(bundle, obj, raw_key, run_id, tool_calls)
+                for event in bundle.events[before:]:
+                    hit = queued.pop((event.text or "").strip(), None) if event.kind == "user_message" else None
+                    if hit and line_no - hit[1] <= QUEUED_ECHO_WINDOW:
+                        hit[0].vendor_kind = "queued_echo"
+            elif record_type == "attachment" and queued_command(obj) is not None:
+                event = _parse_queued_command(bundle, obj, raw_key, run_id)
+                if event.vendor_kind == "user":
+                    queued[(event.text or "").strip()] = (event, line_no)
             elif record_type in {"progress", "queue-operation", "system", "file-history-snapshot"}:
                 _parse_status_record(bundle, obj, raw_key, run_id)
 
@@ -482,6 +493,39 @@ def _parse_user_record(
                 record_key=raw_key,
             )
         )
+
+
+# A queued prompt Claude Code also writes as a type=user line is echoed within a few
+# records; an identical text past this window is a new prompt ("go on").
+QUEUED_ECHO_WINDOW = 50
+
+
+def _parse_queued_command(bundle: ParsedSource, obj: dict, raw_key: str, run_id: str) -> EventRow:
+    """A prompt typed while a turn ran (queued_command attachment) as a user_message.
+
+    Most never reappear as a type=user line, so skipping them hid ~47% of operator
+    input (2026-10-21). Human-stamped prompts get vendor_kind "user" (later relabeled
+    "queued_echo" if an identical user line follows); task notifications and relay
+    frames are kept as "meta_injected" (label, never drop).
+    """
+    att = queued_command(obj) or {}
+    text = queued_command_text(att)
+    human = is_human_queued_command(obj) and claude_line_author(obj, text) != "harness"
+    event = EventRow(
+        event_id=stable_id("evt_", run_id, raw_key, "queued_command"),
+        run_id=run_id,
+        seq=_next_seq(bundle),
+        ts=parse_timestamp(att.get("timestamp") or obj.get("timestamp")),
+        kind="user_message",
+        vendor_kind="user" if human else "meta_injected",
+        vendor_event_id=obj.get("uuid"),
+        role="user",
+        text=text,
+        payload=att,
+        record_key=raw_key,
+    )
+    bundle.events.append(event)
+    return event
 
 
 def _parse_status_record(bundle: ParsedSource, obj: dict, raw_key: str, run_id: str):
