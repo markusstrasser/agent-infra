@@ -1169,7 +1169,7 @@ def _refresh_session_denorm(db: sqlite3.Connection, session_pks: list[int]) -> N
                   -- skip harness-injected lines: a resumed session's first
                   -- user_message is otherwise the compaction preamble
                   AND (e.vendor_kind IS NULL
-                       OR e.vendor_kind NOT IN ('compact_summary', 'meta_injected'))
+                       OR e.vendor_kind NOT IN ('compact_summary', 'meta_injected', 'queued_echo'))
                 ORDER BY r.started_at, e.seq LIMIT 1
             ),
             transcript_lines = (

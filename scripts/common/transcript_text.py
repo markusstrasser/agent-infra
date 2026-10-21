@@ -102,28 +102,6 @@ def user_texts(obj: dict) -> list[str]:
     return []
 
 
-# A queued prompt that Claude Code also writes as a type=user line shows up within
-# a few records; past this window an identical text is a new prompt ("go on").
-ECHO_WINDOW = 50
-
-
-def iter_user_texts(objs):
-    """(obj, user_texts(obj)) over a transcript's records in order, with a queued
-    prompt dropped when an identical type=user text follows within ECHO_WINDOW
-    records. Per-line user_texts cannot see that echo; whole-file miners use this."""
-    objs = list(objs)
-    texts = [user_texts(o) for o in objs]
-    for i, obj in enumerate(objs):
-        if texts[i] and obj.get("type") == "attachment":
-            key = "\n".join(texts[i]).strip()
-            if any(
-                objs[j].get("type") == "user" and "\n".join(texts[j]).strip() == key
-                for j in range(i + 1, min(len(objs), i + 1 + ECHO_WINDOW))
-            ):
-                continue
-        yield obj, texts[i]
-
-
 def is_operator_authored(obj: dict) -> bool:
     """True only when the operator typed this user-role transcript line.
 

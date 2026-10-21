@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from agentlogs.adapters import claude as claude_adapter  # noqa: E402
 from agentlogs.adapters.common import DiscoveredSource  # noqa: E402
 from agentlogs.authorship import claude_line_author  # noqa: E402
-from common.transcript_text import is_operator_authored, iter_user_texts, user_texts  # noqa: E402
+from common.transcript_text import is_operator_authored, user_texts  # noqa: E402
 
 SID = "1cce6699-dd28-4115-b427-53274782020c"
 
@@ -56,11 +56,6 @@ def test_user_texts_counts_human_queued_prompts() -> None:
     assert not is_operator_authored(TASK)
     assert not is_operator_authored(RELAY)
     assert user_texts({"type": "attachment", "attachment": {"type": "deferred_tools_delta"}}) == []
-
-
-def test_iter_user_texts_drops_an_echoed_queued_prompt() -> None:
-    got = [(o["uuid"], t) for o, t in iter_user_texts([HUMAN, ECHOED, TASK, ECHO_LINE]) if t]
-    assert got == [("q-human", [HUMAN["attachment"]["prompt"]]), ("u-echo", ["parallelize"])]
 
 
 def test_adapter_emits_queued_commands_as_labeled_user_rows(tmp_path: Path) -> None:
