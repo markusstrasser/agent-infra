@@ -99,6 +99,16 @@ def main() -> None:
         out = run({"user_message": prompt, "cwd": ".", "session_id": f"s{i}"})
         check(f"silent on {prompt!r}", out == "")
 
+    # --- SILENT on harness frames (authorship.is_claude_harness_text) ---
+    frame_cases = [
+        "continue <task-notification>done",  # fires under the pre-fix guard
+        "<task-notification>continue</task-notification>",
+        "[Request interrupted by user] continue",
+    ]
+    for i, prompt in enumerate(frame_cases):
+        out = run({"prompt": prompt, "cwd": ".", "session_id": f"h{i}"})
+        check(f"silent on harness frame {prompt!r}", out == "")
+
     # --- fail-open / malformed input ---
     check("empty stdin is safe", run({}) == "")
     p = subprocess.run([sys.executable, str(HOOK)], input="not json{",

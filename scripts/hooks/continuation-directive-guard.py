@@ -84,6 +84,20 @@ SUBSTANTIVE = re.compile(
 MAX_CHARS = 120
 
 
+# Harness frames (<task-notification>, peer relays, local-command echoes) arrive
+# through UserPromptSubmit too; 9 of 19 fires by 2026-10-21 were task notifications.
+# The frame rule is agentlogs.authorship, loaded by path (stdlib-only, no package).
+_AUTHORSHIP = Path(__file__).resolve().parents[2] / "src" / "agentlogs" / "authorship.py"
+
+
+def _is_harness_frame(prompt: str) -> bool:
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("agentlogs_authorship", _AUTHORSHIP)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.is_claude_harness_text(prompt)
+
+
 def _is_bare_continuation(prompt: str) -> bool:
     p = prompt.strip()
     if not p or len(p) > MAX_CHARS:
@@ -122,7 +136,7 @@ def main() -> None:
                   ".prompt nor .user_message — CC UserPromptSubmit contract drifted",
                   file=sys.stderr)
         return
-    if not _is_bare_continuation(prompt):
+    if _is_harness_frame(prompt) or not _is_bare_continuation(prompt):
         return
 
     msg = (
