@@ -143,11 +143,14 @@ def main() -> None:
     if not _is_bare_continuation(prompt) or _is_harness_frame(prompt):
         return
 
+    sid8 = str(env.get("session_id") or "<sid8>")[:8]
     msg = (
         "CONTINUATION DIRECTIVE (harness-supplied): this prompt is a request to "
         "RESUME the prior task, NOT a no-op. Do not reply 'no response needed' / "
-        "'no action required' / acknowledge-and-stop. Re-orient from "
-        "`.claude/checkpoint.md` (if present) plus the recent conversation + git "
+        "'no action required' / acknowledge-and-stop. Re-orient from this "
+        f"session's `.claude/checkpoint-auto-{sid8}.md` (PreCompact extract) and "
+        f"`.claude/checkpoint-{sid8}.md` (hand-written brief), if present, plus the "
+        "recent conversation + git "
         "state, then CONTINUE the in-flight work where it left off. If you "
         "genuinely cannot tell what to resume, say so and ask — but do not treat "
         "a continuation as 'nothing to do'. "
