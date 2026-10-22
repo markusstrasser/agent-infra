@@ -6,7 +6,7 @@ requires-python = ">=3.11"
 dependencies = [
     "anthropic>=0.105.0",
     "claude-agent-sdk>=0.2.140",
-    "duckdb>=1.1",
+    "duckdb>=2.0",
     "exa-py>=2.6.1",
     "fastmcp>=3.4.2,<4.0",
     "google-genai>=2.8.0",
