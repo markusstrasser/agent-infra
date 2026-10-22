@@ -209,8 +209,30 @@ def observe_artifact_root() -> Path | None:
     return dirs[0] if dirs else None
 
 
+# A preflight older than this no longer authorizes promotions: the 2026-08-11 run
+# kept promotions_allowed=true for 72 days after observe stopped running.
+OBSERVE_GATE_MAX_AGE_DAYS = 14
+
+
+def observe_run_age_days(root: Path | None) -> float | None:
+    """Age of the run's preflight `generated_at`; None when missing or unparseable."""
+    if root is None:
+        return None
+    try:
+        raw = json.loads((root / "preflight.json").read_text(encoding="utf-8"))["generated_at"]
+        ts = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except (OSError, KeyError, TypeError, ValueError):
+        return None
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - ts).total_seconds() / 86400
+
+
 def observe_promotion_gate(root: Path | None) -> tuple[set[str], bool, str | None]:
-    """(promoted_candidate_ids, promotions_allowed, run_name)."""
+    """(promoted_candidate_ids, promotions_allowed, run_name).
+
+    promotions_allowed is False when the preflight has no `generated_at` or is older
+    than OBSERVE_GATE_MAX_AGE_DAYS."""
     if root is None:
         return set(), False, None
     preflight_path = root / "preflight.json"
@@ -220,7 +242,12 @@ def observe_promotion_gate(root: Path | None) -> tuple[set[str], bool, str | Non
         preflight = json.loads(preflight_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError, ValueError):
         return set(), False, root.name
-    allowed = bool(preflight.get("promotions_allowed"))
+    age = observe_run_age_days(root)
+    allowed = (
+        bool(preflight.get("promotions_allowed"))
+        and age is not None
+        and age <= OBSERVE_GATE_MAX_AGE_DAYS
+    )
     promoted = {
         str(row.get("candidate_id"))
         for row in _load_jsonl(root / "promotion-verdicts.jsonl")
@@ -302,7 +329,8 @@ def _from_registry(
                     "title": item.get("title", "(untitled)"),
                     "source": source,
                     "reason": (
-                        "observe gate: promotions_allowed=false"
+                        "observe gate: promotions_allowed=false or run older than "
+                        f"{OBSERVE_GATE_MAX_AGE_DAYS}d"
                         if not promotions_allowed
                         else f"observe gate: no promote verdict for id={cid}"
                     ),
@@ -565,6 +593,9 @@ def gather_candidates() -> dict:
         "n_registry_eligible": len(reg),
         "n_prose_open": count_prose_open_items(),
         "observe_run": observe_run,
+        "observe_run_age_days": (
+            None if (age := observe_run_age_days(observe_root)) is None else round(age, 1)
+        ),
         "promotions_allowed": promotions_allowed,
         "n_promoted_verdicts": len(promoted_ids),
         "auto_ship_tiers": sorted(auto_ship_tiers(POLICY)),
@@ -1035,6 +1066,8 @@ def run(apply: bool, force: bool, ledger: bool) -> dict:
                 "n_registry_eligible": g["n_registry_eligible"],
                 "n_prose_open": g["n_prose_open"],
                 "observe_run": g.get("observe_run"),
+                "observe_run_age_days": g.get("observe_run_age_days"),
+                "promotions_allowed": g.get("promotions_allowed"),
                 "blocked_by_observe_gate": [c["title"] for c in g["blocked_by_observe_gate"]],
                 "eval_gated_count": len(g["eval_gated"]),
                 "eval_gated": [c["title"] for c in g["eval_gated"]],
@@ -1184,6 +1217,7 @@ def main() -> int:
                 "n_registry_eligible": g["n_registry_eligible"],
                 "n_prose_open": g["n_prose_open"],
                 "observe_run": g.get("observe_run"),
+                "observe_run_age_days": g.get("observe_run_age_days"),
                 "promotions_allowed": g.get("promotions_allowed"),
                 "n_rsi_hindsight": g.get("n_rsi_hindsight", 0),
                 "rsi_hindsight_queued": g.get("rsi_hindsight_queued", []),

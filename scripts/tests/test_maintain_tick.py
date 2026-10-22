@@ -21,6 +21,7 @@ The load-bearing guarantees this locks in:
 
 import json
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -221,20 +222,6 @@ def test_dry_run_writes_only_proposal_and_ledger(sandbox):
     assert set(rows[-1]) == {"ts", "action", "target", "result", "detail"}
 
 
-def test_observe_sourced_registry_blocked_without_promote_verdict(sandbox):
-    item = _observe_registry_item()
-    _write_registry(sandbox["registry"], [item])
-    res = mt.run(apply=False, force=True, ledger=True)
-    assert res["status"] == "noop"
-    assert item["title"] in res["blocked_by_observe_gate"]
-    base = dict(TIER0)
-    base.update({
-        "source": "artifacts/observe/2026-06-21-v2/digest.md",
-        **overrides,
-    })
-    return base
-
-
 def _observe_registry_item(**overrides) -> dict:
     base = dict(TIER0)
     base.update({
@@ -270,7 +257,9 @@ def test_observe_sourced_registry_picked_with_promote_verdict(sandbox):
     run = sandbox["root"] / "artifacts" / "observe" / "test-run"
     run.mkdir(parents=True, exist_ok=True)
     (run / "preflight.json").write_text(
-        json.dumps({"promotions_allowed": True}), encoding="utf-8"
+        json.dumps({"promotions_allowed": True,
+                    "generated_at": datetime.now(timezone.utc).isoformat()}),
+        encoding="utf-8",
     )
     (run / "promotion-verdicts.jsonl").write_text(
         json.dumps({"candidate_id": item["id"], "verdict": "promote"}) + "\n",
@@ -279,6 +268,25 @@ def test_observe_sourced_registry_picked_with_promote_verdict(sandbox):
     res = mt.run(apply=False, force=True, ledger=True)
     assert res["status"] == "drafted"
     assert res["picked"]["id"] == item["id"]
+
+
+def test_observe_sourced_registry_blocked_when_run_is_stale(sandbox):
+    item = _observe_registry_item()
+    _write_registry(sandbox["registry"], [item])
+    run = sandbox["root"] / "artifacts" / "observe" / "test-run"
+    run.mkdir(parents=True, exist_ok=True)
+    stale = datetime.now(timezone.utc) - timedelta(days=mt.OBSERVE_GATE_MAX_AGE_DAYS + 1)
+    (run / "preflight.json").write_text(
+        json.dumps({"promotions_allowed": True, "generated_at": stale.isoformat()}),
+        encoding="utf-8",
+    )
+    (run / "promotion-verdicts.jsonl").write_text(
+        json.dumps({"candidate_id": item["id"], "verdict": "promote"}) + "\n",
+        encoding="utf-8",
+    )
+    res = mt.run(apply=False, force=True, ledger=True)
+    assert res["status"] == "noop"
+    assert res["blocked_by_observe_gate"]
 
 
 def test_non_observe_registry_picked_without_verdict_gate(sandbox):
