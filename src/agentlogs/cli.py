@@ -255,6 +255,7 @@ def cmd_index(args) -> int:
             for trig in ("events_ai", "events_ad", "events_au"):
                 db.execute(f"DROP TRIGGER IF EXISTS {trig}")
             print("[bulk] dropped FTS triggers — will rebuild after indexing")
+        prev_alarm = None  # set when the hard-deadline itimer is armed; disarmed in finally
         try:
             total_imported = total_skipped = total_failed = 0
             vendor_errors = 0
@@ -280,7 +281,7 @@ def cmd_index(args) -> int:
                     _os.write(2, b"[agentlogs] HARD run deadline exceeded -- exiting 75\n")
                     _os._exit(75)
                 try:
-                    _signal.signal(_signal.SIGALRM, _hard_deadline)
+                    prev_alarm = _signal.signal(_signal.SIGALRM, _hard_deadline)
                     _signal.setitimer(_signal.ITIMER_REAL, max_run_s + 60.0)
                 except (ValueError, OSError):
                     pass  # not main thread / unsupported — soft deadline still applies
@@ -330,6 +331,13 @@ def cmd_index(args) -> int:
             # mega-transcripts drain across runs (witnessed: 4×78MB @ 180s each).
             return 1 if vendor_errors else (1 if total_failed and not total_imported else 0)
         finally:
+            if prev_alarm is not None:
+                # Disarm the backstop once indexing ends: a live itimer outlives
+                # this call and _exit(75)s any in-process caller minutes later
+                # (pytest died mid-suite this way, 2026-10-22).
+                import signal as _signal
+                _signal.setitimer(_signal.ITIMER_REAL, 0)
+                _signal.signal(_signal.SIGALRM, prev_alarm)
             if bulk:
                 # Rebuild FTS index from events table content, then recreate
                 # triggers so subsequent (non-bulk) indexing keeps FTS in sync.

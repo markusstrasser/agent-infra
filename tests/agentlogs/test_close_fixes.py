@@ -195,6 +195,26 @@ def test_cmd_index_returns_nonzero_on_vendor_error(tmp_path: Path, monkeypatch) 
     assert rc != 0
 
 
+def test_cmd_index_disarms_hard_deadline_alarm(tmp_path: Path, monkeypatch) -> None:
+    """The SIGALRM backstop must not outlive the call: a live itimer _exit(75)s
+    any in-process caller (pytest died mid-suite, 2026-10-22)."""
+    import signal
+
+    from agentlogs.cli import main as cli_main
+
+    db_path = tmp_path / "alarm.db"
+    agentlogs.connect(db_path).close()
+    import agentlogs.adapters.gemini as gem
+
+    monkeypatch.setattr(gem, "discover_sources", lambda root=None: [])
+    before = signal.getsignal(signal.SIGALRM)
+
+    cli_main(["--db", str(db_path), "index", "--vendor", "gemini", "--no-lock"])
+
+    assert signal.getitimer(signal.ITIMER_REAL)[0] == 0.0
+    assert signal.getsignal(signal.SIGALRM) is before
+
+
 # Finding #14 — CLI numeric params coerce to int/float
 
 
