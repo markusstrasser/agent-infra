@@ -25,6 +25,7 @@ import importlib.util
 import json
 import re
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -268,9 +269,14 @@ def stale_plans(days: int = 7) -> list[dict]:
 
 def gather() -> list[dict]:
     items: list[dict] = []
-    for src in (broken_tools, pending_decisions, open_findings, doctor_real, stale_plans):
+    sources = (broken_tools, pending_decisions, open_findings, doctor_real, stale_plans)
+    # broken_tools and doctor_real are I/O-bound subprocesses; serial they pushed
+    # `pulse status` past the surface phase's 120s timeout.
+    with ThreadPoolExecutor(max_workers=len(sources)) as pool:
+        futures = [(src, pool.submit(src)) for src in sources]
+    for src, fut in futures:
         try:
-            items.extend(src())
+            items.extend(fut.result())
         except Exception as e:  # one bad source never sinks the digest
             items.append({"klass": "doctor", "score": 1,
                           "title": f"(priorities source {src.__name__} errored)",

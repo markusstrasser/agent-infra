@@ -1000,37 +1000,11 @@ def check_telemetry_freshness() -> list[Check]:
 # --- Main ---
 
 
-def check_orphaned_generators() -> list[Check]:
-    """Report-only ratchet: flag scripts/ generators with no consumer.
-
-    Standing consumer for the orphaned-generator disease (generation-without-
-    consumption). Advisory — never fails the suite; a flag means re-verify by hand
-    via `just orphan-check`. See research/2026-06-08-orphaned-generator-sweep.md."""
-    c = Check("global:orphan-generators", "global")
-    try:
-        import orphan_check
-
-        rep = orphan_check.scan()
-    except Exception as e:  # noqa: BLE001 — advisory, fail open
-        return [c.warn(f"orphan_check unavailable: {str(e)[:80]}")]
-    flagged = rep["flagged"]
-    if not flagged:
-        return [c.ok(f"{rep['total_generators']} generators, 0 orphaned")]
-    names = ", ".join(r["script"] for r in flagged[:6])
-    extra = f" (+{len(flagged) - 6})" if len(flagged) > 6 else ""
-    return [
-        c.warn(
-            f"{len(flagged)} candidate orphan(s): {names}{extra} — "
-            f"re-verify via `just orphan-check`"
-        )
-    ]
-
-
 def check_orphaned_findings() -> list[Check]:
     """Report-only ratchet: flag trending-scout memos with adopt-grade verdicts
     not yet routed to improvement-log (the loop's read path).
 
-    Sibling to check_orphaned_generators — same generation-without-consumption
+    Sibling to `orphan_check.py` (pulse drift) — same generation-without-consumption
     disease, findings axis. Advisory; a flag means a memo's findings never reached
     the loop. Re-verify + promote live ones via `just orphan-findings`. See
     decisions/2026-06-04-consumption-over-autonomy.md Finding 1."""
@@ -1411,7 +1385,6 @@ def run_all_checks(project_filter: str | None = None) -> list[Check]:
         all_checks.extend(check_secret_env_scope())
         all_checks.extend(check_mcp_venv_launch())
         all_checks.extend(check_test_health())
-        all_checks.extend(check_orphaned_generators())
         all_checks.extend(check_orphaned_findings())
         all_checks.extend(check_decisions_pending())
         all_checks.extend(check_agentlogs_indexer())
