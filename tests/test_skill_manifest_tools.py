@@ -7,6 +7,7 @@ from scripts.common.skill_objects import (
     collect_skill_objects,
     extract_markdown_section,
     load_object_content,
+    resolve_object_path,
     stored_skill_filename,
 )
 from scripts.skill_manifest import validate_rows
@@ -19,14 +20,6 @@ _ROUTING_SPEC = importlib.util.spec_from_file_location(
 assert _ROUTING_SPEC and _ROUTING_SPEC.loader
 skill_routing_script = importlib.util.module_from_spec(_ROUTING_SPEC)
 _ROUTING_SPEC.loader.exec_module(skill_routing_script)
-
-_EXPORT_SPEC = importlib.util.spec_from_file_location(
-    "export_public_skills_script",
-    Path(__file__).resolve().parents[1] / "scripts" / "export_public_skills.py",
-)
-assert _EXPORT_SPEC and _EXPORT_SPEC.loader
-export_public_skills_script = importlib.util.module_from_spec(_EXPORT_SPEC)
-_EXPORT_SPEC.loader.exec_module(export_public_skills_script)
 
 
 def test_collect_skill_object_from_temp_root(tmp_path: Path):
@@ -295,20 +288,7 @@ def test_skill_routing_autoresearch_config_uses_locked_suite():
     assert cfg["stress_every_k_keeps"] == 1
 
 
-def test_public_export_rejects_symlink(tmp_path: Path):
-    source = tmp_path / "skill"
-    source.mkdir()
-    private = tmp_path / "private.md"
-    private.write_text("Markus private token", encoding="utf-8")
-    (source / "linked.md").symlink_to(private)
-
-    result = export_public_skills_script._contains_blocked_token(source)
-
-    assert result
-    assert "symlink exports are not allowed" in result
-
-
-def test_public_export_uses_manifest_path_not_name(tmp_path: Path):
+def test_resolve_object_path_uses_manifest_path_not_name(tmp_path: Path):
     skill_dir = tmp_path / "actual-dir"
     skill_dir.mkdir()
     (skill_dir / "SKILL.md").write_text("---\nname: display-name\n---\n# Public\n", encoding="utf-8")
@@ -321,15 +301,9 @@ def test_public_export_uses_manifest_path_not_name(tmp_path: Path):
         "is_symlink": False,
     }
 
-    source_file = export_public_skills_script.resolve_object_path(row)
+    source_file = resolve_object_path(row)
 
     assert source_file.parent == skill_dir
-
-
-def test_public_export_requires_manifest_exportable_flag():
-    row = {"private": False, "exportable": False, "is_symlink": False}
-
-    assert export_public_skills_script._export_block_reason(row) == "row is not marked exportable"
 
 
 def test_markdown_section_extraction_returns_bounded_section():
