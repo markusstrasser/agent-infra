@@ -98,13 +98,18 @@ def _phase_sense() -> dict:
         try:
             r = _run(
                 ["uv", "run", "--project", str(EMB), "python3", str(SCRIPTS / "blindspot_miner.py"),
-                 "--days", "7", "--json", "--no-file"],
+                 "--days", "7", "--json"],
                 timeout=600,
             )
             if r.returncode == 0 and r.stdout.strip():
                 flags = json.loads(r.stdout)
                 out["blindspot_flags"] = len(flags)
                 out["blindspot_top"] = flags[:6]
+                # Same CLOSE step as `just blindspot`: enqueue rediscovery flags for the motor.
+                q = _run([sys.executable, str(SCRIPTS / "rsi_hindsight_enqueue.py")], timeout=60)
+                out["rsi_hindsight_enqueue_exit"] = q.returncode
+                if q.returncode != 0:
+                    out["rsi_hindsight_error"] = (q.stderr or q.stdout)[:200]
             else:
                 out["blindspot_error"] = (r.stderr or r.stdout or f"exit {r.returncode}")[:200]
         except Exception as exc:
