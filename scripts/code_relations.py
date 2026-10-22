@@ -151,8 +151,11 @@ class CodeRelationGraph:
         self.relations: list[CodeRelation] = []
         self.diagnostics: list[Diagnostic] = []
         self._relation_keys: set[tuple[object, ...]] = set()
+        # impact() index per (relation types, include_ambiguous); cleared on every mutation.
+        self._incoming_cache: dict[tuple[frozenset[str], bool], dict[str, list[CodeRelation]]] = {}
 
     def add_node(self, node: CodeNode) -> str:
+        self._incoming_cache.clear()
         existing = self.nodes.get(node.id)
         if (
             existing is not None
@@ -220,6 +223,7 @@ class CodeRelationGraph:
         if key in self._relation_keys:
             return
         self._relation_keys.add(key)
+        self._incoming_cache.clear()
         self.relations.append(
             CodeRelation(source, target, relation, confidence, evidence)
         )
@@ -358,6 +362,34 @@ class CodeRelationGraph:
             )
         return sorted(set(short))
 
+    def _incoming(
+        self, wanted: frozenset[str], include_ambiguous: bool
+    ) -> dict[str, list[CodeRelation]]:
+        key = (wanted, include_ambiguous)
+        cached = self._incoming_cache.get(key)
+        if cached is not None:
+            return cached
+        incoming: dict[str, list[CodeRelation]] = defaultdict(list)
+        for relation in self.relations:
+            if relation.relation in wanted:
+                if (
+                    not include_ambiguous
+                    and relation.confidence is Confidence.AMBIGUOUS
+                ):
+                    continue
+                source = self.nodes.get(relation.source)
+                target_node = self.nodes.get(relation.target)
+                if (
+                    source
+                    and target_node
+                    and source.path
+                    and source.path == target_node.path
+                ):
+                    continue
+                incoming[relation.target].append(relation)
+        self._incoming_cache[key] = incoming
+        return incoming
+
     def impact(
         self,
         target: str,
@@ -377,26 +409,7 @@ class CodeRelationGraph:
             if node.path in seed_paths:
                 seeds.append(node.id)
 
-        wanted = set(relation_types)
-        incoming: dict[str, list[CodeRelation]] = defaultdict(list)
-        for relation in self.relations:
-            if relation.relation in wanted:
-                if (
-                    not include_ambiguous
-                    and relation.confidence is Confidence.AMBIGUOUS
-                ):
-                    continue
-                source = self.nodes.get(relation.source)
-                target_node = self.nodes.get(relation.target)
-                if (
-                    source
-                    and target_node
-                    and source.path
-                    and source.path == target_node.path
-                ):
-                    continue
-                incoming[relation.target].append(relation)
-
+        incoming = self._incoming(frozenset(relation_types), include_ambiguous)
         queue = deque((node_id, 0) for node_id in sorted(set(seeds)))
         best_depth = {node_id: 0 for node_id in seeds}
         hops: list[ImpactHop] = []
