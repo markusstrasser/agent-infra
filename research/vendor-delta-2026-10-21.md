@@ -92,3 +92,22 @@ Source: `gh release view rust-v<N> -R openai/codex` for each tag, fetched 2026-1
 ## Search record
 
 Search record: raw CC CHANGELOG (2.1.275–306 filtered by `scripts/filt.py` in session scratchpad); `code.claude.com/docs/en/hooks.md`; `gh release view` codex 0.155–0.163; `developers.openai.com/codex/hooks.md`; local greps over `~/.claude/settings.json`, `~/.claude/agents`, `~/Projects/skills/hooks`, `~/.codex/config.toml`, `~/.codex/hooks.json`, `scripts/codex_hook_shim.py`. Not read: docs/vendor/*.json beyond the latest tag (each holds one release); binary-extracts diffs (daily vendor-sync already commits them); Codex changelog page on developers.openai.com.
+
+## Addendum 2026-10-23 — CC 2.1.307–2.1.309 + status of the actions above
+
+Installed 2.1.309. Source: changelog pasted by the operator, 2026-10-23.
+
+Status of the 10-21 actions (checked against the files):
+- Done: TaskOutput hint (`posttool-bash-poll.sh:92`), `attribution` (`settings.json:5`), background `timeout` line (`wakeup-cadence.md`).
+- **Correction:** the three protected-data guards no longer fail OPEN; each ERR trap now exits 2 (`pretool-data-guard.sh:8`, `pretool-append-only-guard.sh:15`, `pretool-archive-guard.sh:12`). `onFailure:"block"` still adds the cases the trap can't see (script missing, timeout); open.
+- Done 10-23: Codex `personality` key deleted.
+- HOLD on deleting `fable-high`/`fable-low`/`opus-low`: the Agent tool's `effort` description says to set it only when the user or instructions ask, so the wrapper agents remain the way to pick effort on the parent's own judgment.
+- Still open: `CLAUDE_CODE_RETRY_WATCHDOG` in headless lanes, `autoCompactWindow` in researcher/session-analyst frontmatter, idle compaction vs `precompact-goal-guard.py` probe, `UserPromptExpansion` logging hook. `goal-loop` (`justfile:892`) gets `defaultMode: "auto"` from user settings via `--setting-sources user`, so pinning `--permission-mode` is not needed.
+
+New in 2.1.307–309 that touches us:
+- 2.1.309 `claude ultrareview` needs workspace trust off a terminal → fixed `just review-branch` (agent-infra@8f472450).
+- 2.1.309 `sed -i` runs as plain Bash and is no longer restored by `/rewind`.
+- 2.1.309 worktree creation no longer fetches objects on demand; nothing to change in `lane`.
+- 2.1.307 OTel `claude_code.safety_event` (hook/permission/sandbox stops). We run no OTel; it would only matter if hook telemetry moved to OTel.
+- 2.1.304 compaction resends the skill list and names earlier tools in the summary; no post-compact hook of ours re-lists skills (grep), so nothing to drop.
+- Side find: `userprompt-session-limit-guard.py` fired on the pasted changelog ("monthly spend limit"); narrowed to the kill string (skills@98957d5).
