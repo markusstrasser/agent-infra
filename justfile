@@ -889,7 +889,10 @@ goal-loop id *args:
     for i in $(seq 1 48); do
       if [ -f .claude/goal-done ]; then echo "goal-done marker found after $((i-1)) episode(s)"; exit 0; fi
       echo "── episode $i ──"
-      env -u ANTHROPIC_API_KEY ${WINDOW:+CLAUDE_CODE_AUTO_COMPACT_WINDOW=$WINDOW} claude -p -r "{{id}}" --setting-sources user --permission-prompts none {{args}} \
+      # Retry watchdog: wait out a 5 h usage reset or 529s in place; caps because CC defaults are unlimited.
+      env -u ANTHROPIC_API_KEY ${WINDOW:+CLAUDE_CODE_AUTO_COMPACT_WINDOW=$WINDOW} CLAUDE_CODE_RETRY_WATCHDOG=1 \
+        CLAUDE_CODE_RETRY_WATCHDOG_MAX_USAGE_LIMIT_WAIT_MS=21600000 CLAUDE_CODE_RETRY_WATCHDOG_MAX_WAIT_MS=7200000 \
+        CLAUDE_CODE_RETRY_WATCHDOG_USAGE_LIMIT_RECHECK_MS=900000 claude -p -r "{{id}}" --setting-sources user --permission-prompts none {{args}} \
         "Continue the goal (episode $i). If history was compacted, re-orient from .claude/checkpoint.md before acting. End this episode by either (a) wrap-up ritual + 'just -f ~/Projects/agent-infra/justfile session-compact' as your last tool call, or (b) if the goal is fully done and verified, creating .claude/goal-done."
     done
     echo "episode cap (48) reached without goal-done"; exit 1
