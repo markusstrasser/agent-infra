@@ -927,7 +927,8 @@ review-branch *target:
     out="artifacts/ultrareview-${branch//\//-}-$(date +%Y%m%d-%H%M).json"
     mkdir -p artifacts
     echo "Running claude ultrareview ${1:-} → $out (timeout 30m)"
-    claude ultrareview --json --timeout 30 {{target}} > "$out"
+    # CC 2.1.309: refuses off-terminal without workspace trust; target must precede the flag
+    claude ultrareview --json --timeout 30 {{target}} --trust-workspace > "$out"
     echo "Findings: $(jq '.bugs | length' "$out" 2>/dev/null || echo unknown)"
     echo "Output:   $out"
 
