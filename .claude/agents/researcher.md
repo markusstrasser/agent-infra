@@ -4,6 +4,7 @@ description: Deep research agent with persistent memory of sources checked, pape
 model: opus
 memory: user
 maxTurns: 40
+autoCompactWindow: 320000
 effort: high
 tools:
   - Read

@@ -4,6 +4,7 @@ description: Analyzes session transcripts for behavioral anti-patterns and corre
 model: sonnet
 memory: project
 maxTurns: 30
+autoCompactWindow: 320000
 tools:
   - Read
   - Glob
