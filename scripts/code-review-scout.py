@@ -55,6 +55,20 @@ EXTENSIONS = {
     ".sql",
     ".rs",
     ".go",
+    ".swift",
+    ".c",
+    ".h",
+    ".cc",
+    ".cpp",
+    ".hpp",
+    ".m",
+    ".mm",
+    ".java",
+    ".kt",
+    ".rb",
+    ".lua",
+    ".zig",
+    ".cs",
 }
 SKIP_DIRS = {
     ".git",
@@ -166,20 +180,43 @@ PROVIDERS = {
 }
 
 
-def gather_files(root: Path) -> list[Path]:
-    """Collect reviewable source files."""
-    files = []
-    for path in sorted(root.rglob("*")):
-        if not path.is_file() or path.suffix not in EXTENSIONS:
-            continue
-        repository_relative = path.relative_to(root)
-        if any(part in SKIP_DIRS for part in repository_relative.parts[:-1]):
-            continue
-        size = checked_size(path)
-        if size < 50:  # skip trivially small files
-            continue
-        files.append(path)
-    return files
+def walk_files(root: Path) -> list[Path]:
+    """Every file under root outside SKIP_DIRS."""
+    return [
+        path
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+        and not any(part in SKIP_DIRS for part in path.relative_to(root).parts[:-1])
+    ]
+
+
+def is_source(path: Path) -> bool:
+    """A reviewable suffix, or an extensionless script that starts with a shebang."""
+    if path.suffix:
+        return path.suffix in EXTENSIONS
+    with path.open("rb") as handle:
+        return handle.read(2) == b"#!"
+
+
+def gather_files(root: Path, every: list[Path] | None = None) -> list[Path]:
+    """Collect reviewable source files; files under 50 bytes are too small to review."""
+    every = walk_files(root) if every is None else every
+    return [path for path in every if is_source(path) and checked_size(path) >= 50]
+
+
+def unreviewed_by_kind(
+    every: list[Path], reviewed: list[Path], root: Path, modules: list[str]
+) -> str:
+    """Count the selected modules' files the review leaves out, by suffix (or name)."""
+    grouped = group_by_module(every, root)
+    kept = set(reviewed)
+    counts: dict[str, int] = defaultdict(int)
+    for module in modules:
+        for path in grouped.get(module, []):
+            if path not in kept:
+                counts[path.suffix or path.name] += 1
+    ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+    return ", ".join(f"{kind} {count}" for kind, count in ranked)
 
 
 def group_by_module(files: list[Path], root: Path) -> dict[str, list[Path]]:
@@ -460,7 +497,8 @@ def main():
         sys.exit(1)
 
     project_name = root.name
-    files = gather_files(root)
+    every = walk_files(root)
+    files = gather_files(root, every)
     if not files:
         print(f"No source files found in {root}")
         sys.exit(1)
@@ -481,6 +519,7 @@ def main():
         return
 
     # Filter to one exact file or a specific module if requested.
+    matches: list[str] = []
     if args.file:
         candidate = (root / args.file).resolve()
         try:
@@ -509,9 +548,17 @@ def main():
             for m in matches:
                 target_files.extend(modules[m])
         else:
+            matches = [args.module]
             target_files = modules[args.module]
     else:
+        matches = list(modules)
         target_files = files
+    if not args.file:
+        # A module review covers only source suffixes; name what it leaves out, so a
+        # language missing from EXTENSIONS shows instead of passing as zero findings.
+        left_out = unreviewed_by_kind(every, target_files, root, matches)
+        if left_out:
+            print(f"Not reviewed (not source by suffix): {left_out}", file=sys.stderr)
 
     selected_file_limit = MAX_BATCH_BYTES if args.file else MAX_FILE_BYTES
     oversized = [f for f in target_files if checked_size(f) > selected_file_limit]

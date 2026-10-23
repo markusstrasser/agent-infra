@@ -50,6 +50,17 @@ def test_gather_files_includes_component_framework_sources(tmp_path: Path) -> No
     assert scout.gather_files(tmp_path) == [svelte, tsx]
 
 
+def test_gather_files_includes_swift_and_shebang_scripts(tmp_path: Path) -> None:
+    swift = tmp_path / "Input.swift"
+    swift.write_text("let keys = [String]()\n" * 4)
+    script = tmp_path / "lane-cargo"
+    script.write_text('#!/bin/sh\nexec cargo "$@"\n' * 3)
+    (tmp_path / "LICENSE").write_text("Permission is hereby granted\n" * 3)
+    (tmp_path / "README.md").write_text("# readme\n" * 10)
+
+    assert scout.gather_files(tmp_path) == [swift, script]
+
+
 def test_dispatch_returns_nonempty_reviewer_verdict(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         scout.subprocess,

@@ -1053,3 +1053,22 @@ keep the worktree. Regression: `tests/test_worktree_gc_evidence.py` exercises
 SHA-1/SHA-256 retention after reflog expiry and pruning, pin failures and changed
 refs/payloads. **Contract: an archive preserves held evidence before removal;
 clearing that evidence is never a substitute for a preservation proof.**
+
+### FM: Review scout drops unlisted languages and reports zero findings
+<!--
+FM-ID: scout-suffix-allowlist-silent-skip
+signature: `code-review-scout.py --module <dir>` prints "No new findings" for a module whose code is in a language missing from EXTENSIONS; its dry run lists only the files it recognised (e.g. one `build.sh`)
+target_surface: agent-infra scripts/code-review-scout.py (EXTENSIONS, is_source, unreviewed_by_kind); tests/test_code_review_scout.py; scripts/tests/test_code_review_scout_cli.py
+status: fixed
+evidence_count: 1
+-->
+2026-10-24, arena: a /diff-review of 8dd5c77..HEAD ran `--module tools/wow-run --focus security`
+over 2,087 new lines of Swift (CGEvent input, login, password redaction). The scout dispatched
+one batch, `build.sh` (0.4 KB), and printed "No new findings". `.swift` was missing from the
+suffix allowlist, and extensionless scripts (`tools/lane-cargo`) never counted as source. The
+2026-07-14 Known Issue (oversized files skipped silently) had been fixed for size only. Fix in
+the commit that adds this entry: the common compiled-language suffixes and shebang scripts count
+as source, and every module or project review prints `Not reviewed (not source by suffix): …`
+on stderr. Regression: `test_gather_files_includes_swift_and_shebang_scripts`,
+`test_module_review_names_the_files_it_leaves_out`. **Contract: a coverage filter that drops
+input names what it dropped in the same output as the verdict.**

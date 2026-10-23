@@ -138,3 +138,17 @@ def test_list_modules_reports_oversized_count(tmp_path: Path) -> None:
     assert result.returncode == 0
     assert "pkg" in result.stdout
     assert "oversized=1" in result.stdout
+
+
+def test_module_review_names_the_files_it_leaves_out(tmp_path: Path) -> None:
+    module = tmp_path / "tools" / "run"
+    (module / "App").mkdir(parents=True)
+    (module / "App" / "Input.swift").write_text("let keys = [String]()\n" * 4)
+    (module / "README.md").write_text("# run\n" * 10)
+    (module / "m1.maneuver").write_text("0 key w\n" * 10)
+
+    result = run_scout(tmp_path, "--module", "tools/run")
+
+    assert result.returncode == 0
+    assert "tools/run/App/Input.swift" in result.stdout
+    assert "Not reviewed (not source by suffix): .maneuver 1, .md 1" in result.stderr
