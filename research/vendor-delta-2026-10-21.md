@@ -111,3 +111,9 @@ New in 2.1.307–309 that touches us:
 - 2.1.307 OTel `claude_code.safety_event` (hook/permission/sandbox stops). We run no OTel; it would only matter if hook telemetry moved to OTel.
 - 2.1.304 compaction resends the skill list and names earlier tools in the summary; no post-compact hook of ours re-lists skills (grep), so nothing to drop.
 - Side find: `userprompt-session-limit-guard.py` fired on the pasted changelog ("monthly spend limit"); narrowed to the kill string (skills@98957d5).
+
+### Follow-through 2026-10-23 (operator "ok do")
+- `onFailure:"block"`: already on every protected-data guard entry in evals, evo, agent-infra, genomics, personal (agent-infra@3c6c3d69, genomics@461cfcc9d). The "open" line above is stale.
+- Retry watchdog wired into `lane` claude backend (skills bin/lane) and `just goal-loop`: `CLAUDE_CODE_RETRY_WATCHDOG=1`, usage-limit wait cap 6 h, capacity cap 2 h, recheck 15 min. From the 2.1.309 binary: both caps default to unlimited (`MAX_WAIT_MS??1/0`, `MAX_USAGE_LIMIT_WAIT_MS??1/0`). A live `claude -p` with the env returned ok (rc 0). A real usage-limit wait has not been observed yet.
+- `autoCompactWindow: 320000` in researcher + session-analyst frontmatter (agent-infra `.claude/agents/`, tracked; `~/.claude/agents/` copies too, untracked).
+- Idle compaction vs `precompact-goal-guard.py`, from the 2.1.309 binary: the idle path uses the precomputed-compact route, which calls PreCompact with `trigger:"auto"`; a block returns "Precomputed compact blocked" and cancels it. So the guard blocks idle compaction during a goal run before wrap-up, and each idle block counts toward its 5-block budget. The payload carries nothing that tells idle apart from auto. Exposure is low: the changelog says idle compaction runs in the terminal, and goal-loop episodes are `-p`. No change made; if an interactive goal session shows burned blocks, set `"idleCompaction": false` for goal runs.
