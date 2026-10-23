@@ -155,6 +155,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-10-13-recent-agent-context-management.md` | Recent (2026-08-13 → 2026-10-13) agent context/memory management — frontier-m... | TODO |
 | `2026-10-13-recent-agent-search-policies.md` | Recent search/branching policies over long-running frontier agents (2026-08-1... | TODO |
 | `2026-10-13-recent-frontier-autoresearch-results.md` | Recent frontier-agent open-ended research/optimization results (window 2026-0... | TODO |
+| `2026-10-14-research-tooling-api-refresh.md` | Research tooling API refresh (2026-04 → 2026-10) | TODO |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
 | `adversarial-case-library.md` | Adversarial Case Library: The Best "Calling BS" Reviews | TODO |
 | `agent-behavior-refresh-2026-04.md` | Agent Behavior Delta — Memory, Self-Modification, Sycophancy | TODO |
@@ -279,6 +280,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `negative-space-and-meta-epistemics.md` | Negative Space and Meta-Epistemics for Agent Knowledge Systems | TODO |
 | `nih-dsld-ods-api-assessment-2026-04.md` | Nih Dsld Ods Api Assessment 2026 04 | TODO |
 | `nlah-and-sycophancy-papers-2026-03.md` | Nlah And Sycophancy Papers 2026 03 | TODO |
+| `observe-2026-10-21-instruction-hook-cost.md` | Observe 2026 10 21 Instruction Hook Cost | TODO |
 | `oeberst-imhoff-bias-framework-audit.md` | Oeberst & Imhoff Bias Framework — Coverage Audit of Agent Tooling | TODO |
 | `openai-developments-2026-03-14-20.md` | Openai Developments 2026 03 14 20 | TODO |
 | `openai-google-agent-dev-2026-03-19-26.md` | Openai Google Agent Dev 2026 03 19 26 | TODO |
@@ -349,5 +351,6 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `trending-scout-2026-07-29.md` | Trending Scout — 2026-07-29 | TODO |
 | `trending-scout-2026-08-01.md` | Trending Scout — 2026-08-01 | TODO |
 | `trending-scout-2026-09-17.md` | Trending Scout — 2026-09-17: Zed Delta WATCH (no CC integration, API-key-only Claude, no CLI); CC 2.1.220→274 adopt list; openai<3 + Modal 1.6 latent breaks; Sol $4/$20 | Delta/Conductor/agent-workspace questions; before wiring new CC hook events; openai/modal upgrades |
+| `vendor-delta-2026-10-21.md` | Vendor delta: Claude Code + Codex CLI, 2026-09-17 → 2026-10-21 | TODO |
 | `weekly-agent-infra-sweep-2026-04-02.md` | Weekly Agent Infra Sweep 2026 04 02 | TODO |
 | `wiki-vs-flat-for-agents.md` | Wiki Vs Flat For Agents | TODO |
