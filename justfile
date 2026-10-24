@@ -798,6 +798,20 @@ agentlogs-archive dest="/Volumes/2TBPNY/agentlogs-archive" keep_days="30":
         if [ "$trimmed" -gt 0 ]; then sqlite3 -cmd ".timeout 30000" "$CODEX_DB" "VACUUM;"; fi
         echo "codex state_5.sqlite: trimmed $trimmed oversized thread rows"
     fi
+    touch "$HOME/.claude/logs/agentlogs-archive.ok"
+
+# launchd entry: weekly AND on every volume mount. The Sunday 03:30 run alone failed
+# for weeks (2TBPNY unmounted at that hour) and the live DB grew to 57d of a 30d
+# window. Mount-triggered runs catch up; a success under 6 days old makes this a no-op.
+[group('sessions')]
+agentlogs-archive-due:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    stamp="$HOME/.claude/logs/agentlogs-archive.ok"
+    if [ -n "$(find "$stamp" -mtime -6 2>/dev/null)" ]; then echo "skip: last success $(stat -f %Sm "$stamp")"; exit 0; fi
+    test -d /Volumes/2TBPNY || { echo "[$(date '+%F %T')] skip: 2TBPNY not mounted; retry on next mount" >&2; exit 1; }
+    echo "[$(date '+%F %T')] due: running agentlogs-archive"
+    just -f "{{justfile()}}" agentlogs-archive
 
 
 # Send a message into an existing Claude Code session as a headless resume turn.
