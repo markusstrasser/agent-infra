@@ -92,7 +92,8 @@ Linked-worktree content inventory (landed removal and explicit archive):
   Nested repositories      HOLD, ignored caches included (child refs/objects unknown),
                            except inside a real, ignored, untracked strip-class
                            .claude/cache tree (index-trees, source-epochs): rebuilt from
-                           Git tree OIDs and stripped wholesale; archive keeps the bytes.
+                           Git tree OIDs and stripped wholesale; archive lists them in
+                           stripped-caches.txt and keeps no bytes.
                            .venv/.uv-cache repositories still HOLD (editable checkouts).
                            The exact empty regular .uv-cache/sdists-v9/.git marker
                            carries no Git roots and is preserved as ordinary content.
@@ -2484,8 +2485,8 @@ STRIP_DIRS: tuple[str, ...] = (
     ".claude/cache/index-trees",
     ".claude/cache/source-epochs",
 )
-# Strip-class trees inside .claude/cache: the small-report ignored-cache.tgz skips them;
-# the lossless ignored.tgz still carries their bytes, like .venv's.
+# Strip-class trees inside .claude/cache: the small-report ignored-cache.tgz skips them,
+# and ignored.tgz skips every strip-class tree (archive_worktree).
 _CACHE_STRIP_DIRS: tuple[str, ...] = tuple(
     rel for rel in STRIP_DIRS if rel.startswith(".claude/cache/")
 )
@@ -3493,7 +3494,13 @@ def archive_worktree(
         }
         _verify_archive_payloads(ignored_tgz, manifest, cache_members)
         # Legacy small-cache/untracked artifacts remain readable. This supplemental
-        # payload closes ALL exclusions, and retains empty directories and modes.
+        # payload closes every exclusion except the strip-class caches, and retains
+        # empty directories and modes. Those caches (.venv, .uv-cache, index-trees,
+        # source-epochs) are rebuilt from the lockfile or Git tree OIDs, and the strip
+        # mode already deletes them without an archive; carrying them made genomics'
+        # ignored.tgz ~1.7 GB on 2026-10-24 alone. stripped-caches.txt names them.
+        stripped = sorted(p.relative_to(wt).as_posix() for p in strip_candidates(wt))
+        (dest / "stripped-caches.txt").write_text("".join(s + "\n" for s in stripped))
         remaining = {
             rel
             for rel, entry in manifest.items()
@@ -3501,6 +3508,7 @@ def archive_worktree(
             and not rel.startswith(".git/")
             and rel not in restored
             and rel not in required
+            and not any(rel == s or rel.startswith(f"{s}/") for s in stripped)
         }
         _archive_manifest_paths(wt, dest / "ignored.tgz", remaining)
         _verify_archive_payloads(dest / "ignored.tgz", manifest, remaining)

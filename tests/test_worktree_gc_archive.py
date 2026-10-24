@@ -366,13 +366,17 @@ def test_ignored_source_epoch_nested_repo_archives_without_hold(
     res = _run_archive(row, tmp_path / "arch")
     assert res.ok, res.reason
     assert not wt.exists()
-    # Like index-trees: no rebuildable tree in the small-cache payload, but the
-    # lossless ignored.tgz still carries every byte, nested Git state included.
+    # Rebuildable strip-class trees are listed, not archived; ignored lane output
+    # beside them keeps its bytes.
+    assert head
     with tarfile.open(res.dir / "ignored-cache.tgz") as archive:
         assert set(archive.getnames()) == {".claude/cache/x/result.md"}
     with tarfile.open(res.dir / "ignored.tgz") as archive:
-        assert archive.extractfile(f"{SOURCE_EPOCH}/.git/HEAD").read() == head
-        assert archive.getmember(SOURCE_EPOCH).mode == 0o555
+        names = set(archive.getnames())
+    assert ".claude/cache/x/result.md" in names
+    assert not any(n.startswith((".claude/cache/source-epochs", ".venv")) for n in names)
+    stripped = (res.dir / "stripped-caches.txt").read_text().splitlines()
+    assert stripped == [".claude/cache/source-epochs", ".venv"]
 
 
 @pytest.mark.parametrize("epoch", [False, True], ids=["alone", "beside-epoch"])
