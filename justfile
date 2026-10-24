@@ -757,15 +757,8 @@ agentlogs-archive dest="/Volumes/2TBPNY/agentlogs-archive" keep_days="30":
     #!/usr/bin/env bash
     set -euo pipefail
     DB="$HOME/.claude/agentlogs.db"
-    # One run at a time: on 2026-10-24 a StartOnMount run started beside a manual one
-    # and began a second .backup over the same snapshot path. A dead holder's lock is reclaimed.
-    lock="$HOME/.claude/logs/agentlogs-archive.lock"
-    if ! ( set -o noclobber; echo $$ > "$lock" ) 2>/dev/null; then
-        holder=$(cat "$lock" 2>/dev/null || true)
-        if [ -n "$holder" ] && kill -0 "$holder" 2>/dev/null; then echo "skip: agentlogs-archive already running (pid $holder)"; exit 0; fi
-        echo $$ > "$lock"
-    fi
-    trap 'rm -f "$lock"' EXIT
+    source scripts/archive_lock.sh
+    archive_lock_acquire || exit 0
     # A wheel-materialized site-packages/agentlogs shadows the editable src tree
     # and serves stale code (broke this job silently 2026-08-04..17). Fail loud.
     got=$(uv run python3 -c "import agentlogs; print(agentlogs.__file__)")
@@ -797,6 +790,9 @@ agentlogs-archive dest="/Volumes/2TBPNY/agentlogs-archive" keep_days="30":
     # The DB above already indexes them; this shrinks disk + indexer enumeration.
     echo "[$(date +%H:%M:%S)] raw-file archive (>14d)..."
     uv run python3 scripts/archive_raw_logs.py --apply
+    # APFS-transparent compression of the newly archived raw files (~4.8x; readers unchanged).
+    echo "[$(date +%H:%M:%S)] compress archived raw files..."
+    PYTHONUNBUFFERED=1 uv run python3 scripts/compress_archive.py --root "{{dest}}" --apply
     # Codex state DB: codex stores the FULL first user message 3x per thread row
     # (title / first_user_message / preview — up to 1MB EACH; 5.5GB by 2026-07-14).
     # Truncate the display fields in place; full transcripts live in the rollout
@@ -821,6 +817,16 @@ agentlogs-archive-due:
     test -d /Volumes/2TBPNY || { echo "[$(date '+%F %T')] skip: 2TBPNY not mounted; retry on next mount" >&2; exit 1; }
     echo "[$(date '+%F %T')] due: running agentlogs-archive"
     just -f "{{justfile()}}" agentlogs-archive
+
+# Compress the raw-log archive on its own (backfill, or after a manual archive run).
+# Copy-compress-verify-swap per file, so an interrupted run leaves every original intact.
+[group('sessions')]
+agentlogs-archive-compress dest="/Volumes/2TBPNY/agentlogs-archive":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source scripts/archive_lock.sh
+    archive_lock_acquire || exit 0
+    PYTHONUNBUFFERED=1 uv run python3 scripts/compress_archive.py --root "{{dest}}" --apply
 
 
 # Send a message into an existing Claude Code session as a headless resume turn.
