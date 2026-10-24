@@ -684,7 +684,7 @@ def test_nested_repository_is_held_even_in_ignored_cache(
     assert not worktree_gc.archive_worktree(row(repo, wt)).ok
 
 
-def test_archive_preserves_all_ignored_content_and_reflog_bytes(
+def test_archive_preserves_ignored_content_and_reflog_bytes(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     wt = lane(repo)
@@ -699,8 +699,11 @@ def test_archive_preserves_all_ignored_content_and_reflog_bytes(
     assert worktree_gc.explicit_archive(wt) == 0
     assert not wt.exists()
     dest = next(worktree_gc.ARCHIVE_ROOT.glob("**/head.txt")).parent
+    # Rebuildable strip-class caches are listed, not archived (d6fe0066).
+    stripped = (dest / "stripped-caches.txt").read_text().splitlines()
+    assert stripped == [".claude/cache/index-trees", ".venv"]
     with tarfile.open(dest / "ignored.tgz") as archive:
-        assert archive.extractfile(".venv/unique").read() == b"unique ignored bytes"
+        assert not any(n.startswith(tuple(stripped)) for n in archive.getnames())
         assert archive.extractfile("scratch/unique").read() == b"unique ignored bytes"
         assert archive.getmember("scratch/empty").isdir()
         assert archive.getmember("scratch/link").linkname == "unique"
