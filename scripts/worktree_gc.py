@@ -105,7 +105,8 @@ Linked-worktree content inventory (landed removal and explicit archive):
                            Shared lock metadata without any object payloads survives
                            outside the checkout; candidate-contained/symlinked storage HOLDs.
   Other pseudorefs/admin   ORIG_HEAD must be a default ancestor; archive/removal routes,
-                           which pin HEAD first, also accept a HEAD ancestor.
+                           which pin HEAD first, also accept a HEAD ancestor, and
+                           archive pins any other commit it names as evidence.
                            Classification keeps the default rule. Raw bytes archived.
                            Claude Code's CLAUDE_BASE (the tree's base commit) follows
                            the ORIG_HEAD rule.
@@ -113,7 +114,8 @@ Linked-worktree content inventory (landed removal and explicit archive):
                            FETCH_HEAD/etc and unknown admin paths still HOLD.
   Rerere state             Nonempty MERGE_RR/local rr-cache HOLD classification;
                            archive preserves local and common bytes in git-state.tgz.
-  Extra evidence pins      refs/wt-archive/<tree>-evidence/{reflog-N,reuc,auto-merge};
+  Extra evidence pins      refs/wt-archive/<tree>-evidence/{reflog-N,reuc,auto-merge,
+                           orig-head,claude-base};
                            evidence-manifest.json records each exact ref/OID/type.
   Commit message draft     COMMIT_EDITMSG must equal HEAD's raw commit message;
                            then PROVEN in HEAD's graph/raw bytes archived, else HOLD.
@@ -1661,14 +1663,25 @@ def _worktree_state_hold(
                 # An old HEAD value, like a reflog entry; `git worktree add`
                 # writes ORIG_HEAD == HEAD. Claude Code's CLAUDE_BASE names the
                 # commit its tree was cut from. Missing/noncommit objects fail here.
+                # The archive route pins a commit neither tip reaches as evidence,
+                # as it pins reflog objects: a chain rebuild leaves such an
+                # ORIG_HEAD, and every autopilot candidate archive (L50-L54,
+                # 2026-10-22..24) held on it and left the tree in place.
                 oid = path.read_text().strip()
                 tips = (base, head) if pins_head else (base,)
-                if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", oid) or not any(
-                    run(
-                        ["git", "merge-base", "--is-ancestor", oid, tip], cwd=wt
-                    ).returncode
-                    == 0
-                    for tip in tips
+                if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", oid) or not (
+                    any(
+                        run(
+                            ["git", "merge-base", "--is-ancestor", oid, tip], cwd=wt
+                        ).returncode
+                        == 0
+                        for tip in tips
+                    )
+                    or (
+                        archives_evidence
+                        and run(["git", "cat-file", "-t", oid], cwd=wt).stdout.strip()
+                        == "commit"
+                    )
                 ):
                     return f"unlanded or unreadable worktree-local ref: {path.name}"
         # Cheap closed admin rejection precedes potentially many cached-tree
@@ -3080,7 +3093,9 @@ def _verify_git_state_roots(
     refs = manifest[".git/local-refs"]["refs"]
     evidence: dict[str, dict[str, str]] = {}
 
-    def check_oid(oid: str, *, default_only: bool, reflog: bool = False) -> None:
+    def check_oid(
+        oid: str, *, default_only: bool, reflog: bool = False, key: str | None = None
+    ) -> None:
         if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", oid):
             raise RuntimeError(
                 f"could not pin captured Git object {oid!r}: invalid object ID"
@@ -3102,6 +3117,8 @@ def _verify_git_state_roots(
                 if not any(entry["oid"] == oid for entry in evidence.values()):
                     number = 1 + sum(key.startswith("reflog-") for key in evidence)
                     evidence[f"reflog-{number}"] = {"oid": oid, "kind": "commit"}
+            elif key is not None:
+                evidence[key] = {"oid": oid, "kind": "commit"}
             else:
                 raise RuntimeError(f"unpreserved captured Git root: {oid}")
 
@@ -3132,8 +3149,13 @@ def _verify_git_state_roots(
                 check_oid(oid, default_only=True)
                 seen_refs.add(rel)
             elif rel in ("ORIG_HEAD", "CLAUDE_BASE"):
-                # The caller pins this exact HEAD next, so HEAD's history survives.
-                check_oid(data.decode().strip(), default_only=False)
+                # The caller pins this exact HEAD next, so HEAD's history survives;
+                # a commit HEAD does not reach gets its own evidence pin.
+                check_oid(
+                    data.decode().strip(),
+                    default_only=False,
+                    key=rel.lower().replace("_", "-"),
+                )
             elif rel.startswith("logs/"):
                 for line in data.splitlines():
                     fields = line.split(b" ", 2)

@@ -515,12 +515,11 @@ def _assert_orig_head_holds(
     assert not _git("for-each-ref", "refs/wt-archive", cwd=repo).strip()
 
 
-def test_orig_head_reachable_from_neither_default_nor_head_holds(
-    repo: Path,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
+def test_orig_head_reachable_from_neither_default_nor_head_is_pinned(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # A chain rebuild leaves such an ORIG_HEAD; every autopilot candidate archive
+    # held on it until the archive pinned it like an unreachable reflog object.
     wt, shas = _orig_head_lane(repo, "lane-orig-foreign", unique=1)
     _git("switch", "-qc", "elsewhere", cwd=repo)
     (repo / "elsewhere.txt").write_text("unrelated unique work\n")
@@ -532,7 +531,28 @@ def test_orig_head_reachable_from_neither_default_nor_head_holds(
     _set_orig_head(wt, foreign)
     assert not _is_ancestor(repo, foreign, "main")
     assert not _is_ancestor(repo, foreign, shas[-1])
-    _assert_orig_head_holds(repo, tmp_path, monkeypatch, capsys, wt)
+    # Classification still holds: suggest and the automatic classes never pin.
+    row = _row(repo, wt)
+    assert (row.hold_reason, row.classify()) == (ORIG_HOLD, "HOLD")
+    with pytest.raises(RuntimeError, match=ORIG_HOLD):
+        remove_worktree(repo, wt)
+    assert _cli_archive(monkeypatch, tmp_path / "arch", wt) == 0
+    assert not wt.exists()
+    dest = next((tmp_path / "arch").glob("**/head.txt")).parent
+    pins = json.loads((dest / "evidence-manifest.json").read_text())
+    assert pins["orig-head"]["oid"] == foreign
+    assert pins["orig-head"]["ref"].endswith("-evidence/orig-head")
+    _git(
+        "reflog",
+        "expire",
+        "--expire=now",
+        "--expire-unreachable=now",
+        "--all",
+        cwd=repo,
+    )
+    _git("gc", "-q", "--prune=now", cwd=repo)
+    assert _git("rev-parse", pins["orig-head"]["ref"], cwd=repo).strip() == foreign
+    assert _git("cat-file", "-t", foreign, cwd=repo).strip() == "commit"
 
 
 def _set_claude_base(wt: Path, oid: str) -> None:
