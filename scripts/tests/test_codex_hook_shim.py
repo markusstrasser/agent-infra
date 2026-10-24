@@ -213,3 +213,53 @@ def test_pending_title_is_claimed_before_lazy_tty_probe(tmp_path: Path) -> None:
     assert ps_marker.exists()
     agent_pid = pid_capture.read_text(encoding="utf-8")
     assert not Path(f"/tmp/cockpit-tab-pending-{agent_pid}").exists()
+
+
+def test_rotation_prunes_archives_beyond_keep(tmp_path: Path) -> None:
+    import os
+
+    log_dir = tmp_path / ".codex/log"
+    log_dir.mkdir(parents=True)
+    for i in range(15):  # older manual names and per-rotation names both count
+        name = f"hook_shim_invocations-until-2026-01-{i + 1:02d}-1.jsonl.zst"
+        if i == 0:
+            name = "hook_shim_invocations-2026-06-11--2026-08-20.jsonl.zst"
+        archive = log_dir / name
+        archive.write_bytes(b"x")
+        os.utime(archive, (1_700_000_000 + i, 1_700_000_000 + i))
+    in_flight = log_dir / "hook_shim_invocations-until-2026-02-01-2.jsonl"
+    in_flight.write_text("{}\n")
+    unrelated = log_dir / "other-2026.jsonl.zst"
+    unrelated.write_bytes(b"x")
+    log = log_dir / "hook_shim_invocations.jsonl"
+    with log.open("wb") as f:
+        f.truncate(256 * 1024 * 1024)
+    result = run_shim("exit 0", "SessionStart", extra_env={"HOME": str(tmp_path)})
+    assert result.returncode == 0
+    # The archive rotated by this call is still compressing when pruning runs, so only
+    # the 15 pre-existing finished archives are subject to the keep-12 cap.
+    kept = sorted(p.name for p in log_dir.glob("hook_shim_invocations-*.jsonl.zst")
+                  if "2026-01-" in p.name or "2026-06-11" in p.name)
+    assert len(kept) == 12
+    assert "hook_shim_invocations-2026-06-11--2026-08-20.jsonl.zst" not in kept  # oldest gone
+    assert "hook_shim_invocations-until-2026-01-15-1.jsonl.zst" in kept  # newest kept
+    assert unrelated.exists()
+    assert in_flight.exists() or list(log_dir.glob("hook_shim_invocations-until-2026-02-01-2*"))
+
+
+def test_pretool_updated_input_gets_codex_allow() -> None:
+    inner = """printf '%s' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","updatedInput":{"command":"git --no-pager diff --no-ext-diff"}},"additionalContext":"note"}'"""
+    res = run_shim(inner, "PreToolUse")
+    assert res.returncode == 0
+    hs = json.loads(res.stdout)["hookSpecificOutput"]
+    assert hs["permissionDecision"] == "allow"
+    assert hs["updatedInput"] == {"command": "git --no-pager diff --no-ext-diff"}
+    assert hs["additionalContext"] == "note"
+
+
+def test_pretool_updated_input_without_command_is_dropped() -> None:
+    inner = """printf '%s' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","updatedInput":{"file_path":"x"}}}'"""
+    res = run_shim(inner, "PreToolUse")
+    assert res.returncode == 0
+    hs = json.loads(res.stdout)["hookSpecificOutput"]
+    assert "updatedInput" not in hs and "permissionDecision" not in hs

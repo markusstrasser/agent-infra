@@ -44,8 +44,12 @@ import sys
 import time
 
 # The invocation log grew to 1.6 GB between 2026-08-20 and 2026-10-20 with no
-# rotation. Past this size it is renamed aside and zstd-compressed (~30x), never deleted.
+# rotation. Past this size it is renamed aside and zstd-compressed (~30x).
 INVOCATION_LOG_ROTATE_BYTES = 256 * 1024 * 1024
+# Compressed archives kept per rotation (newest by mtime). At the pre-consolidation rate
+# (~33 MB/day, 2026-10-20..24) a 256 MB rotation is ~8 days, so 12 archives cover ~90+
+# days; fewer hook processes per call only stretch that window.
+INVOCATION_LOG_KEEP_ARCHIVES = 12
 
 # Events whose stdout Codex parses as JSON.
 JSON_STDOUT_EVENTS = {
@@ -225,6 +229,22 @@ def _normalize_stdout(stdout: str, event: str) -> str:
         hs["hookEventName"] = event
         changed = True
 
+    # Codex applies a PreToolUse rewrite only with permissionDecision:"allow" (allow is
+    # its rewrite channel; allow without updatedInput is rejected). Without it Codex
+    # marks the hook Failed and runs the original command. Its shell handlers then
+    # require a string `command` (missing => the tool call errors), so any other
+    # updatedInput shape is dropped: the command runs unrewritten.
+    # Source: codex-rs/hooks/src/engine/output_parser.rs, core/src/tools/handlers/mod.rs.
+    if event == "PreToolUse" and isinstance(hs, dict) and "updatedInput" in hs:
+        upd = hs["updatedInput"]
+        if isinstance(upd, dict) and isinstance(upd.get("command"), str):
+            if hs.get("permissionDecision") != "allow":
+                hs["permissionDecision"] = "allow"
+                changed = True
+        else:
+            hs.pop("updatedInput")
+            changed = True
+
     # A block decision must carry a non-empty reason.
     if d.get("decision") == "block" and not (d.get("reason") or "").strip():
         d["reason"] = _extract_reason(text) or "blocked"
@@ -263,6 +283,27 @@ def _pending_tool_metadata(payload: str) -> dict:
     return result
 
 
+def _prune_invocation_archives(log_path: str, keep: int = INVOCATION_LOG_KEEP_ARCHIVES) -> None:
+    """Delete compressed archives beyond the newest `keep` (by mtime). Only finished
+    `.zst` files count, so an in-flight compression is never touched. Fail open."""
+    stem = os.path.basename(log_path).removesuffix(".jsonl")
+    log_dir = os.path.dirname(log_path)
+    try:
+        archives = [
+            os.path.join(log_dir, name)
+            for name in os.listdir(log_dir)
+            if name.startswith(stem + "-") and name.endswith(".jsonl.zst")
+        ]
+        archives.sort(key=os.path.getmtime, reverse=True)
+    except OSError:
+        return
+    for stale in archives[keep:]:
+        try:
+            os.remove(stale)
+        except OSError:
+            pass
+
+
 def _rotate_invocation_log(log_path: str) -> None:
     try:
         if os.path.getsize(log_path) < INVOCATION_LOG_ROTATE_BYTES:
@@ -272,6 +313,7 @@ def _rotate_invocation_log(log_path: str) -> None:
         os.rename(log_path, rotated)
     except OSError:
         return
+    _prune_invocation_archives(log_path)
     zstd = shutil.which("zstd") or next(
         (p for p in ("/opt/homebrew/bin/zstd", "/usr/local/bin/zstd") if os.path.exists(p)), None)
     if zstd:  # --rm drops the plain copy only after a successful compress
