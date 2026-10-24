@@ -108,9 +108,17 @@ def test_all_evidence_archives_without_manual_cleanup_and_survives_prune(
     reuc = pins["reuc"]["ref"]
     assert reuc.startswith("refs/wt-archive/lane-evidence/reuc")
     assert git(repo, "cat-file", "-t", reuc) == "commit"
+    common = Path(git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir"))
     with tarfile.open(dest / "git-state.tgz") as packed:
+        names = set(packed.getnames())
         for path, raw in payloads.items():
-            assert packed.extractfile(path).read() == raw
+            if path.startswith(".git/common-rr-cache/"):
+                # Shared rerere state stays in the common dir; never copied per archive.
+                assert path not in names
+                shared = common / "rr-cache" / path.removeprefix(".git/common-rr-cache/")
+                assert shared.read_bytes() == raw
+            else:
+                assert packed.extractfile(path).read() == raw
     git(repo, "reflog", "expire", "--expire=now", "--all")
     git(repo, "gc", "--prune=now")
     for pin in pins.values():
@@ -232,10 +240,7 @@ def test_local_rerere_bytes_archive_and_shared_rerere_keeps_classification(
             packed.extractfile(".git/rr-cache/" + "3" * 40 + "/preimage").read()
             == local.read_bytes()
         )
-        assert (
-            packed.extractfile(".git/common-rr-cache/" + "2" * 40 + "/postimage").read()
-            == shared.read_bytes()
-        )
+        assert not any(n.startswith(".git/common-rr-cache") for n in packed.getnames())
     manifest = json.loads((result.dir / "content-manifest.json").read_text())
     worktree_gc.remove_worktree(
         repo, wt, manifest=manifest, operator_archive=True, archive_dir=result.dir

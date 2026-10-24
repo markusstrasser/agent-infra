@@ -113,7 +113,9 @@ Linked-worktree content inventory (landed removal and explicit archive):
                            Archive pins AUTO_MERGE's tree; classification HOLDs it.
                            FETCH_HEAD/etc and unknown admin paths still HOLD.
   Rerere state             Nonempty MERGE_RR/local rr-cache HOLD classification;
-                           archive preserves local and common bytes in git-state.tgz.
+                           archive preserves local bytes in git-state.tgz. Common
+                           rr-cache is shared state that removal never touches: the
+                           manifest binds it by hash, no bytes are copied.
   Extra evidence pins      refs/wt-archive/<tree>-evidence/{reflog-N,reuc,auto-merge,
                            orig-head,claude-base};
                            evidence-manifest.json records each exact ref/OID/type.
@@ -2494,6 +2496,7 @@ def remove_worktree(
 # only explicit archive --path may remove unlanded work; age is a suggestion.
 # ---------------------------------------------------------------------------
 ARCHIVE_ROOT = Path.home() / ".local" / "share" / "worktree-archives"
+COMMON_RR_CACHE = ".git/common-rr-cache"  # manifest key prefix of <common>/rr-cache
 QUARANTINE_SETTLE_SECONDS = 1.0
 MAX_ARCHIVED_CACHE_BYTES = 20 * 1024 * 1024
 CACHE_DIRS: tuple[str, ...] = (".venv", ".uv-cache", "node_modules")
@@ -2855,7 +2858,7 @@ def _content_manifest(wt: Path) -> dict[str, dict[str, object]]:
         pass
     else:
         try:
-            walk(rerere_fd, ".git/common-rr-cache")
+            walk(rerere_fd, COMMON_RR_CACHE)
         finally:
             os.close(rerere_fd)
     if (
@@ -3277,10 +3280,15 @@ def _reuc_tree_entries(
 
 
 def _git_state_paths(manifest: dict[str, dict[str, object]]) -> set[str]:
+    # The common rr-cache stays in the common Git directory after removal; copying
+    # it put genomics' 436 MB rerere cache (~100 MB gzipped) into every archive,
+    # 5.1 GB of the 8.7 GB archive root on 2026-10-24. The manifest still binds it.
     return {
         rel
         for rel, entry in manifest.items()
-        if rel.startswith(".git/") and entry["type"] in {"file", "directory", "symlink"}
+        if rel.startswith(".git/")
+        and not (rel == COMMON_RR_CACHE or rel.startswith(f"{COMMON_RR_CACHE}/"))
+        and entry["type"] in {"file", "directory", "symlink"}
     }
 
 
@@ -3328,31 +3336,12 @@ def _verify_evidence_pins(wt: Path, dest: Path) -> None:
 def _archive_manifest_paths(wt: Path, dest: Path, paths: set[str]) -> None:
     """No exclusions: cover every selected manifest entry without following links."""
     admin = _linked_admin(wt)
-    common = (
-        Path(
-            run(
-                ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
-                cwd=wt,
-                check=True,
-            ).stdout.strip()
-        )
-        if any(
-            rel == ".git/common-rr-cache" or rel.startswith(".git/common-rr-cache/")
-            for rel in paths
-        )
-        else None
-    )
     with tarfile.open(dest, "w:gz", dereference=False) as archive:
         for rel in sorted(paths):
+            if rel == COMMON_RR_CACHE or rel.startswith(f"{COMMON_RR_CACHE}/"):
+                raise ValueError(f"shared rr-cache is never archived: {rel}")
             source = (
-                common
-                / "rr-cache"
-                / rel.removeprefix(".git/common-rr-cache").lstrip("/")
-                if rel == ".git/common-rr-cache"
-                or rel.startswith(".git/common-rr-cache/")
-                else admin / rel.removeprefix(".git/")
-                if rel.startswith(".git/")
-                else wt / rel
+                admin / rel.removeprefix(".git/") if rel.startswith(".git/") else wt / rel
             )
             archive.add(source, arcname=rel, recursive=False)
 
@@ -3480,9 +3469,8 @@ def archive_worktree(
         + "survive pruning. Copy `git-index` into the restored worktree's Git index "
         + "to restore staging without overwriting working files. `git-state.tgz` "
         + "preserves raw HEAD/index/local refs/reflog bytes; restore into that new "
-        + "worktree's admin directory. The `.git/common-rr-cache/` members are a "
-        + "snapshot of the common Git directory's `rr-cache/`; restore those there "
-        + "only after checking for newer shared resolutions. Do not copy `gitdir` "
+        + "worktree's admin directory. The shared `rr-cache/` stays in the common Git "
+        + "directory; `content-manifest.json` records its hashes only. Do not copy `gitdir` "
         + "or `commondir` over the new worktree's linkage.\n"
         + "`evidence-manifest.json` records additional durable refs for reflog-only "
         + "commits, AUTO_MERGE's tree and a REUC commit. In its tree, prefix every "
