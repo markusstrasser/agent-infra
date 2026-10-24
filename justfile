@@ -757,6 +757,15 @@ agentlogs-archive dest="/Volumes/2TBPNY/agentlogs-archive" keep_days="30":
     #!/usr/bin/env bash
     set -euo pipefail
     DB="$HOME/.claude/agentlogs.db"
+    # One run at a time: on 2026-10-24 a StartOnMount run started beside a manual one
+    # and began a second .backup over the same snapshot path. A dead holder's lock is reclaimed.
+    lock="$HOME/.claude/logs/agentlogs-archive.lock"
+    if ! ( set -o noclobber; echo $$ > "$lock" ) 2>/dev/null; then
+        holder=$(cat "$lock" 2>/dev/null || true)
+        if [ -n "$holder" ] && kill -0 "$holder" 2>/dev/null; then echo "skip: agentlogs-archive already running (pid $holder)"; exit 0; fi
+        echo $$ > "$lock"
+    fi
+    trap 'rm -f "$lock"' EXIT
     # A wheel-materialized site-packages/agentlogs shadows the editable src tree
     # and serves stale code (broke this job silently 2026-08-04..17). Fail loud.
     got=$(uv run python3 -c "import agentlogs; print(agentlogs.__file__)")
