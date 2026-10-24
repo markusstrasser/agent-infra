@@ -1104,3 +1104,37 @@ def test_reflog_tag_object_is_not_silently_peeled(repo: Path) -> None:
     with log.open("a") as out:
         out.write(f"{tag} {head} test <t@t.t> 1 +0000\tunique tag history\n")
     assert row(repo, wt).classify() == "HOLD"
+
+
+LFS_HEADER = "version https://git-lfs.github.com/spec/v1\noid sha256:" + "1" * 64 + "\nsize 1\n"
+
+
+def test_small_working_lfs_pointer_holds_but_oversize_lookalike_does_not(repo: Path) -> None:
+    # git-lfs only treats blobs under 1024 bytes as pointers; the size cutoff in the
+    # working-file scan must keep holding real pointers on every route.
+    wt = lane(repo)
+    (wt / "pointer").write_text(LFS_HEADER)
+    reason = worktree_gc._worktree_state_hold(wt)
+    assert reason and "LFS pointer" in reason, reason
+    (wt / "pointer").write_text(LFS_HEADER + "x" * worktree_gc.LFS_POINTER_MAX_BYTES)
+    reason = worktree_gc._worktree_state_hold(wt)
+    assert not (reason and "LFS pointer" in reason), reason
+
+
+def test_under_derived_cache_matches_reference_rule() -> None:
+    def reference(rel: str) -> bool:
+        parts = Path(rel).parts
+        return any(
+            parts[i : i + len(Path(cache).parts)] == Path(cache).parts
+            for cache in worktree_gc.DERIVED_CACHE_ALLOWLIST
+            for i in range(len(parts))
+        )
+
+    names = [".claude", "cache", ".venv", "node_modules", "src", "__pycache__", "a", ".uv-cache"]
+    paths = [
+        "/".join(names[(i * 7 + j * 3) % len(names)] for j in range(n))
+        for i in range(len(names) * 4)
+        for n in range(1, 5)
+    ] + [".claude/cache", "x/.claude/cache/y", ".claude/other", "cache/.claude", "node_modules"]
+    for rel in paths:
+        assert worktree_gc._under_derived_cache(rel) == reference(rel), rel

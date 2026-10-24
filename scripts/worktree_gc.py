@@ -140,6 +140,7 @@ manifest/identity read remain the documented deletion race.
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import contextlib
 import getpass
 import hashlib
@@ -165,6 +166,9 @@ from config import PROJECT_ROOTS
 
 PROJECTS_HOME = Path.home() / "Projects"
 SKIP_PATH_SUBSTR = ("factory", "-factory")
+SUGGEST_WORKERS = 8
+# git-lfs treats only blobs under this size as candidate pointers (blobSizeCutoff).
+LFS_POINTER_MAX_BYTES = 1024
 # lsof lives in /usr/sbin; a launchd/cron PATH without it turns the liveness scan
 # into an OSError → empty map → "liveness unknown" → every nightly apply exits 2.
 # Never let PATH decide a safety scan.
@@ -863,12 +867,19 @@ DERIVED_CACHE_ALLOWLIST: tuple[str, ...] = (
 )
 
 
+# Parsed once: suggest calls the matcher once per ignored path (~10^5 per run).
+_DERIVED_CACHE_PARTS: tuple[tuple[str, ...], ...] = tuple(
+    Path(cache).parts for cache in DERIVED_CACHE_ALLOWLIST
+)
+
+
 def _under_derived_cache(rel: str) -> bool:
     parts = Path(rel).parts
     return any(
-        parts[i : i + len(Path(cache).parts)] == Path(cache).parts
-        for cache in DERIVED_CACHE_ALLOWLIST
-        for i in range(len(parts))
+        parts[i : i + len(cache)] == cache
+        for cache in _DERIVED_CACHE_PARTS
+        if cache[0] in parts
+        for i in range(len(parts) - len(cache) + 1)
     )
 
 
@@ -1862,9 +1873,11 @@ def _worktree_state_hold(
                     return f"nested repository: {relative}"
             for name in files:
                 path = Path(directory) / name
-                if not stat.S_ISREG(path.lstat().st_mode) and not path.is_symlink():
+                info = path.lstat()
+                if not stat.S_ISREG(info.st_mode) and not stat.S_ISLNK(info.st_mode):
                     return f"unsupported working-file type: {path.relative_to(wt)}"
-                if path.is_file() and not path.is_symlink():
+                # git-lfs pointer files are < 1024 bytes (spec); skip opening larger files.
+                if stat.S_ISREG(info.st_mode) and 43 <= info.st_size < LFS_POINTER_MAX_BYTES:
                     with path.open("rb") as source:
                         if source.read(43).startswith(
                             b"version https://git-lfs.github.com/spec/v1"
@@ -4477,9 +4490,23 @@ def main() -> int:
         )
 
     all_rows: list[WorktreeRow] = []
-    for repo in repos:
-        if not (repo / ".git").exists():
-            continue
+    present = [repo for repo in repos if (repo / ".git").exists()]
+    if args.mode == "suggest" and not stream_audit:
+        # Read-only and dominated by git subprocess waits and file reads: audit repos
+        # concurrently (serial took >200 s over ~36 repos and timed out the disk guard).
+        # Order is preserved; redirect_stdout is process-wide, so it wraps the pool.
+        with (
+            contextlib.redirect_stdout(sys.stderr),
+            concurrent.futures.ThreadPoolExecutor(max_workers=SUGGEST_WORKERS) as pool,
+        ):
+            for rows in pool.map(
+                lambda repo: audit_repo(
+                    repo, with_size=False, safe_idle_min=args.safe_idle_min
+                ),
+                present,
+            ):
+                all_rows.extend(rows)
+    for repo in [] if args.mode == "suggest" and not stream_audit else present:
         # Missing registrations are diagnostics, never stray text in hook JSON.
         with (
             contextlib.redirect_stdout(sys.stderr)
