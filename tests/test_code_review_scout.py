@@ -61,6 +61,16 @@ def test_gather_files_includes_swift_and_shebang_scripts(tmp_path: Path) -> None
     assert scout.gather_files(tmp_path) == [swift, script]
 
 
+def test_gather_files_includes_node_module_suffixes(tmp_path: Path) -> None:
+    # 2026-10-26: .cjs lane files were "not a reviewable source file" in a diff review.
+    cjs = tmp_path / "case.cjs"
+    cjs.write_text("module.exports = {};\n" * 4)
+    mjs = tmp_path / "view.mjs"
+    mjs.write_text("export const x = 1;\n" * 4)
+
+    assert scout.gather_files(tmp_path) == [cjs, mjs]
+
+
 def test_dispatch_returns_nonempty_reviewer_verdict(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         scout.subprocess,

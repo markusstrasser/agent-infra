@@ -46,6 +46,8 @@ MAX_FILE_BYTES = 75_000  # fail loud above this until line-aware chunking exists
 EXTENSIONS = {
     ".py",
     ".js",
+    ".cjs",
+    ".mjs",
     ".jsx",
     ".ts",
     ".tsx",
