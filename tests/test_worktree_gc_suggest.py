@@ -153,6 +153,7 @@ def test_candidate_classes_sizes_counts_and_commands(repo, monkeypatch, capsys):
         "class",
         "candidate",
         "size_bytes",
+        "size_du_bytes",
         "idle_hours",
         "commits_not_on_default",
         "patch_unique_commits",
@@ -186,6 +187,32 @@ def test_candidate_classes_sizes_counts_and_commands(repo, monkeypatch, capsys):
     assert records["stale-dirty"]["untracked_count"] == 2
     assert records["aged-lock"]["lock_reason"] == "operator hold for review"
     assert records["aged-lock"]["lock_age_hours"] >= 71
+
+
+def test_private_size_failure_is_loud_and_keeps_du(repo, monkeypatch, capsys):
+    wt = tree(repo, "private-failure")
+    age(wt)
+    attempted = []
+
+    def fail(path):
+        attempted.append(path)
+        raise worktree_gc.PrivateSizeError(
+            f"{path}/tracked.txt: getattrlist failed: Input/output error (errno 5)"
+        )
+
+    monkeypatch.setattr(worktree_gc, "private_tree_bytes", fail)
+    _, payload, _ = invoke(monkeypatch, capsys, "--repo", str(repo))
+    row = by_name(payload)["private-failure"]
+    assert attempted == [wt]
+    assert row["size_bytes"] is None
+    assert row["size_du_bytes"] > 0
+    assert row["candidate"] is False
+    assert any(
+        "private size unknown" in reason
+        and "tracked.txt" in reason
+        and "errno 5" in reason
+        for reason in row["not_candidate_reasons"]
+    )
 
 
 @pytest.mark.parametrize("detached", [False, True])

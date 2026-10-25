@@ -34,7 +34,8 @@ apply --unmerged-idle-hours N: remove only patch-duplicate branched trees idle >
 apply --archive-landed-idle-hours N: archive and remove landed dirty trees idle >= N
   hours, after repeating landing/liveness checks and a settled archive-manifest check
 audit/suggest --lock-max-age-hours N: label old pid-less locks aged-lock, read-only
-suggest [--json]: size-ranked reclaim suggestions, never changes anything
+suggest [--json]: APFS-private-size-ranked reclaim suggestions (du size kept
+  alongside as size_du_bytes), never changes anything
 archive --path TREE: explicitly archive, pin HEAD and remove this one tree
 apply --force-stale: also stale (ahead==0) with dirty trees (discards wt edits)
 apply --force-all: everything except --keep, held, and live-locked trees (dangerous)
@@ -146,6 +147,7 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import contextlib
+import ctypes
 import getpass
 import hashlib
 import json
@@ -155,6 +157,7 @@ import re
 import shlex
 import shutil
 import stat
+import struct
 import subprocess
 import sys
 import tarfile
@@ -709,6 +712,125 @@ def _repo_from_admin(admin: str) -> Path | None:
 def _du(path: Path) -> str:
     out = run(["du", "-sh", str(path)]).stdout.split()
     return out[0] if out else "?"
+
+
+# APFS private size: bytes a file owns exclusively, so clonefile-shared blocks are
+# not counted even though `du` charges them to every clone. getattrlist(2) exposes
+# this through the fork-attribute group, not the common group (sys/attr.h).
+_ATTR_BIT_MAP_COUNT = 5
+_ATTR_CMNEXT_PRIVATESIZE = 0x00000008
+_FSOPT_ATTR_CMN_EXTENDED = 0x00000020
+
+
+class PrivateSizeError(RuntimeError):
+    """A tree's APFS private size could not be measured."""
+
+
+class _AttrList(ctypes.Structure):
+    _fields_ = [
+        ("bitmapcount", ctypes.c_ushort),
+        ("reserved", ctypes.c_uint16),
+        ("commonattr", ctypes.c_uint32),
+        ("volattr", ctypes.c_uint32),
+        ("dirattr", ctypes.c_uint32),
+        ("fileattr", ctypes.c_uint32),
+        ("forkattr", ctypes.c_uint32),
+    ]
+
+
+_GETATTRLIST: ctypes.CDLL | None = None
+
+
+def _getattrlist() -> ctypes.CDLL:
+    global _GETATTRLIST
+    if _GETATTRLIST is None:
+        libc = ctypes.CDLL(None, use_errno=True)
+        try:
+            fn = libc.getattrlist
+        except AttributeError as error:
+            raise PrivateSizeError(
+                "getattrlist unavailable; APFS private size requires macOS"
+            ) from error
+        fn.argtypes = [
+            ctypes.c_char_p,
+            ctypes.POINTER(_AttrList),
+            ctypes.c_void_p,
+            ctypes.c_size_t,
+            ctypes.c_ulong,
+        ]
+        fn.restype = ctypes.c_int
+        _GETATTRLIST = libc
+    return _GETATTRLIST
+
+
+def _file_private_bytes(path: str) -> int:
+    """ATTR_CMNEXT_PRIVATESIZE for one regular file.
+
+    The returned buffer starts with a u_int32_t attribute length (12 for the
+    8-byte off_t value) followed by the value itself, 4-byte aligned.
+    """
+    attrs = _AttrList(_ATTR_BIT_MAP_COUNT, 0, 0, 0, 0, 0, _ATTR_CMNEXT_PRIVATESIZE)
+    buffer = ctypes.create_string_buffer(32)
+    ctypes.set_errno(0)
+    result = _getattrlist().getattrlist(
+        os.fsencode(path),
+        ctypes.byref(attrs),
+        buffer,
+        len(buffer),
+        _FSOPT_ATTR_CMN_EXTENDED,
+    )
+    if result != 0:
+        errno = ctypes.get_errno()
+        raise PrivateSizeError(
+            f"{path}: getattrlist failed: {os.strerror(errno)} (errno {errno})"
+        )
+    raw = buffer.raw
+    length = struct.unpack_from("=I", raw, 0)[0]
+    if length < 12:
+        raise PrivateSizeError(
+            f"{path}: getattrlist returned a short private-size attribute "
+            f"(length {length})"
+        )
+    return struct.unpack_from("=Q", raw, 4)[0]
+
+
+def private_tree_bytes(root: Path) -> int:
+    """Sum of APFS private bytes over regular files under ``root``.
+
+    Symlinks are never followed and a hard-linked inode is counted once. Scandir
+    or getattrlist failures raise PrivateSizeError instead of silently falling
+    back to `du`, which would count clone-shared blocks in full.
+    """
+    total = 0
+    seen: set[tuple[int, int]] = set()
+    stack = [os.fspath(root)]
+    while stack:
+        directory = stack.pop()
+        try:
+            with os.scandir(directory) as entries:
+                children = list(entries)
+        except OSError as error:
+            raise PrivateSizeError(
+                f"{directory}: scandir failed: {error.strerror} (errno {error.errno})"
+            ) from error
+        for entry in children:
+            try:
+                if entry.is_dir(follow_symlinks=False):
+                    stack.append(entry.path)
+                    continue
+                if not entry.is_file(follow_symlinks=False):
+                    continue
+                info = entry.stat(follow_symlinks=False)
+            except OSError as error:
+                raise PrivateSizeError(
+                    f"{entry.path}: stat failed: {error.strerror} (errno {error.errno})"
+                ) from error
+            identity = (info.st_dev, info.st_ino)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            total += _file_private_bytes(entry.path)
+    return total
 
 
 def _candidate_dirs(
@@ -4179,13 +4301,16 @@ def suggest(
             reasons.append("fresh or unknown idle clock")
         size = run(["du", "-sk", str(row.path)])
         fields = size.stdout.split()
-        size_bytes = (
+        size_du_bytes = (
             int(fields[0]) * 1024
             if size.returncode == 0 and fields and fields[0].isdigit()
             else None
         )
-        if size_bytes is None:
-            reasons.append("size unknown")
+        try:
+            size_bytes = private_tree_bytes(row.path)
+        except PrivateSizeError as error:
+            size_bytes = None
+            reasons.append(f"private size unknown: {error}")
         untracked = run(
             ["git", "ls-files", "--others", "--exclude-standard", "-z"],
             cwd=row.path,
@@ -4199,6 +4324,7 @@ def suggest(
             "blocking_paths": list(row.blocking_paths),
             "codex_owner_thread": row.codex_owner_thread,
             "size_bytes": size_bytes,
+            "size_du_bytes": size_du_bytes,
             "idle_hours": row.idle_days * 24,
             "dirty_count": row.tracked_dirty + untracked_count,
             "tracked_dirty_count": row.tracked_dirty,
@@ -4236,7 +4362,7 @@ def suggest(
     else:
         for record in candidates + excluded:
             print(
-                f"{'CANDIDATE' if record['candidate'] else 'NOT-CANDIDATE'} {record['path']} [{record['class']}] size={record['size_bytes']}B idle={record['idle_hours']:.1f}h ahead={record['commits_not_on_default']} no-same-subject={record['no_same_subject_commits']} patch-unique={record['patch_unique_commits']} dirty={record['dirty_count']} untracked={record['untracked_count']}"
+                f"{'CANDIDATE' if record['candidate'] else 'NOT-CANDIDATE'} {record['path']} [{record['class']}] size={record['size_bytes']}B du={record['size_du_bytes']}B idle={record['idle_hours']:.1f}h ahead={record['commits_not_on_default']} no-same-subject={record['no_same_subject_commits']} patch-unique={record['patch_unique_commits']} dirty={record['dirty_count']} untracked={record['untracked_count']}"
             )
             if record["lock_reason"] is not None:
                 print(
