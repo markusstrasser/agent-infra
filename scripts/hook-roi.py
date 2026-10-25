@@ -169,19 +169,6 @@ def main(days: int = 7, verbose: bool = False):
             print(f"    {day}  {by_day[day]:>4}  {bar}")
         print()
 
-    # False positive candidates: blocks that are high-frequency
-    # (if a hook blocks often, it might be too aggressive)
-    block_heavy = [
-        (h, a) for h, a in sorted_hooks
-        if a.get("block", 0) > 5 and a.get("block", 0) / a["total"] > 0.5
-    ]
-    if block_heavy:
-        print("  Potential false-positive hooks (>50% block rate, >5 blocks):")
-        for hook, actions in block_heavy:
-            rate = actions["block"] / actions["total"]
-            print(f"    {hook}: {actions['block']}/{actions['total']} ({rate:.0%} block rate)")
-        print()
-
     if verbose and triggers:
         print(f"  All-time: {len(triggers)} total triggers")
 
@@ -203,15 +190,22 @@ def main(days: int = 7, verbose: bool = False):
     print("   enforces a real contract — e.g. source/provenance grading — is working")
     print("   as intended; cull NOISE, not enforcement. See feedback_hook_roi_ledger.)")
     printed = False
+    # Block rate is not a false-positive signal: a hard gate (append-only, secrets,
+    # git add -A) blocks on every fire by design. Friction is: the agent re-issuing
+    # the identical command after the block (classify_outcomes' repeated_attempt).
+    outcomes = classify_outcomes(recent)
     for hook, actions in sorted_hooks:
         total = actions["total"]
         blocks = actions.get("block", 0)
         if total == 0:
             continue
         advisory = sum(actions.get(a, 0) for a in ADVISORY)
-        if blocks > 10 and blocks / total > 0.8:
-            print(f"    DEMOTE? {hook} — {blocks}/{total} blocks ({blocks/total:.0%}). "
-                  f"Too aggressive; likely false-positive-heavy.")
+        g = outcomes.get(hook)
+        classified = (g["comply"] + g["repeated_attempt"] + g["abandoned"]) if g else 0
+        if g and blocks > 10 and classified >= 10 and g["repeated_attempt"] / classified > 0.5:
+            print(f"    RETUNE? {hook} — {blocks} blocks; the identical command was re-issued "
+                  f"after {g['repeated_attempt']}/{classified} classified blocks. Friction: "
+                  f"the guard or its message isn't steering the agent to a passing form.")
             printed = True
         elif blocks == 0 and total >= noise_floor and advisory >= 0.9 * total:
             print(f"    CULL/NARROW? {hook} — {total} fires, 0 blocks, {advisory} advisory. "
