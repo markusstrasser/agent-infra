@@ -21,6 +21,8 @@ Authorship uses the shared predicates: scripts/common/transcript_text
 plus the Codex `user.text` content kind for Codex and Cursor.
 
 Usage: uv run python3 scripts/operator_prompts_export.py --projects arc-agi intel --out DIR
+       uv run python3 scripts/operator_prompts_export.py --since 2026-09-27 --out DIR --packets DIR/packets
+       (all ~/Projects, only new prompts, plus packets for a delta mining pass)
 """
 
 from __future__ import annotations
@@ -38,8 +40,9 @@ from pathlib import Path
 AI = Path.home() / "Projects" / "agent-infra"
 sys.path.insert(0, str(AI / "scripts" / "common"))
 sys.path.insert(0, str(AI / "src"))
-from transcript_text import is_operator_authored, user_texts  # noqa: E402
-from agentlogs.authorship import is_injected_user_text  # noqa: E402
+from transcript_text import is_operator_authored, user_texts
+
+from agentlogs.authorship import is_injected_user_text
 
 HOME = Path.home()
 ARCHIVE = Path("/Volumes/2TBPNY/agentlogs-archive")
@@ -53,7 +56,7 @@ NEXT_HEAD = 500
 
 CMD_RE = re.compile(
     r"<command-name>(?P<name>[^<]+)</command-name>.*?(?:<command-args>(?P<args>.*?)</command-args>)?",
-    re.S,
+    re.DOTALL,
 )
 
 
@@ -264,7 +267,7 @@ def scan_codex(project: str, paths: list[str], col: Collector, stats: Counter) -
 
 
 # ---------------------------------------------------------------- Cursor
-UQ_RE = re.compile(r"<user_query>(.*?)</user_query>", re.S)
+UQ_RE = re.compile(r"<user_query>(.*?)</user_query>", re.DOTALL)
 
 
 def scan_cursor(project: str, col: Collector, stats: Counter) -> None:
@@ -297,21 +300,78 @@ def scan_cursor(project: str, col: Collector, stats: Counter) -> None:
         stats["cursor_prompts"] += 1
 
 
+def render_record(i: int, r: dict, prev_cap: int, next_cap: int) -> str:
+    prev = r["prev_agent"].strip()
+    prev = prev[-prev_cap:] if prev else "(session start)"
+    return (
+        f"### R{i} | {r['project']} | {r['vendor']}:{r['session']} | {r['ts'] or 'no-ts'}\n"
+        f"AGENT BEFORE (tail): {prev}\n"
+        f"OPERATOR: {cap(r['prompt'], 3000)}\n"
+        f"AGENT AFTER (head): {cap(r['next_agent'], next_cap) if r['next_agent'] else '(none captured)'}\n"
+    )
+
+
+def write_packets(by_project: dict[str, list[dict]], out: Path, target_chars: int,
+                  prev_cap: int, next_cap: int, min_group: int) -> None:
+    """Chronological model-readable packets: one group per project with at least
+    `min_group` prompts, the rest pooled into `misc`. Record ids restart per group."""
+    out.mkdir(parents=True, exist_ok=True)
+    groups: dict[str, list[dict]] = defaultdict(list)
+    for project, recs in by_project.items():
+        groups[project if len(recs) >= min_group else "misc"].extend(recs)
+    manifest = []
+    for name, recs in sorted(groups.items()):
+        if not recs:
+            continue
+        recs.sort(key=lambda r: r["ts"] or "")
+        packets, cur, size = [], [], 0
+        for i, r in enumerate(recs, 1):
+            b = render_record(i, r, prev_cap, next_cap)
+            if cur and size + len(b) > target_chars:
+                packets.append(cur)
+                cur, size = [], 0
+            cur.append(b)
+            size += len(b)
+        packets.append(cur)
+        for k, pk in enumerate(packets, 1):
+            pid = f"{name}-{k:02d}"
+            body = f"# Packet {pid} ({len(pk)} records)\n\n" + "\n".join(pk)
+            (out / f"{pid}.md").write_text(body)
+            manifest.append({"packet": pid, "records": len(pk), "chars": len(body),
+                             "projects": sorted({r["project"] for r in recs})})
+    (out / "manifest.json").write_text(json.dumps(manifest, indent=1))
+    print(f"packets: {len(manifest)} in {out}, {sum(m['chars'] for m in manifest)} chars", flush=True)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--projects", nargs="+", required=True)
+    ap.add_argument("--projects", nargs="+", help="default: every directory under ~/Projects")
     ap.add_argument("--out", required=True, help="directory; writes <project>.jsonl + stats.json")
+    ap.add_argument("--since", help="keep prompts with ts >= this ISO date/time (UTC); drops undated prompts")
+    ap.add_argument("--packets", help="also write chronological model-readable packets to this directory")
+    ap.add_argument("--packet-chars", type=int, default=200_000)
+    ap.add_argument("--prev-cap", type=int, default=400, help="agent-before chars per packet record")
+    ap.add_argument("--next-cap", type=int, default=150, help="agent-after chars per packet record")
+    ap.add_argument("--min-group", type=int, default=100, help="smaller projects pool into misc packets")
     args = ap.parse_args()
+    projects = args.projects or sorted(p.name for p in (HOME / "Projects").iterdir()
+                                       if p.is_dir() and not p.name.startswith("."))
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    codex_by_project = codex_index(args.projects)
+    codex_by_project = codex_index(projects)
     all_stats = {}
-    for project in args.projects:
+    by_project: dict[str, list[dict]] = {}
+    for project in projects:
         col, stats = Collector(), Counter()
         scan_claude(project, col, stats)
         scan_codex(project, codex_by_project.get(project, []), col, stats)
         scan_cursor(project, col, stats)
         recs = sorted(col.records, key=lambda r: r["ts"] or "")
+        if args.since:
+            recs = [r for r in recs if r["ts"] and r["ts"] >= args.since]
+        if not recs:
+            continue
+        by_project[project] = recs
         with (out / f"{project}.jsonl").open("w") as fh:
             for r in recs:
                 fh.write(json.dumps(r, ensure_ascii=False) + "\n")
@@ -323,6 +383,9 @@ def main() -> None:
         all_stats[project] = dict(stats)
         print(project, dict(stats), flush=True)
     (out / "stats.json").write_text(json.dumps(all_stats, indent=2))
+    if args.packets:
+        write_packets(by_project, Path(args.packets), args.packet_chars,
+                      args.prev_cap, args.next_cap, args.min_group)
 
 
 if __name__ == "__main__":
