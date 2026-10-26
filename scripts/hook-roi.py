@@ -27,7 +27,9 @@ from common.paths import TRIGGERS_FILE
 # definition, consumers load it — this list deciding "advisory vs blocking"
 # is exactly that kind of invariant; two copies drifting would silently
 # mislabel a guard's O2 flag).
-ADVISORY = {"warn", "warn-only", "suggest", "remind", "advise", "log"}
+# Actions whose text reaches the model. "log" (telemetry only) and "rewrite" (updatedInput)
+# put nothing in context, so their volume is not nag cost.
+ADVISORY = {"warn", "warn-only", "suggest", "remind", "advise"}
 
 # The exposure-clean action value the T3 guards (git-stash-guard,
 # multiagent-commit, llmx-subscription-flag — see skills/hooks/pretool-*.py)
