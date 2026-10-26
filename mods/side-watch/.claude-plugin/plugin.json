@@ -1,0 +1,1 @@
+{ "name": "side-watch", "version": "0.1.0", "description": "Cached side checks (claim, stance, stuck) plus a relay that pastes the built-in You-should-know notes into the conversation", "types": "./types/index.d.ts" }
