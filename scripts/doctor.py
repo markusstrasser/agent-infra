@@ -249,6 +249,45 @@ def check_skill_frontmatter(project_dir: Path) -> list[Check]:
     return checks
 
 
+# Claude Code re-injects a path-scoped rule whenever a matching file is touched and again
+# after every compaction, and re-attaches each invoked skill after compaction, cut at 20,000
+# chars. Measured 2026-10-12..26: genomics code-pitfalls.md (21K) reloaded 233x = 5.0M chars;
+# the modal skill (18.5K) 165x = 3.1M.
+RULE_SCOPED_MAX = 6_000
+RULE_ALWAYS_MAX = 8_000
+SKILL_MAX = 8_000
+SKILL_REATTACH_CAP = 20_000
+
+
+def _has_paths_frontmatter(text: str) -> bool:
+    if not text.startswith("---"):
+        return False
+    fm = text.split("---", 2)[1] if text.count("---") >= 2 else ""
+    return bool(re.search(r"^(paths|globs):", fm, re.M))
+
+
+def check_context_load_size(rules_dir: Path, scope: str, skills_dir: Path | None = None) -> list[Check]:
+    """Warn on rules and skills big enough to tax every reload; see the constants above."""
+    over: list[str] = []
+    if rules_dir.is_dir():
+        for f in sorted(rules_dir.glob("*.md")):
+            n = len(f.read_text(errors="replace"))
+            scoped = _has_paths_frontmatter(f.read_text(errors="replace"))
+            if n > (RULE_SCOPED_MAX if scoped else RULE_ALWAYS_MAX):
+                over.append(f"rules/{f.name} {n // 1000}K ({'path-scoped' if scoped else 'always'})")
+    if skills_dir and skills_dir.is_dir():
+        for f in sorted(skills_dir.glob("*/SKILL.md")):
+            n = len(f.read_text(errors="replace"))
+            if n > SKILL_MAX:
+                cut = ", TRUNCATED on re-attach" if n > SKILL_REATTACH_CAP else ""
+                over.append(f"{f.parent.name}/SKILL.md {n // 1000}K{cut}")
+    c = Check("context-load-size", scope)
+    if not over:
+        return [c.ok()]
+    return [c.warn(f"{len(over)} over budget (rule {RULE_SCOPED_MAX // 1000}K scoped/"
+                   f"{RULE_ALWAYS_MAX // 1000}K always, skill {SKILL_MAX // 1000}K): " + "; ".join(over))]
+
+
 def check_memory_health() -> list[Check]:
     """Check MEMORY.md sizes across projects."""
     checks = []
@@ -1398,6 +1437,8 @@ def run_all_checks(project_filter: str | None = None) -> list[Check]:
         all_checks.extend(check_approval_tiers())
         all_checks.extend(check_critique_routing_verdict())
         all_checks.extend(check_cross_harness_shell_env())
+        all_checks.extend(check_context_load_size(CLAUDE_DIR / "rules", "global",
+                                                  Path.home() / "Projects" / "skills"))
 
         # Global CLAUDE.md
         gc = Check("global:CLAUDE.md", "global")
@@ -1421,6 +1462,8 @@ def run_all_checks(project_filter: str | None = None) -> list[Check]:
         all_checks.extend(check_settings_json(settings, proj))
         all_checks.extend(check_skill_symlinks(proj_dir))
         all_checks.extend(check_skill_frontmatter(proj_dir))
+        all_checks.extend(check_context_load_size(proj_dir / ".claude" / "rules", proj,
+                                                  proj_dir / ".claude" / "skills"))
         all_checks.extend(check_git_state(proj_dir))
         all_checks.extend(check_mcp(proj_dir))
         all_checks.extend(check_gitignore(proj_dir))
