@@ -156,6 +156,7 @@ Consult these files before acting on the topic. Scan this table when starting a 
 | `2026-10-13-recent-agent-search-policies.md` | Recent search/branching policies over long-running frontier agents (2026-08-1... | TODO |
 | `2026-10-13-recent-frontier-autoresearch-results.md` | Recent frontier-agent open-ended research/optimization results (window 2026-0... | TODO |
 | `2026-10-14-research-tooling-api-refresh.md` | Research tooling API refresh (2026-04 → 2026-10) | TODO |
+| `2026-10-26-operator-frames-delta.md` | Operator frames delta: 1,969 prompts since 09-27, three readers, 412 verified items → 9 new + 4 sharpened frames; DeepSeek Ultra + one frontier reader is the cheap recipe; `operator_prompts_export.py --since --packets` | The next monthly frames refresh; choosing readers for operator-text mining |
 | `academic-research-agent-landscape-2026-03.md` | Academic Research Agent Landscape — March 2026 | TODO |
 | `adversarial-case-library.md` | Adversarial Case Library: The Best "Calling BS" Reviews | TODO |
 | `agent-behavior-refresh-2026-04.md` | Agent Behavior Delta — Memory, Self-Modification, Sycophancy | TODO |
