@@ -4527,6 +4527,11 @@ Deduplication/exclusions: the global bgrun/watcher repair is already committed a
 
 - **[ ] WORKTREE-GC-EXPLICIT-ARCHIVE-134S** — `worktree_gc.py archive --path genomics/.claude/worktrees/l49-fold` (staged-only patch 253,040 B, 0 untracked) took real 134 s, user 71 s, sys 37 s; cand-l49's archive earlier the same day ran minutes. cProfile: 1,216 subprocess calls (46.7 s); `_worktree_state_hold` x6 = 43.7 s, `_verify_evidence_pins` x4 = 32.0 s, `_content_manifest` x8 = 30.3 s, `_index_state_hold` x11 = 26.1 s, `_archive_manifest_paths` x2 = 26.2 s (tarfile.add of 4,572 members = 26 s for a tree whose only payload is a patch). Likely fix: compute the state hold and content manifest once per archive and reuse them across the verify steps; skip the tar of tracked files that the pinned HEAD already holds. Related: WORKTREE-GC-SUBPROCESS-TEST-LATENCY.
 - **Evidence:** profile `genomics/.claude/cache/handoff-1015/wgc-archive-20261023.prof` (pstats, sort cumulative); archive `~/.local/share/worktree-archives/genomics/2026-10-23/l49-fold`, ref `refs/wt-archive/l49-fold-20261023`.
+- **Recurrence 2026-10-27, on the landing critical path:** the genomics batch landing archived `cand-l67` in about 38 min (content-manifest written 00:34 JST; the `ARCHIVED` line printed just before 01:12:14; the cand-l64/l65/l66 archives took 6.5, 2.5 and 2 min). Five chain-build rounds had left a 100-entry reflog in the candidate. `_check_evidence_object` (`scripts/worktree_gc.py:3312`) runs a full `git rev-list --objects --missing=error <oid>` for each evidence oid, about 2 s each on that tree. The archive verifies the evidence pins again in 4-5 passes (callers at 3229, 3296, 3347, 3455) with no memo, so the same history gets walked about 500 times. The landing script runs the archive before autopilot writes the landed tip, so post-landing QA and the next batch's follower each waited the full 38 min. Fix candidates:
+  - one `git rev-list --objects --missing=error --stdin` per pass, fed every oid, so shared history is walked once;
+  - or verify the base commit once and walk each oid with `--not <base>`;
+  - memoize verified oids across the passes;
+  - and archive after the landed tip is written, off the critical path.
 
 ### [2026-10-24] Killed in-place afsctool zeroed an only-copy archive transcript
 
