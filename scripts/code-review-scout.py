@@ -179,6 +179,13 @@ PROVIDERS = {
         "extra": "--reasoning-effort high --timeout 300",
         "name": "sol",
     },
+    "sol-api": {
+        # Metered OpenAI API (gpt-6.1-sol, $2/$10 per M tokens): the fallback when both
+        # Codex models return llmx exit 6 (plan exhausted). Not in --both/--all-providers.
+        "model_flag": "--auth api -m gpt-6.1-sol",
+        "extra": "--reasoning-effort high --timeout 300",
+        "name": "sol-api",
+    },
 }
 
 
