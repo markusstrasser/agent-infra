@@ -29,6 +29,14 @@ lines_rm=$(echo "$input" | jq -r '.cost.total_lines_removed // 0')
 total_out=$(echo "$input" | jq -r '.context_window.total_output_tokens // 0' | cut -d. -f1)
 rate_5h=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty' 2>/dev/null)
 rate_7d=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty' 2>/dev/null)
+# Change-only log of both account meters, read by agents that pace work against the limits.
+rate_log="$HOME/.claude/cache/rate-limits.tsv"
+if [[ -n "$rate_5h$rate_7d" ]]; then
+  rate_row=$(echo "$input" | jq -r '[.rate_limits.five_hour.used_percentage, .rate_limits.five_hour.resets_at, .rate_limits.seven_day.used_percentage, .rate_limits.seven_day.resets_at] | map(. // "" | tostring) | @tsv' 2>/dev/null)
+  if [[ -n "$rate_row" && "$rate_row" != "$(tail -n 1 "$rate_log" 2>/dev/null | cut -f2-)" ]]; then
+    printf '%s\t%s\n' "$(date +%Y-%m-%dT%H:%M:%S%z)" "$rate_row" >> "$rate_log"
+  fi
+fi
 render_w=$(echo "$input" | jq -r '.render_width_chars // empty' 2>/dev/null)
 [[ -z "$render_w" || "$render_w" == "null" ]] && render_w=$(tput cols 2>/dev/null || echo 120)
 
