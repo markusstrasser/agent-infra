@@ -246,6 +246,42 @@ def test_tracked_unignored_or_symlinked_caches_are_never_candidates(
     assert (elsewhere / "cache" / "index-trees" / "precious").read_text() == "main's\n"
 
 
+def test_cargo_target_is_a_candidate_only_beside_cargo_toml(repo: Path) -> None:
+    (repo / ".gitignore").write_text(".venv/\n.claude/cache/\ntarget/\n")
+    _git("commit", "-qam", "ignore target", cwd=repo)
+    plain = repo.parent / "wts" / "plain"
+    _git("worktree", "add", "-q", "--detach", str(plain), "main", cwd=repo)
+    (plain / "target" / "data").mkdir(parents=True)
+    assert strip_candidates(plain) == []  # an ignored target/ outside Cargo may hold anything
+
+    (repo / "Cargo.toml").write_text('[package]\nname = "x"\n')
+    _git("add", "Cargo.toml", cwd=repo)
+    _git("commit", "-qm", "cargo", cwd=repo)
+    rust = repo.parent / "wts" / "rust"
+    _git("worktree", "add", "-q", "--detach", str(rust), "main", cwd=repo)
+    (rust / "target" / "debug" / "deps").mkdir(parents=True)
+    (rust / "target" / "debug" / "deps" / "libx.rlib").write_bytes(b"\0" * 64)
+    assert strip_candidates(rust) == [rust / "target"]
+
+
+def test_unlanded_cargo_build_survives_idle_reaper_but_not_low_disk_guard(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Lanes idle for hours waiting on peers; idle time alone never costs them a rebuild."""
+    (repo / ".gitignore").write_text(".venv/\n.claude/cache/\ntarget/\n")
+    (repo / "Cargo.toml").write_text('[package]\nname = "x"\n')
+    _git("add", ".gitignore", "Cargo.toml", cwd=repo)
+    _git("commit", "-qm", "cargo", cwd=repo)
+    wt = _lane(repo, "waiting")  # one commit main lacks: unlanded work
+    (wt / "target" / "debug").mkdir(parents=True)
+    (wt / "target" / "debug" / "x").write_bytes(b"\0" * 64)
+    _age(wt, 600)
+    rc, audit = _main(monkeypatch, capsys, "audit", "--repo", str(repo), *GUARD_FLAGS, holders=NO_HOLDER)
+    assert rc == 0 and f"would-strip {wt} .venv=?" in audit and "target=" not in audit
+    rc, _out = _main(monkeypatch, capsys, "prune", "--repo", str(repo), *GUARD_FLAGS, holders=NO_HOLDER)
+    assert rc == 0 and wt.exists() and not (wt / "target").exists()
+
+
 def test_prune_mode_never_removes_a_worktree(
     repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

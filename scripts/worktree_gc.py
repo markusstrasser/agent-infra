@@ -40,7 +40,8 @@ archive --path TREE: explicitly archive, pin HEAD and remove this one tree
 apply --force-stale: also stale (ahead==0) with dirty trees (discards wt edits)
 apply --force-all: everything except --keep, held, and live-locked trees (dangerous)
 apply --strip-idle-caches-min N: also delete the derived caches (.venv, .uv-cache,
-  .claude/cache/index-trees, .claude/cache/source-epochs) of any tree with no process
+  .claude/cache/index-trees, .claude/cache/source-epochs, and Cargo's target/ beside a
+  Cargo.toml) of any tree with no process
   inside and nothing touched for N minutes; a live lock keeps the tree, never its
   caches (audit marks would-strip)
 apply --prune-pytest-hours N: also delete pytest-of-<user> basetemp dirs untouched for N
@@ -2629,13 +2630,18 @@ CACHE_DIRS: tuple[str, ...] = (".venv", ".uv-cache", "node_modules")
 # ENOSPC in two days. Genomics' .claude/cache/source-epochs holds read-only materialized
 # source trees (~200 MB each, every one a self-contained nested repository) rebuilt from
 # their Git tree OID; on 2026-10-19 their nested repositories blocked archive for 12
-# genomics trees.
+# genomics trees. Cargo's `target/` is the largest of all: on 2026-10-27 nine idle arena
+# lane trees held 10-20 GB of build output each (~120 GB) at 12 GB free, and the guard
+# stripped none of it.
 STRIP_DIRS: tuple[str, ...] = (
     ".venv",
     ".uv-cache",
     ".claude/cache/index-trees",
     ".claude/cache/source-epochs",
+    "target",
 )
+# A generic name: an ignored `target/` is Cargo's only beside a Cargo.toml.
+CARGO_ONLY_STRIP_DIRS: frozenset[str] = frozenset({"target"})
 # Strip-class trees inside .claude/cache: the small-report ignored-cache.tgz skips them,
 # and ignored.tgz skips every strip-class tree (archive_worktree).
 _CACHE_STRIP_DIRS: tuple[str, ...] = tuple(
@@ -3729,7 +3735,13 @@ def strip_candidates(wt: Path) -> list[Path]:
     A directory that git tracks anything under, or does not ignore, holds somebody's content
     rather than a derived cache, so it stays. If git cannot answer, nothing is a candidate.
     """
-    found = [p for rel in STRIP_DIRS if (p := _real_subdir(wt, rel)) is not None]
+    cargo = (wt / "Cargo.toml").is_file()
+    found = [
+        p
+        for rel in STRIP_DIRS
+        if (cargo or rel not in CARGO_ONLY_STRIP_DIRS)
+        and (p := _real_subdir(wt, rel)) is not None
+    ]
     if not found:
         return []
     rels = [p.relative_to(wt).as_posix() for p in found]
@@ -3841,8 +3853,15 @@ def plan_cache_strip(
     exclude: list[WorktreeRow],
     mapped: dict[str, list[int]],
     now: float | None = None,
+    builds_need_landed_work: bool = False,
 ) -> list[tuple[WorktreeRow, list[Path]]]:
     """(tree, caches) to strip: no process inside and nothing touched for ``idle_min`` minutes.
+
+    A Cargo `target/` costs minutes of compiling to rebuild, against seconds for a `.venv`
+    from the shared uv cache, and lanes often sit idle for hours waiting on peers, so idle
+    time says nothing about whether it is still wanted. With ``builds_need_landed_work``
+    (the intra-day reaper) it goes only once the tree's work is on main; the low-disk guard
+    passes False and strips it on idleness, since a full volume costs more than a rebuild.
 
     Idle means all of: no process has its cwd in the tree (HELD/DAEMON); no process maps a
     file inside the cache (``mapped``: a `.venv` python started from elsewhere); and no
@@ -3878,9 +3897,21 @@ def plan_cache_strip(
             stamps.append(root)
         for cache in caches:
             stamps.extend(cache_activity_stamps(cache))
-        if stamps and (now - max(stamps)) / 60.0 >= idle_min:
+        if not (stamps and (now - max(stamps)) / 60.0 >= idle_min):
+            continue
+        if builds_need_landed_work and not _work_on_main(row):
+            caches = [c for c in caches if c.name not in CARGO_ONLY_STRIP_DIRS]
+        if caches:
             out.append((row, caches))
     return out
+
+
+def _work_on_main(row: WorktreeRow) -> bool:
+    """Every commit and edit of ``row`` is already on main (classify's landed/DUP/SAFE facts,
+    read past the lock and holder verdicts that only decide whether the tree itself stays)."""
+    return bool(
+        (row.dirty and row.landed) or (row.dup and not row.dirty) or row.clean_on_main
+    )
 
 
 # pytest roots each session at `pytest-of-<user>/pytest-<N>` and rotates old sessions out by
@@ -4763,6 +4794,7 @@ def main() -> int:
                 keep,
                 exclude=to_remove + idle_rows + archive_rows + landed_rows,
                 mapped=mapped,
+                builds_need_landed_work=not pruning,
             )
         else:
             print(
