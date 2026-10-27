@@ -4311,11 +4311,19 @@ def suggest(
         except PrivateSizeError as error:
             size_bytes = None
             reasons.append(f"private size unknown: {error}")
-        untracked = run(
-            ["git", "ls-files", "--others", "--exclude-standard", "-z"],
-            cwd=row.path,
-            check=True,
-        )
+        try:
+            untracked = run(
+                ["git", "ls-files", "--others", "--exclude-standard", "-z"],
+                cwd=row.path,
+                check=True,
+            )
+        except FileNotFoundError:
+            # A peer removed the tree after the listing; a scan takes minutes under load,
+            # and on 2026-10-27 one removal failed every disk-guard run.
+            if row.path.is_dir():
+                raise
+            print(f"skip {row.path}: removed during the scan", file=sys.stderr)
+            continue
         untracked_count = len([p for p in untracked.stdout.split("\0") if p])
         record: dict[str, object] = {
             "path": str(row.path),

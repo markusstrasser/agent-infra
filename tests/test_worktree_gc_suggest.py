@@ -385,3 +385,22 @@ def test_json_diagnostics_for_missing_tree_go_to_stderr(repo, monkeypatch, capsy
     assert payload["not_candidates"] == []
     assert "prunable" in diagnostic
     assert git_dir.stat().st_mtime_ns == before
+
+
+def test_tree_removed_during_the_scan_is_skipped_on_stderr(repo, monkeypatch, capsys):
+    tree(repo, "gone")
+    tree(repo, "kept")
+    sized = worktree_gc.private_tree_bytes
+    import shutil
+
+    def remove_gone_first(root):
+        # A peer's cleanup removes the tree between the listing and its inspection.
+        if root.name == "gone" and root.exists():
+            shutil.rmtree(root)
+        return sized(root)
+
+    monkeypatch.setattr(worktree_gc, "private_tree_bytes", remove_gone_first)
+    result, payload, diagnostic = invoke(monkeypatch, capsys, "--repo", str(repo))
+    assert result == 0
+    assert set(by_name(payload)) == {"kept"}
+    assert "gone: removed during the scan" in diagnostic
