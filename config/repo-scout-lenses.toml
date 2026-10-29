@@ -1,0 +1,20 @@
+# repo_scout lenses: each lens is one interest, defined by exemplar repos. The scout finds
+# the people who build and star repos like these and surfaces what they star now.
+# Add a repo you were glad to find; drop one that keeps pulling the feed off target.
+# The "projects" lens is built in: his active projects' dependencies plus his recent stars.
+
+[ml-frontier]
+description = "architectures, tokenization, kernels and megakernels, optimizers and losses"
+exemplars = [
+  # architectures and tokenizer-free models
+  "goombalab/hnet", "facebookresearch/blt", "state-spaces/mamba",
+  "fla-org/flash-linear-attention", "lucidrains/x-transformers",
+  # training recipes, optimizers
+  "KellerJordan/modded-nanogpt", "KellerJordan/Muon", "karpathy/nanochat",
+  # tokenizers
+  "karpathy/minbpe", "openai/tiktoken", "alasdairforsythe/tokenmonster",
+  # kernels, megakernels, fused losses
+  "DeepakSingh98/latch", "mirage-project/mirage", "HazyResearch/ThunderKittens",
+  "HazyResearch/Megakernels", "flashinfer-ai/flashinfer", "tile-ai/tilelang",
+  "meta-pytorch/gpt-fast", "linkedin/Liger-Kernel", "apple-aiml-research/ml-cross-entropy",
+]
