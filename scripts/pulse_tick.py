@@ -79,6 +79,10 @@ def _drift_sections() -> list[dict]:
 
             if re.search(pat, text, re.I):
                 flags.append({"check": name, "excerpt": "\n".join(text.splitlines()[:8])})
+        except subprocess.TimeoutExpired as exc:
+            # The command line alone used to fill the 120-char excerpt, so a slow check
+            # read as a drift finding ("worktree_stranded: Command [...]").
+            flags.append({"check": name, "error": f"check timed out after {exc.timeout:.0f}s — no verdict"})
         except Exception as exc:
             flags.append({"check": name, "error": str(exc)[:120]})
     return flags
