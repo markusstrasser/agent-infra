@@ -425,6 +425,14 @@ def test_human_md_rollup_receipts_close_the_ask_they_name(tmp_path, monkeypatch)
     ]
 
 
+def test_human_md_unclosed_fence_does_not_swallow_later_asks(tmp_path, monkeypatch):
+    text = ("## 2026-06-28 — log\n```bash\nrun thing\n\n"
+            "## 2026-06-29 10:00 — Ask: keep the archive?\nbody\n")
+    monkeypatch.setattr(qv, "HUMAN_MD_ROOT", _mk_projects(tmp_path, r=text))
+    result = qv.collect_questions(tmp_path)
+    assert [q.prompt for q in result.questions] == ["2026-06-29 10:00 — Ask: keep the archive?"]
+
+
 def test_human_md_absent_root_silent(tmp_path, monkeypatch):
     monkeypatch.setattr(qv, "HUMAN_MD_ROOT", tmp_path / "nowhere")
     result = qv.collect_questions(tmp_path)

@@ -383,13 +383,17 @@ class HumanBlock:
 
 
 def _strip_fences(text: str) -> str:
-    """Blank out fenced code blocks (``` / ~~~) so template examples never parse."""
+    """Blank out fenced code blocks (``` / ~~~) so template examples never parse.
+    A fence that never closes is left as text: blanking to EOF silently hid every later
+    ask and receipt (substrate HUMAN.md, 2026-10-30)."""
+    src = text.splitlines()
     out: list[str] = []
     fence = None
-    for line in text.splitlines():
+    opened = 0
+    for n, line in enumerate(src):
         s = line.lstrip()
         if fence is None and (s.startswith("```") or s.startswith("~~~")):
-            fence = s[:3]
+            fence, opened = s[:3], n
             out.append("")
             continue
         if fence is not None:
@@ -398,6 +402,8 @@ def _strip_fences(text: str) -> str:
             out.append("")
             continue
         out.append(line)
+    if fence is not None:
+        out[opened:] = src[opened:]
     return "\n".join(out)
 
 
