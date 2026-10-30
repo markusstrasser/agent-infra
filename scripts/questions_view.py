@@ -350,10 +350,27 @@ _HUMAN_HEAD_RE = re.compile(
 )
 _HUMAN_ANSWER_RE = re.compile(r"^\s*(?:[-*]\s+)?\[answered\b", re.I)
 _HUMAN_CONSUMED_RE = re.compile(r"^\s*(?:[-*]\s+)?(?:consumed|superseded):\s*\S", re.I)
-_HUMAN_ASK_TITLE_RE = re.compile(r"\bask\b|\?|\bcalls?\b|\byours?\b|\bneeds? you", re.I)
+# A dated receipt mid-line also counts: roll-up blocks write `- 03:05 C2 → approved.
+# consumed: 2026-10-20 13:52 — …` (genomics 10-20..23: 9 answered asks read as open).
+_HUMAN_INLINE_RECEIPT_RE = re.compile(r"\b(?:consumed|superseded):\s*(?P<date>\d{4}-\d{2}-\d{2})"
+                                      r"(?:\s+(?P<time>\d{1,2}:\d{2})\b)?", re.I)
+# "your question" / "your heads-up" / "your answers" title an agent's reply, not an ask.
+_HUMAN_ASK_TITLE_RE = re.compile(
+    r"\bask\b|\?|\bcalls?\b|\byours\b|\byour\b(?!\s+(?:question|heads-up|answers?)\b)|\bneeds? you",
+    re.I,
+)
 _HUMAN_RETIRED_TITLE_RE = re.compile(r"\bsuperseded\b|~~", re.I)
-_HUMAN_ASK_BODY_RE = re.compile(r"^\s*(?:[-*]\s+)?\**(?:ask|your calls?)\b", re.I)
+_HUMAN_ASK_BODY_RE = re.compile(
+    r"^\s*(?:[-*]\s+)?\**(?:the\s+(?:only\s+)?)?(?:ask|your calls?)\b", re.I)
 _HUMAN_DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
+# Timestamp references inside a receipt line: `2026-10-20 09:45`, `10-20 09:45`, bare `09:45`.
+_HUMAN_STAMP_RE = re.compile(r"(?:(?P<y>\d{4})-)?(?:(?P<md>\d{2}-\d{2})\s+)?(?<![\d:])"
+                             r"(?P<hm>\d{1,2}:\d{2})(?![\d:])")
+_HUMAN_TOKEN_RE = re.compile(r"[a-z0-9][a-z0-9.]*[a-z0-9]|[a-z]")
+_HUMAN_STOPWORDS = frozenset(
+    "the and for with from that this into your you our not but its are was can all any "
+    "one two new now ask jst session item items block answer answers question questions "
+    "call calls yes no ok go".split())
 
 
 @dataclass(frozen=True)
@@ -384,13 +401,13 @@ def _strip_fences(text: str) -> str:
     return "\n".join(out)
 
 
-def _human_block_status(title: str, tag: str | None, body: list[str]) -> str | None:
+def _human_block_status(title: str, tag: str | None, body: list[str],
+                        receipts: list[float]) -> str | None:
     answers = [j for j, line in enumerate(body) if _HUMAN_ANSWER_RE.match(line)]
     if tag and tag.startswith("answered"):
         answers.insert(0, -1)  # the heading tag is the first answer
-    receipts = [j for j, line in enumerate(body) if _HUMAN_CONSUMED_RE.match(line)]
     if answers:
-        return "awaiting" if not receipts or receipts[-1] < answers[-1] else "closed"
+        return "awaiting" if not receipts or max(receipts) < answers[-1] else "closed"
     if receipts:
         return "closed"
     if tag == "open":
@@ -402,17 +419,78 @@ def _human_block_status(title: str, tag: str | None, body: list[str]) -> str | N
     return None
 
 
+def _human_stamp(title: str) -> tuple[str, str] | None:
+    """(YYYY-MM-DD, HH:MM) of a heading, or None when it carries no clock time."""
+    d = _HUMAN_DATE_RE.search(title)
+    if d is None:
+        return None
+    t = re.search(r"(?<![\d:])(\d{1,2}):(\d{2})(?![\d:])", title[d.end():])
+    return (d.group(0), f"{int(t.group(1)):02d}:{t.group(2)}") if t else None
+
+
+def _human_tokens(s: str) -> set[str]:
+    return {t for t in _HUMAN_TOKEN_RE.findall(s.lower())
+            if t not in _HUMAN_STOPWORDS and not re.fullmatch(r"[\d.]+", t)}
+
+
+def _receipt_targets(line: str, host_date: str, earlier: dict[tuple[str, str], list[int]],
+                     titles: list[str]) -> list[int]:
+    """Earlier blocks a receipt line closes. The stamp in receipt position
+    (`consumed: <date> <time>`, the documented `<ref>` slot) names its ask outright; any
+    other stamp in the line must also share a title word, because roll-ups mix ask
+    stamps with answer and receipt clock times (`09:45 PGC mirror → 14:31 "ok do"`)."""
+    rm = _HUMAN_INLINE_RECEIPT_RE.search(line)
+    strong = None
+    if rm and rm.group("time"):
+        h, mi = rm.group("time").split(":")
+        strong = (rm.group("date"), f"{int(h):02d}:{mi}")
+    words = _human_tokens(line)
+    confirmed: set[int] = set()
+    for m in _HUMAN_STAMP_RE.finditer(line):
+        if m.group("y") and not m.group("md"):
+            continue  # `2026-10` swallowed as year + no month-day: not a stamp
+        year = m.group("y") or host_date[:4]
+        md = m.group("md") or host_date[5:]
+        h, mi = m.group("hm").split(":")
+        key = (f"{year}-{md}", f"{int(h):02d}:{mi}")
+        confirmed |= {b for b in earlier.get(key, []) if words & _human_tokens(titles[b])}
+    # The receipt slot often holds the receipt's own clock time instead of the ask's
+    # (`09:45 PGC mirror → … consumed: 2026-10-20 15:50`, and 15:50 is another ask), so it
+    # decides alone only when no word-confirmed stamp names the ask.
+    if confirmed:
+        return sorted(confirmed)
+    return sorted(earlier.get(strong, [])) if strong else []
+
+
 def _human_blocks(text: str) -> list[HumanBlock]:
-    """Every dated HUMAN.md block with its derived status (one grammar for reader + writer)."""
+    """Every dated HUMAN.md block with its derived status (one grammar for reader + writer).
+    Receipts are attributed file-wide: a receipt that names an earlier ask closes that ask
+    (at +inf, after all its answers) instead of its host block."""
     lines = _strip_fences(text).splitlines()
     heads = [(i, m) for i, line in enumerate(lines) if (m := _HUMAN_HEAD_RE.match(line))]
+    spans = [(i, heads[n + 1][0] if n + 1 < len(heads) else len(lines)) for n, (i, _) in enumerate(heads)]
+    titles = [m.group("title").strip().strip("·—- ") for _, m in heads]
+    receipts: list[list[float]] = [[] for _ in heads]
+    earlier: dict[tuple[str, str], list[int]] = {}
+    for n, (i, end) in enumerate(spans):
+        dm = _HUMAN_DATE_RE.search(titles[n])
+        host_date = dm.group(0) if dm else ""
+        for j, line in enumerate(lines[i + 1 : end]):
+            inline = _HUMAN_INLINE_RECEIPT_RE.search(line)
+            if not (_HUMAN_CONSUMED_RE.match(line) or inline):
+                continue
+            targets = _receipt_targets(line, host_date, earlier, titles) if host_date else []
+            for b in targets:
+                receipts[b].append(float("inf"))
+            if not targets:
+                receipts[n].append(j)
+        if (stamp := _human_stamp(titles[n])):
+            earlier.setdefault(stamp, []).append(n)
     blocks: list[HumanBlock] = []
-    for n, (i, m) in enumerate(heads):
-        end = heads[n + 1][0] if n + 1 < len(heads) else len(lines)
-        title = m.group("title").strip().strip("·—- ")
+    for n, ((i, end), (_, m)) in enumerate(zip(spans, heads)):
         tag = (m.group("tag") or "").lower() or None
-        status = _human_block_status(title, tag, lines[i + 1 : end])
-        blocks.append(HumanBlock(head=i, end=end, title=title, tag=tag, status=status))
+        status = _human_block_status(titles[n], tag, lines[i + 1 : end], receipts[n])
+        blocks.append(HumanBlock(head=i, end=end, title=titles[n], tag=tag, status=status))
     return blocks
 
 

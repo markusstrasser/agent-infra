@@ -366,6 +366,59 @@ def test_human_md_untagged_grammar_reads_body_status(tmp_path, monkeypatch):
     ]
 
 
+ROLLUP_STYLE = """# HUMAN.md
+
+## 2026-10-19 20:05 JST — B2 copy of the 78 AT_RISK datasets
+Ask: GO to copy them to B2?
+
+## 2026-10-20 03:05 JST — C2 build blocked (delete 13.75 GiB?)
+Decision: may I delete both paths?
+
+## 2026-10-20 09:45 — retire the PGC mirror?
+Decision 4: retire or keep.
+
+## 2026-10-20 15:50 — worktrees resolved; two questions
+Ask: REVEL — wire it or retire it?
+
+## 2026-10-20 23:15 — Codex usage limit and credits exhausted (operator account)
+Ask: buy credits?
+
+## 2026-10-20 13:45 — your answers in chat, and what I did
+- 03:05 C2 → approved. consumed: 2026-10-20 13:52 — deleted the release; build running.
+- 10-19 20:05 B2 copy → GO. consumed: 2026-10-20 15:10 P3.24 — copied 35 datasets.
+- 09:45 PGC mirror → 14:31 "ok do". consumed: 2026-10-20 15:50 — lane retired the keys.
+
+## 2026-10-21 22:30 — your 22:17 answers, recorded
+- consumed: 2026-10-20 23:15 Codex credits — no; DeepSeek lanes for now.
+
+## 2026-10-21 23:05 — one older defect needs your call
+- consumed: 2026-10-21 22:30 the earlier batch — recorded above.
+- **Your call:** withhold, union, or leave?
+
+## 2026-10-22 00:39 — dbNSFP addendum: what it is for (your question)
+It supplies two predictors.
+
+## 2026-10-23 00:12 JST — AlphaGenome Atlas bulk file: one download only you can do
+The only ask: paste the link here.
+"""
+
+
+def test_human_md_rollup_receipts_close_the_ask_they_name(tmp_path, monkeypatch):
+    """genomics 10-20..23: answers recorded in roll-up blocks left 9 asks reading open,
+    and asks phrased "The only ask:" never surfaced."""
+    monkeypatch.setattr(qv, "HUMAN_MD_ROOT", _mk_projects(tmp_path, genomics=ROLLUP_STYLE))
+    result = qv.collect_questions(tmp_path)
+    assert sorted(q.prompt for q in result.questions) == [
+        # the PGC line's receipt time 15:50 collides with this ask; the word-confirmed
+        # 09:45 stamp wins, so this ask stays open
+        "2026-10-20 15:50 — worktrees resolved; two questions",
+        # its only receipt names the 22:30 block, so it does not close its host
+        "2026-10-21 23:05 — one older defect needs your call",
+        # "The only ask:" body; "your question" title stays FYI
+        "2026-10-23 00:12 JST — AlphaGenome Atlas bulk file: one download only you can do",
+    ]
+
+
 def test_human_md_absent_root_silent(tmp_path, monkeypatch):
     monkeypatch.setattr(qv, "HUMAN_MD_ROOT", tmp_path / "nowhere")
     result = qv.collect_questions(tmp_path)
