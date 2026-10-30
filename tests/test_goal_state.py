@@ -49,6 +49,31 @@ class TestGoalStateFromTranscript:
         assert state["status"] == "achieved"
         assert state["source"] == "explicit_rsi_close"
 
+    def test_nudge_and_skill_listing_in_request_blob_are_not_a_close(self):
+        """2026-10-30: 20 of 25 pending digests were 'explicit_rsi_close' from the
+        SessionStart nudge copied into an api-request-blob record."""
+        blob = {
+            "type": "api-request-blob",
+            "message": {"role": "user", "content": [{"type": "text", "text":
+                "Prior session x has an RSI close digest. Run `/rsi close` to verify one claim. "
+                "- rsi: Use when: /rsi close, goal achieved + verify one claim."}]},
+            "timestamp": "2026-10-21T10:00:00Z",
+        }
+        state = gs.goal_state_from_transcript([json.dumps(blob)])
+        assert state["source"] != "explicit_rsi_close"
+        assert state["status"] != "achieved"
+
+    def test_mention_in_prose_is_not_a_close(self):
+        line = {"type": "user", "message": {"role": "user", "content": [{"type": "text",
+                "text": "the session ran `/rsi close` itself"}]}, "timestamp": "2026-10-30T03:00:00Z"}
+        assert gs.goal_state_from_transcript([json.dumps(line)])["source"] != "explicit_rsi_close"
+
+    def test_rsi_skill_call_with_close_counts(self):
+        line = {"type": "assistant", "message": {"role": "assistant", "content": [
+            {"type": "tool_use", "name": "Skill", "input": {"skill": "rsi", "args": "close"}}]},
+            "timestamp": "2026-10-30T03:00:00Z"}
+        assert gs.goal_state_from_transcript([json.dumps(line)])["source"] == "explicit_rsi_close"
+
     def test_goal_clear(self):
         lines = [
             json.dumps(

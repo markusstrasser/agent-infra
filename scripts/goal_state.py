@@ -11,11 +11,18 @@ import json
 import re
 from typing import Any, Literal
 
+from common import transcript_text
+
 GoalStatus = Literal["achieved", "active", "blocked", "cleared", "unknown"]
 GoalSource = Literal["claude_transcript", "codex_app_server", "explicit_rsi_close", "none"]
 
 _GOAL_ACHIEVED_TEXT = re.compile(r"\bgoal achieved\b|\bgoal met\b", re.IGNORECASE)
-_RSI_CLOSE = re.compile(r"/rsi\s+close\b", re.IGNORECASE)
+_RSI_CLOSE = re.compile(r"^\s*/rsi\s+close\b", re.IGNORECASE)
+_RSI_COMMAND = re.compile(r"<command-name>/?rsi</command-name>\s*<command-args>\s*close\b", re.IGNORECASE)
+# Only conversation records carry marker text. api-request-blob (and similar) copy the
+# whole model request: the SessionStart "Run `/rsi close`" nudge and the skills listing
+# ("goal achieved + verify one claim") made nearly every session an explicit close.
+_TEXT_RECORD_TYPES = frozenset({"user", "assistant", "system"})
 _GOAL_ACTIVE_TEXT = re.compile(r"/goal active|◎\s*/goal active", re.IGNORECASE)
 
 
@@ -61,6 +68,8 @@ def _attachment_goal_status(obj: dict) -> dict | None:
 
 
 def _text_blob(obj: dict) -> str:
+    if obj.get("type") not in _TEXT_RECORD_TYPES or transcript_text.is_harness_injected(obj):
+        return ""
     parts: list[str] = []
     msg = obj.get("message") or {}
     content = msg.get("content")
@@ -73,6 +82,22 @@ def _text_blob(obj: dict) -> str:
     if obj.get("type") == "user" and isinstance(obj.get("message"), dict):
         pass  # already handled
     return " ".join(parts)
+
+
+def _explicit_rsi_close(obj: dict) -> bool:
+    """The operator typed `/rsi close`, or the agent invoked the rsi skill with `close`.
+    Mentions of the command (nudges, relays, prose) never count."""
+    if obj.get("type") == "assistant":
+        for block in (obj.get("message") or {}).get("content") or []:
+            if (isinstance(block, dict) and block.get("type") == "tool_use"
+                    and block.get("name") == "Skill"):
+                inp = block.get("input") or {}
+                if inp.get("skill") == "rsi" and str(inp.get("args", "")).strip().lower().startswith("close"):
+                    return True
+        return False
+    if not transcript_text.is_operator_authored(obj):
+        return False
+    return any(_RSI_CLOSE.search(t) or _RSI_COMMAND.search(t) for t in transcript_text.user_texts(obj))
 
 
 def goal_state_from_transcript(lines: list[str]) -> dict[str, Any]:
@@ -162,7 +187,7 @@ def goal_state_from_transcript(lines: list[str]) -> dict[str, Any]:
                 evidence_ts=ts,
                 raw_ref="text:/goal active",
             )
-        if text and _RSI_CLOSE.search(text):
+        if _explicit_rsi_close(obj):
             explicit_rsi = True
 
         # slash command in user message
