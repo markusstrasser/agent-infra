@@ -12,6 +12,8 @@ import type { Check, Kind, Note, Usage } from '../types'
 // The relay pastes the built-in You-should-know cards into the conversation
 // the same way, by watching that mod's own store write. Every check's tokens
 // land in ~/.claude/side-watch/<session>.json (eval-token-costs rule).
+// The turn-end fork is gated: it runs only when the final message claims an
+// outcome or the person's last prompt pushed back, so plain answers cost nothing.
 
 const notes = atom({ plugin: 'side-watch', key: 'notes' } as const, [])
 const checks = atom({ plugin: 'side-watch', key: 'checks' } as const, [])
@@ -51,6 +53,15 @@ export const STUCK_PROMPT = [
   'When in doubt, report nothing.',
   'Reply exactly `NONE`, or one line `STUCK: <the evidence, then the one change that would unstick it>`, at most 35 words. No other text.',
 ].join('\n')
+
+const CLAIM_CUE =
+  /\b(done|ran|passe[sd]|passing|committed|pushed|fixed|measured|verified|confirmed|shipped|landed|deployed|succeeded|tests? (?:pass|green))\b|✓/i
+const PUSHBACK_CUE =
+  /^\s*#f\b|\b(no|nope|wrong|incorrect|not true|that'?s not|you said|are you sure|why did you|why didn'?t you|actually|disagree|doesn'?t work|still broken)\b/i
+
+export function needsTurnEndCheck(answer: string, lastPrompt: string): boolean {
+  return CLAIM_CUE.test(answer) || PUSHBACK_CUE.test(lastPrompt)
+}
 
 type Found = { kind: Kind; line: string }
 type Parsed = { outcome: 'none' | 'notes' | 'unparsed'; found: Found[] }
@@ -186,6 +197,8 @@ function summary(list: readonly Check[]): string {
 
 export const register: Register = on => {
   const steps = new Map<string, number>()
+  let lastPrompt = ''
+  let gated = 0
 
   on('session.start', async ($, e, next) => {
     await $.command.register({
@@ -197,7 +210,10 @@ export const register: Register = on => {
   })
 
   on('prompt.submit', async ($, e, next) => {
-    if (e.origin.kind !== 'plugin' && !e.isMeta) await update($, notes, () => [])
+    if (e.origin.kind !== 'plugin' && !e.isMeta) {
+      lastPrompt = e.text
+      await update($, notes, () => [])
+    }
     return next(e)
   })
 
@@ -218,6 +234,10 @@ export const register: Register = on => {
     if (e.agentId !== undefined || e.isAborted || e.answer.trim() === '' || !(await read($, isOn))) return result
     const step = steps.get(e.turnId) ?? 0
     steps.delete(e.turnId)
+    if (!needsTurnEndCheck(e.answer, lastPrompt)) {
+      gated += 1
+      return result
+    }
     const prompt = turnEndPrompt(e.answer)
     $.clock.after(500, () => void fork($, 'turn-end', e.turnId, step, prompt, ['claim', 'stance']))
     return result
@@ -284,6 +304,6 @@ export const register: Register = on => {
       `relay ${(await read($, relay)) ? 'on' : 'off'}`,
       `built-in backoff ${(await read($, noBackoff)) ? 'off' : 'on'}`,
     ].join(' · ')
-    return { text: `${state}\n${summary(await read($, checks))}\nlog: ${await sessionFile($)}` }
+    return { text: `${state}\n${summary(await read($, checks))} · ${gated} turn ends skipped by the gate\nlog: ${await sessionFile($)}` }
   })
 }

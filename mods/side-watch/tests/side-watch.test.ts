@@ -2,7 +2,7 @@ import type { On } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
-import { offerFor, parseReply, turnEndPrompt } from '../hooks/register'
+import { needsTurnEndCheck, offerFor, parseReply, turnEndPrompt } from '../hooks/register'
 
 const USAGE = { input_tokens: 12, output_tokens: 9, cache_read_input_tokens: 40_000, cache_creation_input_tokens: 0 }
 
@@ -78,10 +78,26 @@ test('NONE stays quiet', async ($, on) => {
   const seen = fresh()
   const clock = host(on, () => 'NONE', seen)
   await $.session.start({ cwd: '/h', surface: 'terminal', isInteractive: true })
-  await turn($, 't1', 'Here is the answer.')
+  await turn($, 't1', 'All tests pass.')
   await clock.advance(1_000)
   expect(seen.prompts.length).toBe(1)
   expect(seen.appended.length).toBe(0)
+})
+
+test('a plain answer with no claim and no pushback skips the fork', async ($, on) => {
+  const seen = fresh()
+  const clock = host(on, () => 'NONE', seen)
+  await $.session.start({ cwd: '/h', surface: 'terminal', isInteractive: true })
+  await turn($, 't1', 'Here is the answer.')
+  await clock.advance(1_000)
+  expect(seen.prompts.length).toBe(0)
+})
+
+test('the gate fires on outcome claims and on pushback', () => {
+  expect(needsTurnEndCheck('Fixed it and committed.', '')).toBe(true)
+  expect(needsTurnEndCheck('Both suites pass ✓', '')).toBe(true)
+  expect(needsTurnEndCheck('The cache is keyed by path.', 'are you sure about that?')).toBe(true)
+  expect(needsTurnEndCheck('Here is how the cache works.', 'how does the cache work?')).toBe(false)
 })
 
 test('/watch now runs both watchers; STUCK notifies the person and is not injected', async ($, on) => {
