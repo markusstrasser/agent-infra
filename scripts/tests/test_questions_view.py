@@ -390,10 +390,14 @@ Ask: buy credits?
 
 ## 2026-10-21 22:30 — your 22:17 answers, recorded
 - consumed: 2026-10-20 23:15 Codex credits — no; DeepSeek lanes for now.
+- **Ask:** keep the lane cap at two?
 
 ## 2026-10-21 23:05 — one older defect needs your call
-- consumed: 2026-10-21 22:30 the earlier batch — recorded above.
+- consumed: 2026-10-21 22:30 umbrella rule — lands next batch.
 - **Your call:** withhold, union, or leave?
+
+## 2026-10-22 08:00 — nightly suite green
+- consumed: 2026-10-21 22:30 — suite passed.
 
 ## 2026-10-22 00:39 — dbNSFP addendum: what it is for (your question)
 It supplies two predictors.
@@ -412,7 +416,9 @@ def test_human_md_rollup_receipts_close_the_ask_they_name(tmp_path, monkeypatch)
         # the PGC line's receipt time 15:50 collides with this ask; the word-confirmed
         # 09:45 stamp wins, so this ask stays open
         "2026-10-20 15:50 — worktrees resolved; two questions",
-        # its only receipt names the 22:30 block, so it does not close its host
+        # two receipt-slot stamps cite 22:30 with no shared title word: each may be a
+        # clock time, so neither closes the 22:30 ask nor its own host
+        "2026-10-21 22:30 — your 22:17 answers, recorded",
         "2026-10-21 23:05 — one older defect needs your call",
         # "The only ask:" body; "your question" title stays FYI
         "2026-10-23 00:12 JST — AlphaGenome Atlas bulk file: one download only you can do",

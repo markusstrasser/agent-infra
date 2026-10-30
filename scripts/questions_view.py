@@ -434,11 +434,14 @@ def _human_tokens(s: str) -> set[str]:
 
 
 def _receipt_targets(line: str, host_date: str, earlier: dict[tuple[str, str], list[int]],
-                     titles: list[str]) -> list[int]:
-    """Earlier blocks a receipt line closes. The stamp in receipt position
-    (`consumed: <date> <time>`, the documented `<ref>` slot) names its ask outright; any
-    other stamp in the line must also share a title word, because roll-ups mix ask
-    stamps with answer and receipt clock times (`09:45 PGC mirror → 14:31 "ok do"`)."""
+                     titles: list[str]) -> list[int] | None:
+    """Earlier blocks a receipt line closes: those whose heading stamp the line cites AND
+    whose title shares a word with it, because roll-ups mix ask stamps with answer and
+    receipt clock times (`09:45 PGC mirror → 14:31 "ok do" … consumed: 2026-10-20 15:50`,
+    where 15:50 is another ask). [] = the receipt is its host's. None = its receipt slot
+    names another ask without a shared word (`consumed: 2026-10-20 20:20 item 5 umbrella
+    rule`): the stamp may be the receipt's own clock time, so it closes nothing — neither
+    that ask nor its host. Both wrong closes are silent; an extra open row is not."""
     rm = _HUMAN_INLINE_RECEIPT_RE.search(line)
     strong = None
     if rm and rm.group("time"):
@@ -454,12 +457,9 @@ def _receipt_targets(line: str, host_date: str, earlier: dict[tuple[str, str], l
         h, mi = m.group("hm").split(":")
         key = (f"{year}-{md}", f"{int(h):02d}:{mi}")
         confirmed |= {b for b in earlier.get(key, []) if words & _human_tokens(titles[b])}
-    # The receipt slot often holds the receipt's own clock time instead of the ask's
-    # (`09:45 PGC mirror → … consumed: 2026-10-20 15:50`, and 15:50 is another ask), so it
-    # decides alone only when no word-confirmed stamp names the ask.
     if confirmed:
         return sorted(confirmed)
-    return sorted(earlier.get(strong, [])) if strong else []
+    return None if strong and earlier.get(strong) else []
 
 
 def _human_blocks(text: str) -> list[HumanBlock]:
@@ -480,6 +480,8 @@ def _human_blocks(text: str) -> list[HumanBlock]:
             if not (_HUMAN_CONSUMED_RE.match(line) or inline):
                 continue
             targets = _receipt_targets(line, host_date, earlier, titles) if host_date else []
+            if targets is None:
+                continue
             for b in targets:
                 receipts[b].append(float("inf"))
             if not targets:
