@@ -30,6 +30,16 @@ do_exec() {
 # Need a real binary (except in dry-run, where we never exec).
 [ -n "$REAL_CLAUDE" ] || [ -n "$DRYRUN" ] || { say "claude-launch: real 'claude' not on PATH"; exit 127; }
 
+# Interactive sessions load the agent-infra mods (mods/README.md), --worktree
+# included; headless runs (-p, piped stdin) skip them so dispatches never pay for
+# side-watch forks. A dir set by the caller wins; ablation stays opt-in.
+HEADLESS=""
+for a in "$@"; do case "$a" in -p|--print) HEADLESS=1 ;; esac; done
+[ -t 0 ] || [ -n "$DRYRUN" ] || HEADLESS=1
+MODS="$(dirname "$HERE")/mods"
+[ -n "$HEADLESS" ] || export CLAUDE_CODE_PLUGIN_DIRS="${CLAUDE_CODE_PLUGIN_DIRS:-$MODS/control-plane:$MODS/fleet:$MODS/tick:$MODS/side-watch}"
+[ -n "$HEADLESS" ] || [ -z "$DRYRUN" ] || echo "[dry-run] plugin dirs: $CLAUDE_CODE_PLUGIN_DIRS"
+
 # --- Passthrough conditions: no prompt, no worktree, just run claude ---
 # Headless (-p/--print) or an explicit --worktree the user already chose.
 for a in "$@"; do

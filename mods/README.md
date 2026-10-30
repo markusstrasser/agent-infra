@@ -11,8 +11,11 @@ timers and forks.
 | `control-plane` | Band above the prompt with the control-plane queue (questions, RSI close, quarantine, drift), read from `pulse funnel --json`, `questions_view --json` and the inbox. The questions pane writes HUMAN.md answers through `scripts/human_md_answer.py` | `/questions`, `/control-plane` |
 | `tick` | Local wakeups: `$.clock` + `$.prompt.submit`. Uses none of the account routine quota and dies with the process | `/tick`, tool `mcp__tick__wake` |
 | `ablation` | Per-session harness A/B: drops the instruction files named in `~/.claude/harness-ablation.json` in a hashed treatment arm and records the arm in `~/.claude/harness-ablation/<session>.json` | `/ablation` |
-| `side-watch` | `$.model.fork` side checks answered from the prompt cache: CLAIM + STANCE at each main-thread turn end (the final message is passed in, since a fork replays the last request, which lacks it), STUCK every 10 steps. Colored tags in the band; CLAIM/STANCE are appended for the model, STUCK only notifies the person. Also relays the built-in You-should-know cards into the conversation and holds its typed-past backoff at 0. Tokens per check in `~/.claude/side-watch/<session>.json`. Replaced `drift-fork` (never loaded, 0 checks) | `/watch` |
+| `side-watch` | `$.model.fork` side checks answered from the prompt cache: CLAIM + STANCE at main-thread turn ends whose final message claims an outcome or follow a pushback prompt (regex gate; fired on 73% of 1,768 recent turn ends) (the final message is passed in, since a fork replays the last request, which lacks it), STUCK every 10 steps. Colored tags in the band; CLAIM/STANCE are appended for the model, STUCK only notifies the person. Also relays the built-in You-should-know cards into the conversation and holds its typed-past backoff at 0. Tokens per check in `~/.claude/side-watch/<session>.json`. Replaced `drift-fork` (never loaded, 0 checks) | `/watch` |
 | `fleet` | Pane listing subagents, background tasks, `bgrun` jobs and lanes that are not DONE | `/fleet` |
 
-Load for one session: `claude --plugin-dir ~/Projects/agent-infra/mods/<mod>` (repeatable).
-Load everywhere: list the folders in `CLAUDE_CODE_PLUGIN_DIRS`.
+Interactive sessions launched through the `claude` alias (`scripts/claude-launch.sh`) load
+`control-plane`, `fleet`, `tick` and `side-watch` via `CLAUDE_CODE_PLUGIN_DIRS` (colon-separated);
+headless runs (`-p`, piped stdin) load none, and a value you set yourself wins. `ablation` stays
+opt-in: `claude --plugin-dir ~/Projects/agent-infra/mods/ablation`. Until 2026-10-30 nothing set
+the variable, so no session after the 10-26 build loaded any mod.
