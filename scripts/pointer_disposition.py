@@ -61,7 +61,9 @@ def normalize_url(url: str) -> str:
         netloc = "github.com"
         path = f"/{m2.group(1)}/{m2.group(2)}/{m2.group(3)}"
     path = path.rstrip("/")
-    return urlunparse((scheme, netloc, path, "", "", ""))
+    # A routed fragment (#inbox/<id>, #/route) names the resource; a plain anchor does not.
+    frag = p.fragment if "/" in p.fragment else ""
+    return urlunparse((scheme, netloc, path, "", "", frag))
 
 
 def url_id(url: str) -> str:

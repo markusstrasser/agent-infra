@@ -88,3 +88,29 @@ def test_extract_urls_from_prompt():
     urls = extract_urls(prompt)
     assert len(urls) == 1
     assert urls[0].endswith("dpo_jury.py")
+
+
+def test_normalize_keeps_routed_fragment():
+    a = "https://mail.google.com/mail/u/0/#inbox/FMfcgzQjggldZHpXXWpnFtZRstlkFfsv"
+    b = "https://mail.google.com/mail/u/0/#inbox/FMfcgzQgLPHpcXPzXWfXFkQzzJvLKvSC"
+    assert normalize_url(a) != normalize_url(b)
+    assert normalize_url("https://x.dev/doc#install") == "https://x.dev/doc"
+
+
+def test_hook_normalizer_matches():
+    import importlib.util
+
+    hook = Path.home() / "Projects/skills/hooks/userprompt-prior-context.py"
+    if not hook.is_file():
+        pytest.skip("skills checkout absent")
+    spec = importlib.util.spec_from_file_location("upc_hook", hook)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    for u in [
+        "https://github.com/o/r/blob/main/a/b.py",
+        "https://raw.githubusercontent.com/o/r/main/a/b.py",
+        "https://mail.google.com/mail/u/0/#inbox/FMfcgzQjggldZHpXXWpnFtZRstlkFfsv",
+        "https://x.dev/doc/#install",
+        "https://arxiv.org/abs/2401.00001?x=1).",
+    ]:
+        assert mod._normalize_pointer_url(u) == normalize_url(u), u
