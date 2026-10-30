@@ -166,7 +166,7 @@ import tempfile
 import time
 import uuid
 from bisect import bisect_left
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -1690,6 +1690,54 @@ def _shared_refs_hold(wt: Path, common: Path, branch: str | None) -> str | None:
     return None
 
 
+_LFS_SPEC = "version https://git-lfs.github.com/spec/v1"
+# tree OID → whether that tree holds an LFS pointer. Content-addressed, so it can never
+# go stale; refs are still re-read on every scan.
+_TREE_LFS: dict[str, bool] = {}
+_LFS_DIFF_MAX = 2000  # beyond this many changed paths, grep the whole tree instead
+
+
+def _lfs_grep(wt: Path, *args: str, paths: list[str] | None = None) -> bool | None:
+    cmd = ["git", "--literal-pathspecs", "grep", "--quiet", "--fixed-strings", "-e", _LFS_SPEC, *args]
+    if paths is not None:
+        cmd += ["--", *paths]
+    return {0: True, 1: False}.get(run(cmd, cwd=wt).returncode)
+
+
+def _changed(wt: Path, *diff_args: str) -> list[str] | None:
+    r = run(["git", "diff", "--name-only", "--no-renames", "-z", *diff_args], cwd=wt)
+    return [p for p in r.stdout.split("\0") if p] if r.returncode == 0 else None
+
+
+def _lfs_pointer_in(wt: Path, head: str) -> bool | None:
+    """Whether HEAD or the index carries an LFS pointer; None = unknown.
+
+    A full `git grep` of HEAD and the index cost ~2.7 s per genomics worktree (118 s of
+    a 227 s audit). When the default branch's tree holds no pointer, a pointer can only
+    sit in a path that differs from it, so only those paths are grepped. Same answer:
+    unchanged paths have the base's (pointer-free) blobs."""
+    try:
+        base = run(["git", "merge-base", head, default_branch(wt)], cwd=wt, check=True).stdout.strip()
+        tree = run(["git", "rev-parse", f"{base}^{{tree}}"], cwd=wt, check=True).stdout.strip()
+    except (subprocess.CalledProcessError, RuntimeError, ValueError):
+        base = tree = ""
+    if tree and tree not in _TREE_LFS:
+        found = _lfs_grep(wt, tree)
+        if found is not None:
+            _TREE_LFS[tree] = found
+    head_paths = _changed(wt, base, head) if tree and _TREE_LFS.get(tree) is False else None
+    index_paths = _changed(wt, "--cached", head)
+    if head_paths is None or len(head_paths) > _LFS_DIFF_MAX:
+        in_head = _lfs_grep(wt, head)
+    else:
+        in_head = _lfs_grep(wt, head, paths=head_paths) if head_paths else False
+    if in_head is not False:
+        return in_head
+    if index_paths is None or len(index_paths) > _LFS_DIFF_MAX:
+        return _lfs_grep(wt, "--cached")
+    return _lfs_grep(wt, "--cached", paths=index_paths) if index_paths else False
+
+
 def _worktree_state_hold(
     wt: Path, *, pins_head: bool = False, archives_evidence: bool = False
 ) -> str | None:
@@ -1966,23 +2014,11 @@ def _worktree_state_hold(
         ]
         if unsupported_config or (wt / ".lfsconfig").exists():
             return "unsupported LFS/filter/sparse/ref-storage configuration"
-        for args in (("--cached",), (head,)):
-            pointers = run(
-                [
-                    "git",
-                    "grep",
-                    "--quiet",
-                    "--fixed-strings",
-                    "-e",
-                    "version https://git-lfs.github.com/spec/v1",
-                    *args,
-                ],
-                cwd=wt,
-            )
-            if pointers.returncode == 0:
-                return "LFS pointer in HEAD/index has unpreserved payload"
-            if pointers.returncode != 1:
-                return "[DEGRADED] LFS pointer evidence unknown"
+        pointers = _lfs_pointer_in(wt, head)
+        if pointers is True:
+            return "LFS pointer in HEAD/index has unpreserved payload"
+        if pointers is None:
+            return "[DEGRADED] LFS pointer evidence unknown"
         if run(
             ["git", "rev-parse", "--shared-index-path"], cwd=wt, check=True
         ).stdout.strip():
@@ -2226,107 +2262,139 @@ def audit_repo(
     on_row: Callable[[WorktreeRow], None] | None = None,
     only_path: Path | None = None,
     check_landing: bool = True,
+    workers: int = 1,
 ) -> list[WorktreeRow]:
     """Inventory safety state; skipped landing checks never grant landed status."""
-    name = repo.name
     rows: list[WorktreeRow] = []
+    items: list[tuple[Path, str | None, str | None]] = []
     for wt, branch, lock in parse_worktrees(repo):
         if only_path is not None and wt.resolve() != only_path.resolve():
             continue
         if any(s in str(wt) for s in SKIP_PATH_SUBSTR):
             continue
-        if not wt.exists():
-            # Registered but the directory is gone (e.g. a scratchpad worktree whose
-            # session dir was deleted out from under git). No cwd exists to run
-            # anything in — subprocess with a missing cwd raises FileNotFoundError,
-            # which killed the whole nightly GC 10 nights running (2026-08). The
-            # Admin state may own unique objects; automatic prune is forbidden.
-            print(
-                f"  (HOLD prunable registration: {wt} — directory gone; admin state unproven)",
-                flush=True,
-            )
+        items.append((wt, branch, lock))
+
+    def one(item: tuple[Path, str | None, str | None]) -> WorktreeRow | None:
+        return _audit_worktree(repo, *item, with_size=with_size,
+                               safe_idle_min=safe_idle_min, check_landing=check_landing)
+
+    # Read-only git waits dominate (genomics: 31 trees serial pushed --check past the
+    # 120 s pulse timeout). Streaming keeps its serial order; otherwise map keeps order.
+    if on_row is not None or workers <= 1:
+        found: Iterable[WorktreeRow | None] = map(one, items)  # lazy: rows stream as audited
+    else:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+            found = list(pool.map(one, items))
+    for row in found:
+        if row is None:
             continue
-        # --no-optional-locks: a plain `git status` rewrites the index stat cache,
-        # which would reset the idle clock (index mtime) on every nightly audit.
-        st = run(
-            [
-                "git",
-                "--no-optional-locks",
-                "status",
-                "--porcelain",
-                "--ignore-submodules=none",
-            ],
-            cwd=wt,
-            check=True,
-        )
-        tracked_dirty = sum(
-            1 for ln in st.stdout.splitlines() if not ln.startswith("??")
-        )
-        # Porcelain already omits ignored paths (.venv, caches), so every `??` line is a
-        # real file somebody put here on purpose.
-        untracked_work = sum(1 for ln in st.stdout.splitlines() if ln.startswith("??"))
-        flagged, ignored = _hidden_work(wt)
-        hold_reason = _worktree_state_hold(wt)
-        try:
-            codex_owner_thread = _codex_owner_thread(wt)
-        except (RuntimeError, OSError, ValueError) as error:
-            codex_owner_thread = None
-            hold_reason = hold_reason or f"unreadable codex-thread.json: {error}"
-        tracked_dirty += flagged
-        untracked_work += ignored
-        # `du` is the slow part; skip it on the cheap --check path (size irrelevant to the flag).
-        size = (
-            run(["du", "-sh", str(wt)]).stdout.split()[0]
-            if (with_size and wt.exists())
-            else "?"
-        )
-        dup = False
-        if branch:
-            ahead = ahead_of_main(repo, branch)
-            ancestor = ahead == 0
-            age = last_commit_rel(repo, branch)
-            if ahead > 0:
-                dup = all_patches_on_main(repo, branch)
-        else:
-            sha = run(["git", "rev-parse", "HEAD"], cwd=wt).stdout.strip()
-            ancestor = is_ancestor(repo, sha)
-            ahead = ahead_of_main(repo, sha) if sha else -1
-            age = last_commit_rel(repo, sha) if sha else "?"
-            if ahead > 0:
-                dup = all_patches_on_main(repo, sha)
-        blocking_paths: list[str] = []
-        landed = (
-            check_landing
-            and not hold_reason
-            and bool(tracked_dirty or untracked_work)
-            and dirty_work_on_default(repo, wt, blocking_paths=blocking_paths)
-        )
-        rows.append(
-            WorktreeRow(
-                repo=name,
-                repo_root=repo,
-                path=wt,
-                branch=branch,
-                ahead=ahead,
-                tracked_dirty=tracked_dirty,
-                untracked_work=untracked_work,
-                size=size,
-                ancestor=ancestor,
-                age=age,
-                dup=dup,
-                lock=lock,
-                lock_stale=lock_is_stale(lock),
-                idle_days=idle_age_days(wt),
-                safe_idle_min=safe_idle_min,
-                hold_reason=hold_reason,
-                landed=landed,
-                blocking_paths=tuple(blocking_paths),
-                codex_owner_thread=codex_owner_thread,
-            )
-        )
+        rows.append(row)
         if on_row is not None:
-            on_row(rows[-1])
+            on_row(row)
     return rows
+
+
+def _audit_worktree(
+    repo: Path,
+    wt: Path,
+    branch: str | None,
+    lock: str | None,
+    *,
+    with_size: bool,
+    safe_idle_min: float,
+    check_landing: bool,
+) -> WorktreeRow | None:
+    """One worktree's safety row; None for a registration whose directory is gone."""
+    name = repo.name
+    if not wt.exists():
+        # Registered but the directory is gone (e.g. a scratchpad worktree whose
+        # session dir was deleted out from under git). No cwd exists to run
+        # anything in — subprocess with a missing cwd raises FileNotFoundError,
+        # which killed the whole nightly GC 10 nights running (2026-08). The
+        # Admin state may own unique objects; automatic prune is forbidden.
+        print(
+            f"  (HOLD prunable registration: {wt} — directory gone; admin state unproven)",
+            flush=True,
+        )
+        return None
+    # --no-optional-locks: a plain `git status` rewrites the index stat cache,
+    # which would reset the idle clock (index mtime) on every nightly audit.
+    st = run(
+        [
+            "git",
+            "--no-optional-locks",
+            "status",
+            "--porcelain",
+            "--ignore-submodules=none",
+        ],
+        cwd=wt,
+        check=True,
+    )
+    tracked_dirty = sum(
+        1 for ln in st.stdout.splitlines() if not ln.startswith("??")
+    )
+    # Porcelain already omits ignored paths (.venv, caches), so every `??` line is a
+    # real file somebody put here on purpose.
+    untracked_work = sum(1 for ln in st.stdout.splitlines() if ln.startswith("??"))
+    flagged, ignored = _hidden_work(wt)
+    hold_reason = _worktree_state_hold(wt)
+    try:
+        codex_owner_thread = _codex_owner_thread(wt)
+    except (RuntimeError, OSError, ValueError) as error:
+        codex_owner_thread = None
+        hold_reason = hold_reason or f"unreadable codex-thread.json: {error}"
+    tracked_dirty += flagged
+    untracked_work += ignored
+    # `du` is the slow part; skip it on the cheap --check path (size irrelevant to the flag).
+    size = (
+        run(["du", "-sh", str(wt)]).stdout.split()[0]
+        if (with_size and wt.exists())
+        else "?"
+    )
+    dup = False
+    if branch:
+        ahead = ahead_of_main(repo, branch)
+        ancestor = ahead == 0
+        age = last_commit_rel(repo, branch)
+        if ahead > 0:
+            dup = all_patches_on_main(repo, branch)
+    else:
+        sha = run(["git", "rev-parse", "HEAD"], cwd=wt).stdout.strip()
+        ancestor = is_ancestor(repo, sha)
+        ahead = ahead_of_main(repo, sha) if sha else -1
+        age = last_commit_rel(repo, sha) if sha else "?"
+        if ahead > 0:
+            dup = all_patches_on_main(repo, sha)
+    blocking_paths: list[str] = []
+    landed = (
+        check_landing
+        and not hold_reason
+        and bool(tracked_dirty or untracked_work)
+        and dirty_work_on_default(repo, wt, blocking_paths=blocking_paths)
+    )
+    return (
+        WorktreeRow(
+            repo=name,
+            repo_root=repo,
+            path=wt,
+            branch=branch,
+            ahead=ahead,
+            tracked_dirty=tracked_dirty,
+            untracked_work=untracked_work,
+            size=size,
+            ancestor=ancestor,
+            age=age,
+            dup=dup,
+            lock=lock,
+            lock_stale=lock_is_stale(lock),
+            idle_days=idle_age_days(wt),
+            safe_idle_min=safe_idle_min,
+            hold_reason=hold_reason,
+            landed=landed,
+            blocking_paths=tuple(blocking_paths),
+            codex_owner_thread=codex_owner_thread,
+        )
+    )
 
 
 def print_audit_row(
@@ -4676,7 +4744,7 @@ def main() -> int:
         ):
             for rows in pool.map(
                 lambda repo: audit_repo(
-                    repo, with_size=False, safe_idle_min=args.safe_idle_min
+                    repo, with_size=False, safe_idle_min=args.safe_idle_min, workers=4
                 ),
                 present,
             ):
@@ -4694,6 +4762,7 @@ def main() -> int:
                     with_size=with_size and args.mode != "suggest",
                     safe_idle_min=args.safe_idle_min,
                     on_row=emit_audit_row if stream_audit else None,
+                    workers=SUGGEST_WORKERS,
                 )
             )
 
