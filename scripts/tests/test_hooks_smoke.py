@@ -118,6 +118,10 @@ def test_relative_script_lint():
     assert relative_script("python3 hook.py") == "hook.py"
     assert relative_script("bash hook.sh --flag") == "hook.sh"
     assert relative_script("python3 /abs/hook.py") is None
+    # A shell string is a command line: its redirect is no script path, its script still counts.
+    assert relative_script("/bin/sh -c 'rex __internal start 2>/dev/null || true'") is None
+    assert relative_script("sh -c 'bash scripts/x.sh'") == "scripts/x.sh"
+    assert relative_script("python3 -c 'print(1/2)'") is None
 
 
 def test_interpreter_check_flags_old_python(monkeypatch):

@@ -149,16 +149,24 @@ def relative_script(command: str) -> str | None:
         return None
     at_start, launched = True, False
     prev = ""
+    shell = False
     for tok in tokens:
         if prev == "cd" and tok.startswith(("/", "~", "$")):
             return None  # later relative paths resolve against an anchored cwd
+        inline_code = launched and prev == "-c"
         prev = tok
         if tok and set(tok) <= set(";&|()"):
-            at_start, launched = True, False
+            at_start, launched, shell = True, False, False
             continue
         if not at_start:
             continue
+        if inline_code:  # A `-c` string is code, never a path; a shell's holds commands to lint.
+            if shell and (inner := relative_script(tok)):
+                return inner
+            at_start = False
+            continue
         base = tok.rsplit("/", 1)[-1]
+        shell = shell or base in {"bash", "sh", "zsh"}
         if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tok) or tok.startswith("-") or base in LAUNCHERS or tok == "run":
             launched = launched or base in LAUNCHERS
             continue
