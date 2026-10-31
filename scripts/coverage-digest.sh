@@ -96,5 +96,5 @@ echo "- Rule 10: write for structural rewrites (>3 sections → Write, not seque
 echo "- Rule 11: verify implementation before documenting (run --help, grep, test)"
 echo "- Rule 12: verify vendor claims before asserting (search-verify pricing, features, flags)"
 echo "- Subagent rules: turn budget in prompt, output to file >1000 chars, inventory before dispatch"
-echo "- Git rules: no branches, auto-commit to main, [scope] Verb thing — why format"
+echo "- Git rules: no branches, auto-commit to main, [scope] Imperative change format"
 echo "- Environment: uv run python3, not bare python3; .py files over inline python3 -c"

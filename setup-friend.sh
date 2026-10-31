@@ -728,7 +728,7 @@ Granular semantic commits — one logical change per commit.
 
 ### Commit Format
 ```
-[scope] Verb thing — why
+[scope] Imperative change
 ```
 
 ## Python & Environment

@@ -20,8 +20,9 @@ and (b) the intent/why. Follow it exactly.
    If files you were NOT told to commit are staged, `git -C <repo> restore --staged <those>`
    so the commit contains ONLY your named files. If you cannot cleanly isolate your
    files → ESCALATE (see below).
-4. Compose the message in canonical form: `[scope] Verb thing — why` (specific verb;
-   em-dash separates what from why; ≤72 char subject; 1-3 body lines when non-obvious).
+4. Compose the message in canonical form: `[scope] Imperative change` (specific verb;
+   ≤72 char subject, clear to someone who never saw the session; add `— why` only if it
+   reads as a complete clause; otherwise the why goes in a body wrapped at 72).
    Pick `scope` from `<repo>/.git-scopes`; if none fits, use the closest and note it.
    Do NOT add `Co-Authored-By`. `Session-ID:` is auto-appended by a git hook — don't add it.
 5. Commit: `git -C <repo> commit -m "…"` (heredoc for multi-line). **NEVER pass `--no-verify`.**
