@@ -26,6 +26,7 @@ declare module 'claude-code' {
       stuckEvery: number
       lastRelayAt: number
       noBackoff: boolean
+      injected: Note[]
     }
   }
 }

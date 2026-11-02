@@ -2,7 +2,7 @@ import type { On, RenderElement } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
-import { needsTurnEndCheck, offerFor, parseReply, turnEndPrompt } from '../hooks/register'
+import { mergeNotes, needsTurnEndCheck, offerFor, parseReply, turnEndPrompt } from '../hooks/register'
 
 const USAGE = { input_tokens: 12, output_tokens: 9, cache_read_input_tokens: 40_000, cache_creation_input_tokens: 0 }
 
@@ -33,6 +33,8 @@ function host(on: On, reply: (prompt: string) => string, seen: Seen) {
     seen.files[e.path] = e.text
     return { value: undefined }
   })
+  on('fs.exists', ($, e) => ({ value: e.path in seen.files }))
+  on('fs.read', ($, e) => ({ value: seen.files[e.path] ?? '' }))
   return mock.clock(on, { now: Date.parse('2026-10-26T00:00:00Z') })
 }
 
@@ -127,21 +129,84 @@ test('reads the built-in card for this session only', () => {
   expect(offerFor(undefined, 'sess-1')).toBeNull()
 })
 
-test('band marks an injected note and the clear button empties it', async ($, on) => {
-  const seen = fresh()
-  const clock = host(on, () => 'CLAIM: "committed" but no git commit ran', seen)
+const BAND = {
+  plugin: 'side-watch',
+  surface: 'terminal',
+  component: 'AbovePrompt',
+  props: { hasSurvey: false, isWorking: false, maxRows: 8, bodyColumns: 120, scroll: { offset: 0, bodyRows: 8 }, view: {} },
+} as const
+
+const LOG = {
+  plugin: 'side-watch',
+  surface: 'terminal',
+  component: 'Pane',
+  requestId: 'side-watch-log',
+  props: { title: 'side-watch: autoinjected', isFocused: false, bodyColumns: 120, placement: 'dock', scroll: { offset: 0, bodyRows: 20 }, view: {} },
+} as const
+
+function withUi(on: On, opened: string[]) {
   on('ui.render', ($, e) => h($.ui.resolve(e).Box, {}) as RenderElement)
+  on('ui.open', ($, e) => {
+    opened.push(e.id)
+    return { value: { isPlaced: true } }
+  })
+}
+
+test('an injected note leaves the band; a counter opens the log pane listing it', async ($, on) => {
+  const seen = fresh()
+  const opened: string[] = []
+  const clock = host(on, () => 'CLAIM: "committed" but no git commit ran', seen)
+  withUi(on, opened)
   await $.session.start({ cwd: '/h', surface: 'terminal', isInteractive: true })
   await turn($, 't1', 'Done, committed.')
   await clock.advance(1_000)
-  const ui = await $.ui.mount({
-    plugin: 'side-watch',
-    surface: 'terminal',
-    component: 'AbovePrompt',
-    props: { hasSurvey: false, isWorking: false, maxRows: 8, bodyColumns: 120, scroll: { offset: 0, bodyRows: 8 }, view: {} },
-  })
-  expect(await ui.find({ type: 'Text', text: /\[was autoinjected\]/ })).toBeDefined()
-  await ui.press({ key: 'clear' })
-  expect(await ui.find({ type: 'Text', text: /no git commit ran/ })).toBeUndefined()
-  await ui.unmount()
+  const band = await $.ui.mount(BAND)
+  expect(await band.find({ type: 'Text', text: /no git commit ran/ })).toBeUndefined()
+  expect(await band.find({ key: 'clear' })).toBeUndefined()
+  expect((await band.find({ key: 'log' }))?.text).toContain('1 autoinjected')
+  await band.press({ key: 'log' })
+  expect(opened).toEqual(['side-watch-log'])
+  await band.unmount()
+  const pane = await $.ui.mount(LOG)
+  expect(await pane.find({ type: 'Text', text: /no git commit ran/ })).toBeDefined()
+  await pane.unmount()
+  const log = JSON.parse(seen.files['/h/.claude/side-watch/sess-1.json'] ?? '{}')
+  expect(log.injected[0]).toMatchObject({ kind: 'claim', injected: true })
+})
+
+test('STUCK stays in the band until cleared', async ($, on) => {
+  const seen = fresh()
+  const opened: string[] = []
+  host(on, () => 'STUCK: polled the same log five times', seen)
+  withUi(on, opened)
+  await $.session.start({ cwd: '/h', surface: 'terminal', isInteractive: true })
+  await $.command.run({ command: 'watch', args: 'now', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 120 } })
+  const band = await $.ui.mount(BAND)
+  expect(await band.find({ type: 'Text', text: /polled the same log/ })).toBeDefined()
+  expect(await band.find({ key: 'log' })).toBeUndefined()
+  await band.press({ key: 'clear' })
+  expect(await band.find({ type: 'Text', text: /polled the same log/ })).toBeUndefined()
+  await band.unmount()
+})
+
+test('a restarted session restores its injected list from the log', async ($, on) => {
+  const seen = fresh()
+  const opened: string[] = []
+  host(on, () => 'NONE', seen)
+  withUi(on, opened)
+  const saved = { session_id: 'sess-1', checks: [], injected: [{ kind: 'heads-up', line: 'old card', detail: 'why', at: '2026-11-01T17:00:00Z', injected: true }] }
+  seen.files['/h/.claude/side-watch/sess-1.json'] = JSON.stringify(saved)
+  await $.session.start({ cwd: '/h', surface: 'terminal', isInteractive: true })
+  const res = await $.command.run({ command: 'watch', args: 'log', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 120 } })
+  expect(res?.text).toContain('1 autoinjected')
+  const pane = await $.ui.mount(LOG)
+  expect(await pane.find({ type: 'Text', text: /old card/ })).toBeDefined()
+  await pane.unmount()
+})
+
+test('the injected log only grows: merge keeps both sides, dedupes, sorts by time', () => {
+  const a = { kind: 'claim' as const, line: 'x', detail: '', at: '2026-11-02T00:00:00Z', injected: true }
+  const b = { kind: 'heads-up' as const, line: 'y', detail: '', at: '2026-11-01T00:00:00Z', injected: true }
+  expect(mergeNotes([a], [b, a]).map(n => n.line)).toEqual(['y', 'x'])
+  expect(mergeNotes([a, b], [])).toHaveLength(2)
 })

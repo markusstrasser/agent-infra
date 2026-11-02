@@ -23,6 +23,9 @@ const relay = atom({ plugin: 'side-watch', key: 'relay' } as const, true)
 const stuckEvery = atom({ plugin: 'side-watch', key: 'stuckEvery' } as const, 10)
 const lastRelayAt = atom({ plugin: 'side-watch', key: 'lastRelayAt' } as const, 0)
 const noBackoff = atom({ plugin: 'side-watch', key: 'noBackoff' } as const, true)
+const injected = atom({ plugin: 'side-watch', key: 'injected' } as const, [])
+
+const LOG_PANE = 'side-watch-log'
 
 const BUILTIN = 'you-should-know'
 
@@ -96,12 +99,68 @@ async function sessionFile($: $): Promise<string> {
 
 // STUCK is for the person alone (a native notification, no row for the
 // model); the other kinds also go to the model when inject is on.
+// The session log holds the checks and every injected note, so `/watch log`
+// lists the whole conversation's injections after a restart or a resume.
+async function persist($: $): Promise<void> {
+  await ensureRestored($)
+  const file = await sessionFile($)
+  const onDisk = (await $.fs.exists(file)) ? await loadLog($, file) : null
+  // Append-only: merge what is on disk (a backfill, another load of this code)
+  // with this load's list, keyed by time and line.
+  const all = await update($, injected, list => mergeNotes(onDisk?.injected ?? [], list))
+  const body = { session_id: await $.session.id(), checks: await read($, checks), injected: all }
+  await $.fs.write(file, JSON.stringify(body, null, 2))
+}
+
+export function mergeNotes(a: readonly Note[], b: readonly Note[]): Note[] {
+  const byKey = new Map<string, Note>()
+  for (const n of [...a, ...b]) byKey.set(`${n.at}|${n.line}`, n)
+  return [...byKey.values()].sort((x, y) => x.at.localeCompare(y.at))
+}
+
+async function loadLog($: $, file: string): Promise<{ checks?: Check[]; injected?: Note[] } | null> {
+  try {
+    return JSON.parse(await $.fs.read(file)) as { checks?: Check[]; injected?: Note[] }
+  } catch {
+    $.ui.status(`[DEGRADED] side-watch: unreadable log ${file}`)
+    return null
+  }
+}
+
+// Runs once per session per load of this code: a hot reload starts the state
+// atoms empty, and the next persist would otherwise overwrite the saved list.
+const restored = new Set<string>()
+
+async function ensureRestored($: $): Promise<void> {
+  const id = await $.session.id()
+  if (restored.has(id)) return
+  restored.add(id)
+  await restore($)
+}
+
+async function restore($: $): Promise<void> {
+  const file = await sessionFile($)
+  if (!(await $.fs.exists(file))) return
+  const saved = await loadLog($, file)
+  if (saved === null) return
+  if ((await read($, checks)).length === 0 && Array.isArray(saved.checks)) await update($, checks, () => saved.checks!.slice(-300))
+  if (Array.isArray(saved.injected)) await update($, injected, list => mergeNotes(saved.injected!, list))
+}
+
+// An injected note is already in the conversation, so the band shows only a
+// count of them; the full list lives in the `/watch log` pane. A note that is
+// not injected (STUCK, or inject off) stays as a row until cleared.
 async function deliver($: $, kind: Kind, line: string, detail = ''): Promise<void> {
   const shouldInject = kind !== 'stuck' && (await read($, inject))
   const at = new Date(await $.clock.now()).toISOString()
-  await update($, notes, list => [...list, { kind, line, detail, at, injected: shouldInject }].slice(-12))
+  const note: Note = { kind, line, detail, at, injected: shouldInject }
   if (kind === 'stuck') void $.ui.notify(line, { title: 'side-watch: STUCK' }).catch(() => undefined)
-  if (!shouldInject) return
+  if (!shouldInject) {
+    await update($, notes, list => [...list, note].slice(-12))
+    return
+  }
+  await update($, injected, list => [...list, note])
+  await persist($)
   const who = kind === 'heads-up' || kind === 'you-should-know' ? "the built-in You-should-know side agent's card, shown to the user" : 'automated side check'
   const body = [
     `[side-watch · ${LABEL[kind].tag} · ${who}, not the user's words. A reviewer flag: verify it against the evidence before acting; it can be wrong.]`,
@@ -109,6 +168,16 @@ async function deliver($: $, kind: Kind, line: string, detail = ''): Promise<voi
     ...(detail ? ['', detail] : []),
   ].join('\n')
   await $.session.append({ message: { type: 'user', content: [{ type: 'text', text: body }] } }).catch(() => undefined)
+}
+
+async function openLog($: $): Promise<void> {
+  await ensureRestored($)
+  await $.ui.open({ id: LOG_PANE, title: 'side-watch: autoinjected' })
+}
+
+export function clockTime(iso: string): string {
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? '--:--' : `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
 const busy = new Set<string>()
@@ -138,8 +207,8 @@ async function fork($: $, watcher: Check['watcher'], turnId: string, step: numbe
       reason: r.isAnswered ? (parsed.outcome === 'unparsed' ? r.text.slice(0, 160) : '') : r.reason,
       usage,
     }
-    const all = await update($, checks, list => [...list, check].slice(-300))
-    await $.fs.write(await sessionFile($), JSON.stringify({ session_id: await $.session.id(), checks: all }, null, 2))
+    await update($, checks, list => [...list, check].slice(-300))
+    await persist($)
     for (const f of parsed.found) await deliver($, f.kind, f.line)
     if (check.outcome === 'unparsed' || check.outcome === 'unanswered') {
       $.ui.status(`[DEGRADED] side-watch ${watcher}: ${check.outcome} ${check.reason.slice(0, 50)}`)
@@ -203,13 +272,15 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'watch',
-      description: 'Side checks: /watch · /watch now · /watch on|off · /watch inject on|off · /watch relay on|off · /watch backoff on|off · /watch stuck N',
-      argumentHint: 'now | on | off | inject on|off | relay on|off | backoff on|off | stuck N',
+      description: 'Side checks: /watch · /watch log (everything autoinjected) · /watch now · /watch on|off · /watch inject on|off · /watch relay on|off · /watch backoff on|off · /watch stuck N',
+      argumentHint: 'log | now | on | off | inject on|off | relay on|off | backoff on|off | stuck N',
     })
+    await ensureRestored($)
     return next(e)
   })
 
   on('prompt.submit', async ($, e, next) => {
+    await ensureRestored($)
     if (e.origin.kind !== 'plugin' && !e.isMeta) {
       lastPrompt = e.text
       await update($, notes, () => [])
@@ -259,8 +330,9 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const list = await read($, notes)
+    const sent = await read($, injected)
     const below = await next(e)
-    if (e.props.hasSurvey || list.length === 0) return below
+    if (e.props.hasSurvey || (list.length === 0 && sent.length === 0)) return below
     const { Box, Button, Text } = $.ui.resolve(e)
     return (
       <Box flexDirection="column">
@@ -272,23 +344,55 @@ export const register: Register = on => {
                 {` ${l.tag} `}
               </Text>
               <Text color={l.color}> {n.line}</Text>
-              {n.injected && <Text dimColor> [was autoinjected]</Text>}
             </Box>
           )
         })}
         <Box>
           {/* A letter hotkey fires only while the band holds focus (ctrl+x tab or a
               click); a bare digit in an empty prompt presses it from the composer.
-              The built-in card takes 0-4, so 9. */}
-          <Button key="clear" hotkey="9" plain label="clear side-watch notes" onPress={() => update($, notes, () => [])} />
+              The built-in card takes 0-4, so 8 and 9. */}
+          {sent.length > 0 && (
+            <Button key="log" hotkey="8" plain dimColor label={`side-watch: ${sent.length} autoinjected · list`} onPress={() => void openLog($)} />
+          )}
+          {list.length > 0 && <Button key="clear" hotkey="9" plain label="clear side-watch notes" onPress={() => update($, notes, () => [])} />}
         </Box>
         {below}
       </Box>
     )
   })
 
+  on('ui.render', { component: 'Pane', requestId: LOG_PANE }, async ($, e) => {
+    const { Box, Text } = $.ui.resolve(e)
+    const sent = [...(await read($, injected))].reverse()
+    return (
+      <Box flexDirection="column">
+        <Text dimColor>{sent.length} autoinjected in this conversation, newest first</Text>
+        {sent.length === 0 && <Text dimColor>Nothing injected yet.</Text>}
+        {sent.map((n: Note, i: number) => {
+          const l = LABEL[n.kind]
+          return (
+            <Box key={`i${i}`} flexDirection="column" marginTop={1}>
+              <Box>
+                <Text dimColor>{clockTime(n.at)} </Text>
+                <Text backgroundColor={l.color} color="inverseText" bold>
+                  {` ${l.tag} `}
+                </Text>
+                <Text color={l.color}> {n.line}</Text>
+              </Box>
+              {n.detail !== '' && <Text dimColor wrap="wrap">{n.detail}</Text>}
+            </Box>
+          )
+        })}
+      </Box>
+    )
+  })
+
   on('command.run', { command: 'watch' }, async ($, e) => {
     const a = e.args.trim().split(/\s+/).filter(Boolean)
+    if (a[0] === 'log') {
+      await openLog($)
+      return { text: `${(await read($, injected)).length} autoinjected notes · pane opened` }
+    }
     if (a[0] === 'now') {
       const turnId = `manual-${await $.clock.now()}`
       const c1 = await fork($, 'turn-end', turnId, 0, turnEndPrompt('(manual check: judge the latest assistant message in the transcript)'), ['claim', 'stance'])
