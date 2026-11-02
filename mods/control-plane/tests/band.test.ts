@@ -18,7 +18,7 @@ function host(on: On, pulseExit = 0) {
   mock.clock(on, { now: Date.parse('2026-10-04T00:00:00Z') })
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('command.register', ($, e) => ({ value: { command: e.name } }))
-  on('ui.render', ($, e) => h($.ui.resolve(e).Box, {}) as RenderElement)
+  on('ui.render', ($, e) => h($.ui.resolve(e).Text, { key: 'downstream' }, 'built-in card') as RenderElement)
   on('fs.exists', () => ({ value: false }))
   on('process.run', ($, e) => {
     const script = e.argv[3]
@@ -52,6 +52,15 @@ test('band shows the queue and hides on press', async ($, on) => {
   expect((await ui.find({ type: 'Text', text: /quarantine 3/ }))).toBeDefined()
   await ui.press({ key: 'hide' })
   expect(await ui.find({ key: 'questions' })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('band keeps the rest of the AbovePrompt chain (built-in Heads up card) visible', async ($, on) => {
+  host(on)
+  await start($)
+  const ui = await $.ui.mount(BAND)
+  expect((await ui.find({ key: 'questions' }))?.text).toContain('questions 1')
+  expect(await ui.find({ type: 'Text', text: /built-in card/ })).toBeDefined()
   await ui.unmount()
 })
 

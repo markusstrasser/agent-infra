@@ -122,8 +122,13 @@ export const register: Register = on => {
     if (e.props.hasSurvey || s === null || (await read($, isHidden))) return next(e)
     if (s.error === null && s.questions + s.rsi + s.quarantine + s.drift === 0) return next(e)
 
+    // Pass the rest of the chain through: the built-in You-should-know card and
+    // side-watch notes render in this slot too, and dropping `below` hid them
+    // whenever the band had anything to show (all night on 2026-11-01).
+    const below = await next(e)
     const { Box, Button, Text } = $.ui.resolve(e)
     return (
+      <Box flexDirection="column">
       <Box>
         {s.error !== null ? (
           <Text color="warning">[DEGRADED] control plane: {s.error} </Text>
@@ -146,6 +151,8 @@ export const register: Register = on => {
         )}
         <Text dimColor> quarantine {s.quarantine} · drift {s.drift} </Text>
         <Button key="hide" label="hide" plain dimColor onPress={() => void update($, isHidden, () => true)} />
+      </Box>
+      {below}
       </Box>
     )
   })
