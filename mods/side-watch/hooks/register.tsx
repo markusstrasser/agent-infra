@@ -272,12 +272,15 @@ export const register: Register = on => {
                 {` ${l.tag} `}
               </Text>
               <Text color={l.color}> {n.line}</Text>
-              {n.injected && <Text dimColor> · in chat</Text>}
+              {n.injected && <Text dimColor> [was autoinjected]</Text>}
             </Box>
           )
         })}
         <Box>
-          <Button key="clear" hotkey="x" plain label="clear side-watch notes" onPress={() => update($, notes, () => [])} />
+          {/* A letter hotkey fires only while the band holds focus (ctrl+x tab or a
+              click); a bare digit in an empty prompt presses it from the composer.
+              The built-in card takes 0-4, so 9. */}
+          <Button key="clear" hotkey="9" plain label="clear side-watch notes" onPress={() => update($, notes, () => [])} />
         </Box>
         {below}
       </Box>

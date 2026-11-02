@@ -1,4 +1,4 @@
-import type { On } from 'claude-code'
+import type { On, RenderElement } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 
@@ -125,4 +125,23 @@ test('reads the built-in card for this session only', () => {
   })
   expect(offerFor([{ id: 'sess-1', view: { kind: 'asked', line: 'x' } }], 'sess-1')).toBeNull()
   expect(offerFor(undefined, 'sess-1')).toBeNull()
+})
+
+test('band marks an injected note and the clear button empties it', async ($, on) => {
+  const seen = fresh()
+  const clock = host(on, () => 'CLAIM: "committed" but no git commit ran', seen)
+  on('ui.render', ($, e) => h($.ui.resolve(e).Box, {}) as RenderElement)
+  await $.session.start({ cwd: '/h', surface: 'terminal', isInteractive: true })
+  await turn($, 't1', 'Done, committed.')
+  await clock.advance(1_000)
+  const ui = await $.ui.mount({
+    plugin: 'side-watch',
+    surface: 'terminal',
+    component: 'AbovePrompt',
+    props: { hasSurvey: false, isWorking: false, maxRows: 8, bodyColumns: 120, scroll: { offset: 0, bodyRows: 8 }, view: {} },
+  })
+  expect(await ui.find({ type: 'Text', text: /\[was autoinjected\]/ })).toBeDefined()
+  await ui.press({ key: 'clear' })
+  expect(await ui.find({ type: 'Text', text: /no git commit ran/ })).toBeUndefined()
+  await ui.unmount()
 })
