@@ -2275,8 +2275,17 @@ def audit_repo(
         items.append((wt, branch, lock))
 
     def one(item: tuple[Path, str | None, str | None]) -> WorktreeRow | None:
-        return _audit_worktree(repo, *item, with_size=with_size,
-                               safe_idle_min=safe_idle_min, check_landing=check_landing)
+        try:
+            return _audit_worktree(repo, *item, with_size=with_size,
+                                   safe_idle_min=safe_idle_min, check_landing=check_landing)
+        except FileNotFoundError:
+            # A lane retired its tree mid-audit (arena 2026-11-03 20:31, a finished lane's
+            # tree went between the listing and its git status); skip it like a tree gone
+            # before the audit.
+            if item[0].is_dir():
+                raise
+            print(f"skip {item[0]}: removed during the scan", file=sys.stderr)
+            return None
 
     # Read-only git waits dominate (genomics: 31 trees serial pushed --check past the
     # 120 s pulse timeout). Streaming keeps its serial order; otherwise map keeps order.
@@ -2738,7 +2747,21 @@ def idle_age_days(wt: Path, now: float | None = None) -> float:
 
 
 def activity_stamps(wt: Path) -> list[float]:
-    """mtimes of every dirty path and of the git-dir index/HEAD: the tree's own work clock."""
+    """mtimes of every dirty path and of the git-dir index/HEAD: the tree's own work clock.
+
+    A tree removed after its row was read has no clock: [], which idle_age_days reads as
+    fresh, so nothing acts on it.
+    """
+    try:
+        return _activity_stamps(wt)
+    except FileNotFoundError:
+        if wt.is_dir():
+            raise
+        print(f"skip {wt}: removed during the scan", file=sys.stderr)
+        return []
+
+
+def _activity_stamps(wt: Path) -> list[float]:
     # -uall: a collapsed `dir/` entry carries the directory's mtime, which editing a file
     # inside it never bumps; list every untracked file so each edit counts as activity.
     st = run(

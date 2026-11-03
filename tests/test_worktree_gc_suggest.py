@@ -404,3 +404,29 @@ def test_tree_removed_during_the_scan_is_skipped_on_stderr(repo, monkeypatch, ca
     assert result == 0
     assert set(by_name(payload)) == {"kept"}
     assert "gone: removed during the scan" in diagnostic
+
+
+def test_tree_removed_during_its_audit_is_skipped_on_stderr(repo, monkeypatch, capsys):
+    tree(repo, "gone")
+    tree(repo, "kept")
+    hidden = worktree_gc._hidden_work
+    import shutil
+
+    def remove_gone_mid_audit(wt, **kwargs):
+        # A lane retires its tree after the audit's git status and before the next git call.
+        if wt.name == "gone" and wt.exists():
+            shutil.rmtree(wt)
+        return hidden(wt, **kwargs)
+
+    monkeypatch.setattr(worktree_gc, "_hidden_work", remove_gone_mid_audit)
+    result, payload, diagnostic = invoke(monkeypatch, capsys, "--repo", str(repo))
+    assert result == 0
+    assert set(by_name(payload)) == {"kept"}
+    assert "gone: removed during the scan" in diagnostic
+
+
+def test_activity_clock_of_a_removed_tree_is_empty(tmp_path, capsys):
+    gone = tmp_path / "gone"
+    assert worktree_gc.activity_stamps(gone) == []
+    assert worktree_gc.idle_age_days(gone) == 0.0
+    assert "gone: removed during the scan" in capsys.readouterr().err
