@@ -299,7 +299,7 @@ def check_codex_tier() -> list[Check]:
     if Path(found).resolve().name != "codex-tier-shim":
         return [c.fail(f"{found} is not codex-tier-shim: headless runs inherit config.toml's service_tier")]
     try:
-        audit = subprocess.run(["codex-tier-audit"], capture_output=True, text=True, timeout=60)
+        audit = subprocess.run([str(Path.home() / "Projects/skills/bin/codex-tier-audit")], capture_output=True, text=True, timeout=60)
     except (OSError, subprocess.TimeoutExpired) as error:
         return [c.warn(f"codex-tier-audit did not run: {error}")]
     if audit.returncode != 0:
