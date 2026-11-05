@@ -11,6 +11,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import time
@@ -286,6 +287,24 @@ def check_context_load_size(rules_dir: Path, scope: str, skills_dir: Path | None
         return [c.ok()]
     return [c.warn(f"{len(over)} over budget (rule {RULE_SCOPED_MAX // 1000}K scoped/"
                    f"{RULE_ALWAYS_MAX // 1000}K always, skill {SKILL_MAX // 1000}K): " + "; ".join(over))]
+
+
+def check_codex_tier() -> list[Check]:
+    """Headless codex stays at the Standard tier: `codex` on PATH is codex-tier-shim, and no headless run left it.
+    On 2026-11-04 config.toml's Ultrafast (6x Standard) spent the $500 API credit through agents' runs."""
+    c = Check("codex-tier", "global")
+    found = shutil.which("codex")
+    if found is None:
+        return [c.ok("no codex on PATH")]
+    if Path(found).resolve().name != "codex-tier-shim":
+        return [c.fail(f"{found} is not codex-tier-shim: headless runs inherit config.toml's service_tier")]
+    try:
+        audit = subprocess.run(["codex-tier-audit"], capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        return [c.warn(f"codex-tier-audit did not run: {error}")]
+    if audit.returncode != 0:
+        return [c.fail(audit.stdout.strip()[:400] or audit.stderr.strip()[:400])]
+    return [c.ok(audit.stdout.strip())]
 
 
 def check_memory_health() -> list[Check]:
@@ -1416,6 +1435,7 @@ def run_all_checks(project_filter: str | None = None) -> list[Check]:
     if not project_filter:
         all_checks.extend(check_settings_json(GLOBAL_SETTINGS, "global"))
         all_checks.extend(check_memory_health())
+        all_checks.extend(check_codex_tier())
         all_checks.extend(check_stale_agents())
         all_checks.extend(check_telemetry_freshness())
         all_checks.extend(check_agentlogs_ingest_lag())
