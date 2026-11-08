@@ -4543,3 +4543,8 @@ Deduplication/exclusions: the global bgrun/watcher repair is already committed a
 
 - **[ ] PEER-COUNT-IGNORES-IDLE-AGE** — `sessionstart-peer-session-warn.sh` and `checkout_claim.py` count any live `claude` process as an active peer. In session 472f257d (2026-10-23) a tab idle 46 h (PID 73370) held back commits; bda2e97f killed it the next day. Fix: report each peer's idle age (transcript mtime) and stop treating peers idle past a threshold as blocking. Verify with a fixture peer whose transcript is 2 days old.
 - **Evidence:** batch RSI close 2026-10-30 (scratchpad `rsi/rsi-agentinfra-a.md`, sessions 472f257d, bda2e97f).
+
+### [2026-11-08] Disk guard's worktree scan times out under load and goes blind
+
+- **[ ] DISK-GUARD-SCAN-TIMEOUT** — On arena, 2026-11-08 about 22:48 CST, the disk guard's `worktree_gc` run exited 124 and left `~/.cache/reclaim/worktree-suggestions.json` at its 21:53 version (an empty `.tmp` beside it), while free space fell from 24 GB to 12 GB in 17 minutes. Two hand runs of `worktree_gc.py audit --repo ~/Projects/arena --strip-idle-caches-min 30` also timed out at 170-180 s, with and without `--no-size`, at load 160-220 with about 45 arena worktrees whose Cargo targets are 12-25 GB apparent each (APFS clones). The guard stops refreshing exactly when the disk drains fastest. Direction: bound the scan per tree (skip or time-box sizing), write partial suggestions, and mark them partial.
+- **Evidence:** `~/.cache/reclaim/disk-guard.log` tail ("worktree_gc exited 124"); arena session f2643b6a.
