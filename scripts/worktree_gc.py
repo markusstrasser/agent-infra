@@ -48,6 +48,9 @@ apply --prune-pytest-hours N: also delete pytest-of-<user> basetemp dirs untouch
   hours whose pytest has exited (audit marks would-prune-pytest)
 prune: only those two steps; never removes a worktree (the low-disk guard's mode)
 
+Every mode prints each line as it lands; a SIGTERM (the guard's timeout) prints the step
+it cut and each step's time so far.
+
 Evidence: standing #g metafix — worktree leak is harness hygiene, not telos.
 
 Linked-worktree content inventory (landed removal and explicit archive):
@@ -151,12 +154,14 @@ import contextlib
 import ctypes
 import getpass
 import hashlib
+import itertools
 import json
 import math
 import os
 import re
 import shlex
 import shutil
+import signal
 import stat
 import struct
 import subprocess
@@ -183,6 +188,58 @@ LFS_POINTER_MAX_BYTES = 1024
 LSOF = shutil.which("lsof") or "/usr/sbin/lsof"
 # Why the last cwd scan came back the way it did — printed with the [DEGRADED] line.
 LAST_SCAN_DIAG = "scan not run"
+# The steps of this run so far, (name, monotonic start). The disk guard's `timeout 1800`
+# killed prune at 06:37 and 11:14 on 2026-11-09 and its log said only `exited 124`.
+_PHASES: list[tuple[str, float]] = []
+
+
+def enter_phase(name: str) -> None:
+    """Start step ``name``: a SIGTERM names it, and phase_times() reports its length."""
+    _PHASES.append((name, time.monotonic()))
+
+
+def phase_times() -> str:
+    """`name 1.2s, name 0.3s` for every step so far, the current one up to now."""
+    marks = [*_PHASES, ("", time.monotonic())]
+    return ", ".join(
+        f"{name} {end - start:.1f}s"
+        for (name, start), (_, end) in itertools.pairwise(marks)
+    )
+
+
+def _report_sigterm(signum: int, _frame: object) -> None:
+    """Print the step a kill interrupted, then exit 128 + signum as the signal would.
+
+    os._exit, not SystemExit: a thread pool's exit would wait out its workers' git calls,
+    and the caller's `timeout` has already given up on this run.
+    """
+    step = _PHASES[-1][0] if _PHASES else "startup"
+    try:
+        sys.stdout.flush()
+        print(
+            f"[KILLED] {signal.Signals(signum).name} during {step}; {phase_times()}",
+            file=sys.stderr,
+            flush=True,
+        )
+    except (OSError, RuntimeError, ValueError):  # a write the signal interrupted
+        pass
+    os._exit(128 + signum)
+
+
+@contextlib.contextmanager
+def sigterm_report() -> Iterator[None]:
+    """Install _report_sigterm for one run and restore the previous handler after it."""
+    _PHASES.clear()
+    enter_phase("startup")
+    try:
+        previous = signal.signal(signal.SIGTERM, _report_sigterm)
+    except ValueError:  # only the main thread may install a handler
+        yield
+        return
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGTERM, previous)
 
 
 @dataclass
@@ -4562,6 +4619,17 @@ def explicit_archive(path: Path) -> int:
 
 
 def main() -> int:
+    """The CLI. Line-buffered stdout keeps every finished line when a kill cuts the run,
+    and a SIGTERM (the guard's `timeout`) prints the step it interrupted."""
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if reconfigure is not None:
+        with contextlib.suppress(OSError, ValueError):
+            reconfigure(line_buffering=True)
+    with sigterm_report():
+        return _main()
+
+
+def _main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
@@ -4755,6 +4823,7 @@ def main() -> int:
             ),
         )
 
+    enter_phase("audit")
     all_rows: list[WorktreeRow] = []
     present = [repo for repo in repos if (repo / ".git").exists()]
     if args.mode == "suggest" and not stream_audit:
@@ -4790,6 +4859,7 @@ def main() -> int:
             )
 
     if not stream_audit:
+        enter_phase("liveness")
         cwd_holders = scan_liveness()
         daemons = daemon_pids(
             {pid for row in all_rows for pid in holders_for(row.path, cwd_holders)}
@@ -4798,6 +4868,7 @@ def main() -> int:
             set_liveness(row)
 
     if args.mode == "suggest":
+        enter_phase("suggest")
         return suggest(
             all_rows,
             args.lock_max_age_hours,
@@ -4829,6 +4900,7 @@ def main() -> int:
             )
         return 0
 
+    enter_phase("plan")
     aged_rows = (
         plan_aged_locks(all_rows, args.lock_max_age_hours, keep)
         if not pruning and liveness_known(cwd_holders)
@@ -4992,6 +5064,7 @@ def main() -> int:
         print("refusing to remove anything: liveness unknown (see [DEGRADED] above)")
         return 2
 
+    enter_phase("remove")
     removed = 0
     seen: set[Path] = set()
     for row in to_remove:
@@ -5093,6 +5166,7 @@ def main() -> int:
         except (subprocess.CalledProcessError, RuntimeError, OSError) as error:
             print(f"HOLD {row.path}: landed archive failed: {error}", file=sys.stderr)
 
+    enter_phase("strip")
     stripped = 0
     for row, caches in strip_plan:
         sizes = strip_idle_caches(row.path, caches)
@@ -5102,6 +5176,7 @@ def main() -> int:
             )
             stripped += 1
 
+    enter_phase("pytest")
     pruned_pytest = 0
     for path, age_h in pytest_plan:
         size = _du(path) if with_size else "?"
@@ -5124,6 +5199,7 @@ def main() -> int:
     # Missing-path registrations can still own unique index/ref/reflog objects.
     # Successful remove unregisters its target; blanket prune has no safe proof.
 
+    enter_phase("receipt")
     parts = (
         []
         if pruning

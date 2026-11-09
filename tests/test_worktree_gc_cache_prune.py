@@ -9,7 +9,9 @@ the ignored `.claude/cache/index-trees`. The intra-day reaper and the low-disk g
 
 from __future__ import annotations
 
+import contextlib
 import os
+import signal
 import stat
 import subprocess
 import sys
@@ -292,6 +294,89 @@ def test_prune_mode_never_removes_a_worktree(
     assert _caches(wt) == (False, False)
     with pytest.raises(SystemExit):
         _main(monkeypatch, capsys, "prune", "--repo", str(repo), "--no-size", holders=NO_HOLDER)
+
+
+def _cargo(repo: Path) -> None:
+    (repo / ".gitignore").write_text(".venv/\n.claude/cache/\ntarget/\n")
+    (repo / "Cargo.toml").write_text('[package]\nname = "x"\n')
+    _git("add", ".gitignore", "Cargo.toml", cwd=repo)
+    _git("commit", "-qm", "cargo", cwd=repo)
+
+
+def _build(wt: Path) -> None:
+    (wt / "target" / "debug" / "deps").mkdir(parents=True)
+    (wt / "target" / "debug" / "deps" / "libx.rlib").write_bytes(b"\0" * 64)
+
+
+def test_killed_prune_keeps_finished_strips_and_names_the_step(
+    repo: Path, tmp_path: Path
+) -> None:
+    """The disk guard appends prune's stdout to its log under `timeout 1800`, which SIGTERMs
+    the process group. Block-buffered, a kill lost every finished line; now each strip line
+    lands at once and the kill prints the step it cut. A fake `du` lets the first tree's
+    strip finish and stalls the second's, whichever order the plan picks."""
+    _cargo(repo)
+    trees = {name: _lane(repo, name) for name in ("kill-a", "kill-b")}
+    for wt in trees.values():
+        _build(wt)
+        _age(wt, 45)
+    fake = tmp_path / "bin"
+    fake.mkdir()
+    (fake / "du").write_text(
+        "#!/bin/sh\n"
+        'case "$2" in\n'
+        "*/wts/kill-a/*) t=kill-a ;;\n"
+        "*/wts/kill-b/*) t=kill-b ;;\n"
+        '*) exec /usr/bin/du "$@" ;;\n'
+        "esac\n"
+        '[ -s "$DU_MARK" ] || printf %s "$t" > "$DU_MARK"\n'
+        '[ "$(cat "$DU_MARK")" = "$t" ] || exec sleep 300\n'
+        'exec /usr/bin/du "$@"\n'
+    )
+    (fake / "du").chmod(0o755)
+    mark = tmp_path / "du-first-tree"
+    log = tmp_path / "disk-guard.log"
+    # The guard's launchd job runs with stdout block-buffered. A caller's PYTHONUNBUFFERED
+    # (Claude Code's background shells set it) would hide a lost line.
+    env = {key: value for key, value in os.environ.items() if key != "PYTHONUNBUFFERED"}
+    env |= {
+        "PATH": f"{fake}{os.pathsep}{os.environ['PATH']}",
+        "DU_MARK": str(mark),
+        "JANITOR_RECEIPT_DIR": str(tmp_path / "receipts"),
+    }
+    argv = [sys.executable, worktree_gc.__file__, "prune", "--repo", str(repo)]
+    with log.open("ab") as sink:
+        proc = subprocess.Popen(
+            [*argv, "--strip-idle-caches-min", "30", "--no-size"],
+            stdout=sink,
+            stderr=sink,
+            cwd=tmp_path,
+            env=env,
+            start_new_session=True,
+        )
+    try:
+        deadline = time.time() + 120
+        while (
+            "STRIPPED " not in log.read_text()
+            and proc.poll() is None
+            and time.time() < deadline
+        ):
+            time.sleep(0.2)
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(proc.pid, signal.SIGTERM)  # GNU timeout signals its whole group
+        rc = proc.wait(timeout=60)
+    finally:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(proc.pid, signal.SIGKILL)
+    text = log.read_text()
+    assert mark.is_file(), text
+    done = trees.pop(mark.read_text())
+    (cut,) = trees.values()
+    assert f"STRIPPED {done} " in text and "target=" in text, text
+    assert "[KILLED] SIGTERM during strip; startup" in text, text
+    assert rc == 128 + signal.SIGTERM, text
+    assert not (done / "target").exists() and _caches(done) == (False, False)
+    assert (cut / "target").is_dir() and _caches(cut) == (True, True)
 
 
 def _basetemp(root: Path, name: str, hours: float, lock_pid: int | None = None) -> Path:
