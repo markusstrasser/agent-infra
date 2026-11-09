@@ -46,7 +46,9 @@ apply --strip-idle-caches-min N: also delete the derived caches (.venv, .uv-cach
   caches (audit marks would-strip)
 apply --prune-pytest-hours N: also delete pytest-of-<user> basetemp dirs untouched for N
   hours whose pytest has exited (audit marks would-prune-pytest)
-prune: only those two steps; never removes a worktree (the low-disk guard's mode)
+prune: only those two steps; never removes a worktree (the low-disk guard's mode). It
+  skips the removal audit, strips Cargo target/ trees first and bounds each git call; a
+  tree whose call runs over keeps its caches
 
 Every mode prints each line as it lands; a SIGTERM (the guard's timeout) prints the step
 it cut and each step's time so far.
@@ -188,6 +190,8 @@ LFS_POINTER_MAX_BYTES = 1024
 LSOF = shutil.which("lsof") or "/usr/sbin/lsof"
 # Why the last cwd scan came back the way it did — printed with the [DEGRADED] line.
 LAST_SCAN_DIAG = "scan not run"
+# Bound on each git call of the low-disk prune. A tree whose call runs over keeps its caches.
+PRUNE_GIT_TIMEOUT_S = 120.0
 # The steps of this run so far, (name, monotonic start). The disk guard's `timeout 1800`
 # killed prune at 06:37 and 11:14 on 2026-11-09 and its log said only `exited 124`.
 _PHASES: list[tuple[str, float]] = []
@@ -358,9 +362,14 @@ class WorktreeRow:
 
 
 def run(
-    cmd: list[str], cwd: Path | None = None, check: bool = False
+    cmd: list[str],
+    cwd: Path | None = None,
+    check: bool = False,
+    timeout: float | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, check=check)
+    return subprocess.run(
+        cmd, cwd=cwd, capture_output=True, text=True, check=check, timeout=timeout
+    )
 
 
 # Self-relaunching detached pollers that hold a worktree cwd FOREVER by design, whether
@@ -535,9 +544,26 @@ def repo_roots(explicit: list[str] | None, all_projects: bool) -> list[Path]:
     return [r for r in roots if is_main_checkout(r)]
 
 
-def parse_worktrees(repo: Path) -> list[tuple[Path, str | None, str | None]]:
+def _has_entries(path: Path) -> bool:
+    """False only for a directory that is provably empty or missing; unreadable is True."""
+    try:
+        with os.scandir(path) as entries:
+            return next(entries, None) is not None
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return True
+
+
+def parse_worktrees(
+    repo: Path, *, timeout: float | None = None
+) -> list[tuple[Path, str | None, str | None]]:
     """(path, branch, lock reason) per linked worktree; lock None = unlocked, "" = no reason."""
-    out = run(["git", "worktree", "list", "--porcelain"], cwd=repo)
+    if (repo / ".git").is_dir() and not _has_entries(repo / ".git" / "worktrees"):
+        # Git lists exactly the entries of .git/worktrees; skip its spawn where there are
+        # none (34 of 44 repos on 2026-11-09, 0.3-0.7 s each at load 57).
+        return []
+    out = run(["git", "worktree", "list", "--porcelain"], cwd=repo, timeout=timeout)
     if out.returncode != 0:
         return []
     rows: list[tuple[Path, str | None, str | None]] = []
@@ -2803,14 +2829,14 @@ def idle_age_days(wt: Path, now: float | None = None) -> float:
     return max(0.0, (now - max(stamps)) / 86400.0)
 
 
-def activity_stamps(wt: Path) -> list[float]:
+def activity_stamps(wt: Path, *, timeout: float | None = None) -> list[float]:
     """mtimes of every dirty path and of the git-dir index/HEAD: the tree's own work clock.
 
     A tree removed after its row was read has no clock: [], which idle_age_days reads as
-    fresh, so nothing acts on it.
+    fresh, so nothing acts on it. A git call past ``timeout`` raises TimeoutExpired.
     """
     try:
-        return _activity_stamps(wt)
+        return _activity_stamps(wt, timeout)
     except FileNotFoundError:
         if wt.is_dir():
             raise
@@ -2818,7 +2844,7 @@ def activity_stamps(wt: Path) -> list[float]:
         return []
 
 
-def _activity_stamps(wt: Path) -> list[float]:
+def _activity_stamps(wt: Path, timeout: float | None = None) -> list[float]:
     # -uall: a collapsed `dir/` entry carries the directory's mtime, which editing a file
     # inside it never bumps; list every untracked file so each edit counts as activity.
     st = run(
@@ -2832,6 +2858,7 @@ def _activity_stamps(wt: Path) -> list[float]:
             "--ignore-submodules=none",
         ],
         cwd=wt,
+        timeout=timeout,
     )
     stamps: list[float] = []
     entries = st.stdout.split("\0")
@@ -2847,7 +2874,7 @@ def _activity_stamps(wt: Path) -> list[float]:
         m = _mtime(wt / rel)
         if m is not None:
             stamps.append(m)
-    gd = run(["git", "rev-parse", "--git-dir"], cwd=wt).stdout.strip()
+    gd = run(["git", "rev-parse", "--git-dir"], cwd=wt, timeout=timeout).stdout.strip()
     if gd:
         gdir = Path(gd) if Path(gd).is_absolute() else wt / gd
         for name in ("index", "HEAD"):
@@ -3877,11 +3904,12 @@ def _real_subdir(wt: Path, rel: str) -> Path | None:
     return path if path.is_dir() else None
 
 
-def strip_candidates(wt: Path) -> list[Path]:
+def strip_candidates(wt: Path, *, timeout: float | None = None) -> list[Path]:
     """``wt``'s real, git-ignored, untracked STRIP_DIRS; a symlink is never followed or deleted.
 
     A directory that git tracks anything under, or does not ignore, holds somebody's content
-    rather than a derived cache, so it stays. If git cannot answer, nothing is a candidate.
+    rather than a derived cache, so it stays. If git cannot answer, nothing is a candidate;
+    a git call past ``timeout`` raises TimeoutExpired.
     """
     cargo = (wt / "Cargo.toml").is_file()
     found = [
@@ -3893,9 +3921,9 @@ def strip_candidates(wt: Path) -> list[Path]:
     if not found:
         return []
     rels = [p.relative_to(wt).as_posix() for p in found]
-    tracked = run(["git", "ls-files", "-z", "--", *rels], cwd=wt)
+    tracked = run(["git", "ls-files", "-z", "--", *rels], cwd=wt, timeout=timeout)
     # STRIP_DIRS are plain constants, so line output is exact (-z needs --stdin).
-    ignored = run(["git", "check-ignore", *rels], cwd=wt)
+    ignored = run(["git", "check-ignore", *rels], cwd=wt, timeout=timeout)
     if tracked.returncode != 0 or ignored.returncode not in (0, 1):
         return []
     tracked_paths = [t for t in tracked.stdout.split("\0") if t]
@@ -3908,11 +3936,14 @@ def strip_candidates(wt: Path) -> list[Path]:
     ]
 
 
-def strip_idle_caches(wt: Path, planned: list[Path] | None = None) -> dict[str, str]:
+def strip_idle_caches(
+    wt: Path, planned: list[Path] | None = None, *, git_timeout: float | None = None
+) -> dict[str, str]:
     """Delete ``wt``'s caches (only ``planned`` ones, when given) → {relative path: size}.
 
     Candidates are re-derived here rather than trusted from the plan, so a cache that became
-    a symlink or gained tracked content since the audit stays.
+    a symlink or gained tracked content since the audit stays; so does every cache of a tree
+    whose git calls run past ``git_timeout``.
     """
     try:
         if _codex_owner_thread(wt):
@@ -3921,8 +3952,13 @@ def strip_idle_caches(wt: Path, planned: list[Path] | None = None) -> dict[str, 
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as error:
         print(f"HOLD {wt}: app ownership unknown: {error}", file=sys.stderr)
         return {}
+    try:
+        candidates = strip_candidates(wt, timeout=git_timeout)
+    except subprocess.TimeoutExpired as error:
+        print(f"HOLD {wt}: git ran past {error.timeout:g}s; caches kept")
+        return {}
     sizes: dict[str, str] = {}
-    for p in strip_candidates(wt):
+    for p in candidates:
         if planned is not None and p not in planned:
             continue
         size = _du(p)
@@ -4002,6 +4038,9 @@ def plan_cache_strip(
     mapped: dict[str, list[int]],
     now: float | None = None,
     builds_need_landed_work: bool = False,
+    *,
+    workers: int = 1,
+    git_timeout: float | None = None,
 ) -> list[tuple[WorktreeRow, list[Path]]]:
     """(tree, caches) to strip: no process inside and nothing touched for ``idle_min`` minutes.
 
@@ -4024,34 +4063,60 @@ def plan_cache_strip(
     .venv or index-trees and the volume filled. The lock still keeps the tree; its caches
     are rederivable (the next `uv run` re-syncs from the shared uv cache, and pre-commit
     re-materializes its index tree).
+
+    Trees are judged on ``workers`` threads. A tree whose git call runs past ``git_timeout``,
+    or that is removed mid-plan, keeps its caches. Trees with a Cargo target/ come first
+    (5-25 GB each by du, against under 1 GB for a .venv), so a run cut short freed the most.
     """
     if idle_min is None:
         return []
     now = time.time() if now is None else now
-    out: list[tuple[WorktreeRow, list[Path]]] = []
-    for row in rows:
+
+    def judge(row: WorktreeRow) -> tuple[WorktreeRow, list[Path]] | None:
         if row.held or row.daemon_held or row.codex_owner_thread:
-            continue
+            return None
         if any(k in str(row.path) for k in keep):
-            continue
+            return None
         if row in exclude or not row.path.exists():
-            continue
-        caches = [c for c in strip_candidates(row.path) if not holders_for(c, mapped)]
-        if not caches:
-            continue
-        stamps = activity_stamps(row.path)
+            return None
+        try:
+            caches = [
+                c
+                for c in strip_candidates(row.path, timeout=git_timeout)
+                if not holders_for(c, mapped)
+            ]
+            if not caches:
+                return None
+            stamps = activity_stamps(row.path, timeout=git_timeout)
+        except subprocess.TimeoutExpired as error:
+            print(f"HOLD {row.path}: git ran past {error.timeout:g}s; caches kept")
+            return None
+        except FileNotFoundError:
+            if row.path.is_dir():
+                raise
+            print(f"skip {row.path}: removed during the scan", file=sys.stderr)
+            return None
         root = _mtime(row.path)
         if root is not None:
             stamps.append(root)
         for cache in caches:
             stamps.extend(cache_activity_stamps(cache))
         if not (stamps and (now - max(stamps)) / 60.0 >= idle_min):
-            continue
+            return None
         if builds_need_landed_work and not _work_on_main(row):
             caches = [c for c in caches if c.name not in CARGO_ONLY_STRIP_DIRS]
-        if caches:
-            out.append((row, caches))
-    return out
+        return (row, caches) if caches else None
+
+    if workers > 1 and len(rows) > 1:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+            judged = list(pool.map(judge, rows))
+    else:
+        judged = [judge(row) for row in rows]
+    # A stable sort: listing order holds within each group.
+    return sorted(
+        (item for item in judged if item is not None),
+        key=lambda item: not any(c.name in CARGO_ONLY_STRIP_DIRS for c in item[1]),
+    )
 
 
 def _work_on_main(row: WorktreeRow) -> bool:
@@ -4618,6 +4683,181 @@ def explicit_archive(path: Path) -> int:
         return 2
 
 
+def scan_liveness() -> dict[str, list[int]]:
+    """live_cwd_holders, saying WHY when it comes back empty, which means unknown."""
+    holders = live_cwd_holders()
+    if not liveness_known(holders):
+        # The nightly apply exited 2 here every night since 2026-08-27 with a bare
+        # message, so the receipt could not tell a timeout from a missing binary from a
+        # genuinely empty parse.
+        print(
+            "[DEGRADED] liveness unknown — lsof reported no cwd holders at all; "
+            f"every removal is refused until the scan works ({LAST_SCAN_DIAG})",
+            file=sys.stderr,
+        )
+    return holders
+
+
+def set_liveness(
+    row: WorktreeRow, holders: dict[str, list[int]], daemons: set[int]
+) -> None:
+    pids = holders_for(row.path, holders)
+    row.daemon_pids = tuple(sorted(pid for pid in pids if pid in daemons))
+    row.daemon_held = len(row.daemon_pids)
+    row.held = len(pids) - row.daemon_held
+
+
+def strip_rows(repo: Path, *, git_timeout: float | None = None) -> list[WorktreeRow]:
+    """``repo``'s linked trees with only what the cache strip reads: path, lock, app owner.
+
+    prune deletes ignored caches and never a tree, so it skips audit_repo's removal proofs
+    (git status, ignored-file listings, landing proofs and two walks of every file in the
+    tree, target/ included). Measured on 2026-11-09 over 78-82 trees, they were 143 s of a
+    148 s prune before its first strip at load 100-170, and 258 s of 261 s at nice 5 (the
+    guard's) at load 61-93; that day the throttled launchd guard ran prune past its 30-minute
+    `timeout` twice with nothing stripped. Each row's hold_reason says no audit ran, so
+    classify() reads HOLD and no removal route acts on it.
+    """
+    rows: list[WorktreeRow] = []
+    for wt, branch, lock in parse_worktrees(repo, timeout=git_timeout):
+        if any(s in str(wt) for s in SKIP_PATH_SUBSTR) or not wt.is_dir():
+            continue
+        hold = "cache-strip row: removal audit not run"
+        try:
+            owner = _codex_owner_thread(wt)
+        except (RuntimeError, OSError, ValueError) as error:
+            owner, hold = None, f"unreadable codex-thread.json: {error}"
+        rows.append(
+            WorktreeRow(
+                repo=repo.name,
+                repo_root=repo,
+                path=wt,
+                branch=branch,
+                ahead=-1,
+                tracked_dirty=0,
+                size="?",
+                ancestor=False,
+                lock=lock,
+                lock_stale=lock_is_stale(lock),
+                hold_reason=hold,
+                codex_owner_thread=owner,
+            )
+        )
+    return rows
+
+
+def prune_caches(
+    args: argparse.Namespace, repos: list[Path], keep: set[str], with_size: bool
+) -> int:
+    """The low-disk guard's run: strip idle caches, then old pytest basetemps; never a tree.
+
+    Liveness is scanned right before the plan, as it was after the audit before. Each strip
+    prints its line as it lands, and a SIGTERM names the step it cut (enter_phase).
+    """
+    enter_phase("inventory")
+
+    def listed(repo: Path) -> list[WorktreeRow]:
+        try:
+            return strip_rows(repo, git_timeout=PRUNE_GIT_TIMEOUT_S)
+        except subprocess.TimeoutExpired as error:
+            print(
+                f"HOLD {repo}: git worktree list ran past {error.timeout:g}s; trees kept"
+            )
+            return []
+
+    present = [repo for repo in repos if (repo / ".git").exists()]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=SUGGEST_WORKERS) as pool:
+        rows = [row for found in pool.map(listed, present) for row in found]
+    enter_phase("liveness")
+    cwd_holders = scan_liveness()
+    if not liveness_known(cwd_holders):
+        print("refusing to remove anything: liveness unknown (see [DEGRADED] above)")
+        return 2
+    daemons = daemon_pids(
+        {pid for row in rows for pid in holders_for(row.path, cwd_holders)}
+    )
+    for row in rows:
+        set_liveness(row, cwd_holders, daemons)
+    strip_plan: list[tuple[WorktreeRow, list[Path]]] = []
+    mapping_known = True
+    if args.strip_idle_caches_min is not None:
+        enter_phase("plan-strip")
+        mapped = live_mapped_holders()
+        mapping_known = bool(mapped)
+        if mapping_known:
+            strip_plan = plan_cache_strip(
+                rows,
+                args.strip_idle_caches_min,
+                keep,
+                exclude=[],
+                mapped=mapped,
+                workers=SUGGEST_WORKERS,
+                git_timeout=PRUNE_GIT_TIMEOUT_S,
+            )
+        else:
+            print(
+                "[DEGRADED] mapped-file scan unknown — lsof -d txt reported nothing; "
+                "every cache strip is refused until the scan works",
+                file=sys.stderr,
+            )
+    enter_phase("plan-pytest")
+    pytest_plan = (
+        plan_pytest_prune(pytest_temp_roots(), args.prune_pytest_hours, cwd_holders)
+        if args.prune_pytest_hours is not None
+        else []
+    )
+    enter_phase("strip")
+    stripped = 0
+    for row, caches in strip_plan:
+        sizes = strip_idle_caches(row.path, caches, git_timeout=PRUNE_GIT_TIMEOUT_S)
+        if sizes:
+            print(
+                f"STRIPPED {row.path} " + " ".join(f"{k}={v}" for k, v in sizes.items())
+            )
+            stripped += 1
+    enter_phase("pytest")
+    pruned_pytest = 0
+    for path, age_h in pytest_plan:
+        size = _du(path) if with_size else "?"
+        if delete_tree(path):
+            print(f"PRUNED-PYTEST {path} ({size}, idle {age_h:.1f}h)")
+            pruned_pytest += 1
+        else:
+            print(f"FAIL pytest temp {path}: still on disk", file=sys.stderr)
+    enter_phase("receipt")
+    parts = []
+    if args.strip_idle_caches_min is not None:
+        parts.append(f"stripped {stripped}/{len(strip_plan)} trees' caches")
+    if args.prune_pytest_hours is not None:
+        parts.append(f"pruned {pruned_pytest}/{len(pytest_plan)} pytest temp dirs")
+    print("\n" + "; ".join(parts))
+    print(f"timing: {phase_times()}")
+    write_gc_receipt(
+        args.receipt_motor,
+        principal_metric=stripped + pruned_pytest,
+        error_class=None if mapping_known else "mapped_scan_unknown",
+        detail=f"stripped={stripped} pruned_pytest={pruned_pytest}",
+    )
+    return 0 if mapping_known else 2
+
+
+def write_gc_receipt(
+    motor: str, *, principal_metric: int, error_class: str | None, detail: str
+) -> None:
+    """Janitor effect-receipt (observe 2026-08-11 B3); its failure never fails the GC."""
+    try:
+        from janitor_receipt import write_receipt
+
+        write_receipt(
+            motor,
+            principal_metric=principal_metric,
+            error_class=error_class,
+            detail=detail,
+        )
+    except Exception as e:  # noqa: BLE001 — receipt writes must never fail the GC
+        print(f"janitor_receipt write skipped: {e}", file=sys.stderr)
+
+
 def main() -> int:
     """The CLI. Line-buffered stdout keeps every finished line when a kill cuts the run,
     and a SIGTERM (the guard's `timeout`) prints the step it interrupted."""
@@ -4768,32 +5008,19 @@ def _main() -> int:
         or args.archive_landed_idle_hours <= 0
     ):
         ap.error("--archive-landed-idle-hours must be a positive finite number")
-    pruning = args.mode == "prune"
-    if (
-        pruning
-        and args.strip_idle_caches_min is None
-        and args.prune_pytest_hours is None
-    ):
-        ap.error("prune needs --strip-idle-caches-min and/or --prune-pytest-hours")
+    if args.mode == "prune":
+        if args.strip_idle_caches_min is None and args.prune_pytest_hours is None:
+            ap.error("prune needs --strip-idle-caches-min and/or --prune-pytest-hours")
+        if args.check:
+            ap.error("prune cannot be combined with --check")
 
     with_size = not (args.no_size or args.check)
     # --check defaults to all-projects so the hub surfaces stranded work in every repo.
     repos = repo_roots(args.repo, args.all_projects or args.check)
     keep = set(args.keep)
+    if args.mode == "prune":
+        return prune_caches(args, repos, keep, with_size)
     stream_audit = args.mode == "audit" and not args.check
-
-    def scan_liveness() -> dict[str, list[int]]:
-        holders = live_cwd_holders()
-        if not liveness_known(holders):
-            # Say WHY the scan is empty: the nightly apply has exited 2 here every
-            # night since 2026-08-27 with a bare message, so the receipt could not
-            # tell a timeout from a missing binary from a genuinely empty parse.
-            print(
-                "[DEGRADED] liveness unknown — lsof reported no cwd holders at all; "
-                f"every removal is refused until the scan works ({LAST_SCAN_DIAG})",
-                file=sys.stderr,
-            )
-        return holders
 
     # Read-only audit rows need liveness before they can be printed. Mutating
     # routes and hook checks still scan last, after all Git proofs finish.
@@ -4804,14 +5031,8 @@ def _main() -> int:
         else set()
     )
 
-    def set_liveness(row: WorktreeRow) -> None:
-        pids = holders_for(row.path, cwd_holders)
-        row.daemon_pids = tuple(sorted(pid for pid in pids if pid in daemons))
-        row.daemon_held = len(row.daemon_pids)
-        row.held = len(pids) - row.daemon_held
-
     def emit_audit_row(row: WorktreeRow) -> None:
-        set_liveness(row)
+        set_liveness(row, cwd_holders, daemons)
         print_audit_row(
             row,
             remove=should_remove(
@@ -4865,7 +5086,7 @@ def _main() -> int:
             {pid for row in all_rows for pid in holders_for(row.path, cwd_holders)}
         )
         for row in all_rows:
-            set_liveness(row)
+            set_liveness(row, cwd_holders, daemons)
 
     if args.mode == "suggest":
         enter_phase("suggest")
@@ -4903,47 +5124,34 @@ def _main() -> int:
     enter_phase("plan")
     aged_rows = (
         plan_aged_locks(all_rows, args.lock_max_age_hours, keep)
-        if not pruning and liveness_known(cwd_holders)
+        if liveness_known(cwd_holders)
         else []
     )
-    # prune touches derived caches only, so every tree-removal plan stays empty in that mode.
-    to_remove = (
-        []
-        if pruning
-        else [
-            r
-            for r in all_rows
-            if should_remove(
-                r, args.include_unmerged, args.force_stale, args.force_all, keep
-            )
-        ]
-    )
-    idle_rows = (
-        []
-        if pruning
-        else plan_idle_unmerged(
-            [r for r in all_rows if r.dup],
-            args.unmerged_idle_hours,
-            keep,
-            exclude=to_remove,
+    to_remove = [
+        r
+        for r in all_rows
+        if should_remove(
+            r, args.include_unmerged, args.force_stale, args.force_all, keep
         )
+    ]
+    idle_rows = plan_idle_unmerged(
+        [r for r in all_rows if r.dup],
+        args.unmerged_idle_hours,
+        keep,
+        exclude=to_remove,
     )
     archive_rows = (
         []
-        if pruning or args.mode == "apply"
+        if args.mode == "apply"
         else plan_idle_archive(
             all_rows, args.archive_stale_days, keep, exclude=to_remove + idle_rows
         )
     )
-    landed_rows = (
-        []
-        if pruning
-        else plan_landed_archive(
-            all_rows,
-            args.archive_landed_idle_hours,
-            keep,
-            exclude=to_remove + idle_rows,
-        )
+    landed_rows = plan_landed_archive(
+        all_rows,
+        args.archive_landed_idle_hours,
+        keep,
+        exclude=to_remove + idle_rows,
     )
     # A tree that goes takes its caches with it, so only surviving trees are stripped.
     strip_plan: list[tuple[WorktreeRow, list[Path]]] = []
@@ -4958,7 +5166,8 @@ def _main() -> int:
                 keep,
                 exclude=to_remove + idle_rows + archive_rows + landed_rows,
                 mapped=mapped,
-                builds_need_landed_work=not pruning,
+                builds_need_landed_work=True,
+                workers=SUGGEST_WORKERS,
             )
         else:
             print(
@@ -4972,13 +5181,13 @@ def _main() -> int:
         else []
     )
 
-    if not pruning and not stream_audit:
+    if not stream_audit:
         for row in all_rows:
             print_audit_row(row, remove=row in to_remove, aged_lock=row in aged_rows)
 
     # Stranded trees are invisible to `git worktree list`, so they are found by scanning
     # the temp roots directly rather than by asking any repo what it owns.
-    stranded = [] if pruning else find_stranded(cwd_holders, with_size=with_size)
+    stranded = find_stranded(cwd_holders, with_size=with_size)
     if stranded:
         print(
             "\nSTRANDED — registration gone, files remain (invisible to `git worktree list`):"
@@ -4997,7 +5206,7 @@ def _main() -> int:
                 f"{'→' if s.reclaimable else ' '} {owner:15} {s.size:>6}  {s.path}  ({why})"
             )
 
-    if not all_rows and not stranded and not pruning:
+    if not all_rows and not stranded:
         print("(no extra worktrees)")
         # apply still runs to the receipt: a reaper that emptied every repo is a success,
         # and skipping the receipt would read as a dead motor after 36 h.
@@ -5200,21 +5409,17 @@ def _main() -> int:
     # Successful remove unregisters its target; blanket prune has no safe proof.
 
     enter_phase("receipt")
-    parts = (
-        []
-        if pruning
-        else [
-            f"removed {removed}/{len(to_remove)} worktrees",
-            f"reclaimed {reclaimed} stranded",
-        ]
-    )
-    if args.unmerged_idle_hours is not None and not pruning:
+    parts = [
+        f"removed {removed}/{len(to_remove)} worktrees",
+        f"reclaimed {reclaimed} stranded",
+    ]
+    if args.unmerged_idle_hours is not None:
         parts.append(
             f"reaped idle-unmerged {reaped_idle}/{len(idle_rows)} (branches kept)"
         )
-    if args.archive_stale_days is not None and not pruning:
+    if args.archive_stale_days is not None:
         parts.append(f"archived 0/{len(archive_rows)} (under {ARCHIVE_ROOT})")
-    if args.archive_landed_idle_hours is not None and not pruning:
+    if args.archive_landed_idle_hours is not None:
         parts.append(
             f"archived landed {archived}/{len(landed_rows)} (under {ARCHIVE_ROOT})"
         )
@@ -5223,27 +5428,17 @@ def _main() -> int:
     if args.prune_pytest_hours is not None:
         parts.append(f"pruned {pruned_pytest}/{len(pytest_plan)} pytest temp dirs")
     print("\n" + "; ".join(parts))
-    # Janitor effect-receipt (observe 2026-08-11 B3): principal = trees removed+reclaimed;
-    # in prune mode, trees stripped + pytest dirs pruned.
-    try:
-        from janitor_receipt import write_receipt
-
-        write_receipt(
-            args.receipt_motor,
-            principal_metric=(
-                stripped + pruned_pytest
-                if pruning
-                else removed + reclaimed + archived + reaped_idle
-            ),
-            error_class=None if mapping_known else "mapped_scan_unknown",
-            detail=(
-                f"removed={removed} reclaimed_stranded={reclaimed} reaped_idle={reaped_idle} "
-                f"archived={archived} stripped={stripped} pruned_pytest={pruned_pytest} "
-                f"archive_root={ARCHIVE_ROOT}"
-            ),
-        )
-    except Exception as e:  # noqa: BLE001 — receipt writes must never fail the GC
-        print(f"janitor_receipt write skipped: {e}", file=sys.stderr)
+    # principal = trees removed + reclaimed; prune_caches counts strips and pytest dirs.
+    write_gc_receipt(
+        args.receipt_motor,
+        principal_metric=removed + reclaimed + archived + reaped_idle,
+        error_class=None if mapping_known else "mapped_scan_unknown",
+        detail=(
+            f"removed={removed} reclaimed_stranded={reclaimed} reaped_idle={reaped_idle} "
+            f"archived={archived} stripped={stripped} pruned_pytest={pruned_pytest} "
+            f"archive_root={ARCHIVE_ROOT}"
+        ),
+    )
     return 0 if mapping_known else 2
 
 

@@ -308,6 +308,80 @@ def _build(wt: Path) -> None:
     (wt / "target" / "debug" / "deps" / "libx.rlib").write_bytes(b"\0" * 64)
 
 
+def test_prune_strips_without_the_removal_audit(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The audit's git proofs and whole-tree walks were 143 s of a 148 s prune plan on
+    2026-11-09, the day the guard's prune timed out twice; prune never reads them."""
+    _cargo(repo)
+    wt = _lane(repo, "audit-free")
+    _build(wt)
+    _age(wt, 45)
+
+    def audit(*_args: object, **_kwargs: object) -> None:
+        pytest.fail("prune ran the removal audit")
+
+    for name in (
+        "audit_repo",
+        "_audit_worktree",
+        "_hidden_work",
+        "_worktree_state_hold",
+        "dirty_work_on_default",
+    ):
+        monkeypatch.setattr(worktree_gc, name, audit)
+    rc, out = _main(monkeypatch, capsys, "prune", "--repo", str(repo), *GUARD_FLAGS, holders=NO_HOLDER)
+    assert rc == 0 and f"STRIPPED {wt} " in out and "target=" in out
+    assert not (wt / "target").exists() and _caches(wt) == (False, False)
+    assert "timing: startup" in out and " strip " in out
+
+
+def test_cargo_target_trees_are_planned_first(repo: Path) -> None:
+    _cargo(repo)
+    light = _lane(repo, "venv-only")
+    heavy = _lane(repo, "with-target")
+    _build(heavy)
+    for wt in (light, heavy):
+        _age(wt, 45)
+    by_path = {row.path: row for row in worktree_gc.audit_repo(repo, with_size=False)}
+    rows = [by_path[light], by_path[heavy]]
+    plan = worktree_gc.plan_cache_strip(rows, 30, set(), exclude=[], mapped=NO_HOLDER)
+    assert [row.path for row, _caches in plan] == [heavy, light]
+    assert heavy / "target" in plan[0][1]
+    parallel = worktree_gc.plan_cache_strip(
+        rows, 30, set(), exclude=[], mapped=NO_HOLDER, workers=4
+    )
+    assert parallel == plan
+
+
+def test_git_call_past_its_bound_keeps_the_caches(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    slow = _lane(repo, "slow-git")
+    quick = _lane(repo, "quick-git")
+    for wt in (slow, quick):
+        _age(wt, 600)
+    real_run = worktree_gc.run
+    bounds: list[float | None] = []
+
+    def run(
+        cmd: list[str],
+        cwd: Path | None = None,
+        check: bool = False,
+        timeout: float | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        if cwd == slow and "status" in cmd:
+            bounds.append(timeout)
+            raise subprocess.TimeoutExpired(cmd, timeout or 0)
+        return real_run(cmd, cwd=cwd, check=check, timeout=timeout)
+
+    monkeypatch.setattr(worktree_gc, "run", run)
+    rc, out = _main(monkeypatch, capsys, "prune", "--repo", str(repo), *GUARD_FLAGS, holders=NO_HOLDER)
+    assert rc == 0 and bounds == [worktree_gc.PRUNE_GIT_TIMEOUT_S]
+    assert f"HOLD {slow}: git ran past {worktree_gc.PRUNE_GIT_TIMEOUT_S:g}s" in out
+    assert f"STRIPPED {slow}" not in out and _caches(slow) == (True, True)
+    assert f"STRIPPED {quick}" in out and _caches(quick) == (False, False)
+
+
 def test_killed_prune_keeps_finished_strips_and_names_the_step(
     repo: Path, tmp_path: Path
 ) -> None:
