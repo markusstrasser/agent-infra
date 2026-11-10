@@ -6,7 +6,6 @@ Thin wrapper over SQLite. No ORM. Domain-specific logic stays in project profile
 import json
 import re
 import sqlite3
-from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -18,19 +17,6 @@ class _DateEncoder(json.JSONEncoder):
         return super().default(obj)
 
 SCHEMA_SQL = Path(__file__).parent / "schema.sql"
-
-
-@dataclass
-class ReflectResult:
-    """Result of a reflect() call -- LLM synthesis over recalled knowledge."""
-    text: str
-    cited_ids: list[str] = field(default_factory=list)
-    hallucinated_ids: list[str] = field(default_factory=list)
-    recalled_ids: list[str] = field(default_factory=list)
-    query: str = ""
-    model: str = ""
-    input_tokens: int = 0
-    output_tokens: int = 0
 
 
 def _now() -> str:
@@ -401,162 +387,6 @@ class KnowledgeDB:
 
         scored.sort(key=lambda x: x[0], reverse=True)
         return [item for _, item in scored[:max_results]]
-
-    # --- Reflect (LLM synthesis) ---
-
-    def reflect(self, query: str, *, max_results: int = 20,
-                model: str = "claude-haiku-4-5-20251001",
-                max_tokens: int = 1024,
-                max_context_objects: int = 40) -> ReflectResult:
-        """Search the substrate and synthesize an answer using an LLM.
-
-        1. Recall: LIKE search across assertions+evidence+artifacts
-        2. Graph expand: 1-hop relations for each recalled object
-        3. Assemble context: Format for LLM
-        4. Synthesize: Single Anthropic SDK call
-        5. Return: ReflectResult with citations
-
-        Falls back to plain recalled context if Anthropic API fails.
-        """
-        # Step 1: Recall
-        recalled = self.search_objects(query, max_results=max_results)
-        recalled_ids = [obj["id"] for obj in recalled]
-
-        if not recalled:
-            return ReflectResult(
-                text="No relevant objects found in the knowledge substrate.",
-                cited_ids=[], hallucinated_ids=[], recalled_ids=[],
-                query=query, model=model, input_tokens=0, output_tokens=0,
-            )
-
-        # Step 2: Graph expand -- 1-hop relations for each recalled object
-        expanded: dict[str, dict] = {obj["id"]: obj for obj in recalled}
-        for obj in recalled:
-            oid = obj["id"]
-            # Outgoing relations (this object depends on target)
-            out_rows = self.conn.execute(
-                "SELECT target_id FROM relations WHERE source_id = ?",
-                (oid,),
-            ).fetchall()
-            for r in out_rows:
-                tid = r["target_id"]
-                if tid not in expanded:
-                    neighbor = self.get(tid)
-                    if neighbor and neighbor.get("status") != "stale":
-                        neighbor["_score"] = 0
-                        expanded[tid] = neighbor
-
-            # Incoming relations (other objects depend on this)
-            in_rows = self.conn.execute(
-                "SELECT source_id FROM relations WHERE target_id = ?",
-                (oid,),
-            ).fetchall()
-            for r in in_rows:
-                sid = r["source_id"]
-                if sid not in expanded:
-                    neighbor = self.get(sid)
-                    if neighbor and neighbor.get("status") != "stale":
-                        neighbor["_score"] = 0
-                        expanded[sid] = neighbor
-
-        # Cap total objects at max_context_objects, prune lowest-scored
-        all_objects = list(expanded.values())
-        all_objects.sort(key=lambda x: x.get("_score", 0), reverse=True)
-        all_objects = all_objects[:max_context_objects]
-        all_ids = {obj["id"] for obj in all_objects}
-
-        # Step 3: Assemble context
-        context_parts = []
-        for obj in all_objects:
-            obj_type = obj.get("_type", "unknown")
-            oid = obj["id"]
-            title = obj.get("title") or "(no title)"
-            status = obj.get("status", "")
-
-            # Extract key payload fields
-            payload = obj.get("payload", {})
-            payload_summary = ""
-            if isinstance(payload, dict) and payload:
-                key_fields = []
-                for k, v in list(payload.items())[:8]:
-                    if isinstance(v, str) and len(v) > 200:
-                        v = v[:200] + "..."
-                    key_fields.append(f"  {k}: {v}")
-                if key_fields:
-                    payload_summary = "\n".join(key_fields)
-
-            part = f"[{obj_type}] {oid}: {title} (status: {status})"
-            if payload_summary:
-                part += f"\n{payload_summary}"
-            context_parts.append(part)
-
-        assembled_context = "\n\n".join(context_parts)
-
-        # Step 4: Synthesize via Anthropic SDK
-        prompt = (
-            "Based on the following retrieved knowledge from a knowledge substrate, "
-            "answer the query.\n\n"
-            f"Query: {query}\n\n"
-            f"Retrieved knowledge ({len(all_objects)} objects):\n"
-            f"{assembled_context}\n\n"
-            "Instructions:\n"
-            "- Cite specific object IDs when making claims "
-            "(use the exact IDs from the retrieved knowledge).\n"
-            "- If the retrieved knowledge doesn't contain enough information, say so.\n"
-            "- Be concise and precise.\n"
-            "- Do not invent information not present in the retrieved knowledge."
-        )
-
-        try:
-            import anthropic
-            client = anthropic.Anthropic()
-            response = client.messages.create(
-                model=model,
-                max_tokens=max_tokens,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            # Type-filter: on thinking models content[0] is a thinking block,
-            # and .text on it would silently trip the fallback below.
-            text = "".join(b.text for b in response.content if b.type == "text")
-            input_tokens = response.usage.input_tokens
-            output_tokens = response.usage.output_tokens
-        except Exception:
-            # Graceful fallback: return assembled context as plain text
-            return ReflectResult(
-                text=(
-                    "[API unavailable -- returning raw recalled context]\n\n"
-                    + assembled_context
-                ),
-                cited_ids=[], hallucinated_ids=[], recalled_ids=recalled_ids,
-                query=query, model=model, input_tokens=0, output_tokens=0,
-            )
-
-        # Step 5: Extract cited IDs and detect hallucinated ones
-        # IDs are kebab-case, often prefixed with ev-, memo-, etc.
-        cited_ids: list[str] = []
-        hallucinated_ids: list[str] = []
-        for candidate in re.findall(r'[a-z][a-z0-9_-]{2,}(?:-[a-z0-9_-]+)+', text):
-            if candidate in all_ids:
-                if candidate not in cited_ids:
-                    cited_ids.append(candidate)
-            elif candidate not in hallucinated_ids:
-                # Check if it's actually a registered object we pruned
-                if self.get(candidate) is not None:
-                    if candidate not in cited_ids:
-                        cited_ids.append(candidate)
-                else:
-                    hallucinated_ids.append(candidate)
-
-        return ReflectResult(
-            text=text,
-            cited_ids=cited_ids,
-            hallucinated_ids=hallucinated_ids,
-            recalled_ids=recalled_ids,
-            query=query,
-            model=model,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-        )
 
     # --- CTE Graph Queries ---
 

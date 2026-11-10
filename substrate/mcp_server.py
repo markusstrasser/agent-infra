@@ -298,27 +298,6 @@ self-documenting.""",
         )
 
     @mcp.tool()
-    def reflect(query: str, max_results: int = 20) -> str:
-        """Search the substrate and synthesize an answer using an LLM (Haiku).
-
-        Recalls matching objects, expands 1-hop relations, then uses Claude Haiku
-        to synthesize an answer with citations to object IDs. Falls back to raw
-        context if the API is unavailable.
-
-        Args:
-            query: Natural language question about the knowledge substrate
-            max_results: Max objects to recall before graph expansion (default 20)
-        """
-        result = db.reflect(query, max_results=max_results)
-        output = result.text
-        output += f"\n\n--- Metadata ---"
-        output += f"\nRecalled: {len(result.recalled_ids)} | Cited: {result.cited_ids}"
-        if result.hallucinated_ids:
-            output += f"\nHallucinated IDs: {result.hallucinated_ids}"
-        output += f"\nTokens: {result.input_tokens} in / {result.output_tokens} out"
-        return output
-
-    @mcp.tool()
     def search_objects(query: str, max_results: int = 20) -> str:
         """Search objects in the substrate by keyword matching.
 

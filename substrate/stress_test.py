@@ -8,10 +8,8 @@ Usage:
     uv run python3 substrate/stress_test.py
 """
 
-import json
 import tempfile
 import time
-from pathlib import Path
 
 from substrate.core import KnowledgeDB
 
@@ -459,32 +457,6 @@ def test_orphans():
     db.close()
 
 
-def test_reflect_fallback():
-    """Reflect falls back gracefully when API unavailable."""
-    print("\n--- Reflect fallback ---")
-    db = KnowledgeDB(tempfile.mktemp(suffix=".db"))
-
-    db.register_assertion("test-claim", type="claim", title="Test claim about creatine",
-                          payload={"confidence": 0.8})
-    db.register_evidence("test-ev", type="paper", source="doi:test",
-                         title="Test paper on creatine")
-    db.add_relation("test-claim", "test-ev", "supported_by")
-
-    # With no valid API key, reflect should fall back gracefully
-    # We test by using a model name that won't exist
-    result = db.reflect("creatine", model="nonexistent-model-xyz")
-    test("Fallback returns text", len(result.text) > 0)
-    test("Fallback contains recalled context", "test-claim" in result.text or "creatine" in result.text.lower())
-    test("Fallback has recalled_ids", "test-claim" in result.recalled_ids)
-    test("Fallback tokens are 0", result.input_tokens == 0 and result.output_tokens == 0)
-
-    # Empty search should return early
-    result2 = db.reflect("xyznonexistentquery")
-    test("Empty recall returns message", "No relevant objects" in result2.text)
-
-    db.close()
-
-
 def main():
     print("Knowledge substrate stress test")
     print("=" * 50)
@@ -505,7 +477,6 @@ def main():
     test_shared_evidence()
     test_contradictions()
     test_orphans()
-    test_reflect_fallback()
 
     print("\n" + "=" * 50)
     print(f"Results: {PASS} passed, {FAIL} failed")

@@ -7,7 +7,6 @@ Usage:
     uv run python3 -m substrate get ID [--db PATH]
     uv run python3 -m substrate dependents ID [--db PATH]
     uv run python3 -m substrate mark-stale ID [--reason R] [--db PATH]
-    uv run python3 -m substrate reflect QUERY [--db PATH] [--model M] [--dry-run] [--raw]
     uv run python3 -m substrate provenance ID [--db PATH] [--max-depth N]
     uv run python3 -m substrate impact ID [--db PATH] [--max-depth N]
     uv run python3 -m substrate shared-evidence ID [--db PATH]
@@ -47,15 +46,6 @@ def main():
     stale_p = sub.add_parser("mark-stale", help="Mark object and downstream as stale")
     stale_p.add_argument("id")
     stale_p.add_argument("--reason", default=None)
-
-    reflect_p = sub.add_parser("reflect", help="LLM synthesis over recalled knowledge")
-    reflect_p.add_argument("query")
-    reflect_p.add_argument("--model", default="claude-haiku-4-5-20251001")
-    reflect_p.add_argument("--max-results", type=int, default=20)
-    reflect_p.add_argument("--raw", action="store_true",
-                           help="Dump full recalled objects")
-    reflect_p.add_argument("--dry-run", action="store_true",
-                           help="Show recalled objects without LLM call")
 
     search_p = sub.add_parser("search", help="Search objects by query")
     search_p.add_argument("query")
@@ -130,33 +120,6 @@ def main():
             for obj in results:
                 score = obj.get("_score", 0)
                 print(f"  [{obj['_type']}] {obj['id']} (score={score}) — {obj.get('title') or '(no title)'}")
-
-        elif args.command == "reflect":
-            results = db.search_objects(args.query, max_results=args.max_results)
-            if not results:
-                print(f"  No results for: {args.query}")
-                sys.exit(0)
-
-            if args.raw:
-                print(json.dumps(results, indent=2))
-                sys.exit(0)
-
-            if args.dry_run:
-                print(f"  Recalled {len(results)} object(s):")
-                for obj in results:
-                    print(f"    [{obj['_type']}] {obj['id']} (score={obj.get('_score', 0)}) — {obj.get('title') or '(no title)'}")
-                sys.exit(0)
-
-            result = db.reflect(args.query, max_results=args.max_results,
-                                model=args.model)
-            print(result.text)
-            print(f"\n--- Reflect metadata ---")
-            print(f"  Model: {result.model}")
-            print(f"  Recalled: {len(result.recalled_ids)} objects")
-            print(f"  Cited: {result.cited_ids}")
-            if result.hallucinated_ids:
-                print(f"  Hallucinated IDs: {result.hallucinated_ids}")
-            print(f"  Tokens: {result.input_tokens} in / {result.output_tokens} out")
 
         elif args.command == "provenance":
             chain = db.provenance_chain(args.id, max_depth=args.max_depth)
