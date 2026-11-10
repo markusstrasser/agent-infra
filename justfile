@@ -140,7 +140,7 @@ smoke:
     echo "=== Routing-doc reference closure (advisory) ==="
     uv run python3 scripts/skill_reference_validator.py --repo agent-infra 2>&1 | grep -E 'dangling|missing absolute|closure OK' || true
     echo "=== agentlogs DB ==="
-    gate "agentlogs sessions" bash -c 'sqlite3 "$HOME/.claude/agentlogs.db" "SELECT COUNT(*) FROM sessions" > /dev/null 2>&1' && echo "OK: agentlogs readable"
+    gate "agentlogs sessions" bash -c 'sqlite3 -cmd ".timeout 15000" "$HOME/.claude/agentlogs.db" "SELECT COUNT(*) FROM sessions" > /dev/null 2>&1' && echo "OK: agentlogs readable"
     echo "=== Doc-vs-reality drift (advisory: live launchd jobs vs CLAUDE.md) ==="
     uv run python3 scripts/orient.py --drift 2>&1 | tail -2 || true
     echo "=== MCP server contracts (in-process, \$0, no LLM) ==="
