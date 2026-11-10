@@ -124,3 +124,10 @@ type: project
 **First seen:** 2026-05-16 (65064d5d 08:49)
 **Pattern:** Agent stamps named sources (RSC, Folger) on commentary it wrote itself. 19/20 RSC attributions were fake.
 **Hook candidate:** Semantic check on new sidenote/reception entries that have a source field but whose content is agent-generated
+
+## 2026-10-26 habits audit (operator sessions 10-12..10-26, 90 sessions, 13.1B cache-read)
+**Status:** measured; scripts under the dispatching session's scratchpad `habits/` (ephemeral)
+- Async poll loop: still recurring but small (192 same-target runs / 466 extra calls / ~105M cr, 21 sessions). Rule exists; proposed `waitfor` primitive.
+- Repeated-Read: small now (30 exact, <=279 overlap). Bash `sed -n` reads (4,888) bypass Read dedup.
+- NEW harness-side: path-scoped rules (`nested_memory`, genomics code-pitfalls.md 21.6KB) and invoked_skills re-injected every compaction window: ~0.28B + ~0.29B cr. Biggest addressable items.
+- Not observed: redundant verification reruns, over-delegation (median 62 subagent tools), retry churn.

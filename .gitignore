@@ -131,3 +131,5 @@ benchmarks/output-websearch.md
 research/compiled/cyp2d6-metabolism.md
 research/storage-dossier/personal-publishing.md
 artifacts/session-retro/2026-03-26-selve.md
+.claude/cache/
+.claude/worktrees-results/

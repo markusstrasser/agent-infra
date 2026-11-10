@@ -428,3 +428,55 @@ Status of `~/.claude/steward-proposals/` after 2026-04-17 archive sweep (4 imple
 - [2026-10-22] RSI close queued: agent-infra/6b3881ce (explicit_rsi_close)
 
 - [2026-10-22] RSI close queued: agent-infra/04e42bf9 (real_issue_signal)
+
+- [2026-10-23] RSI close queued: genomics/a68c126c (explicit_rsi_close)
+
+- [2026-10-23] RSI close queued: agent-infra/472f257d (real_issue_signal)
+
+- [2026-10-23] RSI close queued: agent-infra/bda2e97f (explicit_rsi_close)
+
+- [2026-10-23] RSI close queued: genomics/58143161 (explicit_rsi_close)
+
+- [2026-10-23] RSI close queued: genomics/1cce6699 (explicit_rsi_close)
+
+- [2026-10-23] RSI close queued: genomics/67036e7c (explicit_rsi_close)
+
+- [2026-10-23] RSI close queued: agent-infra/e94b2b5e (explicit_rsi_close)
+
+- [2026-10-24] RSI close queued: genomics/8cdaf0f6 (explicit_rsi_close)
+
+- [2026-10-24] RSI close queued: agent-infra/e7cb5c13 (explicit_rsi_close)
+
+- [2026-10-24] RSI close queued: genomics/6770ae24 (explicit_rsi_close)
+
+- [2026-10-24] RSI close queued: genomics/60083458 (explicit_rsi_close)
+
+- [2026-10-24] RSI close queued: agent-infra/fe98782a (explicit_rsi_close)
+
+- [2026-10-25] RSI close queued: agent-infra/d9f268f2 (explicit_rsi_close)
+
+- [2026-10-26] RSI close queued: agent-infra/6541f934 (explicit_rsi_close)
+
+- [2026-10-26] RSI close queued: agent-infra/c02003f5 (explicit_rsi_close)
+
+- [2026-10-26] RSI close queued: agent-infra/3b465dd7 (explicit_rsi_close)
+
+- [2026-10-26] RSI close queued: genomics/550861ae (explicit_rsi_close)
+
+- [2026-10-26] RSI close queued: agent-infra/066193f4 (explicit_rsi_close)
+
+- [2026-10-26] RSI close queued: genomics/38db5f64 (explicit_rsi_close)
+
+- [2026-10-27] RSI close queued: agent-infra/5040c78f (explicit_rsi_close)
+
+- [2026-10-27] RSI close queued: genomics/2658f6d6 (explicit_rsi_close)
+
+- [2026-10-27] RSI close queued: genomics/3ed104c9 (explicit_rsi_close)
+
+- [2026-10-28] RSI close queued: genomics/f5361f10 (explicit_rsi_close)
+
+- [2026-10-29] RSI close queued: arc-agi/a5695a83 (real_issue_signal)
+
+- [2026-10-29] RSI close queued: arc-agi/ba2c11b5 (explicit_rsi_close)
+
+- [2026-10-29] RSI close queued: arc-agi/13e85be0 (explicit_rsi_close)
