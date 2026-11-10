@@ -94,7 +94,7 @@ def _model_rate(model: str | None) -> tuple[float, float] | None:
     if "opus" in model:
         return PRICING.get("claude-opus-5-5") or PRICING.get("claude-opus-5")
     if "sonnet" in model:
-        return PRICING.get("claude-sonnet-5") or PRICING.get("claude-sonnet-4-6")
+        return PRICING.get("claude-sonnet-5-5") or PRICING.get("claude-sonnet-5")
     if "gpt-5.6-luna" in model:
         return PRICING.get("gpt-5.6-luna")
     if "gpt-5.6-terra" in model:
