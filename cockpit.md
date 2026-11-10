@@ -171,7 +171,7 @@ uv run python3 scripts/dashboard.py --days 30
 ```
 
 ### Agentlogs
-Cross-vendor forensics: `uv run agentlogs recent|search|stats`. See `.claude/rules/session-forensics.md`.
+Cross-vendor forensics: `uv run agentlogs recent|search|stats`. See `docs/session-forensics.md`.
 
 ## Agent rule
 

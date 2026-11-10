@@ -21,7 +21,7 @@ Agent-infra owns the cross-project harness, skill quality, session evidence and 
 | Model/transport choice | `llmx info` (mirror: `~/.claude/cache/llmx-routing.json`); `model-guide` and `llmx-guide` skills |
 | Path-dependent architecture decision | `.claude/rules/decision-journal.md`; record alternatives and why the choice matters |
 | Constitution evaluation or historical rationale | [constitution history](docs/constitution-history.md) |
-| Session forensics/cockpit | `.claude/rules/session-forensics.md`; `cockpit.md` and `.claude/rules/cockpit.md` |
+| Session forensics/cockpit | `docs/session-forensics.md`; `cockpit.md` and `.claude/rules/cockpit.md` |
 
 `/loop` with interactive sessions is the primary execution model; subagents handle independent work. Derive active jobs and recipe lists from `orient`/`system-inventory`; do not maintain copied inventories. The queue orchestrator and file-bus `/orchestrate` are retired; "orchestrator model" means the parent session.
 

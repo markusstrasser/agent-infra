@@ -165,7 +165,7 @@ transactional outbox (see CLAUDE.md `<cross_project_rules>`), not an agent ritua
 **Session/telemetry store:** `~/.claude/agentlogs.db` (cross-vendor: Claude + Codex
 + Gemini + Kimi), queried via `uv run agentlogs …`. JSONL side-logs:
 `session-receipts.jsonl`, `hook-triggers.jsonl`, `event-log.jsonl`. (`runlogs.db`
-and `runlog.py` are **dead** — see `.claude/rules/session-forensics.md`.)
+and `runlog.py` are **dead** — see `docs/session-forensics.md`.)
 
 ---
 
