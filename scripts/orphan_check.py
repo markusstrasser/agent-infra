@@ -74,8 +74,8 @@ OCCASIONAL_MANUAL = {
     # one-time characterization probes (kept as occasional-manual per their vetoes)
     "tool_hallucination_probe.py", "prompt-archaeology.py",
     # data-exhaust producer — on-demand (--today/--days N, no schedule). Its output
-    # artifacts/epistemic-metrics.jsonl has 8 live consumers (dashboard, claims-reader,
-    # trace-faithfulness, safe-lite-eval, observe/session-shape, 2 advisory hooks). The
+    # artifacts/epistemic-metrics.jsonl has 7 live consumers (dashboard, claims-reader,
+    # trace-faithfulness, observe/session-shape, 2 advisory hooks; safe-lite-eval retired 2026-11-10). The
     # 0-invocations/90d proxy flags it as orphan, but deleting it strands the consumers:
     # this is the producer-of-consumed-static-output false-positive class, not dead infra.
     "session-features.py",

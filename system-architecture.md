@@ -195,7 +195,7 @@ capability rises, not just grow.
 
 **Measurement scripts** (epistemic instrumentation, all in `scripts/`):
 `supervision-kpi.py`, `calibration-canary.py`, `pushback-index.py`,
-`trace-faithfulness.py`, `safe-lite-eval.py`, `epistemic-lint.py`, `fold-detector.py`.
+`trace-faithfulness.py`, `epistemic-lint.py`, `fold-detector.py`.
 
 **Deterministic RSI** (`scripts/autoresearch.py` + `experiments/`): mutates a small
 editable surface, runs a *real locked eval*, keeps or discards. Boundary: RSI

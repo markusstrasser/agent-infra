@@ -565,11 +565,6 @@ critique path *args:
     echo "drill:    just review-gate rank --review-dir .model-review --json"
     echo "next:     fold verified findings → {{path}}"
 
-# SAFE-lite factual precision check
-[group('epistemic')]
-safe-lite *args:
-    uv run python3 scripts/safe-lite-eval.py {{args}}
-
 # Tool-trace faithfulness from session transcripts
 [group('epistemic')]
 trace-faithfulness *args:
