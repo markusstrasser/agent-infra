@@ -364,6 +364,10 @@ def shim_wrap(cmd: str, event: str) -> str:
     """
     if "codex_hook_shim" in cmd:
         return cmd
+    if "--agent codex" in cmd:
+        # Codex-native hook installed by another tool (Rex's session-start hook):
+        # it already speaks Codex's dialect, and its installer rewrites it unwrapped.
+        return cmd
     return f"CODEX_HOOK_EVENT={shlex.quote(event)} python3 {shlex.quote(str(CODEX_HOOK_SHIM))} {shlex.quote(cmd)}"
 
 

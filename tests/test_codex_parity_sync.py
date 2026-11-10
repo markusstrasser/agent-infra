@@ -60,6 +60,12 @@ def test_shim_wrap_is_idempotent_and_carries_event() -> None:
     assert module.shim_wrap(wrapped, "Stop") == wrapped  # idempotent
 
 
+def test_shim_wrap_leaves_codex_native_hooks_alone() -> None:
+    module = load_module()
+    rex = "/bin/sh -c 'rex __internal session-start --agent codex 2>/dev/null || true'"
+    assert module.shim_wrap(rex, "SessionStart") == rex
+
+
 def test_sync_global_codex_agents_links_to_claude_md(tmp_path: Path, monkeypatch) -> None:
     module = load_module()
     claude_md = tmp_path / "claude" / "CLAUDE.md"
