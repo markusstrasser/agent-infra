@@ -11,6 +11,7 @@ Agent-infra owns the cross-project harness, skill quality, session evidence and 
 - For navigation use `.claude/rules/codebase-map.md`, then the relevant `.claude/maps/codebase.<group>.md`. Research routing is `.claude/rules/research-index.md`; backlog is `ideas.md`. Load only what the task needs.
 - `improvement-log.md` holds observed findings; `agent_infra_mcp.py` exposes cross-project knowledge search.
 - `AGENTS.md` links to canonical `CLAUDE.md`; edit this file, not the symlink.
+- Commits: scopes come from `.git-scopes` (add a genuinely new area there). `commit-check-parse.py` suggests trailers, none blocking; `Affects:` also covers classification/curation logic. `Session-ID:` comes from the `prepare-commit-msg` hook reading `.claude/current-session-id`. Commits touching `research/`, `decisions/` or index-referenced docs need a body naming the concept and what changed directionally.
 
 ## Operational references
 
