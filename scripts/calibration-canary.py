@@ -10,12 +10,31 @@ Modes:
   --mode compare     Run both modes, output comparison table
   --analysis         Compute per-category correlation matrix (discriminant validity)
   --difficulty easy|hard|all  Filter by difficulty level
+  --model a,b,c      One or more models (comma-separated); default claude-haiku-5-5
+  --backend llmx     (default) `llmx chat --subscription` — Claude/Codex plan, $0
+  --backend anthropic --allow-metered   Metered Anthropic SDK; needs ANTHROPIC_API_KEY
+  --effort LEVEL     Pass an explicit thinking effort (default: the model's own)
+  --workers N        Parallel calls (default 4; Opus reviews share a plan window)
+
+Transport failures are not calibration data: any failed call prints [DEGRADED]
+and the run exits 2 without logging a metric. Token cost per model is read back
+from ~/.claude/llmx-usage.jsonl via the LLMX_CALLER tag (eval-token-costs rule).
+
+2026-11-10 repair: the llmx path passed --stream and --max-tokens, both refused
+by the subscription CLI transport, so every call failed and was silently skipped;
+the default anthropic path needed ANTHROPIC_API_KEY, which no shell exports. The
+rotation never produced a run.
 """
 
 import json
+import os
 import re
+import subprocess
 import sys
+import time
+import uuid
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from config import METRICS_FILE, log_metric
@@ -35,22 +54,59 @@ def load_canaries(limit: int | None = None) -> list[dict]:
 # llmx backend — shells out to llmx CLI for multi-vendor model support
 # ---------------------------------------------------------------------------
 
-def llmx_chat(model: str, prompt: str, max_tokens: int = 80, temperature: float | None = None) -> str | None:
-    """Call llmx CLI and return text output. Returns None on failure."""
-    import subprocess
-    cmd = ["llmx", "chat", "-m", model, "--stream", "--timeout", "30",
-           "--max-tokens", str(max_tokens)]
-    if temperature is not None:
-        cmd.extend(["-t", str(temperature)])
+USAGE_LOG = Path.home() / ".claude" / "llmx-usage.jsonl"
+RUN_TAG = f"calibration-canary:{uuid.uuid4().hex[:8]}"
+EFFORT: str | None = None
+
+
+class TransportError(RuntimeError):
+    """A call that never produced a model answer. Not a calibration result."""
+
+
+def llmx_chat(model: str, prompt: str) -> str:
+    """Call `llmx chat --subscription` and return stdout. Raises TransportError.
+
+    No --max-tokens/--stream (the subscription CLI transport refuses both) and no
+    temperature (claude-cli ignores it; current Claude models reject it on the API).
+    """
+    cmd = ["llmx", "chat", "--subscription", "-m", model, "--timeout", "180"]
+    if EFFORT:
+        cmd.extend(["-e", EFFORT])
     cmd.append(prompt)
+    env = {**os.environ, "LLMX_CALLER": f"{RUN_TAG}:{model}"}
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-        if result.returncode != 0:
-            return None
-        # llmx prints info lines to stderr, content to stdout
-        return result.stdout.strip()
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return None
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=240, env=env)
+    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
+        raise TransportError(f"{model}: {type(exc).__name__}") from exc
+    if result.returncode != 0 or not result.stdout.strip():
+        tail = (result.stderr or "").strip().splitlines()[-1:] or [""]
+        raise TransportError(f"{model}: rc={result.returncode} {tail[0][:200]}")
+    return result.stdout.strip()
+
+
+def usage_for(model: str) -> dict:
+    """Sum llmx usage rows this run logged for one model (prompt/output/reasoning)."""
+    tag = f"{RUN_TAG}:{model}"
+    tot = {"calls": 0, "prompt_tokens": 0, "cached_tokens": 0,
+           "completion_tokens": 0, "reasoning_tokens": 0, "reported_cost_usd": 0.0}
+    if not USAGE_LOG.exists():
+        return tot
+    with USAGE_LOG.open() as f:
+        for line in f:
+            if tag not in line:
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if row.get("caller") != tag:
+                continue
+            tot["calls"] += 1
+            for k in ("prompt_tokens", "cached_tokens", "completion_tokens", "reasoning_tokens"):
+                tot[k] += row.get(k) or 0
+            tot["reported_cost_usd"] += row.get("reported_cost_usd") or 0.0
+    tot["reported_cost_usd"] = round(tot["reported_cost_usd"], 4)
+    return tot
 
 
 def parse_response(text: str) -> tuple[bool, float] | None:
@@ -140,24 +196,25 @@ def _parse_bool_answer(text: str) -> bool | None:
     return answer
 
 
+def _sdk_call(client, model: str, prompt: str):
+    """Metered Anthropic SDK call. Budget covers adaptive thinking; no sampling params."""
+    try:
+        return client.messages.create(
+            model=model, max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}],
+        )
+    except Exception as exc:  # noqa: BLE001 — any SDK failure is a transport failure
+        raise TransportError(f"{model}: {type(exc).__name__}: {str(exc)[:200]}") from exc
+
+
 def ask_canary_sampling(client, *, model: str, canary: dict, temperature: float, backend: str = "anthropic") -> bool | None:
     """Ask a canary in sampling mode — boolean answer only, no confidence."""
     prompt = _build_sampling_prompt(canary)
 
     if backend == "llmx":
-        text = llmx_chat(model, prompt, max_tokens=30, temperature=temperature)
-        if text is None:
-            return None
-        return _parse_bool_answer(text)
+        return _parse_bool_answer(llmx_chat(model, prompt))
 
-    response = client.messages.create(
-        model=model,
-        max_tokens=30,
-        # anthropic SDK 1.x dropped sampling params from create(); the API still
-        # takes them for models that support them (default Haiku 4.5 does).
-        extra_body={"temperature": temperature},
-        messages=[{"role": "user", "content": prompt}],
-    )
+    response = _sdk_call(client, model, prompt)
     text = "".join(
         block.text for block in response.content
         if getattr(block, "type", None) == "text"
@@ -169,17 +226,9 @@ def ask_canary(client, *, model: str, canary: dict, temperature: float, backend:
     prompt = _build_verbalized_prompt(canary)
 
     if backend == "llmx":
-        text = llmx_chat(model, prompt, max_tokens=80, temperature=temperature)
-        if text is None:
-            return None
-        return parse_response(text)
+        return parse_response(llmx_chat(model, prompt))
 
-    response = client.messages.create(
-        model=model,
-        max_tokens=80,
-        extra_body={"temperature": temperature},
-        messages=[{"role": "user", "content": prompt}],
-    )
+    response = _sdk_call(client, model, prompt)
     text = "".join(
         block.text for block in response.content
         if getattr(block, "type", None) == "text"
@@ -187,30 +236,59 @@ def ask_canary(client, *, model: str, canary: dict, temperature: float, backend:
     return parse_response(text.strip())
 
 
-def run_sampling_mode(client, canaries: list[dict], *, model: str, runs: int, temperature: float, backend: str = "anthropic") -> list[dict]:
+FAILURES: list[str] = []
+UNPARSED: dict[str, int] = defaultdict(int)
+WORKERS = 4
+
+
+_FAILED = object()  # transport failure sentinel (distinct from an unparsable answer)
+
+
+def _parallel(fn, jobs: list, label: str) -> list:
+    """Run fn(job) over jobs with WORKERS threads. TransportError -> _FAILED + FAILURES."""
+
+    def wrap(job):
+        try:
+            return fn(job)
+        except TransportError as exc:
+            FAILURES.append(str(exc))
+            return _FAILED
+
+    out = []
+    step = max(1, len(jobs) // 10)
+    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+        for i, res in enumerate(pool.map(wrap, jobs), 1):
+            if i % step == 0 or i == len(jobs):
+                print(f"  [{i}/{len(jobs)}] {label}", flush=True)
+            out.append(res)
+    return out
+
+
+def run_sampling_mode(client, canaries: list[dict], *, model: str, runs: int, temperature: float, backend: str = "llmx") -> list[dict]:
     """Run canaries in sampling mode — boolean answer only, measure frequency."""
     samples = []
-    total_calls = len(canaries) * runs
-    call_num = 0
-    for canary in canaries:
-        for run_idx in range(runs):
-            call_num += 1
-            print(f"\r  Sampling: {call_num}/{total_calls}", end="", flush=True)
-            answer = ask_canary_sampling(
-                client, model=model, canary=canary, temperature=temperature, backend=backend,
-            )
-            if answer is None:
-                continue
-            expected = bool(canary["answer"])
-            samples.append({
-                "id": canary["id"],
-                "category": canary["category"],
-                "difficulty": canary.get("difficulty", "unknown"),
-                "run": run_idx + 1,
-                "expected": expected,
-                "answer": answer,
-                "correct": answer == expected,
-            })
+    jobs = [(canary, run_idx) for canary in canaries for run_idx in range(runs)]
+    answers = _parallel(
+        lambda job: ask_canary_sampling(client, model=model, canary=job[0],
+                                        temperature=temperature, backend=backend),
+        jobs, f"sampling {model}",
+    )
+    for (canary, run_idx), answer in zip(jobs, answers):
+        if answer is _FAILED:
+            continue
+        if answer is None:
+            UNPARSED[model] += 1
+            continue
+        expected = bool(canary["answer"])
+        samples.append({
+            "id": canary["id"],
+            "category": canary["category"],
+            "difficulty": canary.get("difficulty", "unknown"),
+            "run": run_idx + 1,
+            "expected": expected,
+            "answer": answer,
+            "correct": answer == expected,
+        })
     return samples
 
 
@@ -252,11 +330,11 @@ def sampling_brier_for_canary(entries: list[dict], expected: bool) -> tuple[floa
     return (raw_brier, corrected_brier)
 
 
-def print_sampling_results(samples: list[dict], runs: int, canaries: list[dict] | None = None) -> None:
-    """Print sampling mode results with bias-corrected Brier scores."""
+def print_sampling_results(samples: list[dict], runs: int, canaries: list[dict] | None = None) -> dict | None:
+    """Print sampling mode results with bias-corrected Brier scores; return the summary."""
     if not samples:
         print("No samples completed.")
-        return
+        return None
 
     by_id: dict[str, list[dict]] = defaultdict(list)
     for s in samples:
@@ -295,6 +373,12 @@ def print_sampling_results(samples: list[dict], runs: int, canaries: list[dict] 
     print(f"  Corrected Brier:      {avg_corrected_brier:.4f}  95% CI [{brier_ci[0]:.4f}, {brier_ci[1]:.4f}]")
     print(f"  (Correction removes Monte Carlo penalty of p̂(1-p̂)/(N-1) per item)")
     print()
+    summary = {
+        "canaries": len(by_id), "samples": len(samples), "runs": runs,
+        "accuracy": round(accuracy, 4), "raw_brier": round(avg_raw_brier, 4),
+        "corrected_brier": round(avg_corrected_brier, 4),
+        "corrected_brier_ci": [round(brier_ci[0], 4), round(brier_ci[1], 4)],
+    }
 
     # Per-canary breakdown
     canary_data = []
@@ -360,19 +444,50 @@ def print_sampling_results(samples: list[dict], runs: int, canaries: list[dict] 
                     ctx_briers.append(corr)
                 avg_cb = sum(ctx_briers) / len(ctx_briers) if ctx_briers else 0
                 print(f"    {label:<15} acc={ctx_acc:.0%}  brier={avg_cb:.3f}  (n={len(ctx_samples)})")
+    return summary
 
 
 def main() -> None:
+    """Run each requested model; exit 2 with [DEGRADED] if any call failed in transport."""
+    global EFFORT, WORKERS
+    args = sys.argv[1:]
+
+    def opt(name: str, default=None):
+        if name in args:
+            idx = args.index(name)
+            if idx + 1 < len(args):
+                return args[idx + 1]
+        return default
+
+    EFFORT = opt("--effort")
+    WORKERS = int(opt("--workers", "4"))
+    models = [m.strip() for m in opt("--model", "claude-haiku-5-5").split(",") if m.strip()]
+    report = []
+    for model in models:
+        FAILURES.clear()
+        run_model(args, model)
+        usage = usage_for(model)
+        report.append((model, list(FAILURES), usage))
+        print(f"  tokens[{model}]: calls={usage['calls']} prompt={usage['prompt_tokens']} "
+              f"cached={usage['cached_tokens']} out={usage['completion_tokens']} "
+              f"reason={usage['reasoning_tokens']} reported_usd={usage['reported_cost_usd']}")
+        print()
+    degraded = [(m, f) for m, f, _ in report if f]
+    if degraded:
+        for model, fails in degraded:
+            print(f"[DEGRADED] {model}: {len(fails)} transport failure(s); first: {fails[0]}")
+        print("[DEGRADED] calibration metrics for degraded models were NOT logged.")
+        sys.exit(2)
+
+
+def run_model(args: list[str], model: str) -> None:
     runs = 3
     limit = None
     temperature = 0.8
-    model = "claude-haiku-4-5-20251001"
     mode = "verbalized"
     difficulty_filter = "all"
     do_analysis = False
-    backend = "anthropic"
-
-    args = sys.argv[1:]
+    backend = "llmx"
     if "--runs" in args:
         idx = args.index("--runs")
         if idx + 1 < len(args):
@@ -385,10 +500,6 @@ def main() -> None:
         idx = args.index("--temperature")
         if idx + 1 < len(args):
             temperature = float(args[idx + 1])
-    if "--model" in args:
-        idx = args.index("--model")
-        if idx + 1 < len(args):
-            model = args[idx + 1]
     if "--mode" in args:
         idx = args.index("--mode")
         if idx + 1 < len(args):
@@ -406,8 +517,15 @@ def main() -> None:
 
     client = None
     if backend == "anthropic":
-        # Direct API — NOT the default for routine Claude work (2026-06-15 policy).
-        # Prefer backend=llmx with --subscription for subscription routing.
+        # Metered Anthropic API: never the default (Claude runs on the subscription);
+        # needs an explicit --allow-metered and a key, else fail loud.
+        if "--allow-metered" not in args:
+            print("ERROR: --backend anthropic bills the metered API; pass --allow-metered to confirm.")
+            sys.exit(1)
+        if not os.environ.get("ANTHROPIC_API_KEY"):
+            print("ERROR: ANTHROPIC_API_KEY is unset (shells export it only as "
+                  "ANTHROPIC_API_KEY_METERED). Export it for this run or use --backend llmx.")
+            sys.exit(1)
         try:
             import anthropic
         except ImportError:
@@ -433,7 +551,8 @@ def main() -> None:
     if limit is not None:
         canaries = canaries[:limit]
 
-    print(f"  Canaries: {len(canaries)} (difficulty={difficulty_filter}, backend={backend}, model={model})")
+    print(f"[{model}] canaries={len(canaries)} difficulty={difficulty_filter} backend={backend} "
+          f"effort={EFFORT or 'model-default'} run_tag={RUN_TAG}")
 
     if backend == "anthropic":
         import anthropic
@@ -445,7 +564,15 @@ def main() -> None:
     if mode == "sampling":
         sampling_runs = max(runs, 10)  # Sampling needs more runs
         samples = run_sampling_mode(client, canaries, model=model, runs=sampling_runs, temperature=1.0, backend=backend)
-        print_sampling_results(samples, sampling_runs, canaries=canaries)
+        summary = print_sampling_results(samples, sampling_runs, canaries=canaries)
+        if UNPARSED[model]:
+            print(f"  ! {UNPARSED[model]} answer(s) were not parsable JSON booleans (excluded)")
+        if summary and not FAILURES:
+            log_metric("calibration_canary", suite="v3_platinum", mode="sampling",
+                       difficulty=difficulty_filter, model=model, backend=backend,
+                       effort=EFFORT, unparsed=UNPARSED[model], run_tag=RUN_TAG,
+                       tokens=usage_for(model), **summary)
+            print(f"  Logged to {METRICS_FILE}")
         return
 
     # Compare mode — run both
@@ -455,43 +582,39 @@ def main() -> None:
 
     # Verbalized mode (default)
     samples = []
-    total_calls = len(canaries) * runs
-    call_num = 0
+    jobs = [(canary, run_idx) for canary in canaries for run_idx in range(runs)]
+    results = _parallel(
+        lambda job: ask_canary(client, model=model, canary=job[0],
+                               temperature=temperature, backend=backend),
+        jobs, f"verbalized {model}",
+    )
+    for (canary, run_idx), parsed in zip(jobs, results):
+        if parsed is _FAILED:
+            continue
+        if parsed is None:
+            UNPARSED[model] += 1
+            continue
 
-    for canary in canaries:
-        for run_idx in range(runs):
-            call_num += 1
-            print(f"\r  Verbalized: {call_num}/{total_calls}", end="", flush=True)
-            parsed = ask_canary(
-                client,
-                model=model,
-                canary=canary,
-                temperature=temperature,
-                backend=backend,
-            )
-            if parsed is None:
-                continue
+        answer, confidence = parsed
+        expected = bool(canary["answer"])
+        predicted_true = confidence / 100.0 if answer else 1.0 - (confidence / 100.0)
+        outcome = 1 if expected else 0
+        brier = (predicted_true - outcome) ** 2
 
-            answer, confidence = parsed
-            expected = bool(canary["answer"])
-            predicted_true = confidence / 100.0 if answer else 1.0 - (confidence / 100.0)
-            outcome = 1 if expected else 0
-            brier = (predicted_true - outcome) ** 2
-
-            samples.append(
-                {
-                    "id": canary["id"],
-                    "category": canary["category"],
-                    "difficulty": canary.get("difficulty", "unknown"),
-                    "run": run_idx + 1,
-                    "expected": expected,
-                    "answer": answer,
-                    "confidence": confidence / 100.0,
-                    "correct": answer == expected,
-                    "predicted_true": predicted_true,
-                    "brier": brier,
-                }
-            )
+        samples.append(
+            {
+                "id": canary["id"],
+                "category": canary["category"],
+                "difficulty": canary.get("difficulty", "unknown"),
+                "run": run_idx + 1,
+                "expected": expected,
+                "answer": answer,
+                "confidence": confidence / 100.0,
+                "correct": answer == expected,
+                "predicted_true": predicted_true,
+                "brier": brier,
+            }
+        )
 
     if not samples:
         print("No canary samples completed.")
@@ -555,23 +678,30 @@ def main() -> None:
         print(f"    {diff:<10} acc={d_acc:.0%}  brier={d_brier:.3f}  (n={len(entries)})")
     print()
 
-    log_metric(
-        "calibration_canary",
-        suite="v3_platinum",
-        mode=mode,
-        canaries=len(by_id),
-        samples=len(samples),
-        runs=runs,
-        model=model,
-        temperature=temperature,
-        accuracy=round(accuracy, 4),
-        avg_predicted_correctness=round(avg_predicted, 4),
-        avg_confidence=round(avg_conf, 4),
-        brier_score=round(brier_score, 4),
-        avg_consistency=round(avg_consistency, 4),
-        by_category=by_category_summary,
-    )
-    print(f"  Logged to {METRICS_FILE}")
+    if FAILURES:
+        print("  ! transport failures: metric not logged")
+    else:
+        log_metric(
+            "calibration_canary",
+            suite="v3_platinum",
+            mode=mode,
+            backend=backend,
+            effort=EFFORT,
+            run_tag=RUN_TAG,
+            unparsed=UNPARSED[model],
+            canaries=len(by_id),
+            samples=len(samples),
+            runs=runs,
+            model=model,
+            temperature=temperature,
+            accuracy=round(accuracy, 4),
+            avg_predicted_correctness=round(avg_predicted, 4),
+            avg_confidence=round(avg_conf, 4),
+            brier_score=round(brier_score, 4),
+            avg_consistency=round(avg_consistency, 4),
+            by_category=by_category_summary,
+        )
+        print(f"  Logged to {METRICS_FILE}")
 
     # Compare mode: also run sampling
     if mode == "compare":
