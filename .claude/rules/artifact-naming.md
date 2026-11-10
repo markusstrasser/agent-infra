@@ -38,7 +38,7 @@ OUTFILE="${ARTIFACT_DIR}/$(date +%Y-%m-%d)-${SID}-${QUALIFIER}.json"
 
 - **Append-mode JSONL** (code-review-scout, patterns.jsonl) — deduplicates by hash,
   concurrent appends are safe. Date-only or static name is fine.
-- **Staging/scratch files** (session-analyst `input.md`, coverage-digest.txt) —
+- **Staging/scratch files** (observe `input.md`, coverage-digest.txt) —
   intermediate files that get overwritten intentionally. No session ID needed.
 
 ## Consumers

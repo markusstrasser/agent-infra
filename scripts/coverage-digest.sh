@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Coverage digest for novelty checking
 # Generates ~1200-1500 token summary of existing findings, hooks, and rules.
-# Used by: session-analyst (pre-Gemini dispatch), future novelty gate hook.
+# Used by: observe_run.py, observe_prepare_context.py, observe_drift_context.py.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
