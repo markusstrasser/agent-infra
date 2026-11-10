@@ -28,3 +28,20 @@ def test_later_curated_row_still_updates_earlier_curated_row(tmp_path: Path) -> 
     index = tmp_path / "research-index.md"
     index.write_text("\n".join([CURATED, "| `memo.md` | Memo: revised | Before Y |"]) + "\n")
     assert generate_indexes.parse_research_index(index)["memo.md"]["consult_before"] == "Before Y"
+
+
+def test_fix_keeps_only_curated_rows_for_live_memos(tmp_path: Path, monkeypatch) -> None:
+    # 2026-11-10: the generator used to add a TODO row per new memo (301 of 345 rows)
+    index = tmp_path / "research-index.md"
+    index.write_text("\n".join([
+        "| `a.md` | A | Before touching A |",
+        "| `b.md` | B | TODO |",
+        "| `gone.md` | Gone | Before G |",
+    ]) + "\n")
+    monkeypatch.setattr(generate_indexes, "RESEARCH_INDEX", index)
+    monkeypatch.setattr(generate_indexes, "_research_memo_names", lambda: ["a.md", "b.md", "c.md"])
+    issues = generate_indexes.generate_research_index(fix=True)
+    assert any("STALE: gone.md" in i for i in issues)
+    rows = [line for line in index.read_text().splitlines() if line.startswith("| `")]
+    assert rows == ["| `a.md` | A | Before touching A |"]
+    assert generate_indexes.generate_research_index(fix=False) == []

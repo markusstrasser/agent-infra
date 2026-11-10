@@ -1,8 +1,9 @@
 """Generate and validate index files across meta project.
 
 Replaces hand-maintained indexes with generated ones.
-Preserves manually-written content (Topic, Consult before) for existing entries.
-Reports discrepancies, adds new entries, removes stale ones.
+The research index keeps only hand-curated routing rows (a real "Consult
+before" hint); memos without one are found with `ls research/` and `rg`.
+Reports discrepancies and drops rows for deleted memos or rows with no hint.
 
 Usage:
     uv run python3 scripts/generate-indexes.py [--check] [--fix]
@@ -16,7 +17,6 @@ and cleans plans older than 14 days.
 
 import argparse
 import re
-import subprocess
 import subprocess
 import sys
 import time
@@ -53,27 +53,11 @@ def _research_memo_names() -> list[str]:
     return sorted(names, key=str.lower)
 
 
-def extract_title(path: Path) -> str:
-    """Extract first # heading from a markdown file."""
-    try:
-        for line in path.read_text().splitlines():
-            line = line.strip()
-            if line.startswith("# "):
-                title = line[2:].strip()
-                # Truncate long titles
-                if len(title) > 80:
-                    title = title[:77] + "..."
-                return title
-    except Exception:
-        pass
-    return path.stem.replace("-", " ").title()
-
-
 def parse_research_index(path: Path) -> dict[str, dict]:
     """Parse existing research index table into {filename: {topic, consult_before}}.
 
-    A memo can hold two rows: a hand-written one and the TODO row this generator
-    added. The curated row wins, so a regeneration never drops its description.
+    A memo can hold two rows: a hand-written one and a legacy TODO row. The
+    curated row wins, so a regeneration never drops its description.
     """
     entries = {}
     if not path.exists():
@@ -92,51 +76,53 @@ def parse_research_index(path: Path) -> dict[str, dict]:
     return entries
 
 
+def _has_hint(entry: dict) -> bool:
+    return entry["consult_before"] not in ("", "TODO")
+
+
+RESEARCH_INDEX_HEADER = [
+    "---",
+    "paths:",
+    '  - "research/**"',
+    '  - "decisions/**"',
+    "---",
+    "",
+    "# Research Index (`research/`)",
+    "",
+    "Routing hints for memos whose names need one; consult the memo before acting on the topic.",
+    "Everything else: `ls research/` and `rg`. Add a row by hand to route a memo.",
+    "",
+    "| File | Topic | Consult before |",
+    "|------|-------|----------------|",
+]
+
+
 def generate_research_index(fix: bool) -> list[str]:
-    """Generate research index, return list of issues found."""
+    """Rewrite the research index to its curated rows; return issues found.
+
+    Until 2026-11-10 every new memo got a generated row with "TODO" in the
+    third column: 301 of 345 rows carried no hint, about 30 KB the agent
+    loaded whenever it touched research/ or decisions/. Only rows with a
+    hand-written hint are kept now; nothing is added automatically.
+    """
     issues = []
 
     actual_files = _research_memo_names()
-    existing = parse_research_index(RESEARCH_INDEX)
-    existing_names = set(existing.keys())
     actual_names = set(actual_files)
+    existing = parse_research_index(RESEARCH_INDEX)
+    curated = {name: e for name, e in existing.items() if _has_hint(e)}
 
-    # Find discrepancies
-    missing_from_index = actual_names - existing_names
-    stale_in_index = existing_names - actual_names
-
-    for f in sorted(missing_from_index):
-        title = extract_title(RESEARCH_DIR / f)
-        issues.append(f"  NEW: {f} — {title}")
-
-    for f in sorted(stale_in_index):
+    for f in sorted(set(curated) - actual_names):
         issues.append(f"  STALE: {f} — in index but file deleted")
+    unhinted = sorted(set(existing) - set(curated))
+    if unhinted:
+        issues.append(f"  {len(unhinted)} row(s) with no routing hint — --fix drops them")
 
     if fix:
-        # Always rewrite to keep frontmatter and sort order canonical
-        lines = [
-            "---",
-            "paths:",
-            '  - "research/**"',
-            '  - "decisions/**"',
-            "---",
-            "",
-            "# Research Index (`research/`)",
-            "",
-            "Consult these files before acting on the topic. Scan this table when starting a task.",
-            "",
-            "| File | Topic | Consult before |",
-            "|------|-------|----------------|",
-        ]
+        lines = list(RESEARCH_INDEX_HEADER)
         for fname in actual_files:
-            if fname in existing:
-                topic = existing[fname]["topic"]
-                consult = existing[fname]["consult_before"]
-            else:
-                topic = extract_title(RESEARCH_DIR / fname)
-                consult = "TODO"
-            lines.append(f"| `{fname}` | {topic} | {consult} |")
-
+            if fname in curated:
+                lines.append(f"| `{fname}` | {curated[fname]['topic']} | {curated[fname]['consult_before']} |")
         RESEARCH_INDEX.write_text("\n".join(lines) + "\n")
 
     return issues
