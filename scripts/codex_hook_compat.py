@@ -20,6 +20,7 @@ import re
 import subprocess
 import sys
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -369,6 +370,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--timeout", type=float, default=5.0, help="per-hook timeout in seconds")
     parser.add_argument("--json", action="store_true", help="emit machine-readable results")
+    parser.add_argument("--jobs", type=int, default=8, help="hooks run in parallel (1 = serial)")
     args = parser.parse_args(argv)
 
     repos = args.repo or list(REPOS)
@@ -383,8 +385,10 @@ def main(argv: list[str] | None = None) -> int:
                 HookResult(repo, str(root), "meta", "<all>", "", 1, "", "", "fail", "repo root missing")
             )
             continue
-        for hook in hooks:
-            results.append(run_hook(repo, root, hook, args.timeout))
+        # Hooks are independent (own temp dir + spin state each), and Claude/Codex
+        # already fire matching hooks concurrently; serial runs cost ~86 s of smoke.
+        with ThreadPoolExecutor(max_workers=args.jobs) as pool:
+            results.extend(pool.map(lambda h: run_hook(repo, root, h, args.timeout), hooks))
 
     if args.json:
         print(json.dumps([asdict(result) for result in results], indent=2))

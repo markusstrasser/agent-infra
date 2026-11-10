@@ -128,7 +128,7 @@ smoke:
     # startup) because `set -e` aborted the recipe at the first non-zero exit.
     set -uo pipefail
     nfail=0; failed_names=""
-    gate() { local name="$1"; shift; if "$@"; then return 0; fi; nfail=$((nfail+1)); failed_names="$failed_names · $name"; echo "✗ gate failed: $name"; return 1; }
+    gate() { local name="$1"; shift; local t0=$SECONDS rc=0; "$@" || rc=$?; echo "  ⏱ $name $((SECONDS-t0))s"; [ $rc -eq 0 ] && return 0; nfail=$((nfail+1)); failed_names="$failed_names · $name"; echo "✗ gate failed: $name"; return 1; }
     echo "=== Index check (informational) ==="
     uv run python3 scripts/generate-indexes.py --check 2>&1 | tail -5 || true
     echo "=== Governance index currency (regen from canonical if stale) ==="
