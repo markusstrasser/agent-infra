@@ -546,16 +546,6 @@ def print_epistemic_panel(cutoff: datetime):
         else:
             print(f"  Compaction nuance:   {latest.get('events', 0)} events, no density data")
 
-    # Latest calibration canary
-    canary = [m for m in recent if m.get("metric") == "calibration_canary"]
-    if canary:
-        latest = canary[-1]
-        acc = latest.get("accuracy")
-        brier = latest.get("brier_score")
-        consistency = latest.get("avg_consistency")
-        if acc is not None and brier is not None:
-            print(f"  Calibration canary:  {acc:.1%} acc / {brier:.4f} Brier / {consistency:.1%} consistency")
-
     print()
 
 

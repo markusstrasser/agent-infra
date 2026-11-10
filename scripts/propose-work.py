@@ -757,7 +757,7 @@ def emit_json_signals(data: dict, proposals: list[dict],
     for p in proposals:
         sig = {
             "source": {
-                "health": "calibration-canary",
+                "health": "health",
                 "staleness": "git-staleness",
                 "improvement-log": "improvement-log",
                 "hook-roi": "fix-verify",

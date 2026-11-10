@@ -575,11 +575,6 @@ trace-faithfulness *args:
 compaction-nuance *args:
     uv run python3 scripts/compaction-nuance.py {{args}}
 
-# Small fixed calibration canary set
-[group('epistemic')]
-calibration-canary *args:
-    uv run python3 scripts/calibration-canary.py {{args}}
-
 # User #tag annotations from session transcripts
 [group('epistemic')]
 tags *args:
