@@ -89,3 +89,17 @@ def test_claude_disabled_skills_reads_only_off(tmp_path: Path) -> None:
     assert claude_disabled_skills(tmp_path / "missing.json") == frozenset()
     (tmp_path / "bad.json").write_text("{not json", encoding="utf-8")
     assert claude_disabled_skills(tmp_path / "bad.json") == frozenset()
+
+
+def test_identical_real_copy_is_accepted_but_diverged_copy_fails(tmp_path: Path) -> None:
+    src = tmp_path / "claude-skills"
+    dst = tmp_path / "agents-skills"
+    _skill(src, "rex")
+    dst.mkdir()
+    copy = dst / "rex"
+    copy.mkdir()
+    (copy / "SKILL.md").write_bytes((src / "rex" / "SKILL.md").read_bytes())
+    assert sync_skill_symlinks(src, dst, check=True)["ok"] is True
+    (copy / "SKILL.md").write_text("diverged\n", encoding="utf-8")
+    result = sync_skill_symlinks(src, dst, check=True)
+    assert result["ok"] is False and "not a symlink" in result["errors"][0]

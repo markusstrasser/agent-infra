@@ -350,6 +350,13 @@ def claude_disabled_skills(settings_path: Path | None = None) -> frozenset[str]:
     return frozenset(name for name, mode in overrides.items() if mode == "off")
 
 
+
+def _same_tree(a: Path, b: Path) -> bool:
+    """True when two directories hold the same relative files with equal bytes."""
+    def files(root: Path) -> dict[str, bytes]:
+        return {str(f.relative_to(root)): f.read_bytes() for f in root.rglob("*") if f.is_file()}
+    return files(a) == files(b)
+
 def sync_skill_symlinks(
     src: Path,
     dst: Path,
@@ -402,6 +409,11 @@ def sync_skill_symlinks(
                 link.unlink(missing_ok=True)
                 link.symlink_to(target)
                 result["updated"] += 1
+        elif link.is_dir() and _same_tree(link, target):
+            # An app installed its own identical copy (Rex writes real dirs into
+            # both ~/.claude/skills and ~/.agents/skills); a symlink would be
+            # overwritten on its next install, and the content already matches.
+            continue
         elif link.exists():
             result["errors"].append(f"{link} exists and is not a symlink")
             result["ok"] = False
