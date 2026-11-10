@@ -114,3 +114,13 @@ agent-infra only — head-to-head with the lexical predecessor, and because each
 - Shadow PPV < ~50% on any vector after 2 weeks → that vector's prompt needs work or is not
   Stop-judgeable; do not promote it.
 - A native per-turn evaluator (/goal) exposes a claim-verification hook → prefer it over a second LLM call.
+
+## Retired 2026-11-10
+
+Operator: "delete the judge if useless". Evidence: 788 verdicts from 2026-06-15 to 2026-11-10; the
+enforced vector (verify_before_claim) fired 15 times, and no fire was ever confirmed as a true
+violation. A replay A/B on the 14 fires that still had transcripts: Haiku 4.5 fired 2/25 (both
+graded false positives), Haiku 5.5 fired 0/28 (median 7.5 s). With zero catches on the current
+model, the hook was cost (latency, plan tokens) without a measured benefit. Removed the hook,
+its agent-infra wiring, the SMART_JUDGE_* env and observe's smart_judge_stats.py. Resurrection:
+a logged session where an unverified completion claim reached the operator and cost real work.
