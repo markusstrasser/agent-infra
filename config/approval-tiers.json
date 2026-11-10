@@ -29,8 +29,7 @@
         "pretool-git-add-all-guard.sh",
         "pretool-destructive-git-ref.sh",
         "pretool-multiagent-commit-guard.sh",
-        "pretool-no-background-commit.sh",
-        "pretool-predelete-ref-guard.sh"
+        "pretool-no-background-commit.sh"
       ]
     },
     {
@@ -104,7 +103,6 @@
         "pretool-read-discipline.sh",
         "pretool-dataset-probe-first.sh",
         "pretool-eval-preflight.sh",
-        "pretool-genomics-mcp-routing.sh",
         "pretool-modal-run-detach-nudge.sh"
       ]
     },
