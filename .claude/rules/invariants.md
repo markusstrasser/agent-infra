@@ -23,17 +23,3 @@ Public evidence for hard limit #5 (Replit database deletion, Claude Code issues 
 
 - Cross-project execute steps auto-require approval when not already explicitly approved by the user for the current task
 - Daily cost cap: $10 of metered API spend (subscriptions do not count). llmx refuses paid calls at the cap and notifies the operator once that day. Do not circumvent; `LLMX_SPEND_OVERRIDE=1` is the operator's to grant.
-
-## Self-Improvement Governance
-
-A finding becomes a rule or fix ONLY if:
-1. Recurs 2+ sessions
-2. Not covered by existing rule
-3. Is a checkable predicate OR architectural change
-
-Reject everything else. No exceptions for "obvious improvements."
-
-## Post-Compaction Verification
-
-After any compaction event, verify claimed completed work via `git log`.
-Compaction summaries can hallucinate completed work. Trust git, not memory.

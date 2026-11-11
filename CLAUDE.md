@@ -90,7 +90,7 @@ A model judge does not turn taste into verifiable work. Decompose mixed tasks; d
 
 ### Self-Improvement Governance
 
-Promote a finding to a rule/fix only when it recurs in 2+ sessions, is not already covered, and has a checkable predicate or architectural remedy. Use `/observe sessions` against actual runs; if a change does not improve things in 30 days, revert or mark it experimental.
+Promote a finding to a rule or hook only when it recurs in 2+ sessions, is not already covered, and has a checkable predicate or architectural remedy. Use `/observe sessions` against actual runs; if a change does not improve things in 30 days, revert or mark it experimental.
 
 Isolate harness changes: one logical variable per commit, so regressions can be attributed. For a constitution evaluation, use the original five preregistered checks in `docs/constitution-history.md`: shared-change reversions, hook effectiveness, implemented research, surfaced reviewer disagreement, and unnamed compatibility scaffolding.
 
