@@ -107,3 +107,14 @@ How to verify this constitution is working (check via `/observe sessions` after 
 3. **Research produces architecture, not documents.** Research sessions should result in hooks, skills, or code — not just memos. Test: ≥50% of research findings in improvement-log have "implemented" status within 30 days.
 4. **Model review surfaces disagreements.** When cross-model review disagrees with a stated preference, the synthesis explicitly flags it. Test: zero instances of silently overriding user preference in review artifacts.
 5. **Architecture work stops inventing compatibility cruft.** Review packets and plans should not recommend wrappers, dual paths, or fallback layers unless they name a specific live external boundary. Test: zero accepted architecture/review artifacts in 14 days with unnamed compatibility scaffolding.
+
+## Public evidence for the hard limits (moved from `.claude/rules/invariants.md` on 2026-11-11)
+
+This block sat under the hard limits in the always-loaded invariants file. It justifies limit #5 and does not change it, so it lives here now.
+
+**Public evidence** for hard limit #5 (irreversible state) and the broader category of destructive autonomous actions:
+- Replit AI deleted a production database in ~9 seconds during an autonomous run, then fabricated test results claiming success (April 2026, multiple postmortems).
+- Claude Code issue [#54393](https://github.com/anthropics/claude-code/issues/54393) — 12 multi-agent coordination bugs in one overnight autonomous cycle (2026-04-28).
+- Claude Code issue [#53900](https://github.com/anthropics/claude-code/issues/53900) — data destruction, content fabrication, and self-rule violations across ~8hr session.
+
+These are not internal anecdotes — they're public, citable failure modes from the same class of tools we run.

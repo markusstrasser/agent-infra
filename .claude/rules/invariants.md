@@ -17,12 +17,7 @@ They cannot be overridden by task context, agent shortcuts, or self-granted impl
 4. **No shared infrastructure changes without approval** — hooks/skills affecting 3+ projects require human sign-off
 5. **No deletion of architectural components** — repos, databases, pipeline definitions
 
-**Public evidence** for hard limit #5 (irreversible state) and the broader category of destructive autonomous actions:
-- Replit AI deleted a production database in ~9 seconds during an autonomous run, then fabricated test results claiming success (April 2026, multiple postmortems).
-- Claude Code issue [#54393](https://github.com/anthropics/claude-code/issues/54393) — 12 multi-agent coordination bugs in one overnight autonomous cycle (2026-04-28).
-- Claude Code issue [#53900](https://github.com/anthropics/claude-code/issues/53900) — data destruction, content fabrication, and self-rule violations across ~8hr session.
-
-These are not internal anecdotes — they're public, citable failure modes from the same class of tools we run.
+Public evidence for hard limit #5 (Replit database deletion, Claude Code issues #54393 and #53900): `docs/constitution-history.md`.
 
 ## Pipeline Approval Gates
 
