@@ -4,7 +4,7 @@
 Detects the "build-then-undo" anti-pattern: an agent adds a file (or symbol) in
 one commit, then deletes/reverts it shortly after within the SAME session. This
 is the most recurrent failure in improvement-log.md (8th+ instance) with zero
-enforcement today (Constitution P11: 10+ occurrences -> architecture).
+enforcement today (Constitution P11: recurring patterns -> architecture).
 
 NOT a live blocking hook. Scans git log and emits findings. Callable as:
     uv run python3 scripts/buildthenundo.py [--days N] [--json]

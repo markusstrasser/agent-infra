@@ -67,7 +67,7 @@ The system must actively detect when goals shift, not wait for the human to arti
 
 ## Quality Standard
 
-Recurring patterns (used/encountered 10+ times) must become architecture — not instructions, not snippets, not manual habits (the Raycast-snippet heuristic). Qualitative reports from session-analyst are the primary feedback mechanism. No arbitrary numeric targets — the goal is "no stupid shit in the logs," judged by comparing actual runs against what an optimal run would look like.
+Recurring patterns must become architecture — not instructions, not snippets, not manual habits (the Raycast-snippet heuristic). Qualitative reports from session-analyst are the primary feedback mechanism. No arbitrary numeric targets — the goal is "no stupid shit in the logs," judged by comparing actual runs against what an optimal run would look like.
 
 ## Projects Served
 

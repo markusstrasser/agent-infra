@@ -60,26 +60,29 @@ def inv_rule_hook_balance(artifacts: list | None = None) -> dict:
 
 
 def inv_recurrence_architecture(artifacts: list | None = None) -> dict:
-    """Constitution P11: a pattern recurring 10+ times must become architecture.
+    """Constitution P11: a pattern that keeps recurring must become architecture.
+    P11 names no count; the bar here is the constitution's promotion rule
+    (Self-Improvement Governance: recurs in 2+ sessions).
     Telemetry shadow: BUILD-THEN-UNDO mentions in improvement-log vs whether an
     enforcing artifact exists."""
     txt = _read(LOG)
     n = len(re.findall(r"BUILD[-_ ]THEN[-_ ]UNDO", txt, re.IGNORECASE))
     enforced = BTU_ENFORCER.exists()
-    passed = (n < 10) or enforced
+    threshold = 2
+    passed = (n < threshold) or enforced
     return {
         "id": "P11-recurrence-architecture",
         "clause": "Constitution P11 (recurring patterns become architecture)",
-        "claim": "used/encountered 10+ times -> hook, skill, or scaffolding",
+        "claim": "a recurring pattern -> hook, skill, or scaffolding",
         "passed": passed,
         "value": n,
-        "threshold": 10,
+        "threshold": threshold,
         "evidence": f"{n} BUILD-THEN-UNDO mentions; enforcer "
                     f"{'present' if enforced else 'ABSENT'} (scripts/buildthenundo.py)",
         "confidence": "high",
         "blast_radius": "local",
         "detail": "BUILD-THEN-UNDO is the top recurrence. P11 requires it become "
-                  "architecture once past 10 occurrences; satisfied by a report-only "
+                  "architecture once it recurs; satisfied by a report-only "
                   "detector (not a blocking hook).",
     }
 

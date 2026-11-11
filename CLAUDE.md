@@ -71,9 +71,9 @@ A model judge does not turn taste into verifiable work. Decompose mixed tasks; d
 
 **10. Fail open, carve out exceptions.** Hooks fail open by default. Fail closed for protected-data writes, parser-confirmed shell syntax errors and repeated failure loops (>5). Valid multiline shell syntax is never itself a block condition. Extend exceptions only with measured value.
 
-**11. Recurring patterns become architecture.** Workflows encountered 10+ times warrant a hook, skill or scaffold when the measured problem and verifier justify it.
+**11. Recurring patterns become architecture.** A workflow that keeps recurring warrants a hook, skill or scaffold when the measured problem and verifier justify it.
 
-**12. Cross-model review for non-trivial decisions.** Required for multi-project or shared-infrastructure changes. Review concrete proposals, verify claims independently, and surface disagreement with the user's expressed preference to the user.
+**12. Cross-model review by context.** Whether a decision gets one depends on what a wrong call would cost and what a probe or test can settle first; the global review triggers decide. When one runs, review concrete proposals, verify claims independently, and surface disagreement with the user's expressed preference to the user.
 
 **13. The git log is the learning.** Commit corrections as distinct logical changes. Governance files require `Evidence:` trailers.
 
