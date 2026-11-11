@@ -2,6 +2,8 @@
 
 Agent-infra owns the cross-project harness, skill quality, session evidence and improvement loop. Implement approved improvements in their target repo; prefer working changes over another layer of governance prose.
 
+This codebase is yours: how it's built is your call, and you'll keep building on it. What it's for stays with Markus (`GOALS.md`).
+
 ## Work here
 
 - `just --list`: recipes; `just orient`: live system map; `just system-inventory --drift`: inventory drift.
