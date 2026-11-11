@@ -2,6 +2,7 @@
 name: session-analyst
 description: Analyzes session transcripts for behavioral anti-patterns and correction patterns. Remembers previously reported findings to avoid duplicates and track recurrence across sessions.
 model: sonnet
+effort: high
 memory: project
 maxTurns: 30
 autoCompactWindow: 320000

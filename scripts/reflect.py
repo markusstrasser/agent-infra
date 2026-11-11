@@ -202,6 +202,7 @@ def propose_enforcer(cluster: list[dict], cls: dict) -> dict:
 # ── optional $0 LLM enrichment (claude -p subscription; fail-open) ───────────
 # Pinned so a headless call never inherits the operator's interactive model setting.
 ENRICH_MODEL = "claude-sonnet-5-5"
+ENRICH_EFFORT = "medium"  # same reason: Claude Code saves /effort as the default for new sessions
 def llm_enrich(proposal: dict) -> dict:
     """Refine an enforcer proposal via the $0 Claude subscription route. Bypasses
     the api_only shared dispatcher deliberately (no $0 profile exists). Fail-open."""
@@ -217,7 +218,7 @@ def llm_enrich(proposal: dict) -> dict:
     env.pop("CLAUDE_API_KEY", None)
     try:
         r = subprocess.run(
-            ["claude", "-p", "--model", ENRICH_MODEL, "--permission-mode", "dontAsk", "--tools", "",
+            ["claude", "-p", "--model", ENRICH_MODEL, "--effort", ENRICH_EFFORT, "--permission-mode", "dontAsk", "--tools", "",
              "--output-format", "text", prompt],
             capture_output=True, text=True, timeout=90, env=env,
         )

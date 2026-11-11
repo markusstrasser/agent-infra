@@ -24,6 +24,8 @@ import time
 from pathlib import Path
 
 DEFAULT_MODEL = "gpt-6-astra"
+# Named on every launch: without it codex runs at the effort saved in ~/.codex/config.toml.
+DEFAULT_EFFORT = "high"
 MAX_PARALLEL_MCP = 4
 
 
@@ -31,12 +33,13 @@ def dispatch(
     prompts: list[dict],
     output_dir: Path,
     model: str = DEFAULT_MODEL,
+    effort: str = DEFAULT_EFFORT,
     project: str | None = None,
     max_parallel: int = MAX_PARALLEL_MCP,
 ) -> list[dict]:
     """Launch parallel codex exec processes.
 
-    Each prompt dict: {"name": str, "prompt": str, "model"?: str}
+    Each prompt dict: {"name": str, "prompt": str, "model"?: str, "effort"?: str}
     Returns: [{"name", "pid", "output_file", "started"}]
     """
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -66,6 +69,8 @@ def dispatch(
             "workspace-write",
             "-m",
             m,
+            "-c",
+            f'model_reasoning_effort="{item.get("effort", effort)}"',
             "-o",
             str(output_file),
             prompt,
@@ -153,11 +158,12 @@ def main() -> int:
 
     # dispatch
     d = sub.add_parser("dispatch", help="Launch parallel codex exec tasks")
-    d.add_argument("prompts_file", nargs="?", type=Path, help="JSON file: [{name, prompt, model?}]")
+    d.add_argument("prompts_file", nargs="?", type=Path, help="JSON file: [{name, prompt, model?, effort?}]")
     d.add_argument("--prompt", help="Single prompt (use with --name)")
     d.add_argument("--name", default="task", help="Name for single prompt")
     d.add_argument("--output-dir", type=Path, required=True)
     d.add_argument("-m", "--model", default=DEFAULT_MODEL)
+    d.add_argument("-e", "--effort", default=DEFAULT_EFFORT, help="Codex reasoning effort")
     d.add_argument("--project", help="Working directory for codex")
     d.add_argument("--max-parallel", type=int, default=MAX_PARALLEL_MCP)
     d.add_argument("--wait", action="store_true", help="Wait for all to finish, then print summary")
@@ -194,6 +200,7 @@ def main() -> int:
             prompts,
             args.output_dir,
             model=args.model,
+            effort=args.effort,
             project=args.project,
             max_parallel=args.max_parallel,
         )

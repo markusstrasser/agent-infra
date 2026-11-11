@@ -307,6 +307,23 @@ def check_codex_tier() -> list[Check]:
     return [c.ok(audit.stdout.strip())]
 
 
+def check_headless_pins() -> list[Check]:
+    """Every headless `claude -p` / `codex exec` the harness starts, and every agent definition, names its model and
+    effort (a resume: its effort).
+    Left out, they come from what an interactive session last saved: on 2026-11-11 a bare headless Fable call ran at
+    the xhigh a `/effort` had saved, and on 2026-11-04 a saved Ultrafast tier billed headless Codex runs at 6x."""
+    c = Check("headless-pins", "global")
+    try:
+        import headless_pin_audit
+        files, problems = headless_pin_audit.audit(headless_pin_audit.DEFAULT_ROOTS, headless_pin_audit.AGENT_DIRS)
+    except Exception as error:  # a broken audit must not read as a clean one
+        return [c.warn(f"headless_pin_audit did not run: {error}")]
+    if problems:
+        home = str(Path.home())
+        return [c.fail(f"{len(problems)} launch(es) inherit a saved default: " + "; ".join(p.replace(home, "~") for p in problems[:8]))]
+    return [c.ok(f"{files} files, every headless launch and agent definition names its model and effort")]
+
+
 def check_memory_health() -> list[Check]:
     """Check MEMORY.md sizes across projects."""
     checks = []
@@ -1437,6 +1454,7 @@ def run_all_checks(project_filter: str | None = None) -> list[Check]:
         all_checks.extend(check_settings_json(GLOBAL_SETTINGS, "global"))
         all_checks.extend(check_memory_health())
         all_checks.extend(check_codex_tier())
+        all_checks.extend(check_headless_pins())
         all_checks.extend(check_stale_agents())
         all_checks.extend(check_telemetry_freshness())
         all_checks.extend(check_agentlogs_ingest_lag())

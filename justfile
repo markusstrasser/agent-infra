@@ -819,6 +819,20 @@ agentlogs-archive-compress dest="/Volumes/2TBPNY/agentlogs-archive":
     PYTHONUNBUFFERED=1 uv run python3 scripts/compress_archive.py --root "{{dest}}" --apply
 
 
+# Effort of a session's last turn, for a headless resume. `claude -p -r` keeps the session's model but takes its
+# effort from the saved /effort default: a Haiku session run at low resumed at medium, a Fable one at xhigh
+# (measured 2026-11-11 from the transcripts' `effort` field). SESSION_EFFORT overrides.
+[private]
+_session-effort id:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -n "${SESSION_EFFORT:-}" ]; then echo "$SESSION_EFFORT"; exit 0; fi
+    transcript=$(ls "$HOME"/.claude/projects/*/"{{id}}".jsonl 2>/dev/null | head -1)
+    [ -n "$transcript" ] || { echo "_session-effort: no transcript for session {{id}}; set SESSION_EFFORT" >&2; exit 1; }
+    effort=$(tail -n 3000 "$transcript" | jq -r 'select(.type == "assistant" and .effort != null) | .effort' | tail -1)
+    [ -n "$effort" ] || { echo "_session-effort: session {{id}} records no effort; set SESSION_EFFORT" >&2; exit 1; }
+    echo "$effort"
+
 # Send a message into an existing Claude Code session as a headless resume turn.
 # Runs from the invoking repo (resume-by-id is cwd-scoped) with ANTHROPIC_API_KEY
 # unset (subscription OAuth; a set key hijacks auth → "Credit balance is too low").
@@ -827,7 +841,8 @@ session-send id +prompt:
     #!/usr/bin/env bash
     set -euo pipefail
     cd "{{invocation_directory()}}"
-    env -u ANTHROPIC_API_KEY claude -p -r "{{id}}" --setting-sources user "{{prompt}}"
+    EFFORT=$(just -f "{{justfile()}}" _session-effort "{{id}}")
+    env -u ANTHROPIC_API_KEY claude -p -r "{{id}}" --effort "$EFFORT" --setting-sources user "{{prompt}}"
 
 # Compact a Claude Code session from the outside — "send /compact to himself".
 # id defaults to the invoking repo's .claude/current-session-id, so an agent can
@@ -845,7 +860,8 @@ session-compact id="":
     cd "{{invocation_directory()}}"
     ID="{{id}}"
     [ -z "$ID" ] && ID=$(cat .claude/current-session-id)
-    env -u ANTHROPIC_API_KEY claude -p -r "$ID" --setting-sources user "/compact"
+    EFFORT=$(just -f "{{justfile()}}" _session-effort "$ID")
+    env -u ANTHROPIC_API_KEY claude -p -r "$ID" --effort "$EFFORT" --setting-sources user "/compact"
     echo "compacted: $ID (takes effect on next resume)"
 
 # Arm + launch an overnight /goal session — THE per-session switch (like --effort):
@@ -905,13 +921,15 @@ goal-loop id *args:
     # native auto-compact silently stops firing.
     WINDOW=$(awk 'NR==1 {print $3}' .claude/goal-run 2>/dev/null || true)
     case "$WINDOW" in ''|*[!0-9]*) WINDOW="" ;; esac
+    # The session's own effort, read once: every episode runs at it, whatever /effort saves meanwhile.
+    EFFORT=$(just -f "{{justfile()}}" _session-effort "{{id}}")
     for i in $(seq 1 48); do
       if [ -f .claude/goal-done ]; then echo "goal-done marker found after $((i-1)) episode(s)"; exit 0; fi
       echo "── episode $i ──"
       # Retry watchdog: wait out a 5 h usage reset or 529s in place; caps because CC defaults are unlimited.
       env -u ANTHROPIC_API_KEY ${WINDOW:+CLAUDE_CODE_AUTO_COMPACT_WINDOW=$WINDOW} CLAUDE_CODE_RETRY_WATCHDOG=1 \
         CLAUDE_CODE_RETRY_WATCHDOG_MAX_USAGE_LIMIT_WAIT_MS=21600000 CLAUDE_CODE_RETRY_WATCHDOG_MAX_WAIT_MS=7200000 \
-        CLAUDE_CODE_RETRY_WATCHDOG_USAGE_LIMIT_RECHECK_MS=900000 claude -p -r "{{id}}" --setting-sources user --permission-prompts none {{args}} \
+        CLAUDE_CODE_RETRY_WATCHDOG_USAGE_LIMIT_RECHECK_MS=900000 claude -p -r "{{id}}" --effort "$EFFORT" --setting-sources user --permission-prompts none {{args}} \
         "Continue the goal (episode $i). If history was compacted, re-orient from .claude/checkpoint.md before acting. End this episode by either (a) wrap-up ritual + 'just -f ~/Projects/agent-infra/justfile session-compact' as your last tool call, or (b) if the goal is fully done and verified, creating .claude/goal-done."
     done
     echo "episode cap (48) reached without goal-done"; exit 1

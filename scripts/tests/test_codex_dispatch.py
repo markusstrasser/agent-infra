@@ -33,6 +33,7 @@ def test_dispatch_preserves_project_model_and_output(monkeypatch, tmp_path: Path
     command = commands[0]
     assert command[command.index("-C") + 1] == str(tmp_path)
     assert command[command.index("-m") + 1] == "gpt-6-astra"
+    assert f'model_reasoning_effort="{codex_dispatch.DEFAULT_EFFORT}"' in command
     assert command[command.index("-o") + 1] == result[0]["output_file"]
     assert "Review this" in command
     check_codex_arguments(command)
@@ -53,7 +54,7 @@ def test_mutator_preserves_worktree_and_optional_model(monkeypatch, tmp_path: Pa
     assert options["cwd"] == tmp_path
     assert options["timeout"] == 31
     assert (description, cost) == ("Changed bounded file", 0.0)
-    assert ("-m" in command) == bool(model)
-    if model:
-        assert command[command.index("-m") + 1] == model
+    # Model and effort are always named: left out, codex reads them from config.toml.
+    assert command[command.index("-m") + 1] == (model or autoresearch.CODEX_MUTATOR_MODEL)
+    assert 'model_reasoning_effort="medium"' in command
     check_codex_arguments(command)

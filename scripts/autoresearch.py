@@ -66,6 +66,8 @@ def load_config(path: str) -> dict:
     cfg.setdefault("stress_eval_command", None)
     cfg.setdefault("stress_every_k_keeps", 5)
     cfg.setdefault("model", "sonnet")
+    # The mutator's effort is the experiment's, never the one an interactive session saved.
+    cfg.setdefault("effort", "medium")
     cfg.setdefault("max_budget_usd", 2.0)
     cfg.setdefault("max_turns", 10)
     cfg.setdefault("seed_implementations", [])
@@ -592,6 +594,7 @@ def _run_mutator_claude(config: dict, worktree: Path, prompt: str) -> tuple[str,
         "claude", "-p", prompt,
         "--dangerously-skip-permissions",
         "--model", config.get("model", "sonnet"),
+        "--effort", config.get("effort", "medium"),
         "--max-turns", str(config.get("max_turns", 10)),
         "--output-format", "json",
     ]
@@ -667,20 +670,27 @@ def _run_mutator_claude(config: dict, worktree: Path, prompt: str) -> tuple[str,
         return "TIMEOUT: mutator took >5min", 0.0
 
 
+# The Codex mutator's model when the experiment names none. Always sent, so ~/.codex/config.toml never picks it.
+CODEX_MUTATOR_MODEL = "gpt-6-astra"
+
+
 def _run_mutator_codex(config: dict, worktree: Path, prompt: str) -> tuple[str, float]:
     """Run codex exec to edit files. Returns (description, cost_usd=0.0).
 
     Codex CLI uses subscription pricing (free). Output is plain text on stdout.
     Edits are applied directly to the worktree by Codex's agentic loop.
     """
+    # "codex" names the engine and "sonnet" is the Claude mutator's default: neither is a Codex model.
+    model = config.get("model")
+    if not model or model in ("codex", "codex-cli", "sonnet"):
+        model = CODEX_MUTATOR_MODEL
     cmd = [
         "codex", "exec",
         "-s", "workspace-write",
+        "-m", model,
+        "-c", f'model_reasoning_effort="{config.get("effort", "medium")}"',
         prompt,
     ]
-    model = config.get("model")
-    if model and model not in ("codex", "codex-cli"):
-        cmd.extend(["-m", model])
 
     # Clean env to avoid nested session detection
     env = {k: v for k, v in os.environ.items()
