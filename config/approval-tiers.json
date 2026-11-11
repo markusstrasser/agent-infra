@@ -45,9 +45,8 @@
     {
       "id": "spend_threshold",
       "action": "predicate",
-      "description": "API spend \u2014 warn $500 / block $1000 (pretool-cost-guard)",
+      "description": "Modal spend \u2014 per-request cost and run guards; metered llmx spend is capped in llmx spend_guard",
       "hooks": [
-        "pretool-cost-guard.sh",
         "pretool-modal-cost-guard.sh",
         "pretool-modal-run-guard.sh",
         "pretool-modal-script-audit.sh"

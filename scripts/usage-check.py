@@ -29,8 +29,8 @@ def metered_today(args) -> None:
     and are excluded (the default report over-counts them by pricing tokens regardless
     of transport; for cap-enforcement only the billed rows matter). This is the
     observability half of the $70-silent-spend backstop (improvement-log 2026-06-25):
-    a backgrounded worker's metered escalation is invisible to the foreground-Bash
-    cost-guard but lands in this ledger like every other llmx call.
+    a backgrounded worker's metered escalation is invisible to any Bash hook
+    but lands in this ledger like every other llmx call.
     """
     today = cap_day()  # the cap's day is local, as llmx counts it
     by_spender: dict[tuple, dict] = defaultdict(
@@ -119,8 +119,8 @@ def main():
         action="store_true",
         help="Only today's genuinely-billed (transport==api) spend, grouped by (caller, cwd). "
         "This is the surface-agnostic funnel: every llmx call — foreground Bash, backgrounded "
-        "worker, or Python subprocess — appends here, so background/pipeline spend the "
-        "foreground-Bash cost-guard cannot see surfaces here. Exits 1 if --alarm exceeded.",
+        "worker, or Python subprocess — appends here, so background/pipeline spend no "
+        "Bash hook can see surfaces here. Exits 1 if --alarm exceeded.",
     )
     parser.add_argument(
         "--alarm",

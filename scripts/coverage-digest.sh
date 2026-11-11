@@ -24,7 +24,6 @@ HOOK_DESCRIPTIONS = {
     'tool-tracker.sh': 'blocks duplicate file reads (>3x same file in recency window)',
     'pretool-search-burst.sh': 'blocks >5 search/web calls in 60s window',
     'pretool-llmx-guard.sh': 'blocks known-broken llmx patterns (-f with gemini, wrong flags)',
-    'pretool-cost-guard.sh': 'warns when session cost exceeds threshold',
     'pretool-subagent-gate.sh': 'validates subagent dispatch (type, isolation, scope)',
     'pretool-commit-check.sh': 'validates commit message format and trailers',
     'pretool-source-remind.sh': 'reminds to tag claim sources on research file writes',

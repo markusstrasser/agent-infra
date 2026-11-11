@@ -13,8 +13,8 @@ def test_manifest_loads():
 
 def test_manifest_hooks_nonempty():
     hooks = at.manifest_hooks()
-    assert "pretool-cost-guard.sh" in hooks
-    assert hooks["pretool-cost-guard.sh"] == "predicate"
+    assert "pretool-modal-cost-guard.sh" in hooks
+    assert hooks["pretool-modal-cost-guard.sh"] == "predicate"
 
 
 def test_validate_manifest_ok():

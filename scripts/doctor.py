@@ -790,8 +790,8 @@ def check_agentlogs_session_roles(db_path: Path | None = None) -> list[Check]:
 def check_metered_spend() -> list[Check]:
     """Surface today's genuinely-billed (transport==api) llmx spend across ALL surfaces.
 
-    The foreground-Bash cost-guard hook cannot see metered calls made inside backgrounded
-    workers / Python subprocesses (the $70-silent-spend gap, improvement-log 2026-06-25).
+    A Bash hook cannot see metered calls made inside backgrounded workers / Python
+    subprocesses (the $70-silent-spend gap, improvement-log 2026-06-25).
     Every llmx call lands in the funnel ledger regardless of surface, so a daily rollup over
     `transport==api` rows makes background spend visible. Fail at the constitutional daily
     cap (invariants.md; the figure comes from llmx spend_guard via usage-check), warn at
