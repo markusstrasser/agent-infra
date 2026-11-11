@@ -40,7 +40,7 @@ RECORDS_DIR = REPO_ROOT / "mechanism-records"
 DEFAULT_DB = CLAUDE_DIR / "agentlogs.db"
 
 # Canonical schema. The SINGLE definition of a mechanism record (epistemic #9);
-# the rule doc .claude/rules/predict-then-falsify-gate.md documents it in prose,
+# the rule doc predict-then-falsify-gate.md (retired 2026-11-11, in git history) documented it in prose,
 # this dataclass is the enforceable form.
 ALLOWED_DIRECTIONS = ("decrease", "increase")
 ALLOWED_STATUS = ("recorded", "fired", "not_fired", "confounded", "rolled_back")

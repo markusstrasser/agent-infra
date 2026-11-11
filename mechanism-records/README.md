@@ -5,7 +5,7 @@ whose justification is a behavioral claim. The gate (`scripts/mechanism_record.p
 accepts a change only if its pre-registered mechanism *fired* against agentlogs.db,
 with a negative control that stayed flat.
 
-Schema + verdicts + when-required: `.claude/rules/predict-then-falsify-gate.md`.
+Schema and verdicts: `scripts/mechanism_record.py`. The rule that required a record (`predict-then-falsify-gate.md`) was retired 2026-11-11 with 0 real records; read it with `git show 23330c0c:.claude/rules/predict-then-falsify-gate.md`.
 
 ```bash
 uv run python3 scripts/mechanism_record.py list           # records + last verdict
