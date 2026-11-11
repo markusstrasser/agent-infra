@@ -117,7 +117,7 @@
       "build_kind": "rule",
       "proposal_outline": "Advisory plan-review / review_gate checklist: when a plan names authority deletion, dual-write cutover, or multi-phase kernel refactor, require a front-loaded ## Kill-switch vertical slice with pre-registered pass/fail + race alternative. Fail-open lint on .claude/plans. agent-infra + genomics first. Not a hard block on all large plans.",
       "done": true,
-      "_done_note": "Shipped 2026-08-11: .claude/rules/killswitch-plan-gate.md + scripts/lint_plan_killswitch.py + tests. agent-infra-local only."
+      "_done_note": "Shipped 2026-08-11: .claude/rules/killswitch-plan-gate.md + scripts/lint_plan_killswitch.py + tests. agent-infra-local only. Retired 2026-11-11 (rule a3cfc0a5, lint and tests after): see improvement-log."
     },
     {
       "id": "cohort-freshness-parity-matrix",
