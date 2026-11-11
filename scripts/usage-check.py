@@ -18,7 +18,7 @@ import sys
 from collections import defaultdict
 
 
-from llmx.spend_guard import is_metered_transport
+from llmx.spend_guard import DAILY_CAP_USD, is_metered_transport
 from llmx.usage_report import cost_for_usage, output_tokens
 
 
@@ -70,6 +70,7 @@ def metered_today(args) -> None:
                     "date": today,
                     "metered_total_usd": round(total["cost"], 2),
                     "metered_calls": total["calls"],
+                    "daily_cap_usd": DAILY_CAP_USD,
                     "cost_complete": unknown_cost_calls == 0,
                     "unknown_cost_calls": unknown_cost_calls,
                     "alarm_threshold_usd": args.alarm,

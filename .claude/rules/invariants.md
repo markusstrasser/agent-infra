@@ -28,7 +28,7 @@ These are not internal anecdotes — they're public, citable failure modes from 
 
 - Cross-project execute steps auto-require approval when not already explicitly approved by the user for the current task
 - Any step with `requires_approval: true` must be approved before execution
-- Daily cost cap: $25. Do not circumvent.
+- Daily cost cap: $10 of metered API spend (subscriptions do not count). llmx refuses paid calls at the cap and notifies the operator once that day. Do not circumvent; `LLMX_SPEND_OVERRIDE=1` is the operator's to grant.
 
 ## Self-Improvement Governance
 

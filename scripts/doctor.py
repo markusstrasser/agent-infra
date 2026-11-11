@@ -793,9 +793,9 @@ def check_metered_spend() -> list[Check]:
     The foreground-Bash cost-guard hook cannot see metered calls made inside backgrounded
     workers / Python subprocesses (the $70-silent-spend gap, improvement-log 2026-06-25).
     Every llmx call lands in the funnel ledger regardless of surface, so a daily rollup over
-    `transport==api` rows makes background spend visible. Warn at $10, fail at the
-    constitutional $25 daily cap (invariants.md). Observability/alarm only — hard block
-    enforcement is the human-gated decisions-pending fork.
+    `transport==api` rows makes background spend visible. Fail at the constitutional daily
+    cap (invariants.md; the figure comes from llmx spend_guard via usage-check), warn at
+    half of it. The hard block itself is llmx spend_guard.
     """
     c = Check("metered-spend:today", "global")
     out = run(
@@ -820,12 +820,13 @@ def check_metered_spend() -> list[Check]:
     calls = data.get("metered_calls", 0)
     top = data.get("by_spender", [])
     who = f" top={top[0]['caller']}@{top[0]['repo']}" if top else ""
-    if spend >= 25:
-        return [c.fail(f"${spend:.2f} metered today ({calls} calls, cap $25){who}")]
+    cap = float(data["daily_cap_usd"])
+    if spend >= cap:
+        return [c.fail(f"${spend:.2f} metered today ({calls} calls, cap ${cap:.0f}){who}")]
     if data.get("cost_complete") is False:
         return [c.warn(f"known subtotal ${spend:.2f}; {data.get('unknown_cost_calls', 0)} metered calls have unknown cost{who}")]
-    if spend >= 10:
-        return [c.warn(f"${spend:.2f} metered today ({calls} calls){who}")]
+    if spend >= cap / 2:
+        return [c.warn(f"${spend:.2f} metered today ({calls} calls, cap ${cap:.0f}){who}")]
     return [c.ok(f"${spend:.2f} metered today ({calls} calls)")]
 def check_secret_env_scope() -> list[Check]:
     """Paid LLM keys only as <NAME>_METERED; risky and unused keys out of the shell.
