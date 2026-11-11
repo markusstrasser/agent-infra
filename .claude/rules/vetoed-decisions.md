@@ -19,7 +19,7 @@ the default is the veto stands.
 - **Great Expectations** — 2026-03-19; config overhead exceeds benefit at our dataset sizes.
 - **PageRank symbol graph for code nav** — 2026-03-19; repos are 20-50 files, Read+Grep is faster.
 - **Whole-repo packing (repomix) as default context** — 2026-03-19; for chat UIs, not tool-using agents.
-- **Retrying the same Gemini model after 503** — switch to GPT or Flash for the rest of the session; 4 wasted-retry incidents.
+- ~~Retrying the same Gemini model after 503~~ — SUPERSEDED 2026-11-11: llmx retries 429/503 itself with backoff (`llmx/api.py`), so one 503 no longer reaches the agent. Switch models only when the failure persists across calls (exit 3, `~/.claude/rules/llmx-routing.md`). Was: switch to GPT or Flash for the rest of the session; 4 wasted hand-retry incidents.
 - ~~codex-cli for trivial queries~~ — SUPERSEDED 2026-04-21 (codex#17588 disable flags landed). Prefer substantial tasks until a `cli-lite` profile is measured <5K overhead. → `dispatch-research` skill.
 - **Finding-triage SQLite DB** — retired 2026-03-21; inline improvement-log replaced it. Grader-enforced. NOTE: `propose-work.py` is NOT part of this veto — it's a live cross-project signal aggregator (consumer: research-ops `gather-cycle-state.sh`). → improvement-log entries.
 - **Knowledge-substrate MCP rebuild** — retired 2026-03-24 (4 reads / 60 writes in 7d); correction tracing is now `just propagate` / `just scan-corrections` (2026-05-29 update, agent-infra@27f4148). → `decisions/2026-03-17-shared-knowledge-substrate.md`
