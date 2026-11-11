@@ -22,7 +22,6 @@ Public evidence for hard limit #5 (Replit database deletion, Claude Code issues 
 ## Pipeline Approval Gates
 
 - Cross-project execute steps auto-require approval when not already explicitly approved by the user for the current task
-- Any step with `requires_approval: true` must be approved before execution
 - Daily cost cap: $10 of metered API spend (subscriptions do not count). llmx refuses paid calls at the cap and notifies the operator once that day. Do not circumvent; `LLMX_SPEND_OVERRIDE=1` is the operator's to grant.
 
 ## Self-Improvement Governance

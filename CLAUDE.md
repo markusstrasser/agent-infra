@@ -61,7 +61,7 @@ A model judge does not turn taste into verifiable work. Decompose mixed tasks; d
 
 **5. Divergence budget by uncertainty × irreversibility.** Routine fixes converge fast. High uncertainty with reversible work gets brief exploration; low uncertainty with irreversible work gets careful validation. High uncertainty plus high irreversibility requires extended divergence and cross-model review.
 
-**6. Phase-state artifacts for design decisions.** For genuine architecture/strategy choices, record 5–10 mechanism families, selection rationale and rejected alternatives before implementation. Sections in the working plan or decision record suffice; no extra artifact is required for routine fixes.
+**6. Record design decisions.** For genuine architecture/strategy choices, record the alternatives you considered, why you chose one and why you rejected the others, before implementation. Sections in the working plan or decision record suffice; routine fixes need none.
 
 **7. Research is first-class.** Explore, build, use, analyze and research again when evidence calls for it. Research is opportunistic, not a mandatory step in every task.
 
