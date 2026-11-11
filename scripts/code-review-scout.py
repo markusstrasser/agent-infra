@@ -15,7 +15,7 @@ Usage:
   code-review-scout.py <project_path> --focus optimization --dry-run
   code-review-scout.py <project_path> --list-modules
   code-review-scout.py <project_path> --module tools/downloaders
-  code-review-scout.py <project_path> --file scripts/large_runner.py
+  code-review-scout.py <project_path> --file scripts/a.py --file scripts/b.py
   code-review-scout.py <project_path> --all-providers
 
 Focus areas (rotate these):
@@ -25,6 +25,10 @@ Focus areas (rotate these):
   patterns       — inconsistent conventions, anti-patterns
   silent-failure — swallowed errors, unchecked returncodes, unmarked fallbacks
   security       — injection, path traversal, unsafe deserialization
+
+Coverage: every run that dispatches prints `Coverage: reviewed N of M selected files`
+to stdout. Exit 2 = a selected path cannot be reviewed (missing, not source, oversized;
+nothing dispatched). Exit 3 = a batch failed or timed out; its files are listed.
 """
 
 import argparse
@@ -34,9 +38,9 @@ import os
 import subprocess
 import sys
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
 from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # CLI context budget: tested up to 100KB via gemini-cli/codex-cli (stdin piping).
 # Model context is 1M tokens but CLI calls are free — keep batches moderate for
@@ -213,6 +217,69 @@ def gather_files(root: Path, every: list[Path] | None = None) -> list[Path]:
     return [path for path in every if is_source(path) and checked_size(path) >= 50]
 
 
+def select_explicit_files(root: Path, names: list[str]) -> tuple[list[Path], list[str]]:
+    """Resolve every `--file` name; return the deduplicated files and one problem per bad path.
+
+    An explicit name skips the whole-repo walk heuristics (SKIP_DIRS, the 50-byte floor) but
+    must exist inside the root, be source by the suffix/shebang rule and fit one batch.
+    """
+    selected: list[Path] = []
+    problems: list[str] = []
+    for name in names:
+        candidate = (root / name).resolve()
+        try:
+            candidate.relative_to(root)
+        except ValueError:
+            problems.append(f"{name}: outside the project root {root}")
+            continue
+        if not candidate.exists():
+            problems.append(f"{name}: does not exist")
+            continue
+        if not candidate.is_file():
+            problems.append(f"{name}: not a regular file")
+            continue
+        try:
+            source = is_source(candidate)
+        except OSError as exc:
+            problems.append(f"{name}: cannot read: {exc}")
+            continue
+        if not source:
+            problems.append(f"{name}: not source by suffix or shebang")
+            continue
+        size = checked_size(candidate)
+        if size > MAX_BATCH_BYTES:
+            problems.append(f"{name}: {size} bytes exceeds the per-file limit={MAX_BATCH_BYTES}")
+            continue
+        if candidate not in selected:
+            selected.append(candidate)
+    return selected, problems
+
+
+def review_all(
+    batches: list[list[Path]],
+    providers: list[dict],
+    review_batch,
+    workers: int,
+) -> tuple[list[dict], list[tuple[str, list[Path], str]]]:
+    """Run every batch through every provider; collect findings and each failed dispatch."""
+    findings: list[dict] = []
+    failures: list[tuple[str, list[Path], str]] = []
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {}
+        for index, batch in enumerate(batches):
+            for provider in providers:
+                future = pool.submit(review_batch, index, batch, provider)
+                futures[future] = (f"{provider['name']}:batch-{index + 1}", batch)
+        for future in as_completed(futures):
+            label, batch = futures[future]
+            try:
+                findings.extend(future.result())
+            except (DispatchError, CoverageError) as exc:
+                print(f"  {label} FAILED: {exc}", file=sys.stderr)
+                failures.append((label, batch, str(exc)))
+    return findings, failures
+
+
 def unreviewed_by_kind(
     every: list[Path], reviewed: list[Path], root: Path, modules: list[str]
 ) -> str:
@@ -347,6 +414,7 @@ Review the following code files. Focus: {focus_prompt}
         try:
             result = subprocess.run(
                 cmd,
+                check=False,  # the returncode is classified below
                 capture_output=True,
                 text=True,
                 timeout=300,  # 5 min max
@@ -478,11 +546,11 @@ def main():
     )
     selection.add_argument(
         "--file",
-        type=str,
+        action="append",
         default=None,
         help=(
-            "Review one exact repo-relative file; permits a file up to the full "
-            "batch budget instead of the multi-file safety limit"
+            "Review this exact repo-relative file; repeat once per file. Each named "
+            "file may be up to the full batch budget instead of the module limit"
         ),
     )
     parser.add_argument(
@@ -527,22 +595,19 @@ def main():
             )
         return
 
-    # Filter to one exact file or a specific module if requested.
+    # Filter to exact files or a specific module if requested.
     matches: list[str] = []
     if args.file:
-        candidate = (root / args.file).resolve()
-        try:
-            candidate.relative_to(root)
-        except ValueError:
-            print("--file must stay inside the project root.", file=sys.stderr)
-            sys.exit(1)
-        if candidate not in files:
+        target_files, problems = select_explicit_files(root, args.file)
+        if problems:
             print(
-                f"File '{args.file}' is not a reviewable source file.",
+                f"Coverage error: {len(problems)} selected path(s) cannot be reviewed; "
+                "no review was dispatched.",
                 file=sys.stderr,
             )
-            sys.exit(1)
-        target_files = [candidate]
+            for problem in problems:
+                print(f"  {problem}", file=sys.stderr)
+            sys.exit(2)
     elif args.module:
         if args.module not in modules:
             # Try prefix match
@@ -614,8 +679,6 @@ def main():
     prev_hashes = load_previous_findings(project_name)
 
     # Dispatch reviews
-    all_findings = []
-
     def review_batch(batch_idx: int, batch: list[Path], provider: dict):
         import time as _time
 
@@ -629,21 +692,15 @@ def main():
             file=sys.stderr,
         )
         raw = dispatch_review(code_ctx, args.focus, provider, label)
-        if raw:
-            findings = parse_findings(raw, provider["name"], batch, root)
-            print(f"  {label}: {len(findings)} findings", file=sys.stderr)
-            return findings
-        return []
+        findings = parse_findings(raw, provider["name"], batch, root)
+        print(f"  {label}: {len(findings)} findings", file=sys.stderr)
+        return findings
 
-    with ThreadPoolExecutor(max_workers=args.workers) as pool:
-        futures = []
-        for i, batch in enumerate(batches):
-            for provider in providers:
-                futures.append(pool.submit(review_batch, i, batch, provider))
-
-        for future in as_completed(futures):
-            findings = future.result()
-            all_findings.extend(findings)
+    all_findings, failures = review_all(batches, providers, review_batch, args.workers)
+    # A file counts as reviewed only when every requested provider returned a verdict for it.
+    failed_files = {path for _label, batch, _error in failures for path in batch}
+    unreviewed = [path for path in target_files if path in failed_files]
+    reviewed_count = len(target_files) - len(unreviewed)
 
     # Deduplicate against previous findings
     new_findings = []
@@ -676,7 +733,7 @@ def main():
 
         print(f"\n## Code Review: {project_name} ({args.focus})")
         print(f"**Date:** {date.today()}")
-        print(f"**Files reviewed:** {len(target_files)}")
+        print(f"**Files reviewed:** {reviewed_count} of {len(target_files)}")
         print(
             f"**New findings:** {len(new_findings)} "
             f"(HIGH: {len(by_severity.get('HIGH', []))}, "
@@ -690,6 +747,12 @@ def main():
                     f"- **{sev}** `{f['file']}:{f['line']}` [{f['category']}] "
                     f"{f['description']} ({f['source']})"
                 )
+    elif unreviewed:
+        print(
+            f"\n# No new findings in the reviewed files for {project_name}/{args.focus}; "
+            "coverage is incomplete",
+            file=sys.stderr,
+        )
     else:
         print(f"\n# No new findings for {project_name}/{args.focus}", file=sys.stderr)
 
@@ -700,6 +763,13 @@ def main():
             f"\n**Rate limited:** {skipped} — re-run later or use the other provider.",
             file=sys.stderr,
         )
+
+    print(f"Coverage: reviewed {reviewed_count} of {len(target_files)} selected files")
+    if unreviewed:
+        print("Unreviewed (no reviewer verdict):")
+        for path in unreviewed:
+            print(f"  {path.relative_to(root)}")
+        sys.exit(3)
 
 
 if __name__ == "__main__":

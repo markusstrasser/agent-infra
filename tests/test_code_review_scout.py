@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import importlib.util
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 import pytest
-
 
 SCRIPT = Path(__file__).parents[1] / "scripts" / "code-review-scout.py"
 SPEC = importlib.util.spec_from_file_location("code_review_scout", SCRIPT)
@@ -145,3 +144,121 @@ def test_parse_accepts_a_structured_finding() -> None:
             "source": "composer",
         }
     ]
+
+
+def _repo(tmp_path: Path) -> Path:
+    root = tmp_path / "repo"
+    (root / "pkg").mkdir(parents=True)
+    (root / "pkg" / "alpha.py").write_text("alpha = True\n" * 10)
+    (root / "pkg" / "beta.py").write_text("beta = True\n" * 10)
+    (root / "notes.txt").write_text("not source\n" * 10)
+    return root
+
+
+def _run(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *argv: str) -> int:
+    monkeypatch.setattr(scout, "ARTIFACTS_BASE", tmp_path / "artifacts")
+    monkeypatch.setattr(scout.sys, "argv", ["code-review-scout.py", *argv])
+    try:
+        scout.main()
+    except SystemExit as exc:
+        return int(exc.code or 0)
+    return 0
+
+
+def test_repeated_file_flags_select_every_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _repo(tmp_path)
+    code = _run(
+        monkeypatch,
+        tmp_path,
+        str(root),
+        "--file",
+        "pkg/alpha.py",
+        "--file",
+        "pkg/beta.py",
+        "--file",
+        "pkg/alpha.py",
+        "--dry-run",
+    )
+    out = capsys.readouterr()
+    assert code == 0
+    assert "pkg/alpha.py" in out.out and "pkg/beta.py" in out.out
+    assert out.out.count("pkg/alpha.py") == 1
+    assert ": 2 files," in out.err
+
+
+def test_missing_and_non_source_files_refuse_before_dispatch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _repo(tmp_path)
+
+    def no_dispatch(*_args: object, **_kwargs: object) -> str:
+        raise AssertionError("dispatch must not run on an invalid selection")
+
+    monkeypatch.setattr(scout, "dispatch_review", no_dispatch)
+    code = _run(
+        monkeypatch,
+        tmp_path,
+        str(root),
+        "--file",
+        "pkg/alpha.py",
+        "--file",
+        "pkg/gone.py",
+        "--file",
+        "notes.txt",
+    )
+    err = capsys.readouterr().err
+    assert code != 0
+    assert "pkg/gone.py: does not exist" in err
+    assert "notes.txt: not source" in err
+
+
+def test_each_named_file_keeps_the_full_batch_budget(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _repo(tmp_path)
+    big = root / "pkg" / "big.py"
+    big.write_text("x = 1\n" * ((scout.MAX_FILE_BYTES // 6) + 100))
+    assert scout.MAX_FILE_BYTES < big.stat().st_size <= scout.MAX_BATCH_BYTES
+    code = _run(monkeypatch, tmp_path, str(root), "--file", "pkg/big.py", "--dry-run")
+    assert code == 0
+    huge = root / "pkg" / "huge.py"
+    huge.write_text("x = 1\n" * ((scout.MAX_BATCH_BYTES // 6) + 100))
+    code = _run(
+        monkeypatch, tmp_path, str(root), "--file", "pkg/big.py", "--file", "pkg/huge.py"
+    )
+    assert code != 0
+    assert "pkg/huge.py:" in capsys.readouterr().err
+
+
+def test_failed_batch_exits_nonzero_and_names_its_files(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _repo(tmp_path)
+    monkeypatch.setattr(scout, "MAX_BATCH_BYTES", 150)
+
+    def flaky(code_context: str, _focus: str, _provider: dict, label: str) -> str:
+        if "### pkg/beta.py" in code_context:
+            raise scout.DispatchError(f"[{label}] reviewer timed out after 300s")
+        return "NO_ISSUES"
+
+    monkeypatch.setattr(scout, "dispatch_review", flaky)
+    code = _run(
+        monkeypatch, tmp_path, str(root), "--file", "pkg/alpha.py", "--file", "pkg/beta.py"
+    )
+    out = capsys.readouterr()
+    assert code == 3
+    assert "Coverage: reviewed 1 of 2 selected files" in out.out
+    assert "pkg/beta.py" in out.out.split("Unreviewed")[1]
+    assert "# No new findings for" not in out.err
+
+
+def test_complete_module_run_prints_full_coverage(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _repo(tmp_path)
+    monkeypatch.setattr(scout, "dispatch_review", lambda *_args: "NO_ISSUES")
+    code = _run(monkeypatch, tmp_path, str(root), "--module", "pkg")
+    assert code == 0
+    assert "Coverage: reviewed 2 of 2 selected files" in capsys.readouterr().out
