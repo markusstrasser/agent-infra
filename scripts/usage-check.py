@@ -18,7 +18,7 @@ import sys
 from collections import defaultdict
 
 
-from llmx.spend_guard import DAILY_CAP_USD, is_metered_transport
+from llmx.spend_guard import DAILY_CAP_USD, cap_day, is_metered_transport
 from llmx.usage_report import cost_for_usage, output_tokens
 
 
@@ -32,7 +32,7 @@ def metered_today(args) -> None:
     a backgrounded worker's metered escalation is invisible to the foreground-Bash
     cost-guard but lands in this ledger like every other llmx call.
     """
-    today = dt.datetime.now(dt.timezone.utc).date().isoformat()
+    today = cap_day()  # the cap's day is local, as llmx counts it
     by_spender: dict[tuple, dict] = defaultdict(
         lambda: {"calls": 0, "in_tok": 0, "out_tok": 0, "cost": 0.0}
     )
@@ -45,7 +45,7 @@ def metered_today(args) -> None:
             r = json.loads(line)
         except json.JSONDecodeError:
             continue
-        if not (r.get("ts", "") or "").startswith(today):
+        if cap_day(r.get("ts") or "") != today:
             continue
         if not is_metered_transport(r.get("transport")):
             continue
