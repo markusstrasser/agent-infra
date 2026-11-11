@@ -42,8 +42,8 @@ the index entry wasted tokens.
 
 ## 3. Fat vs Thin Index
 
-- **Thin** (pipe-delimited, 2-col, 8-12 word triggers): default for path-scoped
-  indexes with many entries. Example: `research-index.md`.
+- **Thin** (two columns, 8-12 word triggers): default for path-scoped
+  indexes with many entries.
 - **Fat** (3-col markdown table): only for always-loaded routing of <30
   critical-path files.
 - **No index**: directories with <20 descriptively-named files.
@@ -58,13 +58,7 @@ the index entry wasted tokens.
 
 Never auto-load verbose descriptions of things the agent can inspect directly.
 
-## 5. Table Format
-
-- **2-column**: pipe-delimited (37% token savings over markdown tables, measured).
-- **3+ columns**: markdown table (alignment matters for readability).
-- **Index tables**: always pipe-delimited regardless of column count.
-
-## 6. Layering Convention
+## 5. Layering Convention
 
 | Layer | Contains | Dedup owner |
 |-------|----------|-------------|
@@ -73,17 +67,7 @@ Never auto-load verbose descriptions of things the agent can inspect directly.
 | Global `rules/` | Operational gotchas (env, routing, git) | Human |
 | Project `rules/` | Domain-specific indexes, checklists | Agent (governed) |
 
-Verified clean as of 2026-04-05 — no cross-layer duplication.
-
-## 7. Skills-Index Budget (2026-06-12)
-
-Codex context-budgets its skills index to ~8,000 chars (developers.openai.com/codex skills
-docs); treat that as the cross-vendor ceiling for the SUM of all skill `description:` fields.
-Measured 2026-06-12: 5,393 chars across `~/.claude/skills` (67% of budget). No lint until it
-binds (measure-before-enforcing). Re-measure when adding skills:
-`for f in ~/.claude/skills/*/SKILL.md; do grep -m1 'description:' $f; done | wc -c`
-
-## 8. Measured Baselines
+## 6. Measured Baselines
 
 Dated always-loaded size measurements live in `docs/context-budget-baselines.md`; re-measure with the command there and append. Every subagent spawn pays the always-loaded set — budget new content against it.
 

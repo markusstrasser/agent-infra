@@ -34,17 +34,4 @@ while all 302 producer artifacts are present and sha-verifiable. The DB can show
 Check the lowest (cheapest) axis first. It falsifies the re-run hypothesis without
 spending quota on forensics.
 
-## Evidence
-
-- phenome 2026-06-01: `medical_intelligence` bundle reported `blocked`. Spent a
-  long session on Modal run-state forensics. All 302 producer stages were present
-  and sha-verifiable the entire time. Blocker: stale publication seal's
-  `complete: false` flag.
-- genomics zombie runs: DB `status: running` = 4 dead processes from a budget-kill
-  at 02:55 UTC. Rule: call `list_apps` FIRST before reporting any stage as "running."
-
-## Related
-
-P8 face (a) "fail loud on a dead data plane" (the SOURCE is dead, not the rollup);
-`feedback_aggregate_verdict_not_data_presence` (phenome memory);
-`feedback_verify_modal_apps_before_claiming_running` (genomics memory).
+Dated evidence and related rules: `docs/probe-primitive-first-evidence.md`.

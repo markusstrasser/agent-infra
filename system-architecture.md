@@ -72,8 +72,8 @@ event→count breakdown; `just hook-telemetry` shows what's actually firing.
 
 **Layer 3 — Skills (`~/Projects/skills/`).** Each a `SKILL.md` with optional
 `references/`. Symlinked into the global skills dir by `friend-sync.sh` so they load
-in every project. Descriptions appear in the system-prompt skill list (budgeted —
-see `context-budget-principles.md` §7); the body loads on `/invoke`. agent-infra
+in every project. Descriptions appear in the system-prompt skill list, so keep them
+short; the body loads on `/invoke`. agent-infra
 owns skill *quality* (authoring, testing, propagation) even though the directory
 is separate.
 
